@@ -188,6 +188,21 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('id="verbaAiBadge"');
     });
 
+    it('groups quick-capture type radios with a semantic fieldset on every facilitator surface', () => {
+        [
+            FACILITATOR_HTML_PATH,
+            GREEN_FACILITATOR_HTML_PATH,
+            RED_FACILITATOR_HTML_PATH
+        ].forEach((htmlPath) => {
+            const html = readFileSync(htmlPath, 'utf8');
+
+            expect(html).toContain('<fieldset class="form-group">');
+            expect(html).toContain('<legend class="form-label">Type</legend>');
+            expect(html).toContain('name="captureType"');
+            expect(html).not.toContain('<label class="form-label">Type</label>');
+        });
+    });
+
     it('labels the Green facilitator action trigger as New Proposal', () => {
         const html = readFileSync(GREEN_FACILITATOR_HTML_PATH, 'utf8');
 

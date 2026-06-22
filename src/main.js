@@ -443,44 +443,191 @@ const sidebarUnreadBadges = {
 /**
  * Setup sidebar navigation
  */
+function toArray(value) {
+    return Array.from(value || []);
+}
+
+function getSidebarSectionIdFromLink(link) {
+    return link?.dataset?.section || link?.getAttribute?.('data-section') || null;
+}
+
+export function getSidebarSectionElementId(sectionId) {
+    return sectionId ? `${sectionId}Section` : null;
+}
+
+function getSidebarSectionIdFromHash(locationRef = typeof window !== 'undefined' ? window.location : null) {
+    const hash = locationRef?.hash || '';
+    if (!hash.startsWith('#') || hash.length <= 1) {
+        return null;
+    }
+
+    try {
+        return decodeURIComponent(hash.slice(1));
+    } catch {
+        return hash.slice(1);
+    }
+}
+
+export function focusActiveSection(section) {
+    if (!section) {
+        return false;
+    }
+
+    const focusTarget = section.querySelector?.('[data-section-focus], h1, h2, h3') || section;
+    if (!focusTarget || typeof focusTarget.focus !== 'function') {
+        return false;
+    }
+
+    if (typeof focusTarget.hasAttribute !== 'function' || !focusTarget.hasAttribute('tabindex')) {
+        focusTarget.setAttribute?.('tabindex', '-1');
+    }
+
+    focusTarget.focus({ preventScroll: false });
+    return true;
+}
+
+export function applySidebarNavigationState(sectionId, {
+    sidebarLinks = [],
+    sections = [],
+    selectedLink = null,
+    focusSection = false,
+    updateHash = false,
+    historyRef = typeof window !== 'undefined' ? window.history : null,
+    locationRef = typeof window !== 'undefined' ? window.location : null
+} = {}) {
+    const links = toArray(sidebarLinks);
+    const sectionNodes = toArray(sections);
+    const targetSectionElementId = getSidebarSectionElementId(sectionId);
+    const activeSection = sectionNodes.find((section) => section.id === targetSectionElementId);
+
+    if (!sectionId || !activeSection) {
+        return null;
+    }
+
+    const activeLink = selectedLink
+        || links.find((link) => getSidebarSectionIdFromLink(link) === sectionId)
+        || null;
+
+    links.forEach((link) => {
+        const isActive = link === activeLink || getSidebarSectionIdFromLink(link) === sectionId;
+        link.classList?.toggle?.('sidebar-link-active', isActive);
+
+        if (isActive) {
+            link.setAttribute?.('aria-current', 'page');
+        } else {
+            link.removeAttribute?.('aria-current');
+        }
+    });
+
+    sectionNodes.forEach((section) => {
+        const isActive = section === activeSection;
+        if (section.style) {
+            section.style.display = isActive ? 'block' : 'none';
+        }
+
+        if (isActive) {
+            section.removeAttribute?.('aria-hidden');
+        } else {
+            section.setAttribute?.('aria-hidden', 'true');
+        }
+    });
+
+    if (updateHash && historyRef?.pushState && locationRef) {
+        const nextHash = `#${encodeURIComponent(sectionId)}`;
+        if (locationRef.hash !== nextHash) {
+            historyRef.pushState(null, '', nextHash);
+        }
+    }
+
+    if (focusSection) {
+        focusActiveSection(activeSection);
+    }
+
+    return activeSection;
+}
+
 function setupSidebarNavigation() {
     const sidebarLinks = document.querySelectorAll('.sidebar-link[data-section]');
     const sections = document.querySelectorAll('.content-section');
 
     if (!sidebarLinks.length || !sections.length) return;
 
+    const getLinkForSection = (sectionId) => toArray(sidebarLinks)
+        .find((link) => getSidebarSectionIdFromLink(link) === sectionId);
+
+    const closeCompactSidebar = () => {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar && overlay) {
+            sidebar.classList.remove('sidebar-open');
+            overlay.classList.remove('sidebar-overlay-visible');
+        }
+    };
+
+    const activateSection = (sectionId, {
+        link = getLinkForSection(sectionId),
+        focusSection = false,
+        updateHash = false
+    } = {}) => {
+        const activeSection = applySidebarNavigationState(sectionId, {
+            sidebarLinks,
+            sections,
+            selectedLink: link,
+            focusSection,
+            updateHash
+        });
+
+        if (!activeSection) return null;
+
+        if (link) {
+            sidebarUnreadBadges.clear(link);
+        }
+
+        closeCompactSidebar();
+        return activeSection;
+    };
+
     sidebarLinks.forEach(link => {
+        const sectionId = getSidebarSectionIdFromLink(link);
+        const sectionElementId = getSidebarSectionElementId(sectionId);
+        if (sectionElementId) {
+            link.setAttribute('aria-controls', sectionElementId);
+        }
+
         sidebarUnreadBadges.register(link);
 
         link.addEventListener('click', (e) => {
             e.preventDefault();
-            const sectionId = link.dataset.section;
-
-            // Update active link
-            sidebarLinks.forEach(l => l.classList.remove('sidebar-link-active'));
-            link.classList.add('sidebar-link-active');
-
-            // Opening a section clears its "new updates" badge fill.
-            sidebarUnreadBadges.clear(link);
-
-            // Show corresponding section
-            sections.forEach(section => {
-                if (section.id === `${sectionId}Section`) {
-                    section.style.display = 'block';
-                } else {
-                    section.style.display = 'none';
-                }
+            activateSection(getSidebarSectionIdFromLink(link), {
+                link,
+                focusSection: true,
+                updateHash: true
             });
-
-            // Close mobile sidebar if open
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebarOverlay');
-            if (sidebar && overlay) {
-                sidebar.classList.remove('sidebar-open');
-                overlay.classList.remove('sidebar-overlay-visible');
-            }
         });
     });
+
+    const activeLink = document.querySelector('.sidebar-link-active[data-section]');
+    const hashSectionId = getSidebarSectionIdFromHash();
+    const initialSectionId = getLinkForSection(hashSectionId)
+        ? hashSectionId
+        : getSidebarSectionIdFromLink(activeLink)
+        || getSidebarSectionIdFromLink(sidebarLinks[0]);
+    activateSection(initialSectionId, {
+        focusSection: false,
+        updateHash: false
+    });
+
+    const handleHistorySectionChange = () => {
+        const sectionId = getSidebarSectionIdFromHash();
+        if (!sectionId) return;
+        activateSection(sectionId, {
+            focusSection: false,
+            updateHash: false
+        });
+    };
+
+    window.addEventListener('popstate', handleHistorySectionChange);
+    window.addEventListener('hashchange', handleHistorySectionChange);
 }
 
 /**

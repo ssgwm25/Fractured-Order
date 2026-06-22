@@ -300,6 +300,128 @@ describe('sidebar toggle state resolution', () => {
     });
 });
 
+function createFakeClassList(initialClasses = []) {
+    const classes = new Set(initialClasses);
+    return {
+        add(className) {
+            classes.add(className);
+        },
+        remove(className) {
+            classes.delete(className);
+        },
+        toggle(className, force) {
+            if (force) {
+                classes.add(className);
+            } else {
+                classes.delete(className);
+            }
+        },
+        contains(className) {
+            return classes.has(className);
+        }
+    };
+}
+
+function createFakeSidebarLink(sectionId, { active = false } = {}) {
+    const attributes = {};
+    return {
+        dataset: { section: sectionId },
+        attributes,
+        classList: createFakeClassList(active ? ['sidebar-link-active'] : []),
+        setAttribute(name, value) {
+            attributes[name] = value;
+        },
+        removeAttribute(name) {
+            delete attributes[name];
+        }
+    };
+}
+
+function createFakeContentSection(sectionId) {
+    const attributes = {};
+    const headingAttributes = {};
+    const heading = {
+        attributes: headingAttributes,
+        focus: vi.fn(),
+        hasAttribute(name) {
+            return Object.hasOwn(headingAttributes, name);
+        },
+        setAttribute(name, value) {
+            headingAttributes[name] = value;
+        }
+    };
+
+    return {
+        id: `${sectionId}Section`,
+        style: {},
+        attributes,
+        heading,
+        setAttribute(name, value) {
+            attributes[name] = value;
+        },
+        removeAttribute(name) {
+            delete attributes[name];
+        },
+        querySelector() {
+            return heading;
+        }
+    };
+}
+
+describe('sidebar navigation semantics', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        global.document = {
+            readyState: 'loading',
+            addEventListener: vi.fn(),
+            getElementById: vi.fn(() => null),
+            querySelectorAll: vi.fn(() => [])
+        };
+    });
+
+    afterEach(() => {
+        vi.resetModules();
+        delete global.document;
+    });
+
+    it('marks the active link, hides inactive sections, updates the hash, and focuses the active heading', async () => {
+        const { applySidebarNavigationState } = await import('./main.js');
+        const links = [
+            createFakeSidebarLink('actions', { active: true }),
+            createFakeSidebarLink('requests')
+        ];
+        const sections = [
+            createFakeContentSection('actions'),
+            createFakeContentSection('requests')
+        ];
+        const historyRef = { pushState: vi.fn() };
+        const locationRef = { hash: '#actions' };
+
+        const activeSection = applySidebarNavigationState('requests', {
+            sidebarLinks: links,
+            sections,
+            focusSection: true,
+            updateHash: true,
+            historyRef,
+            locationRef
+        });
+
+        expect(activeSection).toBe(sections[1]);
+        expect(links[0].classList.contains('sidebar-link-active')).toBe(false);
+        expect(links[0].attributes['aria-current']).toBeUndefined();
+        expect(links[1].classList.contains('sidebar-link-active')).toBe(true);
+        expect(links[1].attributes['aria-current']).toBe('page');
+        expect(sections[0].style.display).toBe('none');
+        expect(sections[0].attributes['aria-hidden']).toBe('true');
+        expect(sections[1].style.display).toBe('block');
+        expect(sections[1].attributes['aria-hidden']).toBeUndefined();
+        expect(sections[1].heading.attributes.tabindex).toBe('-1');
+        expect(sections[1].heading.focus).toHaveBeenCalledWith({ preventScroll: false });
+        expect(historyRef.pushState).toHaveBeenCalledWith(null, '', '#requests');
+    });
+});
+
 describe('sync status banner state', () => {
     beforeEach(() => {
         vi.resetModules();

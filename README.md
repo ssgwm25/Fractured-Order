@@ -82,6 +82,14 @@ Game Master and White Cell operators can create and delete live sessions from th
 
 The Blue Team action builder includes inline helper text for Objective and Expected Outcomes so facilitators distinguish intended goals from anticipated downstream effects.
 
+### UI accessibility contracts
+
+Role-surface sidebars are hash-addressable section navigators. Activating a sidebar link updates the visible section, sets `aria-current="page"` on the active link, preserves the section hash, and moves focus to the newly active section heading for keyboard and screen-reader orientation.
+
+Landing and operator access validation must render persistent inline errors in addition to toast notifications. Invalid fields set `aria-invalid`, point at their error region with `aria-describedby`, and keep the error visible until the user changes that field.
+
+Repeated team forms use semantic fieldsets for capture-type radio groups and explicit `for`/`id` label bindings for textareas, sliders, and other controls.
+
 ---
 
 ## Running a session

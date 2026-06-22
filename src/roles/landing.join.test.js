@@ -73,10 +73,41 @@ vi.mock('../utils/logger.js', () => ({
     })
 }));
 
+function createClassList() {
+    const classes = new Set();
+    return {
+        add(className) {
+            classes.add(className);
+        },
+        remove(className) {
+            classes.delete(className);
+        },
+        contains(className) {
+            return classes.has(className);
+        }
+    };
+}
+
 function createElement(value = '') {
+    const attributes = {};
     return {
         value,
-        focus: vi.fn()
+        attributes,
+        classList: createClassList(),
+        focus: vi.fn(),
+        setAttribute(name, nextValue) {
+            attributes[name] = nextValue;
+        },
+        removeAttribute(name) {
+            delete attributes[name];
+        }
+    };
+}
+
+function createErrorElement() {
+    return {
+        textContent: '',
+        hidden: true
     };
 }
 
@@ -208,6 +239,106 @@ describe('landing secure join flow', () => {
         });
         expect(controller.redirectToRole).not.toHaveBeenCalled();
         expect(mockHideLoader).not.toHaveBeenCalled();
+    });
+
+    it('persists invalid session-code feedback inline and links it to the field', async () => {
+        const elements = {
+            sessionCode: createElement('x'),
+            displayName: createElement('Morgan'),
+            sessionCodeError: createErrorElement(),
+            displayNameError: createErrorElement(),
+            roleSelectionError: createErrorElement()
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            },
+            querySelector: vi.fn(() => null)
+        };
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'blue';
+        controller.selectedRoleSurface = 'facilitator';
+        controller.selectedRole = 'blue_facilitator';
+
+        await controller.handleJoinSession({
+            preventDefault() {}
+        });
+
+        expect(elements.sessionCode.attributes['aria-invalid']).toBe('true');
+        expect(elements.sessionCode.classList.contains('is-invalid')).toBe(true);
+        expect(elements.sessionCodeError.hidden).toBe(false);
+        expect(elements.sessionCodeError.textContent).toBe('Session code must be at least 3 characters');
+        expect(elements.sessionCode.focus).toHaveBeenCalled();
+        expect(mockDatabase.lookupJoinableSessionByCode).not.toHaveBeenCalled();
+        expect(mockShowToast).toHaveBeenCalledWith({
+            message: 'Session code must be at least 3 characters',
+            type: 'error'
+        });
+    });
+
+    it('persists missing-role feedback on the role group and focuses the first role chip', async () => {
+        const firstRoleButton = createElement();
+        const elements = {
+            sessionCode: createElement('alpha2026'),
+            displayName: createElement('Morgan'),
+            roleSelectionGroup: createElement(),
+            sessionCodeError: createErrorElement(),
+            displayNameError: createErrorElement(),
+            roleSelectionError: createErrorElement()
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            },
+            querySelector(selector) {
+                return selector === '.chip[data-role-surface]' ? firstRoleButton : null;
+            }
+        };
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'blue';
+
+        await controller.handleJoinSession({
+            preventDefault() {}
+        });
+
+        expect(elements.roleSelectionGroup.attributes['aria-invalid']).toBe('true');
+        expect(elements.roleSelectionError.hidden).toBe(false);
+        expect(elements.roleSelectionError.textContent).toBe('Choose Facilitator, Scribe, or Notetaker to join as a participant.');
+        expect(firstRoleButton.focus).toHaveBeenCalled();
+        expect(mockDatabase.lookupJoinableSessionByCode).not.toHaveBeenCalled();
+    });
+
+    it('persists missing operator access-code feedback inline', async () => {
+        const elements = {
+            sessionCode: createElement('alpha2026'),
+            operatorAccessCode: createElement(''),
+            sessionCodeError: createErrorElement(),
+            operatorAccessCodeError: createErrorElement()
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            },
+            querySelector: vi.fn(() => null)
+        };
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+
+        await controller.handleOperatorAccess('gamemaster');
+
+        expect(elements.operatorAccessCode.attributes['aria-invalid']).toBe('true');
+        expect(elements.operatorAccessCodeError.hidden).toBe(false);
+        expect(elements.operatorAccessCodeError.textContent).toBe('A valid operator access code is required.');
+        expect(elements.operatorAccessCode.focus).toHaveBeenCalled();
+        expect(mockDatabase.authorizeOperatorAccess).not.toHaveBeenCalled();
     });
 
     it('surfaces browser identity bootstrap failures without attempting session lookup', async () => {

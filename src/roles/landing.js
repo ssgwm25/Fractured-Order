@@ -30,6 +30,12 @@ import {
 const logger = createLogger('Landing');
 
 const titleCase = (value) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : '');
+const FIELD_ERROR_MAP = {
+    sessionCode: 'sessionCodeError',
+    displayName: 'displayNameError',
+    roleSelection: 'roleSelectionError',
+    operatorAccessCode: 'operatorAccessCodeError'
+};
 
 // No-op join overlay controller — used when there is no real DOM (unit tests)
 // or when an operator-auth method is called without an overlay.
@@ -79,6 +85,10 @@ export class LandingController {
         }
 
         const displayNameInput = document.getElementById('displayName');
+        const sessionCodeInput = document.getElementById('sessionCode');
+        sessionCodeInput?.addEventListener('input', () => this.clearFieldError('sessionCode'));
+        displayNameInput?.addEventListener('input', () => this.clearFieldError('displayName'));
+
         const operatorUsernameInput = document.getElementById('operatorAccessUsername');
         if (displayNameInput && operatorUsernameInput) {
             const syncOperatorUsername = () => {
@@ -99,6 +109,9 @@ export class LandingController {
         roleButtons.forEach((button) => {
             button.addEventListener('click', () => this.selectRole(button));
         });
+
+        const operatorAccessCodeInput = document.getElementById('operatorAccessCode');
+        operatorAccessCodeInput?.addEventListener('input', () => this.clearFieldError('operatorAccessCode'));
 
         const gameMasterAccessBtn = document.getElementById('operatorGameMasterBtn');
         gameMasterAccessBtn?.addEventListener('click', () => {
@@ -158,6 +171,52 @@ export class LandingController {
 
         this.updateSelectedRole();
         logger.debug('Team selected:', this.selectedTeam);
+    }
+
+    getValidationTarget(fieldName) {
+        if (fieldName === 'roleSelection') {
+            return document.getElementById('roleSelectionGroup')
+                || document.querySelector?.('.chip[data-role-surface]');
+        }
+
+        return document.getElementById(fieldName);
+    }
+
+    setFieldError(fieldName, message, { focus = false } = {}) {
+        const target = this.getValidationTarget(fieldName);
+        const errorElement = document.getElementById(FIELD_ERROR_MAP[fieldName]);
+
+        target?.setAttribute?.('aria-invalid', 'true');
+        target?.classList?.add?.('is-invalid');
+
+        if (errorElement) {
+            errorElement.textContent = message;
+            errorElement.hidden = false;
+        }
+
+        if (focus) {
+            const focusTarget = fieldName === 'roleSelection'
+                ? document.querySelector?.('.chip[data-role-surface]')
+                : target;
+            focusTarget?.focus?.();
+        }
+    }
+
+    clearFieldError(fieldName) {
+        const target = this.getValidationTarget(fieldName);
+        const errorElement = document.getElementById(FIELD_ERROR_MAP[fieldName]);
+
+        target?.setAttribute?.('aria-invalid', 'false');
+        target?.classList?.remove?.('is-invalid');
+
+        if (errorElement) {
+            errorElement.textContent = '';
+            errorElement.hidden = true;
+        }
+    }
+
+    clearValidationErrors(fields = Object.keys(FIELD_ERROR_MAP)) {
+        fields.forEach((fieldName) => this.clearFieldError(fieldName));
     }
 
     /**
@@ -223,6 +282,7 @@ export class LandingController {
         button.setAttribute('aria-pressed', 'true');
         this.selectedRoleSurface = requestedSurface;
         this.updateSelectedRole();
+        this.clearFieldError('roleSelection');
 
         logger.debug('Role selected:', this.selectedRole);
     }
@@ -277,23 +337,25 @@ export class LandingController {
 
         const sessionCode = codeInput?.value?.trim().toUpperCase();
         const displayName = nameInput?.value?.trim();
+        this.clearValidationErrors(['sessionCode', 'displayName', 'roleSelection']);
 
         // Validate session code
         const codeError = validateSessionCode(sessionCode);
         if (codeError) {
+            this.setFieldError('sessionCode', codeError, { focus: true });
             showToast({ message: codeError, type: 'error' });
-            codeInput?.focus();
             return;
         }
 
         // Validate display name (simple check since validateRequired throws)
         if (!displayName) {
+            this.setFieldError('displayName', 'Display name is required', { focus: true });
             showToast({ message: 'Display name is required', type: 'error' });
-            nameInput?.focus();
             return;
         }
 
         if (!isPublicRoleSurface(this.selectedRoleSurface)) {
+            this.setFieldError('roleSelection', 'Choose Facilitator, Scribe, or Notetaker to join as a participant.', { focus: true });
             showToast({
                 message: 'White Cell and Game Master use the operator access flow.',
                 type: 'error'
@@ -303,6 +365,7 @@ export class LandingController {
 
         const requestedRole = this.resolveRequestedPublicRole();
         if (!requestedRole) {
+            this.setFieldError('roleSelection', 'Please select a role', { focus: true });
             showToast({ message: 'Please select a role', type: 'error' });
             return;
         }
@@ -465,18 +528,30 @@ export class LandingController {
     async handleOperatorAccess(surface, { operatorRole = WHITE_CELL_OPERATOR_ROLES.LEAD } = {}) {
         const operatorCodeInput = document.getElementById('operatorAccessCode');
         const operatorCode = operatorCodeInput?.value?.trim();
+        this.clearValidationErrors(['sessionCode', 'operatorAccessCode']);
 
         if (!this.validateOperatorAccessCode(operatorCode)) {
+            this.setFieldError('operatorAccessCode', 'A valid operator access code is required.', { focus: true });
             showToast({
                 message: 'A valid operator access code is required.',
                 type: 'error'
             });
-            operatorCodeInput?.focus();
             return;
         }
 
         // Show the single green overlay (in its "Joining…" state) instead of the
         // generic spinner, then confirm on success or dismiss on failure.
+        if (surface === OPERATOR_SURFACES.WHITE_CELL) {
+            const sessionCodeInput = document.getElementById('sessionCode');
+            const sessionCode = sessionCodeInput?.value?.trim().toUpperCase();
+            const codeError = validateSessionCode(sessionCode);
+            if (codeError) {
+                this.setFieldError('sessionCode', codeError, { focus: true });
+                showToast({ message: codeError, type: 'error' });
+                return;
+            }
+        }
+
         const isGameMaster = surface === OPERATOR_SURFACES.GAME_MASTER;
         const operatorName = document.getElementById('displayName')?.value?.trim()
             || (isGameMaster
@@ -540,7 +615,7 @@ export class LandingController {
 
         const codeError = validateSessionCode(sessionCode);
         if (codeError) {
-            codeInput?.focus();
+            this.setFieldError('sessionCode', codeError, { focus: true });
             throw new Error(codeError);
         }
 

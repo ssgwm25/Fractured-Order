@@ -73,7 +73,8 @@ test('@smoke session creation, role join, action submit, and White Cell adjudica
         await expect(page.locator('#adjudicationQueue')).toContainText('No actions are waiting for White Cell deliberation.');
 
         await page.locator('.sidebar-link[data-section="timeline"]').click();
-        await expect(page.locator('#timelineList')).toContainText('Action adjudicated: SUCCESS');
+        await expect(page.locator('#timelineList')).toContainText('ACTION_ADJUDICATED');
+        await expect(page.locator('#timelineList')).toContainText('White Cell deliberation recorded: SUCCESS');
     });
 
     await test.step('verify the mock backend reflects the completed lifecycle', async () => {

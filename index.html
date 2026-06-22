@@ -48,17 +48,20 @@
 
                 <div id="resumeSection"></div>
 
-                <form id="joinForm" class="lf">
+                <form id="joinForm" class="lf" novalidate>
                     <div class="lf-row">
                         <div class="lf-field">
                             <label for="sessionCode">Session Code</label>
                             <input type="text" id="sessionCode" class="form-input" placeholder="ALPHA-2024"
-                                autocomplete="off" style="text-transform:uppercase;letter-spacing:0.05em;">
+                                autocomplete="off" required aria-describedby="sessionCodeError"
+                                style="text-transform:uppercase;letter-spacing:0.05em;">
+                            <p class="form-error" id="sessionCodeError" role="alert" hidden></p>
                         </div>
                         <div class="lf-field">
                             <label for="displayName">Display Name</label>
                             <input type="text" id="displayName" class="form-input" placeholder="Your name"
-                                autocomplete="name">
+                                autocomplete="name" required aria-describedby="displayNameError">
+                            <p class="form-error" id="displayNameError" role="alert" hidden></p>
                         </div>
                     </div>
 
@@ -81,7 +84,8 @@
 
                     <fieldset class="lf-fieldset">
                         <legend>Role</legend>
-                        <div class="lf-chips" role="group" aria-label="Role selection" aria-describedby="roleSelectionHelp">
+                        <div class="lf-chips" id="roleSelectionGroup" role="group" aria-label="Role selection"
+                            aria-describedby="roleSelectionHelp roleSelectionError">
                             <button type="button" class="chip chip--role" data-role-surface="facilitator" aria-pressed="false"
                                 title="1 seat per team &middot; Submits actions and RFIs"
                                 aria-label="Facilitator, one seat per team, submits actions and RFIs">
@@ -102,6 +106,7 @@
                             </button>
                         </div>
                         <p class="lf-help" id="roleSelectionHelp">Facilitator and Scribe are single-seat roles. Notetaker supports two seats per team.</p>
+                        <p class="form-error" id="roleSelectionError" role="alert" hidden></p>
                         <input type="hidden" id="selectedRole" name="role">
                     </fieldset>
 
@@ -121,7 +126,9 @@
                         <div class="lf-field">
                             <label for="operatorAccessCode">Access Code</label>
                             <input type="password" id="operatorAccessCode" class="form-input"
-                                autocomplete="current-password" placeholder="Operator code">
+                                autocomplete="current-password" placeholder="Operator code"
+                                aria-describedby="operatorAccessCodeError">
+                            <p class="form-error" id="operatorAccessCodeError" role="alert" hidden></p>
                         </div>
                         <div class="op-actions">
                             <button type="button" class="btn btn-secondary btn-sm" id="operatorGameMasterBtn"

@@ -85,6 +85,8 @@ afterEach(() => {
 });
 
 const BLUE_NOTETAKER_HTML_PATH = new URL('../../teams/blue/notetaker.html', import.meta.url);
+const RED_NOTETAKER_HTML_PATH = new URL('../../teams/red/notetaker.html', import.meta.url);
+const GREEN_NOTETAKER_HTML_PATH = new URL('../../teams/green/notetaker.html', import.meta.url);
 
 describe('Notetaker move-scoped view state', () => {
     it('hydrates participant-scoped notes and filters move observations by team', () => {
@@ -392,5 +394,46 @@ describe('Notetaker move-scoped view state', () => {
         expect(html).toContain('id="inboxSection"');
         expect(html).toContain('id="inboxList"');
         expect(html).toContain('White Cell Inbox');
+    });
+
+    it('binds notetaker dynamics and alliance labels to their controls on every team surface', () => {
+        const controlIds = [
+            'emergingLeaders',
+            'decisionStyle',
+            'frictionLevel',
+            'frictionSources',
+            'consensusLevel',
+            'dynamicsSummary',
+            'allianceNotes',
+            'externalPressures'
+        ];
+
+        [
+            BLUE_NOTETAKER_HTML_PATH,
+            RED_NOTETAKER_HTML_PATH,
+            GREEN_NOTETAKER_HTML_PATH
+        ].forEach((htmlPath) => {
+            const html = readFileSync(htmlPath, 'utf8');
+
+            controlIds.forEach((controlId) => {
+                expect(html).toContain(`for="${controlId}"`);
+                expect(html).toContain(`id="${controlId}"`);
+            });
+        });
+    });
+
+    it('groups notetaker quick-capture type radios with a semantic fieldset on every team surface', () => {
+        [
+            BLUE_NOTETAKER_HTML_PATH,
+            RED_NOTETAKER_HTML_PATH,
+            GREEN_NOTETAKER_HTML_PATH
+        ].forEach((htmlPath) => {
+            const html = readFileSync(htmlPath, 'utf8');
+
+            expect(html).toContain('<fieldset class="form-group">');
+            expect(html).toContain('<legend class="form-label">Type</legend>');
+            expect(html).toContain('name="captureType"');
+            expect(html).not.toContain('<label class="form-label">Type</label>');
+        });
     });
 });

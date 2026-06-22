@@ -186,6 +186,11 @@ select.move-selector {
     background-repeat: no-repeat;
 }
 
+.form-radio:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
 /* Form check - inline checkbox/radio groups */
 .form-check {
     display: flex;

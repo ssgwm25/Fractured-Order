@@ -426,6 +426,10 @@ html, body {
     background: var(--color-surface-alt);
 }
 
+.lf-chips[aria-invalid="true"] .chip {
+    border-color: var(--color-error);
+}
+
 .chip.selected,
 .chip[aria-pressed="true"] {
     background: var(--color-navy);

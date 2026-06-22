@@ -62,4 +62,19 @@ describe('landing public role visibility', () => {
         expect(html).toContain('autocomplete="username"');
         expect(html).toContain('id="operatorAccessCode"');
     });
+
+    it('ships persistent accessible error regions for landing and operator validation', () => {
+        const html = readFileSync(LANDING_HTML_PATH, 'utf8');
+
+        expect(html).toContain('id="joinForm" class="lf" novalidate');
+        expect(html).toContain('aria-describedby="sessionCodeError"');
+        expect(html).toContain('id="sessionCodeError"');
+        expect(html).toContain('aria-describedby="displayNameError"');
+        expect(html).toContain('id="displayNameError"');
+        expect(html).toContain('id="roleSelectionGroup"');
+        expect(html).toContain('aria-describedby="roleSelectionHelp roleSelectionError"');
+        expect(html).toContain('id="roleSelectionError"');
+        expect(html).toContain('aria-describedby="operatorAccessCodeError"');
+        expect(html).toContain('id="operatorAccessCodeError"');
+    });
 });
