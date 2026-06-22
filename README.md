@@ -76,6 +76,8 @@ Open any deck file directly in a browser — no build step or server required.
 
 The web delivery layer for running the game live: a **Vite** frontend with a **Supabase** backend, session-code access, realtime state push, and JSON export of game state for post-game analysis. Teams join by session code and select their team and role from the landing page.
 
+Dedicated facilitator, notetaker, and scribe role surfaces live under `teams/<team>/`. Scribe shells share the common modal stylesheet so logout and confirmation dialogs render consistently with the rest of the platform.
+
 ---
 
 ## Running a session

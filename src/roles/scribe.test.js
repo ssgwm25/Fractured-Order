@@ -12,6 +12,8 @@ import {
 import { serializeBlueActionDetails } from '../features/actions/blueActionDetails.js';
 
 const BLUE_SCRIBE_HTML_PATH = new URL('../../teams/blue/scribe.html', import.meta.url);
+const GREEN_SCRIBE_HTML_PATH = new URL('../../teams/green/scribe.html', import.meta.url);
+const RED_SCRIBE_HTML_PATH = new URL('../../teams/red/scribe.html', import.meta.url);
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
 const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
@@ -648,6 +650,7 @@ describe('scribe surface', () => {
         expect(html).toContain('content="Statecraft Sim Blue Team scribe support deck."');
         expect(html).toContain('data-scribe-presentation="standard"');
         expect(html).toContain('../../styles/components/badges.css');
+        expect(html).toContain('../../styles/components/modals.css');
         expect(html).toContain('<header class="page-header" id="pageHeader">');
         expect(html).toContain('class="header-session-info"');
         expect(html).toContain('id="sessionName"');
@@ -663,6 +666,19 @@ describe('scribe surface', () => {
         expect(html).not.toContain('scribe-stage-toolbar');
         expect(html).not.toContain('scribe-stage-footer');
         expect(html).not.toContain('scribe-section-trigger-description');
+    });
+
+    it('loads the shared modal styles on every team scribe shell for logout confirmation', () => {
+        for (const path of [
+            BLUE_SCRIBE_HTML_PATH,
+            GREEN_SCRIBE_HTML_PATH,
+            RED_SCRIBE_HTML_PATH
+        ]) {
+            const html = readFileSync(path, 'utf8');
+
+            expect(html).toContain('../../styles/components/modals.css');
+            expect(html).toContain('id="logoutBtn"');
+        }
     });
 
     it('builds the team-scoped facilitator decks into the same decks/team paths that scribe seats fetch at runtime', () => {
