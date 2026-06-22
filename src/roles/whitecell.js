@@ -329,6 +329,44 @@ export function getWhiteCellAccessState(teamContext, sessionStoreRef = sessionSt
     };
 }
 
+export function getWhiteCellSessionCode(session = {}) {
+    const code = session?.session_code || session?.sessionCode || session?.code || session?.metadata?.session_code || '';
+    return String(code || '').trim() || 'N/A';
+}
+
+export function getWhiteCellSessionLabel(session = null) {
+    if (!session) {
+        return '';
+    }
+
+    const name = String(session.name || 'Active session').trim() || 'Active session';
+    const code = getWhiteCellSessionCode(session);
+    return code && code !== 'N/A' ? `${name} (${code})` : name;
+}
+
+export function getWhiteCellParticipantSessionLabel(participant = {}, session = null) {
+    const participantSession = participant.sessionName || participant.session_name || null;
+    const participantCode = participant.sessionCode || participant.session_code || participant.code || null;
+
+    if (participantSession) {
+        return participantCode ? `${participantSession} (${participantCode})` : participantSession;
+    }
+
+    return getWhiteCellSessionLabel(session);
+}
+
+export function getWhiteCellDeleteSessionConfirmationOptions(session = {}) {
+    const label = session?.name || 'this session';
+
+    return {
+        title: 'Delete session',
+        message: `Delete ${label}? All actions, RFIs, participant seats, timeline events, and exports tied to it will be removed. This cannot be undone.`,
+        confirmLabel: 'Delete',
+        cancelLabel: 'Keep Session',
+        variant: 'danger'
+    };
+}
+
 function getParticipantTimestamp(participant = {}) {
     return new Date(
         participant.heartbeat_at
@@ -3215,8 +3253,13 @@ export class WhiteCellController {
         const filteredSummary = filteredParticipants.length === 0 && this.participants.length > 0 && hasActiveFilters
             ? 'No participants match the current filters.'
             : formatWhiteCellParticipantSummary(filteredParticipants);
+        const activeSession = sessionStore.getSessionData?.() || null;
+        const activeSessionLabel = getWhiteCellSessionLabel(activeSession);
+        const summaryText = filteredSummary.endsWith('.') ? filteredSummary : `${filteredSummary}.`;
 
-        summary.textContent = filteredSummary;
+        summary.textContent = activeSessionLabel
+            ? `${summaryText} Active session: ${activeSessionLabel}.`
+            : filteredSummary;
 
         if (filteredParticipants.length === 0) {
             container.innerHTML = hasActiveFilters
@@ -3235,6 +3278,7 @@ export class WhiteCellController {
             const roleBadge = createRoleBadge(participant.role || 'unknown').outerHTML;
             const roleLabel = getRoleDisplayName(participant.role) || participant.role || 'Unknown role';
             const lastActiveAt = participant.heartbeat_at || participant.last_seen || participant.joined_at;
+            const participantSessionLabel = getWhiteCellParticipantSessionLabel(participant, activeSession);
 
             return `
                 <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
@@ -3242,6 +3286,7 @@ export class WhiteCellController {
                         <div>
                             <p class="text-sm font-semibold">${this.escapeHtml(participant.display_name || 'Unknown')}</p>
                             <p class="text-xs text-gray-500">${this.escapeHtml(roleLabel)}</p>
+                            ${participantSessionLabel ? `<p class="text-xs text-gray-500" style="margin-top: 2px;">Session: ${this.escapeHtml(participantSessionLabel)}</p>` : ''}
                         </div>
                         <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end;">
                             ${connectionBadge}
@@ -3645,7 +3690,8 @@ export class WhiteCellController {
 
         const rows = this.adminSessions.map((session) => {
             const isActive = session.id === activeSessionId;
-            const code = session.session_code || session.metadata?.session_code || '-';
+            const resolvedCode = getWhiteCellSessionCode(session);
+            const code = resolvedCode === 'N/A' ? '-' : resolvedCode;
             const status = session.status || 'unknown';
             return `
                 <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-2); ${isActive ? 'border-left: 3px solid var(--color-primary-500);' : ''}">
@@ -3736,13 +3782,7 @@ export class WhiteCellController {
 
     async handleDeleteSessionAdmin(sessionId) {
         const session = (this.adminSessions || []).find((entry) => entry.id === sessionId);
-        const label = session?.name || 'this session';
-        const confirmed = await confirmModal({
-            title: 'Delete session',
-            message: `Delete ${label}? All actions, RFIs, and participants tied to it will be removed. This cannot be undone.`,
-            confirmLabel: 'Delete',
-            variant: 'danger'
-        });
+        const confirmed = await confirmModal(getWhiteCellDeleteSessionConfirmationOptions(session));
         if (!confirmed) return;
 
         const loader = showLoader({ message: 'Deleting session...' });

@@ -4,9 +4,56 @@ import {
     buildDashboardModel,
     buildExportSelectionState,
     buildRecentActivityModel,
+    GameMasterController,
+    getGameMasterDeleteSessionConfirmationOptions,
     getGameMasterAccessState,
-    getAdminExportButtonConfig
+    getAdminExportButtonConfig,
+    getParticipantSessionLabel
 } from './gamemaster.js';
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function installBadgeDocument() {
+    const previousDocument = global.document;
+
+    global.document = {
+        createElement(tagName) {
+            let explicitInnerHtml = '';
+
+            return {
+                className: '',
+                set textContent(value) {
+                    explicitInnerHtml = escapeHtml(value ?? '');
+                },
+                get innerHTML() {
+                    return explicitInnerHtml;
+                },
+                set innerHTML(value) {
+                    explicitInnerHtml = value == null ? '' : String(value);
+                },
+                get outerHTML() {
+                    const classAttribute = this.className ? ` class="${escapeHtml(this.className)}"` : '';
+                    return `<${tagName}${classAttribute}>${this.innerHTML}</${tagName}>`;
+                }
+            };
+        }
+    };
+
+    return () => {
+        if (previousDocument) {
+            global.document = previousDocument;
+        } else {
+            delete global.document;
+        }
+    };
+}
 
 describe('GameMaster dashboard mapping', () => {
     it('computes connected participant counts from live session bundles', () => {
@@ -96,6 +143,60 @@ describe('GameMaster export wiring', () => {
             captureMode: 'standard',
             message: 'JSON and CSV exports are ready for Alpha. Research archive controls stay locked until research capture mode is enabled.'
         });
+    });
+});
+
+describe('GameMaster session administration', () => {
+    it('uses the destructive modal contract for session deletion', () => {
+        expect(getGameMasterDeleteSessionConfirmationOptions({ name: 'Alpha Session' })).toMatchObject({
+            title: 'Delete Session',
+            confirmLabel: 'Delete',
+            cancelLabel: 'Keep Session',
+            variant: 'danger'
+        });
+        expect(getGameMasterDeleteSessionConfirmationOptions({ name: 'Alpha Session' }).message).toContain(
+            'All actions, RFIs, participant seats, timeline events, and exports'
+        );
+    });
+
+    it('labels participant rows with the selected or joined session', () => {
+        expect(getParticipantSessionLabel({}, {
+            name: 'Alpha Session',
+            session_code: 'ALPHA'
+        })).toBe('Alpha Session (ALPHA)');
+
+        expect(getParticipantSessionLabel({
+            sessionName: 'Bravo Session',
+            sessionCode: 'BRAVO'
+        }, {
+            name: 'Alpha Session',
+            session_code: 'ALPHA'
+        })).toBe('Bravo Session (BRAVO)');
+    });
+
+    it('renders the participant table with explicit session context', () => {
+        const restoreDocument = installBadgeDocument();
+
+        try {
+            const controller = new GameMasterController();
+            const html = controller.renderParticipantsTable([{
+                id: 'seat-1',
+                display_name: 'Alex',
+                role: 'blue_facilitator',
+                is_active: true,
+                heartbeat_at: '2026-04-08T10:05:00.000Z'
+            }], {
+                session: {
+                    name: 'Alpha Session',
+                    code: 'ALPHA'
+                }
+            });
+
+            expect(html).toContain('<th>Session</th>');
+            expect(html).toContain('Alpha Session (ALPHA)');
+        } finally {
+            restoreDocument();
+        }
     });
 });
 

@@ -382,6 +382,65 @@ describe('White Cell DOM contract', () => {
         expect(formatWhiteCellParticipantSummary(roster)).toBe('5 connected participants');
     });
 
+    it('labels the White Cell participant roster with the active session', async () => {
+        const {
+            getWhiteCellDeleteSessionConfirmationOptions,
+            getWhiteCellParticipantSessionLabel,
+            getWhiteCellSessionLabel
+        } = await loadWhiteCellModule();
+
+        const session = {
+            name: 'Alpha Session',
+            code: 'ALPHA'
+        };
+
+        expect(getWhiteCellSessionLabel(session)).toBe('Alpha Session (ALPHA)');
+        expect(getWhiteCellParticipantSessionLabel({}, session)).toBe('Alpha Session (ALPHA)');
+        expect(getWhiteCellParticipantSessionLabel({
+            sessionName: 'Bravo Session',
+            sessionCode: 'BRAVO'
+        }, session)).toBe('Bravo Session (BRAVO)');
+        expect(getWhiteCellDeleteSessionConfirmationOptions(session)).toMatchObject({
+            title: 'Delete session',
+            confirmLabel: 'Delete',
+            cancelLabel: 'Keep Session',
+            variant: 'danger'
+        });
+        expect(getWhiteCellDeleteSessionConfirmationOptions(session).message).toContain(
+            'participant seats, timeline events, and exports'
+        );
+    });
+
+    it('renders active session context in the White Cell participant roster', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const fakeDocument = createFakeDocument(['participantsSummary', 'participantsList']);
+
+        global.document = fakeDocument;
+        vi.spyOn(sessionStore, 'getSessionData').mockReturnValue({
+            name: 'Alpha Session',
+            code: 'ALPHA'
+        });
+
+        const controller = new WhiteCellController();
+        controller.participants = [{
+            id: 'blue-facilitator',
+            role: 'blue_facilitator',
+            display_name: 'Alex',
+            is_active: true,
+            heartbeat_at: '2026-04-08T10:05:00.000Z'
+        }];
+
+        controller.renderParticipants();
+
+        expect(fakeDocument.elements.participantsSummary.textContent).toContain(
+            'Active session: Alpha Session (ALPHA).'
+        );
+        expect(fakeDocument.elements.participantsList.innerHTML).toContain(
+            'Session: Alpha Session (ALPHA)'
+        );
+    });
+
     it('builds cross-team White Cell communication recipients', async () => {
         const { buildWhiteCellCommunicationRecipientOptions } = await loadWhiteCellModule();
 

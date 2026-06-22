@@ -78,6 +78,8 @@ The web delivery layer for running the game live: a **Vite** frontend with a **S
 
 Dedicated facilitator, notetaker, and scribe role surfaces live under `teams/<team>/`. Scribe shells share the common modal stylesheet so logout and confirmation dialogs render consistently with the rest of the platform.
 
+Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped and labeled by the selected or active session so operators can distinguish seats across concurrent exercises.
+
 ---
 
 ## Running a session

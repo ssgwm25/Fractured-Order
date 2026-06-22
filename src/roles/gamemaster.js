@@ -120,6 +120,44 @@ export function getGameMasterAccessState(sessionStoreRef = sessionStore) {
     };
 }
 
+export function getGameMasterSessionCode(session = {}) {
+    const code = session?.session_code || session?.sessionCode || session?.code || session?.metadata?.session_code || '';
+    return String(code || '').trim() || 'N/A';
+}
+
+export function getGameMasterSessionLabel(session = null) {
+    if (!session) {
+        return '';
+    }
+
+    const name = String(session.name || 'Selected session').trim() || 'Selected session';
+    const code = getGameMasterSessionCode(session);
+    return code && code !== 'N/A' ? `${name} (${code})` : name;
+}
+
+export function getParticipantSessionLabel(participant = {}, session = null) {
+    const participantSession = participant.sessionName || participant.session_name || null;
+    const participantCode = participant.sessionCode || participant.session_code || participant.code || null;
+
+    if (participantSession) {
+        return participantCode ? `${participantSession} (${participantCode})` : participantSession;
+    }
+
+    return getGameMasterSessionLabel(session) || 'Selected session';
+}
+
+export function getGameMasterDeleteSessionConfirmationOptions(session = {}) {
+    const label = session?.name || 'this session';
+
+    return {
+        title: 'Delete Session',
+        message: `Delete "${label}"? All actions, RFIs, participant seats, timeline events, and exports tied to this session will be removed. This cannot be undone.`,
+        confirmLabel: 'Delete',
+        cancelLabel: 'Keep Session',
+        variant: 'danger'
+    };
+}
+
 export function buildDashboardModel(sessionBundles = []) {
     return {
         activeSessions: sessionBundles.length,
@@ -151,7 +189,8 @@ export function buildConnectedParticipantsModel(sessionBundles = [], limit = 10)
         .flatMap((bundle) => getConnectedParticipants(bundle.participants || []).map((participant) => ({
             ...participant,
             sessionId: bundle.session?.id || null,
-            sessionName: bundle.session?.name || 'Unknown Session'
+            sessionName: bundle.session?.name || 'Unknown Session',
+            sessionCode: getGameMasterSessionCode(bundle.session)
         })))
         .sort((left, right) => {
             return getTimestamp(right.heartbeat_at || right.joined_at) - getTimestamp(left.heartbeat_at || left.joined_at);
@@ -534,8 +573,8 @@ export class GameMasterController {
             select.innerHTML = `
                 <option value="">Select session</option>
                 ${this.sessions.map((session) => {
-                    const sessionCode = session.metadata?.session_code || 'N/A';
-                    return `<option value="${session.id}">${this.escapeHtml(session.name)} (${sessionCode})</option>`;
+                    const sessionCode = getGameMasterSessionCode(session);
+                    return `<option value="${session.id}">${this.escapeHtml(session.name)} (${this.escapeHtml(sessionCode)})</option>`;
                 }).join('')}
             `;
             select.value = this.sessions.some((session) => session.id === previousValue) ? previousValue : '';
@@ -615,6 +654,7 @@ export class GameMasterController {
         }
 
         container.innerHTML = participants.map((participant) => {
+            const sessionLabel = getParticipantSessionLabel(participant);
             const roleBadge = createBadge({
                 text: participant.role || 'unknown',
                 variant: 'primary',
@@ -626,7 +666,7 @@ export class GameMasterController {
                     <div style="display: flex; justify-content: space-between; gap: var(--space-3); align-items: center; margin-bottom: var(--space-2);">
                         <div>
                             <p class="text-sm font-semibold">${this.escapeHtml(participant.display_name || 'Unknown')}</p>
-                            <p class="text-xs text-gray-500">${this.escapeHtml(participant.sessionName)}</p>
+                            <p class="text-xs text-gray-500">${this.escapeHtml(sessionLabel)}</p>
                         </div>
                         ${roleBadge.outerHTML}
                     </div>
@@ -695,7 +735,7 @@ export class GameMasterController {
         const selectedBadge = isSelected
             ? createBadge({ text: 'Selected', variant: 'primary', size: 'sm' }).outerHTML
             : '';
-        const sessionCode = session.metadata?.session_code || 'N/A';
+        const sessionCode = getGameMasterSessionCode(session);
 
         return `
             <div class="session-card card card-bordered card-hoverable" data-session-id="${session.id}">
@@ -847,7 +887,7 @@ export class GameMasterController {
         const detailContainer = document.getElementById('sessionDetailContent');
         if (!detailContainer) return;
 
-        const sessionCode = session.metadata?.session_code || 'N/A';
+        const sessionCode = getGameMasterSessionCode(session);
         const currentMove = gameState?.move ?? 1;
         const currentPhase = gameState?.phase ?? 1;
         const pendingRequests = requests.filter((request) => request.status === 'pending').length;
@@ -890,7 +930,9 @@ export class GameMasterController {
                 <div id="participantsListDetail">
                     ${this.renderParticipantsTable(participants, {
                         includeActions: true,
-                        sessionName: session.name
+                        session,
+                        sessionName: session.name,
+                        sessionCode
                     })}
                 </div>
             </div>
@@ -929,7 +971,9 @@ export class GameMasterController {
 
     renderParticipantsTable(participants, {
         includeActions = false,
-        sessionName = ''
+        session = null,
+        sessionName = '',
+        sessionCode = ''
     } = {}) {
         if (!participants.length) {
             return '<p class="text-muted">No participants have joined this session yet.</p>';
@@ -941,6 +985,7 @@ export class GameMasterController {
                     <tr>
                         <th>Name</th>
                         <th>Role</th>
+                        <th>Session</th>
                         <th>Status</th>
                         <th>Last Active</th>
                         ${includeActions ? '<th>Actions</th>' : ''}
@@ -953,11 +998,19 @@ export class GameMasterController {
                             variant: participant.is_active ? 'success' : 'default',
                             size: 'sm'
                         });
+                        const participantSessionLabel = getParticipantSessionLabel(
+                            participant,
+                            session || {
+                                name: sessionName,
+                                session_code: sessionCode
+                            }
+                        );
 
                         return `
                             <tr>
                                 <td>${this.escapeHtml(participant.display_name || 'Unknown')}</td>
                                 <td>${this.escapeHtml(participant.role || 'Unknown')}</td>
+                                <td>${this.escapeHtml(participantSessionLabel)}</td>
                                 <td>${statusBadge.outerHTML}</td>
                                 <td>${participant.heartbeat_at ? formatRelativeTime(participant.heartbeat_at) : 'Never'}</td>
                                 ${includeActions ? `
@@ -966,7 +1019,7 @@ export class GameMasterController {
                                             type="button"
                                             class="btn btn-danger btn-sm"
                                             data-remove-session-participant-id="${this.escapeHtml(participant.id || '')}"
-                                            aria-label="Remove ${this.escapeHtml(participant.display_name || 'participant')} from ${this.escapeHtml(sessionName || 'this session')}"
+                                            aria-label="Remove ${this.escapeHtml(participant.display_name || 'participant')} from ${this.escapeHtml(participantSessionLabel || sessionName || 'this session')}"
                                         >
                                             Remove
                                         </button>
@@ -997,7 +1050,8 @@ export class GameMasterController {
             return;
         }
 
-        stateLabel.textContent = `Showing live participant data for ${sessionBundle.session.name}.`;
+        const sessionCode = getGameMasterSessionCode(sessionBundle.session);
+        stateLabel.textContent = `Showing live participant data for ${getGameMasterSessionLabel(sessionBundle.session)}.`;
         container.style.display = 'block';
         container.style.minHeight = 'auto';
         container.innerHTML = `
@@ -1005,7 +1059,7 @@ export class GameMasterController {
                 <div style="display: flex; justify-content: space-between; gap: var(--space-3); align-items: center; margin-bottom: var(--space-4);">
                     <div>
                         <h3 class="text-base font-semibold">${this.escapeHtml(sessionBundle.session.name)}</h3>
-                        <p class="text-sm text-gray-500">Code ${this.escapeHtml(sessionBundle.session.metadata?.session_code || 'N/A')}</p>
+                        <p class="text-sm text-gray-500">Code ${this.escapeHtml(sessionCode)}</p>
                     </div>
                     <span class="text-sm text-gray-500">${formatParticipantSummaryLabel(sessionBundle.participants)}</span>
                 </div>
@@ -1014,7 +1068,9 @@ export class GameMasterController {
                 </p>
                 ${this.renderParticipantsTable(sessionBundle.participants, {
                     includeActions: true,
-                    sessionName: sessionBundle.session.name
+                    session: sessionBundle.session,
+                    sessionName: sessionBundle.session.name,
+                    sessionCode
                 })}
             </div>
         `;
@@ -1080,12 +1136,7 @@ export class GameMasterController {
         const session = this.sessions.find((entry) => entry.id === sessionId);
         if (!session) return;
 
-        const confirmed = await confirmModal({
-            title: 'Delete Session',
-            message: `Are you sure you want to delete "${session.name}"? This action cannot be undone and all associated data will be permanently deleted.`,
-            confirmText: 'Delete',
-            confirmVariant: 'danger'
-        });
+        const confirmed = await confirmModal(getGameMasterDeleteSessionConfirmationOptions(session));
 
         if (confirmed) {
             await this.deleteSession(sessionId);
@@ -1204,7 +1255,8 @@ export class GameMasterController {
             this.sessionBundles.set(this.currentSessionId, liveBundle);
 
             const sessionName = sanitizeFilenamePart(liveBundle.session?.name || this.currentSessionId);
-            const sessionCode = sanitizeFilenamePart(liveBundle.session?.metadata?.session_code || liveBundle.session?.id || 'session');
+            const rawSessionCode = getGameMasterSessionCode(liveBundle.session);
+            const sessionCode = sanitizeFilenamePart(rawSessionCode === 'N/A' ? liveBundle.session?.id || 'session' : rawSessionCode);
             const baseFilename = `esg-${sessionName}-${sessionCode}`;
 
             switch (action) {
