@@ -51,10 +51,8 @@ export default defineConfig(({ mode }) => {
             rollupOptions: {
                 input: {
                     main: resolve(__dirname, 'index.html'),
-                    plenum: resolve(__dirname, 'Plenum/index.html'),
                     master: resolve(__dirname, 'master.html'),
                     whitecell: resolve(__dirname, 'whitecell.html'),
-                    facilitatorDeck: resolve(__dirname, 'fractured-order-facilitator-deck.html'),
                     blueFacilitatorDeck: resolve(__dirname, 'decks/blue/fractured-order-facilitator-deck.html'),
                     blueFacilitator: resolve(__dirname, 'teams/blue/facilitator.html'),
                     blueScribe: resolve(__dirname, 'teams/blue/scribe.html'),
