@@ -3037,7 +3037,12 @@ export class WhiteCellController {
             showToast({ message: 'Communication sent', type: 'success' });
         } catch (err) {
             logger.error('Failed to send communication:', err);
-            showToast({ message: 'Failed to send communication', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to send communication. Check the message and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3427,7 +3432,12 @@ export class WhiteCellController {
                     teamId: team.id
                 });
             } catch (error) {
-                showToast({ message: error.message || 'Deck path is invalid.', type: 'error' });
+                showToast({
+                    message: getUserMessage(error, {
+                        fallback: 'Deck path is invalid. Use an HTML deck path inside this app.'
+                    }),
+                    type: 'error'
+                });
                 return;
             }
 

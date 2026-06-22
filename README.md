@@ -1,3 +1,9 @@
+# Statecraft Sim
+
+Public product name: `Statecraft Sim`.
+
+Legacy `SSG` and `esg` identifiers still appear in older code comments, package names, and data contracts where changing them would churn stable integration surfaces.
+
 ![Fractured Order facilitator deck](screenshot.PNG)
 
 A one-day seminar wargame on U.S.–PRC strategic competition, run by the **William & Mary Statecraft Simulations Group (SSG)**. Players manage sustained great-power competition using non-military, economic instruments of statecraft, and discover where the U.S.-led order holds together or fractures under pressure.

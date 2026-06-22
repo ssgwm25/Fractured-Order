@@ -53,6 +53,8 @@ export function createTeamDynamics(options = {}) {
             <span class="team-dynamics-autosave" id="autoSaveStatus">Saved to your notes</span>
         </div>
 
+        <div class="form-error" id="dynamicsLoadStatus" role="alert" hidden></div>
+
         <form class="team-dynamics-form" id="dynamicsForm">
             <div class="form-group">
                 <label class="form-label" for="emergingLeaders">Emerging Leaders</label>
@@ -141,6 +143,7 @@ export function createTeamDynamics(options = {}) {
 
     const form = wrapper.querySelector('#dynamicsForm');
     const autoSaveStatus = wrapper.querySelector('#autoSaveStatus');
+    const loadStatus = wrapper.querySelector('#dynamicsLoadStatus');
     const frictionLevel = wrapper.querySelector('#frictionLevel');
     const frictionValue = wrapper.querySelector('#frictionValue');
     const consensusLevel = wrapper.querySelector('#consensusLevel');
@@ -180,6 +183,24 @@ export function createTeamDynamics(options = {}) {
         currentData = getFormData();
         autoSaveStatus.textContent = 'Saving...';
         autoSaveDebounce();
+    }
+
+    function clearLoadError() {
+        if (!loadStatus) return;
+        loadStatus.hidden = true;
+        loadStatus.innerHTML = '';
+    }
+
+    function renderLoadError() {
+        if (!loadStatus) return;
+        loadStatus.hidden = false;
+        loadStatus.innerHTML = `
+            Couldn't load saved dynamics notes.
+            <button type="button" class="btn btn-secondary btn-sm" data-dynamics-retry>Retry</button>
+        `;
+        loadStatus.querySelector('[data-dynamics-retry]')?.addEventListener('click', () => {
+            void loadData();
+        });
     }
 
     /**
@@ -273,8 +294,10 @@ export function createTeamDynamics(options = {}) {
                 participantKey: participantContext.participantKey,
                 fallbackTeamId: record?.team
             }));
+            clearLoadError();
         } catch (err) {
             logger.error('Failed to load team dynamics:', err);
+            renderLoadError();
         }
     }
 

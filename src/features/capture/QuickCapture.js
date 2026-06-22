@@ -9,6 +9,7 @@ import { timelineStore, EVENT_TYPES } from '../../stores/index.js';
 import { gameStateStore } from '../../stores/index.js';
 import { showToast } from '../../components/ui/Toast.js';
 import { createLogger } from '../../utils/logger.js';
+import { getUserMessage } from '../../core/errors.js';
 
 const logger = createLogger('QuickCapture');
 
@@ -56,6 +57,7 @@ export function createQuickCapture(options = {}) {
     }
 
     let selectedType = CAPTURE_TYPES[0].value;
+    let isSubmitting = false;
 
     // Create component structure
     const wrapper = document.createElement('div');
@@ -69,6 +71,7 @@ export function createQuickCapture(options = {}) {
                     class="quick-capture-type-btn ${index === 0 ? 'active' : ''}"
                     data-type="${type.value}"
                     title="${type.label}"
+                    aria-label="${type.label} capture type"
                 >
                     <span class="quick-capture-type-icon">${type.icon}</span>
                     <span class="quick-capture-type-label">${type.label}</span>
@@ -97,6 +100,7 @@ export function createQuickCapture(options = {}) {
     const typeButtons = wrapper.querySelectorAll('.quick-capture-type-btn');
     const contentInput = wrapper.querySelector('#captureContent');
     const form = wrapper.querySelector('#captureForm');
+    const submitButton = form.querySelector('button[type="submit"]');
 
     // Handle type selection
     typeButtons.forEach(btn => {
@@ -129,6 +133,7 @@ export function createQuickCapture(options = {}) {
      * Submit a capture
      */
     async function submitCapture() {
+        if (isSubmitting) return;
         const content = contentInput.value.trim();
 
         if (!content) {
@@ -137,6 +142,9 @@ export function createQuickCapture(options = {}) {
             return;
         }
 
+        isSubmitting = true;
+        form.setAttribute('aria-busy', 'true');
+        setButtonPending(submitButton, true, 'Saving...');
         try {
             const metadata = actor ? { actor } : null;
             const captureData = {
@@ -163,7 +171,16 @@ export function createQuickCapture(options = {}) {
             logger.info('Capture saved:', selectedType);
         } catch (err) {
             logger.error('Failed to save capture:', err);
-            showToast({ message: 'Failed to save capture', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to save capture. Check the note and try again.'
+                }),
+                type: 'error'
+            });
+        } finally {
+            isSubmitting = false;
+            form.setAttribute('aria-busy', 'false');
+            setButtonPending(submitButton, false);
         }
     }
 
@@ -234,16 +251,21 @@ export function createMinimalCapture(options = {}) {
             class="form-input minimal-capture-input"
             placeholder="${placeholder}"
         >
-        <button class="btn btn-primary btn-sm minimal-capture-btn">+</button>
+        <button type="button" class="btn btn-primary btn-sm minimal-capture-btn" aria-label="Save quick note">+</button>
     `;
 
     const input = wrapper.querySelector('input');
     const btn = wrapper.querySelector('button');
+    let isSubmitting = false;
 
     async function submit() {
+        if (isSubmitting) return;
         const content = input.value.trim();
         if (!content) return;
 
+        isSubmitting = true;
+        wrapper.setAttribute('aria-busy', 'true');
+        setButtonPending(btn, true, 'Saving...');
         try {
             const result = await timelineStore.create({
                 type,
@@ -257,7 +279,17 @@ export function createMinimalCapture(options = {}) {
 
             if (onCapture) onCapture(result);
         } catch (err) {
-            showToast({ message: 'Failed to save', type: 'error' });
+            logger.error('Failed to save capture:', err);
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to save capture. Check the note and try again.'
+                }),
+                type: 'error'
+            });
+        } finally {
+            isSubmitting = false;
+            wrapper.setAttribute('aria-busy', 'false');
+            setButtonPending(btn, false);
         }
     }
 
@@ -270,6 +302,16 @@ export function createMinimalCapture(options = {}) {
     });
 
     return wrapper;
+}
+
+function setButtonPending(button, isPending, pendingLabel = 'Saving...') {
+    if (!button) return;
+    if (!button.dataset.defaultLabel) {
+        button.dataset.defaultLabel = button.textContent;
+    }
+
+    button.disabled = isPending;
+    button.textContent = isPending ? pendingLabel : button.dataset.defaultLabel;
 }
 
 export default createQuickCapture;

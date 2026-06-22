@@ -44,7 +44,7 @@ export function createTimelineView(options = {}) {
 
     if (showFilters) {
         wrapper.appendChild(createFilterBar(currentFilters, (newFilters) => {
-            currentFilters = newFilters;
+            currentFilters = { ...currentFilters, ...newFilters };
             render();
         }));
     }
@@ -60,16 +60,19 @@ export function createTimelineView(options = {}) {
      */
     function render() {
         const events = getFilteredEvents();
+        const filteredEmpty = hasActiveVisibleFilters();
 
         if (events.length === 0) {
             timelineContainer.innerHTML = `
                 <div class="empty-state">
                     <h3 class="empty-state-title">No Events</h3>
                     <p class="empty-state-message">
-                        ${Object.values(currentFilters).some(v => v) ? 'No events match the current filters' : 'No timeline events yet'}
+                        ${filteredEmpty ? 'No events match the current filters' : 'No timeline events yet'}
                     </p>
+                    ${showFilters && filteredEmpty ? '<button type="button" class="btn btn-secondary btn-sm" data-timeline-clear-filters>Clear filters</button>' : ''}
                 </div>
             `;
+            timelineContainer.querySelector('[data-timeline-clear-filters]')?.addEventListener('click', clearVisibleFilters);
             return;
         }
 
@@ -185,6 +188,26 @@ export function createTimelineView(options = {}) {
         return 'other';
     }
 
+    function hasActiveVisibleFilters() {
+        return Boolean(currentFilters.category || currentFilters.move || currentFilters.team);
+    }
+
+    function clearVisibleFilters() {
+        currentFilters = {
+            ...currentFilters,
+            category: null,
+            move: null,
+            team: null
+        };
+
+        const filterBar = wrapper.querySelector('.timeline-view-filters');
+        if (filterBar) {
+            updateFilterBar(filterBar, currentFilters);
+        }
+
+        render();
+    }
+
     /**
      * Initialize the view
      */
@@ -203,6 +226,11 @@ export function createTimelineView(options = {}) {
     function setFilters(newFilters) {
         currentFilters = { ...currentFilters, ...newFilters };
         render();
+
+        const filterBar = wrapper.querySelector('.timeline-view-filters');
+        if (filterBar) {
+            updateFilterBar(filterBar, currentFilters);
+        }
     }
 
     /**
@@ -278,22 +306,38 @@ function createFilterBar(filters, onChange) {
         </div>
     `;
 
-    bar.querySelector('#categoryFilter').addEventListener('change', (e) => {
-        filters.category = e.target.value || null;
-        onChange(filters);
+    bar.querySelector('#categoryFilter').addEventListener('change', () => {
+        onChange(readFilterBar(bar));
     });
 
-    bar.querySelector('#moveFilter').addEventListener('change', (e) => {
-        filters.move = e.target.value ? parseInt(e.target.value) : null;
-        onChange(filters);
+    bar.querySelector('#moveFilter').addEventListener('change', () => {
+        onChange(readFilterBar(bar));
     });
 
-    bar.querySelector('#teamFilter').addEventListener('change', (e) => {
-        filters.team = e.target.value || null;
-        onChange(filters);
+    bar.querySelector('#teamFilter').addEventListener('change', () => {
+        onChange(readFilterBar(bar));
     });
 
     return bar;
+}
+
+function readFilterBar(bar) {
+    const moveValue = bar.querySelector('#moveFilter')?.value || '';
+    return {
+        category: bar.querySelector('#categoryFilter')?.value || null,
+        move: moveValue ? parseInt(moveValue, 10) : null,
+        team: bar.querySelector('#teamFilter')?.value || null
+    };
+}
+
+function updateFilterBar(bar, filters) {
+    const categorySelect = bar.querySelector('#categoryFilter');
+    const moveSelect = bar.querySelector('#moveFilter');
+    const teamSelect = bar.querySelector('#teamFilter');
+
+    if (categorySelect) categorySelect.value = filters.category || '';
+    if (moveSelect) moveSelect.value = filters.move || '';
+    if (teamSelect) teamSelect.value = filters.team || '';
 }
 
 export default createTimelineView;

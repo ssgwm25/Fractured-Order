@@ -43,7 +43,7 @@ export function createActionList(options = {}) {
 
     if (showFilters) {
         wrapper.appendChild(createFilterBar(currentFilters, (newFilters) => {
-            currentFilters = newFilters;
+            currentFilters = { ...currentFilters, ...newFilters };
             render();
         }));
     }
@@ -59,6 +59,7 @@ export function createActionList(options = {}) {
      */
     function render() {
         const actions = getFilteredActions();
+        const filteredEmpty = hasActiveVisibleFilters();
 
         if (actions.length === 0) {
             listContainer.innerHTML = `
@@ -72,8 +73,10 @@ export function createActionList(options = {}) {
                     <p class="empty-state-message">
                         ${getEmptyMessage()}
                     </p>
+                    ${showFilters && filteredEmpty ? '<button type="button" class="btn btn-secondary btn-sm" data-action-clear-filters>Clear filters</button>' : ''}
                 </div>
             `;
+            listContainer.querySelector('[data-action-clear-filters]')?.addEventListener('click', clearVisibleFilters);
             return;
         }
 
@@ -133,10 +136,36 @@ export function createActionList(options = {}) {
      * @returns {string}
      */
     function getEmptyMessage() {
-        if (Object.values(currentFilters).some(v => v)) {
+        if (hasActiveVisibleFilters()) {
             return 'No actions match the current filters';
         }
         return 'No actions have been created yet';
+    }
+
+    function hasActiveVisibleFilters() {
+        return Boolean(
+            currentFilters.search
+            || currentFilters.status
+            || currentFilters.move
+            || currentFilters.mechanism
+        );
+    }
+
+    function clearVisibleFilters() {
+        currentFilters = {
+            ...currentFilters,
+            search: '',
+            status: null,
+            move: null,
+            mechanism: null
+        };
+
+        const filterBar = wrapper.querySelector('.action-list-filters');
+        if (filterBar) {
+            updateFilterBar(filterBar, currentFilters);
+        }
+
+        render();
     }
 
     /**
@@ -251,27 +280,33 @@ function createFilterBar(filters, onChange) {
     `;
 
     // Bind filter handlers
-    bar.querySelector('#actionSearch').addEventListener('input', (e) => {
-        filters.search = e.target.value;
-        onChange(filters);
+    bar.querySelector('#actionSearch').addEventListener('input', () => {
+        onChange(readFilterBar(bar));
     });
 
-    bar.querySelector('#statusFilter').addEventListener('change', (e) => {
-        filters.status = e.target.value || null;
-        onChange(filters);
+    bar.querySelector('#statusFilter').addEventListener('change', () => {
+        onChange(readFilterBar(bar));
     });
 
-    bar.querySelector('#moveFilter').addEventListener('change', (e) => {
-        filters.move = e.target.value ? parseInt(e.target.value) : null;
-        onChange(filters);
+    bar.querySelector('#moveFilter').addEventListener('change', () => {
+        onChange(readFilterBar(bar));
     });
 
-    bar.querySelector('#mechanismFilter').addEventListener('change', (e) => {
-        filters.mechanism = e.target.value || null;
-        onChange(filters);
+    bar.querySelector('#mechanismFilter').addEventListener('change', () => {
+        onChange(readFilterBar(bar));
     });
 
     return bar;
+}
+
+function readFilterBar(bar) {
+    const moveValue = bar.querySelector('#moveFilter')?.value || '';
+    return {
+        search: bar.querySelector('#actionSearch')?.value || '',
+        status: bar.querySelector('#statusFilter')?.value || null,
+        move: moveValue ? parseInt(moveValue, 10) : null,
+        mechanism: bar.querySelector('#mechanismFilter')?.value || null
+    };
 }
 
 /**

@@ -15,8 +15,9 @@ function getContainer() {
     if (!toastContainer) {
         toastContainer = document.createElement('div');
         toastContainer.id = 'toast-container';
-        toastContainer.setAttribute('role', 'alert');
+        toastContainer.setAttribute('role', 'region');
         toastContainer.setAttribute('aria-live', 'polite');
+        toastContainer.setAttribute('aria-label', 'Notifications');
         document.body.appendChild(toastContainer);
     }
     return toastContainer;
@@ -80,8 +81,11 @@ export function showToast(messageOrConfig, options = {}) {
     const container = getContainer();
 
     const toast = document.createElement('div');
+    const urgent = type === 'error' || type === 'warning';
     toast.className = `toast toast-${type}`;
-    toast.setAttribute('role', 'status');
+    toast.setAttribute('role', urgent ? 'alert' : 'status');
+    toast.setAttribute('aria-live', urgent ? 'assertive' : 'polite');
+    toast.setAttribute('aria-atomic', 'true');
 
     // Icon based on type
     const icons = {

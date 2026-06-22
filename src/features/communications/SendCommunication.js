@@ -12,6 +12,7 @@ import { timelineStore, EVENT_TYPES } from '../../stores/index.js';
 import { showToast } from '../../components/ui/Toast.js';
 import { showModal } from '../../components/ui/Modal.js';
 import { createLogger } from '../../utils/logger.js';
+import { getUserMessage } from '../../core/errors.js';
 
 const logger = createLogger('SendCommunication');
 
@@ -114,6 +115,7 @@ export function createSendCommunication(options = {}) {
 
     const form = wrapper.querySelector('#commForm');
     const typeOptions = wrapper.querySelectorAll('.comm-type-option');
+    let isSubmitting = false;
 
     // Handle type selection visual
     typeOptions.forEach(option => {
@@ -132,6 +134,7 @@ export function createSendCommunication(options = {}) {
      */
     async function handleSubmit(e) {
         e.preventDefault();
+        if (isSubmitting) return;
 
         const commType = form.querySelector('input[name="commType"]:checked').value;
         const recipient = form.querySelector('#commRecipient').value;
@@ -149,6 +152,8 @@ export function createSendCommunication(options = {}) {
             return;
         }
 
+        isSubmitting = true;
+        setSubmitPending(form, true, 'Sending...');
         try {
             // Save communication to database
             await database.createCommunication({
@@ -188,7 +193,15 @@ export function createSendCommunication(options = {}) {
 
         } catch (err) {
             logger.error('Failed to send communication:', err);
-            showToast({ message: 'Failed to send communication', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to send communication. Check the message and try again.'
+                }),
+                type: 'error'
+            });
+        } finally {
+            isSubmitting = false;
+            setSubmitPending(form, false);
         }
     }
 
@@ -228,6 +241,8 @@ export function createSendCommunication(options = {}) {
 export function showSendCommunicationModal(options = {}) {
     return new Promise((resolve) => {
         const content = document.createElement('div');
+        let isSubmitting = false;
+        const modalRef = { current: null };
 
         content.innerHTML = `
             <form id="modalCommForm">
@@ -258,36 +273,46 @@ export function showSendCommunicationModal(options = {}) {
             </form>
         `;
 
-        showModal({
+        modalRef.current = showModal({
             title: 'Send Communication',
             content,
             size: 'md',
             buttons: [
                 {
-                    text: 'Cancel',
+                    label: 'Cancel',
                     variant: 'secondary',
-                    onClick: (modal) => {
-                        modal.close();
+                    onClick: () => {
+                        modalRef.current?.close?.();
                         resolve(null);
+                        return false;
                     }
                 },
                 {
-                    text: 'Send',
+                    label: 'Send',
                     variant: 'primary',
-                    onClick: async (modal) => {
+                    onClick: () => {
+                        if (isSubmitting) return false;
                         const commType = content.querySelector('#modalCommType').value;
                         const recipient = content.querySelector('#modalCommRecipient').value;
                         const message = content.querySelector('#modalCommContent').value.trim();
 
                         if (!message) {
                             showToast({ message: 'Please enter a message', type: 'error' });
-                            return;
+                            return false;
                         }
 
                         const sessionId = sessionStore.getSessionId();
-                        if (!sessionId) return;
+                        if (!sessionId) {
+                            showToast({ message: 'No active session', type: 'error' });
+                            return false;
+                        }
 
-                        try {
+                        isSubmitting = true;
+                        const submitButton = modalRef.current?.element?.querySelector('.modal-footer .btn-primary');
+                        setButtonPending(submitButton, true, 'Sending...');
+                        content.querySelector('#modalCommForm')?.setAttribute('aria-busy', 'true');
+
+                        (async () => {
                             await database.createCommunication({
                                 session_id: sessionId,
                                 from_team: 'white_cell',
@@ -305,16 +330,44 @@ export function showSendCommunicationModal(options = {}) {
                             });
 
                             showToast({ message: 'Communication sent', type: 'success' });
-                            modal.close();
+                            modalRef.current?.close?.();
                             resolve({ commType, recipient, message });
-                        } catch (err) {
-                            showToast({ message: 'Failed to send', type: 'error' });
-                        }
+                        })().catch((err) => {
+                            logger.error('Failed to send communication:', err);
+                            showToast({
+                                message: getUserMessage(err, {
+                                    fallback: 'Failed to send communication. Check the message and try again.'
+                                }),
+                                type: 'error'
+                            });
+                        }).finally(() => {
+                            isSubmitting = false;
+                            setButtonPending(submitButton, false);
+                            content.querySelector('#modalCommForm')?.setAttribute('aria-busy', 'false');
+                        });
+
+                        return false;
                     }
                 }
             ]
         });
     });
+}
+
+function setSubmitPending(form, isPending, pendingLabel = 'Sending...') {
+    const submitButton = form.querySelector('button[type="submit"]');
+    form.setAttribute('aria-busy', String(isPending));
+    setButtonPending(submitButton, isPending, pendingLabel);
+}
+
+function setButtonPending(button, isPending, pendingLabel = 'Sending...') {
+    if (!button) return;
+    if (!button.dataset.defaultLabel) {
+        button.dataset.defaultLabel = button.textContent;
+    }
+
+    button.disabled = isPending;
+    button.textContent = isPending ? pendingLabel : button.dataset.defaultLabel;
 }
 
 export default createSendCommunication;

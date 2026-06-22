@@ -247,6 +247,7 @@ function hideRuntimeNotice() {
         container.hidden = true;
         container.className = '';
         container.innerHTML = '';
+        container.onkeydown = null;
     }
 
     const body = document.body;
@@ -355,8 +356,62 @@ function ensureRuntimeNoticeStyles() {
             font-size: 0.95rem;
             color: #475569;
         }
+        .runtime-config-actions {
+            margin-top: 1.25rem;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .runtime-config-reload {
+            border: 0;
+            border-radius: 0.5rem;
+            background: #115740;
+            color: #ffffff;
+            font-weight: 700;
+            padding: 0.625rem 1rem;
+            cursor: pointer;
+        }
+        .runtime-config-reload:focus-visible {
+            outline: 3px solid rgba(17, 87, 64, 0.35);
+            outline-offset: 2px;
+        }
     `;
     document.head.appendChild(style);
+}
+
+function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = String(value ?? '');
+    return div.innerHTML;
+}
+
+function trapRuntimeNoticeFocus(container) {
+    container.onkeydown = (event) => {
+        if (event.key !== 'Tab') return;
+
+        const focusable = Array.from(container.querySelectorAll(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ));
+
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const activeElement = document.activeElement;
+
+        if (!focusable.includes(activeElement)) {
+            event.preventDefault();
+            (event.shiftKey ? last : first).focus();
+            return;
+        }
+
+        if (event.shiftKey && activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
 }
 
 function getRuntimeNoticeContainer() {
@@ -399,17 +454,33 @@ export function renderMissingBackendNotice() {
     container.hidden = false;
     container.className = 'runtime-config-notice';
     container.innerHTML = `
-        <div class="runtime-config-panel" role="alertdialog" aria-modal="true" aria-labelledby="runtime-config-title">
-            <p class="runtime-config-eyebrow">${status.eyebrow}</p>
-            <h1 class="runtime-config-title" id="runtime-config-title">${status.title}</h1>
-            <p class="runtime-config-copy">${status.message}</p>
+        <div class="runtime-config-panel" role="alertdialog" aria-modal="true" aria-labelledby="runtime-config-title" aria-describedby="runtime-config-copy runtime-config-note" tabindex="-1">
+            <p class="runtime-config-eyebrow">${escapeHtml(status.eyebrow)}</p>
+            <h1 class="runtime-config-title" id="runtime-config-title">${escapeHtml(status.title)}</h1>
+            <p class="runtime-config-copy" id="runtime-config-copy">${escapeHtml(status.message)}</p>
             <ul class="runtime-config-list">
-                ${status.issues.map((issue) => `<li>${issue}</li>`).join('')}
+                ${status.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('')}
             </ul>
-            <p class="runtime-config-note">${status.note}</p>
+            <p class="runtime-config-note" id="runtime-config-note">${escapeHtml(status.note)}</p>
+            <div class="runtime-config-actions">
+                <button type="button" class="runtime-config-reload" id="runtimeConfigReload">Reload page</button>
+            </div>
         </div>
     `;
     document.body.dataset.runtimeConfigBlocked = 'true';
+    trapRuntimeNoticeFocus(container);
+
+    const reloadButton = container.querySelector('#runtimeConfigReload');
+    reloadButton?.addEventListener('click', () => {
+        window.location.reload();
+    });
+
+    const scheduleFocus = typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (callback) => setTimeout(callback, 0);
+    scheduleFocus(() => {
+        container.querySelector('.runtime-config-panel')?.focus?.();
+    });
 }
 
 let rawSupabaseClient = null;

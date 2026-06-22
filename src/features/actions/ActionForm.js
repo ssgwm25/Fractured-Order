@@ -28,6 +28,7 @@ const logger = createLogger('ActionForm');
 export function createActionForm(options = {}) {
     const { action = {}, team = 'blue', onSubmit, onCancel } = options;
     const isEdit = !!action.id;
+    let isSubmitting = false;
 
     const form = document.createElement('form');
     form.className = 'action-form';
@@ -131,10 +132,13 @@ export function createActionForm(options = {}) {
     // Handle submit
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
 
         const formData = getFormData(form);
         if (!validateForm(formData)) return;
 
+        isSubmitting = true;
+        setSubmitPending(form, true, isEdit ? 'Saving...' : 'Creating...');
         try {
             let result;
             if (isEdit) {
@@ -159,10 +163,26 @@ export function createActionForm(options = {}) {
                 }),
                 type: 'error'
             });
+        } finally {
+            isSubmitting = false;
+            setSubmitPending(form, false);
         }
     });
 
     return form;
+}
+
+function setSubmitPending(form, isPending, pendingLabel = 'Saving...') {
+    const submitButton = form.querySelector('button[type="submit"]');
+    form.setAttribute('aria-busy', String(isPending));
+
+    if (!submitButton) return;
+    if (!submitButton.dataset.defaultLabel) {
+        submitButton.dataset.defaultLabel = submitButton.textContent;
+    }
+
+    submitButton.disabled = isPending;
+    submitButton.textContent = isPending ? pendingLabel : submitButton.dataset.defaultLabel;
 }
 
 /**

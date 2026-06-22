@@ -45,7 +45,7 @@ export function createRfiList(options = {}) {
 
     if (showFilters) {
         wrapper.appendChild(createFilterBar(currentFilters, (newFilters) => {
-            currentFilters = newFilters;
+            currentFilters = { ...currentFilters, ...newFilters };
             render();
         }));
     }
@@ -61,6 +61,7 @@ export function createRfiList(options = {}) {
      */
     function render() {
         const rfis = getFilteredRfis();
+        const filteredEmpty = hasActiveVisibleFilters();
 
         if (rfis.length === 0) {
             listContainer.innerHTML = `
@@ -69,8 +70,10 @@ export function createRfiList(options = {}) {
                     <p class="empty-state-message">
                         ${getEmptyMessage()}
                     </p>
+                    ${showFilters && filteredEmpty ? '<button type="button" class="btn btn-secondary btn-sm" data-rfi-clear-filters>Clear filters</button>' : ''}
                 </div>
             `;
+            listContainer.querySelector('[data-rfi-clear-filters]')?.addEventListener('click', clearVisibleFilters);
             return;
         }
 
@@ -115,6 +118,24 @@ export function createRfiList(options = {}) {
         return 'No RFIs submitted yet';
     }
 
+    function hasActiveVisibleFilters() {
+        return Boolean(currentFilters.status);
+    }
+
+    function clearVisibleFilters() {
+        currentFilters = {
+            ...currentFilters,
+            status: null
+        };
+
+        const filterBar = wrapper.querySelector('.rfi-list-filters');
+        if (filterBar) {
+            updateFilterBar(filterBar, currentFilters);
+        }
+
+        render();
+    }
+
     /**
      * Initialize the list
      */
@@ -133,6 +154,11 @@ export function createRfiList(options = {}) {
     function setFilters(newFilters) {
         currentFilters = { ...currentFilters, ...newFilters };
         render();
+
+        const filterBar = wrapper.querySelector('.rfi-list-filters');
+        if (filterBar) {
+            updateFilterBar(filterBar, currentFilters);
+        }
     }
 
     /**
@@ -243,12 +269,22 @@ function createFilterBar(filters, onChange) {
         </div>
     `;
 
-    bar.querySelector('#statusFilter').addEventListener('change', (e) => {
-        filters.status = e.target.value || null;
-        onChange(filters);
+    bar.querySelector('#statusFilter').addEventListener('change', () => {
+        onChange(readFilterBar(bar));
     });
 
     return bar;
+}
+
+function readFilterBar(bar) {
+    return {
+        status: bar.querySelector('#statusFilter')?.value || null
+    };
+}
+
+function updateFilterBar(bar, filters) {
+    const statusSelect = bar.querySelector('#statusFilter');
+    if (statusSelect) statusSelect.value = filters.status || '';
 }
 
 /**

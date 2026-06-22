@@ -369,6 +369,14 @@ html, body {
     border-radius: var(--input-radius);
 }
 
+.lf-help,
+.op-help {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+}
+
 .lf-fieldset {
     border: none;
     padding: 0;

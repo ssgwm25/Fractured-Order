@@ -12,6 +12,7 @@ import { showToast } from '../../components/ui/Toast.js';
 import { createLogger } from '../../utils/logger.js';
 import { ENUMS } from '../../core/enums.js';
 import { getCheckedValues, renderCheckboxOptions } from '../../utils/checkboxGroup.js';
+import { getUserMessage } from '../../core/errors.js';
 
 const logger = createLogger('RfiForm');
 
@@ -25,6 +26,7 @@ const logger = createLogger('RfiForm');
  */
 export function createRfiForm(options = {}) {
     const { team = 'blue', onSubmit, onCancel } = options;
+    let isSubmitting = false;
     const priorityOptions = ENUMS.PRIORITY
         .map(value => `<option value="${value}">${value}</option>`)
         .join('');
@@ -98,6 +100,7 @@ export function createRfiForm(options = {}) {
     // Handle submit
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
 
         const question = form.querySelector('#rfiQuestion').value.trim();
         const context = form.querySelector('#rfiContext').value.trim();
@@ -117,6 +120,8 @@ export function createRfiForm(options = {}) {
             return;
         }
 
+        isSubmitting = true;
+        setSubmitPending(form, true, 'Submitting...');
         try {
             const query = context ? `${question}\n\nContext: ${context}` : question;
             const rfiData = {
@@ -138,7 +143,15 @@ export function createRfiForm(options = {}) {
             if (onSubmit) onSubmit(result);
         } catch (err) {
             logger.error('Failed to submit RFI:', err);
-            showToast({ message: 'Failed to submit RFI', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to submit RFI. Check the form and try again.'
+                }),
+                type: 'error'
+            });
+        } finally {
+            isSubmitting = false;
+            setSubmitPending(form, false);
         }
     });
 
@@ -172,8 +185,10 @@ export function createInlineRfiForm(options = {}) {
 
     const textarea = wrapper.querySelector('#inlineRfiQuestion');
     const submitBtn = wrapper.querySelector('#inlineRfiSubmit');
+    let isSubmitting = false;
 
     submitBtn.addEventListener('click', async () => {
+        if (isSubmitting) return;
         const question = textarea.value.trim();
 
         if (!question) {
@@ -181,6 +196,9 @@ export function createInlineRfiForm(options = {}) {
             return;
         }
 
+        isSubmitting = true;
+        setButtonPending(submitBtn, true, 'Submitting...');
+        wrapper.setAttribute('aria-busy', 'true');
         try {
             const result = await requestsStore.create({
                 query: question,
@@ -198,7 +216,16 @@ export function createInlineRfiForm(options = {}) {
             if (onSubmit) onSubmit(result);
         } catch (err) {
             logger.error('Failed to submit RFI:', err);
-            showToast({ message: 'Failed to submit RFI', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to submit RFI. Check the question and try again.'
+                }),
+                type: 'error'
+            });
+        } finally {
+            isSubmitting = false;
+            setButtonPending(submitBtn, false);
+            wrapper.setAttribute('aria-busy', 'false');
         }
     });
 
@@ -210,6 +237,22 @@ export function createInlineRfiForm(options = {}) {
     });
 
     return wrapper;
+}
+
+function setSubmitPending(form, isPending, pendingLabel = 'Submitting...') {
+    const submitButton = form.querySelector('button[type="submit"]');
+    form.setAttribute('aria-busy', String(isPending));
+    setButtonPending(submitButton, isPending, pendingLabel);
+}
+
+function setButtonPending(button, isPending, pendingLabel = 'Submitting...') {
+    if (!button) return;
+    if (!button.dataset.defaultLabel) {
+        button.dataset.defaultLabel = button.textContent;
+    }
+
+    button.disabled = isPending;
+    button.textContent = isPending ? pendingLabel : button.dataset.defaultLabel;
 }
 
 export default createRfiForm;

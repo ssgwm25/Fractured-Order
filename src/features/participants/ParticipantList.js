@@ -168,16 +168,34 @@ export function createParticipantList(options = {}) {
         render();
     }
 
+    function renderLoadError() {
+        listContainer.innerHTML = `
+            <div class="empty-state empty-state-sm" role="alert">
+                <p class="empty-state-message">Couldn't load participants.</p>
+                <button type="button" class="btn btn-secondary btn-sm" data-participants-retry>Retry</button>
+            </div>
+        `;
+
+        listContainer.querySelector('[data-participants-retry]')?.addEventListener('click', () => {
+            void refresh();
+        });
+    }
+
     async function refresh() {
         const loader = showInlineLoader(listContainer, { message: 'Loading...' });
+        let failed = false;
         try {
             await participantsStore.loadParticipants();
             render();
         } catch (err) {
+            failed = true;
             logger.error('Failed to refresh participant list:', err);
-            throw err;
         } finally {
             loader?.hide();
+        }
+
+        if (failed) {
+            renderLoadError();
         }
     }
 

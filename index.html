@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Fractured Order, a seminar simulation served on the Plenum platform for SSG.">
-    <title>Fractured Order</title>
+    <title>Fractured Order — on Plenum, for SSG</title>
 
     <link rel="stylesheet" href="./styles/base/reset.css">
     <link rel="stylesheet" href="./styles/base/variables.css">
@@ -64,36 +64,44 @@
 
                     <fieldset class="lf-fieldset">
                         <legend>Team</legend>
-                        <div class="lf-chips" role="group" aria-label="Team selection">
+                        <div class="lf-chips" role="group" aria-label="Team selection" aria-describedby="teamSelectionHelp">
                             <button type="button" class="chip" data-team="blue" aria-pressed="false"
-                                title="Lead the Blue delegation surface">Blue</button>
+                                title="Lead the Blue delegation surface"
+                                aria-label="Blue team delegation surface">Blue</button>
                             <button type="button" class="chip" data-team="red" aria-pressed="false"
-                                title="Lead the Red delegation surface">Red</button>
+                                title="Lead the Red delegation surface"
+                                aria-label="Red team delegation surface">Red</button>
                             <button type="button" class="chip" data-team="green" aria-pressed="false"
-                                title="Lead the Green delegation surface">Green</button>
+                                title="Lead the Green delegation surface"
+                                aria-label="Green team delegation surface">Green</button>
                         </div>
+                        <p class="lf-help" id="teamSelectionHelp">Choose the delegation surface for this seat.</p>
                         <input type="hidden" id="selectedTeam" name="team" value="blue">
                     </fieldset>
 
                     <fieldset class="lf-fieldset">
                         <legend>Role</legend>
-                        <div class="lf-chips" role="group" aria-label="Role selection">
+                        <div class="lf-chips" role="group" aria-label="Role selection" aria-describedby="roleSelectionHelp">
                             <button type="button" class="chip chip--role" data-role-surface="facilitator" aria-pressed="false"
-                                title="1 seat per team &middot; Submits actions and RFIs">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                title="1 seat per team &middot; Submits actions and RFIs"
+                                aria-label="Facilitator, one seat per team, submits actions and RFIs">
+                                <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                                 Facilitator
                             </button>
                             <button type="button" class="chip chip--role" data-role-surface="scribe" aria-pressed="false"
-                                title="1 seat per team &middot; Opens the support slide deck">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                title="1 seat per team &middot; Opens the support slide deck"
+                                aria-label="Scribe, one seat per team, opens the support slide deck">
+                                <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
                                 Scribe
                             </button>
                             <button type="button" class="chip chip--role" data-role-surface="notetaker" aria-pressed="false"
-                                title="2 seats per team &middot; Captures notes, quotes, key moments">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                title="2 seats per team &middot; Captures notes, quotes, key moments"
+                                aria-label="Notetaker, two seats per team, captures notes, quotes, and key moments">
+                                <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                                 Notetaker
                             </button>
                         </div>
+                        <p class="lf-help" id="roleSelectionHelp">Facilitator and Scribe are single-seat roles. Notetaker supports two seats per team.</p>
                         <input type="hidden" id="selectedRole" name="role">
                     </fieldset>
 
@@ -117,12 +125,16 @@
                         </div>
                         <div class="op-actions">
                             <button type="button" class="btn btn-secondary btn-sm" id="operatorGameMasterBtn"
-                                title="Session creation, monitoring, and data export">Game Master</button>
+                                title="Session creation, monitoring, and data export"
+                                aria-label="Authorize Game Master operator access for session creation, monitoring, and data export">Game Master</button>
                             <button type="button" class="btn btn-secondary btn-sm" id="operatorWhiteCellLeadBtn"
-                                title="Adjudicates actions and answers RFIs">WC Lead</button>
+                                title="Adjudicates actions and answers RFIs"
+                                aria-label="Authorize White Cell Lead access to adjudicate actions and answer RFIs">WC Lead</button>
                             <button type="button" class="btn btn-secondary btn-sm" id="operatorWhiteCellSupportBtn"
-                                title="Supports the White Cell lead operator">WC Support</button>
+                                title="Supports the White Cell lead operator"
+                                aria-label="Authorize White Cell Support access">WC Support</button>
                         </div>
+                        <p class="op-help">Operator access is for session staff only.</p>
                     </form>
                 </details>
                 </div><!-- /.form-main -->

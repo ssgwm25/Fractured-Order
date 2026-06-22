@@ -30,6 +30,10 @@ const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     import.meta.url
 );
 
+function normalizeLineEndings(value) {
+    return value.replace(/\r\n/g, '\n');
+}
+
 function extractFunctionBody(sql, functionName) {
     const functionPattern = new RegExp(
         `CREATE OR REPLACE FUNCTION public\\.${functionName}\\([\\s\\S]*?AS \\\$\\$([\\s\\S]*?)\\$\\$;`,
@@ -39,7 +43,7 @@ function extractFunctionBody(sql, functionName) {
 
     expect(match, `Expected SQL contract for ${functionName} to exist.`).not.toBeNull();
 
-    return match[1];
+    return normalizeLineEndings(match[1]);
 }
 
 describe('database migration contracts', () => {

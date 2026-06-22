@@ -10,6 +10,7 @@ import { showToast } from '../../components/ui/Toast.js';
 import { confirmModal } from '../../components/ui/Modal.js';
 import { CONFIG } from '../../core/config.js';
 import { createLogger } from '../../utils/logger.js';
+import { getUserMessage } from '../../core/errors.js';
 
 const logger = createLogger('TimerControl');
 
@@ -48,16 +49,16 @@ export function createTimerControl(options = {}) {
 
         ${canControl ? `
             <div class="timer-controls">
-                <button class="btn btn-success btn-sm" id="startBtn" title="Start Timer">
-                    <span class="timer-btn-icon">▶</span>
+                <button class="btn btn-success btn-sm" id="startBtn" title="Start Timer" aria-label="Start timer">
+                    <span class="timer-btn-icon" aria-hidden="true">▶</span>
                     <span class="timer-btn-label">Start</span>
                 </button>
-                <button class="btn btn-warning btn-sm" id="pauseBtn" title="Pause Timer" style="display: none;">
-                    <span class="timer-btn-icon">⏸</span>
+                <button class="btn btn-warning btn-sm" id="pauseBtn" title="Pause Timer" aria-label="Pause timer" style="display: none;">
+                    <span class="timer-btn-icon" aria-hidden="true">⏸</span>
                     <span class="timer-btn-label">Pause</span>
                 </button>
-                <button class="btn btn-secondary btn-sm" id="resetBtn" title="Reset Timer">
-                    <span class="timer-btn-icon">↺</span>
+                <button class="btn btn-secondary btn-sm" id="resetBtn" title="Reset Timer" aria-label="Reset timer">
+                    <span class="timer-btn-icon" aria-hidden="true">↺</span>
                     <span class="timer-btn-label">Reset</span>
                 </button>
             </div>
@@ -65,7 +66,7 @@ export function createTimerControl(options = {}) {
 
         ${showSetTime ? `
             <div class="timer-set-time">
-                <label class="form-label form-label-sm">Set Time (minutes)</label>
+                <label class="form-label form-label-sm" for="timerMinutes">Set Time (minutes)</label>
                 <div class="timer-set-input-group">
                     <input
                         type="number"
@@ -75,7 +76,7 @@ export function createTimerControl(options = {}) {
                         min="1"
                         max="999"
                     >
-                    <button class="btn btn-secondary btn-sm" id="setTimeBtn">Set</button>
+                    <button class="btn btn-secondary btn-sm" id="setTimeBtn" aria-label="Set timer duration">Set</button>
                 </div>
             </div>
         ` : ''}
@@ -111,7 +112,12 @@ export function createTimerControl(options = {}) {
             updateControlButtons(true);
         } catch (err) {
             logger.error('Failed to start timer:', err);
-            showToast({ message: 'Failed to start timer', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to start timer. Refresh the session state and try again.'
+                }),
+                type: 'error'
+            });
         }
     }
 
@@ -124,7 +130,12 @@ export function createTimerControl(options = {}) {
             updateControlButtons(false);
         } catch (err) {
             logger.error('Failed to pause timer:', err);
-            showToast({ message: 'Failed to pause timer', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to pause timer. Refresh the session state and try again.'
+                }),
+                type: 'error'
+            });
         }
     }
 
@@ -146,7 +157,12 @@ export function createTimerControl(options = {}) {
             showToast({ message: 'Timer reset', type: 'success' });
         } catch (err) {
             logger.error('Failed to reset timer:', err);
-            showToast({ message: 'Failed to reset timer', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to reset timer. Refresh the session state and try again.'
+                }),
+                type: 'error'
+            });
         }
     }
 
@@ -166,7 +182,12 @@ export function createTimerControl(options = {}) {
             showToast({ message: `Timer set to ${minutes} minutes`, type: 'success' });
         } catch (err) {
             logger.error('Failed to set timer:', err);
-            showToast({ message: 'Failed to set timer', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to set timer. Check the duration and try again.'
+                }),
+                type: 'error'
+            });
         }
     }
 

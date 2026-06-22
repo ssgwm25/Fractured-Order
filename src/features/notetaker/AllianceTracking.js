@@ -53,6 +53,8 @@ export function createAllianceTracking(options = {}) {
             <span class="alliance-tracking-autosave" id="autoSaveStatus">Saved to your notes</span>
         </div>
 
+        <div class="form-error" id="allianceLoadStatus" role="alert" hidden></div>
+
         <form class="alliance-tracking-form" id="allianceForm">
             <div class="form-group">
                 <label class="form-label" for="allianceFormation">Alliance Formation</label>
@@ -129,6 +131,7 @@ export function createAllianceTracking(options = {}) {
 
     const form = wrapper.querySelector('#allianceForm');
     const autoSaveStatus = wrapper.querySelector('#autoSaveStatus');
+    const loadStatus = wrapper.querySelector('#allianceLoadStatus');
     const allianceStrength = wrapper.querySelector('#allianceStrength');
     const allianceStrengthValue = wrapper.querySelector('#allianceStrengthValue');
 
@@ -162,6 +165,24 @@ export function createAllianceTracking(options = {}) {
         currentData = getFormData();
         autoSaveStatus.textContent = 'Saving...';
         autoSaveDebounce();
+    }
+
+    function clearLoadError() {
+        if (!loadStatus) return;
+        loadStatus.hidden = true;
+        loadStatus.innerHTML = '';
+    }
+
+    function renderLoadError() {
+        if (!loadStatus) return;
+        loadStatus.hidden = false;
+        loadStatus.innerHTML = `
+            Couldn't load saved alliance notes.
+            <button type="button" class="btn btn-secondary btn-sm" data-alliance-retry>Retry</button>
+        `;
+        loadStatus.querySelector('[data-alliance-retry]')?.addEventListener('click', () => {
+            void loadData();
+        });
     }
 
     /**
@@ -254,8 +275,10 @@ export function createAllianceTracking(options = {}) {
                 participantKey: participantContext.participantKey,
                 fallbackTeamId: record?.team
             }));
+            clearLoadError();
         } catch (err) {
             logger.error('Failed to load alliance tracking:', err);
+            renderLoadError();
         }
     }
 

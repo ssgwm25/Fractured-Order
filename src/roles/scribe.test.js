@@ -15,6 +15,10 @@ const BLUE_SCRIBE_HTML_PATH = new URL('../../teams/blue/scribe.html', import.met
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
 const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
+function normalizeLineEndings(value) {
+    return value.replace(/\r\n/g, '\n');
+}
+
 vi.mock('../components/ui/Toast.js', () => ({
     showToast: vi.fn()
 }));
@@ -696,7 +700,7 @@ describe('scribe surface', () => {
     });
 
     it('reserves a presentation-only layout that hides the sidebar chrome and centers the slide viewer', () => {
-        const css = readFileSync(SCRIBE_CSS_PATH, 'utf8');
+        const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
         expect(css).toContain('html,\nbody {');
         expect(css).toContain('height: 100%;');
