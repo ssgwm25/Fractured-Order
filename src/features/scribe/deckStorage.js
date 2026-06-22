@@ -1,6 +1,13 @@
 const SCRIBE_DECK_STORAGE_DB = 'esg-scribe-decks';
 const SCRIBE_DECK_STORAGE_STORE = 'uploaded-decks';
 const SCRIBE_DECK_STORAGE_VERSION = 1;
+export const SCRIBE_DECK_STORAGE_TIMEOUT_MS = 5000;
+
+function createScribeDeckStorageTimeoutError(operation = 'accessing uploaded scribe deck storage') {
+    return new Error(
+        `Uploaded scribe deck browser storage timed out while ${operation}. Check browser storage permissions and try again.`
+    );
+}
 
 function resolveIndexedDb() {
     return globalThis.indexedDB
@@ -21,7 +28,35 @@ function openDeckStorageDatabase() {
     const indexedDb = requireIndexedDb();
 
     return new Promise((resolve, reject) => {
-        const request = indexedDb.open(SCRIBE_DECK_STORAGE_DB, SCRIBE_DECK_STORAGE_VERSION);
+        let settled = false;
+        let request = null;
+        let timeoutId = null;
+
+        const settle = (handler, value) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            clearTimeout(timeoutId);
+            handler(value);
+        };
+
+        timeoutId = setTimeout(() => {
+            settle(reject, createScribeDeckStorageTimeoutError('opening storage'));
+        }, SCRIBE_DECK_STORAGE_TIMEOUT_MS);
+
+        try {
+            request = indexedDb.open(SCRIBE_DECK_STORAGE_DB, SCRIBE_DECK_STORAGE_VERSION);
+        } catch (error) {
+            settle(reject, error);
+            return;
+        }
+
+        if (!request) {
+            settle(reject, new Error('Uploaded scribe deck storage open request did not start.'));
+            return;
+        }
 
         request.onupgradeneeded = () => {
             const database = request.result;
@@ -33,11 +68,23 @@ function openDeckStorageDatabase() {
         };
 
         request.onsuccess = () => {
-            resolve(request.result);
+            if (settled) {
+                request.result?.close?.();
+                return;
+            }
+
+            settle(resolve, request.result);
         };
 
         request.onerror = () => {
-            reject(request.error || new Error('Unable to open uploaded scribe deck storage.'));
+            settle(reject, request.error || new Error('Unable to open uploaded scribe deck storage.'));
+        };
+
+        request.onblocked = () => {
+            settle(
+                reject,
+                new Error('Uploaded scribe deck storage is blocked by another open tab. Close other Fractured Order tabs and try again.')
+            );
         };
     });
 }
@@ -46,10 +93,10 @@ async function runDeckStorageRequest(mode, callback) {
     const database = await openDeckStorageDatabase();
 
     return new Promise((resolve, reject) => {
-        const transaction = database.transaction(SCRIBE_DECK_STORAGE_STORE, mode);
-        const store = transaction.objectStore(SCRIBE_DECK_STORAGE_STORE);
-        const request = callback(store);
+        let transaction = null;
+        let request = null;
         let settled = false;
+        let timeoutId = null;
 
         const closeDatabase = () => {
             try {
@@ -65,9 +112,34 @@ async function runDeckStorageRequest(mode, callback) {
             }
 
             settled = true;
+            clearTimeout(timeoutId);
             closeDatabase();
             handler(value);
         };
+
+        try {
+            transaction = database.transaction(SCRIBE_DECK_STORAGE_STORE, mode);
+            const store = transaction.objectStore(SCRIBE_DECK_STORAGE_STORE);
+            request = callback(store);
+        } catch (error) {
+            settle(reject, error);
+            return;
+        }
+
+        if (!request) {
+            settle(reject, new Error('Uploaded scribe deck storage request did not start.'));
+            return;
+        }
+
+        timeoutId = setTimeout(() => {
+            try {
+                transaction.abort?.();
+            } catch (_error) {
+                // Ignore abort errors after a timeout.
+            }
+
+            settle(reject, createScribeDeckStorageTimeoutError('reading or writing storage'));
+        }, SCRIBE_DECK_STORAGE_TIMEOUT_MS);
 
         request.onsuccess = () => {
             settle(resolve, request.result ?? null);

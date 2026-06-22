@@ -324,6 +324,58 @@ describe('White Cell DOM contract', () => {
         });
     });
 
+    it('renders default scribe deck controls before live communication sync finishes', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { syncService } = await import('../services/sync.js');
+        const fakeDocument = createFakeDocument([
+            'scribeDeckSettingsSummary',
+            'scribeDeckSettingsList'
+        ]);
+
+        global.document = fakeDocument;
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-42');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        vi.spyOn(sessionStore, 'hasOperatorAccess').mockReturnValue(true);
+        vi.spyOn(sessionStore, 'getSessionParticipantId').mockReturnValue(null);
+        vi.spyOn(sessionStore, 'setOperatorAuth').mockImplementation(() => {});
+        vi.spyOn(database, 'requireOperatorGrant').mockResolvedValue({
+            sessionId: 'session-42',
+            role: 'whitecell_lead'
+        });
+        vi.spyOn(syncService, 'initialize').mockImplementation(async () => {
+            expect(fakeDocument.elements.scribeDeckSettingsSummary.textContent).toBe(
+                "Set the slide deck each team's scribe presents."
+            );
+            expect(fakeDocument.elements.scribeDeckSettingsList.innerHTML).toContain('Blue Team Scribe');
+            expect(fakeDocument.elements.scribeDeckSettingsList.innerHTML).toContain('data-scribe-deck-action="load"');
+        });
+
+        const controller = new WhiteCellController();
+        controller.configureTeamLabels = vi.fn();
+        controller.loadResearchExportRuntime = vi.fn();
+        controller.bindEventListeners = vi.fn();
+        controller.subscribeToLiveData = vi.fn();
+        controller.syncGameStateFromStore = vi.fn();
+        controller.syncActionsFromStore = vi.fn();
+        controller.syncRfisFromStore = vi.fn();
+        controller.syncCommunicationsFromStore = vi.fn();
+        controller.syncTimelineFromStore = vi.fn();
+        controller.syncParticipantsFromStore = vi.fn();
+        controller.updateTimerDisplay = vi.fn();
+        controller.updateTimerStatusDisplay = vi.fn();
+        controller.loadSessionsAdmin = vi.fn(() => Promise.resolve());
+        controller.mountFollowAlongOnboarding = vi.fn();
+
+        await controller.init();
+
+        expect(syncService.initialize).toHaveBeenCalledWith('session-42', {
+            participantId: null
+        });
+    });
+
     it('includes all team seats in the White Cell participant roster while excluding Game Master', async () => {
         const { buildWhiteCellParticipantRoster, formatWhiteCellParticipantSummary } = await loadWhiteCellModule();
 

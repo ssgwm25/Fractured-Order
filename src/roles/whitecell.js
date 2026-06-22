@@ -1003,6 +1003,8 @@ export class WhiteCellController {
         this.operatorRole = accessState.operatorRole || WHITE_CELL_OPERATOR_ROLES.LEAD;
         const sessionId = accessState.sessionId;
 
+        this.renderScribeDeckSettings();
+
         await syncService.initialize(sessionId, {
             participantId: sessionStore.getSessionParticipantId?.() || null
         });
@@ -3317,7 +3319,7 @@ export class WhiteCellController {
             return;
         }
 
-        summary.textContent = 'Set the slide deck each team’s scribe presents.';
+        summary.textContent = "Set the slide deck each team's scribe presents.";
 
         container.innerHTML = TEAM_OPTIONS.map((team) => {
             const assignment = this.scribeDeckAssignments[team.id] || buildDefaultScribeDeckAssignment(team);
