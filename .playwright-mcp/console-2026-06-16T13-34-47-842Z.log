@@ -1,0 +1,6 @@
+[ 1424324ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://gsromgrxgrwwfywaoyme.supabase.co/rest/v1/rpc/authorize_demo_operator:0
+[ 1424325ms] [ERROR] %c[ERROR] [Landing] color: #ef4444; font-weight: bold; Failed to authorize operator access: DatabaseError: Invalid operator access code.
+    at f (https://seth-arc.github.io/SSG-Platform-v03/assets/main-7SNfBsUC.js:1:17631)
+    at Object.authorizeOperatorAccess (https://seth-arc.github.io/SSG-Platform-v03/assets/main-7SNfBsUC.js:67:10108)
+    at async z.authorizeGameMaster (https://seth-arc.github.io/SSG-Platform-v03/assets/main-DGGPeFs-.js:12:3746)
+    at async z.handleOperatorAccess (https://seth-arc.github.io/SSG-Platform-v03/assets/main-DGGPeFs-.js:12:3235) @ https://seth-arc.github.io/SSG-Platform-v03/assets/main-7SNfBsUC.js:0

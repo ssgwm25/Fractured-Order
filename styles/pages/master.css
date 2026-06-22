@@ -1,0 +1,140 @@
+/**
+ * Game Master Console Page Styles
+ * Extracted from master.html inline <style> block
+ */
+
+/* ==================== SKIP LINK ==================== */
+
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+    width: auto;
+    height: auto;
+    padding: 0.75rem 1rem;
+    background: var(--color-gray-900);
+    color: #ffffff;
+    border-radius: var(--radius-md);
+}
+
+/* ==================== SIDEBAR POLISH ==================== */
+
+.master-page .sidebar {
+    box-shadow: var(--shadow-md);
+}
+
+.sidebar-brand {
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-6);
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-family: var(--font-display);
+    font-weight: var(--font-semibold);
+    font-size: var(--text-lg);
+    color: var(--color-navy);
+    letter-spacing: -0.022em;
+}
+
+.master-page .sidebar-link:hover {
+    transform: translateX(4px);
+}
+
+/* ==================== HEADER POLISH ==================== */
+
+.master-page .page-header {
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: saturate(180%) blur(var(--blur-md));
+    backdrop-filter: saturate(180%) blur(var(--blur-md));
+    border-bottom: 1px solid var(--color-border-light);
+    box-shadow: none;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .master-page .page-header {
+        background: var(--color-surface);
+    }
+}
+
+/* Game state pill in header */
+.master-page .header-game-state {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    padding: 4px 16px;
+    box-shadow: var(--shadow-sm);
+}
+
+.master-page .game-state-item {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    border-left: none;
+    padding: 0;
+    font-size: var(--text-sm);
+}
+
+.master-page .game-state-value {
+    font-family: var(--font-mono);
+}
+
+/* ==================== CARD POLISH ==================== */
+
+.master-page .card {
+    border: 1px solid var(--color-border-light);
+    box-shadow: var(--shadow-card);
+    transition: transform var(--transition-smooth), box-shadow var(--transition-smooth);
+    overflow: hidden;
+}
+
+.master-page .card-hoverable:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-navy-soft);
+}
+
+.master-page .card-header {
+    background: linear-gradient(to right, rgba(249, 250, 251, 0.5), transparent);
+    border-bottom: 1px solid var(--color-border-light);
+    padding: var(--space-4) var(--space-6);
+}
+
+.master-page .card-header h3 {
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    margin: 0;
+    color: var(--color-navy-deep);
+}
+
+/* ==================== STAT CARDS ==================== */
+
+.master-page .stat-card {
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+}
+
+.master-page .stat-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.master-page .stat-value {
+    font-size: var(--text-3xl);
+    font-family: var(--font-display);
+    color: var(--color-navy);
+    font-weight: var(--font-semibold);
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+

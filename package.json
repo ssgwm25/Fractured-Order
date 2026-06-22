@@ -1,0 +1,31 @@
+{
+  "name": "esg-simulation-platform",
+  "version": "2.0.0",
+  "description": "Statecraft Sim seminar simulation platform",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:test": "vite --host 127.0.0.1 --port 4174 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve:test": "node --preserve-symlinks --preserve-symlinks-main ./tests/e2e/support/staticServer.mjs dist 4174",
+    "test": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs run",
+    "test:ui": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs --ui",
+    "test:coverage": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs run --coverage",
+    "test:e2e": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test",
+    "test:e2e:smoke": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/session-smoke.e2e.js",
+    "test:e2e:live-demo": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js",
+    "test:e2e:live-demo:matrix": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-role-matrix.e2e.js",
+    "test:e2e:rehearsal": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "@vitest/ui": "^1.0.0",
+    "vite": "^5.4.21",
+    "vitest": "^1.0.0"
+  }
+}

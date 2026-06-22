@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Statecraft Sim Green Team notetaker interface.">
+    <title>Green Team Notetaker</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="../../styles/base/reset.css">
+    <link rel="stylesheet" href="../../styles/base/variables.css">
+    <link rel="stylesheet" href="../../styles/base/typography.css">
+    <link rel="stylesheet" href="../../styles/components/buttons.css">
+    <link rel="stylesheet" href="../../styles/components/forms.css">
+    <link rel="stylesheet" href="../../styles/components/cards.css">
+    <link rel="stylesheet" href="../../styles/components/modals.css">
+    <link rel="stylesheet" href="../../styles/components/badges.css">
+    <link rel="stylesheet" href="../../styles/layouts/app-layout.css">
+    <link rel="stylesheet" href="../../styles/layouts/header.css">
+    <link rel="stylesheet" href="../../styles/layouts/sidebar.css">
+    <link rel="stylesheet" href="../../styles/layouts/grid.css">
+    <style>
+        .skip-link {
+            position: absolute;
+            left: -9999px;
+            top: auto;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            z-index: 1000;
+        }
+
+        .skip-link:focus {
+            left: 1rem;
+            top: 1rem;
+            width: auto;
+            height: auto;
+            padding: 0.75rem 1rem;
+            background: #111827;
+            color: #ffffff;
+            border-radius: 0.375rem;
+        }
+    </style>
+</head>
+<body data-team="green">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div class="app-layout">
+        <!-- Header -->
+        <header class="page-header" id="pageHeader">
+            <div class="header-left">
+                <button class="header-menu-btn btn btn-ghost btn-icon-only" id="menuToggle" aria-label="Toggle menu">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
+                <div class="header-session-info">
+                    <span class="session-role">Notetaker</span>
+                    <span class="session-indicator" id="connectionIndicator"></span>
+                </div>
+            </div>
+
+            <div class="header-center">
+                <div class="header-game-state">
+                    <div class="game-state-item">
+                        <span class="game-state-label">Move</span>
+                        <span class="game-state-value" id="headerMove">1</span>
+                    </div>
+                    <div class="game-state-item">
+                        <span class="game-state-label">Phase</span>
+                        <span class="game-state-value" id="headerPhase">Internal Deliberation</span>
+                    </div>
+                </div>
+                <div class="header-timer">
+                    <span class="timer-display" id="timerDisplay">90:00</span>
+                    <span class="timer-status" id="timerStatus">Paused</span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="header-actions">
+                    <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="sidebar-toggle-icon">
+                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+            </button>
+
+            <nav class="sidebar-nav">
+                <ul class="sidebar-menu">
+                    <li class="sidebar-heading">Navigation</li>
+                    <li class="sidebar-menu-item">
+                        <a href="#capture" class="sidebar-link sidebar-link-active" data-section="capture">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Quick Capture</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#dynamics" class="sidebar-link" data-section="dynamics">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Team Dynamics</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#alliance" class="sidebar-link" data-section="alliance">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4.083 9h1.946c.089-1.546.383-2.97.837-4.118A6.004 6.004 0 004.083 9zM10 2a8 8 0 100 16 8 8 0 000-16z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Alliance Tracking</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-divider"></li>
+                    <li class="sidebar-menu-item">
+                        <a href="#actions" class="sidebar-link" data-section="actions">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">View Actions</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#inbox" class="sidebar-link" data-section="inbox">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v2h-2V5H5v2H3V5zm0 5h4a3 3 0 006 0h4v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5zm6 1a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Inbox</span>
+                            <span class="sidebar-badge" id="inboxBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#timeline" class="sidebar-link" data-section="timeline">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Timeline</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="sidebar-session">
+                <span class="sidebar-session-label">Session</span>
+                <span class="sidebar-session-name" id="sessionName">Loading...</span>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-content">
+            <div class="page-container">
+                <!-- Quick Capture Section -->
+                <section id="captureSection" class="content-section">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Quick Capture</h2>
+                            <p class="section-description">Record observations, moments, and quotes in real-time</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <form id="captureForm" class="card card-bordered" style="padding: var(--space-4);">
+                            <div class="form-group">
+                                <label class="form-label">Type</label>
+                                <div class="form-check-inline">
+                                    <label class="form-check">
+                                        <input type="radio" name="captureType" value="NOTE" class="form-radio" checked>
+                                        <span class="form-check-label">Note</span>
+                                    </label>
+                                    <label class="form-check">
+                                        <input type="radio" name="captureType" value="MOMENT" class="form-radio">
+                                        <span class="form-check-label">Key Moment</span>
+                                    </label>
+                                    <label class="form-check">
+                                        <input type="radio" name="captureType" value="QUOTE" class="form-radio">
+                                        <span class="form-check-label">Quote</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="captureContent">Content</label>
+                                <textarea id="captureContent" class="form-input form-textarea" rows="4" placeholder="Enter your observation..."></textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Save Observation</button>
+                        </form>
+
+                        <div class="mt-6">
+                            <h3 class="text-sm font-semibold mb-3">Recent Captures</h3>
+                            <div id="recentCaptures" class="card-list">
+                                <!-- Recent captures will appear here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Team Dynamics Section -->
+                <section id="dynamicsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Team Dynamics</h2>
+                            <p class="section-description">Document leadership, friction, and consensus</p>
+                        </div>
+                        <div class="section-actions">
+                            <span class="text-sm text-gray-500" id="dynamicsAutoSave" aria-live="polite">No unsaved changes</span>
+                            <button type="submit" form="dynamicsForm" class="btn btn-primary btn-sm" aria-describedby="dynamicsAutoSave">Save Dynamics</button>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <form id="dynamicsForm">
+                            <div class="section-grid section-grid-2">
+                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <h3 class="text-base font-semibold mb-3">Leadership Observations</h3>
+                                    <div class="form-group">
+                                        <label class="form-label">Emerging Leaders</label>
+                                        <textarea class="form-input form-textarea" id="emergingLeaders" rows="3" placeholder="Who is taking charge?"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Decision Making Style</label>
+                                        <textarea class="form-input form-textarea" id="decisionStyle" rows="3" placeholder="How are decisions being made?"></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <h3 class="text-base font-semibold mb-3">Friction Points</h3>
+                                    <div class="form-group">
+                                        <label class="form-label">Friction Level (1-10)</label>
+                                        <input type="range" class="form-range" id="frictionLevel" min="1" max="10" value="5">
+                                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                            <span>Low</span>
+                                            <span id="frictionValue">5</span>
+                                            <span>High</span>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Friction Sources</label>
+                                        <textarea class="form-input form-textarea" id="frictionSources" rows="3" placeholder="What is causing tension?"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card card-bordered mt-4" style="padding: var(--space-4);">
+                                <h3 class="text-base font-semibold mb-3">Consensus Building</h3>
+                                <div class="form-group">
+                                    <label class="form-label">Consensus Level (1-10)</label>
+                                    <input type="range" class="form-range" id="consensusLevel" min="1" max="10" value="5">
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>Divided</span>
+                                        <span id="consensusValue">5</span>
+                                        <span>United</span>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Summary Notes</label>
+                                    <textarea class="form-input form-textarea" id="dynamicsSummary" rows="4" placeholder="Overall team dynamics summary..."></textarea>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Alliance Tracking Section -->
+                <section id="allianceSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Alliance Tracking</h2>
+                            <p class="section-description">Track external factors and alliance dynamics</p>
+                        </div>
+                        <div class="section-actions">
+                            <span class="text-sm text-gray-500" id="allianceAutoSave" aria-live="polite">No unsaved changes</span>
+                            <button type="submit" form="allianceForm" class="btn btn-primary btn-sm" aria-describedby="allianceAutoSave">Save Alliance</button>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <form id="allianceForm">
+                            <div class="card card-bordered" style="padding: var(--space-4);">
+                                <h3 class="text-base font-semibold mb-3">External Factors</h3>
+                                <div class="form-group">
+                                    <label class="form-label">Alliance Coordination Notes</label>
+                                    <textarea class="form-input form-textarea" id="allianceNotes" rows="4" placeholder="Notes on alliance discussions..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">External Pressures</label>
+                                    <textarea class="form-input form-textarea" id="externalPressures" rows="4" placeholder="External factors affecting decisions..."></textarea>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- View Actions Section -->
+                <section id="actionsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Team Actions</h2>
+                            <p class="section-description">View submitted actions (read-only)</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="actionsListView" class="card-list">
+                            <!-- Actions will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Inbox Section -->
+                <section id="inboxSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">White Cell Inbox</h2>
+                            <p class="section-description">Review communications and updates sent from White Cell to your team or seat.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="inboxList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">No White Cell communications received yet.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Timeline Section -->
+                <section id="timelineSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Session Timeline</h2>
+                            <p class="section-description">Chronological view of all events</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="timelineList">
+                            <!-- Timeline will be populated here -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile sidebar overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script type="module" src="../../src/main.js"></script>
+    <script type="module" src="../../src/roles/notetaker.js"></script>
+</body>
+</html>

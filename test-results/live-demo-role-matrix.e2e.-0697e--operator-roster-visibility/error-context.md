@@ -1,0 +1,139 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e6]: Operator Console
+      - navigation [ref=e7]:
+        - list [ref=e8]:
+          - listitem [ref=e9]: Main
+          - listitem [ref=e10]:
+            - link "Dashboard" [ref=e11] [cursor=pointer]:
+              - /url: "#dashboard"
+              - img [ref=e13]
+              - generic [ref=e18]: Dashboard
+          - listitem [ref=e19]:
+            - link "Sessions" [active] [ref=e20] [cursor=pointer]:
+              - /url: "#sessions"
+              - img [ref=e22]
+              - generic [ref=e25]: Sessions
+          - listitem [ref=e26]:
+            - link "Participants" [ref=e27] [cursor=pointer]:
+              - /url: "#participants"
+              - img [ref=e29]
+              - generic [ref=e34]: Participants
+          - listitem [ref=e35]: Data
+          - listitem [ref=e36]:
+            - link "Export Data" [ref=e37] [cursor=pointer]:
+              - /url: "#export"
+              - img [ref=e39]
+              - generic [ref=e42]: Export Data
+      - generic [ref=e44]:
+        - generic [ref=e45]: W&M
+        - generic [ref=e46]:
+          - generic [ref=e47]: Statecraft Sim
+          - generic [ref=e48]: William & Mary
+    - banner [ref=e49]:
+      - generic [ref=e51]:
+        - heading "Statecraft Sim | Game Master Operator Console" [level=1] [ref=e52]
+        - paragraph [ref=e53]: No Session Selected
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - generic [ref=e57]: Move
+          - generic [ref=e58]: "-"
+        - generic [ref=e59]:
+          - generic [ref=e60]: Phase
+          - generic [ref=e61]: "-"
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - generic [ref=e64]: Operator
+          - generic "Connected" [ref=e65]
+        - button "Disconnect" [ref=e67] [cursor=pointer]
+    - main [ref=e68]:
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - generic [ref=e72]:
+            - heading "System Overview" [level=2] [ref=e73]
+            - paragraph [ref=e74]: Operator-only monitoring of live simulation parameters
+          - button "Refresh Data" [ref=e76] [cursor=pointer]
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - generic [ref=e80]: Active Sessions
+              - generic [ref=e81]: "2"
+            - generic [ref=e82]:
+              - generic [ref=e83]: Connected Participants
+              - generic [ref=e84]: "0"
+            - generic [ref=e85]:
+              - generic [ref=e86]: Actions Logged
+              - generic [ref=e87]: "6"
+            - generic [ref=e88]:
+              - generic [ref=e89]: Pending RFIs
+              - generic [ref=e90]: "0"
+          - generic [ref=e91]:
+            - generic [ref=e92]:
+              - heading "Recent Activity Log" [level=3] [ref=e94]
+              - generic [ref=e95]:
+                - generic [ref=e96]:
+                  - generic [ref=e97]:
+                    - generic [ref=e98]:
+                      - generic [ref=e100]: ACTION_CREATED
+                      - generic [ref=e101]: June Demo
+                    - generic [ref=e102]: 19 hours ago
+                  - paragraph [ref=e103]: "Draft action created: Taking chances"
+                - generic [ref=e104]:
+                  - generic [ref=e105]:
+                    - generic [ref=e106]:
+                      - generic [ref=e108]: RFI_ANSWERED
+                      - generic [ref=e109]: June Demo
+                    - generic [ref=e110]: 19 hours ago
+                  - paragraph [ref=e111]: White Cell responded to an RFI.
+                - generic [ref=e112]:
+                  - generic [ref=e113]:
+                    - generic [ref=e114]:
+                      - generic [ref=e116]: RFI_CREATED
+                      - generic [ref=e117]: June Demo
+                    - generic [ref=e118]: 19 hours ago
+                  - paragraph [ref=e119]: Blue Team submitted an RFI to White Cell.
+                - generic [ref=e120]:
+                  - generic [ref=e121]:
+                    - generic [ref=e122]:
+                      - generic [ref=e124]: ACTION_ADJUDICATED
+                      - generic [ref=e125]: June Demo
+                    - generic [ref=e126]: 19 hours ago
+                  - paragraph [ref=e127]: "White Cell deliberation recorded: BACKFIRE"
+                - generic [ref=e128]:
+                  - generic [ref=e129]:
+                    - generic [ref=e130]:
+                      - generic [ref=e132]: ACTION_SUBMITTED
+                      - generic [ref=e133]: June Demo
+                    - generic [ref=e134]: 19 hours ago
+                  - paragraph [ref=e135]: "Action submitted to White Cell: Selling off gold to manipulate the price"
+                - generic [ref=e136]:
+                  - generic [ref=e137]:
+                    - generic [ref=e138]:
+                      - generic [ref=e140]: ACTION_CREATED
+                      - generic [ref=e141]: June Demo
+                    - generic [ref=e142]: 19 hours ago
+                  - paragraph [ref=e143]: "Draft action created: Selling off gold to manipulate the price"
+                - generic [ref=e144]:
+                  - generic [ref=e145]:
+                    - generic [ref=e146]:
+                      - generic [ref=e148]: INJECT
+                      - generic [ref=e149]: June Demo
+                    - generic [ref=e150]: 22 hours ago
+                  - paragraph [ref=e151]: White Cell inject sent to All Teams
+                - generic [ref=e152]:
+                  - generic [ref=e153]:
+                    - generic [ref=e154]:
+                      - generic [ref=e156]: INJECT
+                      - generic [ref=e157]: June Demo
+                    - generic [ref=e158]: 22 hours ago
+                  - paragraph [ref=e159]: White Cell inject sent to All Teams
+            - generic [ref=e160]:
+              - heading "Connected Participants" [level=3] [ref=e162]
+              - generic [ref=e164]: No participants are currently connected.
+```

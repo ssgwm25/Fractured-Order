@@ -1,0 +1,291 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+    mockSessionStore,
+    mockSyncService,
+    mockParticipantsStore,
+    mockNavigateToApp
+} = vi.hoisted(() => ({
+    mockSessionStore: {
+        getSnapshot: vi.fn(() => ({
+            sessionId: null,
+            role: null,
+            sessionData: null
+        })),
+        clear: vi.fn()
+    },
+    mockSyncService: {
+        reset: vi.fn()
+    },
+    mockParticipantsStore: {
+        leave: vi.fn()
+    },
+    mockNavigateToApp: vi.fn()
+}));
+
+vi.mock('./stores/session.js', () => ({
+    sessionStore: mockSessionStore
+}));
+
+vi.mock('./stores/gameState.js', () => ({
+    gameStateStore: {}
+}));
+
+vi.mock('./stores/participants.js', () => ({
+    participantsStore: mockParticipantsStore
+}));
+
+vi.mock('./services/supabase.js', () => ({
+    getRuntimeConfigStatus: () => ({ ready: true }),
+    renderMissingBackendNotice: vi.fn()
+}));
+
+vi.mock('./components/ui/Toast.js', () => ({
+    showToast: vi.fn()
+}));
+
+vi.mock('./components/ui/Loader.js', () => ({
+    hideLoader: vi.fn()
+}));
+
+vi.mock('./components/ui/Modal.js', () => ({
+    confirm: vi.fn()
+}));
+
+vi.mock('./utils/logger.js', () => ({
+    createLogger: () => ({
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn()
+    })
+}));
+
+vi.mock('./core/navigation.js', () => ({
+    isLandingPage: vi.fn(() => false),
+    navigateToApp: mockNavigateToApp
+}));
+
+vi.mock('./services/sync.js', () => ({
+    syncService: mockSyncService
+}));
+
+describe('main reload reauthentication guard', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        mockParticipantsStore.leave.mockResolvedValue();
+        mockSyncService.reset.mockResolvedValue();
+        global.document = {
+            readyState: 'loading',
+            addEventListener: vi.fn(),
+            getElementById: vi.fn(() => null),
+            querySelectorAll: vi.fn(() => [])
+        };
+    });
+
+    afterEach(() => {
+        vi.resetModules();
+        delete global.document;
+    });
+
+    it('allows public participant roles to survive a browser reload', async () => {
+        const { shouldRequireFreshParticipantLoginOnReload } = await import('./main.js');
+
+        expect(shouldRequireFreshParticipantLoginOnReload({
+            snapshot: {
+                sessionId: 'session-1',
+                role: 'viewer',
+                sessionData: {
+                    role: 'viewer',
+                    roleSurface: 'viewer'
+                }
+            },
+            navigationType: 'reload',
+            landingPage: false
+        })).toBe(false);
+    });
+
+    it('does not force operator roles back through login on reload', async () => {
+        const { shouldRequireFreshParticipantLoginOnReload } = await import('./main.js');
+
+        expect(shouldRequireFreshParticipantLoginOnReload({
+            snapshot: {
+                sessionId: 'session-1',
+                role: 'whitecell_lead',
+                sessionData: {
+                    role: 'whitecell_lead',
+                    roleSurface: 'whitecell'
+                }
+            },
+            navigationType: 'reload',
+            landingPage: false
+        })).toBe(false);
+    });
+
+    it('does not clear or redirect an existing public participant session after reload', async () => {
+        const { enforceReloadReauthentication } = await import('./main.js');
+        const locationRef = {
+            replace: vi.fn(),
+            assign: vi.fn()
+        };
+
+        const enforced = await enforceReloadReauthentication({
+            snapshot: {
+                sessionId: 'session-1',
+                role: 'blue_facilitator',
+                sessionData: {
+                    role: 'blue_facilitator',
+                    roleSurface: 'facilitator',
+                    participantSessionId: 'seat-1'
+                }
+            },
+            locationRef,
+            navigationType: 'reload',
+            landingPage: false
+        });
+
+        expect(enforced).toBe(false);
+        expect(mockParticipantsStore.leave).not.toHaveBeenCalled();
+        expect(mockSyncService.reset).not.toHaveBeenCalled();
+        expect(mockSessionStore.clear).not.toHaveBeenCalled();
+        expect(mockNavigateToApp).not.toHaveBeenCalled();
+    });
+});
+
+describe('logout confirmation flow', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        mockParticipantsStore.leave.mockResolvedValue();
+        mockSyncService.reset.mockResolvedValue();
+        global.document = {
+            readyState: 'loading',
+            addEventListener: vi.fn(),
+            getElementById: vi.fn(() => null),
+            querySelectorAll: vi.fn(() => [])
+        };
+    });
+
+    afterEach(() => {
+        vi.resetModules();
+        delete global.document;
+    });
+
+    it('builds a logout confirmation that reassures users their saved data remains', async () => {
+        const { getLogoutConfirmationOptions } = await import('./main.js');
+
+        expect(getLogoutConfirmationOptions({ actionLabel: 'Logout' })).toEqual({
+            title: 'Log out of this session?',
+            message: 'You will not lose saved session data. Logging out only releases this seat. Save any unsaved edits in the current form before you continue.',
+            confirmLabel: 'Logout',
+            cancelLabel: 'Stay Here',
+            variant: 'warning'
+        });
+    });
+
+    it('does not clear the session when the user cancels logout', async () => {
+        const confirmDialog = vi.fn().mockResolvedValue(false);
+        const performLogoutRef = vi.fn();
+        const { requestLogout } = await import('./main.js');
+
+        const loggedOut = await requestLogout({
+            actionLabel: 'Logout',
+            confirmDialog,
+            performLogoutRef
+        });
+
+        expect(loggedOut).toBe(false);
+        expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Log out of this session?',
+            confirmLabel: 'Logout'
+        }));
+        expect(performLogoutRef).not.toHaveBeenCalled();
+    });
+
+    it('clears the seat and redirects after the user confirms logout', async () => {
+        const { requestLogout, performLogout } = await import('./main.js');
+        const confirmDialog = vi.fn().mockResolvedValue(true);
+
+        const loggedOut = await requestLogout({
+            actionLabel: 'Disconnect',
+            confirmDialog,
+            performLogoutRef: () => performLogout()
+        });
+
+        expect(loggedOut).toBe(true);
+        expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Disconnect from this session?',
+            confirmLabel: 'Disconnect'
+        }));
+        expect(mockParticipantsStore.leave).toHaveBeenCalledTimes(1);
+        expect(mockSyncService.reset).toHaveBeenCalledTimes(1);
+        expect(mockSessionStore.clear).toHaveBeenCalledTimes(1);
+        expect(mockNavigateToApp).toHaveBeenCalledWith('');
+    });
+
+    it('still clears the session if participant disconnect cleanup fails', async () => {
+        mockParticipantsStore.leave.mockRejectedValueOnce(new Error('disconnect failed'));
+        const { performLogout } = await import('./main.js');
+
+        await performLogout();
+
+        expect(mockParticipantsStore.leave).toHaveBeenCalledTimes(1);
+        expect(mockSyncService.reset).toHaveBeenCalledTimes(1);
+        expect(mockSessionStore.clear).toHaveBeenCalledTimes(1);
+        expect(mockNavigateToApp).toHaveBeenCalledWith('');
+    });
+});
+
+describe('sidebar toggle state resolution', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        global.document = {
+            readyState: 'loading',
+            addEventListener: vi.fn(),
+            getElementById: vi.fn(() => null),
+            querySelectorAll: vi.fn(() => [])
+        };
+    });
+
+    afterEach(() => {
+        vi.resetModules();
+        delete global.document;
+    });
+
+    it('collapses the desktop sidebar without treating it as a mobile drawer', async () => {
+        const { resolveSidebarState } = await import('./main.js');
+
+        expect(resolveSidebarState({
+            trigger: 'sidebar',
+            isCompact: false,
+            isOpen: false,
+            isCollapsed: false
+        })).toEqual({
+            isOpen: false,
+            isCollapsed: true
+        });
+    });
+
+    it('uses the sidebar toggle as a close action on compact viewports', async () => {
+        const { resolveSidebarState } = await import('./main.js');
+
+        expect(resolveSidebarState({
+            trigger: 'sidebar',
+            isCompact: true,
+            isOpen: true,
+            isCollapsed: true
+        })).toEqual({
+            isOpen: false,
+            isCollapsed: true
+        });
+    });
+
+    it('detects compact sidebar viewports at and below the mobile breakpoint', async () => {
+        const { isCompactSidebarViewport } = await import('./main.js');
+
+        expect(isCompactSidebarViewport({ windowWidth: 768 })).toBe(true);
+        expect(isCompactSidebarViewport({ windowWidth: 769 })).toBe(false);
+    });
+});

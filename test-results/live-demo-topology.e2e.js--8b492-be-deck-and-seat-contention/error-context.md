@@ -1,0 +1,54 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e5]:
+    - paragraph [ref=e6]: Statecraft Sim
+    - generic [ref=e9]: Select a simulation to continue
+    - group "Simulation selection" [ref=e11]:
+      - button "Fractured Order Seminar simulation" [ref=e12] [cursor=pointer]:
+        - generic [ref=e13]: Fractured Order
+        - generic [ref=e14]: Seminar simulation
+  - generic [ref=e15]:
+    - complementary [ref=e16]:
+      - img "Fractured Order - A Seminar Simulation" [ref=e17]
+      - generic [ref=e18]:
+        - generic [ref=e19]: Statecraft Sim
+        - generic [ref=e20]: Beta-2
+    - main [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - heading "Join Session" [level=2] [ref=e24]
+          - paragraph [ref=e25]: Enter your session code to connect.
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - generic [ref=e28]:
+              - generic [ref=e29]: Session Code
+              - textbox "Session Code" [ref=e30]:
+                - /placeholder: ALPHA-2024
+            - generic [ref=e31]:
+              - generic [ref=e32]: Display Name
+              - textbox "Display Name" [ref=e33]:
+                - /placeholder: Your name
+          - group "Team" [ref=e34]:
+            - generic [ref=e35]: Team
+            - group "Team selection" [ref=e36]:
+              - button "Blue" [pressed] [ref=e37] [cursor=pointer]
+              - button "Red" [ref=e38] [cursor=pointer]
+              - button "Green" [ref=e39] [cursor=pointer]
+          - group "Role" [ref=e40]:
+            - generic [ref=e41]: Role
+            - group "Role selection" [ref=e42]:
+              - button "Facilitator" [ref=e43] [cursor=pointer]:
+                - img [ref=e44]
+                - text: Facilitator
+              - button "Scribe" [ref=e49] [cursor=pointer]:
+                - img [ref=e50]
+                - text: Scribe
+              - button "Notetaker" [ref=e52] [cursor=pointer]:
+                - img [ref=e53]
+                - text: Notetaker
+          - button "Join Session" [ref=e56] [cursor=pointer]
+        - group [ref=e57]:
+          - generic "+ Operator Access" [ref=e58] [cursor=pointer]
+```

@@ -1,0 +1,102 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      VITE_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}/
+      PAGES_ENABLEMENT_TOKEN: ${{ secrets.PAGES_ENABLEMENT_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Check whether GitHub Pages is already enabled
+        id: pages-site
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api repos/${{ github.repository }}/pages > /dev/null
+
+      - name: Fail with Pages bootstrap instructions
+        if: ${{ steps.pages-site.outcome == 'failure' && env.PAGES_ENABLEMENT_TOKEN == '' }}
+        run: |
+          echo "::error title=GitHub Pages is not enabled::This repository does not have GitHub Pages enabled yet. Either enable Pages manually in Settings > Pages and choose GitHub Actions, or add a PAGES_ENABLEMENT_TOKEN secret so the workflow can bootstrap Pages automatically."
+          exit 1
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Custom workflow publishing requires Pages to exist first.
+          # If PAGES_ENABLEMENT_TOKEN is provided, configure-pages can bootstrap
+          # the repository for GitHub Actions publishing on the first run.
+          token: ${{ env.PAGES_ENABLEMENT_TOKEN != '' && env.PAGES_ENABLEMENT_TOKEN || github.token }}
+          enablement: ${{ steps.pages-site.outcome == 'failure' && env.PAGES_ENABLEMENT_TOKEN != '' }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fail if Pages Supabase secrets are missing
+        run: |
+          if [ -z "${VITE_SUPABASE_URL}" ] || [ -z "${VITE_SUPABASE_ANON_KEY}" ]; then
+            echo "::error title=Missing Pages Supabase secrets::Add repository secrets VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before deploying GitHub Pages."
+            exit 1
+          fi
+
+          case "${VITE_SUPABASE_URL}" in
+            *your-project*|*project-ref*)
+              echo "::error title=Invalid Pages Supabase URL::VITE_SUPABASE_URL still contains a placeholder value."
+              exit 1
+              ;;
+          esac
+
+          case "${VITE_SUPABASE_ANON_KEY}" in
+            *your-anon-key*|*your-supabase-anon-key*|*placeholder*|*changeme*)
+              echo "::error title=Invalid Pages Supabase anon key::VITE_SUPABASE_ANON_KEY still contains a placeholder value."
+              exit 1
+              ;;
+          esac
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Disable Jekyll processing
+        run: touch dist/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

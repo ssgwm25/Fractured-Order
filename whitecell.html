@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Statecraft Sim White Cell operator interface.">
+    <title>White Cell Operator Interface</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="./styles/base/reset.css">
+    <link rel="stylesheet" href="./styles/base/variables.css">
+    <link rel="stylesheet" href="./styles/base/typography.css">
+    <link rel="stylesheet" href="./styles/components/buttons.css">
+    <link rel="stylesheet" href="./styles/components/forms.css">
+    <link rel="stylesheet" href="./styles/components/cards.css">
+    <link rel="stylesheet" href="./styles/components/modals.css">
+    <link rel="stylesheet" href="./styles/components/badges.css">
+    <link rel="stylesheet" href="./styles/layouts/app-layout.css">
+    <link rel="stylesheet" href="./styles/layouts/header.css">
+    <link rel="stylesheet" href="./styles/layouts/sidebar.css">
+    <link rel="stylesheet" href="./styles/layouts/grid.css">
+    <style>
+        .skip-link {
+            position: absolute;
+            top: -48px;
+            left: var(--space-4);
+            z-index: 1000;
+            padding: var(--space-2) var(--space-3);
+            background: var(--color-surface);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            transition: top 0.2s ease;
+        }
+
+        .skip-link:focus {
+            top: var(--space-4);
+        }
+
+        .scribe-deck-card {
+            padding: var(--space-4);
+            display: grid;
+            gap: var(--space-3);
+            align-content: start;
+        }
+
+        .scribe-deck-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-3);
+        }
+
+        .scribe-deck-team {
+            margin: 0;
+            font-size: var(--text-xs);
+            font-weight: var(--font-semibold);
+            text-transform: uppercase;
+            letter-spacing: var(--tracking-wide);
+            color: var(--color-text-muted);
+        }
+
+        .scribe-deck-deck {
+            margin: 2px 0 0;
+            font-size: var(--text-md);
+            font-weight: var(--font-semibold);
+            color: var(--color-text);
+            line-height: var(--leading-snug);
+        }
+
+        .scribe-deck-meta {
+            margin: 2px 0 0;
+            font-size: var(--text-xs);
+            color: var(--color-text-muted);
+        }
+
+        /* Segmented control: pick one source, see only that input. */
+        .scribe-deck-toggle {
+            display: flex;
+            gap: 2px;
+            padding: 3px;
+            background: var(--color-surface-alt);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-full);
+        }
+
+        .scribe-deck-toggle button {
+            flex: 1;
+            border: 0;
+            background: transparent;
+            color: var(--color-text-muted);
+            font: inherit;
+            font-size: var(--text-xs);
+            font-weight: var(--font-medium);
+            padding: 5px 10px;
+            border-radius: var(--radius-full);
+            cursor: pointer;
+            transition: color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .scribe-deck-card[data-deck-method="repo"] [data-scribe-deck-method="repo"],
+        .scribe-deck-card[data-deck-method="upload"] [data-scribe-deck-method="upload"] {
+            background: var(--color-surface);
+            color: var(--color-text);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Reveal only the panel for the chosen source. */
+        .scribe-deck-card[data-deck-method="repo"] [data-method-panel="upload"],
+        .scribe-deck-card[data-deck-method="upload"] [data-method-panel="repo"] {
+            display: none;
+        }
+
+        .scribe-deck-panel {
+            display: grid;
+            gap: var(--space-3);
+        }
+    </style>
+</head>
+<body data-team="white_cell">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div class="app-layout">
+        <!-- Header -->
+        <header class="page-header" id="pageHeader">
+            <div class="header-left">
+                <button class="header-menu-btn btn btn-ghost btn-icon-only" id="menuToggle" aria-label="Toggle menu">
+                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
+                <div class="header-session-info">
+                    <span class="session-role">White Cell</span>
+                    <span class="session-indicator" id="connectionIndicator"></span>
+                </div>
+            </div>
+
+            <div class="header-center">
+                <div class="header-game-state">
+                    <div class="game-state-item">
+                        <span class="game-state-label">Move</span>
+                        <span class="game-state-value" id="headerMove">1</span>
+                    </div>
+                    <div class="game-state-item">
+                        <span class="game-state-label">Phase</span>
+                        <span class="game-state-value" id="headerPhase">Internal Deliberation</span>
+                    </div>
+                </div>
+                <div class="header-timer">
+                    <span class="timer-display" id="timerDisplay">90:00</span>
+                    <span class="timer-status" id="timerStatus">Paused</span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="header-actions">
+                    <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="sidebar-toggle-icon" aria-hidden="true" focusable="false">
+                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+            </button>
+
+            <nav class="sidebar-nav">
+                <ul class="sidebar-menu">
+                    <li class="sidebar-heading">Navigation</li>
+                    <li class="sidebar-menu-item">
+                        <a href="#controls" class="sidebar-link sidebar-link-active" data-section="controls">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Simulation Settings</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-divider"></li>
+                    <li class="sidebar-menu-item">
+                        <a href="#actions" class="sidebar-link" data-section="actions">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Actions</span>
+                            <span class="sidebar-badge" id="actionsBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#proposals" class="sidebar-link" data-section="proposals">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Proposals</span>
+                            <span class="sidebar-badge" id="proposalsBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#responses" class="sidebar-link" data-section="responses">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Move Responses</span>
+                            <span class="sidebar-badge" id="responsesBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-divider"></li>
+                    <li class="sidebar-menu-item">
+                        <a href="#tribeStreetJournal" class="sidebar-link" data-section="tribeStreetJournal">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h6v2H9V8zm-4 4h2v2H5v-2zm4 0h6v2H9v-2z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Tribe Street Journal</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#verbaAi" class="sidebar-link" data-section="verbaAi">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Verba AI Population Sentiments</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-divider"></li>
+                    <li class="sidebar-menu-item">
+                        <a href="#requests" class="sidebar-link" data-section="requests">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">RFI</span>
+                            <span class="sidebar-badge" id="rfiBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#communications" class="sidebar-link" data-section="communications">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/>
+                                    <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Communications</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#timeline" class="sidebar-link" data-section="timeline">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Session Timeline</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="sidebar-session">
+                <span class="sidebar-session-label">Session</span>
+                <span class="sidebar-session-name" id="sessionName">Loading...</span>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-content">
+            <div class="page-container">
+                <!-- Simulation Settings Section -->
+                <section id="controlsSection" class="content-section">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Simulation Settings</h2>
+                            <p class="section-description">Manage the simulation lifecycle and supporting data</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div class="tabbed-section" id="settingsTabs">
+                            <div class="tab-list" role="tablist" aria-label="Simulation settings sub-sections">
+                                <button type="button" class="tab-button tab-button-active" data-settings-tab="gameControls" role="tab" aria-selected="true" aria-controls="settingsPanelGameControls">Game Controls</button>
+                                <button type="button" class="tab-button" data-settings-tab="sessions" role="tab" aria-selected="false" aria-controls="settingsPanelSessions">Sessions</button>
+                                <button type="button" class="tab-button" data-settings-tab="participants" role="tab" aria-selected="false" aria-controls="settingsPanelParticipants">Participants</button>
+                                <button type="button" class="tab-button" data-settings-tab="scribeDecks" role="tab" aria-selected="false" aria-controls="settingsPanelScribeDecks">Scribe Decks</button>
+                                <button type="button" class="tab-button" data-settings-tab="exportData" role="tab" aria-selected="false" aria-controls="settingsPanelExportData">Export Data</button>
+                            </div>
+
+                            <div class="tab-panel" id="settingsPanelGameControls" data-settings-panel="gameControls" role="tabpanel">
+                                <div class="section-grid section-grid-3">
+                                    <!-- Move Control -->
+                                    <div class="card card-bordered" style="padding: var(--space-4);">
+                                        <h3 class="text-base font-semibold mb-3">Move Control</h3>
+                                        <div class="text-center mb-4">
+                                            <span class="text-4xl font-bold text-primary" id="currentMove">1</span>
+                                            <p class="text-sm text-gray-500" id="moveLabel">Epoch 1 (2027-2030)</p>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button class="btn btn-secondary flex-1" id="prevMoveBtn" disabled>Previous</button>
+                                            <button class="btn btn-primary flex-1" id="nextMoveBtn">Next Move</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phase Control -->
+                                    <div class="card card-bordered" style="padding: var(--space-4);">
+                                        <h3 class="text-base font-semibold mb-3">Phase Control</h3>
+                                        <div class="text-center mb-4">
+                                            <span class="text-4xl font-bold text-primary" id="currentPhase">1</span>
+                                            <p class="text-sm text-gray-500" id="phaseLabel">Internal Deliberation</p>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button class="btn btn-secondary flex-1" id="prevPhaseBtn" disabled>Previous</button>
+                                            <button class="btn btn-primary flex-1" id="nextPhaseBtn">Next Phase</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Timer Control -->
+                                    <div class="card card-bordered" style="padding: var(--space-4);">
+                                        <h3 class="text-base font-semibold mb-3">Timer Control</h3>
+                                        <div class="text-center mb-4">
+                                            <span class="text-4xl font-bold font-mono" id="controlTimerDisplay">90:00</span>
+                                            <p class="text-sm text-gray-500" id="timerStatusLabel">Paused</p>
+                                        </div>
+                                        <div class="flex gap-2 mb-3">
+                                            <button class="btn btn-success flex-1" id="startTimerBtn">Start</button>
+                                            <button class="btn btn-warning flex-1" id="pauseTimerBtn">Pause</button>
+                                        </div>
+                                        <button class="btn btn-secondary w-full" id="resetTimerBtn">Reset to 90:00</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-panel" id="settingsPanelSessions" data-settings-panel="sessions" role="tabpanel" hidden>
+                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <h3 class="text-base font-semibold mb-2">Sessions</h3>
+                                    <p class="text-sm text-gray-500" id="sessionsSummary">Review and manage simulation sessions.</p>
+                                    <div id="sessionsList" class="card-list" aria-live="polite" style="margin-top: var(--space-3);">
+                                        <p class="text-sm text-gray-500">No sessions available yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-panel" id="settingsPanelParticipants" data-settings-panel="participants" role="tabpanel" hidden>
+                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                                        <div>
+                                            <h3 class="text-base font-semibold">Live Participants</h3>
+                                            <p class="text-sm text-gray-500" id="participantsSummary">Loading participant roster...</p>
+                                        </div>
+                                    </div>
+                                    <div class="section-grid section-grid-2" style="margin-bottom: var(--space-3);">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label class="form-label" for="participantsTeamFilter">Team Filter</label>
+                                            <select id="participantsTeamFilter" class="form-input form-select" aria-controls="participantsList">
+                                                <option value="">All Teams</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label class="form-label" for="participantsRoleFilter">Role Filter</label>
+                                            <select id="participantsRoleFilter" class="form-input form-select" aria-controls="participantsList">
+                                                <option value="">All Roles</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div id="participantsList" class="card-list" aria-live="polite">
+                                        <!-- Connected participants will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-panel" id="settingsPanelScribeDecks" data-settings-panel="scribeDecks" role="tabpanel" hidden>
+                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                                        <div>
+                                            <h3 class="text-base font-semibold">Scribe Deck Assignments</h3>
+                                            <p class="text-sm text-gray-500" id="scribeDeckSettingsSummary">Loading current scribe deck assignments...</p>
+                                        </div>
+                                    </div>
+                                    <div id="scribeDeckSettingsList" class="section-grid section-grid-3" aria-live="polite">
+                                        <p class="text-sm text-gray-500">Scribe deck controls will appear here.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-panel" id="settingsPanelExportData" data-settings-panel="exportData" role="tabpanel" hidden>
+                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <h3 class="text-base font-semibold mb-2">Export Data</h3>
+                                    <p class="text-sm text-gray-500">Download legacy session exports, plus the research bundle by default. Switch backend runtime config to standard to lock the research archive.</p>
+                                    <div id="exportDataList" class="card-list" aria-live="polite" style="margin-top: var(--space-3);">
+                                        <p class="text-sm text-gray-500">Export controls will appear here.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Actions Section -->
+                <section id="actionsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Actions</h2>
+                            <p class="section-description">Received from the Blue team</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="actionsList" class="card-list" aria-live="polite">
+                            <!-- Actions will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Move Responses Section -->
+                <section id="responsesSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Move Responses</h2>
+                            <p class="section-description">Received from the Red team</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="responsesList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">No responses yet.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Deliberation Section -->
+                <section id="adjudicationSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Deliberation Queue</h2>
+                            <p class="section-description">Review action outcomes while White Cell deliberation is underway</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="adjudicationQueue" aria-live="polite">
+                            <!-- Pending White Cell deliberation items will appear here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- RFI Section -->
+                <section id="requestsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">RFI</h2>
+                            <p class="section-description">Incoming requests for information from Blue, Green, and Red teams</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="rfiQueue" class="card-list" aria-live="polite">
+                            <!-- RFIs will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Communications Section -->
+                <section id="communicationsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Communications</h2>
+                            <p class="section-description">Send messages to teams</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <form id="commForm" class="card card-bordered mb-4" style="padding: var(--space-4);">
+                            <div class="form-group">
+                                <label class="form-label" for="commRecipient">Recipient</label>
+                                <select id="commRecipient" class="form-input form-select">
+                                    <option value="all">All Teams</option>
+                                    <optgroup label="Blue Team">
+                                        <option value="blue">Blue Team (all roles)</option>
+                                        <option value="blue_facilitator">Blue Facilitator</option>
+                                        <option value="blue_scribe">Blue Scribe</option>
+                                        <option value="blue_notetaker">Blue Notetaker</option>
+                                    </optgroup>
+                                    <optgroup label="Green Team">
+                                        <option value="green">Green Team (all roles)</option>
+                                        <option value="green_facilitator">Green Facilitator</option>
+                                        <option value="green_scribe">Green Scribe</option>
+                                        <option value="green_notetaker">Green Notetaker</option>
+                                    </optgroup>
+                                    <optgroup label="Red Team">
+                                        <option value="red">Red Team (all roles)</option>
+                                        <option value="red_facilitator">Red Facilitator</option>
+                                        <option value="red_scribe">Red Scribe</option>
+                                        <option value="red_notetaker">Red Notetaker</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="commType">Type</label>
+                                <select id="commType" class="form-input form-select">
+                                    <option value="INJECT">Inject</option>
+                                    <option value="ANNOUNCEMENT">Announcement</option>
+                                    <option value="GUIDANCE">Guidance</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="commContent">Message</label>
+                                <textarea id="commContent" class="form-input form-textarea" rows="4" placeholder="Enter your message..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Send Communication</button>
+                        </form>
+
+                        <h3 class="text-sm font-semibold mb-3">Communication History</h3>
+                        <div id="commHistory" class="card-list" aria-live="polite">
+                            <!-- Communication history will appear here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Timeline Section -->
+                <section id="timelineSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Session Timeline</h2>
+                            <p class="section-description">Chronological view of all events</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div class="section-grid section-grid-4" style="margin-bottom: var(--space-4);">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="timelineTeamFilter">Team Filter</label>
+                                <select id="timelineTeamFilter" class="form-input form-select" aria-controls="timelineList">
+                                    <option value="">All Teams</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="timelineRoleFilter">Role Filter</label>
+                                <select id="timelineRoleFilter" class="form-input form-select" aria-controls="timelineList">
+                                    <option value="">All Roles</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="timelineMoveFilter">Move Filter</label>
+                                <select id="timelineMoveFilter" class="form-input form-select" aria-controls="timelineList">
+                                    <option value="">All Moves</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" for="timelineActivityTypeFilter">Activity Type Filter</label>
+                                <select id="timelineActivityTypeFilter" class="form-input form-select" aria-controls="timelineList">
+                                    <option value="">All Activity Types</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="timelineList" aria-live="polite">
+                            <!-- Timeline will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Proposals Section -->
+                <section id="proposalsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Proposals</h2>
+                            <p class="section-description">Received from the Green team</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div id="proposalsList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">No proposals yet.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tribe Street Journal Section -->
+                <section id="tribeStreetJournalSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Tribe Street Journal</h2>
+                            <p class="section-description">Review team-captured notes, moments, quotes, and structured notetaker move snapshots, then forward them as White Cell updates.</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div id="tribeStreetJournalEmbed"></div>
+                        <div id="tribeStreetJournalList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">No entries yet.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Verba AI Population Sentiments Section -->
+                <section id="verbaAiSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Verba AI Population Sentiments</h2>
+                            <p class="section-description">Compose and review White Cell sentiment updates for Blue, Green, and Red.</p>
+                        </div>
+                        <div class="section-actions">
+                            <button type="button" class="btn btn-primary btn-sm" id="newVerbaAiUpdateBtn">New Verba AI Update</button>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div id="verbaAiList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">Sentiment data will appear here.</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile sidebar overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script type="module" src="./src/main.js"></script>
+    <script type="module" src="./src/roles/whitecell.js"></script>
+</body>
+</html>

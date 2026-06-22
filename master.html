@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Statecraft Sim Game Master operator console.">
+    <title>Game Master Operator Console</title>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="./styles/base/reset.css">
+    <link rel="stylesheet" href="./styles/base/variables.css">
+    <link rel="stylesheet" href="./styles/base/typography.css">
+    <link rel="stylesheet" href="./styles/components/buttons.css">
+    <link rel="stylesheet" href="./styles/components/forms.css">
+    <link rel="stylesheet" href="./styles/components/cards.css">
+    <link rel="stylesheet" href="./styles/components/modals.css">
+    <link rel="stylesheet" href="./styles/components/badges.css">
+    <link rel="stylesheet" href="./styles/components/loader.css">
+    <link rel="stylesheet" href="./styles/layouts/app-layout.css">
+    <link rel="stylesheet" href="./styles/layouts/header.css">
+    <link rel="stylesheet" href="./styles/layouts/sidebar.css">
+    <link rel="stylesheet" href="./styles/layouts/grid.css">
+    <link rel="stylesheet" href="./styles/pages/master.css">
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div id="runtimeConfigNotice" hidden aria-live="assertive"></div>
+    <div class="app-layout master-page">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <span>Operator Console</span>
+            </div>
+
+            <nav class="sidebar-nav">
+                <ul class="sidebar-menu">
+                    <li class="sidebar-heading">
+                        Main</li>
+                    <li class="sidebar-menu-item">
+                        <a href="#dashboard" class="sidebar-link sidebar-link-active" data-section="dashboard">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="7" height="7"></rect>
+                                    <rect x="14" y="3" width="7" height="7"></rect>
+                                    <rect x="14" y="14" width="7" height="7"></rect>
+                                    <rect x="3" y="14" width="7" height="7"></rect>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#sessions" class="sidebar-link" data-section="sessions">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Sessions</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#participants" class="sidebar-link" data-section="participants">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Participants</span>
+                        </a>
+                    </li>
+
+                    <li class="sidebar-heading">
+                        Data</li>
+
+                    <li class="sidebar-menu-item">
+                        <a href="#export" class="sidebar-link" data-section="export">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Export Data</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-session">
+                <span class="sidebar-session-label">Session</span>
+                <span class="sidebar-session-name" id="sessionName">Operator-authenticated session control</span>
+            </div>
+        </aside>
+
+        <!-- Header -->
+        <header class="page-header" id="pageHeader">
+            <div class="header-left">
+                <button class="header-menu-btn btn btn-ghost btn-icon-only" id="menuToggle" aria-label="Toggle menu">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="header-session-info" id="headerSessionInfo">
+                    <span class="session-role" id="sessionRoleLabel">Operator</span>
+                    <span class="session-indicator" id="connectionIndicator"></span>
+                </div>
+            </div>
+
+            <div class="header-center">
+                <div class="header-game-state" id="headerGameState">
+                    <div class="game-state-item">
+                        <span class="game-state-label">Move</span>
+                        <span class="game-state-value" id="headerMove">-</span>
+                    </div>
+                    <div class="game-state-item"
+                        style="border-left: 1px solid var(--color-border); padding-left: var(--space-4);">
+                        <span class="game-state-label">Phase</span>
+                        <span class="game-state-value" id="headerPhase">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="header-actions">
+                    <button class="btn btn-ghost btn-sm" id="logoutBtn">
+                        Disconnect
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-content">
+            <div class="page-container">
+                <!-- Dashboard Section -->
+                <section id="dashboardSection" class="content-section">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">System Overview</h2>
+                            <p class="section-description">Operator-only monitoring of live simulation parameters</p>
+                        </div>
+                        <div class="section-actions">
+                            <button class="btn btn-outline" id="refreshDashboardBtn">Refresh Data</button>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <!-- Stats Grid -->
+                        <div class="section-grid section-grid-4 mb-6" id="statsGrid">
+                            <div class="card stat-card">
+                                <span class="stat-label">Active Sessions</span>
+                                <span class="stat-value">0</span>
+                            </div>
+                            <div class="card stat-card">
+                                <span class="stat-label">Connected Participants</span>
+                                <span class="stat-value">0</span>
+                            </div>
+                            <div class="card stat-card">
+                                <span class="stat-label">Actions Logged</span>
+                                <span class="stat-value">0</span>
+                            </div>
+                            <div class="card stat-card">
+                                <span class="stat-label">Pending RFIs</span>
+                                <span class="stat-value">0</span>
+                            </div>
+                        </div>
+
+                        <div class="section-grid section-grid-2">
+                            <div class="card card-bordered">
+                                <div class="card-header">
+                                    <h3>Recent Activity Log</h3>
+                                </div>
+                                <div class="card-body" id="recentActivity">
+                                    <div
+                                        style="padding: var(--space-4); text-align: center; color: var(--color-text-muted);">
+                                        No recent activity has been recorded for active sessions.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card card-bordered">
+                                <div class="card-header">
+                                    <h3>Connected Participants</h3>
+                                </div>
+                                <div class="card-body" id="activeParticipants">
+                                    <div
+                                        style="padding: var(--space-4); text-align: center; color: var(--color-text-muted);">
+                                        No participants are currently connected.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Sessions Section -->
+                <section id="sessionsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Session Management</h2>
+                            <p class="section-description">Operator-only creation and configuration of simulation instances</p>
+                        </div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary" id="createSessionBtn">
+                                + New Session
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div class="card-list" id="sessionsList">
+                            <!-- Sessions will be populated here -->
+                            <div class="card" style="padding: var(--space-8); text-align: center;">
+                                <p class="text-muted">Loading available sessions...</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Session Detail Section (shown when viewing a specific session) -->
+                <section id="sessionDetailSection" class="content-section" style="display: none;">
+                    <div id="sessionDetailContent">
+                        <!-- Session details will be populated here -->
+                    </div>
+                </section>
+
+                <!-- Participants Section -->
+                <section id="participantsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Participant Roster</h2>
+                            <p class="section-description">Review and remove participant seats from a selected session</p>
+                        </div>
+                        <div class="section-actions">
+                            <label class="sr-only" for="participantsSessionSelect">Select session for participant roster</label>
+                            <select id="participantsSessionSelect" class="form-input" aria-describedby="participantsSelectionState">
+                                <option value="">Select session</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <p class="text-sm text-gray-500 mb-4" id="participantsSelectionState">Select a session from Session Management to view participants.</p>
+                        <div id="participantsList" class="card"
+                            style="min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                            <p class="text-gray-500">Select a session from the Session Management tab to view
+                                participants</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Export Section -->
+                <section id="exportSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Data Export</h2>
+                            <p class="section-description">Download legacy JSON or CSV extracts, plus the research archive and print-ready report by default. Switch runtime config to standard to lock the research bundle.</p>
+                        </div>
+                        <div class="section-actions">
+                            <label class="sr-only" for="exportSessionSelect">Select session for export</label>
+                            <select id="exportSessionSelect" class="form-input" aria-describedby="exportSelectionState">
+                                <option value="">Select session</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <p class="text-sm text-gray-500 mb-4" id="exportSelectionState">Select a session before exporting JSON, CSV, or research archive data.</p>
+
+                        <div class="section-grid section-grid-3">
+                            <div class="card card-bordered card-hoverable" id="exportJson">
+                                <div class="card-body" style="text-align: center; padding: var(--space-8);">
+                                    <div style="margin-bottom: var(--space-4); color: var(--color-navy);">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                            <path d="M10 12h4"></path>
+                                            <path d="M10 16h4"></path>
+                                        </svg>
+                                    </div>
+                                    <h3>JSON Data</h3>
+                                    <p class="text-sm text-gray-500 mb-4">Full selected-session dataset in JSON format</p>
+                                    <button class="btn btn-outline btn-sm" id="exportJsonBtn" disabled>Download JSON</button>
+                                </div>
+                            </div>
+
+                            <div class="card card-bordered card-hoverable" id="exportCsv">
+                                <div class="card-body" style="text-align: center; padding: var(--space-8);">
+                                    <div style="margin-bottom: var(--space-4); color: var(--color-success);">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                            <path d="M8 13h8"></path>
+                                            <path d="M8 17h8"></path>
+                                            <path d="M10 9h4"></path>
+                                        </svg>
+                                    </div>
+                                    <h3>CSV Exports</h3>
+                                    <p class="text-sm text-gray-500 mb-4">Download individual session data tables</p>
+                                    <div style="display: grid; gap: var(--space-2);">
+                                        <button class="btn btn-outline btn-sm" id="exportActionsCsvBtn" disabled>Actions CSV</button>
+                                        <button class="btn btn-outline btn-sm" id="exportRequestsCsvBtn" disabled>RFIs CSV</button>
+                                        <button class="btn btn-outline btn-sm" id="exportTimelineCsvBtn" disabled>Timeline CSV</button>
+                                        <button class="btn btn-outline btn-sm" id="exportParticipantsCsvBtn" disabled>Participants CSV</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card card-bordered card-hoverable" id="exportResearchArchive">
+                                <div class="card-body" style="text-align: center; padding: var(--space-8);">
+                                    <div style="margin-bottom: var(--space-4); color: var(--color-warning);">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5">
+                                            <path d="M4 7h16"></path>
+                                            <path d="M6 11h12"></path>
+                                            <path d="M8 15h8"></path>
+                                            <path d="M4 4h16v16H4z"></path>
+                                        </svg>
+                                    </div>
+                                    <h3>Research Archive</h3>
+                                    <p class="text-sm text-gray-500 mb-4">Single ZIP bundle with machine-readable tables, report.html, and the legacy export subset</p>
+                                    <label for="exportResearchIncludeNotes" class="switch-field" style="margin-bottom: var(--space-4); text-align: left;">
+                                        <span class="switch-field-label text-gray-500">Include notes appendix in report.html when study consent allows it</span>
+                                        <span class="switch">
+                                            <input type="checkbox" id="exportResearchIncludeNotes">
+                                            <span class="switch-track"></span>
+                                        </span>
+                                    </label>
+                                    <div style="display: grid; gap: var(--space-2);">
+                                        <button class="btn btn-outline btn-sm" id="exportResearchArchiveBtn" disabled>Download Research ZIP</button>
+                                        <button class="btn btn-outline btn-sm" id="printResearchReportBtn" disabled>Print Report</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile sidebar overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script type="module" src="./src/main.js"></script>
+    <script type="module" src="./src/roles/gamemaster.js"></script>
+</body>
+
+</html>

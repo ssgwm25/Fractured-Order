@@ -1,0 +1,700 @@
+/**
+ * Landing Page — split atmosphere / form layout
+ */
+
+:root {
+    --ease-butter: cubic-bezier(0.22, 1, 0.36, 1);
+    /* Gentle slow-start curve for the page entrance — eases in rather than
+       snapping, so the scene materialises instead of jump-starting. */
+    --ease-entrance: cubic-bezier(0.4, 0, 0.18, 1);
+    --navy-deep: #0B3B2B;
+}
+
+/* Lock the page — no document-level scroll */
+html, body {
+    height: 100%;
+    overflow: hidden;
+    /* No scroll here, so don't reserve a gutter (overrides the global stable gutter) */
+    scrollbar-gutter: auto;
+}
+
+/* ================================================================
+   LAYOUT — side-by-side, full viewport
+   ================================================================ */
+
+.landing {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: 100vh;
+    overflow: hidden;
+    /* Hidden until the entrance plays (.landing--visible, added on load). The
+       entrance is an animation, not a class-triggered transition: a transition
+       can be coalesced into a single frame and snap straight to the end, while
+       an animation always eases from its first keyframe every time. */
+    opacity: 0;
+    transform-origin: center;
+}
+
+/* Entrance: one cohesive, unstaggered motion — a slow-start fade with a gentle
+   settle from a hair oversized and a soft blur resolving into focus, so the
+   scene materialises rather than jump-starting. */
+.landing--visible {
+    animation: landingEnter 1.3s var(--ease-entrance) both;
+}
+
+@keyframes landingEnter {
+    from {
+        opacity: 0;
+        transform: scale(1.018);
+        filter: blur(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        filter: blur(0);
+    }
+}
+
+/*
+ * The whole login composition enters as ONE smooth, unified motion: the
+ * .landing container fades opacity 0 -> 1 and settles its scale when JS adds
+ * .landing--visible. Every child simply rests at its final state and rides
+ * that single fade — nothing animates in on its own delay, so the elements
+ * never appear staggered. Only the ambient Ken Burns drift is gated behind
+ * .landing--visible (it is continuous atmosphere, not an entrance).
+ */
+
+@media (max-width: 860px) {
+    .landing {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ================================================================
+   LEFT — poster panel
+   ================================================================ */
+
+.landing-atmosphere {
+    position: relative;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* Poster image fills the panel. It rests at its final state and rides the
+   single, unified landing fade-in (the .landing container) — no separate
+   reveal of its own, so nothing enters out of step with the rest. */
+.atm-poster {
+    position: relative;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    transform: scale(1.00);
+    opacity: 0.62;
+    will-change: transform;
+}
+
+.landing--visible .atm-poster {
+    /* A slow, continuous Ken Burns drift — ambient, not an entrance; it begins
+       only once the scene has settled in. */
+    animation: kenBurns 36s ease-in-out 1.2s infinite alternate;
+}
+
+@keyframes kenBurns {
+    from { transform: scale(1.04) translate3d(0, 0, 0); }
+    to   { transform: scale(1.09) translate3d(-1.4%, -1.1%, 0); }
+}
+
+/* Gold crest, top-left corner — sits above the poster and its overlays */
+.atm-mark {
+    position: absolute;
+    top: var(--space-6);
+    left: var(--space-6);
+    z-index: 3;
+    width: 144px;
+    height: 144px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
+}
+
+@media (max-width: 860px) {
+    .atm-mark {
+        top: var(--space-4);
+        left: var(--space-4);
+        width: 112px;
+        height: 112px;
+    }
+}
+
+/* Cinematic overlays — a neutral bottom scrim so the title and footer always
+   read, a soft vignette, and fine film grain for depth. Both layers are
+   pointer-transparent and sit between the poster (z 0) and title/footer (z 3). */
+.landing-atmosphere::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+        radial-gradient(135% 115% at 50% 32%, transparent 52%, rgba(0, 0, 0, 0.5) 100%),
+        linear-gradient(to top,
+            rgba(0, 0, 0, 0.86) 0%,
+            rgba(0, 0, 0, 0.42) 16%,
+            rgba(0, 0, 0, 0.10) 32%,
+            transparent 46%);
+    /* Rests at full strength — fades in with the landing as one, no separate
+       ramp of its own. */
+    opacity: 1;
+}
+
+.landing-atmosphere::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    opacity: 0.07;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+/* Title lockup — centered over the poster, above the overlays.
+   Reads as a poster credit: the name, then a gold rule leading the game type. */
+.atm-title {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: var(--space-2);
+    padding: var(--space-6);
+    /* Sit a little below dead-centre, into the darker sky beneath the globe. */
+    transform: translateY(8%);
+    pointer-events: none;
+}
+
+/* Soft, localized dark glow behind the text so it stays legible over the bright
+   globe — a vignette sized to the lockup, not a wash across the whole poster. */
+.atm-title::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(92%, 660px);
+    height: min(64%, 440px);
+    background: radial-gradient(ellipse at center,
+        rgba(5, 8, 10, 0.70) 0%,
+        rgba(5, 8, 10, 0.42) 42%,
+        rgba(5, 8, 10, 0) 72%);
+    filter: blur(8px);
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* The name carries the weight: a large editorial serif rather than a clean
+   sans, so it reads as a title with character instead of a system label. */
+.atm-title-name {
+    font-family: var(--font-serif);
+    font-size: clamp(2.7rem, 5.2vw, 4.4rem);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.015em;
+    color: #fbfaf6;
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.65),
+        0 4px 28px rgba(0, 0, 0, 0.72);
+}
+
+/* The descriptor reads like a poster credit — a serif italic tagline, warm
+   gold, sentence case — not an all-caps tracked label. */
+.atm-title-kind {
+    font-family: var(--font-serif);
+    font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    color: var(--color-gold-light);
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.65),
+        0 1px 14px rgba(0, 0, 0, 0.55);
+}
+
+/* Mobile: poster becomes a shorter hero band */
+@media (max-width: 860px) {
+    .landing-atmosphere {
+        min-height: 280px;
+    }
+
+    .atm-title {
+        padding: var(--space-4);
+    }
+}
+
+/* ================================================================
+   RIGHT — form panel
+   ================================================================ */
+
+.landing-form-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: stretch;
+    padding: var(--space-8) var(--space-8) var(--space-4);
+    background: var(--color-bg);
+    overflow-y: auto;
+}
+
+/* Three-part composition that fills the panel: SSG lockup at top, the form
+   block centered in the remaining space, "Powered by Plenum" pinned at the
+   bottom. Removes the empty void below the form and frames the hierarchy —
+   SSG delivers, Plenum is the environment. */
+.form-panel-inner {
+    width: 100%;
+    max-width: 400px;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Anchor the form at a fixed offset from the top so expanding Operator Access
+   grows DOWNWARD into the gap above the footer — nothing above it re-centers
+   or shifts. The footer is pinned to the bottom via margin-top: auto below. */
+.form-main {
+    margin-top: clamp(96px, 24vh, 280px);
+    padding-bottom: var(--space-8);
+}
+
+/* ================================================================
+   "POWERED BY PLENUM" (bottom of form panel)
+   ================================================================ */
+
+.fp-foot {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border-light);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.fp-foot-powered {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45em;
+}
+
+/* Plenum platform wordmark — matches Plenum.html: Source Serif 4, medium
+   weight, tight tracking, with the period set in Plenum's terracotta accent. */
+.plenum-wordmark {
+    font-family: var(--font-serif);
+    font-weight: var(--font-medium);
+    font-size: var(--text-md);
+    letter-spacing: -0.025em;
+    color: var(--color-text);
+}
+
+.plenum-dot {
+    color: #bd5a39;
+}
+
+/* Header */
+.form-panel-header {
+    margin-bottom: var(--space-6);
+}
+
+.form-panel-title {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--color-text);
+    margin: 0 0 var(--space-1);
+    letter-spacing: -0.026em;
+}
+
+.form-panel-sub {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* ================================================================
+   FORM
+   ================================================================ */
+
+.lf {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.lf-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+@media (max-width: 520px) {
+    .lf-row { grid-template-columns: 1fr; }
+}
+
+.lf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.lf-field label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+}
+
+.lf-field .form-input {
+    height: 44px;
+    font-size: var(--text-sm);
+    padding: 0 var(--space-3);
+    border-radius: var(--input-radius);
+}
+
+.lf-fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.lf-fieldset legend {
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    margin-bottom: var(--space-2);
+}
+
+/* ================================================================
+   CHIPS
+   ================================================================ */
+
+.lf-chips {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.chip {
+    padding: 8px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 180ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    appearance: none;
+    font-family: var(--font-sans);
+}
+
+.chip:hover {
+    border-color: var(--color-navy-muted);
+    color: var(--color-text);
+    background: var(--color-surface-alt);
+}
+
+.chip.selected,
+.chip[aria-pressed="true"] {
+    background: var(--color-navy);
+    border-color: var(--color-navy);
+    color: #fff;
+}
+
+.chip svg {
+    opacity: 0.55;
+    flex-shrink: 0;
+}
+
+.chip.selected svg,
+.chip[aria-pressed="true"] svg {
+    opacity: 1;
+}
+
+/* ================================================================
+   SUBMIT
+   ================================================================ */
+
+.lf-submit {
+    height: 46px;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.02em;
+    background: var(--color-navy);
+    border-color: var(--color-navy);
+    border-radius: var(--btn-radius);
+    margin-top: var(--space-1);
+    transition: all 250ms var(--ease-butter);
+}
+
+.lf-submit:hover {
+    background: var(--color-navy-deep);
+    border-color: var(--color-navy-deep);
+    transform: translateY(-1px);
+}
+
+/* ================================================================
+   OPERATOR DETAILS
+   ================================================================ */
+
+.op-details {
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.op-summary {
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wider);
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    transition: color 180ms ease;
+    user-select: none;
+}
+
+.op-summary::-webkit-details-marker { display: none; }
+
+.op-summary::before {
+    content: '+';
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    transition: all 180ms ease;
+    flex-shrink: 0;
+}
+
+.op-details[open] .op-summary::before { content: '\2212'; }
+.op-summary:hover { color: var(--color-text-secondary); }
+
+.op-body {
+    margin-top: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    animation: opReveal 0.3s var(--ease-butter) both;
+}
+
+@keyframes opReveal {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.op-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.op-actions .btn { flex: 1; min-width: 0; }
+
+/* ================================================================
+   RESUME SECTION
+   ================================================================ */
+
+#resumeSection { display: none; }
+#resumeSection:not(:empty) { display: block; margin-bottom: var(--space-4); }
+
+/* ================================================================
+   JOIN CONFIRMATION — interstitial shown on a successful join, held a
+   beat before handing off to the role surface. Opaque, so it covers the
+   spinner beneath and the page navigation that follows.
+   ================================================================ */
+
+.join-confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    background:
+        radial-gradient(120% 90% at 50% 38%, #0c2a20 0%, #071a13 46%, #04100b 100%);
+    opacity: 0;
+}
+
+.join-confirm.is-visible {
+    animation: jcOverlayIn 0.55s var(--ease-entrance) both;
+}
+
+@keyframes jcOverlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.jc-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+    max-width: 440px;
+}
+
+.join-confirm.is-visible .jc-card {
+    animation: jcCardIn 0.75s var(--ease-entrance) 0.08s both;
+}
+
+@keyframes jcCardIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* A small, quiet checkmark — tinted with the joined team's colour. No ring.
+   Hidden during the "Joining…" state; pops in once the seat is confirmed. */
+.jc-check {
+    --jc-accent: var(--color-gold);
+    margin-bottom: var(--space-2);
+    line-height: 0;
+    color: var(--jc-accent);
+    opacity: 0;
+}
+
+.jc-check svg {
+    width: 30px;
+    height: 30px;
+    filter: drop-shadow(0 1px 8px rgba(0, 0, 0, 0.4));
+}
+
+.join-confirm.is-confirmed .jc-check {
+    animation: jcPop 0.5s var(--ease-butter) both;
+}
+
+@keyframes jcPop {
+    from { opacity: 0; transform: scale(0.7); }
+    60%  { opacity: 1; transform: scale(1.05); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.jc-name {
+    font-family: var(--font-serif);
+    font-size: clamp(1.9rem, 4.6vw, 2.7rem);
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    color: #fbfaf6;
+}
+
+.jc-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.jc-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-shadow: 0 0 9px rgba(0, 0, 0, 0.4);
+}
+
+.jc-status {
+    margin-top: var(--space-3);
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* A gentle pulse while joining; steady once confirmed. */
+.join-confirm:not(.is-confirmed) .jc-status {
+    animation: jcPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes jcPulse {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 0.8; }
+}
+
+/* ================================================================
+   REDUCED MOTION — drop the continuous drift, keep gentle fades only.
+   ================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    /* A gentle opacity-only fade — no scale, blur, or drift — so it honours the
+       reduced-motion request while still easing in rather than snapping. The
+       !important is required to beat the global reduced-motion reset in
+       reset.css, which otherwise forces every animation to ~0ms (the cause of
+       the snap on machines with "reduce motion" / "show animations" off). */
+    .landing--visible {
+        animation: landingFade 0.7s var(--ease-entrance) both !important;
+    }
+
+    @keyframes landingFade {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+
+    /* No ambient drift under reduced motion — the poster simply rests. */
+    .landing--visible .atm-poster {
+        animation: none;
+    }
+
+    /* Join overlay: keep a gentle overlay fade (override the global reset), but
+       drop the card rise, the check pop, and the joining pulse. The check still
+       only appears once confirmed. */
+    .join-confirm.is-visible {
+        animation: jcOverlayIn 0.5s ease both !important;
+    }
+
+    .join-confirm.is-visible .jc-card {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+
+    .join-confirm:not(.is-confirmed) .jc-status {
+        animation: none !important;
+    }
+
+    .join-confirm.is-confirmed .jc-check {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}

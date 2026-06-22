@@ -1,0 +1,294 @@
+/**
+ * Button Styles
+ * Refined button styling matching reference design
+ */
+
+/* Base button */
+.btn {
+    padding: var(--btn-padding-y) var(--btn-padding-x);
+    border: 1px solid transparent;
+    /* Always have border */
+    border-radius: var(--btn-radius);
+    /* Rounded control radius (12px) */
+    font-size: 0.875rem;
+    font-weight: var(--font-semibold);
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    transition: transform var(--transition-fast), background-color var(--transition-fast),
+        border-color var(--transition-fast), box-shadow var(--transition-fast), color var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Apple-style press: the whole control compresses slightly */
+.btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Size variants */
+.btn-sm {
+    padding: 6px 12px;
+    font-size: var(--text-sm);
+}
+
+.btn-lg {
+    padding: 14px 24px;
+    font-size: var(--text-md);
+}
+
+/* Primary button - filled accent CTA */
+.btn-primary {
+    background: var(--color-navy);
+    color: white;
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px rgba(11, 59, 43, 0.18);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--color-navy-muted);
+    box-shadow: 0 2px 8px rgba(11, 59, 43, 0.22);
+}
+
+/* Secondary button - Apple "tinted gray" fill + hairline so it stays legible
+   on gray surfaces and never reads as a disabled (dimmed) primary */
+.btn-secondary {
+    background: rgba(118, 118, 128, 0.12);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: rgba(118, 118, 128, 0.2);
+    border-color: var(--color-text-muted);
+    color: var(--color-text);
+}
+
+/* Success button - Navy accent */
+.btn-success {
+    background: var(--color-navy);
+    color: white;
+    border: 1px solid transparent;
+    box-shadow: 0 2px 10px rgba(17, 87, 64, 0.22);
+}
+
+.btn-success:hover:not(:disabled) {
+    background: var(--color-navy-muted);
+    box-shadow: 0 4px 16px rgba(17, 87, 64, 0.28);
+}
+
+/* Danger button */
+.btn-danger {
+    background: var(--color-alert);
+    color: white;
+    border: 1px solid var(--color-alert);
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #a93320;
+    border-color: #a93320;
+}
+
+/* Ghost button */
+.btn-ghost {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid transparent;
+}
+
+.btn-ghost:hover:not(:disabled) {
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+}
+
+/* Link button */
+.btn-link {
+    background: transparent;
+    color: var(--color-navy);
+    border: none;
+    padding: 0;
+    height: auto;
+}
+
+.btn-link:hover:not(:disabled) {
+    color: var(--color-navy-muted);
+    text-decoration: underline;
+}
+
+/* Warning button */
+.btn-warning {
+    background: var(--color-warning);
+    color: white;
+    border: 1px solid var(--color-warning);
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: #a07008;
+    border-color: #a07008;
+}
+
+/* Full width */
+.btn-full-width {
+    width: 100%;
+}
+
+/* Icon only button */
+.btn-icon-only {
+    width: var(--btn-height);
+    padding: 0;
+}
+
+.btn-icon-only.btn-sm {
+    width: var(--btn-height-sm);
+}
+
+.btn-icon-only.btn-lg {
+    width: var(--btn-height-lg);
+}
+
+/* Button icon */
+.btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon svg {
+    width: 1.25em;
+    height: 1.25em;
+}
+
+/* Loading state */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.btn-loading .spinner {
+    margin-right: var(--space-2);
+}
+
+/* Quick buttons (form shortcuts) */
+.quick-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.quick-btn {
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    color: var(--color-text-secondary);
+}
+
+.quick-btn:hover {
+    border-color: var(--color-text-muted);
+    color: var(--color-text);
+}
+
+.quick-btn.selected {
+    background: var(--color-text);
+    border-color: var(--color-text);
+    color: white;
+}
+
+/* Category checkbox selected state */
+.category-checkbox.selected,
+.target-checkbox.selected,
+.faction-tag.selected {
+    background: var(--color-navy);
+    border-color: var(--color-navy);
+    color: white;
+}
+
+/* Quick add button */
+.quick-add-btn {
+    margin-top: var(--space-sm);
+    padding: 12px 24px;
+    background: var(--color-navy);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-family: var(--font-sans);
+    letter-spacing: 0.02em;
+    transition: all var(--transition-fast);
+}
+
+.quick-add-btn:hover {
+    background: var(--color-navy-muted);
+    transform: translateY(-1px);
+}
+
+.quick-add-btn:active {
+    transform: translateY(0);
+}
+
+/* Button group */
+.btn-group {
+    display: inline-flex;
+}
+
+.btn-group .btn {
+    border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+    border-top-left-radius: var(--btn-radius);
+    border-bottom-left-radius: var(--btn-radius);
+}
+
+.btn-group .btn:last-child {
+    border-top-right-radius: var(--btn-radius);
+    border-bottom-right-radius: var(--btn-radius);
+}
+
+.btn-group .btn:not(:first-child) {
+    margin-left: -1px;
+}
+
+.btn-group .btn:hover,
+.btn-group .btn:focus {
+    z-index: 1;
+}
+
+/* Danger zone button */
+.danger-btn {
+    background-color: var(--color-alert);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: var(--font-bold);
+}
+
+.danger-btn:hover {
+    background-color: #a93320;
+}

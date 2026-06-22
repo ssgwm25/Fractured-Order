@@ -1,0 +1,171 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+class MemoryStorage {
+    constructor() {
+        this.store = new Map();
+    }
+
+    getItem(key) {
+        return this.store.has(key) ? this.store.get(key) : null;
+    }
+
+    setItem(key, value) {
+        this.store.set(key, String(value));
+    }
+
+    removeItem(key) {
+        this.store.delete(key);
+    }
+
+    clear() {
+        this.store.clear();
+    }
+}
+
+async function loadModules() {
+    vi.resetModules();
+    globalThis.__ESG_E2E_TEST_CONFIG__ = {
+        operatorAccessCode: 'admin2025'
+    };
+
+    const [{ sessionStore }, { database }] = await Promise.all([
+        import('../stores/session.js'),
+        import('./database.js')
+    ]);
+
+    return {
+        sessionStore,
+        database
+    };
+}
+
+function setClientIdentity(sessionStore, clientId, { resetAuth = true } = {}) {
+    sessionStore.clearAll();
+    if (resetAuth) {
+        vi.setSystemTime(new Date(Date.now() + 1));
+        localStorage.removeItem('esg_e2e_auth_session');
+    }
+    localStorage.setItem('esg_client_id', clientId);
+    sessionStore.init();
+}
+
+async function createProtectedSession(database, name, sessionCode) {
+    await database.authorizeOperatorAccess({
+        surface: 'gamemaster',
+        accessCode: 'admin2025',
+        operatorName: 'GM Policy Test'
+    });
+
+    return database.createSession({
+        name,
+        session_code: sessionCode
+    });
+}
+
+function buildActionPayload(sessionId, clientId, team = 'blue') {
+    return {
+        session_id: sessionId,
+        client_id: clientId,
+        move: 1,
+        phase: 1,
+        team,
+        mechanism: 'Economic pressure',
+        sector: 'energy',
+        exposure_type: 'tariff',
+        targets: ['Target State'],
+        goal: 'Change negotiating position',
+        expected_outcomes: 'Concession on trade access',
+        ally_contingencies: 'Coordinate with allied ministries',
+        priority: 'high'
+    };
+}
+
+function buildRequestPayload(sessionId, clientId, team = 'blue') {
+    return {
+        session_id: sessionId,
+        team,
+        client_id: clientId,
+        move: 1,
+        phase: 1,
+        priority: 'high',
+        categories: ['intel'],
+        query: 'What is the latest red-team posture?'
+    };
+}
+
+describe('database live-demo policy enforcement', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-04-08T11:00:00.000Z'));
+        global.localStorage = new MemoryStorage();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.resetModules();
+        delete global.localStorage;
+        delete globalThis.__ESG_E2E_TEST_CONFIG__;
+        delete globalThis.__ESG_E2E_BACKEND__;
+    });
+
+    it('rejects removed observer seats from being claimed on the live demo contract', async () => {
+        const { sessionStore, database } = await loadModules();
+
+        setClientIdentity(sessionStore, 'client-gm');
+        const session = await createProtectedSession(database, 'Observer Policy Session', 'OBSV2026');
+
+        setClientIdentity(sessionStore, 'client-viewer');
+        await expect(
+            database.claimParticipantSeat(session.id, 'viewer', 'Observer One')
+        ).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'This role cannot be claimed in the live demo.'
+        });
+    });
+
+    it('restricts participant reads and writes to the session they joined', async () => {
+        const { sessionStore, database } = await loadModules();
+
+        setClientIdentity(sessionStore, 'client-gm');
+        const sessionA = await createProtectedSession(database, 'Policy Session A', 'POLA2026');
+        const sessionB = await database.createSession({
+            name: 'Policy Session B',
+            session_code: 'POLB2026'
+        });
+
+        setClientIdentity(sessionStore, 'client-blue-fac');
+        await database.claimParticipantSeat(sessionA.id, 'blue_facilitator', 'Alex');
+
+        expect(await database.getSession(sessionA.id)).toMatchObject({
+            id: sessionA.id
+        });
+
+        await expect(database.getSession(sessionB.id)).rejects.toMatchObject({
+            name: 'NotFoundError'
+        });
+
+        await expect(database.createAction(
+            buildActionPayload(sessionB.id, sessionStore.getClientId(), 'blue')
+        )).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'new row violates row-level security policy for table "actions"'
+        });
+    });
+
+    it('denies facilitator writes outside the participant team scope', async () => {
+        const { sessionStore, database } = await loadModules();
+
+        setClientIdentity(sessionStore, 'client-gm');
+        const session = await createProtectedSession(database, 'Team Scope Session', 'TEAM2026');
+
+        setClientIdentity(sessionStore, 'client-blue-fac');
+        await database.claimParticipantSeat(session.id, 'blue_facilitator', 'Alex');
+
+        await expect(database.createRequest(
+            buildRequestPayload(session.id, sessionStore.getClientId(), 'red')
+        )).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'new row violates row-level security policy for table "requests"'
+        });
+    });
+});
