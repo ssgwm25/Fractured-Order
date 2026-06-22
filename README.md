@@ -105,7 +105,7 @@ Team accents: Green `#3fae6b`, Red `#d9544d`. Headings are set in a serif displa
 
 ## Credits
 
-Developed by the **Statecraft Simulations Group**, William & Mary.
+Developed by Sethu Nguna for the **Statecraft Simulations Group**, William & Mary.
 
 ## License
 
