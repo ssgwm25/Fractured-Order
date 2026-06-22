@@ -13,6 +13,7 @@ import { createLogger } from '../utils/logger.js';
 import { showToast } from '../components/ui/Toast.js';
 import { validateSessionCode } from '../utils/validation.js';
 import { navigateToApp } from '../core/navigation.js';
+import { getUserMessage } from '../core/errors.js';
 import {
     OPERATOR_SURFACES,
     TEAM_OPTIONS,
@@ -369,7 +370,12 @@ export class LandingController {
         } catch (err) {
             confirmation.dismiss();
             logger.error('Failed to join session:', err);
-            showToast({ message: err.message || 'Failed to join session', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to join session. Check the session code and role availability, then try again.'
+                }),
+                type: 'error'
+            });
         }
     }
 
@@ -491,7 +497,9 @@ export class LandingController {
             confirmation.dismiss();
             logger.error('Failed to authorize operator access:', err);
             showToast({
-                message: err.message || 'Failed to authorize operator access',
+                message: getUserMessage(err, {
+                    fallback: 'Failed to authorize operator access. Check the access code and try again.'
+                }),
                 type: 'error'
             });
         }

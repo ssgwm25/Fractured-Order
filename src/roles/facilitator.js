@@ -77,6 +77,7 @@ import {
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { getCheckedValues, renderCheckboxOptions } from '../utils/checkboxGroup.js';
 import { validateAction } from '../utils/validation.js';
+import { getUserMessage } from '../core/errors.js';
 import {
     ENUMS,
     canDeleteAction,
@@ -1157,7 +1158,12 @@ export class FacilitatorController {
             communicationsStore.updateFromServer('UPDATE', updatedCommunication);
         } catch (err) {
             logger.error('Failed to persist proposal recipient status:', err);
-            showToast({ message: err.message || 'Failed to update proposal status', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to update proposal status. Refresh proposals and try again.'
+                }),
+                type: 'error'
+            });
             return false;
         }
 
@@ -1348,7 +1354,12 @@ export class FacilitatorController {
             this.renderReceivedProposals();
         } catch (err) {
             logger.error('Failed to send proposal response:', err);
-            showToast({ message: err.message || 'Failed to send response', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to send response. Refresh proposals and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -2191,7 +2202,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to submit Red move response:', err);
-            showToast({ message: err.message || 'Failed to submit response', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to submit response. Check the form and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -2578,7 +2594,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to send proposal:', err);
-            showToast({ message: err.message || 'Failed to submit proposal', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to submit proposal. Check the form and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3283,7 +3304,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to create Blue team draft action:', err);
-            showToast({ message: err.message || 'Failed to save draft action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to save draft action. Check the form and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3309,7 +3335,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to update Blue team draft action:', err);
-            showToast({ message: err.message || 'Failed to update draft action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to update draft action. Refresh the draft and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3395,7 +3426,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to submit Blue team action:', err);
-            showToast({ message: err.message || 'Failed to submit action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to submit action. Refresh the draft and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3563,7 +3599,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to create action:', err);
-            showToast({ message: err.message || 'Failed to save draft action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to save draft action. Check the form and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3584,7 +3625,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to update action:', err);
-            showToast({ message: err.message || 'Failed to update draft action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to update draft action. Refresh the draft and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3637,7 +3683,12 @@ export class FacilitatorController {
             showToast({ message: 'Action submitted to White Cell', type: 'success' });
         } catch (err) {
             logger.error('Failed to submit action:', err);
-            showToast({ message: err.message || 'Failed to submit action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to submit action. Refresh the draft and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3671,7 +3722,12 @@ export class FacilitatorController {
             showToast({ message: 'Draft action deleted', type: 'success' });
         } catch (err) {
             logger.error('Failed to delete action:', err);
-            showToast({ message: err.message || 'Failed to delete draft action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to delete draft action. Refresh the action list and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3850,7 +3906,12 @@ export class FacilitatorController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to submit RFI:', err);
-            showToast({ message: err.message || 'Failed to submit RFI', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to submit RFI. Check the form and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }

@@ -51,6 +51,7 @@ import {
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { CONFIG } from '../core/config.js';
 import { ENUMS, canAdjudicateAction, getPhaseLabel, isAdjudicatedAction, isDraftAction } from '../core/enums.js';
+import { getUserMessage } from '../core/errors.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import {
     OPERATOR_SURFACES,
@@ -3156,7 +3157,12 @@ export class WhiteCellController {
             modal?.close();
         } catch (err) {
             logger.error('Failed to send section update:', err);
-            showToast({ message: err.message || 'Failed to send update', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to send update. Check the session state and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3539,7 +3545,12 @@ export class WhiteCellController {
             });
         } catch (err) {
             logger.error('Failed to assign scribe deck:', err);
-            showToast({ message: err.message || 'Failed to load the scribe deck.', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to load the scribe deck. Check the deck source and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3571,7 +3582,12 @@ export class WhiteCellController {
             showToast({ message: 'Seat removed', type: 'success' });
         } catch (err) {
             logger.error('Failed to remove seat:', err);
-            showToast({ message: err.message || 'Failed to remove seat', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to remove seat. Refresh the roster and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3697,7 +3713,12 @@ export class WhiteCellController {
             await this.loadSessionsAdmin();
         } catch (err) {
             logger.error('Failed to create session:', err);
-            showToast({ message: err.message || 'Failed to create session', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to create session. Check the session name and join code, then try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3721,7 +3742,12 @@ export class WhiteCellController {
             await this.loadSessionsAdmin();
         } catch (err) {
             logger.error('Failed to delete session:', err);
-            showToast({ message: err.message || 'Failed to delete session', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to delete session. Refresh the session list and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }
@@ -3925,7 +3951,12 @@ export class WhiteCellController {
             showToast({ message: exportConfig.successMessage, type: 'success' });
         } catch (err) {
             logger.error('Failed to export data:', err);
-            showToast({ message: err.message || 'Failed to export data', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to export data. Refresh the selected session and try again.'
+                }),
+                type: 'error'
+            });
         } finally {
             hideLoader();
         }

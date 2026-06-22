@@ -182,7 +182,10 @@ describe('landing secure join flow', () => {
         };
 
         mockDatabase.lookupJoinableSessionByCode.mockRejectedValue(
-            new Error('Session not found. Please check the code and try again.')
+            Object.assign(new Error('relation "sessions" does not exist'), {
+                name: 'DatabaseError',
+                operation: 'lookupJoinableSessionByCode'
+            })
         );
 
         const { LandingController } = await loadLandingModule();
@@ -220,7 +223,10 @@ describe('landing secure join flow', () => {
         };
 
         mockEnsureBrowserIdentity.mockRejectedValue(
-            new Error('The configured Supabase backend could not be reached. Verify the project URL, DNS, and network access, then reload this page.')
+            Object.assign(
+                new Error('The configured Supabase backend could not be reached. Verify the project URL, DNS, and network access, then reload this page.'),
+                { name: 'ConfigurationError' }
+            )
         );
 
         const { LandingController } = await loadLandingModule();

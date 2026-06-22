@@ -1,0 +1,5 @@
+[    1552ms] Failed to resolve module specifier "@supabase/supabase-js". Relative references must start with either "/", "./", or "../".
+[    1553ms] Failed to resolve module specifier "@supabase/supabase-js". Relative references must start with either "/", "./", or "../".
+[    3411ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://ssgwm25.github.io/favicon.ico:0
+[   42707ms] Failed to resolve module specifier "@supabase/supabase-js". Relative references must start with either "/", "./", or "../".
+[   42708ms] Failed to resolve module specifier "@supabase/supabase-js". Relative references must start with either "/", "./", or "../".

@@ -263,7 +263,82 @@ export class ExportError extends ESGError {
  */
 export function fromSupabaseError(supabaseError, operation) {
     const message = supabaseError?.message || 'Unknown database error';
-    return new DatabaseError(message, operation, supabaseError);
+    const error = new DatabaseError(message, operation, supabaseError);
+    error.source = 'supabase';
+    error.userSafe = false;
+    return error;
+}
+
+const DATABASE_OPERATION_MESSAGES = {
+    authorizeOperatorAccess: 'Operator access could not be authorized. Check the access code and try again.',
+    getOperatorGrant: 'Operator access could not be verified. Return to the landing page and authorize again.',
+    requireOperatorGrant: 'Operator access is required. Return to the landing page and authorize again.',
+    createSession: 'Could not create the session. Check the session name and join code, then try again.',
+    getSession: 'Could not load that session. Refresh and try again.',
+    getActiveSessions: 'Could not load sessions. Refresh and try again.',
+    lookupJoinableSessionByCode: 'Session not found. Please check the code and try again.',
+    updateSession: 'Could not update the session. Refresh and try again.',
+    deleteSession: 'Could not delete the session. Refresh the session list and try again.',
+    createGameState: 'Could not create the session state. Refresh and try again.',
+    getGameState: 'Could not load the current game state. Refresh and try again.',
+    updateGameState: 'Could not update the game state. Refresh and try again.',
+    claimParticipantSeat: 'Could not claim that seat. Check whether the role is still available, then try again.',
+    updateParticipant: 'Could not update the participant record. Refresh and try again.',
+    disconnectParticipant: 'Could not release this seat. Refresh and try again.',
+    removeSessionParticipant: 'Could not remove that participant. Refresh the roster and try again.',
+    releaseStaleParticipantSeats: 'Could not release stale participant seats. Refresh and try again.',
+    getActiveParticipants: 'Could not load participants. Refresh and try again.',
+    createAction: 'Could not save the action. Check the form and try again.',
+    fetchActions: 'Could not load actions. Refresh and try again.',
+    getAction: 'Could not load the action. Refresh and try again.',
+    updateAction: 'Could not update the action. Refresh and try again.',
+    adjudicateAction: 'Could not record the deliberation. Refresh and try again.',
+    deleteAction: 'Could not delete the draft action. Refresh and try again.',
+    createRequest: 'Could not submit the RFI. Check the form and try again.',
+    fetchRequests: 'Could not load RFIs. Refresh and try again.',
+    updateRequest: 'Could not update the RFI. Refresh and try again.',
+    createCommunication: 'Could not send the message. Check the session state and try again.',
+    updateProposalRecipientStatus: 'Could not update the proposal status. Refresh proposals and try again.',
+    fetchCommunications: 'Could not load communications. Refresh and try again.',
+    createTimelineEvent: 'The update was saved, but the activity record could not be completed. Refresh and verify the session record.',
+    fetchTimeline: 'Could not load the timeline. Refresh and try again.',
+    fetchSessionBundle: 'Could not load the session bundle. Refresh and try again.',
+    fetchResearchExportBundle: 'Could not prepare the research export. Refresh and try again.',
+    saveNotetakerData: 'Could not save notes. Reload the move notes and try again.',
+    updateNotetakerData: 'Could not save notes. Reload the move notes and try again.',
+    createNotetakerData: 'Could not save notes. Reload the move notes and try again.',
+    getNotetakerData: 'Could not load notes. Refresh and try again.',
+    fetchNotetakerData: 'Could not load notes. Refresh and try again.'
+};
+
+const USER_SAFE_DATABASE_MESSAGES = [
+    'This browser is still attached to a previous session seat.',
+    'Notetaker notes changed while saving.',
+    'Operator authorization is required.'
+];
+
+function isErrorNamed(error, name) {
+    return error instanceof globalThis.Error
+        ? error.name === name
+        : error?.name === name;
+}
+
+function isUserSafeDatabaseMessage(message = '') {
+    return USER_SAFE_DATABASE_MESSAGES.some((safePrefix) => message.startsWith(safePrefix));
+}
+
+function getDatabaseUserMessage(error, fallback) {
+    const message = String(error?.message || '');
+    if (error?.userSafe === true || isUserSafeDatabaseMessage(message)) {
+        return message;
+    }
+
+    const operation = error?.operation || null;
+    if (operation && DATABASE_OPERATION_MESSAGES[operation]) {
+        return DATABASE_OPERATION_MESSAGES[operation];
+    }
+
+    return fallback;
 }
 
 /**
@@ -272,6 +347,7 @@ export function fromSupabaseError(supabaseError, operation) {
  * @returns {boolean}
  */
 export function isNetworkError(error) {
+    if (!error) return false;
     if (error instanceof NetworkError) return true;
     if (error instanceof OfflineError) return true;
     if (error.message?.includes('fetch')) return true;
@@ -283,18 +359,44 @@ export function isNetworkError(error) {
 /**
  * Get a user-friendly message from an error
  * @param {Error} error - The error
+ * @param {Object|string} options - Optional fallback message or options object
+ * @param {string} [options.fallback] - Safe fallback message for this UI action
  * @returns {string}
  */
-export function getUserMessage(error) {
+export function getUserMessage(error, options = {}) {
+    const fallback = typeof options === 'string'
+        ? options
+        : (options?.fallback || 'An unexpected error occurred. Please try again.');
+
+    if (error instanceof DatabaseError || isErrorNamed(error, 'DatabaseError')) {
+        return getDatabaseUserMessage(error, fallback);
+    }
+
+    if (error instanceof ConfigurationError || isErrorNamed(error, 'ConfigurationError')) {
+        return error.message || fallback;
+    }
+
+    if (error instanceof AuthError || isErrorNamed(error, 'AuthError')) {
+        return error.message || fallback;
+    }
+
+    if (error instanceof ValidationError || isErrorNamed(error, 'ValidationError')) {
+        return error.message || fallback;
+    }
+
+    if (error instanceof OfflineError || isErrorNamed(error, 'OfflineError')) {
+        return error.message || 'You are currently offline. Reconnect and try again.';
+    }
+
+    if (error instanceof NetworkError || isErrorNamed(error, 'NetworkError') || isNetworkError(error)) {
+        return 'Network error. Please check your connection and try again.';
+    }
+
     if (error instanceof ESGError) {
         return error.message;
     }
 
-    if (isNetworkError(error)) {
-        return 'Network error. Please check your connection and try again.';
-    }
-
-    return 'An unexpected error occurred. Please try again.';
+    return fallback;
 }
 
 export default {

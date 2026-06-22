@@ -8,13 +8,13 @@
 import { sessionStore } from './stores/session.js';
 import { gameStateStore } from './stores/gameState.js';
 import { participantsStore } from './stores/participants.js';
-import { syncService } from './services/sync.js';
+import { syncService, SYNC_STATUS } from './services/sync.js';
 import { getRuntimeConfigStatus, renderMissingBackendNotice } from './services/supabase.js';
 import { createLogger } from './utils/logger.js';
 import { showToast } from './components/ui/Toast.js';
 import { hideLoader } from './components/ui/Loader.js';
 import { confirm as confirmModal } from './components/ui/Modal.js';
-import { ConfigurationError } from './core/errors.js';
+import { ConfigurationError, getUserMessage } from './core/errors.js';
 import { isLandingPage, navigateToApp } from './core/navigation.js';
 import { isPublicRoleSurface, parseTeamRole } from './core/teamContext.js';
 import { getPhaseLabel } from './core/enums.js';
@@ -95,6 +95,7 @@ async function initApp() {
 
     // Setup connection indicator
     setupConnectionIndicator();
+    setupSyncStatusBanner();
 
     // Setup logout handler
     setupLogoutHandler();
@@ -168,6 +169,150 @@ function setupConnectionIndicator() {
     window.addEventListener('online', updateConnectionStatus);
     window.addEventListener('offline', updateConnectionStatus);
     updateConnectionStatus();
+}
+
+export function getSyncStatusUiState(status, {
+    online = typeof navigator !== 'undefined' ? navigator.onLine : true
+} = {}) {
+    if (!online || status === SYNC_STATUS.OFFLINE) {
+        return {
+            variant: 'warning',
+            role: 'alert',
+            retryable: false,
+            title: 'Live updates paused',
+            message: 'This browser is offline. Reconnect to resume automatic session updates.'
+        };
+    }
+
+    if (status === SYNC_STATUS.ERROR) {
+        return {
+            variant: 'error',
+            role: 'alert',
+            retryable: true,
+            title: 'Live updates degraded',
+            message: 'Realtime sync is not current. Retry sync or refresh before making time-sensitive changes.'
+        };
+    }
+
+    if (status === SYNC_STATUS.SYNCING) {
+        return {
+            variant: 'info',
+            role: 'status',
+            retryable: false,
+            title: 'Live updates reconnecting',
+            message: 'The session is pulling the latest state.'
+        };
+    }
+
+    return null;
+}
+
+function createSyncStatusBanner(documentRef = document) {
+    const banner = documentRef.createElement('div');
+    banner.id = 'syncStatusBanner';
+    banner.className = 'sync-status-banner';
+    banner.hidden = true;
+    banner.setAttribute('aria-live', 'polite');
+
+    const content = documentRef.createElement('div');
+    content.className = 'sync-status-banner-content';
+
+    const copy = documentRef.createElement('div');
+    copy.className = 'sync-status-banner-copy';
+
+    const title = documentRef.createElement('p');
+    title.className = 'sync-status-banner-title';
+
+    const message = documentRef.createElement('p');
+    message.className = 'sync-status-banner-message';
+
+    const retryButton = documentRef.createElement('button');
+    retryButton.type = 'button';
+    retryButton.className = 'btn btn-secondary btn-sm sync-status-banner-action';
+    retryButton.textContent = 'Retry Sync';
+
+    copy.append(title, message);
+    content.append(copy, retryButton);
+    banner.appendChild(content);
+
+    return banner;
+}
+
+export function setupSyncStatusBanner({
+    documentRef = typeof document !== 'undefined' ? document : null,
+    windowRef = typeof window !== 'undefined' ? window : null,
+    navigatorRef = typeof navigator !== 'undefined' ? navigator : null,
+    syncServiceRef = syncService
+} = {}) {
+    if (!documentRef?.body || !syncServiceRef?.onStatusChange) {
+        return null;
+    }
+
+    const banner = documentRef.getElementById('syncStatusBanner')
+        || createSyncStatusBanner(documentRef);
+
+    if (!banner.parentNode) {
+        documentRef.body.appendChild(banner);
+    }
+
+    const title = banner.querySelector('.sync-status-banner-title');
+    const message = banner.querySelector('.sync-status-banner-message');
+    const retryButton = banner.querySelector('.sync-status-banner-action');
+
+    const updateBanner = (status = syncServiceRef.getStatus?.() || SYNC_STATUS.IDLE) => {
+        const state = getSyncStatusUiState(status, {
+            online: navigatorRef?.onLine !== false
+        });
+
+        documentRef.body.classList.toggle('sync-status-banner-visible', Boolean(state));
+
+        if (!state) {
+            banner.hidden = true;
+            banner.removeAttribute('data-variant');
+            return;
+        }
+
+        banner.hidden = false;
+        banner.dataset.variant = state.variant;
+        banner.setAttribute('role', state.role);
+        if (title) title.textContent = state.title;
+        if (message) message.textContent = state.message;
+        if (retryButton) {
+            retryButton.hidden = !state.retryable;
+            retryButton.disabled = false;
+        }
+    };
+
+    retryButton?.addEventListener('click', () => {
+        retryButton.disabled = true;
+        updateBanner(SYNC_STATUS.SYNCING);
+        Promise.resolve(syncServiceRef.resync?.())
+            .catch((error) => {
+                logger.error('Manual sync retry failed:', error);
+                updateBanner(SYNC_STATUS.ERROR);
+                showToast({
+                    message: getUserMessage(error, {
+                        fallback: 'Live session sync retry failed. Refresh and try again.'
+                    }),
+                    type: 'error'
+                });
+            })
+            .finally(() => {
+                retryButton.disabled = false;
+            });
+    });
+
+    const unsubscribe = syncServiceRef.onStatusChange(updateBanner);
+    const updateFromCurrentStatus = () => updateBanner(syncServiceRef.getStatus?.() || SYNC_STATUS.IDLE);
+    windowRef?.addEventListener?.('online', updateFromCurrentStatus);
+    windowRef?.addEventListener?.('offline', updateFromCurrentStatus);
+    updateFromCurrentStatus();
+
+    return () => {
+        unsubscribe?.();
+        windowRef?.removeEventListener?.('online', updateFromCurrentStatus);
+        windowRef?.removeEventListener?.('offline', updateFromCurrentStatus);
+    };
 }
 
 /**

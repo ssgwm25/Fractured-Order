@@ -1,0 +1,44 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - img "Fractured Order - A Seminar Simulation" [ref=e4]
+    - generic:
+      - generic: Fractured Order
+      - generic: An Economic Statecraft Seminar Game
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "Join Session" [level=2] [ref=e9]
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - generic [ref=e12]:
+              - generic [ref=e13]: Session Code
+              - textbox "Session Code" [ref=e14]:
+                - /placeholder: ALPHA-2024
+            - generic [ref=e15]:
+              - generic [ref=e16]: Display Name
+              - textbox "Display Name" [ref=e17]:
+                - /placeholder: Your name
+          - group "Team" [ref=e18]:
+            - generic [ref=e19]: Team
+            - group "Team selection" [ref=e20]:
+              - button "Blue" [ref=e21] [cursor=pointer]
+              - button "Red" [ref=e22] [cursor=pointer]
+              - button "Green" [ref=e23] [cursor=pointer]
+          - group "Role" [ref=e24]:
+            - generic [ref=e25]: Role
+            - group "Role selection" [ref=e26]:
+              - button "Facilitator" [ref=e27] [cursor=pointer]:
+                - img [ref=e28]
+                - text: Facilitator
+              - button "Scribe" [ref=e33] [cursor=pointer]:
+                - img [ref=e34]
+                - text: Scribe
+              - button "Notetaker" [ref=e36] [cursor=pointer]:
+                - img [ref=e37]
+                - text: Notetaker
+          - button "Join Session" [ref=e40] [cursor=pointer]
+        - group [ref=e41]:
+          - generic "+ Operator Access" [ref=e42] [cursor=pointer]
+      - generic [ref=e44]:
+        - text: Delivered on
+        - generic [ref=e45]: Plenum.

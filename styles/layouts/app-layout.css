@@ -25,6 +25,10 @@
     transition: margin-left var(--transition-smooth);
 }
 
+body.sync-status-banner-visible .main-content {
+    padding-top: calc(var(--header-height) + var(--sync-status-banner-height, 52px));
+}
+
 .sidebar-collapsed ~ .main-content {
     margin-left: 64px;
 }
@@ -32,6 +36,90 @@
 @media (max-width: 768px) {
     .main-content {
         margin-left: 0;
+    }
+}
+
+/* ==================== LIVE SYNC STATUS ==================== */
+
+.sync-status-banner {
+    --sync-status-banner-height: 52px;
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    min-height: var(--sync-status-banner-height);
+    z-index: var(--z-fixed);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.sync-status-banner[hidden] {
+    display: none;
+}
+
+.sync-status-banner-content {
+    min-height: var(--sync-status-banner-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    max-width: var(--max-content-width-wide);
+    margin: 0 auto;
+    padding: var(--space-2) var(--space-6);
+}
+
+.sync-status-banner-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.sync-status-banner-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--color-text);
+}
+
+.sync-status-banner-message {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--leading-snug);
+}
+
+.sync-status-banner[data-variant="warning"] {
+    border-color: rgba(184, 134, 11, 0.3);
+    background: var(--color-warning-100);
+}
+
+.sync-status-banner[data-variant="error"] {
+    border-color: rgba(194, 59, 34, 0.25);
+    background: var(--color-error-100);
+}
+
+.sync-status-banner[data-variant="info"] {
+    border-color: rgba(37, 99, 235, 0.24);
+    background: var(--color-info-100);
+}
+
+.sync-status-banner-action {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+    body.sync-status-banner-visible .main-content {
+        padding-top: calc(var(--header-height) + var(--sync-status-banner-height, 76px));
+    }
+
+    .sync-status-banner {
+        --sync-status-banner-height: 76px;
+    }
+
+    .sync-status-banner-content {
+        align-items: flex-start;
+        padding: var(--space-2) var(--space-4);
     }
 }
 

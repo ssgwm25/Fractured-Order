@@ -15,7 +15,10 @@ const {
         clear: vi.fn()
     },
     mockSyncService: {
-        reset: vi.fn()
+        reset: vi.fn(),
+        getStatus: vi.fn(() => 'idle'),
+        onStatusChange: vi.fn(() => vi.fn()),
+        resync: vi.fn()
     },
     mockParticipantsStore: {
         leave: vi.fn()
@@ -67,6 +70,13 @@ vi.mock('./core/navigation.js', () => ({
 }));
 
 vi.mock('./services/sync.js', () => ({
+    SYNC_STATUS: {
+        IDLE: 'idle',
+        SYNCING: 'syncing',
+        SYNCED: 'synced',
+        ERROR: 'error',
+        OFFLINE: 'offline'
+    },
     syncService: mockSyncService
 }));
 
@@ -287,5 +297,53 @@ describe('sidebar toggle state resolution', () => {
 
         expect(isCompactSidebarViewport({ windowWidth: 768 })).toBe(true);
         expect(isCompactSidebarViewport({ windowWidth: 769 })).toBe(false);
+    });
+});
+
+describe('sync status banner state', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        global.document = {
+            readyState: 'loading',
+            addEventListener: vi.fn(),
+            getElementById: vi.fn(() => null),
+            querySelectorAll: vi.fn(() => [])
+        };
+    });
+
+    afterEach(() => {
+        vi.resetModules();
+        delete global.document;
+    });
+
+    it('shows a non-retryable offline warning when the browser is offline', async () => {
+        const { getSyncStatusUiState } = await import('./main.js');
+
+        expect(getSyncStatusUiState('synced', { online: false })).toEqual({
+            variant: 'warning',
+            role: 'alert',
+            retryable: false,
+            title: 'Live updates paused',
+            message: 'This browser is offline. Reconnect to resume automatic session updates.'
+        });
+    });
+
+    it('shows a retryable degraded state for sync errors', async () => {
+        const { getSyncStatusUiState } = await import('./main.js');
+
+        expect(getSyncStatusUiState('error', { online: true })).toEqual({
+            variant: 'error',
+            role: 'alert',
+            retryable: true,
+            title: 'Live updates degraded',
+            message: 'Realtime sync is not current. Retry sync or refresh before making time-sensitive changes.'
+        });
+    });
+
+    it('hides the banner when sync is current', async () => {
+        const { getSyncStatusUiState } = await import('./main.js');
+
+        expect(getSyncStatusUiState('synced', { online: true })).toBeNull();
     });
 });

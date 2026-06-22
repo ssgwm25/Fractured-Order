@@ -30,6 +30,7 @@ import {
 import { navigateToApp } from '../core/navigation.js';
 import { OPERATOR_SURFACES } from '../core/teamContext.js';
 import { getPhaseLabel } from '../core/enums.js';
+import { getUserMessage } from '../core/errors.js';
 
 const logger = createLogger('GameMaster');
 
@@ -339,7 +340,9 @@ export class GameMasterController {
             logger.info(`Loaded ${this.sessions.length} sessions`);
         } catch (err) {
             logger.error('Failed to load sessions:', err);
-            showToast('Failed to load sessions', { type: 'error' });
+            showToast(getUserMessage(err, {
+                fallback: 'Failed to load sessions. Refresh and try again.'
+            }), { type: 'error' });
             if (loader) loader.hide();
         }
     }
@@ -429,7 +432,9 @@ export class GameMasterController {
             this.applySelectedLiveBundle(bundle);
         } catch (error) {
             logger.error('Failed to refresh selected session views:', error);
-            showToast('Failed to refresh selected session views', { type: 'error' });
+            showToast(getUserMessage(error, {
+                fallback: 'Failed to refresh selected session views. Refresh and try again.'
+            }), { type: 'error' });
         }
     }
 
@@ -817,7 +822,9 @@ export class GameMasterController {
             await this.loadSessions();
         } catch (err) {
             logger.error('Failed to create session:', err);
-            showToast(err.message || 'Failed to create session', { type: 'error' });
+            showToast(getUserMessage(err, {
+                fallback: 'Failed to create session. Check the session name and join code, then try again.'
+            }), { type: 'error' });
         } finally {
             hideLoader();
         }
@@ -1139,7 +1146,9 @@ export class GameMasterController {
             showToast(`${participantName} was removed from ${session.name}.`, { type: 'success' });
         } catch (err) {
             logger.error('Failed to remove participant:', err);
-            showToast(err.message || 'Failed to remove participant', { type: 'error' });
+            showToast(getUserMessage(err, {
+                fallback: 'Failed to remove participant. Refresh the roster and try again.'
+            }), { type: 'error' });
         } finally {
             hideLoader();
         }
@@ -1160,7 +1169,9 @@ export class GameMasterController {
             await this.loadSessions();
         } catch (err) {
             logger.error('Failed to delete session:', err);
-            showToast('Failed to delete session', { type: 'error' });
+            showToast(getUserMessage(err, {
+                fallback: 'Failed to delete session. Refresh the session list and try again.'
+            }), { type: 'error' });
         } finally {
             hideLoader();
         }
@@ -1239,7 +1250,9 @@ export class GameMasterController {
             showToast(`${exportConfig.successLabel} export is ready.`, { type: 'success' });
         } catch (err) {
             logger.error('Export failed:', err);
-            showToast('Export failed', { type: 'error' });
+            showToast(getUserMessage(err, {
+                fallback: 'Export failed. Refresh the selected session and try again.'
+            }), { type: 'error' });
         } finally {
             hideLoader();
         }

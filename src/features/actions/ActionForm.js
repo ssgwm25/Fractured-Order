@@ -12,6 +12,7 @@ import { ENUMS } from '../../core/enums.js';
 import { createLogger } from '../../utils/logger.js';
 import { getCheckedValues, renderCheckboxOptions } from '../../utils/checkboxGroup.js';
 import { validateAction } from '../../utils/validation.js';
+import { getUserMessage } from '../../core/errors.js';
 
 const logger = createLogger('ActionForm');
 
@@ -152,7 +153,12 @@ export function createActionForm(options = {}) {
             if (onSubmit) onSubmit(result);
         } catch (err) {
             logger.error('Failed to save action:', err);
-            showToast({ message: err.message || 'Failed to save action', type: 'error' });
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to save action. Check the form and try again.'
+                }),
+                type: 'error'
+            });
         }
     });
 
