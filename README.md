@@ -6,7 +6,7 @@ Legacy `SSG` and `esg` identifiers still appear in older code comments, package 
 
 ![Fractured Order facilitator deck](screenshot.PNG)
 
-A one-day seminar wargame on U.S.–PRC strategic competition, run by the **William & Mary Statecraft Simulations Group (SSG)**. Players manage sustained great-power competition using non-military, economic instruments of statecraft, and discover where the U.S.-led order holds together or fractures under pressure.
+A one-day seminar wargame on U.S.-PRC strategic competition, run by the **William & Mary Statecraft Simulations Group (SSG)**. Players manage sustained great-power competition using non-military, economic instruments of statecraft, and discover where the U.S.-led order holds together or fractures under pressure.
 
 This repository holds the facilitation materials and the web-based delivery layer (the Plenum platform) for running the game.
 
@@ -14,9 +14,9 @@ This repository holds the facilitation materials and the web-based delivery laye
 
 ## What it is
 
-*Fractured Order* drops participants into early 2027. A U.S.–China trade agreement has lapsed, Taiwan faces sustained PLA pressure, and the PRC has launched a **BRICS+ Strategic Sovereign Systems Initiative (SSSI)** to lock participating states into Chinese technical standards across telecommunications, biotechnology, and agriculture.
+*Fractured Order* drops participants into early 2027. A U.S.-China trade agreement has lapsed, Taiwan faces sustained PLA pressure, and the PRC has launched a **BRICS+ Strategic Sovereign Systems Initiative (SSSI)** to lock participating states into Chinese technical standards across telecommunications, biotechnology, and agriculture.
 
-The game tests how effective non-military tools — sanctions, export and investment controls, incentives, standards-setting, information, and diplomacy — actually are at shaping state behavior, and surfaces the inflection points where one actor's choices reinforce or undermine alliance cohesion.
+The game tests how effective non-military tools - sanctions, export and investment controls, incentives, standards-setting, information, and diplomacy - actually are at shaping state behavior, and surfaces the inflection points where one actor's choices reinforce or undermine alliance cohesion.
 
 ## Teams
 
@@ -35,7 +35,7 @@ Three **MOVES**, each following the same loop and separated by plenary adjudicat
 
 1. **Orient** to the current scene
 2. **Deliberate** within the team
-3. **Act** — Blue selects instruments and targets; Red responds and works Green directly; Green answers the three standing questions (*How are you positioned? What changes with Blue? What changes with Red?*)
+3. **Act** - Blue selects instruments and targets; Red responds and works Green directly; Green answers the three standing questions (*How are you positioned? What changes with Blue? What changes with Red?*)
 4. **Adjudicate** in plenary, where the White Cell scores effects and sets the next scene
 
 A closing hot wash reviews where cohesion held, where it cracked, which levers bit, and what each side could have done differently.
@@ -44,30 +44,30 @@ A closing hot wash reviews where cohesion held, where it cracked, which levers b
 
 ## Repository contents
 
-```
+```text
 .
-├── decks/                          Facilitator support folders (HTML slide viewers)
-│   ├── fractured-order-facilitator-deck.html          # Blue team
-│   ├── fractured-order-green-facilitator-deck.html    # Green team
-│   └── fractured-order-red-facilitator-deck.html      # Red team
-├── platform/                       Plenum delivery platform
-│   ├── index.html                  Landing + boot loader, session join
-│   └── src/                        Frontend modules and role surfaces
-└── docs/                           Player's guide, scenario, reference matrices
+|-- decks/                          Facilitator support folders (HTML slide viewers)
+|   |-- fractured-order-facilitator-deck.html          # Blue team
+|   |-- fractured-order-green-facilitator-deck.html    # Green team
+|   `-- fractured-order-red-facilitator-deck.html      # Red team
+|-- platform/                       Plenum delivery platform
+|   |-- index.html                  Landing + boot loader, session join
+|   `-- src/                        Frontend modules and role surfaces
+`-- docs/                           Player's guide, scenario, reference matrices
 ```
 
-> Adjust the tree above to match your actual layout — this reflects the materials produced so far.
+> Adjust the tree above to match your actual layout - this reflects the materials produced so far.
 
 ### Facilitator decks
 
-Each team has its own self-contained facilitator deck: a dark William & Mary–themed slide viewer with a sidebar table of contents, arrow/keyboard navigation, a clickable progress bar, and a fullscreen present mode. The slides are native HTML (editable text, not images), with a single team-accent CSS variable.
+Each team has its own self-contained facilitator deck: a dark William & Mary-themed slide viewer with a sidebar table of contents, arrow/keyboard navigation, a clickable progress bar, and a fullscreen present mode. The slides are native HTML (editable text, not images), with a single team-accent CSS variable.
 
-Open any deck file directly in a browser — no build step or server required.
+Open any deck file directly in a browser - no build step or server required.
 
 | Key | Action |
 |-----|--------|
-| `→` / `Space` / `PageDown` | Next slide |
-| `←` / `PageUp` | Previous slide |
+| `ArrowRight` / `Space` / `PageDown` | Next slide |
+| `ArrowLeft` / `PageUp` | Previous slide |
 | `Home` / `End` | First / last slide |
 | `F` | Toggle fullscreen present mode |
 | `Esc` | Exit fullscreen |
@@ -89,6 +89,14 @@ Role-surface sidebars are hash-addressable section navigators. Activating a side
 Landing and operator access validation must render persistent inline errors in addition to toast notifications. Invalid fields set `aria-invalid`, point at their error region with `aria-describedby`, and keep the error visible until the user changes that field.
 
 Repeated team forms use semantic fieldsets for capture-type radio groups and explicit `for`/`id` label bindings for textareas, sliders, and other controls.
+
+Scribe alert panels are real dialogs: the trigger owns the panel with `aria-controls`, the panel has `role="dialog"` and `aria-modal="true"`, focus moves into the dialog on open, `Tab` wraps within it, `Escape` closes it, and focus returns to the trigger.
+
+Game Master create-session modal controls use modal-scoped IDs (`newSessionName`, `newSessionCode`, and `newSessionDescription`) so they do not collide with the sidebar session label IDs.
+
+Inline SVG icons in role and operator shells are decorative by default. They must include `aria-hidden="true"` and `focusable="false"` unless a future icon is intentionally named and exposed.
+
+Browser-facing UI source is guarded against common mojibake markers, including corrupted dash/apostrophe bytes and Unicode replacement characters.
 
 ---
 
@@ -127,4 +135,4 @@ Developed by Sethu Nguna for the **Statecraft Simulations Group**, William & Mar
 
 ## License
 
-Add your license here (e.g. `LICENSE` file). Facilitation content and scenario materials may carry different terms than the platform code — note that distinction if it applies.
+Add your license here (e.g. `LICENSE` file). Facilitation content and scenario materials may carry different terms than the platform code - note that distinction if it applies.

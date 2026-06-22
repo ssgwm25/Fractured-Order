@@ -33,6 +33,7 @@ function toDatasetKey(attributeName = '') {
 
 function createFakeElement(id = null, className = '', tagName = 'div') {
     const attributes = new Map();
+    const children = [];
     const classes = new Set(
         String(className)
             .split(/\s+/)
@@ -107,9 +108,47 @@ function createFakeElement(id = null, className = '', tagName = 'div') {
             remove: (...tokens) => {
                 tokens.filter(Boolean).forEach((token) => classes.delete(token));
             },
-            contains: (token) => classes.has(token)
+            contains: (token) => classes.has(token),
+            toggle: (token, force) => {
+                if (!token) {
+                    return false;
+                }
+
+                if (typeof force === 'boolean') {
+                    if (force) {
+                        classes.add(token);
+                    } else {
+                        classes.delete(token);
+                    }
+                    return force;
+                }
+
+                if (classes.has(token)) {
+                    classes.delete(token);
+                    return false;
+                }
+
+                classes.add(token);
+                return true;
+            }
+        },
+        focus: vi.fn(() => {
+            if (global.document) {
+                global.document.activeElement = element;
+            }
+        }),
+        contains(candidate) {
+            if (candidate === element) {
+                return true;
+            }
+
+            return children.some((child) => child?.contains?.(candidate) || child === candidate);
+        },
+        querySelectorAll() {
+            return [...children];
         },
         appendChild(child) {
+            children.push(child);
             innerHTML += child?.outerHTML || '';
             return child;
         }
@@ -127,6 +166,7 @@ function createFakeDocument() {
     const body = createFakeElement('body');
 
     return {
+        activeElement: body,
         body,
         createElement(tagName) {
             return createFakeElement(null, '', tagName);
@@ -140,7 +180,9 @@ function createFakeDocument() {
         },
         getElementById(id) {
             return elements.get(id) || null;
-        }
+        },
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn()
     };
 }
 
@@ -407,6 +449,63 @@ describe('scribe surface', () => {
         });
     });
 
+    it('moves focus into the scribe alerts dialog, traps Tab, and restores focus on Escape', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const alertsButton = fakeDocument.register(createFakeElement('scribeAlertsBtn', '', 'button'));
+        const alertsPanel = fakeDocument.register(createFakeElement('scribeAlertsPanel'));
+        const alertsBadge = fakeDocument.register(createFakeElement('scribeAlertsBadge'));
+        const clearButton = createFakeElement('scribeAlertsClear', '', 'button');
+        const closeButton = createFakeElement('scribeAlertsClose', '', 'button');
+        alertsPanel.querySelectorAll = vi.fn(() => [clearButton, closeButton]);
+        alertsPanel.contains = vi.fn((candidate) => [
+            alertsPanel,
+            clearButton,
+            closeButton
+        ].includes(candidate));
+        fakeDocument.activeElement = alertsButton;
+        global.document = fakeDocument;
+
+        const controller = new ScribeController();
+        controller.renderAlerts = vi.fn();
+        controller.notifications = [{ id: 'note-1', title: 'New event', read: false }];
+        controller.unreadNotifications = 1;
+
+        controller.setAlertsOpen(true, { trigger: alertsButton });
+
+        expect(alertsPanel.hidden).toBe(false);
+        expect(alertsButton.getAttribute('aria-expanded')).toBe('true');
+        expect(controller.unreadNotifications).toBe(0);
+        expect(controller.notifications[0].read).toBe(true);
+        expect(controller.renderAlerts).toHaveBeenCalled();
+        expect(clearButton.focus).toHaveBeenCalledWith({ preventScroll: true });
+
+        fakeDocument.activeElement = closeButton;
+        const tabEvent = {
+            key: 'Tab',
+            shiftKey: false,
+            preventDefault: vi.fn()
+        };
+
+        controller.handleAlertsKeydown(tabEvent);
+
+        expect(tabEvent.preventDefault).toHaveBeenCalled();
+        expect(clearButton.focus).toHaveBeenCalledTimes(2);
+
+        const escapeEvent = {
+            key: 'Escape',
+            preventDefault: vi.fn()
+        };
+
+        controller.handleAlertsKeydown(escapeEvent);
+
+        expect(escapeEvent.preventDefault).toHaveBeenCalled();
+        expect(alertsPanel.hidden).toBe(true);
+        expect(alertsButton.getAttribute('aria-expanded')).toBe('false');
+        expect(alertsButton.focus).toHaveBeenCalledWith({ preventScroll: true });
+        expect(alertsBadge.hidden).toBe(true);
+    });
+
     it('keeps the requested sidebar sections while reserving Actions for live facilitator decisions', () => {
         const slides = Array.from({ length: 61 }, (_entry, index) => ({
             n: index + 1,
@@ -666,6 +765,21 @@ describe('scribe surface', () => {
         expect(html).not.toContain('scribe-stage-toolbar');
         expect(html).not.toContain('scribe-stage-footer');
         expect(html).not.toContain('scribe-section-trigger-description');
+    });
+
+    it('ships every team scribe alert surface as a real keyboard dialog', () => {
+        for (const path of [
+            BLUE_SCRIBE_HTML_PATH,
+            GREEN_SCRIBE_HTML_PATH,
+            RED_SCRIBE_HTML_PATH
+        ]) {
+            const html = readFileSync(path, 'utf8');
+
+            expect(html).toContain('id="scribeAlertsBtn" type="button" aria-haspopup="dialog" aria-controls="scribeAlertsPanel" aria-expanded="false"');
+            expect(html).toContain('id="scribeAlertsPanel" role="dialog" aria-modal="true" aria-labelledby="scribeAlertsTitle" tabindex="-1" hidden');
+            expect(html).toContain('id="scribeAlertsTitle"');
+            expect(html).toContain('id="scribeAlertsClose"');
+        }
     });
 
     it('loads the shared modal styles on every team scribe shell for logout confirmation', () => {

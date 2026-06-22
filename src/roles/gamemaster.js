@@ -78,6 +78,26 @@ function buildParticipantSummary(participants = []) {
     };
 }
 
+export function getCreateSessionFormHtml() {
+    return `
+            <form id="createSessionForm">
+                <div class="form-group">
+                    <label class="form-label" for="newSessionName">Session Name *</label>
+                    <input type="text" id="newSessionName" class="form-input" placeholder="e.g., Training Exercise Alpha" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="newSessionCode">Session Code *</label>
+                    <input type="text" id="newSessionCode" class="form-input" placeholder="e.g., ALPHA2024" maxlength="20" required>
+                    <p class="form-hint">Alphanumeric, 4-20 characters. Participants use this to join.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="newSessionDescription">Description</label>
+                    <textarea id="newSessionDescription" class="form-input form-textarea" rows="3" placeholder="Optional description..."></textarea>
+                </div>
+            </form>
+        `;
+}
+
 function formatParticipantSummaryLabel(participants = []) {
     const { total, connected } = buildParticipantSummary(participants);
 
@@ -776,23 +796,7 @@ export class GameMasterController {
 
     showCreateSessionModal() {
         const content = document.createElement('div');
-        content.innerHTML = `
-            <form id="createSessionForm">
-                <div class="form-group">
-                    <label class="form-label" for="sessionName">Session Name *</label>
-                    <input type="text" id="sessionName" class="form-input" placeholder="e.g., Training Exercise Alpha" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="sessionCode">Session Code *</label>
-                    <input type="text" id="sessionCode" class="form-input" placeholder="e.g., ALPHA2024" maxlength="20" required>
-                    <p class="form-hint">Alphanumeric, 4-20 characters. Participants use this to join.</p>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="sessionDescription">Description</label>
-                    <textarea id="sessionDescription" class="form-input form-textarea" rows="3" placeholder="Optional description..."></textarea>
-                </div>
-            </form>
-        `;
+        content.innerHTML = getCreateSessionFormHtml();
 
         const modalRef = { current: null };
 
@@ -820,9 +824,9 @@ export class GameMasterController {
 
     async handleCreateSession(modal) {
         const modalElement = modal?.element || document;
-        const nameInput = modalElement.querySelector('#sessionName') || document.getElementById('sessionName');
-        const codeInput = modalElement.querySelector('#sessionCode') || document.getElementById('sessionCode');
-        const descInput = modalElement.querySelector('#sessionDescription') || document.getElementById('sessionDescription');
+        const nameInput = modalElement.querySelector('#newSessionName');
+        const codeInput = modalElement.querySelector('#newSessionCode');
+        const descInput = modalElement.querySelector('#newSessionDescription');
 
         if (!nameInput?.value?.trim()) {
             showToast('Session name is required', { type: 'error' });

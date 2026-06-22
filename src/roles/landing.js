@@ -370,8 +370,8 @@ export class LandingController {
             return;
         }
 
-        // Show the single green overlay straight away (in its "Joining…" state)
-        // instead of the generic spinner — the seat details are already known
+        // Show the single green overlay straight away (in its "Joining..." state)
+        // instead of the generic spinner - the seat details are already known
         // from the form. It is confirmed on success or dismissed on failure.
         const parsedRole = parseTeamRole(requestedRole);
         const participantTeam = parsedRole.teamId || this.selectedTeam;
@@ -379,7 +379,7 @@ export class LandingController {
         const teamLabel = teamConfig?.shortLabel || titleCase(participantTeam);
         const confirmation = this.showJoinConfirmation({
             displayName,
-            metaLabel: [teamLabel, titleCase(this.selectedRoleSurface)].filter(Boolean).join(' · '),
+            metaLabel: [teamLabel, titleCase(this.selectedRoleSurface)].filter(Boolean).join(' | '),
             accent: participantTeam ? `var(--color-team-${participantTeam})` : 'var(--color-gold)'
         });
 
@@ -444,13 +444,13 @@ export class LandingController {
 
     /**
      * Show the single, branded join/auth overlay. It appears immediately in a
-     * "Joining…" state (replacing the generic spinner so there is only one green
+     * "Joining..." state (replacing the generic spinner so there is only one green
      * screen between the login and the interface), then reveals the success
      * checkmark on confirm() before the caller hands off to the destination.
      * The overlay is opaque and stays in the DOM through navigation.
      * @param {Object} options
      * @param {string} [options.displayName] - Name shown as the headline.
-     * @param {string} [options.metaLabel] - Seat summary, e.g. "Blue · Facilitator".
+     * @param {string} [options.metaLabel] - Seat summary, e.g. "Blue | Facilitator".
      * @param {string} [options.accent] - CSS colour for the check/dot accent.
      * @returns {{ confirm: () => Promise<void>, dismiss: () => void }}
      */
@@ -461,7 +461,7 @@ export class LandingController {
     } = {}) {
         const HOLD_MS = 950;
 
-        // No real DOM (e.g. unit tests) — return a no-op controller.
+        // No real DOM (e.g. unit tests) - return a no-op controller.
         if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
             return NOOP_CONFIRMATION;
         }
@@ -497,7 +497,7 @@ export class LandingController {
 
         const status = document.createElement('p');
         status.className = 'jc-status';
-        status.textContent = 'Joining session…';
+        status.textContent = 'Joining session...';
 
         card.append(check, name, meta, status);
         overlay.appendChild(card);
@@ -514,7 +514,7 @@ export class LandingController {
                 if (settled) return Promise.resolve();
                 settled = true;
                 overlay.classList.add('is-confirmed');
-                status.textContent = 'Entering session…';
+                status.textContent = 'Entering session...';
                 return new Promise((resolve) => setTimeout(resolve, HOLD_MS));
             },
             dismiss: () => {
@@ -539,7 +539,7 @@ export class LandingController {
             return;
         }
 
-        // Show the single green overlay (in its "Joining…" state) instead of the
+        // Show the single green overlay (in its "Joining..." state) instead of the
         // generic spinner, then confirm on success or dismiss on failure.
         if (surface === OPERATOR_SURFACES.WHITE_CELL) {
             const sessionCodeInput = document.getElementById('sessionCode');
@@ -559,7 +559,7 @@ export class LandingController {
                 : getRoleDisplayName(buildWhiteCellOperatorRole(operatorRole)));
         const metaLabel = isGameMaster
             ? 'Game Master'
-            : `White Cell · ${operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT ? 'Support' : 'Lead'}`;
+            : `White Cell | ${operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT ? 'Support' : 'Lead'}`;
         const confirmation = this.showJoinConfirmation({ displayName: operatorName, metaLabel });
 
         try {

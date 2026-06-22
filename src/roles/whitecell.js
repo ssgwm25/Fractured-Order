@@ -1048,12 +1048,12 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Proposals & requests',
-                    body: 'Forward or revise team proposals and answer RFIs. Badges fill when new items arrive that you haven’t opened yet.',
+                    body: "Forward or revise team proposals and answer RFIs. Badges fill when new items arrive that you haven't opened yet.",
                     highlight: navTarget('proposals')
                 },
                 {
                     title: 'Session details',
-                    body: 'The active session stays pinned here at the bottom. You’re all set.',
+                    body: "The active session stays pinned here at the bottom. You're all set.",
                     highlight: '.sidebar-session'
                 }
             ]

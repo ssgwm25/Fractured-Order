@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     buildDashboardModel,
     buildExportSelectionState,
+    getCreateSessionFormHtml,
     buildRecentActivityModel,
     GameMasterController,
     getGameMasterDeleteSessionConfirmationOptions,
@@ -147,6 +148,21 @@ describe('GameMaster export wiring', () => {
 });
 
 describe('GameMaster session administration', () => {
+    it('uses modal-scoped create-session ids that do not collide with the sidebar session name', () => {
+        const html = getCreateSessionFormHtml();
+
+        expect(html).toContain('for="newSessionName"');
+        expect(html).toContain('id="newSessionName"');
+        expect(html).toContain('for="newSessionCode"');
+        expect(html).toContain('id="newSessionCode"');
+        expect(html).toContain('for="newSessionDescription"');
+        expect(html).toContain('id="newSessionDescription"');
+        expect(html).not.toContain('for="sessionName"');
+        expect(html).not.toContain('id="sessionName"');
+        expect(html).not.toContain('for="sessionCode"');
+        expect(html).not.toContain('id="sessionCode"');
+    });
+
     it('uses the destructive modal contract for session deletion', () => {
         expect(getGameMasterDeleteSessionConfirmationOptions({ name: 'Alpha Session' })).toMatchObject({
             title: 'Delete Session',

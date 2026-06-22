@@ -37,6 +37,23 @@ import { getUploadedScribeDeck } from '../features/scribe/deckStorage.js';
 
 const logger = createLogger('Scribe');
 const ACTIONS_SECTION_ID = 'actions';
+const DIALOG_FOCUSABLE_SELECTOR = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])'
+].join(',');
+
+export function getFocusableDialogElements(container) {
+    if (!container?.querySelectorAll) {
+        return [];
+    }
+
+    return Array.from(container.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR))
+        .filter((element) => !element.hidden && element.getAttribute?.('aria-hidden') !== 'true');
+}
 
 export function parseFacilitatorDeckHtml(html = '') {
     return parseScribeDeckHtml(html);
@@ -391,6 +408,7 @@ export class ScribeController {
         this.unreadNotifications = 0;
         this.notificationSeq = 0;
         this.alertsOpen = false;
+        this.alertsReturnFocus = null;
         this.knownCommunicationIds = new Set();
         this.actionStatusById = new Map();
         this.communicationsSeeded = false;
@@ -478,13 +496,17 @@ export class ScribeController {
 
         document.getElementById('scribeAlertsBtn')?.addEventListener('click', (event) => {
             event.stopPropagation();
-            this.setAlertsOpen(!this.alertsOpen);
+            this.setAlertsOpen(!this.alertsOpen, { trigger: event.currentTarget });
         });
 
         document.getElementById('scribeAlertsClear')?.addEventListener('click', () => {
             this.notifications = [];
             this.unreadNotifications = 0;
             this.renderAlerts();
+        });
+
+        document.getElementById('scribeAlertsClose')?.addEventListener('click', () => {
+            this.setAlertsOpen(false);
         });
 
         document.getElementById('scribeAlertsList')?.addEventListener('click', (event) => {
@@ -499,6 +521,8 @@ export class ScribeController {
             if (event.target.closest('#scribeAlerts')) return;
             this.setAlertsOpen(false);
         });
+
+        document.addEventListener('keydown', (event) => this.handleAlertsKeydown(event));
 
         document.getElementById('deckRetryBtn')?.addEventListener('click', () => {
             void this.loadDeck();
@@ -842,10 +866,74 @@ export class ScribeController {
         });
     }
 
-    setAlertsOpen(isOpen) {
+    focusAlertsDialog() {
+        const panel = document.getElementById('scribeAlertsPanel');
+        if (!panel) {
+            return;
+        }
+
+        const [firstFocusable] = getFocusableDialogElements(panel);
+        const target = firstFocusable || panel;
+        target.focus?.({ preventScroll: true });
+    }
+
+    handleAlertsKeydown(event) {
+        if (!this.alertsOpen) {
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault?.();
+            this.setAlertsOpen(false);
+            return;
+        }
+
+        if (event.key !== 'Tab') {
+            return;
+        }
+
+        const panel = document.getElementById('scribeAlertsPanel');
+        if (!panel) {
+            return;
+        }
+
+        const focusableElements = getFocusableDialogElements(panel);
+        if (!focusableElements.length) {
+            event.preventDefault?.();
+            panel.focus?.({ preventScroll: true });
+            return;
+        }
+
+        const first = focusableElements[0];
+        const last = focusableElements[focusableElements.length - 1];
+        const activeElement = document.activeElement;
+
+        if (!panel.contains?.(activeElement)) {
+            event.preventDefault?.();
+            first.focus?.({ preventScroll: true });
+            return;
+        }
+
+        if (event.shiftKey && activeElement === first) {
+            event.preventDefault?.();
+            last.focus?.({ preventScroll: true });
+            return;
+        }
+
+        if (!event.shiftKey && activeElement === last) {
+            event.preventDefault?.();
+            first.focus?.({ preventScroll: true });
+        }
+    }
+
+    setAlertsOpen(isOpen, { trigger = null, restoreFocus = true } = {}) {
         this.alertsOpen = Boolean(isOpen);
         const panel = document.getElementById('scribeAlertsPanel');
         const button = document.getElementById('scribeAlertsBtn');
+
+        if (this.alertsOpen) {
+            this.alertsReturnFocus = trigger || document.activeElement || button || null;
+        }
 
         if (panel) {
             panel.hidden = !this.alertsOpen;
@@ -858,8 +946,13 @@ export class ScribeController {
             this.unreadNotifications = 0;
             this.notifications.forEach((entry) => { entry.read = true; });
             this.renderAlerts();
+            this.focusAlertsDialog();
         } else {
             this.updateAlertsBadge();
+            if (restoreFocus && this.alertsReturnFocus?.focus) {
+                this.alertsReturnFocus.focus({ preventScroll: true });
+            }
+            this.alertsReturnFocus = null;
         }
     }
 

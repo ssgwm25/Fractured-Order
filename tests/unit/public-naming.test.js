@@ -17,9 +17,8 @@ function extractMetaDescription(html) {
 describe('public naming', () => {
     it('brands the landing entry points as Fractured Order on Plenum for SSG', () => {
         const landingHtml = readText('../../index.html');
-        const emDash = String.fromCharCode(0x2014);
 
-        expect(extractTitle(landingHtml)).toBe(`Fractured Order ${emDash} on Plenum, for SSG`);
+        expect(extractTitle(landingHtml)).toBe('Fractured Order - on Plenum, for SSG');
         expect(extractMetaDescription(landingHtml)).toBe(
             'Fractured Order, a seminar simulation served on the Plenum platform for SSG.'
         );

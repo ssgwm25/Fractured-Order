@@ -1134,6 +1134,7 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--color-border-light);
     font-size: var(--text-xs);
@@ -1143,7 +1144,14 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
     color: var(--color-text-muted);
 }
 
-.scribe-alerts-clear {
+.scribe-alerts-panel-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.scribe-alerts-clear,
+.scribe-alerts-close {
     border: none;
     background: none;
     padding: 0;
@@ -1155,7 +1163,8 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
     letter-spacing: 0;
 }
 
-.scribe-alerts-clear:hover {
+.scribe-alerts-clear:hover,
+.scribe-alerts-close:hover {
     color: var(--color-navy-muted);
 }
 

@@ -253,9 +253,9 @@ export async function createSessionFromMaster(page, {
     await page.locator('#createSessionBtn').click();
 
     const modal = page.locator('.modal-overlay');
-    await modal.locator('#sessionName').fill(sessionName);
-    await modal.locator('#sessionCode').fill(sessionCode);
-    await modal.locator('#sessionDescription').fill(description);
+    await modal.locator('#newSessionName').fill(sessionName);
+    await modal.locator('#newSessionCode').fill(sessionCode);
+    await modal.locator('#newSessionDescription').fill(description);
     await modal.getByRole('button', { name: 'Create Session' }).click();
 
     await expect(page.locator('#sessionsList')).toContainText(sessionName);
