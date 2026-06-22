@@ -376,6 +376,30 @@ describe('White Cell DOM contract', () => {
         });
     });
 
+    it('toggles and persists the White Cell notification mute preference', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(['whiteCellNotificationsMuteBtn']);
+        const localStorage = {
+            getItem: vi.fn(() => 'true'),
+            setItem: vi.fn()
+        };
+
+        global.document = fakeDocument;
+        global.window = { localStorage };
+
+        const controller = new WhiteCellController();
+        controller.renderNotificationsMuteControl();
+
+        expect(controller.notificationsMuted).toBe(true);
+        expect(fakeDocument.elements.whiteCellNotificationsMuteBtn.textContent).toBe('Notifications muted');
+
+        controller.toggleNotificationsMuted();
+
+        expect(controller.notificationsMuted).toBe(false);
+        expect(localStorage.setItem).toHaveBeenCalledWith('whitecell:notifications-muted', 'false');
+        expect(fakeDocument.elements.whiteCellNotificationsMuteBtn.textContent).toBe('Mute notifications');
+    });
+
     it('includes all team seats in the White Cell participant roster while excluding Game Master', async () => {
         const { buildWhiteCellParticipantRoster, formatWhiteCellParticipantSummary } = await loadWhiteCellModule();
 
@@ -1047,6 +1071,46 @@ describe('White Cell DOM contract', () => {
         });
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('NEW');
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('Stabilize port access');
+    });
+
+    it('mutes White Cell queue arrival toasts without hiding visible queue cues', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        let pendingItems = [];
+        let allItems = [];
+        vi.spyOn(actionsStore, 'getPending').mockImplementation(() => pendingItems);
+        vi.spyOn(actionsStore, 'getAll').mockImplementation(() => allItems);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.setNotificationsMuted(true, { persist: false });
+        controller.syncActionsFromStore();
+
+        pendingItems = [{
+            id: 'action-arrival-muted-1',
+            team: 'blue',
+            move: 2,
+            phase: 1,
+            goal: 'Keep the queue visible while muted',
+            mechanism: 'Diplomatic pressure',
+            status: 'submitted',
+            created_at: '2026-04-08T09:00:00.000Z',
+            submitted_at: '2026-04-08T09:05:00.000Z',
+            expected_outcomes: 'Show the operator a visible non-toast cue.'
+        }];
+        allItems = pendingItems;
+
+        controller.syncActionsFromStore({ announce: true });
+        controller.flushQueueArrivalAnnouncement();
+
+        expect(showToast).not.toHaveBeenCalled();
+        expect(fakeDocument.elements.actionsBadge.textContent).toBe('1');
+        expect(fakeDocument.elements.actionsBadge.hidden).toBe(false);
+        expect(fakeDocument.elements.actionsList.innerHTML).toContain('NEW');
+        expect(fakeDocument.elements.actionsList.innerHTML).toContain('Keep the queue visible while muted');
     });
 
     it('keeps reviewed Green proposals visible in the White Cell proposals queue', async () => {

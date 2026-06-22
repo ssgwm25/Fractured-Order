@@ -101,6 +101,7 @@ const logger = createLogger('WhiteCell');
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
 const WHITE_CELL_RED_TEAM_RECIPIENT = 'red';
 const WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE = 'scribe_deck_assignment';
+const WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY = 'whitecell:notifications-muted';
 const TEAM_LABELS = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team.label]))
 );
@@ -159,7 +160,24 @@ const PROPOSAL_REVIEW_DECISIONS = Object.freeze({
     REJECT: 'reject'
 });
 
+function readWhiteCellNotificationsMutedPreference() {
+    try {
+        return globalThis.window?.localStorage?.getItem(WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY) === 'true';
+    } catch (_error) {
+        return false;
+    }
+}
+
+function writeWhiteCellNotificationsMutedPreference(isMuted = false) {
+    try {
+        globalThis.window?.localStorage?.setItem(WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY, isMuted ? 'true' : 'false');
+    } catch (_error) {
+        // Notification muting is a UI preference; storage failures must not block the operator console.
+    }
+}
+
 export const WHITE_CELL_DOM_IDS = [
+    'whiteCellNotificationsMuteBtn',
     'startTimerBtn',
     'pauseTimerBtn',
     'resetTimerBtn',
@@ -949,6 +967,7 @@ export class WhiteCellController {
         this.operatorRole = WHITE_CELL_OPERATOR_ROLES.LEAD;
         this.researchCaptureMode = 'research';
         this.researchBuildHash = null;
+        this.notificationsMuted = readWhiteCellNotificationsMutedPreference();
         this.seenBlueActionIds = new Set();
         this.newBlueActionIds = new Set();
         this.seenGreenProposalIds = new Set();
@@ -1010,6 +1029,7 @@ export class WhiteCellController {
         });
         this.configureTeamLabels();
         await this.loadResearchExportRuntime();
+        this.renderNotificationsMuteControl();
         this.bindEventListeners();
         this.subscribeToLiveData();
         this.syncGameStateFromStore(gameStateStore.getState() || sessionStore.getSessionData()?.gameState || null);
@@ -1075,6 +1095,40 @@ export class WhiteCellController {
         }
     }
 
+    renderNotificationsMuteControl() {
+        const button = document.getElementById('whiteCellNotificationsMuteBtn');
+        if (!button) {
+            return;
+        }
+
+        const isMuted = this.notificationsMuted === true;
+        button.textContent = isMuted ? 'Notifications muted' : 'Mute notifications';
+        button.title = isMuted
+            ? 'Queue arrival toasts are muted. Click to unmute.'
+            : 'Mute White Cell queue arrival toasts.';
+        button.setAttribute?.('aria-pressed', String(isMuted));
+        button.setAttribute?.(
+            'aria-label',
+            isMuted
+                ? 'Unmute White Cell queue notifications'
+                : 'Mute White Cell queue notifications'
+        );
+    }
+
+    setNotificationsMuted(isMuted = false, {
+        persist = true
+    } = {}) {
+        this.notificationsMuted = isMuted === true;
+        if (persist) {
+            writeWhiteCellNotificationsMutedPreference(this.notificationsMuted);
+        }
+        this.renderNotificationsMuteControl();
+    }
+
+    toggleNotificationsMuted() {
+        this.setNotificationsMuted(!this.notificationsMuted);
+    }
+
     configureCommunicationRecipients(recipientSelect) {
         const currentValue = recipientSelect.value || WHITE_CELL_ALL_TEAMS_RECIPIENT;
         const options = buildWhiteCellCommunicationRecipientOptions();
@@ -1116,6 +1170,7 @@ export class WhiteCellController {
         const participantsTeamFilter = document.getElementById('participantsTeamFilter');
         const participantsRoleFilter = document.getElementById('participantsRoleFilter');
         const scribeDeckSettingsList = document.getElementById('scribeDeckSettingsList');
+        const notificationsMuteBtn = document.getElementById('whiteCellNotificationsMuteBtn');
         const timelineTeamFilter = document.getElementById('timelineTeamFilter');
         const timelineRoleFilter = document.getElementById('timelineRoleFilter');
         const timelineMoveFilter = document.getElementById('timelineMoveFilter');
@@ -1149,6 +1204,7 @@ export class WhiteCellController {
         }
 
         commForm?.addEventListener('submit', (event) => this.handleCommunicationSubmit(event));
+        notificationsMuteBtn?.addEventListener('click', () => this.toggleNotificationsMuted());
         participantsTeamFilter?.addEventListener('change', (event) => {
             this.participantFilters.team = event.currentTarget.value || null;
             this.renderParticipants();
@@ -1902,11 +1958,13 @@ export class WhiteCellController {
             summaryParts.push(`${responseCount} Red move response${responseCount === 1 ? '' : 's'}`);
         }
 
-        showToast({
-            message: `New team submissions arrived: ${summaryParts.join(', ')}.`,
-            type: 'warning',
-            duration: 10000
-        });
+        if (!this.notificationsMuted) {
+            showToast({
+                message: `New team submissions arrived: ${summaryParts.join(', ')}.`,
+                type: 'warning',
+                duration: 10000
+            });
+        }
 
         this.pendingQueueArrivalSummary.actions.clear();
         this.pendingQueueArrivalSummary.proposals.clear();
