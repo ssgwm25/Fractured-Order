@@ -134,7 +134,3 @@ Team accents: Green `#3fae6b`, Red `#d9544d`. Headings are set in a serif displa
 ## Credits
 
 Developed by Sethu Nguna for the **Statecraft Simulations Group**, William & Mary.
-
-## License
-
-Add your license here (e.g. `LICENSE` file). Facilitation content and scenario materials may carry different terms than the platform code - note that distinction if it applies.
