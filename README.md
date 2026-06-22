@@ -80,6 +80,8 @@ Dedicated facilitator, notetaker, and scribe role surfaces live under `teams/<te
 
 Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped and labeled by the selected or active session so operators can distinguish seats across concurrent exercises.
 
+The Blue Team action builder includes inline helper text for Objective and Expected Outcomes so facilitators distinguish intended goals from anticipated downstream effects.
+
 ---
 
 ## Running a session

@@ -2712,7 +2712,7 @@ export class FacilitatorController {
                             rows="4"
                             aria-describedby="actionObjectiveHint"
                         >${this.escapeHtml(blueAction.objective)}</textarea>
-                        <p class="form-hint" id="actionObjectiveHint">State the objective this action is meant to achieve.</p>
+                        <p class="form-hint" id="actionObjectiveHint">What you intend this action to achieve.</p>
                     </div>
 
                     <div class="form-group">
@@ -2878,7 +2878,7 @@ export class FacilitatorController {
                             rows="5"
                             aria-describedby="actionExpectedOutcomesHint"
                         >${this.escapeHtml(action.expected_outcomes || '')}</textarea>
-                        <p class="form-hint" id="actionExpectedOutcomesHint">What do you expect the outcome to be and when do you expect it to be achieved?</p>
+                        <p class="form-hint" id="actionExpectedOutcomesHint">What you anticipate will actually happen as a result, including effects you don't control.</p>
                     </div>
                 </section>
 

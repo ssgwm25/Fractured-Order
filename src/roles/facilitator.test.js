@@ -392,6 +392,8 @@ describe('Facilitator and scribe access', () => {
         const blueWizardMarkup = controller.createBlueActionWizardContent().innerHTML;
         const actionFormMarkup = controller.createActionFormContent().innerHTML;
 
+        expect(blueWizardMarkup).toContain('What you intend this action to achieve.');
+        expect(blueWizardMarkup).toContain("What you anticipate will actually happen as a result, including effects you don't control.");
         expect(blueWizardMarkup).toContain('data-blue-action-checkbox="lever"');
         expect(blueWizardMarkup).toContain('Select one or more levers.');
         expect(blueWizardMarkup).toContain('data-blue-action-checkbox="sector"');
