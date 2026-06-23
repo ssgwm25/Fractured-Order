@@ -1,12 +1,6 @@
-# Statecraft Sim
-
-Public product name: `Statecraft Sim`.
-
-Legacy `SSG` and `esg` identifiers still appear in older code comments, package names, and data contracts where changing them would churn stable integration surfaces.
+# Fractured Order
 
 ![Fractured Order facilitator deck](screenshot.PNG)
-
-A one-day seminar wargame on U.S.-PRC strategic competition, run by the **William & Mary Statecraft Simulations Group (SSG)**. Players manage sustained great-power competition using non-military, economic instruments of statecraft, and discover where the U.S.-led order holds together or fractures under pressure.
 
 This repository holds the facilitation materials and the web-based delivery layer (the Plenum platform) for running the game.
 
@@ -16,18 +10,18 @@ This repository holds the facilitation materials and the web-based delivery laye
 
 *Fractured Order* drops participants into early 2027. A U.S.-China trade agreement has lapsed, Taiwan faces sustained PLA pressure, and the PRC has launched a **BRICS+ Strategic Sovereign Systems Initiative (SSSI)** to lock participating states into Chinese technical standards across telecommunications, biotechnology, and agriculture.
 
-The game tests how effective non-military tools - sanctions, export and investment controls, incentives, standards-setting, information, and diplomacy - actually are at shaping state behavior, and surfaces the inflection points where one actor's choices reinforce or undermine alliance cohesion.
+The simulation tests how effective non-military tools - sanctions, export and investment controls, incentives, standards-setting, information, and diplomacy - actually are at shaping state behavior, and surfaces the inflection points where one actor's choices reinforce or undermine alliance cohesion.
 
 ## Teams
 
 | Team | Plays | Role in the system |
 |------|-------|--------------------|
-| **Blue** | United States | Sets the agenda with economic statecraft |
-| **Green** | Partners & allies (Asia-Pacific + Europe cells) | The swing weight whose alignment decides the outcome |
-| **Red** | PRC & Russia | Contests Blue, courts or coerces Green, grows the SSSI |
+| **Blue** | Sets the agenda with economic statecraft |
+| **Green** | The swing weight whose alignment decides the outcome |
+| **Red** Contests Blue, courts or coerces Green |
 | **White Cell** | Control & adjudication | Clarifies requests, scores effects, resets the scene |
 
-Green is split into an **Asia-Pacific cell** (Australia, Japan, ROK) and a **Europe cell** (EU, Germany, UK). Supporting roles include a facilitator, facilitator assistants, IT/AV support, and notetakers seated with each team.
+Supporting roles include a facilitator, facilitator assistants, IT/AV support, and notetakers seated with each team.
 
 ## How a game runs
 
@@ -60,7 +54,7 @@ A closing hot wash reviews where cohesion held, where it cracked, which levers b
 
 ### Facilitator decks
 
-Each team has its own self-contained facilitator deck: a dark William & Mary-themed slide viewer with a sidebar table of contents, arrow/keyboard navigation, a clickable progress bar, and a fullscreen present mode. The slides are native HTML (editable text, not images), with a single team-accent CSS variable.
+Each team has its own self-contained facilitator deck: a slide viewer with a sidebar table of contents, arrow/keyboard navigation, a clickable progress bar, and a fullscreen present mode. The slides are native HTML (editable text, not images), with a single team-accent CSS variable.
 
 Open any deck file directly in a browser - no build step or server required.
 
@@ -118,18 +112,6 @@ npm run build      # production build
 ```
 
 Provide Supabase credentials via environment variables (see `platform/.env.example`).
-
----
-
-## Design system
-
-Materials use the William & Mary brand palette:
-
-- Green `#115740`, deep green `#0c3e2d`
-- Gold `#b9975b`
-- Paper `#f4f2ec`, ink `#1c241f`
-
-Team accents: Green `#3fae6b`, Red `#d9544d`. Headings are set in a serif display face; body and UI in a sans utility face.
 
 ---
 
