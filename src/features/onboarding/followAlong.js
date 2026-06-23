@@ -3,8 +3,8 @@
  *
  * A minimizable, guided stepper that sits just above the sidebar session block.
  * Advancing a step highlights the relevant sidebar nav item/area so the user
- * follows along in place. Progress, the minimized state, and completion are
- * persisted in localStorage so the tour doesn't nag on every visit.
+ * follows along in place. Progress and the minimized state are persisted in
+ * localStorage so the tour stays available without nagging on every visit.
  *
  * Reusable across role surfaces — pass role-specific `steps` and a `storageKey`.
  */
@@ -47,6 +47,7 @@ const CHEVRON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stro
  * @param {HTMLElement} [options.sidebar] - sidebar container (defaults to #sidebar).
  * @param {string} [options.anchor] - selector the card is inserted before.
  * @param {string} [options.title] - heading shown in the bar.
+ * @param {string} [options.collapsedTitle] - label shown when minimized.
  * @returns {{ destroy: () => void } | null}
  */
 export function mountFollowAlong({
@@ -54,17 +55,17 @@ export function mountFollowAlong({
     storageKey,
     sidebar = document.getElementById('sidebar'),
     anchor = '.sidebar-session',
-    title = 'Getting started'
+    title = 'Getting started',
+    collapsedTitle = 'Start Here'
 } = {}) {
     if (!sidebar || !Array.isArray(steps) || steps.length === 0) return null;
     // Avoid duplicate mounts (e.g. re-init).
     if (sidebar.querySelector('.follow-along')) return null;
 
     const persisted = readState(storageKey);
-    if (persisted.done) return null;
 
-    let current = clampStep(persisted.step ?? 0, steps.length);
-    let minimized = Boolean(persisted.minimized);
+    let current = clampStep(persisted.done ? 0 : persisted.step ?? 0, steps.length);
+    let minimized = Boolean(persisted.minimized || persisted.done);
 
     const root = document.createElement('section');
     root.className = 'follow-along';
@@ -81,7 +82,7 @@ export function mountFollowAlong({
             <p class="follow-along-step-text"></p>
             <div class="follow-along-dots" aria-hidden="true"></div>
             <div class="follow-along-actions">
-                <button type="button" class="follow-along-skip">Skip</button>
+                <button type="button" class="follow-along-skip">Collapse</button>
                 <span class="follow-along-spacer"></span>
                 <button type="button" class="follow-along-back">Back</button>
                 <button type="button" class="follow-along-next">Next</button>
@@ -90,6 +91,7 @@ export function mountFollowAlong({
     `;
 
     const bar = root.querySelector('.follow-along-bar');
+    const barTitleEl = root.querySelector('.follow-along-bar-title');
     const progressEl = root.querySelector('.follow-along-progress');
     const stepTitleEl = root.querySelector('.follow-along-step-title');
     const stepTextEl = root.querySelector('.follow-along-step-text');
@@ -132,7 +134,9 @@ export function mountFollowAlong({
 
         root.dataset.minimized = String(minimized);
         bar.setAttribute('aria-expanded', String(!minimized));
-        progressEl.textContent = `${current + 1} / ${steps.length}`;
+        barTitleEl.textContent = minimized ? collapsedTitle : title;
+        progressEl.textContent = minimized ? '' : `${current + 1} / ${steps.length}`;
+        progressEl.hidden = minimized;
         stepTitleEl.textContent = step.title || '';
         stepTextEl.textContent = step.body || '';
 
@@ -147,10 +151,14 @@ export function mountFollowAlong({
         applyHighlight();
     }
 
-    function finish() {
+    function collapseTour({ reset = false } = {}) {
         clearHighlight();
-        persist({ done: true });
-        root.remove();
+        if (reset) {
+            current = 0;
+        }
+        minimized = true;
+        persist();
+        render();
     }
 
     bar.addEventListener('click', () => {
@@ -161,7 +169,7 @@ export function mountFollowAlong({
 
     skipBtn.addEventListener('click', (event) => {
         event.stopPropagation();
-        finish();
+        collapseTour();
     });
 
     backBtn.addEventListener('click', (event) => {
@@ -175,7 +183,7 @@ export function mountFollowAlong({
     nextBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         if (current === steps.length - 1) {
-            finish();
+            collapseTour({ reset: true });
             return;
         }
         current += 1;

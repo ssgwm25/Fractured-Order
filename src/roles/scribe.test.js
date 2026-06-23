@@ -17,12 +17,30 @@ const RED_SCRIBE_HTML_PATH = new URL('../../teams/red/scribe.html', import.meta.
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
 const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
+const { mockMountFollowAlong } = vi.hoisted(() => ({
+    mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() }))
+}));
+
 function normalizeLineEndings(value) {
     return value.replace(/\r\n/g, '\n');
 }
 
+function sectionButtonMarkup(html = '', label = '') {
+    const start = html.indexOf(`data-section-label="${label}"`);
+    if (start === -1) {
+        return '';
+    }
+
+    const end = html.indexOf('</button>', start);
+    return html.slice(start, end === -1 ? undefined : end);
+}
+
 vi.mock('../components/ui/Toast.js', () => ({
     showToast: vi.fn()
+}));
+
+vi.mock('../features/onboarding/followAlong.js', () => ({
+    mountFollowAlong: mockMountFollowAlong
 }));
 
 function toDatasetKey(attributeName = '') {
@@ -245,6 +263,37 @@ describe('scribe surface', () => {
             reason: 'facilitator-route',
             redirectRoute: '/teams/blue/facilitator.html'
         });
+    });
+
+    it('mounts a persistent role guide for the active scribe team', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+
+        expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
+        expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
+            storageKey: 'followalong:scribe:blue',
+            title: 'Blue Team Scribe guide'
+        }));
+
+        const guide = mockMountFollowAlong.mock.calls[0][0];
+        expect(guide.steps.map((step) => step.title)).toEqual([
+            'Blue Team Scribe',
+            'Follow move, phase, and timer',
+            'Navigate the support deck',
+            'Watch activity',
+            'Present to the room',
+            'Revisit this guide'
+        ]);
+        expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
+            '#timerDisplay',
+            '#scribeSectionList',
+            '#scribeAlertsBtn',
+            '#presentBtn',
+            '.sidebar-session'
+        ]);
     });
 
     it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {
@@ -537,6 +586,92 @@ describe('scribe surface', () => {
         );
     });
 
+    it('lets scribe slide groups collapse independently without forcing another group open', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
+        global.document = fakeDocument;
+
+        const controller = new ScribeController();
+        controller.sections = [{
+            id: 'overview',
+            label: 'Overview',
+            slideCount: 1,
+            slides: [{ n: 1, title: 'Overview slide', src: 'data:image/png;base64,one' }]
+        }, {
+            id: 'schedule',
+            label: 'Schedule',
+            slideCount: 1,
+            slides: [{ n: 2, title: 'Schedule slide', src: 'data:image/png;base64,two' }]
+        }];
+        controller.deckSlides = [
+            controller.sections[0].slides[0],
+            controller.sections[1].slides[0]
+        ];
+        controller.currentSlideIndex = 0;
+        controller.activeSectionIndex = 0;
+        controller.expandedSectionIds = new Set(['overview', 'schedule']);
+        controller.sectionExpansionInitialized = true;
+
+        controller.renderSections();
+        expect(sectionButtonMarkup(sectionList.innerHTML, 'Overview')).toContain('aria-expanded="true"');
+        expect(sectionButtonMarkup(sectionList.innerHTML, 'Schedule')).toContain('aria-expanded="true"');
+
+        controller.toggleSection(0);
+
+        expect(sectionButtonMarkup(sectionList.innerHTML, 'Overview')).toContain('aria-expanded="false"');
+        expect(sectionButtonMarkup(sectionList.innerHTML, 'Schedule')).toContain('aria-expanded="true"');
+        expect(controller.activeSectionIndex).toBe(0);
+        expect(controller.getCurrentSlideKey()).toBe('deck-1');
+    });
+
+    it('separates live actions from support deck sections in the scribe sidebar', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
+        global.document = fakeDocument;
+
+        const controller = new ScribeController();
+        controller.sections = [{
+            id: 'actions',
+            label: 'Actions',
+            slideCount: 1,
+            slides: [{
+                slideKey: 'actions-placeholder',
+                slideType: 'action-placeholder',
+                sidebarOrdinal: '0',
+                title: 'Awaiting Blue Team facilitator decisions'
+            }]
+        }, {
+            id: 'overview',
+            label: 'Overview',
+            slideCount: 1,
+            slides: [{ n: 1, title: 'Overview slide', src: 'data:image/png;base64,one' }]
+        }];
+        controller.deckSlides = [
+            controller.sections[1].slides[0],
+            controller.sections[0].slides[0]
+        ];
+        controller.currentSlideIndex = 0;
+        controller.activeSectionIndex = 1;
+        controller.expandedSectionIds = new Set(['actions', 'overview']);
+        controller.sectionExpansionInitialized = true;
+
+        controller.renderSections();
+
+        expect(sectionList.innerHTML).toContain('scribe-section-region--actions');
+        expect(sectionList.innerHTML).toContain('Live team decisions');
+        expect(sectionList.innerHTML).toContain('data-section-kind="actions"');
+        expect(sectionList.innerHTML).toContain('scribe-section-card--actions');
+        expect(sectionList.innerHTML).toContain('scribe-slide-link is-action');
+        expect(sectionList.innerHTML).toContain('scribe-section-region--deck');
+        expect(sectionList.innerHTML).toContain('Support slides');
+        expect(sectionList.innerHTML).toContain('data-section-kind="deck"');
+        expect(sectionList.innerHTML.indexOf('scribe-section-region--actions')).toBeLessThan(
+            sectionList.innerHTML.indexOf('scribe-section-region--deck')
+        );
+    });
+
     it('builds live scribe action slides from facilitator drafts and submitted actions instead of deck images', async () => {
         const { buildScribeActionSlides } = await loadScribeModule();
 
@@ -793,6 +928,32 @@ describe('scribe surface', () => {
             expect(html).toContain('../../styles/components/modals.css');
             expect(html).toContain('id="logoutBtn"');
         }
+    });
+
+    it('styles the persistent scribe guide above the session footer and hides it in collapsed rail mode', () => {
+        const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
+
+        expect(css).toContain('.scribe-sidebar .follow-along {');
+        expect(css).toContain('.scribe-sidebar .follow-along[data-minimized="true"] .follow-along-body');
+        expect(css).toContain('#sidebar.sidebar-collapsed .follow-along');
+        expect(css).toContain('.scribe-sidebar .is-onboarding-target');
+    });
+
+    it('styles scribe deck sections as compact sidebar rows instead of oversized cards', () => {
+        const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
+
+        expect(css).toContain('.scribe-section-region--actions {');
+        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title');
+        expect(css).toContain('.scribe-section-card {\n    border: 0;\n    border-radius: var(--radius-md);\n    background: transparent;');
+        expect(css).toContain('.scribe-section-card--actions .scribe-section-trigger');
+        expect(css).toContain('.scribe-section-card--actions .scribe-section-count');
+        expect(css).toContain('.scribe-section-card--actions .scribe-section-index');
+        expect(css).toContain('.scribe-section-trigger {\n    width: 100%;\n    display: flex;\n    align-items: center;');
+        expect(css).toContain('padding: var(--space-2) var(--space-3);');
+        expect(css).toContain('.scribe-section-card.is-current .scribe-section-trigger::before');
+        expect(css).toContain('.scribe-slide-link {\n    width: 100%;\n    display: grid;');
+        expect(css).toContain('.scribe-slide-link.is-action {\n    background: rgba(255, 255, 255, 0.72);');
+        expect(css).toContain('padding: 7px var(--space-2);');
     });
 
     it('builds the team-scoped facilitator decks into the same decks/team paths that scribe seats fetch at runtime', () => {

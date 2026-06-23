@@ -308,29 +308,35 @@ export class GameMasterController {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
         this.onboarding = mountFollowAlong({
             storageKey: 'followalong:gamemaster',
+            title: 'Game Master guide',
             steps: [
                 {
-                    title: 'Welcome to the operator console',
-                    body: 'A quick tour of the console. Step through with Next, or minimize this anytime.'
+                    title: 'Game Master operator',
+                    body: 'Use this console to create live sessions, verify connected seats, and export the session record.'
+                },
+                {
+                    title: 'Check session state',
+                    body: 'The header mirrors the selected session move and phase. Use the dashboard and White Cell console for timer-driven run control.',
+                    highlight: '#headerMove'
                 },
                 {
                     title: 'Session overview',
-                    body: 'Your at-a-glance view of the active session lives on the dashboard.',
+                    body: 'The dashboard gives a quick read on active sessions, participant counts, pending RFIs, and recent activity.',
                     highlight: navTarget('dashboard')
                 },
                 {
                     title: 'Manage sessions',
-                    body: 'Create sessions and share the join code with participants.',
+                    body: 'Create the session, set the join code, and keep the session list available for operator handoff.',
                     highlight: navTarget('sessions')
                 },
                 {
                     title: 'Track participants',
-                    body: 'See who’s connected and their roles in real time.',
+                    body: 'Confirm each player has the expected team and role before the exercise starts and during reconnects.',
                     highlight: navTarget('participants')
                 },
                 {
-                    title: 'Export the record',
-                    body: 'Download session data and the research archive when you’re done.',
+                    title: 'Export and revisit',
+                    body: 'Export JSON, CSV, or research archives when the run is complete. This guide stays here if you need it again.',
                     highlight: navTarget('export')
                 }
             ]

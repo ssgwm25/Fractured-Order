@@ -78,9 +78,13 @@ The web delivery layer for running the game live: a **Vite** frontend with a **S
 
 Dedicated facilitator, notetaker, and scribe role surfaces live under `teams/<team>/`. Scribe shells share the common modal stylesheet so logout and confirmation dialogs render consistently with the rest of the platform.
 
+Each role surface mounts a role-specific onboarding guide above the sidebar session label. The guide explains the role's main workflow plus the live move, phase, and timer indicators. When collapsed or completed, it remains available as `Start Here` so users can reopen the role reference without logging out and joining again.
+
 Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped and labeled by the selected or active session so operators can distinguish seats across concurrent exercises.
 
 White Cell scribe deck controls render default team decks immediately while live communications hydrate. Browser-uploaded decks remain same-device cache assignments; blocked browser storage must fail with an operator-visible error rather than leaving the deck workflow in a loading state.
+
+Scribe deck navigation is split into distinct `Actions` and `Deck` groups. Live actions use a separate accented treatment from support deck slides, and each section can be expanded or collapsed independently; closing the active section must not force another section open.
 
 White Cell operators can mute queue arrival notifications from the header. Muting suppresses the toast interruption only; sidebar counts and in-queue NEW labels remain visible so adjudication awareness is not lost.
 

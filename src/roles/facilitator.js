@@ -253,31 +253,43 @@ export class FacilitatorController {
 
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
+        const actionNoun = this.teamId === 'green'
+            ? 'proposals'
+            : (this.teamId === 'red' ? 'responses' : 'actions');
+        const actionTitle = this.teamId === 'green'
+            ? 'Build proposals'
+            : (this.teamId === 'red' ? 'Prepare responses' : 'Draft actions');
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:facilitator:${this.teamId}`,
+            title: `${this.teamContext.facilitatorLabel} guide`,
             steps: [
                 {
-                    title: 'Welcome to your team workspace',
-                    body: 'A quick tour of where everything lives. Step through with Next, or minimize this anytime.'
+                    title: this.teamContext.facilitatorLabel,
+                    body: `Use this workspace to guide ${this.teamLabel}, prepare ${actionNoun}, ask White Cell for clarification, and track rulings.`
                 },
                 {
-                    title: 'Take action',
-                    body: 'Draft your team’s actions here and submit them to White Cell for adjudication.',
+                    title: 'Read the live tracker',
+                    body: 'The header shows the current move, phase, countdown timer, and whether the timer is running. White Cell controls these values; use them to pace deliberation and submissions.',
+                    highlight: '#timerDisplay'
+                },
+                {
+                    title: actionTitle,
+                    body: `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`,
                     highlight: navTarget('actions')
                 },
                 {
                     title: 'Ask White Cell',
-                    body: 'Send Requests for Information (RFIs) and track their answers as White Cell responds.',
+                    body: 'Send RFIs when the team needs a ruling, clarification, or scenario detail. Answers return to this surface.',
                     highlight: navTarget('requests')
                 },
                 {
-                    title: 'Watch for updates',
-                    body: 'White Cell responses and forwarded proposals land in your nav — a badge fills when something new arrives that you haven’t opened yet.',
+                    title: 'Watch incoming decisions',
+                    body: "White Cell responses, forwarded proposals, and update feeds fill their sidebar badges when something new arrives.",
                     highlight: navTarget('receivedProposals')
                 },
                 {
-                    title: 'Share your session',
-                    body: 'Your session code and role stay pinned here at the bottom. You’re all set — good luck.',
+                    title: 'Revisit this guide',
+                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
                     highlight: '.sidebar-session'
                 }
             ]

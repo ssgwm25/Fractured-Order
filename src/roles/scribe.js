@@ -34,6 +34,7 @@ import {
     SCRIBE_DECK_SOURCE_UPLOAD
 } from '../features/scribe/deckConfig.js';
 import { getUploadedScribeDeck } from '../features/scribe/deckStorage.js';
+import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 
 const logger = createLogger('Scribe');
 const ACTIONS_SECTION_ID = 'actions';
@@ -394,6 +395,8 @@ export class ScribeController {
         this.teamActions = [];
         this.sections = [];
         this.deckSlides = [];
+        this.expandedSectionIds = new Set();
+        this.sectionExpansionInitialized = false;
         this.activeDeckSource = SCRIBE_DECK_SOURCE_REPO;
         this.activeDeckStorageKey = null;
         this.activeDeckFileName = null;
@@ -459,8 +462,47 @@ export class ScribeController {
         this.syncDeckAssignmentFromStore({ reload: false });
         await this.loadDeck();
         this.syncActionsFromStore();
+        this.mountFollowAlongOnboarding();
 
         logger.info('Scribe interface initialized');
+    }
+
+    mountFollowAlongOnboarding() {
+        this.onboarding = mountFollowAlong({
+            storageKey: `followalong:scribe:${this.teamId}`,
+            title: `${this.teamContext.scribeLabel} guide`,
+            steps: [
+                {
+                    title: this.teamContext.scribeLabel,
+                    body: `Use this surface to follow ${this.teamLabel}'s support deck and keep the room aligned on live decisions.`
+                },
+                {
+                    title: 'Follow move, phase, and timer',
+                    body: 'The header shows the live move, phase, countdown timer, and paused or running state so the projected deck stays in sync with the room.',
+                    highlight: '#timerDisplay'
+                },
+                {
+                    title: 'Navigate the support deck',
+                    body: 'Use the section rail to jump between briefings, active decisions, and White Cell updates.',
+                    highlight: '#scribeSectionList'
+                },
+                {
+                    title: 'Watch activity',
+                    body: 'The activity bell surfaces newly submitted actions, deck changes, and White Cell communications.',
+                    highlight: '#scribeAlertsBtn'
+                },
+                {
+                    title: 'Present to the room',
+                    body: 'Use Present when this screen is projected. It hides sidebar chrome and keeps the current slide centered.',
+                    highlight: '#presentBtn'
+                },
+                {
+                    title: 'Revisit this guide',
+                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
+                    highlight: '.sidebar-session'
+                }
+            ]
+        });
     }
 
     configureShell() {
@@ -539,11 +581,15 @@ export class ScribeController {
 
             const sectionButton = event.target.closest('[data-section-index]');
             if (sectionButton) {
+                const sectionIndex = Number(sectionButton.dataset.sectionIndex);
                 // Tapping a number in the collapsed rail expands the sidebar.
                 if (this.isSidebarCollapsed() && !this.isMobileViewport()) {
                     this.setSidebarCollapsed(false);
+                    this.expandSection(sectionIndex);
+                    this.selectSection(sectionIndex);
+                    return;
                 }
-                this.selectSection(Number(sectionButton.dataset.sectionIndex));
+                this.toggleSection(sectionIndex);
             }
         });
 
@@ -1183,6 +1229,25 @@ export class ScribeController {
             getSectionIndexForSlideKey(this.sections, this.getCurrentSlideKey()),
             0
         );
+        this.reconcileExpandedSections();
+    }
+
+    getSectionExpansionKey(section, sectionIndex = 0) {
+        return section?.id || `${sectionIndex}:${section?.label || 'section'}`;
+    }
+
+    reconcileExpandedSections() {
+        const validKeys = new Set(
+            this.sections.map((section, sectionIndex) => this.getSectionExpansionKey(section, sectionIndex))
+        );
+        this.expandedSectionIds = new Set(
+            [...this.expandedSectionIds].filter((key) => validKeys.has(key))
+        );
+
+        if (!this.sectionExpansionInitialized && this.sections.length) {
+            this.expandSection(this.activeSectionIndex, { render: false });
+            this.sectionExpansionInitialized = true;
+        }
     }
 
     setDeckState(state = 'loading') {
@@ -1237,12 +1302,20 @@ export class ScribeController {
             this.activeSectionIndex = resolvedSectionIndex;
         }
 
-        sectionList.innerHTML = this.sections.map((section, sectionIndex) => {
-            const isExpanded = sectionIndex === this.activeSectionIndex;
+        const sectionGroups = {
+            actions: [],
+            deck: []
+        };
+
+        this.sections.forEach((section, sectionIndex) => {
+            const sectionKind = section.id === ACTIONS_SECTION_ID ? 'actions' : 'deck';
+            const sectionKey = this.getSectionExpansionKey(section, sectionIndex);
+            const isExpanded = this.expandedSectionIds.has(sectionKey);
             const containsCurrentSlide = section.slides.some((slide) => getSlideKey(slide) === currentSlideKey);
             const visibleSlideCount = Number.isFinite(section.slideCount)
                 ? section.slideCount
                 : section.slides.length;
+            const slideGroupId = `scribe-section-${sectionIndex}-slides`;
 
             const slideMarkup = section.slides.map((slide, slideIndex) => {
                 const isActiveSlide = getSlideKey(slide) === currentSlideKey;
@@ -1270,13 +1343,14 @@ export class ScribeController {
                 `;
             }).join('');
 
-            return `
-                <section class="scribe-section-card${containsCurrentSlide ? ' is-current' : ''}">
+            sectionGroups[sectionKind].push(`
+                <section class="scribe-section-card scribe-section-card--${sectionKind}${containsCurrentSlide ? ' is-current' : ''}" data-section-kind="${sectionKind}">
                     <button
                         type="button"
                         class="scribe-section-trigger${isExpanded ? ' is-expanded' : ''}"
                         data-section-index="${sectionIndex}"
                         data-section-label="${escapeHtml(section.label)}"
+                        aria-controls="${slideGroupId}"
                         aria-expanded="${isExpanded ? 'true' : 'false'}"
                         aria-label="${escapeHtml(section.label)}, ${visibleSlideCount} slides"
                     >
@@ -1289,14 +1363,38 @@ export class ScribeController {
                             <span class="scribe-section-chevron" aria-hidden="true">${isExpanded ? '-' : '+'}</span>
                         </span>
                     </button>
-                    <div class="scribe-slide-group"${isExpanded ? '' : ' hidden'}>
+                    <div id="${slideGroupId}" class="scribe-slide-group"${isExpanded ? '' : ' hidden'}>
                         <ol class="scribe-slide-list">
                             ${slideMarkup}
                         </ol>
                     </div>
                 </section>
+            `);
+        });
+
+        const renderRegion = (kind, label, summary) => {
+            const cards = sectionGroups[kind];
+            if (!cards.length) {
+                return '';
+            }
+
+            return `
+                <div class="scribe-section-region scribe-section-region--${kind}" role="group" aria-label="${label}">
+                    <div class="scribe-section-region-heading">
+                        <span class="scribe-section-region-title">${label}</span>
+                        <span class="scribe-section-region-summary">${summary}</span>
+                    </div>
+                    <div class="scribe-section-region-list">
+                        ${cards.join('')}
+                    </div>
+                </div>
             `;
-        }).join('');
+        };
+
+        sectionList.innerHTML = [
+            renderRegion('actions', 'Actions', 'Live team decisions'),
+            renderRegion('deck', 'Deck', 'Support slides')
+        ].join('');
     }
 
     renderSlide() {
@@ -1594,6 +1692,7 @@ export class ScribeController {
         }
 
         this.currentSlideIndex = nextIndex;
+        this.expandSectionForSlide(this.deckSlides[this.currentSlideIndex], { render: false });
         this.renderSlide();
     }
 
@@ -1604,7 +1703,43 @@ export class ScribeController {
         }
 
         this.currentSlideIndex = nextIndex;
+        this.expandSectionForSlide(this.deckSlides[this.currentSlideIndex], { render: false });
         this.renderSlide();
+    }
+
+    expandSectionForSlide(slide, { render = false } = {}) {
+        const sectionIndex = getSectionIndexForSlideKey(this.sections, getSlideKey(slide));
+        if (sectionIndex >= 0) {
+            this.expandSection(sectionIndex, { render });
+        }
+    }
+
+    expandSection(sectionIndex = 0, { render = false } = {}) {
+        const section = this.sections[sectionIndex];
+        if (!section) {
+            return;
+        }
+
+        this.expandedSectionIds.add(this.getSectionExpansionKey(section, sectionIndex));
+        if (render) {
+            this.renderSections();
+        }
+    }
+
+    toggleSection(sectionIndex = 0) {
+        const section = this.sections[sectionIndex];
+        if (!section) {
+            return;
+        }
+
+        const sectionKey = this.getSectionExpansionKey(section, sectionIndex);
+        if (this.expandedSectionIds.has(sectionKey)) {
+            this.expandedSectionIds.delete(sectionKey);
+        } else {
+            this.expandedSectionIds.add(sectionKey);
+        }
+
+        this.renderSections();
     }
 
     selectSection(sectionIndex = 0) {
@@ -1614,6 +1749,7 @@ export class ScribeController {
         }
 
         this.activeSectionIndex = sectionIndex;
+        this.expandSection(sectionIndex, { render: false });
         this.setSlideByKey(getSlideKey(section.slides[0]));
     }
 

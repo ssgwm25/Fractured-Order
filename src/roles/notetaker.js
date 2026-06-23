@@ -263,29 +263,35 @@ export class NotetakerController {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:notetaker:${this.teamId}`,
+            title: `${this.teamContext.notetakerLabel} guide`,
             steps: [
                 {
-                    title: 'Welcome to your notetaking workspace',
-                    body: 'A quick tour of where everything lives. Step through with Next, or minimize this anytime.'
+                    title: this.teamContext.notetakerLabel,
+                    body: `Use this workspace to preserve ${this.teamLabel}'s session record without interrupting the team flow.`
+                },
+                {
+                    title: 'Follow move, phase, and timer',
+                    body: 'The header shows the active move, phase, countdown timer, and running or paused state. Use it to timestamp notes against the current exercise window.',
+                    highlight: '#timerDisplay'
                 },
                 {
                     title: 'Capture the record',
-                    body: 'Log observations, key moments, and quotes as separate shared entries.',
+                    body: 'Add observations, key moments, and quotes as separate entries so White Cell can review them later.',
                     highlight: navTarget('capture')
                 },
                 {
                     title: 'Track the dynamics',
-                    body: 'Note shifting alliances and internal team dynamics as the game unfolds.',
+                    body: 'Save team dynamics and alliance notes per move. Manual saves publish a structured timeline snapshot.',
                     highlight: navTarget('dynamics')
                 },
                 {
                     title: 'Stay in the loop',
-                    body: 'White Cell updates arrive in your inbox — a badge fills when something new lands that you haven’t opened yet.',
+                    body: "White Cell updates arrive in your inbox, and the badge fills when a message has not been opened yet.",
                     highlight: navTarget('inbox')
                 },
                 {
-                    title: 'Share your session',
-                    body: 'Your session code and role stay pinned here at the bottom. You’re all set — good luck.',
+                    title: 'Revisit this guide',
+                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
                     highlight: '.sidebar-session'
                 }
             ]

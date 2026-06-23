@@ -1051,31 +1051,40 @@ export class WhiteCellController {
 
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
+        const operatorLabel = this.isLeadOperator()
+            ? 'White Cell Lead'
+            : 'White Cell Support';
         this.onboarding = mountFollowAlong({
             storageKey: 'followalong:whitecell',
+            title: `${operatorLabel} guide`,
             steps: [
                 {
-                    title: 'Welcome to the White Cell console',
-                    body: 'A quick tour of the controls. Step through with Next, or minimize this anytime.'
+                    title: operatorLabel,
+                    body: 'Use this console to run the exercise, adjudicate team submissions, answer RFIs, and keep the record current.'
                 },
                 {
-                    title: 'Run the game',
-                    body: 'Drive the timer and move/phase, and broadcast guidance to the teams from here.',
+                    title: 'Watch the live tracker',
+                    body: 'The header mirrors the current move, phase, countdown timer, and paused or running state that every team sees.',
+                    highlight: '#timerDisplay'
+                },
+                {
+                    title: 'Run move, phase, and timer',
+                    body: 'Simulation Settings is where White Cell advances or reverses moves and phases, starts or pauses the timer, resets the clock, and broadcasts guidance.',
                     highlight: navTarget('controls')
                 },
                 {
-                    title: 'Adjudicate actions',
-                    body: 'Review the actions teams submit each move and record your rulings.',
+                    title: 'Adjudicate queues',
+                    body: 'Review Blue actions, Green proposals, and Red responses from their queue sections before rulings reach teams.',
                     highlight: navTarget('actions')
                 },
                 {
-                    title: 'Proposals & requests',
-                    body: "Forward or revise team proposals and answer RFIs. Badges fill when new items arrive that you haven't opened yet.",
+                    title: 'Answer and broadcast',
+                    body: "Forward proposals, answer RFIs, and send communications. Badges stay filled until the new queue items are opened.",
                     highlight: navTarget('proposals')
                 },
                 {
-                    title: 'Session details',
-                    body: "The active session stays pinned here at the bottom. You're all set.",
+                    title: 'Revisit this guide',
+                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
                     highlight: '.sidebar-session'
                 }
             ]
