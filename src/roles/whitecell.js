@@ -51,7 +51,7 @@ import {
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { CONFIG } from '../core/config.js';
 import { ENUMS, canAdjudicateAction, getPhaseLabel, isAdjudicatedAction, isDraftAction } from '../core/enums.js';
-import { getUserMessage } from '../core/errors.js';
+import { getUserMessage, ValidationError } from '../core/errors.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import {
     OPERATOR_SURFACES,
@@ -102,6 +102,7 @@ const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
 const WHITE_CELL_RED_TEAM_RECIPIENT = 'red';
 const WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE = 'scribe_deck_assignment';
 const WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY = 'whitecell:notifications-muted';
+export const WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS = 10000;
 const TEAM_LABELS = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team.label]))
 );
@@ -173,6 +174,62 @@ function writeWhiteCellNotificationsMutedPreference(isMuted = false) {
         globalThis.window?.localStorage?.setItem(WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY, isMuted ? 'true' : 'false');
     } catch (_error) {
         // Notification muting is a UI preference; storage failures must not block the operator console.
+    }
+}
+
+function createScribeDeckValidationTimeoutError() {
+    return new ValidationError(
+        'Scribe deck validation timed out. Check the deck path and try again.',
+        'deckPath'
+    );
+}
+
+async function fetchScribeDeckHtmlWithTimeout(deckPath, {
+    timeoutMs = WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS
+} = {}) {
+    const controller = typeof globalThis.AbortController === 'function'
+        ? new globalThis.AbortController()
+        : null;
+    const fetchOptions = { credentials: 'same-origin' };
+    if (controller) {
+        fetchOptions.signal = controller.signal;
+    }
+
+    let timeoutId = null;
+    let didTimeout = false;
+    const timeoutError = createScribeDeckValidationTimeoutError();
+    const timeoutPromise = new Promise((_resolve, reject) => {
+        timeoutId = setTimeout(() => {
+            didTimeout = true;
+            try {
+                controller?.abort?.();
+            } catch (_error) {
+                // Ignore abort errors; the timeout error below is the operator-facing failure.
+            }
+            reject(timeoutError);
+        }, timeoutMs);
+    });
+
+    const fetchPromise = (async () => {
+        const response = await fetch(buildAppPath(deckPath), fetchOptions);
+        if (!response.ok) {
+            throw new Error(`Deck fetch failed with status ${response.status}.`);
+        }
+
+        return response.text();
+    })();
+
+    try {
+        return await Promise.race([fetchPromise, timeoutPromise]);
+    } catch (error) {
+        if (didTimeout || error?.name === 'AbortError') {
+            throw timeoutError;
+        }
+        throw error;
+    } finally {
+        if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+        }
     }
 }
 
@@ -3522,15 +3579,7 @@ export class WhiteCellController {
     }
 
     async validateScribeDeckPath(deckPath) {
-        const response = await fetch(buildAppPath(deckPath), {
-            credentials: 'same-origin'
-        });
-
-        if (!response.ok) {
-            throw new Error(`Deck fetch failed with status ${response.status}.`);
-        }
-
-        parseScribeDeckHtml(await response.text());
+        parseScribeDeckHtml(await fetchScribeDeckHtmlWithTimeout(deckPath));
     }
 
     async handleScribeDeckAssignmentSubmit(teamId, {

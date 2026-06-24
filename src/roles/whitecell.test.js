@@ -162,6 +162,7 @@ async function loadWhiteCellModule() {
 
 describe('White Cell DOM contract', () => {
     afterEach(() => {
+        vi.useRealTimers();
         vi.restoreAllMocks();
         vi.clearAllMocks();
         vi.resetModules();
@@ -629,9 +630,10 @@ describe('White Cell DOM contract', () => {
 
         await controller.handleScribeDeckAssignmentSubmit('blue');
 
-        expect(global.fetch).toHaveBeenCalledWith('/decks/blue/custom-scribe-deck.html', {
-            credentials: 'same-origin'
-        });
+        expect(global.fetch).toHaveBeenCalledWith(
+            '/decks/blue/custom-scribe-deck.html',
+            expect.objectContaining({ credentials: 'same-origin' })
+        );
         expect(createCommunication).toHaveBeenCalledWith(expect.objectContaining({
             session_id: 'session-42',
             from_role: 'white_cell',
@@ -668,6 +670,46 @@ describe('White Cell DOM contract', () => {
         }));
         expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-scribe-1' }));
         expect(showToast).toHaveBeenCalledWith({ message: 'Blue Team scribe deck updated.', type: 'success' });
+    });
+
+    it('fails closed and hides the loader when scribe deck validation stalls', async () => {
+        vi.useFakeTimers();
+
+        const {
+            WhiteCellController,
+            WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS
+        } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+
+        global.document = createFakeDocument([
+            'scribeDeckPath-blue',
+            'scribeDeckLabel-blue'
+        ]);
+        global.document.elements['scribeDeckPath-blue'].value = 'stalled-deck.html';
+        global.document.elements['scribeDeckLabel-blue'].value = 'Stalled Deck';
+        global.fetch = vi.fn(() => new Promise(() => {}));
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-42');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        const createCommunication = vi.spyOn(database, 'createCommunication');
+
+        const controller = new WhiteCellController();
+        const assignmentPromise = controller.handleScribeDeckAssignmentSubmit('blue');
+
+        expect(showLoader).toHaveBeenCalledWith({
+            message: 'Loading Blue Team scribe deck...'
+        });
+
+        await vi.advanceTimersByTimeAsync(WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS);
+        await assignmentPromise;
+
+        expect(createCommunication).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Scribe deck validation timed out. Check the deck path and try again.',
+            type: 'error'
+        });
+        expect(hideLoader).toHaveBeenCalledTimes(1);
     });
 
     it('uploads a browser-cached deck into the requested team scribe seat through shared communications', async () => {
