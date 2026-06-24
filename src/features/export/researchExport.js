@@ -3980,7 +3980,7 @@ export function buildResearchReportHtml(dataset, {
     <title>${escapeHtml(sessionDisplayName)} — Post-Game Analysis Report</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600;700;800&display=swap">
     <style>
         @page {
             size: A4;
@@ -4008,18 +4008,13 @@ export function buildResearchReportHtml(dataset, {
                 color: #97a0ac;
             }
             @bottom-center {
-                content: "Fractured Order on Plenum";
-                font-family: "Inter", "Segoe UI", Arial, sans-serif;
-                font-size: 8pt;
-                letter-spacing: 0.14em;
-                text-transform: uppercase;
-                color: #b7bec7;
-            }
-            @bottom-right {
-                content: "Page " counter(page) " of " counter(pages);
+                content: counter(page);
                 font-family: "Inter", "Segoe UI", Arial, sans-serif;
                 font-size: 8pt;
                 color: #97a0ac;
+            }
+            @bottom-right {
+                content: "";
             }
         }
 
@@ -4496,14 +4491,19 @@ export function buildResearchReportHtml(dataset, {
         }
         .report-logo { width: auto; max-width: 48%; display: block; }
         .report-logo--ssg { height: 120px; }
-        .report-wordmark {
-            font-size: 30px;
-            line-height: 1;
-            letter-spacing: -0.018em;
-            font-weight: 800;
-            color: var(--report-ink);
+        .report-page-count-grid {
+            margin-top: 10px;
+            max-width: 240px;
         }
-        .report-wordmark-dot { color: var(--report-accent); }
+        .report-total-pages::after {
+            content: counter(pages);
+        }
+        .report-plenum-footer-wordmark {
+            display: none;
+        }
+        .report-plenum-footer-dot {
+            color: #bd5a39;
+        }
         .report-simulation {
             margin: 0 0 4px;
             font-size: 13px;
@@ -4715,6 +4715,20 @@ export function buildResearchReportHtml(dataset, {
                 display: none !important;
             }
 
+            .report-plenum-footer-wordmark {
+                display: block;
+                position: fixed;
+                right: 18mm;
+                bottom: 6mm;
+                z-index: 999;
+                font-family: "Source Serif 4", ui-serif, Georgia, serif;
+                font-weight: 500;
+                font-size: 0.9375rem;
+                line-height: 1;
+                letter-spacing: -0.025em;
+                color: #1d1d1f;
+            }
+
             /* Start each major part on a fresh page */
             .report-toc,
             .report-section {
@@ -4756,11 +4770,11 @@ export function buildResearchReportHtml(dataset, {
 </head>
 <body>
     <button type="button" class="no-print" onclick="window.print()">Print / Save as PDF</button>
+    <div class="report-plenum-footer-wordmark" aria-hidden="true">Plenum<span class="report-plenum-footer-dot">.</span></div>
     <div class="report-root" id="report-source">
         <section class="report-cover">
             <div class="report-cover-logos">
                 <img class="report-logo report-logo--ssg" src="${SSG_LOGO_DATA_URI}" alt="W&M Statecraft Simulations Group">
-                <div class="report-wordmark" aria-label="Plenum wordmark">Plenum<span class="report-wordmark-dot">.</span></div>
             </div>
             <p class="report-classification">Confidential · For Authorized Post-Game Review</p>
             <p class="report-simulation">${escapeHtml(SIMULATION_NAME)}</p>
@@ -4774,6 +4788,12 @@ export function buildResearchReportHtml(dataset, {
                     { label: 'Capture Mode', value: manifest.capture_mode || 'unknown' },
                     { label: 'Prepared By', value: manifest.generated_by_pseudonym }
                 ])}
+                <dl class="report-meta-grid report-page-count-grid" aria-label="Report page count">
+                    <div class="report-meta-item">
+                        <dt>Report Pages</dt>
+                        <dd><span class="report-total-pages"></span></dd>
+                    </div>
+                </dl>
             </div>
             <h2 class="report-outline-title" style="margin-top: 24px;">Document Summary</h2>
             <div style="margin-top: 10px;">
