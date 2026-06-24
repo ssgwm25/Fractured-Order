@@ -4719,7 +4719,8 @@ export function buildResearchReportHtml(dataset, {
                 display: block;
                 position: fixed;
                 right: 18mm;
-                bottom: 6mm;
+                bottom: 9mm;
+                transform: translateY(50%);
                 z-index: 999;
                 font-family: "Source Serif 4", ui-serif, Georgia, serif;
                 font-weight: 500;
