@@ -320,6 +320,8 @@ describe('research export builder', () => {
         });
         expect(exportBundle.reportHtml).toContain('Post-Game Analysis Report');
         expect(exportBundle.reportHtml).toContain('Table Of Contents');
+        expect(exportBundle.reportHtml).not.toContain('The report is organized into');
+        expect(exportBundle.reportHtml).not.toContain('Each begins on a new page so findings can be referenced and printed independently.');
         expect(exportBundle.reportHtml).toContain('font-family: "Inter"');
         expect(exportBundle.reportHtml).toContain('Source+Serif+4');
         expect(exportBundle.reportHtml).toContain('Report Pages');
@@ -486,6 +488,8 @@ describe('research export builder', () => {
 
         expect(reportHtml).toContain('Notes appendix withheld at report-generation time');
         expect(reportHtml).toContain('Table Of Contents');
+        expect(reportHtml).not.toContain('The report is organized into');
+        expect(reportHtml).not.toContain('Each begins on a new page so findings can be referenced and printed independently.');
         expect(reportHtml).toContain('Session Snapshot');
         expect(reportHtml).toContain('Note Summary');
         expect(reportHtml).toContain('window.print()');

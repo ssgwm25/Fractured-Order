@@ -4844,7 +4844,6 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Table Of Contents</h2>
-                    <p class="report-section-intro">The report is organized into ${contentsItems.length} numbered sections. Each begins on a new page so findings can be referenced and printed independently.</p>
                 </div>
             </div>
             ${renderReportContentsList(contentsItems)}
