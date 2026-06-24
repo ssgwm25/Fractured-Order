@@ -119,4 +119,4 @@ Provide Supabase credentials via environment variables (see `platform/.env.examp
 
 ## Credits
 
-Developed by Sethu Nguna for the **Statecraft Simulations Group**, William & Mary.
+Developed by Sethu Nguna for the **Statecraft Simulations Group**, William & Mary (2026).
