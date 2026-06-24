@@ -255,10 +255,10 @@ export class FacilitatorController {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
         const actionNoun = this.teamId === 'green'
             ? 'proposals'
-            : (this.teamId === 'red' ? 'responses' : 'actions');
+            : (this.teamId === 'red' ? 'move responses' : 'actions');
         const actionTitle = this.teamId === 'green'
             ? 'Build proposals'
-            : (this.teamId === 'red' ? 'Prepare responses' : 'Draft actions');
+            : (this.teamId === 'red' ? 'Prepare move responses' : 'Draft actions');
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:facilitator:${this.teamId}`,
             title: `${this.teamContext.facilitatorLabel} guide`,

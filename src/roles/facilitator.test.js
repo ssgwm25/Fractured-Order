@@ -290,6 +290,55 @@ describe('Facilitator and scribe access', () => {
         expect(guide.steps[5].body).not.toContain('Green Team proposals');
     });
 
+    it('mounts a Red facilitator guide that covers move responses and every facilitator surface', async () => {
+        global.document = {
+            ...createFakeDocument(),
+            body: { dataset: { team: 'red' } }
+        };
+
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+
+        expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
+        expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
+            storageKey: 'followalong:facilitator:red',
+            title: 'Red Team Facilitator guide'
+        }));
+
+        const guide = mockMountFollowAlong.mock.calls[0][0];
+        expect(guide.steps.map((step) => step.title)).toEqual([
+            'Red Team Facilitator',
+            'Read the live tracker',
+            'Prepare move responses',
+            'Ask White Cell with RFIs',
+            'Read White Cell responses',
+            'Review received proposals',
+            'Read Tribe Street Journal',
+            'Review sentiment updates',
+            'Audit the timeline',
+            'Capture observations',
+            'Revisit this guide'
+        ]);
+        expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
+            '#timerDisplay',
+            '.sidebar-link[data-section="actions"]',
+            '.sidebar-link[data-section="requests"]',
+            '.sidebar-link[data-section="responses"]',
+            '.sidebar-link[data-section="receivedProposals"]',
+            '.sidebar-link[data-section="tribeStreetJournal"]',
+            '.sidebar-link[data-section="verbaAi"]',
+            '.sidebar-link[data-section="timeline"]',
+            '.sidebar-link[data-section="capture"]',
+            '.sidebar-session'
+        ]);
+        expect(guide.steps[0].body).toContain('prepare move responses');
+        expect(guide.steps[2].body).toContain("Create and revise your team's move responses");
+        expect(guide.steps[2].body).toContain('White Cell reviews them');
+    });
+
     it('groups quick-capture type radios with a semantic fieldset on every facilitator surface', () => {
         [
             FACILITATOR_HTML_PATH,
