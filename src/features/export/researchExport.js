@@ -346,6 +346,54 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'data_quality_readiness',
         'event_log_checksum',
         'report_ref'
+    ],
+    outcome_taxonomy: [
+        'taxonomy_id',
+        'session_id',
+        'entity_type',
+        'entity_id',
+        'move_number',
+        'source_team',
+        'dimension',
+        'signal',
+        'keyword_hits',
+        'adjudication_ruling',
+        'evidence_source',
+        'evidence_excerpt'
+    ],
+    training_rubric: [
+        'rubric_id',
+        'session_id',
+        'participant_pseudonym',
+        'role',
+        'team',
+        'dimension',
+        'evidence_value',
+        'threshold',
+        'status',
+        'evidence_refs'
+    ],
+    network_metrics: [
+        'metric_id',
+        'session_id',
+        'source_team',
+        'target_team',
+        'metric_name',
+        'metric_value',
+        'unit',
+        'evidence_edge_ids'
+    ],
+    turning_points: [
+        'turning_point_id',
+        'session_id',
+        'occurred_utc',
+        'move_number',
+        'turning_point_type',
+        'entity_type',
+        'entity_id',
+        'team',
+        'evidence_summary',
+        'evidence_refs'
     ]
 });
 
@@ -1935,7 +1983,11 @@ function buildResearchTableCoverage({
     dataQualityEvents,
     derivedParticipantMetrics,
     derivedSessionMetrics,
-    decisionLineage
+    decisionLineage,
+    outcomeTaxonomy,
+    trainingRubric,
+    networkMetrics,
+    turningPoints
 }) {
     const rowsByTable = {
         event_log: eventLog,
@@ -1953,7 +2005,11 @@ function buildResearchTableCoverage({
         data_quality_events: dataQualityEvents,
         derived_participant_metrics: derivedParticipantMetrics,
         derived_session_metrics: derivedSessionMetrics,
-        decision_lineage: decisionLineage
+        decision_lineage: decisionLineage,
+        outcome_taxonomy: outcomeTaxonomy,
+        training_rubric: trainingRubric,
+        network_metrics: networkMetrics,
+        turning_points: turningPoints
     };
     const explicitResearchRows = {
         event_log: safeArray(bundle.researchAuditEventLog).length,
@@ -1988,9 +2044,13 @@ function buildResearchTableCoverage({
         'data_quality_events',
         'derived_participant_metrics',
         'derived_session_metrics',
-        'decision_lineage'
+        'decision_lineage',
+        'outcome_taxonomy',
+        'training_rubric',
+        'network_metrics',
+        'turning_points'
     ]);
-    const criticalTables = new Set(['event_log', 'participants', 'action_content', 'decision_lineage']);
+    const criticalTables = new Set(['event_log', 'participants', 'action_content', 'decision_lineage', 'data_quality_events']);
 
     return Object.entries(rowsByTable).map(([tableName, rows]) => {
         const rowCount = safeArray(rows).length;
@@ -2036,6 +2096,10 @@ function buildDataQualitySummary({
     derivedParticipantMetrics,
     derivedSessionMetrics,
     decisionLineage,
+    outcomeTaxonomy,
+    trainingRubric,
+    networkMetrics,
+    turningPoints,
     includeNotesAppendix
 }) {
     const tableCoverage = buildResearchTableCoverage({
@@ -2055,7 +2119,11 @@ function buildDataQualitySummary({
         dataQualityEvents,
         derivedParticipantMetrics,
         derivedSessionMetrics,
-        decisionLineage
+        decisionLineage,
+        outcomeTaxonomy,
+        trainingRubric,
+        networkMetrics,
+        turningPoints
     });
     const limitations = [];
     const fallbackUsage = tableCoverage
@@ -2416,6 +2484,464 @@ function buildScenarioContext(bundle = {}, {
     };
 }
 
+const OUTCOME_TAXONOMY_DIMENSIONS = Object.freeze({
+    escalation_risk: ['escalat', 'retaliat', 'coerc', 'crisis', 'conflict', 'pressure', 'reprisal'],
+    alliance_cohesion: ['ally', 'alliance', 'coalition', 'partner', 'coordination', 'alignment', 'cohesion'],
+    implementation_feasibility: ['feasib', 'implement', 'enforce', 'capacity', 'timeline', 'constraint', 'reporting'],
+    economic_pressure: ['sanction', 'export', 'investment', 'market', 'supply', 'cost', 'tariff', 'trade'],
+    legitimacy_reputation: ['legitim', 'reputation', 'public', 'narrative', 'legal', 'norm', 'credibility'],
+    operational_delay: ['delay', 'slow', 'disrupt', 'queue', 'backlog', 'window', 'pace'],
+    resilience_impact: ['resilien', 'redundan', 'reroute', 'substitut', 'diversif', 'buffer', 'stockpile']
+});
+
+function normalizeTaxonomyEvidence(value) {
+    return String(value ?? '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function buildOutcomeTaxonomy({
+    sessionId,
+    actionContent,
+    proposalContent,
+    moveResponseContent,
+    adjudicationContent
+}) {
+    const actionById = new Map(safeArray(actionContent).map((row) => [row.action_id, row]));
+    const proposalById = new Map(safeArray(proposalContent).map((row) => [row.proposal_id, row]));
+    const responseById = new Map(safeArray(moveResponseContent).map((row) => [row.move_response_id, row]));
+    const rows = [];
+
+    safeArray(adjudicationContent).forEach((adjudication) => {
+        const sourceArtifact = actionById.get(adjudication.target_entity_id)
+            || proposalById.get(adjudication.target_entity_id)
+            || responseById.get(adjudication.target_entity_id)
+            || {};
+        const evidenceParts = [
+            adjudication.ruling,
+            adjudication.reasoning,
+            formatReportValue(adjudication.effects, ''),
+            sourceArtifact.intent_text,
+            sourceArtifact.proposal_text,
+            sourceArtifact.response_text,
+            formatReportValue(sourceArtifact.full_content, '')
+        ].filter(Boolean);
+        const evidenceText = normalizeTaxonomyEvidence(evidenceParts.join(' '));
+        let observedDimensions = 0;
+
+        Object.entries(OUTCOME_TAXONOMY_DIMENSIONS).forEach(([dimension, keywords]) => {
+            const hits = keywords.filter((keyword) => evidenceText.includes(keyword));
+            if (!hits.length) {
+                return;
+            }
+
+            observedDimensions += 1;
+            rows.push({
+                taxonomy_id: `${adjudication.adjudication_id || adjudication.target_entity_id}-${dimension}`,
+                session_id: sessionId,
+                entity_type: adjudication.target_entity_type || null,
+                entity_id: adjudication.target_entity_id || null,
+                move_number: adjudication.move_number ?? sourceArtifact.move_number ?? null,
+                source_team: sourceArtifact.author_team || null,
+                dimension,
+                signal: 'mentioned',
+                keyword_hits: hits,
+                adjudication_ruling: adjudication.ruling || null,
+                evidence_source: 'adjudication_content',
+                evidence_excerpt: evidenceParts.join(' ').slice(0, 500)
+            });
+        });
+
+        if (!observedDimensions) {
+            rows.push({
+                taxonomy_id: `${adjudication.adjudication_id || adjudication.target_entity_id}-general_outcome`,
+                session_id: sessionId,
+                entity_type: adjudication.target_entity_type || null,
+                entity_id: adjudication.target_entity_id || null,
+                move_number: adjudication.move_number ?? sourceArtifact.move_number ?? null,
+                source_team: sourceArtifact.author_team || null,
+                dimension: 'general_outcome',
+                signal: 'recorded',
+                keyword_hits: [],
+                adjudication_ruling: adjudication.ruling || null,
+                evidence_source: 'adjudication_content',
+                evidence_excerpt: evidenceParts.join(' ').slice(0, 500)
+            });
+        }
+    });
+
+    return rows;
+}
+
+function buildTrainingRubric({
+    sessionId,
+    derivedParticipantMetrics,
+    rfiContent,
+    eventLog
+}) {
+    const rfiCountByTeam = countByValue(rfiContent, 'requester_team');
+    const eventIdsByPseudonym = new Map();
+
+    safeArray(eventLog).forEach((event) => {
+        const key = event.actor_pseudonym || 'unknown';
+        if (!eventIdsByPseudonym.has(key)) {
+            eventIdsByPseudonym.set(key, []);
+        }
+        if (event.event_id !== null && event.event_id !== undefined) {
+            eventIdsByPseudonym.get(key).push(event.event_id);
+        }
+    });
+
+    const rows = [];
+    const addRubricRow = (participant, dimension, evidenceValue, threshold, status, evidenceRefs = []) => {
+        rows.push({
+            rubric_id: `${participant.participant_pseudonym}-${dimension}`,
+            session_id: sessionId,
+            participant_pseudonym: participant.participant_pseudonym,
+            role: participant.role,
+            team: participant.team,
+            dimension,
+            evidence_value: evidenceValue,
+            threshold,
+            status,
+            evidence_refs: evidenceRefs
+        });
+    };
+
+    safeArray(derivedParticipantMetrics).forEach((participant) => {
+        const eventRefs = eventIdsByPseudonym.get(participant.participant_pseudonym) || [];
+        const teamRfiCount = rfiCountByTeam[String(participant.team || 'unknown').toLowerCase()] || 0;
+
+        addRubricRow(
+            participant,
+            'participation_activity',
+            participant.events_count || 0,
+            'events_count >= 1',
+            (participant.events_count || 0) >= 1 ? 'evidence_present' : 'not_observed',
+            eventRefs
+        );
+        addRubricRow(
+            participant,
+            'submission_follow_through',
+            participant.submissions_count || 0,
+            'submissions_count >= 1',
+            (participant.submissions_count || 0) >= 1 ? 'evidence_present' : 'not_observed',
+            eventRefs
+        );
+        addRubricRow(
+            participant,
+            'draft_iteration',
+            participant.drafts_count || 0,
+            'drafts_count > submissions_count',
+            (participant.drafts_count || 0) > (participant.submissions_count || 0) ? 'evidence_present' : 'not_observed',
+            eventRefs
+        );
+        addRubricRow(
+            participant,
+            'rfi_usage_by_team',
+            teamRfiCount,
+            'team_rfi_count >= 1',
+            teamRfiCount >= 1 ? 'evidence_present' : 'not_observed',
+            idsForRows(rfiContent.filter((rfi) => rfi.requester_team === participant.team), 'rfi_id')
+        );
+        addRubricRow(
+            participant,
+            'continuity',
+            participant.disconnect_count || 0,
+            'disconnect_count == 0',
+            (participant.disconnect_count || 0) === 0 ? 'clear' : 'attention_needed',
+            eventRefs
+        );
+        addRubricRow(
+            participant,
+            'response_latency_observed',
+            participant.mean_response_latency_s ?? null,
+            'mean_response_latency_s captured',
+            participant.mean_response_latency_s === null || participant.mean_response_latency_s === undefined
+                ? 'not_observed'
+                : 'evidence_present',
+            eventRefs
+        );
+    });
+
+    return rows;
+}
+
+function average(values = []) {
+    const numericValues = safeArray(values)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value));
+
+    return numericValues.length
+        ? Number((numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length).toFixed(3))
+        : null;
+}
+
+function buildNetworkMetrics({
+    sessionId,
+    interactionEdges
+}) {
+    const pairGroups = new Map();
+    const teamGroups = new Map();
+    const rows = [];
+
+    safeArray(interactionEdges).forEach((edge) => {
+        const source = edge.source_team || 'unknown';
+        const target = edge.target_team || 'unknown';
+        const pairKey = `${source}->${target}`;
+
+        if (!pairGroups.has(pairKey)) {
+            pairGroups.set(pairKey, []);
+        }
+        pairGroups.get(pairKey).push(edge);
+
+        if (!teamGroups.has(source)) {
+            teamGroups.set(source, { outbound: [], inbound: [] });
+        }
+        if (!teamGroups.has(target)) {
+            teamGroups.set(target, { outbound: [], inbound: [] });
+        }
+        teamGroups.get(source).outbound.push(edge);
+        teamGroups.get(target).inbound.push(edge);
+    });
+
+    pairGroups.forEach((edges, pairKey) => {
+        const [source, target] = pairKey.split('->');
+        const edgeIds = idsForRows(edges, 'edge_id');
+        rows.push({
+            metric_id: `${source}-${target}-edge_count`,
+            session_id: sessionId,
+            source_team: source,
+            target_team: target,
+            metric_name: 'edge_count',
+            metric_value: edges.length,
+            unit: 'count',
+            evidence_edge_ids: edgeIds
+        });
+        rows.push({
+            metric_id: `${source}-${target}-mean_latency_s`,
+            session_id: sessionId,
+            source_team: source,
+            target_team: target,
+            metric_name: 'mean_latency_s',
+            metric_value: average(edges.map((edge) => edge.latency_s)),
+            unit: 'seconds',
+            evidence_edge_ids: edgeIds
+        });
+    });
+
+    teamGroups.forEach((group, team) => {
+        rows.push({
+            metric_id: `${team}-outbound_edges`,
+            session_id: sessionId,
+            source_team: team,
+            target_team: null,
+            metric_name: 'outbound_edges',
+            metric_value: group.outbound.length,
+            unit: 'count',
+            evidence_edge_ids: idsForRows(group.outbound, 'edge_id')
+        });
+        rows.push({
+            metric_id: `${team}-inbound_edges`,
+            session_id: sessionId,
+            source_team: null,
+            target_team: team,
+            metric_name: 'inbound_edges',
+            metric_value: group.inbound.length,
+            unit: 'count',
+            evidence_edge_ids: idsForRows(group.inbound, 'edge_id')
+        });
+    });
+
+    pairGroups.forEach((edges, pairKey) => {
+        const [source, target] = pairKey.split('->');
+        const reverseKey = `${target}->${source}`;
+        if (!pairGroups.has(reverseKey) || source.localeCompare(target) > 0) {
+            return;
+        }
+
+        rows.push({
+            metric_id: `${source}-${target}-reciprocity`,
+            session_id: sessionId,
+            source_team: source,
+            target_team: target,
+            metric_name: 'reciprocal_pair_observed',
+            metric_value: 1,
+            unit: 'boolean',
+            evidence_edge_ids: uniqueSortedList([
+                ...idsForRows(edges, 'edge_id'),
+                ...idsForRows(pairGroups.get(reverseKey), 'edge_id')
+            ])
+        });
+    });
+
+    return rows.sort((left, right) => left.metric_id.localeCompare(right.metric_id));
+}
+
+function earliestByTimestamp(rows = [], timestampField) {
+    return safeArray(rows)
+        .filter((row) => row?.[timestampField])
+        .slice()
+        .sort((left, right) => new Date(left[timestampField]).getTime() - new Date(right[timestampField]).getTime())[0] || null;
+}
+
+function buildTurningPoints({
+    sessionId,
+    eventLog,
+    proposalContent,
+    rfiContent,
+    interactionEdges,
+    dataQualityEvents,
+    decisionLineage
+}) {
+    const rows = [];
+    const addTurningPoint = (turningPoint) => {
+        if (!turningPoint) {
+            return;
+        }
+        rows.push({
+            session_id: sessionId,
+            ...turningPoint
+        });
+    };
+    const firstForwardedProposal = earliestByTimestamp(
+        safeArray(proposalContent).filter((proposal) => proposal.forwarded_to_team),
+        'reviewed_utc'
+    );
+    const firstRfi = earliestByTimestamp(rfiContent, 'raised_utc');
+    const firstDataQualityEvent = earliestByTimestamp(dataQualityEvents, 'occurred_utc');
+    const longestLatencyRfi = safeArray(rfiContent)
+        .filter((rfi) => rfi.raised_utc && rfi.answered_utc)
+        .map((rfi) => ({
+            rfi,
+            latency: secondsBetween(rfi.raised_utc, rfi.answered_utc)
+        }))
+        .sort((left, right) => (right.latency || 0) - (left.latency || 0))[0] || null;
+    const moveEventCounts = new Map();
+
+    safeArray(eventLog).forEach((event) => {
+        const moveNumber = event.move_number ?? 'unassigned';
+        moveEventCounts.set(moveNumber, (moveEventCounts.get(moveNumber) || 0) + 1);
+    });
+    const highestActivityMove = [...moveEventCounts.entries()]
+        .filter(([moveNumber]) => moveNumber !== 'unassigned')
+        .sort((left, right) => right[1] - left[1] || Number(left[0]) - Number(right[0]))[0] || null;
+    const proposalNotAdvanced = safeArray(proposalContent).find((proposal) => (
+        proposal.review_decision
+        && proposal.review_decision !== 'forwarded'
+    ));
+
+    if (firstForwardedProposal) {
+        addTurningPoint({
+            turning_point_id: `first_forwarded_proposal-${firstForwardedProposal.proposal_id}`,
+            occurred_utc: firstForwardedProposal.reviewed_utc,
+            move_number: firstForwardedProposal.move_number,
+            turning_point_type: 'first_forwarded_proposal',
+            entity_type: 'proposal',
+            entity_id: firstForwardedProposal.proposal_id,
+            team: firstForwardedProposal.author_team,
+            evidence_summary: `First forwarded proposal from ${firstForwardedProposal.author_team || 'unknown'} to ${firstForwardedProposal.forwarded_to_team || 'unknown'}.`,
+            evidence_refs: [firstForwardedProposal.proposal_id]
+        });
+    }
+    if (firstRfi) {
+        addTurningPoint({
+            turning_point_id: `first_rfi-${firstRfi.rfi_id}`,
+            occurred_utc: firstRfi.raised_utc,
+            move_number: firstRfi.move_number,
+            turning_point_type: 'first_rfi',
+            entity_type: 'rfi',
+            entity_id: firstRfi.rfi_id,
+            team: firstRfi.requester_team,
+            evidence_summary: 'First request for information raised.',
+            evidence_refs: [firstRfi.rfi_id]
+        });
+    }
+    if (firstDataQualityEvent) {
+        addTurningPoint({
+            turning_point_id: `first_data_quality_event-${firstDataQualityEvent.dq_event_id}`,
+            occurred_utc: firstDataQualityEvent.occurred_utc,
+            move_number: null,
+            turning_point_type: 'first_data_quality_event',
+            entity_type: 'data_quality_event',
+            entity_id: firstDataQualityEvent.dq_event_id,
+            team: firstDataQualityEvent.team,
+            evidence_summary: `First data quality event: ${firstDataQualityEvent.event_type || 'unknown'}.`,
+            evidence_refs: [firstDataQualityEvent.dq_event_id]
+        });
+    }
+    if (longestLatencyRfi?.rfi) {
+        addTurningPoint({
+            turning_point_id: `longest_rfi_latency-${longestLatencyRfi.rfi.rfi_id}`,
+            occurred_utc: longestLatencyRfi.rfi.answered_utc,
+            move_number: longestLatencyRfi.rfi.move_number,
+            turning_point_type: 'longest_rfi_latency',
+            entity_type: 'rfi',
+            entity_id: longestLatencyRfi.rfi.rfi_id,
+            team: longestLatencyRfi.rfi.requester_team,
+            evidence_summary: `Longest observed RFI answer latency: ${longestLatencyRfi.latency} seconds.`,
+            evidence_refs: [longestLatencyRfi.rfi.rfi_id]
+        });
+    }
+    if (highestActivityMove) {
+        addTurningPoint({
+            turning_point_id: `highest_activity_move-${highestActivityMove[0]}`,
+            occurred_utc: null,
+            move_number: Number(highestActivityMove[0]),
+            turning_point_type: 'highest_activity_move',
+            entity_type: 'move',
+            entity_id: `move-${highestActivityMove[0]}`,
+            team: null,
+            evidence_summary: `Move ${highestActivityMove[0]} had the highest logged event density (${highestActivityMove[1]} events).`,
+            evidence_refs: safeArray(eventLog)
+                .filter((event) => event.move_number === Number(highestActivityMove[0]))
+                .map((event) => event.event_id)
+        });
+    }
+    if (proposalNotAdvanced) {
+        addTurningPoint({
+            turning_point_id: `proposal_not_forwarded-${proposalNotAdvanced.proposal_id}`,
+            occurred_utc: proposalNotAdvanced.reviewed_utc,
+            move_number: proposalNotAdvanced.move_number,
+            turning_point_type: 'proposal_not_forwarded',
+            entity_type: 'proposal',
+            entity_id: proposalNotAdvanced.proposal_id,
+            team: proposalNotAdvanced.author_team,
+            evidence_summary: `Proposal review decision was ${proposalNotAdvanced.review_decision}.`,
+            evidence_refs: [proposalNotAdvanced.proposal_id]
+        });
+    }
+
+    const crossTeamEdges = safeArray(interactionEdges).filter((edge) => (
+        edge.source_team
+        && edge.target_team
+        && edge.source_team !== edge.target_team
+    ));
+    const firstCrossTeamEdge = earliestByTimestamp(crossTeamEdges, 'occurred_utc');
+    if (firstCrossTeamEdge) {
+        addTurningPoint({
+            turning_point_id: `first_cross_team_edge-${firstCrossTeamEdge.edge_id}`,
+            occurred_utc: firstCrossTeamEdge.occurred_utc,
+            move_number: firstCrossTeamEdge.move_number,
+            turning_point_type: 'first_cross_team_interaction',
+            entity_type: 'interaction_edge',
+            entity_id: firstCrossTeamEdge.edge_id,
+            team: firstCrossTeamEdge.source_team,
+            evidence_summary: `First cross-team interaction from ${firstCrossTeamEdge.source_team} to ${firstCrossTeamEdge.target_team}.`,
+            evidence_refs: [firstCrossTeamEdge.edge_id]
+        });
+    }
+
+    return rows.sort((left, right) => {
+        const leftMs = left.occurred_utc ? new Date(left.occurred_utc).getTime() : Number.POSITIVE_INFINITY;
+        const rightMs = right.occurred_utc ? new Date(right.occurred_utc).getTime() : Number.POSITIVE_INFINITY;
+        return leftMs - rightMs
+            || (left.move_number || 0) - (right.move_number || 0)
+            || left.turning_point_id.localeCompare(right.turning_point_id);
+    });
+}
+
 function renderPersonaHtml({
     title,
     subtitle,
@@ -2522,6 +3048,34 @@ function buildPersonaReports(dataset = {}) {
         entry.status,
         entry.critical ? 'yes' : 'no'
     ]);
+    const outcomeRows = safeArray(dataset.outcomeTaxonomy).slice(0, 30).map((row) => [
+        row.dimension,
+        row.signal,
+        row.entity_type,
+        row.entity_id,
+        row.source_team,
+        formatReportValue(row.keyword_hits, '')
+    ]);
+    const rubricRows = safeArray(dataset.trainingRubric).slice(0, 40).map((row) => [
+        row.participant_pseudonym,
+        row.team,
+        row.dimension,
+        formatReportValue(row.evidence_value, ''),
+        row.status
+    ]);
+    const networkRows = safeArray(dataset.networkMetrics).slice(0, 30).map((row) => [
+        row.metric_name,
+        row.source_team,
+        row.target_team,
+        formatReportValue(row.metric_value, ''),
+        row.unit
+    ]);
+    const turningRows = safeArray(dataset.turningPoints).map((row) => [
+        row.turning_point_type,
+        row.move_number,
+        row.team,
+        row.evidence_summary
+    ]);
     const commonSummaryCards = renderReportSummaryCards([
         { label: 'Events', value: sessionMetrics.total_events ?? 0 },
         { label: 'Participants', value: sessionMetrics.participants_active ?? 0 },
@@ -2540,6 +3094,7 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Session Indicators', html: commonSummaryCards },
+                    { title: 'Outcome Taxonomy Signals', html: renderReportTable(['Dimension', 'Signal', 'Entity Type', 'Entity ID', 'Team', 'Keyword Hits'], outcomeRows) },
                     { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
                     { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Intended Recipient', 'Review', 'Recipient State', 'Rationale'], proposalRows) },
                     { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
@@ -2555,7 +3110,9 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Executive Indicators', html: commonSummaryCards },
+                    { title: 'Turning Points', html: renderReportTable(['Type', 'Move', 'Team', 'Evidence'], turningRows) },
                     { title: 'Decision Lineage Highlights', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
+                    { title: 'Network Metrics', html: renderReportTable(['Metric', 'Source Team', 'Target Team', 'Value', 'Unit'], networkRows) },
                     { title: 'Interaction Matrix', html: renderInteractionMatrix(dataset.interactionEdges) },
                     { title: 'Data Quality Readiness', html: renderReportMetaGrid([
                         { label: 'Status', value: dataQualityReadiness.status },
@@ -2573,6 +3130,7 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Training Indicators', html: commonSummaryCards },
+                    { title: 'Rubric Evidence', html: renderReportTable(['Participant', 'Team', 'Dimension', 'Evidence Value', 'Status'], rubricRows) },
                     { title: 'Participant Metrics', html: renderReportTable(['Pseudonym', 'Role', 'Team', 'Events', 'Submissions', 'Mean Submit Time', 'Disconnects'], participantRows) },
                     { title: 'Decision Evidence', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
                     { title: 'Data Quality Coverage', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows) }
@@ -2597,6 +3155,7 @@ function buildPersonaReports(dataset = {}) {
                     ]) },
                     { title: 'Row Counts', html: renderReportTable(['Projection', 'Rows'], rowCountRows) },
                     { title: 'Coverage And Sources', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows) },
+                    { title: 'Derived Utility Tables', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows.filter((row) => ['Outcome Taxonomy', 'Training Rubric', 'Network Metrics', 'Turning Points'].includes(humanizeReportLabel(row[0])))) },
                     { title: 'Decision Lineage Sample', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
                 ]
             }),
@@ -2618,7 +3177,7 @@ function buildCodebookRows() {
                         ? 'number'
                         : /(_state|_role|_team|_type|_status)$/.test(columnName)
                             ? 'string'
-                            : ['payload', 'before_state', 'after_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev'].includes(columnName)
+                            : ['payload', 'before_state', 'after_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev', 'keyword_hits', 'evidence_refs', 'evidence_edge_ids', 'related_rfi_ids', 'related_communication_ids', 'related_response_ids', 'related_event_ids'].includes(columnName)
                                 ? 'json'
                                 : 'string',
             units: /(duration|latency|seconds|_s)$/.test(columnName)
@@ -2630,11 +3189,11 @@ function buildCodebookRows() {
                         : null,
             allowed_values: null,
             nullable: !['session_id', 'participant_pseudonym', 'author_pseudonym', 'event_type', 'entity_type', 'to_state', 'occurred_utc'].includes(columnName),
-            is_derived: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index'].includes(tableName),
-            derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index'].includes(tableName)
+            is_derived: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points'].includes(tableName),
+            derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points'].includes(tableName)
                 ? 'Computed client-side at export time from canonical event and content tables.'
                 : null,
-            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action|evidence_summary/.test(columnName)
+            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action|evidence_summary|evidence_excerpt/.test(columnName)
                 ? 'pseudonymous'
                 : 'none',
             description: `Research export field ${columnName.replace(/_/g, ' ')} for ${tableName.replace(/_/g, ' ')}.`
@@ -3098,6 +3657,42 @@ export function buildResearchReportHtml(dataset, {
         formatReportTimestamp(message.occurred_utc),
         message.content_excerpt || ''
     ]);
+    const outcomeTaxonomyRows = safeArray(dataset.outcomeTaxonomy).slice(0, 80).map((row) => [
+        row.dimension || '',
+        row.signal || '',
+        row.entity_type || '',
+        row.entity_id || '',
+        row.move_number === null || row.move_number === undefined ? '' : String(row.move_number),
+        row.source_team || '',
+        formatReportValue(row.keyword_hits, ''),
+        row.evidence_excerpt || ''
+    ]);
+    const trainingRubricRows = safeArray(dataset.trainingRubric).slice(0, 80).map((row) => [
+        row.participant_pseudonym || '',
+        row.role || '',
+        row.team || '',
+        row.dimension || '',
+        formatReportValue(row.evidence_value, ''),
+        row.threshold || '',
+        row.status || ''
+    ]);
+    const networkMetricRows = safeArray(dataset.networkMetrics).slice(0, 80).map((row) => [
+        row.metric_name || '',
+        row.source_team || '',
+        row.target_team || '',
+        formatReportValue(row.metric_value, ''),
+        row.unit || '',
+        formatReportValue(row.evidence_edge_ids, '')
+    ]);
+    const turningPointRows = safeArray(dataset.turningPoints).map((row) => [
+        row.turning_point_type || '',
+        formatReportTimestamp(row.occurred_utc),
+        row.move_number === null || row.move_number === undefined ? '' : String(row.move_number),
+        row.entity_type || '',
+        row.entity_id || '',
+        row.team || '',
+        row.evidence_summary || ''
+    ]);
     const actionCards = dataset.actionContent.map((action) => {
         const adjudication = adjudicationByTargetId.get(action.action_id);
         const details = safeObject(safeObject(action.full_content).details);
@@ -3337,6 +3932,10 @@ export function buildResearchReportHtml(dataset, {
         {
             title: 'Decision Lineage',
             description: 'Trace rows linking submitted artifacts to review, communications, RFIs, and event evidence.'
+        },
+        {
+            title: 'Research Utility Layers',
+            description: 'Derived outcome taxonomy, training rubric evidence, network metrics, and turning-point flags.'
         },
         {
             title: 'Draft And Submission History',
@@ -4329,6 +4928,31 @@ export function buildResearchReportHtml(dataset, {
         <section class="report-section">
             <div class="report-section-header">
                 <div>
+                    <h2 class="report-section-title">Research Utility Layers</h2>
+                    <p class="report-section-intro">Deterministic interpretation layers for outcome taxonomy, evaluator evidence, network structure, and turning-point review. These outputs are rule-based indexes over captured evidence, not probabilistic scores.</p>
+                </div>
+            </div>
+            ${renderReportSectionBlock('Outcome Taxonomy Signals', renderReportTable(
+                ['Dimension', 'Signal', 'Entity Type', 'Entity ID', 'Move', 'Team', 'Keyword Hits', 'Evidence Excerpt'],
+                outcomeTaxonomyRows
+            ))}
+            ${renderReportSectionBlock('Training Rubric Evidence', renderReportTable(
+                ['Participant', 'Role', 'Team', 'Dimension', 'Evidence Value', 'Threshold', 'Status'],
+                trainingRubricRows
+            ))}
+            ${renderReportSectionBlock('Network Metrics', renderReportTable(
+                ['Metric', 'Source Team', 'Target Team', 'Value', 'Unit', 'Edge IDs'],
+                networkMetricRows
+            ))}
+            ${renderReportSectionBlock('Turning Points', renderReportTable(
+                ['Type', 'Occurred UTC', 'Move', 'Entity Type', 'Entity ID', 'Team', 'Evidence Summary'],
+                turningPointRows
+            ))}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
                     <h2 class="report-section-title">Draft And Submission History</h2>
                     <p class="report-section-intro">Draft projection data showing saved revisions, wizard progress, and submission timing.</p>
                 </div>
@@ -4523,6 +5147,10 @@ function buildFileDefinitions({
     dataQualitySummary,
     decisionLineage,
     scenarioContext,
+    outcomeTaxonomy,
+    trainingRubric,
+    networkMetrics,
+    turningPoints,
     eventLog,
     participantRows,
     notes,
@@ -4575,6 +5203,46 @@ function buildFileDefinitions({
         {
             path: 'scenario_context.json',
             content: toJsonFileContent(scenarioContext),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'outcome_taxonomy.csv',
+            content: arrayToCsv(outcomeTaxonomy, RESEARCH_EXPORT_COLUMNS.outcome_taxonomy),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'outcome_taxonomy.json',
+            content: toJsonFileContent(outcomeTaxonomy),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'training_rubric.csv',
+            content: arrayToCsv(trainingRubric, RESEARCH_EXPORT_COLUMNS.training_rubric),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'training_rubric.json',
+            content: toJsonFileContent(trainingRubric),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'network_metrics.csv',
+            content: arrayToCsv(networkMetrics, RESEARCH_EXPORT_COLUMNS.network_metrics),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'network_metrics.json',
+            content: toJsonFileContent(networkMetrics),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'turning_points.csv',
+            content: arrayToCsv(turningPoints, RESEARCH_EXPORT_COLUMNS.turning_points),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'turning_points.json',
+            content: toJsonFileContent(turningPoints),
             mimeType: 'application/json'
         },
         {
@@ -4815,6 +5483,32 @@ export async function buildResearchExportBundle(bundle = {}, {
         communications: bundle.communications,
         eventLog
     });
+    const outcomeTaxonomy = buildOutcomeTaxonomy({
+        sessionId: bundle.session?.id || null,
+        actionContent,
+        proposalContent,
+        moveResponseContent,
+        adjudicationContent
+    });
+    const trainingRubric = buildTrainingRubric({
+        sessionId: bundle.session?.id || null,
+        derivedParticipantMetrics,
+        rfiContent,
+        eventLog
+    });
+    const networkMetrics = buildNetworkMetrics({
+        sessionId: bundle.session?.id || null,
+        interactionEdges
+    });
+    const turningPoints = buildTurningPoints({
+        sessionId: bundle.session?.id || null,
+        eventLog,
+        proposalContent,
+        rfiContent,
+        interactionEdges,
+        dataQualityEvents,
+        decisionLineage
+    });
     const rowCounts = {
         event_log: eventLog.length,
         participants: participantRegistry.rows.length,
@@ -4829,7 +5523,11 @@ export async function buildResearchExportBundle(bundle = {}, {
         rfi_content: rfiContent.length,
         interaction_edges: interactionEdges.length,
         data_quality_events: dataQualityEvents.length,
-        decision_lineage: decisionLineage.length
+        decision_lineage: decisionLineage.length,
+        outcome_taxonomy: outcomeTaxonomy.length,
+        training_rubric: trainingRubric.length,
+        network_metrics: networkMetrics.length,
+        turning_points: turningPoints.length
     };
     const manifest = {
         schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
@@ -4858,7 +5556,11 @@ export async function buildResearchExportBundle(bundle = {}, {
         },
         data_quality_summary_ref: 'data_quality_summary.json',
         decision_lineage_ref: 'decision_lineage.csv',
-        scenario_context_ref: 'scenario_context.json'
+        scenario_context_ref: 'scenario_context.json',
+        outcome_taxonomy_ref: 'outcome_taxonomy.csv',
+        training_rubric_ref: 'training_rubric.csv',
+        network_metrics_ref: 'network_metrics.csv',
+        turning_points_ref: 'turning_points.csv'
     };
     const scenarioContext = buildScenarioContext(bundle, {
         manifest,
@@ -4887,6 +5589,10 @@ export async function buildResearchExportBundle(bundle = {}, {
         derivedParticipantMetrics,
         derivedSessionMetrics,
         decisionLineage,
+        outcomeTaxonomy,
+        trainingRubric,
+        networkMetrics,
+        turningPoints,
         includeNotesAppendix
     });
     const codebook = safeArray(bundle.researchCodebook).length
@@ -4920,6 +5626,10 @@ export async function buildResearchExportBundle(bundle = {}, {
         dataQualitySummary,
         decisionLineage,
         scenarioContext,
+        outcomeTaxonomy,
+        trainingRubric,
+        networkMetrics,
+        turningPoints,
         derivedParticipantMetrics,
         derivedSessionMetrics
     };
@@ -4936,6 +5646,10 @@ export async function buildResearchExportBundle(bundle = {}, {
         dataQualitySummary,
         decisionLineage,
         scenarioContext,
+        outcomeTaxonomy,
+        trainingRubric,
+        networkMetrics,
+        turningPoints,
         eventLog,
         participantRows: participantRegistry.rows,
         notes,

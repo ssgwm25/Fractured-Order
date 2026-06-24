@@ -96,7 +96,7 @@ The Blue Team action builder includes inline helper text for Objective and Expec
 
 ### Research exports
 
-Game Master and White Cell export controls can generate a research ZIP for the selected session when research capture mode is enabled. The bundle includes the legacy JSON/CSV extracts plus a reproducible research archive: manifest, codebook, checksums, event log, participant metrics, action/proposal/RFI content, interaction edges, state transitions, decision lineage, scenario context, and a data-quality summary.
+Game Master and White Cell export controls can generate a research ZIP for the selected session when research capture mode is enabled. The bundle includes the legacy JSON/CSV extracts plus a reproducible research archive: manifest, codebook, checksums, event log, participant metrics, action/proposal/RFI content, interaction edges, state transitions, decision lineage, scenario context, deterministic outcome taxonomy, training rubric evidence, network metrics, turning-point flags, and a data-quality summary.
 
 The bundle now includes audience-specific reports under `reports/`:
 
@@ -109,7 +109,9 @@ The bundle now includes audience-specific reports under `reports/`:
 
 `data_quality_summary.json` is the first stop before quantitative use. It records capture mode, derived-table fallback use, table coverage, notes appendix state, integrity references, and whether cross-session comparison is ready, limited, or not recommended. `decision_lineage.csv/json` links submitted artifacts to related RFIs, communications, review timestamps, and event IDs without claiming automatic causality. `scenario_context.json` records the session, runtime state, observed teams/moves, scenario messages, scribe deck assignments, and observed objectives.
 
-For multi-run analysis, `buildCrossSessionResearchExportBundle()` in `src/features/export/index.js` builds an aggregate archive from existing session bundles or already-built research exports. It emits `cross_session_index.csv/json`, `cross_session_data_quality.json`, and nests each session bundle under `sessions/`.
+Additional derived research layers are deterministic evidence indexes, not AI scores. `outcome_taxonomy.csv/json` maps adjudication evidence to fixed dimensions such as escalation risk, alliance cohesion, implementation feasibility, economic pressure, legitimacy/reputation, operational delay, and resilience impact. `training_rubric.csv/json` records participant/team evidence against transparent thresholds. `network_metrics.csv/json` summarizes team-pair edge counts, latency, inbound/outbound volume, and reciprocity. `turning_points.csv/json` flags first cross-team interactions, first RFIs, proposal routing events, latency outliers, data-quality events, and the highest-activity move.
+
+For multi-run analysis, Game Master can export a Cross-Session ZIP once at least two sessions are loaded in research mode. `buildCrossSessionResearchExportBundle()` in `src/features/export/index.js` builds the same aggregate archive from existing session bundles or already-built research exports. It emits `cross_session_index.csv/json`, `cross_session_data_quality.json`, and nests each session bundle under `sessions/`.
 
 ### UI accessibility contracts
 

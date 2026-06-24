@@ -113,7 +113,8 @@ describe('GameMaster export wiring', () => {
             'exportTimelineCsvBtn',
             'exportParticipantsCsvBtn',
             'exportResearchArchiveBtn',
-            'printResearchReportBtn'
+            'printResearchReportBtn',
+            'exportCrossSessionResearchArchiveBtn'
         ]);
     });
 

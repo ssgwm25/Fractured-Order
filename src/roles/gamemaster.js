@@ -20,6 +20,7 @@ import {
     downloadJsonData,
     downloadCsv,
     buildResearchExportBundle,
+    buildCrossSessionResearchExportBundle,
     downloadResearchExportArchive,
     exportSessionActionsCsv,
     exportSessionRequestsCsv,
@@ -226,7 +227,8 @@ export function getAdminExportButtonConfig() {
         { id: 'exportTimelineCsvBtn', action: 'csv-timeline', successLabel: 'Timeline CSV', availability: 'legacy' },
         { id: 'exportParticipantsCsvBtn', action: 'csv-participants', successLabel: 'Participants CSV', availability: 'legacy' },
         { id: 'exportResearchArchiveBtn', action: 'research-archive', successLabel: 'Research archive', availability: 'research' },
-        { id: 'printResearchReportBtn', action: 'research-print', successLabel: 'Research report', availability: 'research' }
+        { id: 'printResearchReportBtn', action: 'research-print', successLabel: 'Research report', availability: 'research' },
+        { id: 'exportCrossSessionResearchArchiveBtn', action: 'research-cross-session', successLabel: 'Cross-session research archive', availability: 'research-aggregate' }
     ];
 }
 
@@ -1097,12 +1099,19 @@ export class GameMasterController {
             exportSelectionState.textContent = selectionState.message;
         }
 
+        const aggregateResearchDisabled = this.researchCaptureMode !== 'research'
+            || [...this.sessionBundles.values()].filter((bundle) => bundle?.session?.id).length < 2;
+
         getAdminExportButtonConfig().forEach(({ id, availability }) => {
             const button = document.getElementById(id);
             if (button) {
-                button.disabled = availability === 'research'
-                    ? selectionState.researchDisabled
-                    : selectionState.disabled;
+                if (availability === 'research') {
+                    button.disabled = selectionState.researchDisabled;
+                } else if (availability === 'research-aggregate') {
+                    button.disabled = aggregateResearchDisabled;
+                } else {
+                    button.disabled = selectionState.disabled;
+                }
             }
         });
     }
@@ -1239,28 +1248,52 @@ export class GameMasterController {
     }
 
     async exportData(action) {
-        if (!this.currentSessionId) {
-            showToast('Select a session before exporting.', { type: 'warning' });
-            return;
-        }
-
         const exportConfig = getAdminExportButtonConfig().find((config) => config.action === action);
         if (!exportConfig) {
             showToast('Unsupported export action.', { type: 'error' });
             return;
         }
 
+        if (action !== 'research-cross-session' && !this.currentSessionId) {
+            showToast('Select a session before exporting.', { type: 'warning' });
+            return;
+        }
+
         if (
-            exportConfig.availability === 'research'
+            (exportConfig.availability === 'research' || exportConfig.availability === 'research-aggregate')
             && this.researchCaptureMode !== 'research'
         ) {
             showToast('Research archive export requires research capture mode on the backend.', { type: 'warning' });
             return;
         }
 
+        if (action === 'research-cross-session' && [...this.sessionBundles.values()].filter((bundle) => bundle?.session?.id).length < 2) {
+            showToast('Load at least two sessions before exporting a cross-session research archive.', { type: 'warning' });
+            return;
+        }
+
         showLoader({ message: 'Preparing export...' });
 
         try {
+            if (action === 'research-cross-session') {
+                const sessionIds = [...this.sessionBundles.values()]
+                    .map((bundle) => bundle?.session?.id)
+                    .filter(Boolean);
+                const researchBundles = await Promise.all(
+                    sessionIds.map((sessionId) => database.fetchResearchExportBundle(sessionId))
+                );
+                const crossSessionExport = await buildCrossSessionResearchExportBundle(researchBundles, {
+                    generatedByPseudonym: this.resolveResearchExporterPseudonym(),
+                    exportVersion: this.getResearchExportVersion(`cross-session:${sessionIds.sort().join('|')}`),
+                    includeNotesAppendix: this.getResearchNotesAppendixEnabled(),
+                    softwareBuildHash: this.researchBuildHash || null
+                });
+
+                await downloadResearchExportArchive(crossSessionExport, `${crossSessionExport.rootFolderName}.zip`);
+                showToast(`${exportConfig.successLabel} export is ready.`, { type: 'success' });
+                return;
+            }
+
             const liveBundle = this.buildSelectedLiveBundle() || await database.fetchSessionBundle(this.currentSessionId);
             this.sessionBundles.set(this.currentSessionId, liveBundle);
 

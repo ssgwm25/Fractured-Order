@@ -95,8 +95,10 @@ describe('admin export helpers', () => {
 
         expect(masterHtml).toContain('exportResearchArchiveBtn');
         expect(masterHtml).toContain('printResearchReportBtn');
+        expect(masterHtml).toContain('exportCrossSessionResearchArchiveBtn');
         expect(masterHtml).toContain('Download Research ZIP');
         expect(masterHtml).toContain('Print Report');
+        expect(masterHtml).toContain('Cross-Session ZIP');
         expect(masterHtml).not.toContain('XLSX');
         expect(masterHtml).not.toContain('Download PDF');
     });

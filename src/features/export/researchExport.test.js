@@ -280,6 +280,10 @@ describe('research export builder', () => {
             data_quality_summary_ref: 'data_quality_summary.json',
             decision_lineage_ref: 'decision_lineage.csv',
             scenario_context_ref: 'scenario_context.json',
+            outcome_taxonomy_ref: 'outcome_taxonomy.csv',
+            training_rubric_ref: 'training_rubric.csv',
+            network_metrics_ref: 'network_metrics.csv',
+            turning_points_ref: 'turning_points.csv',
             persona_report_refs: {
                 policy_brief: 'reports/policy_brief.html',
                 strategic_leader_brief: 'reports/strategic_leader_brief.html',
@@ -288,7 +292,11 @@ describe('research export builder', () => {
             }
         });
         expect(exportBundle.manifest.row_counts).toMatchObject({
-            decision_lineage: 4
+            decision_lineage: 4,
+            outcome_taxonomy: expect.any(Number),
+            training_rubric: 18,
+            network_metrics: expect.any(Number),
+            turning_points: expect.any(Number)
         });
         expect(exportBundle.actionContent[0]).toMatchObject({
             action_id: 'action-blue-1',
@@ -354,6 +362,36 @@ describe('research export builder', () => {
                 code: 'ALPHA-R'
             }
         });
+        expect(exportBundle.outcomeTaxonomy).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                entity_id: 'action-blue-1',
+                dimension: 'implementation_feasibility',
+                signal: 'mentioned'
+            })
+        ]));
+        expect(exportBundle.trainingRubric).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                participant_pseudonym: 'participant-001',
+                dimension: 'participation_activity',
+                status: 'evidence_present'
+            })
+        ]));
+        expect(exportBundle.networkMetrics).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                metric_name: 'edge_count',
+                source_team: 'whitecell',
+                target_team: 'blue'
+            })
+        ]));
+        expect(exportBundle.turningPoints).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                turning_point_type: 'first_forwarded_proposal',
+                entity_id: 'proposal-green-1'
+            }),
+            expect.objectContaining({
+                turning_point_type: 'highest_activity_move'
+            })
+        ]));
         expect(exportBundle.personaReports.map((file) => file.path)).toEqual([
             'reports/policy_brief.html',
             'reports/strategic_leader_brief.html',
@@ -373,6 +411,14 @@ describe('research export builder', () => {
             'decision_lineage.csv',
             'decision_lineage.json',
             'scenario_context.json',
+            'outcome_taxonomy.csv',
+            'outcome_taxonomy.json',
+            'training_rubric.csv',
+            'training_rubric.json',
+            'network_metrics.csv',
+            'network_metrics.json',
+            'turning_points.csv',
+            'turning_points.json',
             'event_log.jsonl',
             'action_content.csv',
             'proposal_content.json',
