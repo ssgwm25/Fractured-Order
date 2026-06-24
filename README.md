@@ -70,7 +70,7 @@ The web delivery layer for running the game live: a **Vite** frontend with a **S
 
 Dedicated facilitator, notetaker, and scribe role surfaces live under `teams/<team>/`. Scribe shells share the common modal stylesheet so logout and confirmation dialogs render consistently with the rest of the platform.
 
-The landing document uses `src/img/FO_icon.ico` as the browser favicon.
+Platform entry-point HTML files use `src/img/FO_icon.ico` as the browser favicon, with nested team and deck pages referencing the asset by relative path.
 
 Each role surface mounts a role-specific onboarding guide above the sidebar session label. The guide explains the role's main workflow plus the live move, phase, and timer indicators. When collapsed or completed, it remains available as `Start Here` so users can reopen the role reference without logging out and joining again.
 
