@@ -355,9 +355,11 @@ describe('Facilitator and scribe access', () => {
         });
     });
 
-    it('styles grouped facilitator response feed sections', () => {
+    it('styles grouped facilitator response feed sections as horizontal categories', () => {
         const css = readFileSync(CARDS_CSS_PATH, 'utf8');
 
+        expect(css).toContain('.response-type-grid {\n    display: grid;');
+        expect(css).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));');
         expect(css).toContain('.response-type-group {');
         expect(css).toContain('.response-type-group__header {');
         expect(css).toContain('.response-type-group__count {');
@@ -1049,6 +1051,7 @@ describe('Facilitator and scribe access', () => {
         const controller = new FacilitatorController();
         controller.syncResponsesFromStores();
 
+        expect(responsesList.innerHTML).toContain('class="response-type-grid"');
         expect(responsesList.innerHTML).toContain('aria-labelledby="responses-communication-heading"');
         expect(responsesList.innerHTML).toContain('Direct Communications');
         expect(responsesList.innerHTML).toContain('RFI Answers');

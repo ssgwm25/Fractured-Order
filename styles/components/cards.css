@@ -494,16 +494,24 @@
 }
 
 /* Response type groups */
+.response-type-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: var(--space-4);
+    align-items: start;
+}
+
 .response-type-group {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+    min-width: 0;
 }
 
 .response-type-group + .response-type-group {
-    margin-top: var(--space-5);
-    padding-top: var(--space-5);
-    border-top: 1px solid var(--color-border-light);
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
 }
 
 .response-type-group__header {

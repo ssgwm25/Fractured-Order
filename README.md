@@ -82,7 +82,7 @@ The Green facilitator guide follows the same full tour pattern with proposal-spe
 
 The Red facilitator guide follows the same full tour pattern with move-response-specific guidance for responding to Blue moves, White Cell review, forwarded proposals, RFIs, updates, timeline review, and Quick Capture.
 
-The facilitator `Responses` feed separates direct White Cell communications, RFI answers, White Cell updates, and forwarded proposals into labelled groups so facilitators can scan each response type independently.
+The facilitator `Responses` feed separates direct White Cell communications, RFI answers, White Cell updates, and forwarded proposals into horizontal labelled groups so facilitators can scan each response type independently.
 
 Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped and labeled by the selected or active session so operators can distinguish seats across concurrent exercises.
 

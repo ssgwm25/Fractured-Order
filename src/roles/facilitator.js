@@ -4082,9 +4082,13 @@ export class FacilitatorController {
             return;
         }
 
-        container.innerHTML = this.getResponseTypeGroups(this.responses)
-            .map((group) => this.renderResponseTypeGroup(group))
-            .join('');
+        container.innerHTML = `
+            <div class="response-type-grid">
+                ${this.getResponseTypeGroups(this.responses)
+                    .map((group) => this.renderResponseTypeGroup(group))
+                    .join('')}
+            </div>
+        `;
     }
 
     renderTribeStreetJournalList() {
