@@ -493,6 +493,110 @@
     gap: var(--space-3);
 }
 
+/* Response type groups */
+.response-type-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.response-type-group + .response-type-group {
+    margin-top: var(--space-5);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.response-type-group__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.response-type-group__title {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-tight);
+}
+
+.response-type-group__description {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+}
+
+.response-type-group__count {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 4.75rem;
+    padding: 3px var(--space-2);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+}
+
+.response-type-group__items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.response-card {
+    padding: var(--space-4);
+}
+
+.response-card--new {
+    border-left: 4px solid var(--color-primary-500);
+    background: var(--color-surface-alt);
+}
+
+.response-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.response-card__title {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-tight);
+}
+
+.response-card__subtitle,
+.response-card__timestamp {
+    margin: 2px 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+}
+
+.response-card__badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.response-card__content {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+}
+
 /* Card title and subtitle */
 .card-title {
     font-family: var(--font-display);

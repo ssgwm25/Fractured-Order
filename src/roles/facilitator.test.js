@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const FACILITATOR_HTML_PATH = new URL('../../teams/blue/facilitator.html', import.meta.url);
 const GREEN_FACILITATOR_HTML_PATH = new URL('../../teams/green/facilitator.html', import.meta.url);
 const RED_FACILITATOR_HTML_PATH = new URL('../../teams/red/facilitator.html', import.meta.url);
+const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
 
 const { mockMountFollowAlong } = vi.hoisted(() => ({
     mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() }))
@@ -352,6 +353,16 @@ describe('Facilitator and scribe access', () => {
             expect(html).toContain('name="captureType"');
             expect(html).not.toContain('<label class="form-label">Type</label>');
         });
+    });
+
+    it('styles grouped facilitator response feed sections', () => {
+        const css = readFileSync(CARDS_CSS_PATH, 'utf8');
+
+        expect(css).toContain('.response-type-group {');
+        expect(css).toContain('.response-type-group__header {');
+        expect(css).toContain('.response-type-group__count {');
+        expect(css).toContain('.response-card {');
+        expect(css).toContain('.response-card--new {');
     });
 
     it('labels the Green facilitator action trigger as New Proposal', () => {
@@ -963,6 +974,102 @@ describe('Facilitator and scribe access', () => {
         expect(proposalsList.innerHTML).toContain('Forwarded from Green Team');
         expect(proposalsBadge.textContent).toBe('1');
         expect(proposalsBadge.hidden).toBe(false);
+    });
+
+    it('groups White Cell responses by response type for easier scanning', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { requestsStore } = await import('../stores/requests.js');
+        const {
+            WHITE_CELL_UPDATE_KINDS,
+            buildWhiteCellRecipientMetadata
+        } = await import('../features/communications/targeting.js');
+
+        const responsesList = createFakeElement('responsesList');
+        const responsesBadge = createFakeElement('responsesBadge');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    responsesList,
+                    responsesBadge
+                }[id] || null;
+            }
+        };
+
+        vi.spyOn(requestsStore, 'getByTeam').mockReturnValue([{
+            id: 'rfi-answer-1',
+            team: 'blue',
+            status: 'answered',
+            query: 'Can Blue inspect the port?',
+            response: 'White Cell confirms port inspection is available.',
+            responded_at: '2026-04-09T10:08:00.000Z'
+        }]);
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([
+            {
+                id: 'comm-direct-group-1',
+                from_role: 'whitecell_support',
+                to_role: 'blue_scribe',
+                type: 'DIRECT',
+                content: 'Prepare a short briefing note before adjudication.',
+                created_at: '2026-04-09T10:10:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue_scribe')
+            },
+            {
+                id: 'comm-update-group-1',
+                from_role: 'whitecell_lead',
+                to_role: 'blue',
+                type: 'GUIDANCE',
+                content: 'Headline trade narrative updated for the next move.',
+                created_at: '2026-04-09T10:06:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue', {
+                    content_kind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL
+                })
+            },
+            {
+                id: 'comm-forwarded-group-1',
+                from_role: 'whitecell_lead',
+                to_role: 'blue',
+                type: 'PROPOSAL_FORWARDED',
+                content: 'Forwarded Green Team proposal after White Cell review.',
+                created_at: '2026-04-09T10:04:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue', {
+                    source_team: 'green',
+                    outcome: 'SUCCESS',
+                    proposal: {
+                        title: 'Joint Port Proposal'
+                    }
+                })
+            }
+        ]);
+
+        const controller = new FacilitatorController();
+        controller.syncResponsesFromStores();
+
+        expect(responsesList.innerHTML).toContain('aria-labelledby="responses-communication-heading"');
+        expect(responsesList.innerHTML).toContain('Direct Communications');
+        expect(responsesList.innerHTML).toContain('RFI Answers');
+        expect(responsesList.innerHTML).toContain('White Cell Updates');
+        expect(responsesList.innerHTML).toContain('Forwarded Proposals');
+        expect(responsesList.innerHTML).toContain('role="list"');
+        expect(responsesList.innerHTML).toContain('role="listitem"');
+        expect(responsesList.innerHTML.indexOf('Direct Communications')).toBeLessThan(
+            responsesList.innerHTML.indexOf('White Cell Communication')
+        );
+        expect(responsesList.innerHTML.indexOf('RFI Answers')).toBeLessThan(
+            responsesList.innerHTML.indexOf('Can Blue inspect the port?')
+        );
+        expect(responsesList.innerHTML.indexOf('White Cell Updates')).toBeLessThan(
+            responsesList.innerHTML.indexOf('White Cell Update: Tribe Street Journal')
+        );
+        expect(responsesList.innerHTML.indexOf('Forwarded Proposals')).toBeLessThan(
+            responsesList.innerHTML.indexOf('Received Proposal: Joint Port Proposal')
+        );
+        expect(responsesBadge.textContent).toBe('4');
+        expect(responsesBadge.hidden).toBe(false);
     });
 
     it('shows White Cell updates and direct communications explicitly in the responses feed and update badges', async () => {

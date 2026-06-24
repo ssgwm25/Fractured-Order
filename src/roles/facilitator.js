@@ -93,6 +93,41 @@ const logger = createLogger('Facilitator');
 const TRIBE_STREET_JOURNAL_EVENT_TYPES = new Set(['NOTE', 'MOMENT', 'QUOTE']);
 const TRIBE_STREET_JOURNAL_LIMIT = 20;
 const BLUE_ACTION_WIZARD_PAGE_TOTAL = 3;
+const RESPONSE_TYPE_GROUPS = [
+    {
+        key: 'communication',
+        kind: 'communication',
+        title: 'Direct Communications',
+        description: 'White Cell messages sent directly to this team or role.'
+    },
+    {
+        key: 'rfi',
+        kind: 'rfi',
+        title: 'RFI Answers',
+        description: 'Answered requests for information from White Cell.'
+    },
+    {
+        key: 'white-cell-update',
+        kind: 'white_cell_update',
+        title: 'White Cell Updates',
+        description: 'Scenario, journal, and Verba AI updates pushed by White Cell.'
+    },
+    {
+        key: 'proposal',
+        kind: 'proposal',
+        title: 'Forwarded Proposals',
+        description: 'Reviewed proposals forwarded by White Cell for this team.'
+    },
+    {
+        key: 'other',
+        kind: 'other',
+        title: 'Other Messages',
+        description: 'Additional White Cell items that do not match a standard response type.'
+    }
+];
+const RESPONSE_TYPE_GROUP_BY_KIND = new Map(
+    RESPONSE_TYPE_GROUPS.map((group) => [group.kind, group])
+);
 
 function getEventTimestamp(event = {}) {
     return event?.created_at || event?.updated_at || event?.timestamp || null;
@@ -284,7 +319,7 @@ export class FacilitatorController {
                 },
                 {
                     title: 'Read White Cell responses',
-                    body: 'Responses collects explicit White Cell communications, update notices, and answers to your RFIs.',
+                    body: 'Responses groups explicit White Cell communications, update notices, forwarded proposals, and answers to your RFIs by type.',
                     highlight: navTarget('responses')
                 },
                 {
@@ -418,8 +453,8 @@ export class FacilitatorController {
 
         if (responsesDescription) {
             responsesDescription.textContent = this.isReadOnly
-                ? 'Passive feed of explicit White Cell communications, update notices, and responses to this team.'
-                : 'View explicit White Cell communications, update notices, and responses to your RFIs.';
+                ? 'Passive grouped feed of direct White Cell communications, update notices, forwarded proposals, and responses to this team.'
+                : 'View direct White Cell communications, update notices, forwarded proposals, and RFI answers grouped by type.';
         }
 
         if (journalDescription) {
@@ -881,6 +916,84 @@ export class FacilitatorController {
             badgeText: communication.type || 'MESSAGE',
             badgeVariant: 'info'
         };
+    }
+
+    getResponseTypeGroups(responses = []) {
+        const groupedResponses = new Map(
+            RESPONSE_TYPE_GROUPS.map((group) => [group.key, {
+                ...group,
+                items: []
+            }])
+        );
+
+        responses.forEach((response) => {
+            const groupConfig = RESPONSE_TYPE_GROUP_BY_KIND.get(response?.kind) || RESPONSE_TYPE_GROUP_BY_KIND.get('other');
+            groupedResponses.get(groupConfig.key).items.push(response);
+        });
+
+        return RESPONSE_TYPE_GROUPS
+            .map((group) => groupedResponses.get(group.key))
+            .filter((group) => group.items.length > 0)
+            .map((group) => ({
+                ...group,
+                items: [...group.items].sort((left, right) => getSortableEventTime(right) - getSortableEventTime(left))
+            }));
+    }
+
+    renderResponseCard(response = {}) {
+        const isNewArrival = this.newResponseIds.has(response.id);
+        const responseBadge = createBadge({
+            text: response.badgeText || 'MESSAGE',
+            variant: response.badgeVariant || 'info',
+            size: 'sm',
+            rounded: true
+        }).outerHTML;
+        const arrivalBadge = isNewArrival
+            ? createBadge({
+                text: 'NEW',
+                variant: 'warning',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
+            : '';
+
+        return `
+            <article class="card card-bordered response-card${isNewArrival ? ' response-card--new' : ''}" role="listitem">
+                <div class="response-card__head">
+                    <div class="response-card__title-group">
+                        <h4 class="response-card__title">${this.escapeHtml(response.title)}</h4>
+                        ${response.subtitle ? `<p class="response-card__subtitle">${this.escapeHtml(response.subtitle)}</p>` : ''}
+                        <p class="response-card__timestamp">${formatDateTime(response.created_at)}</p>
+                    </div>
+                    <div class="response-card__badges">
+                        ${arrivalBadge}
+                        ${responseBadge}
+                    </div>
+                </div>
+                <p class="response-card__content">${this.escapeHtml(response.content || '')}</p>
+            </article>
+        `;
+    }
+
+    renderResponseTypeGroup(group = {}) {
+        const headingId = `responses-${group.key}-heading`;
+        const itemCount = group.items?.length || 0;
+        const countLabel = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+
+        return `
+            <section class="response-type-group" aria-labelledby="${headingId}">
+                <div class="response-type-group__header">
+                    <div>
+                        <h3 class="response-type-group__title" id="${headingId}">${this.escapeHtml(group.title)}</h3>
+                        <p class="response-type-group__description">${this.escapeHtml(group.description)}</p>
+                    </div>
+                    <span class="response-type-group__count" aria-label="${this.escapeHtml(`${group.title}: ${countLabel}`)}">${this.escapeHtml(countLabel)}</span>
+                </div>
+                <div class="response-type-group__items" role="list">
+                    ${group.items.map((response) => this.renderResponseCard(response)).join('')}
+                </div>
+            </section>
+        `;
     }
 
     getForwardedProposalCommunication(action = null) {
@@ -3963,46 +4076,15 @@ export class FacilitatorController {
             container.innerHTML = `
                 <div class="empty-state">
                     <h3 class="empty-state-title">No Responses Yet</h3>
-                    <p class="empty-state-message">Explicit White Cell communications, update notices, and RFI responses will appear here.</p>
+                    <p class="empty-state-message">Direct communications, RFI answers, White Cell updates, and forwarded proposals will appear here.</p>
                 </div>
             `;
             return;
         }
 
-        container.innerHTML = this.responses.map((response) => {
-            const isNewArrival = this.newResponseIds.has(response.id);
-            const responseBadge = createBadge({
-                text: response.badgeText || 'MESSAGE',
-                variant: response.badgeVariant || 'info',
-                size: 'sm',
-                rounded: true
-            }).outerHTML;
-            const arrivalBadge = isNewArrival
-                ? createBadge({
-                    text: 'NEW',
-                    variant: 'warning',
-                    size: 'sm',
-                    rounded: true
-                }).outerHTML
-                : '';
-
-            return `
-                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3); ${isNewArrival ? 'border-left: 4px solid var(--color-primary-500); background: var(--color-surface-alt);' : ''}">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
-                        <div>
-                            <h3 class="font-semibold">${this.escapeHtml(response.title)}</h3>
-                            ${response.subtitle ? `<p class="text-xs text-gray-500">${this.escapeHtml(response.subtitle)}</p>` : ''}
-                            <p class="text-xs text-gray-400">${formatDateTime(response.created_at)}</p>
-                        </div>
-                        <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end;">
-                            ${arrivalBadge}
-                            ${responseBadge}
-                        </div>
-                    </div>
-                    <p class="text-sm">${this.escapeHtml(response.content || '')}</p>
-                </div>
-            `;
-        }).join('');
+        container.innerHTML = this.getResponseTypeGroups(this.responses)
+            .map((group) => this.renderResponseTypeGroup(group))
+            .join('');
     }
 
     renderTribeStreetJournalList() {
