@@ -74,6 +74,8 @@ Each role surface mounts a role-specific onboarding guide above the sidebar sess
 
 The White Cell guide explicitly walks operators through game controls, session operations, Blue actions, Green proposals, Red move responses, Tribe Street Journal, Verba AI sentiment updates, RFIs, communications, the session timeline, and queue notification muting.
 
+The Blue facilitator guide explicitly walks facilitators through strategic actions, RFIs, White Cell responses, received proposals, Tribe Street Journal, Verba AI sentiment updates, the timeline, and Quick Capture.
+
 Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped and labeled by the selected or active session so operators can distinguish seats across concurrent exercises.
 
 White Cell scribe deck controls render default team decks immediately while live communications hydrate. Browser-uploaded decks remain same-device cache assignments; blocked browser storage must fail with an operator-visible error rather than leaving the deck workflow in a loading state.

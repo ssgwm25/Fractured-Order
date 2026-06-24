@@ -5,6 +5,10 @@ const FACILITATOR_HTML_PATH = new URL('../../teams/blue/facilitator.html', impor
 const GREEN_FACILITATOR_HTML_PATH = new URL('../../teams/green/facilitator.html', import.meta.url);
 const RED_FACILITATOR_HTML_PATH = new URL('../../teams/red/facilitator.html', import.meta.url);
 
+const { mockMountFollowAlong } = vi.hoisted(() => ({
+    mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() }))
+}));
+
 function createFakeElement(id = null, tagName = 'div') {
     let textContent = '';
     let explicitInnerHtml = null;
@@ -76,6 +80,10 @@ vi.mock('../components/ui/Loader.js', () => ({
     showInlineLoader: vi.fn(() => ({
         hide: vi.fn()
     }))
+}));
+
+vi.mock('../features/onboarding/followAlong.js', () => ({
+    mountFollowAlong: mockMountFollowAlong
 }));
 
 vi.mock('../services/database.js', () => ({
@@ -186,6 +194,50 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('id="responsesBadge"');
         expect(html).toContain('id="tribeStreetJournalBadge"');
         expect(html).toContain('id="verbaAiBadge"');
+    });
+
+    it('mounts a Blue facilitator guide that covers every facilitator surface', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+
+        expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
+        expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
+            storageKey: 'followalong:facilitator:blue',
+            title: 'Blue Team Facilitator guide'
+        }));
+
+        const guide = mockMountFollowAlong.mock.calls[0][0];
+        expect(guide.steps.map((step) => step.title)).toEqual([
+            'Blue Team Facilitator',
+            'Read the live tracker',
+            'Draft actions',
+            'Ask White Cell with RFIs',
+            'Read White Cell responses',
+            'Review received proposals',
+            'Read Tribe Street Journal',
+            'Review sentiment updates',
+            'Audit the timeline',
+            'Capture observations',
+            'Revisit this guide'
+        ]);
+        expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
+            '#timerDisplay',
+            '.sidebar-link[data-section="actions"]',
+            '.sidebar-link[data-section="requests"]',
+            '.sidebar-link[data-section="responses"]',
+            '.sidebar-link[data-section="receivedProposals"]',
+            '.sidebar-link[data-section="tribeStreetJournal"]',
+            '.sidebar-link[data-section="verbaAi"]',
+            '.sidebar-link[data-section="timeline"]',
+            '.sidebar-link[data-section="capture"]',
+            '.sidebar-session'
+        ]);
+        expect(guide.steps[0].body).toContain('capture observations');
+        expect(guide.steps[4].body).toContain('explicit White Cell communications');
+        expect(guide.steps[7].body).toContain('sentiment updates');
     });
 
     it('groups quick-capture type radios with a semantic fieldset on every facilitator surface', () => {

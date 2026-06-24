@@ -265,7 +265,7 @@ export class FacilitatorController {
             steps: [
                 {
                     title: this.teamContext.facilitatorLabel,
-                    body: `Use this workspace to guide ${this.teamLabel}, prepare ${actionNoun}, ask White Cell for clarification, and track rulings.`
+                    body: `Use this workspace to guide ${this.teamLabel}, prepare ${actionNoun}, ask White Cell for clarification, review incoming updates, capture observations, and track the session record.`
                 },
                 {
                     title: 'Read the live tracker',
@@ -278,14 +278,39 @@ export class FacilitatorController {
                     highlight: navTarget('actions')
                 },
                 {
-                    title: 'Ask White Cell',
+                    title: 'Ask White Cell with RFIs',
                     body: 'Send RFIs when the team needs a ruling, clarification, or scenario detail. Answers return to this surface.',
                     highlight: navTarget('requests')
                 },
                 {
-                    title: 'Watch incoming decisions',
-                    body: "White Cell responses, forwarded proposals, and update feeds fill their sidebar badges when something new arrives.",
+                    title: 'Read White Cell responses',
+                    body: 'Responses collects explicit White Cell communications, update notices, and answers to your RFIs.',
+                    highlight: navTarget('responses')
+                },
+                {
+                    title: 'Review received proposals',
+                    body: 'Received Proposals lists Green Team proposals that White Cell has approved and forwarded for your team to acknowledge, decline, ignore, or answer.',
                     highlight: navTarget('receivedProposals')
+                },
+                {
+                    title: 'Read Tribe Street Journal',
+                    body: 'Tribe Street Journal surfaces notes, moments, quotes, and White Cell updates relevant to your team.',
+                    highlight: navTarget('tribeStreetJournal')
+                },
+                {
+                    title: 'Review sentiment updates',
+                    body: 'Verba AI Population Sentiments shows White Cell-published sentiment updates for your team to factor into deliberation.',
+                    highlight: navTarget('verbaAi')
+                },
+                {
+                    title: 'Audit the timeline',
+                    body: 'Timeline gives you the chronological session record for actions, RFIs, responses, captures, and White Cell updates.',
+                    highlight: navTarget('timeline')
+                },
+                {
+                    title: 'Capture observations',
+                    body: 'Quick Capture records notes, moments, and quotes during deliberation so the team record stays current.',
+                    highlight: navTarget('capture')
                 },
                 {
                     title: 'Revisit this guide',
