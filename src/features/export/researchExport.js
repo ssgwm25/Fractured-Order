@@ -4000,7 +4000,13 @@ export function buildResearchReportHtml(dataset, {
                 content: "";
             }
             @bottom-center {
-                content: "";
+                content: counter(page);
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                line-height: 1;
+                color: #97a0ac;
+                vertical-align: bottom;
+                padding-bottom: 4mm;
             }
             @bottom-right {
                 content: "";
@@ -4490,9 +4496,6 @@ export function buildResearchReportHtml(dataset, {
         .report-print-footer {
             display: none;
         }
-        .report-print-footer-page::after {
-            content: counter(page);
-        }
         .report-print-footer-dot {
             color: #bd5a39;
         }
@@ -4709,7 +4712,7 @@ export function buildResearchReportHtml(dataset, {
 
             .report-print-footer {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
                 align-items: center;
                 column-gap: 16px;
                 position: fixed;
@@ -4719,8 +4722,7 @@ export function buildResearchReportHtml(dataset, {
                 z-index: 999;
             }
 
-            .report-print-footer-session,
-            .report-print-footer-page {
+            .report-print-footer-session {
                 font-family: "Inter", "Segoe UI", Arial, sans-serif;
                 font-size: 8pt;
                 line-height: 1;
@@ -4734,10 +4736,6 @@ export function buildResearchReportHtml(dataset, {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-            }
-
-            .report-print-footer-page {
-                justify-self: center;
             }
 
             .report-print-footer-wordmark {
@@ -4793,7 +4791,6 @@ export function buildResearchReportHtml(dataset, {
     <button type="button" class="no-print" onclick="window.print()">Print / Save as PDF</button>
     <div class="report-print-footer" aria-hidden="true">
         <span class="report-print-footer-session">${escapeHtml(sessionDisplayName)}</span>
-        <span class="report-print-footer-page"></span>
         <span class="report-print-footer-wordmark">Plenum<span class="report-print-footer-dot">.</span></span>
     </div>
     <div class="report-root" id="report-source">
