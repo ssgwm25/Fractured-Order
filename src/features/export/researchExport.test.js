@@ -336,7 +336,7 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Plenum<span class="report-print-footer-dot">.</span>');
         expect(exportBundle.reportHtml).toContain('font-family: "Source Serif 4", ui-serif, Georgia, serif;');
         expect(exportBundle.reportHtml).toContain('font-weight: 500;');
-        expect(exportBundle.reportHtml).toContain('bottom: 8mm;');
+        expect(exportBundle.reportHtml).toContain('bottom: 4mm;');
         expect(exportBundle.reportHtml).toContain('color: #bd5a39;');
         expect(exportBundle.reportHtml).toContain('Session Snapshot');
         expect(exportBundle.reportHtml).toContain('Event Log Chronology');

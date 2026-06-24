@@ -4715,7 +4715,7 @@ export function buildResearchReportHtml(dataset, {
                 position: fixed;
                 left: 18mm;
                 right: 18mm;
-                bottom: 8mm;
+                bottom: 4mm;
                 z-index: 999;
             }
 
