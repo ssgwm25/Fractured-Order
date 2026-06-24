@@ -3857,11 +3857,6 @@ export function buildResearchReportHtml(dataset, {
             detail: 'events'
         }));
     const sessionDisplayName = dataset.session?.name || dataset.session?.id || 'Session report';
-    const footerSessionLabel = String(sessionDisplayName)
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/[\r\n]+/g, ' ')
-        .trim();
     const EVENT_LOG_DISPLAY_LIMIT = 200;
     const totalEventLogRows = eventLogRows.length;
     const eventLogTruncated = totalEventLogRows > EVENT_LOG_DISPLAY_LIMIT;
@@ -4002,16 +3997,10 @@ export function buildResearchReportHtml(dataset, {
                 color: #97a0ac;
             }
             @bottom-left {
-                content: "${footerSessionLabel}";
-                font-family: "Inter", "Segoe UI", Arial, sans-serif;
-                font-size: 8pt;
-                color: #97a0ac;
+                content: "";
             }
             @bottom-center {
-                content: counter(page);
-                font-family: "Inter", "Segoe UI", Arial, sans-serif;
-                font-size: 8pt;
-                color: #97a0ac;
+                content: "";
             }
             @bottom-right {
                 content: "";
@@ -4498,10 +4487,13 @@ export function buildResearchReportHtml(dataset, {
         .report-total-pages::after {
             content: counter(pages);
         }
-        .report-plenum-footer-wordmark {
+        .report-print-footer {
             display: none;
         }
-        .report-plenum-footer-dot {
+        .report-print-footer-page::after {
+            content: counter(page);
+        }
+        .report-print-footer-dot {
             color: #bd5a39;
         }
         .report-simulation {
@@ -4715,13 +4707,41 @@ export function buildResearchReportHtml(dataset, {
                 display: none !important;
             }
 
-            .report-plenum-footer-wordmark {
-                display: block;
+            .report-print-footer {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+                align-items: center;
+                column-gap: 16px;
                 position: fixed;
+                left: 18mm;
                 right: 18mm;
-                bottom: 9mm;
-                transform: translateY(50%);
+                bottom: 8mm;
                 z-index: 999;
+            }
+
+            .report-print-footer-session,
+            .report-print-footer-page {
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                line-height: 1;
+                color: #97a0ac;
+            }
+
+            .report-print-footer-session {
+                justify-self: start;
+                min-width: 0;
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .report-print-footer-page {
+                justify-self: center;
+            }
+
+            .report-print-footer-wordmark {
+                justify-self: end;
                 font-family: "Source Serif 4", ui-serif, Georgia, serif;
                 font-weight: 500;
                 font-size: 0.9375rem;
@@ -4771,7 +4791,11 @@ export function buildResearchReportHtml(dataset, {
 </head>
 <body>
     <button type="button" class="no-print" onclick="window.print()">Print / Save as PDF</button>
-    <div class="report-plenum-footer-wordmark" aria-hidden="true">Plenum<span class="report-plenum-footer-dot">.</span></div>
+    <div class="report-print-footer" aria-hidden="true">
+        <span class="report-print-footer-session">${escapeHtml(sessionDisplayName)}</span>
+        <span class="report-print-footer-page"></span>
+        <span class="report-print-footer-wordmark">Plenum<span class="report-print-footer-dot">.</span></span>
+    </div>
     <div class="report-root" id="report-source">
         <section class="report-cover">
             <div class="report-cover-logos">
