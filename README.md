@@ -14,9 +14,9 @@ This repository holds the facilitation materials and the web-based delivery laye
 
 | Team | Plays | Role in the system |
 |------|-------|--------------------|
-| **Blue** | Sets the agenda with economic statecraft |
-| **Green** | The swing weight whose alignment decides the outcome |
-| **Red** | Contests Blue, courts or coerces Green | Defines antagonistic objectives within the simulation
+| **Blue** | Sets the agenda with economic statecraft | Chooses instruments, targets, and sequencing to test coalition leverage |
+| **Green** | The swing weight whose alignment decides the outcome | Weighs Blue and Red pressure, then signals alignment, hedging, or resistance |
+| **Red** | Contests Blue, courts or coerces Green | Defines antagonistic objectives within the simulation |
 | **White Cell** | Control & adjudication | Clarifies requests, scores effects, paces and resets the scene |
 
 Supporting roles include a facilitator, facilitator assistants, IT/AV support, and notetakers seated with each team.
