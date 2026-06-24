@@ -63,6 +63,7 @@ describe('admin export helpers', () => {
         expect(Object.keys(exportFeature)).toEqual(expect.arrayContaining([
             'arrayToCsv',
             'buildJsonExportPayload',
+            'buildCrossSessionResearchExportBundle',
             'buildResearchExportBundle',
             'buildResearchReportHtml',
             'createExportPanel',

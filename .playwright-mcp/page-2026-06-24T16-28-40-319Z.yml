@@ -1,0 +1,887 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+              - generic [ref=e53]: Search or jump to...
+              - img [ref=e55]
+            - link "Sign in" [ref=e59] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fssgwm25%2FFractured-Order
+            - link "Sign up" [ref=e60] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=ssgwm25%2FFractured-Order
+            - button "Appearance settings" [ref=e63] [cursor=pointer]:
+              - img
+  - main [ref=e67]:
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - img [ref=e72]
+            - link "ssgwm25" [ref=e75] [cursor=pointer]:
+              - /url: /ssgwm25
+            - generic [ref=e76]: /
+            - strong [ref=e77]:
+              - link "Fractured-Order" [ref=e78] [cursor=pointer]:
+                - /url: /ssgwm25/Fractured-Order
+            - generic [ref=e79]: Public
+          - generic [ref=e80]:
+            - text: forked from
+            - link "Seth-arc/Plenum" [ref=e81] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum
+        - generic [ref=e82]:
+          - list:
+            - listitem [ref=e83]:
+              - link "You must be signed in to change notification settings" [ref=e84] [cursor=pointer]:
+                - /url: /login?return_to=%2Fssgwm25%2FFractured-Order
+                - img [ref=e85]
+                - text: Notifications
+            - listitem [ref=e87]:
+              - link "Fork 0" [ref=e88] [cursor=pointer]:
+                - /url: /login?return_to=%2Fssgwm25%2FFractured-Order
+                - img [ref=e89]
+                - text: Fork
+                - generic "0" [ref=e91]
+            - listitem [ref=e92]:
+              - link "You must be signed in to star a repository" [ref=e94] [cursor=pointer]:
+                - /url: /login?return_to=%2Fssgwm25%2FFractured-Order
+                - img [ref=e95]
+                - text: Star
+                - generic "0 users starred this repository" [ref=e97]: "0"
+      - navigation "Repository" [ref=e98]:
+        - list [ref=e99]:
+          - listitem [ref=e100]:
+            - link "Code" [ref=e101] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order
+              - img [ref=e102]
+              - generic [ref=e104]: Code
+          - listitem [ref=e105]:
+            - link "Pull requests" [ref=e106] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/pulls
+              - img [ref=e107]
+              - generic [ref=e110]: Pull requests
+          - listitem [ref=e111]:
+            - link "Actions" [ref=e112] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/actions
+              - img [ref=e113]
+              - generic [ref=e115]: Actions
+          - listitem [ref=e116]:
+            - link "Security and quality" [ref=e117] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/security
+              - img [ref=e118]
+              - generic [ref=e120]: Security and quality
+          - listitem [ref=e121]:
+            - link "Insights" [ref=e122] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/pulse
+              - img [ref=e123]
+              - generic [ref=e125]: Insights
+    - generic [ref=e138]:
+      - heading "ssgwm25/Fractured-Order" [level=1] [ref=e140]
+      - generic [ref=e141]:
+        - generic [ref=e144]:
+          - generic [ref=e145]:
+            - generic [ref=e146]:
+              - button "main branch" [ref=e148] [cursor=pointer]:
+                - generic [ref=e149]:
+                  - generic [ref=e151]:
+                    - img [ref=e153]
+                    - generic [ref=e156]: main
+                  - generic:
+                    - img
+              - generic [ref=e157]:
+                - link "1 Branch" [ref=e158] [cursor=pointer]:
+                  - /url: /ssgwm25/Fractured-Order/branches
+                  - generic [ref=e159]:
+                    - generic:
+                      - img
+                    - generic [ref=e161]:
+                      - strong [ref=e162]: "1"
+                      - text: Branch
+                - link "0 Tags" [ref=e163] [cursor=pointer]:
+                  - /url: /ssgwm25/Fractured-Order/tags
+                  - generic [ref=e164]:
+                    - generic:
+                      - img
+                    - generic [ref=e166]:
+                      - strong [ref=e167]: "0"
+                      - text: Tags
+            - generic [ref=e168]:
+              - generic [ref=e172]:
+                - img [ref=e174]
+                - combobox "Go to file" [ref=e176]
+              - button "Code" [ref=e177] [cursor=pointer]:
+                - generic [ref=e178]:
+                  - generic:
+                    - img
+                  - generic [ref=e179]: Code
+                  - generic:
+                    - img
+          - generic [ref=e181]:
+            - text: This branch is
+            - link "43 commits ahead of" [ref=e182] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/compare/Seth-arc%3APlenum%3Amain...main
+            - generic [ref=e183]: Seth-arc/Plenum:main
+            - text: .
+          - generic [ref=e184]:
+            - generic [ref=e185]:
+              - heading "Folders and files" [level=2] [ref=e186]
+              - table "Folders and files" [ref=e187]:
+                - rowgroup:
+                  - row "Name Last commit message Last commit date":
+                    - columnheader "Name"
+                    - columnheader "Last commit message":
+                      - generic "Last commit message"
+                    - columnheader "Last commit date":
+                      - generic "Last commit date"
+                - rowgroup [ref=e188]:
+                  - row "Latest commit Seth-arc commits by Seth-arc Making the facilitator interface response category horizontal success Commit f32a7f0 · Jun 24, 202636 minutes ago History 50 Commits" [ref=e189]:
+                    - cell "Latest commit Seth-arc commits by Seth-arc Making the facilitator interface response category horizontal success Commit f32a7f0 · Jun 24, 202636 minutes ago History 50 Commits" [ref=e190]:
+                      - generic [ref=e191]:
+                        - heading "Latest commit" [level=2] [ref=e192]
+                        - generic [ref=e193]:
+                          - generic [ref=e195]:
+                            - link "Seth-arc" [ref=e196] [cursor=pointer]:
+                              - /url: /Seth-arc
+                              - img "Seth-arc" [ref=e197]
+                            - link "commits by Seth-arc" [ref=e198] [cursor=pointer]:
+                              - /url: /ssgwm25/Fractured-Order/commits?author=Seth-arc
+                              - text: Seth-arc
+                          - generic [ref=e199]:
+                            - link "Making the facilitator interface response category horizontal" [ref=e202] [cursor=pointer]:
+                              - /url: /ssgwm25/Fractured-Order/commit/f32a7f0c46099dc91a5f77ef60c86c2c634dd98e
+                            - button "success" [ref=e203] [cursor=pointer]:
+                              - img [ref=e204]
+                        - generic [ref=e206]:
+                          - generic [ref=e208]:
+                            - link "Commit f32a7f0" [ref=e209] [cursor=pointer]:
+                              - /url: /ssgwm25/Fractured-Order/commit/f32a7f0c46099dc91a5f77ef60c86c2c634dd98e
+                              - text: f32a7f0
+                            - text: ·
+                            - generic "Jun 24, 2026, 11:52 AM EDT" [ref=e210]: Jun 24, 202636 minutes ago
+                          - generic [ref=e211]:
+                            - heading "History" [level=2] [ref=e212]
+                            - link "50 Commits" [ref=e213] [cursor=pointer]:
+                              - /url: /ssgwm25/Fractured-Order/commits/main/
+                              - generic [ref=e214]:
+                                - generic:
+                                  - img
+                                - generic [ref=e215]: 50 Commits
+                  - row ".github/workflows, (Directory) First upload Jun 22, 20262 days ago" [ref=e216]:
+                    - cell ".github/workflows, (Directory)" [ref=e217]:
+                      - generic [ref=e218]:
+                        - img [ref=e219]
+                        - link ".github/workflows, (Directory)" [ref=e224] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/.github/workflows
+                          - text: .github/workflows
+                    - cell "First upload" [ref=e225]:
+                      - link "First upload" [ref=e228] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e229]:
+                      - generic [ref=e230]: Jun 22, 20262 days ago
+                  - row ".playwright-mcp, (Directory) Updates to error states Jun 22, 20262 days ago" [ref=e231]:
+                    - cell ".playwright-mcp, (Directory)" [ref=e232]:
+                      - generic [ref=e233]:
+                        - img [ref=e234]
+                        - link ".playwright-mcp, (Directory)" [ref=e239] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/.playwright-mcp
+                          - text: .playwright-mcp
+                    - cell "Updates to error states" [ref=e240]:
+                      - link "Updates to error states" [ref=e243] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/b42d9e00b059f94adbbc37fa186b5cc0171bce90
+                    - cell "Jun 22, 20262 days ago" [ref=e244]:
+                      - generic [ref=e245]: Jun 22, 20262 days ago
+                  - row ".vscode, (Directory) First upload Jun 22, 20262 days ago" [ref=e246]:
+                    - cell ".vscode, (Directory)" [ref=e247]:
+                      - generic [ref=e248]:
+                        - img [ref=e249]
+                        - link ".vscode, (Directory)" [ref=e254] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/.vscode
+                          - text: .vscode
+                    - cell "First upload" [ref=e255]:
+                      - link "First upload" [ref=e258] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e259]:
+                      - generic [ref=e260]: Jun 22, 20262 days ago
+                  - row "data, (Directory) First upload Jun 22, 20262 days ago" [ref=e261]:
+                    - cell "data, (Directory)" [ref=e262]:
+                      - generic [ref=e263]:
+                        - img [ref=e264]
+                        - link "data, (Directory)" [ref=e269] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/data
+                          - text: data
+                    - cell "First upload" [ref=e270]:
+                      - link "First upload" [ref=e273] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e274]:
+                      - generic [ref=e275]: Jun 22, 20262 days ago
+                  - row "decks, (Directory) making the favicon visible across the platform Jun 24, 202639 minutes ago" [ref=e276]:
+                    - cell "decks, (Directory)" [ref=e277]:
+                      - generic [ref=e278]:
+                        - img [ref=e279]
+                        - link "decks, (Directory)" [ref=e284] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/decks
+                          - text: decks
+                    - cell "making the favicon visible across the platform" [ref=e285]:
+                      - link "making the favicon visible across the platform" [ref=e288] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/a8123fa035cdfe5122e25d58773c1eb3b0eb2756
+                    - cell "Jun 24, 202639 minutes ago" [ref=e289]:
+                      - generic [ref=e290]: Jun 24, 202639 minutes ago
+                  - row "node_modules, (Directory) Making the facilitator interface response category horizontal Jun 24, 202636 minutes ago" [ref=e291]:
+                    - cell "node_modules, (Directory)" [ref=e292]:
+                      - generic [ref=e293]:
+                        - img [ref=e294]
+                        - link "node_modules, (Directory)" [ref=e299] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/node_modules
+                          - text: node_modules
+                    - cell "Making the facilitator interface response category horizontal" [ref=e300]:
+                      - link "Making the facilitator interface response category horizontal" [ref=e303] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f32a7f0c46099dc91a5f77ef60c86c2c634dd98e
+                    - cell "Jun 24, 202636 minutes ago" [ref=e304]:
+                      - generic [ref=e305]: Jun 24, 202636 minutes ago
+                  - row "src, (Directory) Making the facilitator interface response category horizontal Jun 24, 202636 minutes ago" [ref=e306]:
+                    - cell "src, (Directory)" [ref=e307]:
+                      - generic [ref=e308]:
+                        - img [ref=e309]
+                        - link "src, (Directory)" [ref=e314] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/src
+                          - text: src
+                    - cell "Making the facilitator interface response category horizontal" [ref=e315]:
+                      - link "Making the facilitator interface response category horizontal" [ref=e318] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f32a7f0c46099dc91a5f77ef60c86c2c634dd98e
+                    - cell "Jun 24, 202636 minutes ago" [ref=e319]:
+                      - generic [ref=e320]: Jun 24, 202636 minutes ago
+                  - row "styles, (Directory) Making the facilitator interface response category horizontal Jun 24, 202636 minutes ago" [ref=e321]:
+                    - cell "styles, (Directory)" [ref=e322]:
+                      - generic [ref=e323]:
+                        - img [ref=e324]
+                        - link "styles, (Directory)" [ref=e329] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/styles
+                          - text: styles
+                    - cell "Making the facilitator interface response category horizontal" [ref=e330]:
+                      - link "Making the facilitator interface response category horizontal" [ref=e333] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f32a7f0c46099dc91a5f77ef60c86c2c634dd98e
+                    - cell "Jun 24, 202636 minutes ago" [ref=e334]:
+                      - generic [ref=e335]: Jun 24, 202636 minutes ago
+                  - row "teams, (Directory) making the favicon visible across the platform Jun 24, 202639 minutes ago" [ref=e336]:
+                    - cell "teams, (Directory)" [ref=e337]:
+                      - generic [ref=e338]:
+                        - img [ref=e339]
+                        - link "teams, (Directory)" [ref=e344] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/teams
+                          - text: teams
+                    - cell "making the favicon visible across the platform" [ref=e345]:
+                      - link "making the favicon visible across the platform" [ref=e348] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/a8123fa035cdfe5122e25d58773c1eb3b0eb2756
+                    - cell "Jun 24, 202639 minutes ago" [ref=e349]:
+                      - generic [ref=e350]: Jun 24, 202639 minutes ago
+                  - row "test-results, (Directory) Fixing notification and error handling Jun 22, 20262 days ago" [ref=e351]:
+                    - cell "test-results, (Directory)" [ref=e352]:
+                      - generic [ref=e353]:
+                        - img [ref=e354]
+                        - link "test-results, (Directory)" [ref=e359] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/test-results
+                          - text: test-results
+                    - cell "Fixing notification and error handling" [ref=e360]:
+                      - link "Fixing notification and error handling" [ref=e363] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/2f76d134ca4f02100d118b9e9e402a23bd1a0eef
+                    - cell "Jun 22, 20262 days ago" [ref=e364]:
+                      - generic [ref=e365]: Jun 22, 20262 days ago
+                  - row "tests, (Directory) making the favicon visible across the platform Jun 24, 202639 minutes ago" [ref=e366]:
+                    - cell "tests, (Directory)" [ref=e367]:
+                      - generic [ref=e368]:
+                        - img [ref=e369]
+                        - link "tests, (Directory)" [ref=e374] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/tree/main/tests
+                          - text: tests
+                    - cell "making the favicon visible across the platform" [ref=e375]:
+                      - link "making the favicon visible across the platform" [ref=e378] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/a8123fa035cdfe5122e25d58773c1eb3b0eb2756
+                    - cell "Jun 24, 202639 minutes ago" [ref=e379]:
+                      - generic [ref=e380]: Jun 24, 202639 minutes ago
+                  - row ".env.example, (File) First upload Jun 22, 20262 days ago" [ref=e381]:
+                    - cell ".env.example, (File)" [ref=e382]:
+                      - generic [ref=e383]:
+                        - img [ref=e384]
+                        - link ".env.example, (File)" [ref=e389] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/.env.example
+                          - text: .env.example
+                    - cell "First upload" [ref=e390]:
+                      - link "First upload" [ref=e393] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e394]:
+                      - generic [ref=e395]: Jun 22, 20262 days ago
+                  - row ".gitignore, (File) First upload Jun 22, 20262 days ago" [ref=e396]:
+                    - cell ".gitignore, (File)" [ref=e397]:
+                      - generic [ref=e398]:
+                        - img [ref=e399]
+                        - link ".gitignore, (File)" [ref=e404] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/.gitignore
+                          - text: .gitignore
+                    - cell "First upload" [ref=e405]:
+                      - link "First upload" [ref=e408] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e409]:
+                      - generic [ref=e410]: Jun 22, 20262 days ago
+                  - row "README.md, (File) Making the facilitator interface response category horizontal Jun 24, 202636 minutes ago" [ref=e411]:
+                    - cell "README.md, (File)" [ref=e412]:
+                      - generic [ref=e413]:
+                        - img [ref=e414]
+                        - link "README.md, (File)" [ref=e419] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/README.md
+                          - text: README.md
+                    - cell "Making the facilitator interface response category horizontal" [ref=e420]:
+                      - link "Making the facilitator interface response category horizontal" [ref=e423] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f32a7f0c46099dc91a5f77ef60c86c2c634dd98e
+                    - cell "Jun 24, 202636 minutes ago" [ref=e424]:
+                      - generic [ref=e425]: Jun 24, 202636 minutes ago
+                  - row "anime.min.js, (File) First upload Jun 22, 20262 days ago" [ref=e426]:
+                    - cell "anime.min.js, (File)" [ref=e427]:
+                      - generic [ref=e428]:
+                        - img [ref=e429]
+                        - link "anime.min.js, (File)" [ref=e434] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/anime.min.js
+                          - text: anime.min.js
+                    - cell "First upload" [ref=e435]:
+                      - link "First upload" [ref=e438] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e439]:
+                      - generic [ref=e440]: Jun 22, 20262 days ago
+                  - row "audit.md, (File) Updates to error states Jun 22, 20262 days ago" [ref=e441]:
+                    - cell "audit.md, (File)" [ref=e442]:
+                      - generic [ref=e443]:
+                        - img [ref=e444]
+                        - link "audit.md, (File)" [ref=e449] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/audit.md
+                          - text: audit.md
+                    - cell "Updates to error states" [ref=e450]:
+                      - link "Updates to error states" [ref=e453] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/b42d9e00b059f94adbbc37fa186b5cc0171bce90
+                    - cell "Jun 22, 20262 days ago" [ref=e454]:
+                      - generic [ref=e455]: Jun 22, 20262 days ago
+                  - row "index.html, (File) Adding a site icon Jun 24, 20261 hour ago" [ref=e456]:
+                    - cell "index.html, (File)" [ref=e457]:
+                      - generic [ref=e458]:
+                        - img [ref=e459]
+                        - link "index.html, (File)" [ref=e464] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/index.html
+                          - text: index.html
+                    - cell "Adding a site icon" [ref=e465]:
+                      - link "Adding a site icon" [ref=e468] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/7e4d68794705d146a0e37353d44015889b0bdd5f
+                    - cell "Jun 24, 20261 hour ago" [ref=e469]:
+                      - generic [ref=e470]: Jun 24, 20261 hour ago
+                  - row "master.html, (File) making the favicon visible across the platform Jun 24, 202639 minutes ago" [ref=e471]:
+                    - cell "master.html, (File)" [ref=e472]:
+                      - generic [ref=e473]:
+                        - img [ref=e474]
+                        - link "master.html, (File)" [ref=e479] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/master.html
+                          - text: master.html
+                    - cell "making the favicon visible across the platform" [ref=e480]:
+                      - link "making the favicon visible across the platform" [ref=e483] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/a8123fa035cdfe5122e25d58773c1eb3b0eb2756
+                    - cell "Jun 24, 202639 minutes ago" [ref=e484]:
+                      - generic [ref=e485]: Jun 24, 202639 minutes ago
+                  - row "package-lock.json, (File) First upload Jun 22, 20262 days ago" [ref=e486]:
+                    - cell "package-lock.json, (File)" [ref=e487]:
+                      - generic [ref=e488]:
+                        - img [ref=e489]
+                        - link "package-lock.json, (File)" [ref=e494] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/package-lock.json
+                          - text: package-lock.json
+                    - cell "First upload" [ref=e495]:
+                      - link "First upload" [ref=e498] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e499]:
+                      - generic [ref=e500]: Jun 22, 20262 days ago
+                  - row "package.json, (File) First upload Jun 22, 20262 days ago" [ref=e501]:
+                    - cell "package.json, (File)" [ref=e502]:
+                      - generic [ref=e503]:
+                        - img [ref=e504]
+                        - link "package.json, (File)" [ref=e509] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/package.json
+                          - text: package.json
+                    - cell "First upload" [ref=e510]:
+                      - link "First upload" [ref=e513] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e514]:
+                      - generic [ref=e515]: Jun 22, 20262 days ago
+                  - row "playwright.config.js, (File) First upload Jun 22, 20262 days ago" [ref=e516]:
+                    - cell "playwright.config.js, (File)" [ref=e517]:
+                      - generic [ref=e518]:
+                        - img [ref=e519]
+                        - link "playwright.config.js, (File)" [ref=e524] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/playwright.config.js
+                          - text: playwright.config.js
+                    - cell "First upload" [ref=e525]:
+                      - link "First upload" [ref=e528] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e529]:
+                      - generic [ref=e530]: Jun 22, 20262 days ago
+                  - row "repo-audit.md, (File) Updates to error states Jun 22, 20262 days ago" [ref=e531]:
+                    - cell "repo-audit.md, (File)" [ref=e532]:
+                      - generic [ref=e533]:
+                        - img [ref=e534]
+                        - link "repo-audit.md, (File)" [ref=e539] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/repo-audit.md
+                          - text: repo-audit.md
+                    - cell "Updates to error states" [ref=e540]:
+                      - link "Updates to error states" [ref=e543] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/b42d9e00b059f94adbbc37fa186b5cc0171bce90
+                    - cell "Jun 22, 20262 days ago" [ref=e544]:
+                      - generic [ref=e545]: Jun 22, 20262 days ago
+                  - row "screenshot.PNG, (File) Add files via upload Jun 22, 20262 days ago" [ref=e546]:
+                    - cell "screenshot.PNG, (File)" [ref=e547]:
+                      - generic [ref=e548]:
+                        - img [ref=e549]
+                        - link "screenshot.PNG, (File)" [ref=e554] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/screenshot.PNG
+                          - text: screenshot.PNG
+                    - cell "Add files via upload" [ref=e555]:
+                      - link "Add files via upload" [ref=e558] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/7227a13e249a8fff13b9799b56433076b256ae2f
+                    - cell "Jun 22, 20262 days ago" [ref=e559]:
+                      - generic [ref=e560]: Jun 22, 20262 days ago
+                  - 'row "vite.config.js, (File) Fix build: remove non-existent HTML entry points from vite.config.js Jun 22, 20262 days ago" [ref=e561]':
+                    - cell "vite.config.js, (File)" [ref=e562]:
+                      - generic [ref=e563]:
+                        - img [ref=e564]
+                        - link "vite.config.js, (File)" [ref=e569] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/vite.config.js
+                          - text: vite.config.js
+                    - 'cell "Fix build: remove non-existent HTML entry points from vite.config.js" [ref=e570]':
+                      - 'link "Fix build: remove non-existent HTML entry points from vite.config.js" [ref=e573] [cursor=pointer]':
+                        - /url: /ssgwm25/Fractured-Order/commit/556af7a1cfcfa68462de5b0c8a9a3fea1b2ef841
+                    - cell "Jun 22, 20262 days ago" [ref=e574]:
+                      - generic [ref=e575]: Jun 22, 20262 days ago
+                  - row "vite.config.test.js, (File) First upload Jun 22, 20262 days ago" [ref=e576]:
+                    - cell "vite.config.test.js, (File)" [ref=e577]:
+                      - generic [ref=e578]:
+                        - img [ref=e579]
+                        - link "vite.config.test.js, (File)" [ref=e584] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/vite.config.test.js
+                          - text: vite.config.test.js
+                    - cell "First upload" [ref=e585]:
+                      - link "First upload" [ref=e588] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e589]:
+                      - generic [ref=e590]: Jun 22, 20262 days ago
+                  - row "whitecell.html, (File) making the favicon visible across the platform Jun 24, 202639 minutes ago" [ref=e591]:
+                    - cell "whitecell.html, (File)" [ref=e592]:
+                      - generic [ref=e593]:
+                        - img [ref=e594]
+                        - link "whitecell.html, (File)" [ref=e599] [cursor=pointer]:
+                          - /url: /ssgwm25/Fractured-Order/blob/main/whitecell.html
+                          - text: whitecell.html
+                    - cell "making the favicon visible across the platform" [ref=e600]:
+                      - link "making the favicon visible across the platform" [ref=e603] [cursor=pointer]:
+                        - /url: /ssgwm25/Fractured-Order/commit/a8123fa035cdfe5122e25d58773c1eb3b0eb2756
+                    - cell "Jun 24, 202639 minutes ago" [ref=e604]:
+                      - generic [ref=e605]: Jun 24, 202639 minutes ago
+            - generic [ref=e607]:
+              - generic [ref=e608]:
+                - heading "Repository files navigation" [level=2] [ref=e609]
+                - navigation "Repository files" [ref=e610]:
+                  - list [ref=e611]:
+                    - listitem [ref=e612]:
+                      - link "README" [ref=e613] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e615]
+                        - generic [ref=e617]: README
+                - button "Outline" [ref=e618] [cursor=pointer]:
+                  - img [ref=e619]
+              - article [ref=e622]:
+                - generic [ref=e623]:
+                  - heading "Fractured Order" [level=1] [ref=e624]
+                  - 'link "Permalink: Fractured Order" [ref=e625] [cursor=pointer]':
+                    - /url: "#fractured-order"
+                    - img [ref=e626]
+                - paragraph [ref=e628]:
+                  - link "Fractured Order facilitator deck" [ref=e629] [cursor=pointer]:
+                    - /url: /ssgwm25/Fractured-Order/blob/main/screenshot.PNG
+                    - img "Fractured Order facilitator deck" [ref=e630]
+                - paragraph [ref=e631]: This repository holds the facilitation materials and the web-based delivery layer (the Plenum platform) for running the game.
+                - separator [ref=e632]
+                - generic [ref=e633]:
+                  - heading "What it is" [level=2] [ref=e634]
+                  - 'link "Permalink: What it is" [ref=e635] [cursor=pointer]':
+                    - /url: "#what-it-is"
+                    - img [ref=e636]
+                - paragraph [ref=e638]:
+                  - emphasis [ref=e639]: Fractured Order
+                  - text: simulation tests how effective non-military tools - sanctions, export and investment controls, incentives, standards-setting, information, and diplomacy - actually are at shaping state behavior, and surfaces the inflection points where one actor's choices reinforce or undermine alliance cohesion.
+                - generic [ref=e640]:
+                  - heading "Teams" [level=2] [ref=e641]
+                  - 'link "Permalink: Teams" [ref=e642] [cursor=pointer]':
+                    - /url: "#teams"
+                    - img [ref=e643]
+                - table [ref=e646]:
+                  - rowgroup [ref=e647]:
+                    - row "Team Plays Role in the system" [ref=e648]:
+                      - columnheader "Team" [ref=e649]
+                      - columnheader "Plays" [ref=e650]
+                      - columnheader "Role in the system" [ref=e651]
+                  - rowgroup [ref=e652]:
+                    - row "Blue Sets the agenda with economic statecraft" [ref=e653]:
+                      - cell "Blue" [ref=e654]:
+                        - strong [ref=e655]: Blue
+                      - cell "Sets the agenda with economic statecraft" [ref=e656]
+                      - cell [ref=e657]
+                    - row "Green The swing weight whose alignment decides the outcome" [ref=e658]:
+                      - cell "Green" [ref=e659]:
+                        - strong [ref=e660]: Green
+                      - cell "The swing weight whose alignment decides the outcome" [ref=e661]
+                      - cell [ref=e662]
+                    - row "Red Contests Blue, courts or coerces Green Defines antagonistic objectives within the simulation" [ref=e663]:
+                      - cell "Red" [ref=e664]:
+                        - strong [ref=e665]: Red
+                      - cell "Contests Blue, courts or coerces Green" [ref=e666]
+                      - cell "Defines antagonistic objectives within the simulation" [ref=e667]
+                    - row "White Cell Control & adjudication Clarifies requests, scores effects, paces and resets the scene" [ref=e668]:
+                      - cell "White Cell" [ref=e669]:
+                        - strong [ref=e670]: White Cell
+                      - cell "Control & adjudication" [ref=e671]
+                      - cell "Clarifies requests, scores effects, paces and resets the scene" [ref=e672]
+                - paragraph [ref=e673]: Supporting roles include a facilitator, facilitator assistants, IT/AV support, and notetakers seated with each team.
+                - generic [ref=e674]:
+                  - heading "How a game runs" [level=2] [ref=e675]
+                  - 'link "Permalink: How a game runs" [ref=e676] [cursor=pointer]':
+                    - /url: "#how-a-game-runs"
+                    - img [ref=e677]
+                - paragraph [ref=e679]:
+                  - text: Three
+                  - strong [ref=e680]: MOVES
+                  - text: ", each following the same loop and separated by plenary adjudication:"
+                - list [ref=e681]:
+                  - listitem [ref=e682]:
+                    - strong [ref=e683]: Orient
+                    - text: to the current scene
+                  - listitem [ref=e684]:
+                    - strong [ref=e685]: Deliberate
+                    - text: within the team
+                  - listitem [ref=e686]:
+                    - strong [ref=e687]: Act
+                    - text: "- Blue selects instruments and targets; Red responds and works Green directly; Green answers the three standing questions ("
+                    - emphasis [ref=e688]: How are you positioned? What changes with Blue? What changes with Red?
+                    - text: )
+                  - listitem [ref=e689]:
+                    - strong [ref=e690]: Adjudicate
+                    - text: in plenary, where the White Cell scores effects and sets the next scene
+                - paragraph [ref=e691]: A closing hot wash reviews where cohesion held, where it cracked, which levers bit, and what each side could have done differently.
+                - separator [ref=e692]
+                - generic [ref=e693]:
+                  - heading "Repository contents" [level=2] [ref=e694]
+                  - 'link "Permalink: Repository contents" [ref=e695] [cursor=pointer]':
+                    - /url: "#repository-contents"
+                    - img [ref=e696]
+                - generic [ref=e698]:
+                  - code [ref=e700]: ". |-- decks/ Facilitator support folders (HTML slide viewers) | |-- fractured-order-facilitator-deck.html # Blue team | |-- fractured-order-green-facilitator-deck.html # Green team | `-- fractured-order-red-facilitator-deck.html # Red team |-- platform/ Plenum delivery platform | |-- index.html Landing + boot loader, session join | `-- src/ Frontend modules and role surfaces `-- docs/ Player's guide, scenario, reference matrices"
+                  - button "Copy code to clipboard" [ref=e702] [cursor=pointer]:
+                    - img [ref=e703]
+                - blockquote [ref=e706]:
+                  - paragraph [ref=e707]: Adjust the tree above to match your actual layout - this reflects the materials produced so far.
+                - generic [ref=e708]:
+                  - heading "Facilitator decks" [level=3] [ref=e709]
+                  - 'link "Permalink: Facilitator decks" [ref=e710] [cursor=pointer]':
+                    - /url: "#facilitator-decks"
+                    - img [ref=e711]
+                - paragraph [ref=e713]: "Each team has its own self-contained facilitator deck: a slide viewer with a sidebar table of contents, arrow/keyboard navigation, a clickable progress bar, and a fullscreen present mode. The slides are native HTML (editable text, not images), with a single team-accent CSS variable."
+                - paragraph [ref=e714]: Open any deck file directly in a browser - no build step or server required.
+                - table [ref=e716]:
+                  - rowgroup [ref=e717]:
+                    - row "Key Action" [ref=e718]:
+                      - columnheader "Key" [ref=e719]
+                      - columnheader "Action" [ref=e720]
+                  - rowgroup [ref=e721]:
+                    - row "ArrowRight / Space / PageDown Next slide" [ref=e722]:
+                      - cell "ArrowRight / Space / PageDown" [ref=e723]:
+                        - code [ref=e724]: ArrowRight
+                        - text: /
+                        - code [ref=e725]: Space
+                        - text: /
+                        - code [ref=e726]: PageDown
+                      - cell "Next slide" [ref=e727]
+                    - row "ArrowLeft / PageUp Previous slide" [ref=e728]:
+                      - cell "ArrowLeft / PageUp" [ref=e729]:
+                        - code [ref=e730]: ArrowLeft
+                        - text: /
+                        - code [ref=e731]: PageUp
+                      - cell "Previous slide" [ref=e732]
+                    - row "Home / End First / last slide" [ref=e733]:
+                      - cell "Home / End" [ref=e734]:
+                        - code [ref=e735]: Home
+                        - text: /
+                        - code [ref=e736]: End
+                      - cell "First / last slide" [ref=e737]
+                    - row "F Toggle fullscreen present mode" [ref=e738]:
+                      - cell "F" [ref=e739]:
+                        - code [ref=e740]: F
+                      - cell "Toggle fullscreen present mode" [ref=e741]
+                    - row "Esc Exit fullscreen" [ref=e742]:
+                      - cell "Esc" [ref=e743]:
+                        - code [ref=e744]: Esc
+                      - cell "Exit fullscreen" [ref=e745]
+                - generic [ref=e746]:
+                  - heading "Plenum platform" [level=3] [ref=e747]
+                  - 'link "Permalink: Plenum platform" [ref=e748] [cursor=pointer]':
+                    - /url: "#plenum-platform"
+                    - img [ref=e749]
+                - paragraph [ref=e751]:
+                  - text: "The web delivery layer for running the game live: a"
+                  - strong [ref=e752]: Vite
+                  - text: frontend with a
+                  - strong [ref=e753]: Supabase
+                  - text: backend, session-code access, realtime state push, and JSON export of game state for post-game analysis. Teams join by session code and select their team and role from the landing page.
+                - paragraph [ref=e754]:
+                  - text: Dedicated facilitator, notetaker, and scribe role surfaces live under
+                  - code [ref=e755]: teams/<team>/
+                  - text: . Scribe shells share the common modal stylesheet so logout and confirmation dialogs render consistently with the rest of the platform.
+                - paragraph [ref=e756]:
+                  - text: Platform entry-point HTML files use
+                  - code [ref=e757]: src/img/FO_icon.ico
+                  - text: as the browser favicon, with nested team and deck pages referencing the asset by relative path.
+                - paragraph [ref=e758]:
+                  - text: Each role surface mounts a role-specific onboarding guide above the sidebar session label. The guide explains the role's main workflow plus the live move, phase, and timer indicators. When collapsed or completed, it remains available as
+                  - code [ref=e759]: Start Here
+                  - text: so users can reopen the role reference without logging out and joining again.
+                - paragraph [ref=e760]: The White Cell guide explicitly walks operators through game controls, session operations, Blue actions, Green proposals, Red move responses, Tribe Street Journal, Verba AI sentiment updates, RFIs, communications, the session timeline, and queue notification muting.
+                - paragraph [ref=e761]: The Blue facilitator guide explicitly walks facilitators through strategic actions, RFIs, White Cell responses, received proposals, Tribe Street Journal, Verba AI sentiment updates, the timeline, and Quick Capture.
+                - paragraph [ref=e762]: The Green facilitator guide follows the same full tour pattern with proposal-specific guidance for drafting, White Cell review, forwarded proposal responses, RFIs, updates, timeline review, and Quick Capture.
+                - paragraph [ref=e763]: The Red facilitator guide follows the same full tour pattern with move-response-specific guidance for responding to Blue moves, White Cell review, forwarded proposals, RFIs, updates, timeline review, and Quick Capture.
+                - paragraph [ref=e764]:
+                  - text: The facilitator
+                  - code [ref=e765]: Responses
+                  - text: feed separates direct White Cell communications, RFI answers, White Cell updates, and forwarded proposals into horizontal labelled groups so facilitators can scan each response type independently.
+                - paragraph [ref=e766]: Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped and labeled by the selected or active session so operators can distinguish seats across concurrent exercises.
+                - paragraph [ref=e767]: White Cell scribe deck controls render default team decks immediately while live communications hydrate. Browser-uploaded decks remain same-device cache assignments; blocked browser storage and stalled repo deck validation must fail with an operator-visible error rather than leaving the deck workflow in a loading state.
+                - paragraph [ref=e768]:
+                  - text: Scribe deck navigation is split into distinct
+                  - code [ref=e769]: Actions
+                  - text: and
+                  - code [ref=e770]: Deck
+                  - text: "groups with a deliberate spacer between them. The section nav follows the minimalist facilitator sidebar pattern: unframed groups, compact rows, a single current-row rail marker, and no separate accented action-card treatment. Each section can be expanded or collapsed independently; closing the active section must not force another section open."
+                - paragraph [ref=e771]: White Cell operators can mute queue arrival notifications from the header. Muting suppresses the toast interruption only; sidebar counts and in-queue NEW labels remain visible so adjudication awareness is not lost.
+                - paragraph [ref=e772]: The Blue Team action builder includes inline helper text for Objective and Expected Outcomes so facilitators distinguish intended goals from anticipated downstream effects.
+                - generic [ref=e773]:
+                  - heading "UI accessibility contracts" [level=3] [ref=e774]
+                  - 'link "Permalink: UI accessibility contracts" [ref=e775] [cursor=pointer]':
+                    - /url: "#ui-accessibility-contracts"
+                    - img [ref=e776]
+                - paragraph [ref=e778]:
+                  - text: Role-surface sidebars are hash-addressable section navigators. Activating a sidebar link updates the visible section, sets
+                  - code [ref=e779]: aria-current="page"
+                  - text: on the active link, preserves the section hash, and moves focus to the newly active section heading for keyboard and screen-reader orientation.
+                - paragraph [ref=e780]:
+                  - text: Landing and operator access validation must render persistent inline errors in addition to toast notifications. Invalid fields set
+                  - code [ref=e781]: aria-invalid
+                  - text: ", point at their error region with"
+                  - code [ref=e782]: aria-describedby
+                  - text: ", and keep the error visible until the user changes that field."
+                - paragraph [ref=e783]:
+                  - text: Repeated team forms use semantic fieldsets for capture-type radio groups and explicit
+                  - code [ref=e784]: for
+                  - text: /
+                  - code [ref=e785]: id
+                  - text: label bindings for textareas, sliders, and other controls.
+                - paragraph [ref=e786]:
+                  - text: "Scribe alert panels are real dialogs: the trigger owns the panel with"
+                  - code [ref=e787]: aria-controls
+                  - text: ", the panel has"
+                  - code [ref=e788]: role="dialog"
+                  - text: and
+                  - code [ref=e789]: aria-modal="true"
+                  - text: ", focus moves into the dialog on open,"
+                  - code [ref=e790]: Tab
+                  - text: wraps within it,
+                  - code [ref=e791]: Escape
+                  - text: closes it, and focus returns to the trigger.
+                - paragraph [ref=e792]:
+                  - text: Game Master create-session modal controls use modal-scoped IDs (
+                  - code [ref=e793]: newSessionName
+                  - text: ","
+                  - code [ref=e794]: newSessionCode
+                  - text: ", and"
+                  - code [ref=e795]: newSessionDescription
+                  - text: ) so they do not collide with the sidebar session label IDs.
+                - paragraph [ref=e796]:
+                  - text: Inline SVG icons in role and operator shells are decorative by default. They must include
+                  - code [ref=e797]: aria-hidden="true"
+                  - text: and
+                  - code [ref=e798]: focusable="false"
+                  - text: unless a future icon is intentionally named and exposed.
+                - paragraph [ref=e799]: Browser-facing UI source is guarded against common mojibake markers, including corrupted dash/apostrophe bytes and Unicode replacement characters.
+                - separator [ref=e800]
+                - generic [ref=e801]:
+                  - heading "Running a session" [level=2] [ref=e802]
+                  - 'link "Permalink: Running a session" [ref=e803] [cursor=pointer]':
+                    - /url: "#running-a-session"
+                    - img [ref=e804]
+                - paragraph [ref=e806]:
+                  - strong [ref=e807]: Tabletop / projector only.
+                  - text: Open the relevant facilitator deck in a browser, present fullscreen, and run the three-move loop from the schedule slides. This needs nothing beyond a browser.
+                - paragraph [ref=e808]:
+                  - strong [ref=e809]: Platform-backed.
+                  - text: Stand up the Plenum frontend and point it at a Supabase project, then share the session code with players. See
+                  - code [ref=e810]: platform/
+                  - text: for setup.
+                - generic [ref=e811]:
+                  - generic [ref=e812]:
+                    - generic [ref=e813]: "# from platform/"
+                    - text: npm install npm run dev
+                    - generic [ref=e814]: "# local development"
+                    - text: npm run build
+                    - generic [ref=e815]: "# production build"
+                  - button "Copy code to clipboard" [ref=e817] [cursor=pointer]:
+                    - img [ref=e818]
+                - paragraph [ref=e821]:
+                  - text: Provide Supabase credentials via environment variables (see
+                  - code [ref=e822]: platform/.env.example
+                  - text: ).
+                - separator [ref=e823]
+                - generic [ref=e824]:
+                  - heading "Credits" [level=2] [ref=e825]
+                  - 'link "Permalink: Credits" [ref=e826] [cursor=pointer]':
+                    - /url: "#credits"
+                    - img [ref=e827]
+                - paragraph [ref=e829]:
+                  - text: Developed by Sethu Nguna for the
+                  - strong [ref=e830]: Statecraft Simulations Group
+                  - text: ", William & Mary (2026)."
+        - generic [ref=e834]:
+          - generic [ref=e837]:
+            - heading "About" [level=2] [ref=e838]
+            - paragraph [ref=e839]: A William & Mary SSG seminar simulation on strategic competition (economic statecraft), built on the Plenum platform.
+            - generic [ref=e840]:
+              - img [ref=e841]
+              - link "ssgwm25.github.io/Fractured-Order/" [ref=e844] [cursor=pointer]:
+                - /url: https://ssgwm25.github.io/Fractured-Order/
+            - heading "Topics" [level=3] [ref=e845]
+            - generic [ref=e847]:
+              - link "simulation-environment" [ref=e848] [cursor=pointer]:
+                - /url: /topics/simulation-environment
+              - link "simulation-game" [ref=e849] [cursor=pointer]:
+                - /url: /topics/simulation-game
+              - link "statecraftsim" [ref=e850] [cursor=pointer]:
+                - /url: /topics/statecraftsim
+            - heading "Resources" [level=3] [ref=e851]
+            - link "Readme" [ref=e853] [cursor=pointer]:
+              - /url: "#readme-ov-file"
+              - img [ref=e854]
+              - text: Readme
+            - link "Activity" [ref=e857] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/activity
+              - img [ref=e858]
+              - text: Activity
+            - heading "Stars" [level=3] [ref=e860]
+            - link "0 stars" [ref=e862] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/stargazers
+              - img [ref=e863]
+              - strong [ref=e865]: "0"
+              - text: stars
+            - heading "Watchers" [level=3] [ref=e866]
+            - link "0 watching" [ref=e868] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/watchers
+              - img [ref=e869]
+              - strong [ref=e871]: "0"
+              - text: watching
+            - heading "Forks" [level=3] [ref=e872]
+            - link "0 forks" [ref=e874] [cursor=pointer]:
+              - /url: /ssgwm25/Fractured-Order/forks
+              - img [ref=e875]
+              - strong [ref=e877]: "0"
+              - text: forks
+            - link "Report repository" [ref=e879] [cursor=pointer]:
+              - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Fssgwm25%2FFractured-Order&report=ssgwm25+%28user%29
+          - generic [ref=e881]:
+            - heading "Contributors" [level=2] [ref=e882]:
+              - link "Contributors" [ref=e883] [cursor=pointer]:
+                - /url: /ssgwm25/Fractured-Order/graphs/contributors
+            - generic [ref=e884]: No contributors
+          - generic [ref=e886]:
+            - heading "Languages" [level=2] [ref=e887]
+            - list [ref=e893]:
+              - listitem [ref=e894]:
+                - generic [ref=e895]:
+                  - img [ref=e896]
+                  - generic [ref=e898]: HTML
+                  - generic [ref=e899]: 94.0%
+              - listitem [ref=e900]:
+                - generic [ref=e901]:
+                  - img [ref=e902]
+                  - generic [ref=e904]: JavaScript
+                  - generic [ref=e905]: 4.9%
+              - listitem [ref=e906]:
+                - generic [ref=e907]:
+                  - img [ref=e908]
+                  - generic [ref=e910]: Other
+                  - generic [ref=e911]: 1.1%
+  - contentinfo [ref=e913]:
+    - heading "Footer" [level=2] [ref=e914]
+    - generic [ref=e915]:
+      - generic [ref=e916]:
+        - link "GitHub Homepage" [ref=e917] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e918]
+        - generic [ref=e920]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e921]:
+        - heading "Footer navigation" [level=3] [ref=e922]
+        - list "Footer navigation" [ref=e923]:
+          - listitem [ref=e924]:
+            - link "Terms" [ref=e925] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e926]:
+            - link "Privacy" [ref=e927] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e928]:
+            - link "Security" [ref=e929] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e930]:
+            - link "Status" [ref=e931] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e932]:
+            - link "Community" [ref=e933] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e934]:
+            - link "Docs" [ref=e935] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e936]:
+            - link "Contact" [ref=e937] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e938]:
+            - button "Manage cookies" [ref=e940] [cursor=pointer]
+          - listitem [ref=e941]:
+            - button "Do not share my personal information" [ref=e943] [cursor=pointer]

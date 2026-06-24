@@ -21,6 +21,7 @@ export {
     RESEARCH_EXPORT_SCHEMA_VERSION,
     RESEARCH_EXPORT_FORMAT_REVISION,
     buildResearchExportBundle,
+    buildCrossSessionResearchExportBundle,
     buildResearchReportHtml,
     createResearchExportArchiveBlob,
     downloadResearchExportArchive,

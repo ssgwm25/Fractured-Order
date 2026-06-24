@@ -94,6 +94,23 @@ White Cell operators can mute queue arrival notifications from the header. Mutin
 
 The Blue Team action builder includes inline helper text for Objective and Expected Outcomes so facilitators distinguish intended goals from anticipated downstream effects.
 
+### Research exports
+
+Game Master and White Cell export controls can generate a research ZIP for the selected session when research capture mode is enabled. The bundle includes the legacy JSON/CSV extracts plus a reproducible research archive: manifest, codebook, checksums, event log, participant metrics, action/proposal/RFI content, interaction edges, state transitions, decision lineage, scenario context, and a data-quality summary.
+
+The bundle now includes audience-specific reports under `reports/`:
+
+| Report | Primary audience |
+|--------|------------------|
+| `policy_brief.html` | Policy makers reviewing instruments, partner alignment, and constraints |
+| `strategic_leader_brief.html` | Strategic leaders reviewing tempo, interaction flow, and decision highlights |
+| `training_evaluator_report.html` | Evaluators reviewing participant behavior, timing, and training evidence |
+| `analyst_report.html` | Analysts reviewing row counts, coverage, lineage, and reproducibility |
+
+`data_quality_summary.json` is the first stop before quantitative use. It records capture mode, derived-table fallback use, table coverage, notes appendix state, integrity references, and whether cross-session comparison is ready, limited, or not recommended. `decision_lineage.csv/json` links submitted artifacts to related RFIs, communications, review timestamps, and event IDs without claiming automatic causality. `scenario_context.json` records the session, runtime state, observed teams/moves, scenario messages, scribe deck assignments, and observed objectives.
+
+For multi-run analysis, `buildCrossSessionResearchExportBundle()` in `src/features/export/index.js` builds an aggregate archive from existing session bundles or already-built research exports. It emits `cross_session_index.csv/json`, `cross_session_data_quality.json`, and nests each session bundle under `sessions/`.
+
 ### UI accessibility contracts
 
 Role-surface sidebars are hash-addressable section navigators. Activating a sidebar link updates the visible section, sets `aria-current="page"` on the active link, preserves the section hash, and moves focus to the newly active section heading for keyboard and screen-reader orientation.

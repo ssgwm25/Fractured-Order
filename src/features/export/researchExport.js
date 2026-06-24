@@ -26,8 +26,8 @@ import { AIDDATA_LOGO_DATA_URI, SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
-export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.2.0';
-export const RESEARCH_EXPORT_FORMAT_REVISION = 3;
+export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.3.0';
+export const RESEARCH_EXPORT_FORMAT_REVISION = 4;
 
 const HASHED_EVENT_FIELDS = [
     'event_id',
@@ -309,6 +309,43 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'rfis_raised',
         'communications_sent',
         'mean_proposal_response_latency_s'
+    ],
+    decision_lineage: [
+        'lineage_id',
+        'session_id',
+        'root_entity_type',
+        'root_entity_id',
+        'move_number',
+        'source_team',
+        'current_state',
+        'created_utc',
+        'submitted_utc',
+        'reviewed_utc',
+        'related_rfi_ids',
+        'related_communication_ids',
+        'related_response_ids',
+        'related_event_ids',
+        'evidence_summary'
+    ],
+    cross_session_index: [
+        'session_id',
+        'session_name',
+        'capture_mode',
+        'generated_at_utc',
+        'session_duration_s',
+        'moves_count',
+        'participants_active',
+        'total_events',
+        'actions_submitted',
+        'actions_adjudicated',
+        'proposals_submitted',
+        'proposals_forwarded',
+        'rfis_raised',
+        'communications_sent',
+        'mean_proposal_response_latency_s',
+        'data_quality_readiness',
+        'event_log_checksum',
+        'report_ref'
     ]
 });
 
@@ -1863,6 +1900,711 @@ function buildDerivedSessionMetrics({
     ];
 }
 
+function countByValue(rows = [], selector) {
+    return safeArray(rows).reduce((counts, row) => {
+        const rawValue = typeof selector === 'function' ? selector(row) : row?.[selector];
+        const key = String(rawValue || 'unknown').trim().toLowerCase() || 'unknown';
+        counts[key] = (counts[key] || 0) + 1;
+        return counts;
+    }, {});
+}
+
+function uniqueSortedValues(rows = [], selector) {
+    return [...new Set(
+        safeArray(rows)
+            .map((row) => (typeof selector === 'function' ? selector(row) : row?.[selector]))
+            .filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
+            .map((value) => String(value).trim().toLowerCase())
+    )].sort((left, right) => left.localeCompare(right));
+}
+
+function buildResearchTableCoverage({
+    bundle,
+    eventLog,
+    participantRows,
+    notes,
+    noteRevisions,
+    draftRevisions,
+    stateTransitions,
+    actionContent,
+    proposalContent,
+    adjudicationContent,
+    moveResponseContent,
+    rfiContent,
+    interactionEdges,
+    dataQualityEvents,
+    derivedParticipantMetrics,
+    derivedSessionMetrics,
+    decisionLineage
+}) {
+    const rowsByTable = {
+        event_log: eventLog,
+        participants: participantRows,
+        notes,
+        note_revisions: noteRevisions,
+        drafts_revisions: draftRevisions,
+        state_transitions: stateTransitions,
+        action_content: actionContent,
+        proposal_content: proposalContent,
+        adjudication_content: adjudicationContent,
+        move_response_content: moveResponseContent,
+        rfi_content: rfiContent,
+        interaction_edges: interactionEdges,
+        data_quality_events: dataQualityEvents,
+        derived_participant_metrics: derivedParticipantMetrics,
+        derived_session_metrics: derivedSessionMetrics,
+        decision_lineage: decisionLineage
+    };
+    const explicitResearchRows = {
+        event_log: safeArray(bundle.researchAuditEventLog).length,
+        participants: safeArray(bundle.researchParticipants).length,
+        notes: safeArray(bundle.researchNotes).length,
+        note_revisions: safeArray(bundle.researchNoteRevisions).length,
+        drafts_revisions: safeArray(bundle.researchDraftRevisions).length,
+        state_transitions: safeArray(bundle.researchStateTransitions).length,
+        action_content: safeArray(bundle.researchActionContent).length,
+        proposal_content: safeArray(bundle.researchProposalContent).length,
+        adjudication_content: safeArray(bundle.researchAdjudicationContent).length,
+        move_response_content: safeArray(bundle.researchMoveResponseContent).length,
+        rfi_content: safeArray(bundle.researchRfiContent).length,
+        interaction_edges: safeArray(bundle.researchInteractionEdges).length,
+        data_quality_events: safeArray(bundle.researchDataQualityEvents).length,
+        derived_participant_metrics: safeArray(bundle.researchDerivedParticipantMetrics).length,
+        derived_session_metrics: safeArray(bundle.researchDerivedSessionMetrics).length
+    };
+    const derivedTables = new Set([
+        'event_log',
+        'participants',
+        'notes',
+        'note_revisions',
+        'drafts_revisions',
+        'state_transitions',
+        'action_content',
+        'proposal_content',
+        'adjudication_content',
+        'move_response_content',
+        'rfi_content',
+        'interaction_edges',
+        'data_quality_events',
+        'derived_participant_metrics',
+        'derived_session_metrics',
+        'decision_lineage'
+    ]);
+    const criticalTables = new Set(['event_log', 'participants', 'action_content', 'decision_lineage']);
+
+    return Object.entries(rowsByTable).map(([tableName, rows]) => {
+        const rowCount = safeArray(rows).length;
+        const explicitCount = explicitResearchRows[tableName] || 0;
+        const source = explicitCount
+            ? 'research_table'
+            : (derivedTables.has(tableName) ? 'derived_at_export' : 'not_available');
+
+        return {
+            table_name: tableName,
+            rows: rowCount,
+            source,
+            status: rowCount ? 'present' : 'empty',
+            critical: criticalTables.has(tableName)
+        };
+    });
+}
+
+function resolveReadinessStatus(limitations = [], eventLog = []) {
+    if (!safeArray(eventLog).length) {
+        return 'not_recommended';
+    }
+
+    return limitations.length ? 'limited' : 'ready';
+}
+
+function buildDataQualitySummary({
+    bundle,
+    manifest,
+    eventLog,
+    participantRows,
+    notes,
+    noteRevisions,
+    draftRevisions,
+    stateTransitions,
+    actionContent,
+    proposalContent,
+    adjudicationContent,
+    moveResponseContent,
+    rfiContent,
+    interactionEdges,
+    dataQualityEvents,
+    derivedParticipantMetrics,
+    derivedSessionMetrics,
+    decisionLineage,
+    includeNotesAppendix
+}) {
+    const tableCoverage = buildResearchTableCoverage({
+        bundle,
+        eventLog,
+        participantRows,
+        notes,
+        noteRevisions,
+        draftRevisions,
+        stateTransitions,
+        actionContent,
+        proposalContent,
+        adjudicationContent,
+        moveResponseContent,
+        rfiContent,
+        interactionEdges,
+        dataQualityEvents,
+        derivedParticipantMetrics,
+        derivedSessionMetrics,
+        decisionLineage
+    });
+    const limitations = [];
+    const fallbackUsage = tableCoverage
+        .filter((entry) => entry.source === 'derived_at_export')
+        .map((entry) => entry.table_name);
+
+    if (manifest.capture_mode !== 'research') {
+        limitations.push('Capture mode is not research; use qualitative findings cautiously.');
+    }
+    if (!safeArray(bundle.researchAuditEventLog).length) {
+        limitations.push('Event log was derived from legacy session tables instead of the append-only research audit spine.');
+    }
+    if (!participantRows.length) {
+        limitations.push('No participant rows were available, so role and seat engagement analysis is incomplete.');
+    }
+    if (safeArray(dataQualityEvents).length) {
+        limitations.push('Data quality events were observed; review gaps before quantitative comparison.');
+    }
+    if (!safeArray(decisionLineage).length) {
+        limitations.push('No decision lineage rows were available for trace-based analysis.');
+    }
+
+    const readinessStatus = resolveReadinessStatus(limitations, eventLog);
+    const gapValues = safeArray(dataQualityEvents)
+        .map((event) => Number(event.gap_seconds))
+        .filter((value) => Number.isFinite(value));
+
+    return {
+        schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
+        generated_at_utc: manifest.generated_at_utc,
+        session_id: manifest.session_id,
+        capture_mode: manifest.capture_mode,
+        quantitative_comparison_readiness: {
+            status: readinessStatus,
+            limitations,
+            recommended_uses: readinessStatus === 'not_recommended'
+                ? ['Qualitative after-action review only']
+                : [
+                    'single-session reconstruction',
+                    'training debrief',
+                    readinessStatus === 'ready' ? 'cross-session quantitative comparison' : 'limited cross-session comparison with caveats'
+                ],
+            unsupported_uses: [
+                'identity re-identification',
+                'causal attribution without facilitator review',
+                'performance ranking without rubric calibration'
+            ]
+        },
+        coverage: {
+            table_coverage: tableCoverage,
+            teams_observed: uniqueSortedValues([
+                ...participantRows,
+                ...actionContent.map((row) => ({ team: row.author_team })),
+                ...proposalContent.map((row) => ({ team: row.author_team })),
+                ...moveResponseContent.map((row) => ({ team: row.author_team })),
+                ...rfiContent.map((row) => ({ team: row.requester_team }))
+            ], 'team'),
+            moves_observed: uniqueSortedValues([
+                ...actionContent,
+                ...proposalContent,
+                ...moveResponseContent,
+                ...rfiContent,
+                ...eventLog
+            ], (row) => row.move_number).map((value) => Number(value)).filter((value) => Number.isFinite(value)),
+            fallback_usage: fallbackUsage
+        },
+        data_quality_events: {
+            total: safeArray(dataQualityEvents).length,
+            by_type: countByValue(dataQualityEvents, 'event_type'),
+            max_gap_seconds: gapValues.length ? Math.max(...gapValues) : null,
+            events_ref: 'data_quality_events.csv'
+        },
+        privacy: {
+            participant_identity: 'pseudonymized',
+            identity_map_exported: false,
+            notes_appendix_included: Boolean(includeNotesAppendix)
+        },
+        integrity: {
+            event_log_chain: manifest.event_log_chain,
+            checksums_ref: 'checksums.sha256',
+            manifest_ref: 'manifest.json',
+            codebook_ref: manifest.codebook_ref
+        }
+    };
+}
+
+function idsForRows(rows = [], fieldName = 'id') {
+    return uniqueSortedValues(rows, fieldName);
+}
+
+function uniqueSortedList(values = []) {
+    return [...new Set(
+        safeArray(values)
+            .filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
+            .map((value) => String(value).trim())
+    )].sort((left, right) => left.localeCompare(right));
+}
+
+function buildRelatedEventIds(eventLog = [], entityId = null) {
+    if (!entityId) {
+        return [];
+    }
+
+    return safeArray(eventLog)
+        .filter((event) => (
+            event?.entity_id === entityId
+            || event?.correlation_id === entityId
+        ))
+        .map((event) => event.event_id)
+        .filter((eventId) => eventId !== null && eventId !== undefined);
+}
+
+function buildDecisionLineage({
+    sessionId,
+    actionContent,
+    proposalContent,
+    adjudicationContent,
+    moveResponseContent,
+    rfiContent,
+    interactionEdges,
+    communications,
+    eventLog
+}) {
+    const adjudicationByTargetId = new Map(
+        safeArray(adjudicationContent).map((entry) => [entry.target_entity_id, entry])
+    );
+    const edgesByEntityId = new Map();
+    safeArray(interactionEdges).forEach((edge) => {
+        if (!edge?.entity_id) {
+            return;
+        }
+        if (!edgesByEntityId.has(edge.entity_id)) {
+            edgesByEntityId.set(edge.entity_id, []);
+        }
+        edgesByEntityId.get(edge.entity_id).push(edge);
+    });
+
+    const rows = [];
+    const addRow = (row) => {
+        rows.push({
+            lineage_id: `${row.root_entity_type}-${row.root_entity_id || rows.length + 1}`,
+            session_id: sessionId,
+            related_rfi_ids: [],
+            related_communication_ids: [],
+            related_response_ids: [],
+            related_event_ids: [],
+            ...row
+        });
+    };
+
+    safeArray(actionContent).forEach((action) => {
+        const adjudication = adjudicationByTargetId.get(action.action_id);
+        const relatedRfis = safeArray(rfiContent).filter((rfi) => (
+            rfi.move_number === action.move_number
+            && rfi.requester_team === action.author_team
+        ));
+
+        addRow({
+            root_entity_type: 'action',
+            root_entity_id: action.action_id,
+            move_number: action.move_number,
+            source_team: action.author_team,
+            current_state: action.final_status || adjudication?.ruling || 'submitted',
+            created_utc: null,
+            submitted_utc: action.submitted_utc,
+            reviewed_utc: adjudication?.adjudicated_utc || null,
+            related_rfi_ids: idsForRows(relatedRfis, 'rfi_id'),
+            related_event_ids: buildRelatedEventIds(eventLog, action.action_id),
+            evidence_summary: [
+                action.title || 'Action',
+                action.action_type ? `instrument=${action.action_type}` : '',
+                adjudication?.ruling ? `ruling=${adjudication.ruling}` : ''
+            ].filter(Boolean).join('; ')
+        });
+    });
+
+    safeArray(proposalContent).forEach((proposal) => {
+        const proposalEdges = edgesByEntityId.get(proposal.proposal_id) || [];
+        const proposalCommunications = safeArray(communications).filter((communication) => (
+            safeObject(communication?.metadata).source_proposal_id === proposal.proposal_id
+        ));
+
+        addRow({
+            root_entity_type: 'proposal',
+            root_entity_id: proposal.proposal_id,
+            move_number: proposal.move_number,
+            source_team: proposal.author_team,
+            current_state: proposal.final_recipient_state || proposal.review_decision || 'submitted',
+            created_utc: null,
+            submitted_utc: proposal.submitted_utc,
+            reviewed_utc: proposal.reviewed_utc,
+            related_communication_ids: uniqueSortedList([
+                ...idsForRows(proposalEdges, 'edge_id'),
+                ...idsForRows(proposalCommunications, 'id')
+            ]),
+            related_event_ids: buildRelatedEventIds(eventLog, proposal.proposal_id),
+            evidence_summary: [
+                proposal.title || 'Proposal',
+                proposal.intended_recipient_team ? `intended_recipient=${proposal.intended_recipient_team}` : '',
+                proposal.forwarded_to_team ? `forwarded_to=${proposal.forwarded_to_team}` : '',
+                proposal.final_recipient_state ? `recipient_state=${proposal.final_recipient_state}` : ''
+            ].filter(Boolean).join('; ')
+        });
+    });
+
+    safeArray(moveResponseContent).forEach((response) => {
+        addRow({
+            root_entity_type: 'move_response',
+            root_entity_id: response.move_response_id,
+            move_number: response.move_number,
+            source_team: response.author_team,
+            current_state: response.review_state || 'submitted',
+            created_utc: null,
+            submitted_utc: response.submitted_utc,
+            reviewed_utc: null,
+            related_event_ids: buildRelatedEventIds(eventLog, response.move_response_id),
+            evidence_summary: [
+                safeObject(response.full_content).goal || 'Move response',
+                response.posture ? `posture=${response.posture}` : '',
+                response.responding_to_entity_type ? `responding_to=${response.responding_to_entity_type}` : ''
+            ].filter(Boolean).join('; ')
+        });
+    });
+
+    safeArray(rfiContent).forEach((rfi) => {
+        const rfiEdges = edgesByEntityId.get(rfi.rfi_id) || [];
+        const rfiCommunications = safeArray(communications).filter((communication) => (
+            communication?.linked_request_id === rfi.rfi_id
+            || safeObject(communication?.metadata).linked_request_id === rfi.rfi_id
+        ));
+
+        addRow({
+            root_entity_type: 'rfi',
+            root_entity_id: rfi.rfi_id,
+            move_number: rfi.move_number,
+            source_team: rfi.requester_team,
+            current_state: rfi.status || 'raised',
+            created_utc: rfi.raised_utc,
+            submitted_utc: rfi.raised_utc,
+            reviewed_utc: rfi.answered_utc,
+            related_communication_ids: uniqueSortedList([
+                ...idsForRows(rfiEdges, 'edge_id'),
+                ...idsForRows(rfiCommunications, 'id')
+            ]),
+            related_event_ids: buildRelatedEventIds(eventLog, rfi.rfi_id),
+            evidence_summary: [
+                'RFI',
+                rfi.question_text ? `question=${rfi.question_text}` : '',
+                rfi.answer_text ? 'answered=true' : 'answered=false'
+            ].filter(Boolean).join('; ')
+        });
+    });
+
+    return rows.sort((left, right) => (
+        (left.move_number || 0) - (right.move_number || 0)
+        || String(left.root_entity_type || '').localeCompare(String(right.root_entity_type || ''))
+        || String(left.root_entity_id || '').localeCompare(String(right.root_entity_id || ''))
+    ));
+}
+
+function buildScenarioContext(bundle = {}, {
+    manifest,
+    actionContent,
+    proposalContent,
+    moveResponseContent,
+    rfiContent,
+    interactionEdges
+}) {
+    const communications = safeArray(bundle.communications);
+    const scenarioMessages = communications.filter((communication) => (
+        ['INJECT', 'ANNOUNCEMENT', 'GUIDANCE', 'WHITE_CELL_UPDATE'].includes(String(communication?.type || '').toUpperCase())
+    ));
+    const deckAssignments = communications
+        .filter((communication) => safeObject(communication?.metadata).source === 'scribe_deck_assignment')
+        .map((communication) => ({
+            communication_id: communication.id || null,
+            team: safeObject(communication.metadata).team || safeObject(communication.metadata).recipient_team || communication.to_role || null,
+            deck_source: safeObject(communication.metadata).deck_source || null,
+            deck_path: safeObject(communication.metadata).deck_path || null,
+            deck_label: safeObject(communication.metadata).deck_label || null,
+            occurred_utc: asUtcIso(communication.created_at)
+        }));
+
+    return {
+        schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
+        generated_at_utc: manifest.generated_at_utc,
+        simulation_name: SIMULATION_NAME,
+        session: {
+            id: bundle.session?.id || null,
+            name: bundle.session?.name || null,
+            code: bundle.session?.metadata?.session_code || null,
+            description: bundle.session?.metadata?.description || null,
+            status: bundle.session?.status || null,
+            created_utc: asUtcIso(bundle.session?.created_at),
+            updated_utc: asUtcIso(bundle.session?.updated_at)
+        },
+        runtime: {
+            capture_mode: manifest.capture_mode,
+            software_build_hash: manifest.software_build_hash || null,
+            app_version: CONFIG.VERSION,
+            game_state: bundle.gameState || null
+        },
+        exercise_structure: {
+            declared_loop: ['orient', 'deliberate', 'act', 'adjudicate'],
+            observed_moves: uniqueSortedValues([
+                ...actionContent,
+                ...proposalContent,
+                ...moveResponseContent,
+                ...rfiContent
+            ], (row) => row.move_number).map((value) => Number(value)).filter((value) => Number.isFinite(value)),
+            observed_teams: uniqueSortedValues([
+                ...actionContent.map((row) => ({ team: row.author_team })),
+                ...proposalContent.map((row) => ({ team: row.author_team })),
+                ...moveResponseContent.map((row) => ({ team: row.author_team })),
+                ...rfiContent.map((row) => ({ team: row.requester_team })),
+                ...interactionEdges.map((row) => ({ team: row.source_team })),
+                ...interactionEdges.map((row) => ({ team: row.target_team }))
+            ], 'team')
+        },
+        scenario_messages: scenarioMessages.map((communication) => ({
+            communication_id: communication.id || null,
+            type: communication.type || null,
+            to_role: communication.to_role || null,
+            move_number: communication.move ?? null,
+            phase: communication.phase ?? null,
+            occurred_utc: asUtcIso(communication.created_at),
+            content_excerpt: String(communication.content || '').slice(0, 500)
+        })),
+        deck_assignments: deckAssignments,
+        observed_objectives: {
+            actions: actionContent.map((action) => ({
+                action_id: action.action_id,
+                move_number: action.move_number,
+                team: action.author_team,
+                title: action.title,
+                intent_text: action.intent_text
+            })),
+            proposals: proposalContent.map((proposal) => ({
+                proposal_id: proposal.proposal_id,
+                move_number: proposal.move_number,
+                team: proposal.author_team,
+                title: proposal.title,
+                objective: proposal.proposal_text,
+                intended_recipient_team: proposal.intended_recipient_team
+            })),
+            move_responses: moveResponseContent.map((response) => ({
+                move_response_id: response.move_response_id,
+                move_number: response.move_number,
+                team: response.author_team,
+                posture: response.posture,
+                response_text: response.response_text
+            }))
+        },
+        limitations: [
+            'Scenario context is reconstructed from session metadata, runtime state, communications, and submitted artifacts.',
+            'Static facilitator deck contents are not embedded unless they were recorded as session metadata or communications.'
+        ]
+    };
+}
+
+function renderPersonaHtml({
+    title,
+    subtitle,
+    manifest,
+    sections
+}) {
+    return `
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(title)}</title>
+    <style>
+        body { margin: 0; background: #f6f8fb; color: #1f2933; font-family: Arial, sans-serif; }
+        main { max-width: 980px; margin: 0 auto; padding: 40px 28px; background: #fff; min-height: 100vh; }
+        h1 { margin: 0 0 8px; font-size: 30px; }
+        h2 { margin-top: 32px; border-top: 1px solid #d9dee5; padding-top: 18px; font-size: 20px; }
+        p { line-height: 1.55; }
+        .muted { color: #52606d; }
+        .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 20px 0; }
+        .meta div { border: 1px solid #d9dee5; border-radius: 6px; padding: 10px; background: #f7f9fb; }
+        .meta dt { font-size: 11px; text-transform: uppercase; color: #52606d; }
+        .meta dd { margin: 4px 0 0; font-weight: 700; }
+        .report-summary-grid, .report-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+        .report-summary-card, .report-meta-item { border: 1px solid #d9dee5; border-radius: 6px; padding: 10px; background: #f7f9fb; }
+        .report-summary-label, .report-meta-item dt { margin: 0; font-size: 11px; text-transform: uppercase; color: #52606d; }
+        .report-summary-value, .report-meta-item dd { margin: 4px 0 0; font-weight: 700; }
+        .report-summary-detail { margin: 4px 0 0; color: #52606d; font-size: 12px; }
+        .report-table-wrap { overflow-x: auto; }
+        .report-empty { color: #52606d; font-style: italic; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        th, td { border-bottom: 1px solid #d9dee5; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #eef2f6; font-size: 11px; text-transform: uppercase; }
+        @media print { body { background: #fff; } main { padding: 0; max-width: none; } }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>${escapeHtml(title)}</h1>
+        <p class="muted">${escapeHtml(subtitle)}</p>
+        <dl class="meta">
+            <div><dt>Session</dt><dd>${escapeHtml(manifest.session_id || 'N/A')}</dd></div>
+            <div><dt>Generated UTC</dt><dd>${escapeHtml(formatReportTimestamp(manifest.generated_at_utc))}</dd></div>
+            <div><dt>Capture Mode</dt><dd>${escapeHtml(manifest.capture_mode || 'unknown')}</dd></div>
+            <div><dt>Schema</dt><dd>${escapeHtml(manifest.schema_version || 'unknown')}</dd></div>
+        </dl>
+        ${safeArray(sections).map((section) => `
+            <section>
+                <h2>${escapeHtml(section.title || '')}</h2>
+                ${section.html || ''}
+            </section>
+        `).join('')}
+    </main>
+</body>
+</html>
+    `.trim();
+}
+
+function buildPersonaReports(dataset = {}) {
+    const manifest = safeObject(dataset.manifest);
+    const sessionMetrics = safeArray(dataset.derivedSessionMetrics)[0] || {};
+    const dataQualityReadiness = safeObject(dataset.dataQualitySummary?.quantitative_comparison_readiness);
+    const lineageRows = safeArray(dataset.decisionLineage).slice(0, 30).map((row) => [
+        row.root_entity_type,
+        row.root_entity_id,
+        row.move_number,
+        row.source_team,
+        row.current_state,
+        row.evidence_summary
+    ]);
+    const actionRows = safeArray(dataset.actionContent).map((action) => [
+        action.move_number,
+        action.author_team,
+        action.action_type,
+        formatReportValue(action.targets, ''),
+        action.final_status,
+        action.intent_text
+    ]);
+    const proposalRows = safeArray(dataset.proposalContent).map((proposal) => [
+        proposal.move_number,
+        proposal.author_team,
+        proposal.intended_recipient_team,
+        proposal.review_decision,
+        proposal.final_recipient_state,
+        proposal.rationale
+    ]);
+    const participantRows = safeArray(dataset.derivedParticipantMetrics).map((participant) => [
+        participant.participant_pseudonym,
+        participant.role,
+        participant.team,
+        participant.events_count,
+        participant.submissions_count,
+        formatReportDuration(participant.mean_time_to_submit_s),
+        participant.disconnect_count
+    ]);
+    const rowCountRows = Object.entries(safeObject(manifest.row_counts))
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => [humanizeReportLabel(key), String(value)]);
+    const qualityRows = safeArray(dataset.dataQualitySummary?.coverage?.table_coverage).map((entry) => [
+        entry.table_name,
+        entry.rows,
+        entry.source,
+        entry.status,
+        entry.critical ? 'yes' : 'no'
+    ]);
+    const commonSummaryCards = renderReportSummaryCards([
+        { label: 'Events', value: sessionMetrics.total_events ?? 0 },
+        { label: 'Participants', value: sessionMetrics.participants_active ?? 0 },
+        { label: 'Moves', value: sessionMetrics.moves_count ?? 0 },
+        { label: 'Actions', value: sessionMetrics.actions_submitted ?? 0 },
+        { label: 'Proposals', value: sessionMetrics.proposals_submitted ?? 0 },
+        { label: 'RFIs', value: sessionMetrics.rfis_raised ?? 0 }
+    ]);
+
+    return [
+        {
+            path: 'reports/policy_brief.html',
+            content: renderPersonaHtml({
+                title: 'Policy Brief',
+                subtitle: 'Policy-relevant instruments, partner routing, constraints, and review outcomes.',
+                manifest,
+                sections: [
+                    { title: 'Session Indicators', html: commonSummaryCards },
+                    { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
+                    { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Intended Recipient', 'Review', 'Recipient State', 'Rationale'], proposalRows) },
+                    { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
+                ]
+            }),
+            mimeType: 'text/html'
+        },
+        {
+            path: 'reports/strategic_leader_brief.html',
+            content: renderPersonaHtml({
+                title: 'Strategic Leader Brief',
+                subtitle: 'High-level view of tempo, decision flow, team interaction, and unresolved signals.',
+                manifest,
+                sections: [
+                    { title: 'Executive Indicators', html: commonSummaryCards },
+                    { title: 'Decision Lineage Highlights', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
+                    { title: 'Interaction Matrix', html: renderInteractionMatrix(dataset.interactionEdges) },
+                    { title: 'Data Quality Readiness', html: renderReportMetaGrid([
+                        { label: 'Status', value: dataQualityReadiness.status },
+                        { label: 'Limitations', value: dataQualityReadiness.limitations }
+                    ]) }
+                ]
+            }),
+            mimeType: 'text/html'
+        },
+        {
+            path: 'reports/training_evaluator_report.html',
+            content: renderPersonaHtml({
+                title: 'Training Evaluator Report',
+                subtitle: 'Participant engagement, submission behavior, timing, and data-quality caveats for after-action review.',
+                manifest,
+                sections: [
+                    { title: 'Training Indicators', html: commonSummaryCards },
+                    { title: 'Participant Metrics', html: renderReportTable(['Pseudonym', 'Role', 'Team', 'Events', 'Submissions', 'Mean Submit Time', 'Disconnects'], participantRows) },
+                    { title: 'Decision Evidence', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
+                    { title: 'Data Quality Coverage', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows) }
+                ]
+            }),
+            mimeType: 'text/html'
+        },
+        {
+            path: 'reports/analyst_report.html',
+            content: renderPersonaHtml({
+                title: 'Analyst Report',
+                subtitle: 'Machine-readable table inventory, methodology caveats, and reproducibility pointers.',
+                manifest,
+                sections: [
+                    { title: 'Manifest', html: renderReportMetaGrid([
+                        { label: 'Schema Version', value: manifest.schema_version },
+                        { label: 'Format Revision', value: manifest.export_format_revision },
+                        { label: 'Export Version', value: manifest.export_version },
+                        { label: 'Event Chain', value: safeObject(manifest.event_log_chain).session_checksum },
+                        { label: 'Codebook', value: manifest.codebook_ref },
+                        { label: 'Checksums', value: 'checksums.sha256' }
+                    ]) },
+                    { title: 'Row Counts', html: renderReportTable(['Projection', 'Rows'], rowCountRows) },
+                    { title: 'Coverage And Sources', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows) },
+                    { title: 'Decision Lineage Sample', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
+                ]
+            }),
+            mimeType: 'text/html'
+        }
+    ];
+}
+
 function buildCodebookRows() {
     return Object.entries(RESEARCH_EXPORT_COLUMNS).flatMap(([tableName, columns]) => {
         return columns.map((columnName) => ({
@@ -1888,11 +2630,11 @@ function buildCodebookRows() {
                         : null,
             allowed_values: null,
             nullable: !['session_id', 'participant_pseudonym', 'author_pseudonym', 'event_type', 'entity_type', 'to_state', 'occurred_utc'].includes(columnName),
-            is_derived: ['derived_participant_metrics', 'derived_session_metrics'].includes(tableName),
-            derivation: ['derived_participant_metrics', 'derived_session_metrics'].includes(tableName)
+            is_derived: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index'].includes(tableName),
+            derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index'].includes(tableName)
                 ? 'Computed client-side at export time from canonical event and content tables.'
                 : null,
-            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action/.test(columnName)
+            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action|evidence_summary/.test(columnName)
                 ? 'pseudonymous'
                 : 'none',
             description: `Research export field ${columnName.replace(/_/g, ' ')} for ${tableName.replace(/_/g, ' ')}.`
@@ -2326,6 +3068,36 @@ export function buildResearchReportHtml(dataset, {
         formatReportTimestamp(note.created_utc),
         note.content_text || ''
     ]);
+    const decisionLineageRows = safeArray(dataset.decisionLineage).map((lineage) => [
+        lineage.root_entity_type || '',
+        lineage.root_entity_id || '',
+        lineage.move_number === null || lineage.move_number === undefined ? '' : String(lineage.move_number),
+        lineage.source_team || '',
+        lineage.current_state || '',
+        formatReportTimestamp(lineage.submitted_utc || lineage.created_utc),
+        formatReportTimestamp(lineage.reviewed_utc),
+        formatReportValue(lineage.related_event_ids, ''),
+        lineage.evidence_summary || ''
+    ]);
+    const dataQualitySummary = safeObject(dataset.dataQualitySummary);
+    const readinessSummary = safeObject(dataQualitySummary.quantitative_comparison_readiness);
+    const tableCoverageRows = safeArray(safeObject(dataQualitySummary.coverage).table_coverage).map((entry) => [
+        entry.table_name || '',
+        String(entry.rows ?? 0),
+        entry.source || '',
+        entry.status || '',
+        entry.critical ? 'Yes' : 'No'
+    ]);
+    const scenarioContext = safeObject(dataset.scenarioContext);
+    const scenarioRuntime = safeObject(scenarioContext.runtime);
+    const scenarioExerciseStructure = safeObject(scenarioContext.exercise_structure);
+    const scenarioMessageRows = safeArray(scenarioContext.scenario_messages).map((message) => [
+        message.type || '',
+        message.to_role || '',
+        message.move_number === null || message.move_number === undefined ? '' : String(message.move_number),
+        formatReportTimestamp(message.occurred_utc),
+        message.content_excerpt || ''
+    ]);
     const actionCards = dataset.actionContent.map((action) => {
         const adjudication = adjudicationByTargetId.get(action.action_id);
         const details = safeObject(safeObject(action.full_content).details);
@@ -2561,6 +3333,10 @@ export function buildResearchReportHtml(dataset, {
         {
             title: 'State Transition Ledger',
             description: 'Lifecycle transitions reconstructed for actions, proposals, responses, and RFIs.'
+        },
+        {
+            title: 'Decision Lineage',
+            description: 'Trace rows linking submitted artifacts to review, communications, RFIs, and event evidence.'
         },
         {
             title: 'Draft And Submission History',
@@ -3476,6 +4252,18 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Communications', value: sessionMetrics.communications_sent ?? 0, detail: 'interaction edges' },
                 { label: 'Schema Version', value: manifest.schema_version || 'unknown', detail: `format rev ${manifest.export_format_revision || 'n/a'}` }
             ]))}
+            ${renderReportSectionBlock('Scenario Context', renderReportMetaGrid([
+                { label: 'Simulation', value: scenarioContext.simulation_name },
+                { label: 'App Version', value: scenarioRuntime.app_version },
+                { label: 'Software Build Hash', value: scenarioRuntime.software_build_hash },
+                { label: 'Observed Teams', value: scenarioExerciseStructure.observed_teams },
+                { label: 'Observed Moves', value: scenarioExerciseStructure.observed_moves },
+                { label: 'Context File', value: manifest.scenario_context_ref }
+            ]))}
+            ${renderReportSectionBlock('Scenario Messages', renderReportTable(
+                ['Type', 'Recipient', 'Move', 'Occurred UTC', 'Excerpt'],
+                scenarioMessageRows
+            ))}
         </section>
 
         <section class="report-section">
@@ -3522,6 +4310,19 @@ export function buildResearchReportHtml(dataset, {
             ${renderReportTable(
                 ['Transition UTC', 'Entity Type', 'Entity ID', 'From State', 'To State', 'Actor Role', 'Recipient Team', 'Move', 'Dwell'],
                 transitionRows
+            )}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Decision Lineage</h2>
+                    <p class="report-section-intro">Derived trace rows linking submitted artifacts to review outcomes, related communications, RFIs, and event evidence. These rows support navigation and audit, not automatic causal attribution.</p>
+                </div>
+            </div>
+            ${renderReportTable(
+                ['Type', 'Entity ID', 'Move', 'Source Team', 'Current State', 'Submitted UTC', 'Reviewed UTC', 'Event IDs', 'Evidence Summary'],
+                decisionLineageRows
             )}
         </section>
 
@@ -3618,6 +4419,16 @@ export function buildResearchReportHtml(dataset, {
                     <p class="report-section-intro">Observed disconnect/gap signals plus the integrity fields needed to verify the archive payload.</p>
                 </div>
             </div>
+            ${renderReportSectionBlock('Research Readiness', renderReportMetaGrid([
+                { label: 'Comparison Readiness', value: readinessSummary.status },
+                { label: 'Recommended Uses', value: readinessSummary.recommended_uses },
+                { label: 'Limitations', value: readinessSummary.limitations },
+                { label: 'Notes Appendix Included', value: safeObject(dataQualitySummary.privacy).notes_appendix_included }
+            ]))}
+            ${renderReportSectionBlock('Table Coverage', renderReportTable(
+                ['Table', 'Rows', 'Source', 'Status', 'Critical'],
+                tableCoverageRows
+            ))}
             ${renderReportSectionBlock('Data Quality Events', renderReportTable(
                 ['Team', 'Event Type', 'Occurred UTC', 'Gap', 'Detail'],
                 dataQualityRows
@@ -3708,6 +4519,10 @@ function buildFileDefinitions({
     manifest,
     codebook,
     reportHtml,
+    personaReports,
+    dataQualitySummary,
+    decisionLineage,
+    scenarioContext,
     eventLog,
     participantRows,
     notes,
@@ -3740,6 +4555,27 @@ function buildFileDefinitions({
             path: 'report.html',
             content: reportHtml,
             mimeType: 'text/html'
+        },
+        ...safeArray(personaReports),
+        {
+            path: 'data_quality_summary.json',
+            content: toJsonFileContent(dataQualitySummary),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'decision_lineage.csv',
+            content: arrayToCsv(decisionLineage, RESEARCH_EXPORT_COLUMNS.decision_lineage),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'decision_lineage.json',
+            content: toJsonFileContent(decisionLineage),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'scenario_context.json',
+            content: toJsonFileContent(scenarioContext),
+            mimeType: 'application/json'
         },
         {
             path: 'event_log.jsonl',
@@ -3968,6 +4804,17 @@ export async function buildResearchExportBundle(bundle = {}, {
             rfiContent,
             interactionEdges
         });
+    const decisionLineage = buildDecisionLineage({
+        sessionId: bundle.session?.id || null,
+        actionContent,
+        proposalContent,
+        adjudicationContent,
+        moveResponseContent,
+        rfiContent,
+        interactionEdges,
+        communications: bundle.communications,
+        eventLog
+    });
     const rowCounts = {
         event_log: eventLog.length,
         participants: participantRegistry.rows.length,
@@ -3981,7 +4828,8 @@ export async function buildResearchExportBundle(bundle = {}, {
         move_response_content: moveResponseContent.length,
         rfi_content: rfiContent.length,
         interaction_edges: interactionEdges.length,
-        data_quality_events: dataQualityEvents.length
+        data_quality_events: dataQualityEvents.length,
+        decision_lineage: decisionLineage.length
     };
     const manifest = {
         schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
@@ -4001,8 +4849,46 @@ export async function buildResearchExportBundle(bundle = {}, {
         row_counts: rowCounts,
         event_log_chain: eventLogChain,
         codebook_ref: 'codebook.json',
-        report_ref: 'report.html'
+        report_ref: 'report.html',
+        persona_report_refs: {
+            policy_brief: 'reports/policy_brief.html',
+            strategic_leader_brief: 'reports/strategic_leader_brief.html',
+            training_evaluator_report: 'reports/training_evaluator_report.html',
+            analyst_report: 'reports/analyst_report.html'
+        },
+        data_quality_summary_ref: 'data_quality_summary.json',
+        decision_lineage_ref: 'decision_lineage.csv',
+        scenario_context_ref: 'scenario_context.json'
     };
+    const scenarioContext = buildScenarioContext(bundle, {
+        manifest,
+        actionContent,
+        proposalContent,
+        moveResponseContent,
+        rfiContent,
+        interactionEdges
+    });
+    const dataQualitySummary = buildDataQualitySummary({
+        bundle,
+        manifest,
+        eventLog,
+        participantRows: participantRegistry.rows,
+        notes,
+        noteRevisions,
+        draftRevisions,
+        stateTransitions,
+        actionContent,
+        proposalContent,
+        adjudicationContent,
+        moveResponseContent,
+        rfiContent,
+        interactionEdges,
+        dataQualityEvents,
+        derivedParticipantMetrics,
+        derivedSessionMetrics,
+        decisionLineage,
+        includeNotesAppendix
+    });
     const codebook = safeArray(bundle.researchCodebook).length
         ? {
             schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
@@ -4031,17 +4917,25 @@ export async function buildResearchExportBundle(bundle = {}, {
         rfiContent,
         interactionEdges,
         dataQualityEvents,
+        dataQualitySummary,
+        decisionLineage,
+        scenarioContext,
         derivedParticipantMetrics,
         derivedSessionMetrics
     };
     const reportHtml = buildResearchReportHtml(dataset, {
         includeNotesAppendix
     });
+    const personaReports = buildPersonaReports(dataset);
     const legacyFiles = buildLegacyFiles(bundle, manifest.generated_at_utc);
     const fileDefinitions = buildFileDefinitions({
         manifest,
         codebook,
         reportHtml,
+        personaReports,
+        dataQualitySummary,
+        decisionLineage,
+        scenarioContext,
         eventLog,
         participantRows: participantRegistry.rows,
         notes,
@@ -4065,6 +4959,125 @@ export async function buildResearchExportBundle(bundle = {}, {
     return {
         ...dataset,
         reportHtml,
+        personaReports,
+        rootFolderName,
+        files: [...fileDefinitions, checksumsFile]
+    };
+}
+
+function buildCrossSessionIndexRows(sessionExports = []) {
+    return safeArray(sessionExports).map((sessionExport) => {
+        const manifest = safeObject(sessionExport.manifest);
+        const metrics = safeArray(sessionExport.derivedSessionMetrics)[0] || {};
+        const readiness = safeObject(sessionExport.dataQualitySummary?.quantitative_comparison_readiness);
+        const eventLogChain = safeObject(manifest.event_log_chain);
+
+        return {
+            session_id: manifest.session_id || sessionExport.session?.id || null,
+            session_name: sessionExport.session?.name || safeObject(manifest.session_config_snapshot).session_name || null,
+            capture_mode: manifest.capture_mode || null,
+            generated_at_utc: manifest.generated_at_utc || null,
+            session_duration_s: metrics.session_duration_s ?? null,
+            moves_count: metrics.moves_count ?? 0,
+            participants_active: metrics.participants_active ?? 0,
+            total_events: metrics.total_events ?? 0,
+            actions_submitted: metrics.actions_submitted ?? 0,
+            actions_adjudicated: metrics.actions_adjudicated ?? 0,
+            proposals_submitted: metrics.proposals_submitted ?? 0,
+            proposals_forwarded: metrics.proposals_forwarded ?? 0,
+            rfis_raised: metrics.rfis_raised ?? 0,
+            communications_sent: metrics.communications_sent ?? 0,
+            mean_proposal_response_latency_s: metrics.mean_proposal_response_latency_s ?? null,
+            data_quality_readiness: readiness.status || 'unknown',
+            event_log_checksum: eventLogChain.session_checksum || null,
+            report_ref: `sessions/${sessionExport.rootFolderName}/${manifest.report_ref || 'report.html'}`
+        };
+    });
+}
+
+export async function buildCrossSessionResearchExportBundle(sessionBundles = [], {
+    generatedAtUtc = new Date().toISOString(),
+    generatedByPseudonym = 'game_master_operator',
+    exportVersion = 1,
+    includeNotesAppendix = false,
+    softwareBuildHash = CONFIG.VERSION
+} = {}) {
+    const generatedAtIso = asUtcIso(generatedAtUtc);
+    const sessionExports = [];
+
+    for (const sessionBundle of safeArray(sessionBundles)) {
+        if (sessionBundle?.manifest && Array.isArray(sessionBundle?.files)) {
+            sessionExports.push(sessionBundle);
+        } else {
+            sessionExports.push(await buildResearchExportBundle(sessionBundle, {
+                generatedAtUtc: generatedAtIso,
+                generatedByPseudonym,
+                exportVersion,
+                includeNotesAppendix,
+                softwareBuildHash
+            }));
+        }
+    }
+
+    const sessionIndex = buildCrossSessionIndexRows(sessionExports);
+    const dataQualityIndex = sessionExports.map((sessionExport) => ({
+        session_id: sessionExport.manifest?.session_id || sessionExport.session?.id || null,
+        readiness: sessionExport.dataQualitySummary?.quantitative_comparison_readiness || null,
+        coverage: sessionExport.dataQualitySummary?.coverage || null,
+        integrity: sessionExport.dataQualitySummary?.integrity || null
+    }));
+    const manifest = {
+        schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
+        export_format_revision: RESEARCH_EXPORT_FORMAT_REVISION,
+        export_version: exportVersion,
+        software_build_hash: softwareBuildHash || 'unknown',
+        generated_at_utc: generatedAtIso,
+        generated_by_pseudonym: generatedByPseudonym,
+        timezone_declared: 'UTC',
+        sessions_count: sessionExports.length,
+        session_ids: sessionIndex.map((row) => row.session_id).filter(Boolean),
+        index_ref: 'cross_session_index.csv',
+        data_quality_ref: 'cross_session_data_quality.json',
+        included_bundle_roots: sessionExports.map((sessionExport) => `sessions/${sessionExport.rootFolderName}`)
+    };
+    const sessionFiles = sessionExports.flatMap((sessionExport) => {
+        const folder = `sessions/${sessionExport.rootFolderName}`;
+        return safeArray(sessionExport.files).map((file) => ({
+            ...file,
+            path: `${folder}/${file.path}`
+        }));
+    });
+    const fileDefinitions = [
+        {
+            path: 'cross_session_manifest.json',
+            content: toJsonFileContent(manifest),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'cross_session_index.csv',
+            content: arrayToCsv(sessionIndex, RESEARCH_EXPORT_COLUMNS.cross_session_index),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'cross_session_index.json',
+            content: toJsonFileContent(sessionIndex),
+            mimeType: 'application/json'
+        },
+        {
+            path: 'cross_session_data_quality.json',
+            content: toJsonFileContent(dataQualityIndex),
+            mimeType: 'application/json'
+        },
+        ...sessionFiles
+    ];
+    const checksumsFile = await buildChecksumsFile(fileDefinitions);
+    const rootFolderName = `research_cross_session_${buildIsoTimestampFragment(generatedAtIso)}`;
+
+    return {
+        manifest,
+        sessionIndex,
+        dataQualityIndex,
+        sessionExports,
         rootFolderName,
         files: [...fileDefinitions, checksumsFile]
     };

@@ -6,6 +6,7 @@ import { serializeProposalDetails } from '../actions/proposalDetails.js';
 import {
     RESEARCH_EXPORT_FORMAT_REVISION,
     RESEARCH_EXPORT_SCHEMA_VERSION,
+    buildCrossSessionResearchExportBundle,
     buildResearchExportBundle,
     buildResearchReportHtml,
     createResearchExportArchiveBlob
@@ -254,7 +255,7 @@ function buildBundleFixture() {
 }
 
 describe('research export builder', () => {
-    it('builds the full research archive dataset with the 1.2.0 file set', async () => {
+    it('builds the full research archive dataset with the 1.3.0 file set', async () => {
         const exportBundle = await buildResearchExportBundle(buildBundleFixture(), {
             generatedAtUtc: '2026-06-03T12:00:00.000Z',
             generatedByPseudonym: 'gm-1234abcd',
@@ -274,6 +275,20 @@ describe('research export builder', () => {
             proposal_content: 1,
             move_response_content: 1,
             rfi_content: 1
+        });
+        expect(exportBundle.manifest).toMatchObject({
+            data_quality_summary_ref: 'data_quality_summary.json',
+            decision_lineage_ref: 'decision_lineage.csv',
+            scenario_context_ref: 'scenario_context.json',
+            persona_report_refs: {
+                policy_brief: 'reports/policy_brief.html',
+                strategic_leader_brief: 'reports/strategic_leader_brief.html',
+                training_evaluator_report: 'reports/training_evaluator_report.html',
+                analyst_report: 'reports/analyst_report.html'
+            }
+        });
+        expect(exportBundle.manifest.row_counts).toMatchObject({
+            decision_lineage: 4
         });
         expect(exportBundle.actionContent[0]).toMatchObject({
             action_id: 'action-blue-1',
@@ -300,17 +315,64 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('font-family: "Inter"');
         expect(exportBundle.reportHtml).toContain('Session Snapshot');
         expect(exportBundle.reportHtml).toContain('Event Log Chronology');
+        expect(exportBundle.reportHtml).toContain('Decision Lineage');
         expect(exportBundle.reportHtml).toContain('Draft And Submission History');
+        expect(exportBundle.reportHtml).toContain('Scenario Context');
+        expect(exportBundle.reportHtml).toContain('Research Readiness');
         expect(exportBundle.reportHtml).toContain('Data Quality And Export Integrity');
         expect(exportBundle.reportHtml).toContain('ALPHA-R');
         expect(exportBundle.reportHtml).toContain('1h 30m');
         expect(exportBundle.reportHtml).toContain('Forwarded Green Team proposal.');
         expect(exportBundle.reportHtml).toContain('White Cell clarification changed the pacing.');
         expect(exportBundle.reportHtml).toContain('Notes Appendix');
+        expect(exportBundle.dataQualitySummary).toMatchObject({
+            quantitative_comparison_readiness: {
+                status: 'limited'
+            },
+            privacy: {
+                notes_appendix_included: true,
+                identity_map_exported: false
+            }
+        });
+        expect(exportBundle.decisionLineage).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                root_entity_type: 'action',
+                root_entity_id: 'action-blue-1',
+                source_team: 'blue',
+                current_state: 'adjudicated'
+            }),
+            expect.objectContaining({
+                root_entity_type: 'proposal',
+                root_entity_id: 'proposal-green-1',
+                related_communication_ids: expect.arrayContaining(['comm-forwarded-1', 'comm-response-1'])
+            })
+        ]));
+        expect(exportBundle.scenarioContext).toMatchObject({
+            simulation_name: 'Fractured Order',
+            session: {
+                id: 'session-research-1',
+                code: 'ALPHA-R'
+            }
+        });
+        expect(exportBundle.personaReports.map((file) => file.path)).toEqual([
+            'reports/policy_brief.html',
+            'reports/strategic_leader_brief.html',
+            'reports/training_evaluator_report.html',
+            'reports/analyst_report.html'
+        ]);
+        expect(exportBundle.personaReports[0].content).toContain('Policy Brief');
         expect(exportBundle.files.map((file) => file.path)).toEqual(expect.arrayContaining([
             'manifest.json',
             'codebook.json',
             'report.html',
+            'reports/policy_brief.html',
+            'reports/strategic_leader_brief.html',
+            'reports/training_evaluator_report.html',
+            'reports/analyst_report.html',
+            'data_quality_summary.json',
+            'decision_lineage.csv',
+            'decision_lineage.json',
+            'scenario_context.json',
             'event_log.jsonl',
             'action_content.csv',
             'proposal_content.json',
@@ -376,5 +438,48 @@ describe('research export builder', () => {
 
         expect(archiveBlob.type).toBe('application/zip');
         expect(archiveBlob.size).toBeGreaterThan(0);
+    });
+
+    it('builds a cross-session research index from session export bundles', async () => {
+        const firstExport = await buildResearchExportBundle(buildBundleFixture(), {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z',
+            generatedByPseudonym: 'gm-1234abcd'
+        });
+        const secondFixture = buildBundleFixture();
+        secondFixture.session = {
+            ...secondFixture.session,
+            id: 'session-research-2',
+            name: 'Research Session Bravo'
+        };
+        const crossSessionBundle = await buildCrossSessionResearchExportBundle([
+            firstExport,
+            secondFixture
+        ], {
+            generatedAtUtc: '2026-06-04T12:00:00.000Z',
+            generatedByPseudonym: 'gm-1234abcd'
+        });
+
+        expect(crossSessionBundle.manifest).toMatchObject({
+            sessions_count: 2,
+            index_ref: 'cross_session_index.csv',
+            data_quality_ref: 'cross_session_data_quality.json'
+        });
+        expect(crossSessionBundle.sessionIndex).toHaveLength(2);
+        expect(crossSessionBundle.sessionIndex[0]).toMatchObject({
+            session_id: 'session-research-1',
+            session_name: 'Research Session Alpha',
+            data_quality_readiness: 'limited'
+        });
+        expect(crossSessionBundle.files.map((file) => file.path)).toEqual(expect.arrayContaining([
+            'cross_session_manifest.json',
+            'cross_session_index.csv',
+            'cross_session_index.json',
+            'cross_session_data_quality.json',
+            'checksums.sha256'
+        ]));
+        expect(crossSessionBundle.files.some((file) => (
+            file.path.includes('/manifest.json')
+            && file.path.startsWith('sessions/research_export_session-research-1')
+        ))).toBe(true);
     });
 });

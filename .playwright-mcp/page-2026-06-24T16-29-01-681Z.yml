@@ -1,0 +1,675 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+              - generic [ref=e53]: Search or jump to...
+              - img [ref=e55]
+            - link "Sign in" [ref=e59] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2FSeth-arc%2FPlenum
+            - link "Sign up" [ref=e60] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=Seth-arc%2FPlenum
+            - button "Appearance settings" [ref=e63] [cursor=pointer]:
+              - img
+  - main [ref=e67]:
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - generic [ref=e71]:
+          - img [ref=e72]
+          - link "Seth-arc" [ref=e75] [cursor=pointer]:
+            - /url: /Seth-arc
+          - generic [ref=e76]: /
+          - strong [ref=e77]:
+            - link "Plenum" [ref=e78] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum
+          - generic [ref=e79]: Public
+        - generic [ref=e80]:
+          - list:
+            - listitem [ref=e81]:
+              - link "You must be signed in to change notification settings" [ref=e82] [cursor=pointer]:
+                - /url: /login?return_to=%2FSeth-arc%2FPlenum
+                - img [ref=e83]
+                - text: Notifications
+            - listitem [ref=e85]:
+              - link "Fork 1" [ref=e86] [cursor=pointer]:
+                - /url: /login?return_to=%2FSeth-arc%2FPlenum
+                - img [ref=e87]
+                - text: Fork
+                - generic "1" [ref=e89]
+            - listitem [ref=e90]:
+              - link "You must be signed in to star a repository" [ref=e92] [cursor=pointer]:
+                - /url: /login?return_to=%2FSeth-arc%2FPlenum
+                - img [ref=e93]
+                - text: Star
+                - generic "1 user starred this repository" [ref=e95]: "1"
+      - navigation "Repository" [ref=e96]:
+        - list [ref=e97]:
+          - listitem [ref=e98]:
+            - link "Code" [ref=e99] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum
+              - img [ref=e100]
+              - generic [ref=e102]: Code
+          - listitem [ref=e103]:
+            - link "Issues" [ref=e104] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/issues
+              - img [ref=e105]
+              - generic [ref=e108]: Issues
+          - listitem [ref=e109]:
+            - link "Pull requests" [ref=e110] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/pulls
+              - img [ref=e111]
+              - generic [ref=e113]: Pull requests
+          - listitem [ref=e114]:
+            - link "Actions" [ref=e115] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/actions
+              - img [ref=e116]
+              - generic [ref=e118]: Actions
+          - listitem [ref=e119]:
+            - link "Projects" [ref=e120] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/projects
+              - img [ref=e121]
+              - generic [ref=e123]: Projects
+          - listitem [ref=e124]:
+            - link "Security and quality" [ref=e125] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/security
+              - img [ref=e126]
+              - generic [ref=e128]: Security and quality
+          - listitem [ref=e129]:
+            - link "Insights" [ref=e130] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/pulse
+              - img [ref=e131]
+              - generic [ref=e133]: Insights
+    - generic [ref=e146]:
+      - heading "Seth-arc/Plenum" [level=1] [ref=e148]
+      - generic [ref=e149]:
+        - generic [ref=e152]:
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - button "main branch" [ref=e156] [cursor=pointer]:
+                - generic [ref=e157]:
+                  - generic [ref=e159]:
+                    - img [ref=e161]
+                    - generic [ref=e164]: main
+                  - generic:
+                    - img
+              - generic [ref=e165]:
+                - link "1 Branch" [ref=e166] [cursor=pointer]:
+                  - /url: /Seth-arc/Plenum/branches
+                  - generic [ref=e167]:
+                    - generic:
+                      - img
+                    - generic [ref=e169]:
+                      - strong [ref=e170]: "1"
+                      - text: Branch
+                - link "0 Tags" [ref=e171] [cursor=pointer]:
+                  - /url: /Seth-arc/Plenum/tags
+                  - generic [ref=e172]:
+                    - generic:
+                      - img
+                    - generic [ref=e174]:
+                      - strong [ref=e175]: "0"
+                      - text: Tags
+            - generic [ref=e176]:
+              - generic [ref=e180]:
+                - img [ref=e182]
+                - combobox "Go to file" [ref=e184]
+              - button "Code" [ref=e185] [cursor=pointer]:
+                - generic [ref=e186]:
+                  - generic:
+                    - img
+                  - generic [ref=e187]: Code
+                  - generic:
+                    - img
+          - generic [ref=e188]:
+            - generic [ref=e189]:
+              - heading "Folders and files" [level=2] [ref=e190]
+              - table "Folders and files" [ref=e191]:
+                - rowgroup:
+                  - row "Name Last commit message Last commit date":
+                    - columnheader "Name"
+                    - columnheader "Last commit message":
+                      - generic "Last commit message"
+                    - columnheader "Last commit date":
+                      - generic "Last commit date"
+                - rowgroup [ref=e192]:
+                  - row "Latest commit Seth-arc commits by Seth-arc Merge branch 'main' of https://github.com/Seth-arc/Plenum success Commit e514b93 · Jun 22, 20262 days ago History 7 Commits" [ref=e193]:
+                    - cell "Latest commit Seth-arc commits by Seth-arc Merge branch 'main' of https://github.com/Seth-arc/Plenum success Commit e514b93 · Jun 22, 20262 days ago History 7 Commits" [ref=e194]:
+                      - generic [ref=e195]:
+                        - heading "Latest commit" [level=2] [ref=e196]
+                        - generic [ref=e197]:
+                          - generic [ref=e199]:
+                            - link "Seth-arc" [ref=e200] [cursor=pointer]:
+                              - /url: /Seth-arc
+                              - img "Seth-arc" [ref=e201]
+                            - link "commits by Seth-arc" [ref=e202] [cursor=pointer]:
+                              - /url: /Seth-arc/Plenum/commits?author=Seth-arc
+                              - text: Seth-arc
+                          - generic [ref=e203]:
+                            - generic [ref=e205]:
+                              - link "Merge branch 'main' of" [ref=e206] [cursor=pointer]:
+                                - /url: /Seth-arc/Plenum/commit/e514b9349884848179a7bf8391e118623b3e6eee
+                              - link "https://github.com/Seth-arc/Plenum" [ref=e207] [cursor=pointer]:
+                                - /url: https://github.com/Seth-arc/Plenum
+                            - button "success" [ref=e208] [cursor=pointer]:
+                              - img [ref=e209]
+                        - generic [ref=e211]:
+                          - generic [ref=e213]:
+                            - link "Commit e514b93" [ref=e214] [cursor=pointer]:
+                              - /url: /Seth-arc/Plenum/commit/e514b9349884848179a7bf8391e118623b3e6eee
+                              - text: e514b93
+                            - text: ·
+                            - generic "Jun 22, 2026, 9:29 AM EDT" [ref=e215]: Jun 22, 20262 days ago
+                          - generic [ref=e216]:
+                            - heading "History" [level=2] [ref=e217]
+                            - link "7 Commits" [ref=e218] [cursor=pointer]:
+                              - /url: /Seth-arc/Plenum/commits/main/
+                              - generic [ref=e219]:
+                                - generic:
+                                  - img
+                                - generic [ref=e220]: 7 Commits
+                  - row ".github/workflows, (Directory) First upload Jun 22, 20262 days ago" [ref=e221]:
+                    - cell ".github/workflows, (Directory)" [ref=e222]:
+                      - generic [ref=e223]:
+                        - img [ref=e224]
+                        - link ".github/workflows, (Directory)" [ref=e229] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/.github/workflows
+                          - text: .github/workflows
+                    - cell "First upload" [ref=e230]:
+                      - link "First upload" [ref=e233] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e234]:
+                      - generic [ref=e235]: Jun 22, 20262 days ago
+                  - row ".playwright-mcp, (Directory) First upload Jun 22, 20262 days ago" [ref=e236]:
+                    - cell ".playwright-mcp, (Directory)" [ref=e237]:
+                      - generic [ref=e238]:
+                        - img [ref=e239]
+                        - link ".playwright-mcp, (Directory)" [ref=e244] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/.playwright-mcp
+                          - text: .playwright-mcp
+                    - cell "First upload" [ref=e245]:
+                      - link "First upload" [ref=e248] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e249]:
+                      - generic [ref=e250]: Jun 22, 20262 days ago
+                  - row ".vscode, (Directory) First upload Jun 22, 20262 days ago" [ref=e251]:
+                    - cell ".vscode, (Directory)" [ref=e252]:
+                      - generic [ref=e253]:
+                        - img [ref=e254]
+                        - link ".vscode, (Directory)" [ref=e259] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/.vscode
+                          - text: .vscode
+                    - cell "First upload" [ref=e260]:
+                      - link "First upload" [ref=e263] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e264]:
+                      - generic [ref=e265]: Jun 22, 20262 days ago
+                  - row "data, (Directory) First upload Jun 22, 20262 days ago" [ref=e266]:
+                    - cell "data, (Directory)" [ref=e267]:
+                      - generic [ref=e268]:
+                        - img [ref=e269]
+                        - link "data, (Directory)" [ref=e274] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/data
+                          - text: data
+                    - cell "First upload" [ref=e275]:
+                      - link "First upload" [ref=e278] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e279]:
+                      - generic [ref=e280]: Jun 22, 20262 days ago
+                  - row "decks, (Directory) First upload Jun 22, 20262 days ago" [ref=e281]:
+                    - cell "decks, (Directory)" [ref=e282]:
+                      - generic [ref=e283]:
+                        - img [ref=e284]
+                        - link "decks, (Directory)" [ref=e289] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/decks
+                          - text: decks
+                    - cell "First upload" [ref=e290]:
+                      - link "First upload" [ref=e293] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e294]:
+                      - generic [ref=e295]: Jun 22, 20262 days ago
+                  - 'row "node_modules, (Directory) Fix build: remove non-existent HTML entry points from vite.config.js Jun 22, 20262 days ago" [ref=e296]':
+                    - cell "node_modules, (Directory)" [ref=e297]:
+                      - generic [ref=e298]:
+                        - img [ref=e299]
+                        - link "node_modules, (Directory)" [ref=e304] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/node_modules
+                          - text: node_modules
+                    - 'cell "Fix build: remove non-existent HTML entry points from vite.config.js" [ref=e305]':
+                      - 'link "Fix build: remove non-existent HTML entry points from vite.config.js" [ref=e308] [cursor=pointer]':
+                        - /url: /Seth-arc/Plenum/commit/556af7a1cfcfa68462de5b0c8a9a3fea1b2ef841
+                    - cell "Jun 22, 20262 days ago" [ref=e309]:
+                      - generic [ref=e310]: Jun 22, 20262 days ago
+                  - row "src, (Directory) First upload Jun 22, 20262 days ago" [ref=e311]:
+                    - cell "src, (Directory)" [ref=e312]:
+                      - generic [ref=e313]:
+                        - img [ref=e314]
+                        - link "src, (Directory)" [ref=e319] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/src
+                          - text: src
+                    - cell "First upload" [ref=e320]:
+                      - link "First upload" [ref=e323] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e324]:
+                      - generic [ref=e325]: Jun 22, 20262 days ago
+                  - row "styles, (Directory) First upload Jun 22, 20262 days ago" [ref=e326]:
+                    - cell "styles, (Directory)" [ref=e327]:
+                      - generic [ref=e328]:
+                        - img [ref=e329]
+                        - link "styles, (Directory)" [ref=e334] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/styles
+                          - text: styles
+                    - cell "First upload" [ref=e335]:
+                      - link "First upload" [ref=e338] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e339]:
+                      - generic [ref=e340]: Jun 22, 20262 days ago
+                  - row "teams, (Directory) First upload Jun 22, 20262 days ago" [ref=e341]:
+                    - cell "teams, (Directory)" [ref=e342]:
+                      - generic [ref=e343]:
+                        - img [ref=e344]
+                        - link "teams, (Directory)" [ref=e349] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/teams
+                          - text: teams
+                    - cell "First upload" [ref=e350]:
+                      - link "First upload" [ref=e353] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e354]:
+                      - generic [ref=e355]: Jun 22, 20262 days ago
+                  - row "test-results, (Directory) First upload Jun 22, 20262 days ago" [ref=e356]:
+                    - cell "test-results, (Directory)" [ref=e357]:
+                      - generic [ref=e358]:
+                        - img [ref=e359]
+                        - link "test-results, (Directory)" [ref=e364] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/test-results
+                          - text: test-results
+                    - cell "First upload" [ref=e365]:
+                      - link "First upload" [ref=e368] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e369]:
+                      - generic [ref=e370]: Jun 22, 20262 days ago
+                  - row "tests, (Directory) First upload Jun 22, 20262 days ago" [ref=e371]:
+                    - cell "tests, (Directory)" [ref=e372]:
+                      - generic [ref=e373]:
+                        - img [ref=e374]
+                        - link "tests, (Directory)" [ref=e379] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/tree/main/tests
+                          - text: tests
+                    - cell "First upload" [ref=e380]:
+                      - link "First upload" [ref=e383] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e384]:
+                      - generic [ref=e385]: Jun 22, 20262 days ago
+                  - row ".env.example, (File) First upload Jun 22, 20262 days ago" [ref=e386]:
+                    - cell ".env.example, (File)" [ref=e387]:
+                      - generic [ref=e388]:
+                        - img [ref=e389]
+                        - link ".env.example, (File)" [ref=e394] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/.env.example
+                          - text: .env.example
+                    - cell "First upload" [ref=e395]:
+                      - link "First upload" [ref=e398] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e399]:
+                      - generic [ref=e400]: Jun 22, 20262 days ago
+                  - row ".gitignore, (File) First upload Jun 22, 20262 days ago" [ref=e401]:
+                    - cell ".gitignore, (File)" [ref=e402]:
+                      - generic [ref=e403]:
+                        - img [ref=e404]
+                        - link ".gitignore, (File)" [ref=e409] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/.gitignore
+                          - text: .gitignore
+                    - cell "First upload" [ref=e410]:
+                      - link "First upload" [ref=e413] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e414]:
+                      - generic [ref=e415]: Jun 22, 20262 days ago
+                  - row "README.md, (File) Update README.md Jun 22, 20262 days ago" [ref=e416]:
+                    - cell "README.md, (File)" [ref=e417]:
+                      - generic [ref=e418]:
+                        - img [ref=e419]
+                        - link "README.md, (File)" [ref=e424] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/README.md
+                          - text: README.md
+                    - cell "Update README.md" [ref=e425]:
+                      - link "Update README.md" [ref=e428] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/cb8174a8101b5cb371142ce64e55eb2428d39a9d
+                    - cell "Jun 22, 20262 days ago" [ref=e429]:
+                      - generic [ref=e430]: Jun 22, 20262 days ago
+                  - row "anime.min.js, (File) First upload Jun 22, 20262 days ago" [ref=e431]:
+                    - cell "anime.min.js, (File)" [ref=e432]:
+                      - generic [ref=e433]:
+                        - img [ref=e434]
+                        - link "anime.min.js, (File)" [ref=e439] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/anime.min.js
+                          - text: anime.min.js
+                    - cell "First upload" [ref=e440]:
+                      - link "First upload" [ref=e443] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e444]:
+                      - generic [ref=e445]: Jun 22, 20262 days ago
+                  - row "index.html, (File) First upload Jun 22, 20262 days ago" [ref=e446]:
+                    - cell "index.html, (File)" [ref=e447]:
+                      - generic [ref=e448]:
+                        - img [ref=e449]
+                        - link "index.html, (File)" [ref=e454] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/index.html
+                          - text: index.html
+                    - cell "First upload" [ref=e455]:
+                      - link "First upload" [ref=e458] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e459]:
+                      - generic [ref=e460]: Jun 22, 20262 days ago
+                  - row "master.html, (File) First upload Jun 22, 20262 days ago" [ref=e461]:
+                    - cell "master.html, (File)" [ref=e462]:
+                      - generic [ref=e463]:
+                        - img [ref=e464]
+                        - link "master.html, (File)" [ref=e469] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/master.html
+                          - text: master.html
+                    - cell "First upload" [ref=e470]:
+                      - link "First upload" [ref=e473] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e474]:
+                      - generic [ref=e475]: Jun 22, 20262 days ago
+                  - row "package-lock.json, (File) First upload Jun 22, 20262 days ago" [ref=e476]:
+                    - cell "package-lock.json, (File)" [ref=e477]:
+                      - generic [ref=e478]:
+                        - img [ref=e479]
+                        - link "package-lock.json, (File)" [ref=e484] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/package-lock.json
+                          - text: package-lock.json
+                    - cell "First upload" [ref=e485]:
+                      - link "First upload" [ref=e488] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e489]:
+                      - generic [ref=e490]: Jun 22, 20262 days ago
+                  - row "package.json, (File) First upload Jun 22, 20262 days ago" [ref=e491]:
+                    - cell "package.json, (File)" [ref=e492]:
+                      - generic [ref=e493]:
+                        - img [ref=e494]
+                        - link "package.json, (File)" [ref=e499] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/package.json
+                          - text: package.json
+                    - cell "First upload" [ref=e500]:
+                      - link "First upload" [ref=e503] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e504]:
+                      - generic [ref=e505]: Jun 22, 20262 days ago
+                  - row "playwright.config.js, (File) First upload Jun 22, 20262 days ago" [ref=e506]:
+                    - cell "playwright.config.js, (File)" [ref=e507]:
+                      - generic [ref=e508]:
+                        - img [ref=e509]
+                        - link "playwright.config.js, (File)" [ref=e514] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/playwright.config.js
+                          - text: playwright.config.js
+                    - cell "First upload" [ref=e515]:
+                      - link "First upload" [ref=e518] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e519]:
+                      - generic [ref=e520]: Jun 22, 20262 days ago
+                  - row "screenshot.PNG, (File) First upload Jun 22, 20262 days ago" [ref=e521]:
+                    - cell "screenshot.PNG, (File)" [ref=e522]:
+                      - generic [ref=e523]:
+                        - img [ref=e524]
+                        - link "screenshot.PNG, (File)" [ref=e529] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/screenshot.PNG
+                          - text: screenshot.PNG
+                    - cell "First upload" [ref=e530]:
+                      - link "First upload" [ref=e533] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e534]:
+                      - generic [ref=e535]: Jun 22, 20262 days ago
+                  - 'row "vite.config.js, (File) Fix build: remove non-existent HTML entry points from vite.config.js Jun 22, 20262 days ago" [ref=e536]':
+                    - cell "vite.config.js, (File)" [ref=e537]:
+                      - generic [ref=e538]:
+                        - img [ref=e539]
+                        - link "vite.config.js, (File)" [ref=e544] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/vite.config.js
+                          - text: vite.config.js
+                    - 'cell "Fix build: remove non-existent HTML entry points from vite.config.js" [ref=e545]':
+                      - 'link "Fix build: remove non-existent HTML entry points from vite.config.js" [ref=e548] [cursor=pointer]':
+                        - /url: /Seth-arc/Plenum/commit/556af7a1cfcfa68462de5b0c8a9a3fea1b2ef841
+                    - cell "Jun 22, 20262 days ago" [ref=e549]:
+                      - generic [ref=e550]: Jun 22, 20262 days ago
+                  - row "vite.config.test.js, (File) First upload Jun 22, 20262 days ago" [ref=e551]:
+                    - cell "vite.config.test.js, (File)" [ref=e552]:
+                      - generic [ref=e553]:
+                        - img [ref=e554]
+                        - link "vite.config.test.js, (File)" [ref=e559] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/vite.config.test.js
+                          - text: vite.config.test.js
+                    - cell "First upload" [ref=e560]:
+                      - link "First upload" [ref=e563] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e564]:
+                      - generic [ref=e565]: Jun 22, 20262 days ago
+                  - row "whitecell.html, (File) First upload Jun 22, 20262 days ago" [ref=e566]:
+                    - cell "whitecell.html, (File)" [ref=e567]:
+                      - generic [ref=e568]:
+                        - img [ref=e569]
+                        - link "whitecell.html, (File)" [ref=e574] [cursor=pointer]:
+                          - /url: /Seth-arc/Plenum/blob/main/whitecell.html
+                          - text: whitecell.html
+                    - cell "First upload" [ref=e575]:
+                      - link "First upload" [ref=e578] [cursor=pointer]:
+                        - /url: /Seth-arc/Plenum/commit/f5a3b74778d9899783c887d5118ba4d4c6dd49db
+                    - cell "Jun 22, 20262 days ago" [ref=e579]:
+                      - generic [ref=e580]: Jun 22, 20262 days ago
+            - generic [ref=e582]:
+              - generic [ref=e583]:
+                - heading "Repository files navigation" [level=2] [ref=e584]
+                - navigation "Repository files" [ref=e585]:
+                  - list [ref=e586]:
+                    - listitem [ref=e587]:
+                      - link "README" [ref=e588] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e590]
+                        - generic [ref=e592]: README
+                - button "Outline" [ref=e593] [cursor=pointer]:
+                  - img [ref=e594]
+              - article [ref=e597]:
+                - generic [ref=e598]:
+                  - heading "Plenum" [level=1] [ref=e599]
+                  - 'link "Permalink: Plenum" [ref=e600] [cursor=pointer]':
+                    - /url: "#plenum"
+                    - img [ref=e601]
+                - paragraph [ref=e603]:
+                  - emphasis [ref=e604]: A digital operating environment for statecraft simulation.
+                - paragraph [ref=e605]:
+                  - link "Plenum simulation interface" [ref=e606] [cursor=pointer]:
+                    - /url: /Seth-arc/Plenum/blob/main/screenshot.PNG
+                    - img "Plenum simulation interface" [ref=e607]
+                - separator [ref=e608]
+                - generic [ref=e609]:
+                  - heading "Problem" [level=2] [ref=e610]
+                  - 'link "Permalink: Problem" [ref=e611] [cursor=pointer]':
+                    - /url: "#problem"
+                    - img [ref=e612]
+                - paragraph [ref=e614]: Complex simulations are difficult to coordinate, document, assess, and repeat.
+                - generic [ref=e615]:
+                  - heading "Solution" [level=2] [ref=e616]
+                  - 'link "Permalink: Solution" [ref=e617] [cursor=pointer]':
+                    - /url: "#solution"
+                    - img [ref=e618]
+                - paragraph [ref=e620]: "Plenum structures the simulation environment: roles, teams, scenario materials, injects, decision submissions, admin control, and records for after-action review."
+                - generic [ref=e621]:
+                  - heading "Value" [level=2] [ref=e622]
+                  - 'link "Permalink: Value" [ref=e623] [cursor=pointer]':
+                    - /url: "#value"
+                    - img [ref=e624]
+                - paragraph [ref=e626]: It turns a live simulation from a one-off event into a repeatable learning and research system.
+                - generic [ref=e627]:
+                  - heading "Use Cases" [level=2] [ref=e628]
+                  - 'link "Permalink: Use Cases" [ref=e629] [cursor=pointer]':
+                    - /url: "#use-cases"
+                    - img [ref=e630]
+                - paragraph [ref=e632]: Statecraft games, crisis simulations, interagency exercises, classroom wargames, policy training, PME-adjacent learning environments.
+                - separator [ref=e633]
+                - generic [ref=e634]:
+                  - heading "Future Development" [level=2] [ref=e635]
+                  - 'link "Permalink: Future Development" [ref=e636] [cursor=pointer]':
+                    - /url: "#future-development"
+                    - img [ref=e637]
+                - paragraph [ref=e639]: Decision analytics, AAR dashboards, role-based intelligence feeds, automated inject scheduling, participant performance mapping, scenario libraries.
+        - generic [ref=e643]:
+          - generic [ref=e646]:
+            - heading "About" [level=2] [ref=e647]
+            - paragraph [ref=e648]: Plenum is a digital simulation environment that supports role-based statecraft games, decision capture, scenario control, and after-action learning.
+            - heading "Topics" [level=3] [ref=e649]
+            - generic [ref=e651]:
+              - link "decision-making" [ref=e652] [cursor=pointer]:
+                - /url: /topics/decision-making
+              - link "simulations" [ref=e653] [cursor=pointer]:
+                - /url: /topics/simulations
+            - heading "Resources" [level=3] [ref=e654]
+            - link "Readme" [ref=e656] [cursor=pointer]:
+              - /url: "#readme-ov-file"
+              - img [ref=e657]
+              - text: Readme
+            - link "Activity" [ref=e660] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/activity
+              - img [ref=e661]
+              - text: Activity
+            - heading "Stars" [level=3] [ref=e663]
+            - link "1 star" [ref=e665] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/stargazers
+              - img [ref=e666]
+              - strong [ref=e668]: "1"
+              - text: star
+            - heading "Watchers" [level=3] [ref=e669]
+            - link "0 watching" [ref=e671] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/watchers
+              - img [ref=e672]
+              - strong [ref=e674]: "0"
+              - text: watching
+            - heading "Forks" [level=3] [ref=e675]
+            - link "1 fork" [ref=e677] [cursor=pointer]:
+              - /url: /Seth-arc/Plenum/forks
+              - img [ref=e678]
+              - strong [ref=e680]: "1"
+              - text: fork
+            - link "Report repository" [ref=e682] [cursor=pointer]:
+              - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2FSeth-arc%2FPlenum&report=Seth-arc+%28user%29
+          - generic [ref=e684]:
+            - heading "Releases" [level=2] [ref=e685]:
+              - link "Releases" [ref=e686] [cursor=pointer]:
+                - /url: /Seth-arc/Plenum/releases
+            - generic [ref=e687]: No releases published
+          - generic [ref=e689]:
+            - heading "Packages" [level=2] [ref=e690]:
+              - link "Packages" [ref=e691] [cursor=pointer]:
+                - /url: /users/Seth-arc/packages?repo_name=Plenum
+            - generic [ref=e692]: No packages published
+          - generic [ref=e694]:
+            - heading "Contributors 2" [level=2] [ref=e695]:
+              - link "Contributors 2" [ref=e696] [cursor=pointer]:
+                - /url: /Seth-arc/Plenum/graphs/contributors
+                - text: Contributors
+                - generic "2" [ref=e697]
+            - list [ref=e698]:
+              - listitem [ref=e699]:
+                - link "@Seth-arc" [ref=e700] [cursor=pointer]:
+                  - /url: https://github.com/Seth-arc
+                  - img "@Seth-arc" [ref=e701]
+                - link "Seth-arc Sethu Nguna" [ref=e703] [cursor=pointer]:
+                  - /url: https://github.com/Seth-arc
+                  - strong [ref=e704]: Seth-arc
+                  - text: Sethu Nguna
+              - listitem [ref=e705]:
+                - link "@Copilot" [ref=e706] [cursor=pointer]:
+                  - /url: https://github.com/apps/copilot-swe-agent
+                  - img "@Copilot" [ref=e707]
+                - link "Copilot" [ref=e709] [cursor=pointer]:
+                  - /url: https://github.com/apps/copilot-swe-agent
+                  - strong [ref=e710]: Copilot
+          - generic [ref=e712]:
+            - heading "Languages" [level=2] [ref=e713]
+            - list [ref=e719]:
+              - listitem [ref=e720]:
+                - link "HTML 94.3%" [ref=e721] [cursor=pointer]:
+                  - /url: /Seth-arc/Plenum/search?l=html
+                  - img [ref=e722]
+                  - generic [ref=e724]: HTML
+                  - generic [ref=e725]: 94.3%
+              - listitem [ref=e726]:
+                - link "JavaScript 4.6%" [ref=e727] [cursor=pointer]:
+                  - /url: /Seth-arc/Plenum/search?l=javascript
+                  - img [ref=e728]
+                  - generic [ref=e730]: JavaScript
+                  - generic [ref=e731]: 4.6%
+              - listitem [ref=e732]:
+                - generic [ref=e733]:
+                  - img [ref=e734]
+                  - generic [ref=e736]: Other
+                  - generic [ref=e737]: 1.1%
+  - contentinfo [ref=e739]:
+    - heading "Footer" [level=2] [ref=e740]
+    - generic [ref=e741]:
+      - generic [ref=e742]:
+        - link "GitHub Homepage" [ref=e743] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e744]
+        - generic [ref=e746]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e747]:
+        - heading "Footer navigation" [level=3] [ref=e748]
+        - list "Footer navigation" [ref=e749]:
+          - listitem [ref=e750]:
+            - link "Terms" [ref=e751] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e752]:
+            - link "Privacy" [ref=e753] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e754]:
+            - link "Security" [ref=e755] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e756]:
+            - link "Status" [ref=e757] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e758]:
+            - link "Community" [ref=e759] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e760]:
+            - link "Docs" [ref=e761] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e762]:
+            - link "Contact" [ref=e763] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e764]:
+            - button "Manage cookies" [ref=e766] [cursor=pointer]
+          - listitem [ref=e767]:
+            - button "Do not share my personal information" [ref=e769] [cursor=pointer]
