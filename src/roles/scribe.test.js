@@ -943,6 +943,7 @@ describe('scribe surface', () => {
         const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
         expect(css).toContain('.scribe-section-region--actions {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
+        expect(css).toContain('.scribe-section-region--actions + .scribe-section-region--deck {\n    margin-top: var(--space-5);');
         expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary');
         expect(css).toContain('.scribe-section-card {\n    border: 0;\n    border-radius: var(--radius-md);\n    background: transparent;');
         expect(css).toContain('.scribe-section-trigger {\n    width: 100%;\n    display: flex;\n    align-items: center;');

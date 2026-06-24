@@ -340,6 +340,10 @@ body::before {
     margin-top: var(--space-3);
 }
 
+.scribe-section-region--actions + .scribe-section-region--deck {
+    margin-top: var(--space-5);
+}
+
 .scribe-section-region-heading {
     display: flex;
     align-items: baseline;
