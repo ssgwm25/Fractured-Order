@@ -289,7 +289,7 @@ export class FacilitatorController {
                 },
                 {
                     title: 'Review received proposals',
-                    body: 'Received Proposals lists Green Team proposals that White Cell has approved and forwarded for your team to acknowledge, decline, ignore, or answer.',
+                    body: 'Received Proposals lists proposals that White Cell has approved and forwarded for your team to acknowledge, decline, ignore, or answer.',
                     highlight: navTarget('receivedProposals')
                 },
                 {
