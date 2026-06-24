@@ -17,7 +17,8 @@ const {
     mockExportSessionRequestsCsv,
     mockExportSessionTimelineCsv,
     mockExportSessionParticipantsCsv,
-    mockOpenResearchPrintWindow
+    mockOpenResearchPrintWindow,
+    mockMountFollowAlong
 } = vi.hoisted(() => ({
     mockBuildJsonExportPayload: vi.fn((bundle) => ({ exported: true, ...bundle })),
     mockBuildResearchExportBundle: vi.fn(async () => ({
@@ -31,7 +32,8 @@ const {
     mockExportSessionRequestsCsv: vi.fn(() => 'requests-csv'),
     mockExportSessionTimelineCsv: vi.fn(() => 'timeline-csv'),
     mockExportSessionParticipantsCsv: vi.fn(() => 'participants-csv'),
-    mockOpenResearchPrintWindow: vi.fn()
+    mockOpenResearchPrintWindow: vi.fn(),
+    mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() }))
 }));
 
 vi.mock('../components/ui/Toast.js', () => ({
@@ -47,6 +49,10 @@ vi.mock('../components/ui/Loader.js', () => ({
     showLoader,
     hideLoader,
     showInlineLoader: vi.fn(() => ({ hide: vi.fn() }))
+}));
+
+vi.mock('../features/onboarding/followAlong.js', () => ({
+    mountFollowAlong: mockMountFollowAlong
 }));
 
 vi.mock('../features/export/index.js', async () => {
@@ -322,6 +328,57 @@ describe('White Cell DOM contract', () => {
             sessionId: 'session-1',
             role: 'whitecell_support'
         });
+    });
+
+    it('mounts a White Cell guide that covers every operator surface', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const controller = new WhiteCellController();
+
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+
+        expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
+        expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
+            storageKey: 'followalong:whitecell',
+            title: 'White Cell Lead guide'
+        }));
+
+        const guide = mockMountFollowAlong.mock.calls[0][0];
+        expect(guide.steps.map((step) => step.title)).toEqual([
+            'White Cell Lead',
+            'Watch the live tracker',
+            'Run game controls',
+            'Manage session operations',
+            'Review Blue actions',
+            'Review Green proposals',
+            'Review Red responses',
+            'Read field intelligence',
+            'Publish sentiment updates',
+            'Answer RFIs',
+            'Broadcast communications',
+            'Audit the timeline',
+            'Control arrival noise',
+            'Revisit this guide'
+        ]);
+        expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
+            '#timerDisplay',
+            '.sidebar-link[data-section="controls"]',
+            '#settingsTabs .tab-list',
+            '.sidebar-link[data-section="actions"]',
+            '.sidebar-link[data-section="proposals"]',
+            '.sidebar-link[data-section="responses"]',
+            '.sidebar-link[data-section="tribeStreetJournal"]',
+            '.sidebar-link[data-section="verbaAi"]',
+            '.sidebar-link[data-section="requests"]',
+            '.sidebar-link[data-section="communications"]',
+            '.sidebar-link[data-section="timeline"]',
+            '#whiteCellNotificationsMuteBtn',
+            '.sidebar-session'
+        ]);
+        expect(guide.steps[3].body).toContain('live sessions');
+        expect(guide.steps[3].body).toContain('participant rosters');
+        expect(guide.steps[3].body).toContain('scribe deck assignments');
+        expect(guide.steps[3].body).toContain('export controls');
     });
 
     it('renders default scribe deck controls before live communication sync finishes', async () => {

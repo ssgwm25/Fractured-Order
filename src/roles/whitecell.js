@@ -1060,7 +1060,7 @@ export class WhiteCellController {
             steps: [
                 {
                     title: operatorLabel,
-                    body: 'Use this console to run the exercise, adjudicate team submissions, answer RFIs, and keep the record current.'
+                    body: 'Use this console to run the exercise, adjudicate submissions, answer RFIs, publish White Cell updates, manage seats and decks, and export the record.'
                 },
                 {
                     title: 'Watch the live tracker',
@@ -1068,19 +1068,59 @@ export class WhiteCellController {
                     highlight: '#timerDisplay'
                 },
                 {
-                    title: 'Run move, phase, and timer',
-                    body: 'Simulation Settings is where White Cell advances or reverses moves and phases, starts or pauses the timer, resets the clock, and broadcasts guidance.',
+                    title: 'Run game controls',
+                    body: 'Use Simulation Settings to advance or reverse moves and phases, start or pause the timer, and reset the clock.',
                     highlight: navTarget('controls')
                 },
                 {
-                    title: 'Adjudicate queues',
-                    body: 'Review Blue actions, Green proposals, and Red responses from their queue sections before rulings reach teams.',
+                    title: 'Manage session operations',
+                    body: 'The Simulation Settings tabs also cover live sessions, participant rosters, scribe deck assignments, and export controls.',
+                    highlight: '#settingsTabs .tab-list'
+                },
+                {
+                    title: 'Review Blue actions',
+                    body: 'Actions is the Blue Team queue. Review submitted actions, record White Cell rulings, and share approved actions forward when needed.',
                     highlight: navTarget('actions')
                 },
                 {
-                    title: 'Answer and broadcast',
-                    body: "Forward proposals, answer RFIs, and send communications. Badges stay filled until the new queue items are opened.",
+                    title: 'Review Green proposals',
+                    body: 'Proposals is the Green Team queue. Forward proposals to recipients, request changes, or reject proposals with White Cell notes.',
                     highlight: navTarget('proposals')
+                },
+                {
+                    title: 'Review Red responses',
+                    body: 'Move Responses is the Red Team queue. Review responses before they affect the shared exercise record.',
+                    highlight: navTarget('responses')
+                },
+                {
+                    title: 'Read field intelligence',
+                    body: 'Tribe Street Journal surfaces facilitator, scribe, and notetaker captures so White Cell can turn selected moments into updates.',
+                    highlight: navTarget('tribeStreetJournal')
+                },
+                {
+                    title: 'Publish sentiment updates',
+                    body: 'Verba AI Population Sentiments is where White Cell composes and reviews Blue, Green, and Red sentiment updates.',
+                    highlight: navTarget('verbaAi')
+                },
+                {
+                    title: 'Answer RFIs',
+                    body: 'RFI collects questions from every team. Answer them here so the response is logged and routed back to the requester.',
+                    highlight: navTarget('requests')
+                },
+                {
+                    title: 'Broadcast communications',
+                    body: 'Communications sends injects, announcements, and guidance to all teams, one team, or specific team roles.',
+                    highlight: navTarget('communications')
+                },
+                {
+                    title: 'Audit the timeline',
+                    body: 'Session Timeline gives White Cell a filterable record of actions, RFIs, communications, captures, seat changes, and game-state events.',
+                    highlight: navTarget('timeline')
+                },
+                {
+                    title: 'Control arrival noise',
+                    body: 'Mute notifications suppresses queue-arrival toasts only. Badges and NEW labels remain visible until the queue items are opened.',
+                    highlight: '#whiteCellNotificationsMuteBtn'
                 },
                 {
                     title: 'Revisit this guide',
