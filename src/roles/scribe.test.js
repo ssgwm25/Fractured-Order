@@ -939,21 +939,21 @@ describe('scribe surface', () => {
         expect(css).toContain('.scribe-sidebar .is-onboarding-target');
     });
 
-    it('styles scribe deck sections as compact sidebar rows instead of oversized cards', () => {
+    it('styles the scribe section nav as a minimalist facilitator-style sidebar', () => {
         const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
-        expect(css).toContain('.scribe-section-region--actions {');
-        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title');
+        expect(css).toContain('.scribe-section-region--actions {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
+        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary');
         expect(css).toContain('.scribe-section-card {\n    border: 0;\n    border-radius: var(--radius-md);\n    background: transparent;');
-        expect(css).toContain('.scribe-section-card--actions .scribe-section-trigger');
-        expect(css).toContain('.scribe-section-card--actions .scribe-section-count');
-        expect(css).toContain('.scribe-section-card--actions .scribe-section-index');
         expect(css).toContain('.scribe-section-trigger {\n    width: 100%;\n    display: flex;\n    align-items: center;');
-        expect(css).toContain('padding: var(--space-2) var(--space-3);');
+        expect(css).toContain('padding: var(--space-3);');
         expect(css).toContain('.scribe-section-card.is-current .scribe-section-trigger::before');
         expect(css).toContain('.scribe-slide-link {\n    width: 100%;\n    display: grid;');
-        expect(css).toContain('.scribe-slide-link.is-action {\n    background: rgba(255, 255, 255, 0.72);');
-        expect(css).toContain('padding: 7px var(--space-2);');
+        expect(css).toContain('.scribe-slide-link.is-action {\n    background: transparent;\n    color: inherit;\n    box-shadow: none;');
+        expect(css).toContain('.scribe-slide-link.is-action.is-active {\n    background: var(--color-navy-soft);');
+        expect(css).toContain('padding: var(--space-2);');
+        expect(css).not.toContain('linear-gradient(180deg, var(--color-info-100)');
+        expect(css).not.toContain('box-shadow: inset 3px 0 0 var(--color-team-blue);');
     });
 
     it('builds the team-scoped facilitator decks into the same decks/team paths that scribe seats fetch at runtime', () => {

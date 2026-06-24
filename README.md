@@ -84,7 +84,7 @@ Game Master and White Cell operators can create and delete live sessions from th
 
 White Cell scribe deck controls render default team decks immediately while live communications hydrate. Browser-uploaded decks remain same-device cache assignments; blocked browser storage and stalled repo deck validation must fail with an operator-visible error rather than leaving the deck workflow in a loading state.
 
-Scribe deck navigation is split into distinct `Actions` and `Deck` groups. Live actions use a separate accented treatment from support deck slides, and each section can be expanded or collapsed independently; closing the active section must not force another section open.
+Scribe deck navigation is split into distinct `Actions` and `Deck` groups. The section nav follows the minimalist facilitator sidebar pattern: unframed groups, compact rows, a single current-row rail marker, and no separate accented action-card treatment. Each section can be expanded or collapsed independently; closing the active section must not force another section open.
 
 White Cell operators can mute queue arrival notifications from the header. Muting suppresses the toast interruption only; sidebar counts and in-queue NEW labels remain visible so adjudication awareness is not lost.
 

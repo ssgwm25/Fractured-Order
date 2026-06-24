@@ -362,22 +362,19 @@ body::before {
 }
 
 .scribe-section-region--actions {
-    padding: var(--space-2);
-    border: 1px solid var(--color-info-100);
-    border-radius: var(--radius-lg);
-    background: linear-gradient(180deg, var(--color-info-100), rgba(255, 255, 255, 0.72));
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
 }
 
 .scribe-section-region--actions .scribe-section-region-heading {
-    padding: 0 var(--space-1) var(--space-2);
+    padding: 0 var(--space-3) var(--space-2);
 }
 
-.scribe-section-region--actions .scribe-section-region-title {
-    color: var(--color-team-blue);
-}
-
+.scribe-section-region--actions .scribe-section-region-title,
 .scribe-section-region--actions .scribe-section-region-summary {
-    color: var(--color-team-blue);
+    color: var(--color-text-muted);
 }
 
 .scribe-section-card {
@@ -401,7 +398,7 @@ body::before {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3);
     border: 0;
     border-radius: var(--radius-md);
     background: transparent;
@@ -437,8 +434,8 @@ body::before {
 
 .scribe-section-card.is-current .scribe-section-trigger:hover,
 .scribe-section-card.is-current .scribe-section-trigger:focus-visible {
-    background: var(--color-navy-strong);
-    color: var(--color-primary-600);
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
 }
 
 .scribe-section-trigger-title {
@@ -495,38 +492,6 @@ body::before {
     color: var(--color-navy);
 }
 
-.scribe-section-card--actions .scribe-section-trigger {
-    background: rgba(255, 255, 255, 0.78);
-    color: var(--color-team-blue);
-    box-shadow: inset 0 0 0 1px rgba(44, 95, 138, 0.14);
-}
-
-.scribe-section-card--actions .scribe-section-trigger:hover,
-.scribe-section-card--actions .scribe-section-trigger:focus-visible {
-    background: var(--color-surface);
-    color: var(--color-team-blue);
-}
-
-.scribe-section-card--actions.is-current .scribe-section-trigger {
-    background: var(--color-surface);
-    color: var(--color-team-blue);
-}
-
-.scribe-section-card--actions.is-current .scribe-section-trigger::before {
-    background: var(--color-team-blue);
-}
-
-.scribe-section-card--actions .scribe-section-count {
-    background: var(--color-team-blue);
-    color: #fff;
-}
-
-.scribe-section-card--actions .scribe-section-index {
-    border-color: rgba(44, 95, 138, 0.24);
-    background: var(--color-info-100);
-    color: var(--color-team-blue);
-}
-
 .scribe-section-chevron {
     display: inline-flex;
     align-items: center;
@@ -538,7 +503,7 @@ body::before {
 }
 
 .scribe-slide-group {
-    padding: 2px var(--space-2) var(--space-2) calc(var(--space-3) + 8px);
+    padding: 2px 0 var(--space-2) var(--space-3);
 }
 
 .scribe-slide-list {
@@ -557,7 +522,7 @@ body::before {
     grid-template-columns: auto 1fr;
     gap: var(--space-2);
     align-items: flex-start;
-    padding: 7px var(--space-2);
+    padding: var(--space-2);
     border: 0;
     border-radius: var(--radius-md);
     background: transparent;
@@ -574,26 +539,27 @@ body::before {
 }
 
 .scribe-slide-link.is-active {
-    background: var(--color-primary-100);
-    color: var(--color-primary-700);
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
 }
 
 .scribe-slide-link.is-action {
-    background: rgba(255, 255, 255, 0.72);
-    color: var(--color-text);
-    box-shadow: inset 3px 0 0 var(--color-team-blue);
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
 }
 
 .scribe-slide-link.is-action:hover,
 .scribe-slide-link.is-action:focus-visible {
-    background: var(--color-surface);
+    background: var(--color-surface-alt);
+    color: var(--color-text);
     box-shadow: none;
 }
 
 .scribe-slide-link.is-action.is-active {
-    background: var(--color-surface);
-    color: var(--color-team-blue);
-    box-shadow: inset 3px 0 0 var(--color-team-blue), 0 0 0 1px rgba(44, 95, 138, 0.18);
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
+    box-shadow: none;
 }
 
 .scribe-slide-link-number {
@@ -610,13 +576,19 @@ body::before {
     font-weight: var(--font-semibold);
 }
 
+.scribe-slide-link.is-active .scribe-slide-link-number {
+    background: var(--color-surface);
+    color: var(--color-navy);
+}
+
 .scribe-slide-link.is-action .scribe-slide-link-number {
-    background: var(--color-team-blue);
-    color: #fff;
+    background: var(--color-surface-alt);
+    color: var(--color-primary-600);
 }
 
 .scribe-slide-link.is-action.is-active .scribe-slide-link-number {
-    background: var(--color-info-600);
+    background: var(--color-surface);
+    color: var(--color-navy);
 }
 
 .scribe-slide-link-kicker {
@@ -635,11 +607,11 @@ body::before {
 }
 
 .scribe-slide-link.is-action .scribe-slide-link-kicker {
-    color: var(--color-team-blue);
+    color: var(--color-text-muted);
 }
 
 .scribe-slide-link.is-action .scribe-slide-link-title {
-    font-weight: var(--font-semibold);
+    font-weight: var(--font-medium);
 }
 
 .scribe-main {
