@@ -472,6 +472,9 @@ describe('research export builder', () => {
         expect(reportHtml).toContain('Session Snapshot');
         expect(reportHtml).toContain('Note Summary');
         expect(reportHtml).toContain('window.print()');
+        expect(reportHtml).toContain('aria-label="Plenum wordmark">Plenum<span class="report-wordmark-dot">.</span>');
+        expect(reportHtml).not.toContain('AidData');
+        expect(reportHtml).not.toContain('report-logo--aiddata');
         expect(reportHtml).not.toContain('Blue notes');
     });
 

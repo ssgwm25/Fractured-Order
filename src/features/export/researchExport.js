@@ -22,7 +22,7 @@ import {
     exportSessionRequestsCsv,
     exportSessionTimelineCsv
 } from './exportCsv.js';
-import { AIDDATA_LOGO_DATA_URI, SSG_LOGO_DATA_URI } from './reportAssets.js';
+import { SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
@@ -4496,7 +4496,14 @@ export function buildResearchReportHtml(dataset, {
         }
         .report-logo { width: auto; max-width: 48%; display: block; }
         .report-logo--ssg { height: 120px; }
-        .report-logo--aiddata { height: 40px; }
+        .report-wordmark {
+            font-size: 30px;
+            line-height: 1;
+            letter-spacing: -0.018em;
+            font-weight: 800;
+            color: var(--report-ink);
+        }
+        .report-wordmark-dot { color: var(--report-accent); }
         .report-simulation {
             margin: 0 0 4px;
             font-size: 13px;
@@ -4753,7 +4760,7 @@ export function buildResearchReportHtml(dataset, {
         <section class="report-cover">
             <div class="report-cover-logos">
                 <img class="report-logo report-logo--ssg" src="${SSG_LOGO_DATA_URI}" alt="W&M Statecraft Simulations Group">
-                <img class="report-logo report-logo--aiddata" src="${AIDDATA_LOGO_DATA_URI}" alt="AidData — A Research Lab at William & Mary">
+                <div class="report-wordmark" aria-label="Plenum wordmark">Plenum<span class="report-wordmark-dot">.</span></div>
             </div>
             <p class="report-classification">Confidential · For Authorized Post-Game Review</p>
             <p class="report-simulation">${escapeHtml(SIMULATION_NAME)}</p>
