@@ -256,6 +256,7 @@ export const WHITE_CELL_DOM_IDS = [
     'proposalsBadge',
     'responsesBadge',
     'participantsSummary',
+    'participantsSessionFilter',
     'participantsTeamFilter',
     'participantsRoleFilter',
     'participantsList',
@@ -428,6 +429,58 @@ export function getWhiteCellParticipantSessionLabel(participant = {}, session = 
     }
 
     return getWhiteCellSessionLabel(session);
+}
+
+export function getWhiteCellParticipantSessionFilterValue(participant = {}, session = null) {
+    const explicitId = String(participant.session_id || participant.sessionId || participant.session?.id || '').trim();
+    if (explicitId) {
+        return `id:${explicitId}`;
+    }
+
+    const participantCode = String(participant.sessionCode || participant.session_code || participant.code || '').trim();
+    if (participantCode) {
+        return `code:${participantCode}`;
+    }
+
+    const participantSession = String(participant.sessionName || participant.session_name || '').trim();
+    if (participantSession) {
+        return `name:${participantSession}`;
+    }
+
+    const fallbackId = String(session?.id || '').trim();
+    if (fallbackId) {
+        return `id:${fallbackId}`;
+    }
+
+    const fallbackCode = String(session?.session_code || session?.sessionCode || session?.code || session?.metadata?.session_code || '').trim();
+    if (fallbackCode) {
+        return `code:${fallbackCode}`;
+    }
+
+    const fallbackName = String(session?.name || '').trim();
+    if (fallbackName) {
+        return `name:${fallbackName}`;
+    }
+
+    return null;
+}
+
+function getWhiteCellParticipantSessionFilterFallbackLabel(sessionValue = '') {
+    const [kind, ...rawParts] = String(sessionValue || '').split(':');
+    const rawValue = rawParts.join(':').trim();
+    if (!rawValue) {
+        return '';
+    }
+
+    if (kind === 'id') {
+        return `Session ${rawValue.slice(0, 8)}`;
+    }
+
+    if (kind === 'code') {
+        return `Code ${rawValue}`;
+    }
+
+    return rawValue;
 }
 
 export function getWhiteCellDeleteSessionConfirmationOptions(session = {}) {
@@ -730,13 +783,23 @@ export function getWhiteCellParticipantTeamFilterValue(participant = {}) {
     return participant.team || participant.team_id || parsedRole.teamId || null;
 }
 
-export function buildWhiteCellParticipantFilterOptions(participants = []) {
+export function buildWhiteCellParticipantFilterOptions(participants = [], {
+    activeSession = null
+} = {}) {
+    const sessionValues = new Map();
     const teamValues = new Set();
     const roleValues = new Set();
 
     participants.forEach((participant) => {
+        const sessionValue = getWhiteCellParticipantSessionFilterValue(participant, activeSession);
+        const sessionLabel = getWhiteCellParticipantSessionLabel(participant, activeSession)
+            || getWhiteCellParticipantSessionFilterFallbackLabel(sessionValue);
         const teamValue = getWhiteCellParticipantTeamFilterValue(participant);
         const roleValue = getWhiteCellRoleFilterValue(participant.role);
+
+        if (sessionValue && sessionLabel && !sessionValues.has(sessionValue)) {
+            sessionValues.set(sessionValue, sessionLabel);
+        }
 
         if (teamValue && teamValue !== 'white_cell') {
             teamValues.add(teamValue);
@@ -748,6 +811,12 @@ export function buildWhiteCellParticipantFilterOptions(participants = []) {
     });
 
     return {
+        sessionOptions: [
+            { value: '', label: 'All Sessions' },
+            ...[...sessionValues.entries()]
+                .sort((left, right) => left[1].localeCompare(right[1]))
+                .map(([value, label]) => ({ value, label }))
+        ],
         teamOptions: [
             { value: '', label: 'All Teams' },
             ...sortWhiteCellFilterValues(teamValues, WHITE_CELL_FILTER_TEAM_ORDER).map((value) => ({
@@ -766,12 +835,19 @@ export function buildWhiteCellParticipantFilterOptions(participants = []) {
 }
 
 export function filterWhiteCellParticipants(participants = [], {
+    session = null,
     team = null,
-    role = null
+    role = null,
+    activeSession = null
 } = {}) {
     return participants.filter((participant) => {
+        const participantSession = getWhiteCellParticipantSessionFilterValue(participant, activeSession);
         const participantTeam = getWhiteCellParticipantTeamFilterValue(participant);
         const participantRole = getWhiteCellRoleFilterValue(participant.role);
+
+        if (session && participantSession !== session) {
+            return false;
+        }
 
         if (team && participantTeam !== team) {
             return false;
@@ -1010,6 +1086,7 @@ export class WhiteCellController {
         this.currentTimerSeconds = CONFIG.DEFAULT_TIMER_SECONDS;
         this.timerRunning = false;
         this.participantFilters = {
+            session: null,
             team: null,
             role: null
         };
@@ -1273,6 +1350,7 @@ export class WhiteCellController {
         const prevMoveBtn = document.getElementById('prevMoveBtn');
         const nextMoveBtn = document.getElementById('nextMoveBtn');
         const commForm = document.getElementById('commForm');
+        const participantsSessionFilter = document.getElementById('participantsSessionFilter');
         const participantsTeamFilter = document.getElementById('participantsTeamFilter');
         const participantsRoleFilter = document.getElementById('participantsRoleFilter');
         const scribeDeckSettingsList = document.getElementById('scribeDeckSettingsList');
@@ -1311,6 +1389,10 @@ export class WhiteCellController {
 
         commForm?.addEventListener('submit', (event) => this.handleCommunicationSubmit(event));
         notificationsMuteBtn?.addEventListener('click', () => this.toggleNotificationsMuted());
+        participantsSessionFilter?.addEventListener('change', (event) => {
+            this.participantFilters.session = event.currentTarget.value || null;
+            this.renderParticipants();
+        });
         participantsTeamFilter?.addEventListener('change', (event) => {
             this.participantFilters.team = event.currentTarget.value || null;
             this.renderParticipants();
@@ -3398,13 +3480,19 @@ export class WhiteCellController {
     }
 
     configureParticipantFilters() {
+        const sessionSelect = document.getElementById('participantsSessionFilter');
         const teamSelect = document.getElementById('participantsTeamFilter');
         const roleSelect = document.getElementById('participantsRoleFilter');
-        if (!teamSelect || !roleSelect) return;
+        if (!sessionSelect || !teamSelect || !roleSelect) return;
 
-        const { teamOptions, roleOptions } = buildWhiteCellParticipantFilterOptions(this.participants);
+        const activeSession = sessionStore.getSessionData?.() || null;
+        const { sessionOptions, teamOptions, roleOptions } = buildWhiteCellParticipantFilterOptions(this.participants, {
+            activeSession
+        });
+        this.populateFilterSelect(sessionSelect, sessionOptions, this.participantFilters.session);
         this.populateFilterSelect(teamSelect, teamOptions, this.participantFilters.team);
         this.populateFilterSelect(roleSelect, roleOptions, this.participantFilters.role);
+        this.participantFilters.session = sessionSelect.value || null;
         this.participantFilters.team = teamSelect.value || null;
         this.participantFilters.role = roleSelect.value || null;
     }
@@ -3414,12 +3502,19 @@ export class WhiteCellController {
         const container = document.getElementById('participantsList');
         if (!summary || !container) return;
 
-        const filteredParticipants = filterWhiteCellParticipants(this.participants, this.participantFilters);
-        const hasActiveFilters = Boolean(this.participantFilters.team || this.participantFilters.role);
+        const activeSession = sessionStore.getSessionData?.() || null;
+        const filteredParticipants = filterWhiteCellParticipants(this.participants, {
+            ...this.participantFilters,
+            activeSession
+        });
+        const hasActiveFilters = Boolean(
+            this.participantFilters.session
+            || this.participantFilters.team
+            || this.participantFilters.role
+        );
         const filteredSummary = filteredParticipants.length === 0 && this.participants.length > 0 && hasActiveFilters
             ? 'No participants match the current filters.'
             : formatWhiteCellParticipantSummary(filteredParticipants);
-        const activeSession = sessionStore.getSessionData?.() || null;
         const activeSessionLabel = getWhiteCellSessionLabel(activeSession);
         const summaryText = filteredSummary.endsWith('.') ? filteredSummary : `${filteredSummary}.`;
 
@@ -3429,7 +3524,7 @@ export class WhiteCellController {
 
         if (filteredParticipants.length === 0) {
             container.innerHTML = hasActiveFilters
-                ? '<p class="text-sm text-gray-500">No participants match the selected team and role filters.</p>'
+                ? '<p class="text-sm text-gray-500">No participants match the selected filters.</p>'
                 : '<p class="text-sm text-gray-500">No facilitator, scribe, notetaker, or White Cell seats are connected in this session yet.</p>';
             return;
         }
@@ -3444,7 +3539,10 @@ export class WhiteCellController {
             const roleBadge = createRoleBadge(participant.role || 'unknown').outerHTML;
             const roleLabel = getRoleDisplayName(participant.role) || participant.role || 'Unknown role';
             const lastActiveAt = participant.heartbeat_at || participant.last_seen || participant.joined_at;
-            const participantSessionLabel = getWhiteCellParticipantSessionLabel(participant, activeSession);
+            const participantSessionLabel = getWhiteCellParticipantSessionLabel(participant, activeSession)
+                || getWhiteCellParticipantSessionFilterFallbackLabel(
+                    getWhiteCellParticipantSessionFilterValue(participant, activeSession)
+                );
 
             return `
                 <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
@@ -4362,7 +4460,7 @@ export class WhiteCellController {
 
         const normalizedValue = currentValue || '';
         selectElement.innerHTML = options.map((option) => (
-            `<option value="${option.value}">${this.escapeHtml(option.label)}</option>`
+            `<option value="${this.escapeHtml(option.value)}">${this.escapeHtml(option.label)}</option>`
         )).join('');
 
         selectElement.value = options.some((option) => option.value === normalizedValue)

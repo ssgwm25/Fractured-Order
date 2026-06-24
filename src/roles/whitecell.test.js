@@ -194,6 +194,7 @@ describe('White Cell DOM contract', () => {
         controller.regressMove = vi.fn();
         controller.advanceMove = vi.fn();
         controller.handleCommunicationSubmit = vi.fn();
+        controller.renderParticipants = vi.fn();
         controller.renderTimeline = vi.fn();
 
         controller.bindEventListeners();
@@ -210,6 +211,18 @@ describe('White Cell DOM contract', () => {
         fakeDocument.elements.commForm.listeners.submit({
             preventDefault() {},
             currentTarget: fakeDocument.elements.commForm
+        });
+        fakeDocument.elements.participantsSessionFilter.value = 'id:session-alpha';
+        fakeDocument.elements.participantsSessionFilter.listeners.change({
+            currentTarget: fakeDocument.elements.participantsSessionFilter
+        });
+        fakeDocument.elements.participantsTeamFilter.value = 'blue';
+        fakeDocument.elements.participantsTeamFilter.listeners.change({
+            currentTarget: fakeDocument.elements.participantsTeamFilter
+        });
+        fakeDocument.elements.participantsRoleFilter.value = 'scribe';
+        fakeDocument.elements.participantsRoleFilter.listeners.change({
+            currentTarget: fakeDocument.elements.participantsRoleFilter
         });
         fakeDocument.elements.timelineTeamFilter.value = 'blue';
         fakeDocument.elements.timelineTeamFilter.listeners.change({
@@ -236,6 +249,12 @@ describe('White Cell DOM contract', () => {
         expect(controller.regressMove).toHaveBeenCalledTimes(1);
         expect(controller.advanceMove).toHaveBeenCalledTimes(1);
         expect(controller.handleCommunicationSubmit).toHaveBeenCalledTimes(1);
+        expect(controller.participantFilters).toMatchObject({
+            session: 'id:session-alpha',
+            team: 'blue',
+            role: 'scribe'
+        });
+        expect(controller.renderParticipants).toHaveBeenCalledTimes(3);
         expect(controller.timelineFilters).toMatchObject({
             team: 'blue',
             role: 'facilitator',
@@ -883,16 +902,39 @@ describe('White Cell DOM contract', () => {
         });
     });
 
-    it('builds participant team and role filters from the live roster', async () => {
+    it('builds participant session, team, and role filters from the live roster', async () => {
         const { buildWhiteCellParticipantFilterOptions } = await loadWhiteCellModule();
 
-        const { teamOptions, roleOptions } = buildWhiteCellParticipantFilterOptions([
-            { id: 'blue-facilitator', role: 'blue_facilitator' },
-            { id: 'blue-scribe', role: 'blue_scribe' },
-            { id: 'green-notetaker', role: 'green_notetaker' },
-            { id: 'whitecell-seat', role: 'whitecell_support' }
-        ]);
+        const { sessionOptions, teamOptions, roleOptions } = buildWhiteCellParticipantFilterOptions([
+            {
+                id: 'blue-facilitator',
+                role: 'blue_facilitator',
+                session_id: 'session-alpha',
+                sessionName: 'Alpha Session',
+                sessionCode: 'ALPHA'
+            },
+            { id: 'blue-scribe', role: 'blue_scribe', session_id: 'session-alpha' },
+            {
+                id: 'green-notetaker',
+                role: 'green_notetaker',
+                session_id: 'session-bravo',
+                sessionName: 'Bravo Session',
+                sessionCode: 'BRAVO'
+            },
+            { id: 'whitecell-seat', role: 'whitecell_support', session_id: 'session-alpha' }
+        ], {
+            activeSession: {
+                id: 'session-alpha',
+                name: 'Alpha Session',
+                code: 'ALPHA'
+            }
+        });
 
+        expect(sessionOptions).toEqual([
+            { value: '', label: 'All Sessions' },
+            { value: 'id:session-alpha', label: 'Alpha Session (ALPHA)' },
+            { value: 'id:session-bravo', label: 'Bravo Session (BRAVO)' }
+        ]);
         expect(teamOptions).toEqual(expect.arrayContaining([
             { value: '', label: 'All Teams' },
             { value: 'blue', label: 'Blue Team' },
@@ -908,7 +950,7 @@ describe('White Cell DOM contract', () => {
         expect(roleOptions.map((option) => option.value)).not.toContain('whitecell');
     });
 
-    it('filters White Cell timeline events by team, role, move, and activity type', async () => {
+    it('filters White Cell participants by session, team, and role plus timeline event filters', async () => {
         const {
             buildWhiteCellParticipantRoster,
             buildWhiteCellTimelineFilterOptions,
@@ -917,13 +959,18 @@ describe('White Cell DOM contract', () => {
         } = await loadWhiteCellModule();
 
         const roster = buildWhiteCellParticipantRoster([
-            { id: 'blue-facilitator', role: 'blue_facilitator', is_active: true },
-            { id: 'blue-scribe', role: 'blue_scribe', is_active: true },
-            { id: 'green-notetaker', role: 'green_notetaker', is_active: true },
-            { id: 'red-whitecell', role: 'whitecell_support', is_active: true }
+            { id: 'blue-facilitator', role: 'blue_facilitator', session_id: 'session-alpha', is_active: true },
+            { id: 'blue-scribe', role: 'blue_scribe', session_id: 'session-alpha', is_active: true },
+            { id: 'green-notetaker', role: 'green_notetaker', session_id: 'session-bravo', is_active: true },
+            { id: 'red-whitecell', role: 'whitecell_support', session_id: 'session-alpha', is_active: true }
         ]);
 
         expect(filterWhiteCellParticipants(roster, {
+            session: 'id:session-bravo'
+        }).map((participant) => participant.id)).toEqual(['green-notetaker']);
+
+        expect(filterWhiteCellParticipants(roster, {
+            session: 'id:session-bravo',
             team: 'green',
             role: 'notetaker'
         }).map((participant) => participant.id)).toEqual(['green-notetaker']);

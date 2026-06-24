@@ -84,7 +84,7 @@ The Red facilitator guide follows the same full tour pattern with move-response-
 
 The facilitator `Responses` feed separates direct White Cell communications, RFI answers, White Cell updates, and forwarded proposals into horizontal labelled groups so facilitators can scan each response type independently.
 
-Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped and labeled by the selected or active session so operators can distinguish seats across concurrent exercises.
+Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped, labeled, and filterable by session so operators can distinguish seats across concurrent exercises.
 
 White Cell scribe deck controls render default team decks immediately while live communications hydrate. Browser-uploaded decks remain same-device cache assignments; blocked browser storage and stalled repo deck validation must fail with an operator-visible error rather than leaving the deck workflow in a loading state.
 
