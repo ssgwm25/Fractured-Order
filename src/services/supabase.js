@@ -509,7 +509,7 @@ if (e2eMockEnabled) {
                 },
                 global: {
                     headers: {
-                        'x-client-info': `esg-platform/${CONFIG.VERSION}`
+                        'x-client-info': `plenum/${CONFIG.VERSION}`
                     }
                 }
             }

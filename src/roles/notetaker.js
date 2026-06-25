@@ -61,6 +61,8 @@ export const DEFAULT_ALLIANCE_DATA = {
 };
 
 const CAPTURE_EVENT_TYPES = ['NOTE', 'MOMENT', 'QUOTE'];
+export const NOTETAKER_TIMELINE_RENDER_LIMIT = 80;
+export const NOTETAKER_INBOX_RENDER_LIMIT = 60;
 
 export { NOTETAKER_TIMELINE_EVENT_SOURCE };
 
@@ -71,6 +73,29 @@ const NOTETAKER_SAVE_TIMELINE_CONTENT = {
 
 export function getNotetakerRecordForMove(records = [], move = 1) {
     return (records || []).find((record) => record.move === move) || null;
+}
+
+export function getVisibleNotetakerTimelineEvents(events = [], limit = NOTETAKER_TIMELINE_RENDER_LIMIT) {
+    const allEvents = Array.isArray(events) ? events : [];
+    const visibleEvents = allEvents.slice(0, limit);
+
+    return {
+        visibleEvents,
+        hiddenCount: Math.max(0, allEvents.length - visibleEvents.length)
+    };
+}
+
+export function getVisibleNotetakerInboxCommunications(
+    communications = [],
+    limit = NOTETAKER_INBOX_RENDER_LIMIT
+) {
+    const allCommunications = Array.isArray(communications) ? communications : [];
+    const visibleCommunications = allCommunications.slice(0, limit);
+
+    return {
+        visibleCommunications,
+        hiddenCount: Math.max(0, allCommunications.length - visibleCommunications.length)
+    };
 }
 
 export function buildNotetakerViewState(record = null, {
@@ -1038,15 +1063,23 @@ export class NotetakerController {
             return;
         }
 
+        const { visibleEvents, hiddenCount } = getVisibleNotetakerTimelineEvents(events);
+
         // Group by move
-        const groupedEvents = events.reduce((acc, event) => {
+        const groupedEvents = visibleEvents.reduce((acc, event) => {
             const move = event.move || 1;
             if (!acc[move]) acc[move] = [];
             acc[move].push(event);
             return acc;
         }, {});
 
-        container.innerHTML = Object.entries(groupedEvents)
+        const overflowNote = hiddenCount
+            ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${NOTETAKER_TIMELINE_RENDER_LIMIT} of ${events.length} timeline events.</p>`
+            : '';
+
+        container.innerHTML = `
+            ${overflowNote}
+            ${Object.entries(groupedEvents)
             .sort(([a], [b]) => b - a)
             .map(([move, moveEvents]) => `
                 <div class="timeline-group" style="margin-bottom: var(--space-6);">
@@ -1092,7 +1125,8 @@ export class NotetakerController {
                         }).join('')}
                     </div>
                 </div>
-            `).join('');
+            `).join('')}
+        `;
     }
 
     renderInbox() {
@@ -1120,7 +1154,11 @@ export class NotetakerController {
             return communication.type || 'White Cell Communication';
         };
 
-        container.innerHTML = this.inboxCommunications.map((communication) => `
+        const { visibleCommunications, hiddenCount } = getVisibleNotetakerInboxCommunications(this.inboxCommunications);
+
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${NOTETAKER_INBOX_RENDER_LIMIT} of ${this.inboxCommunications.length} White Cell communications.</p>` : ''}
+            ${visibleCommunications.map((communication) => `
             <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3); ${this.newInboxCommunicationIds.has(communication.id) ? 'border-left: 4px solid var(--color-primary-500); background: var(--color-surface-alt);' : ''}">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
                     <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
@@ -1134,7 +1172,8 @@ export class NotetakerController {
                 </div>
                 <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
             </div>
-        `).join('');
+        `).join('')}
+        `;
     }
 
     /**

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
+import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
+
 const LANDING_HTML_PATH = new URL('../../index.html', import.meta.url);
 
 function extractRoleSurfaces(html) {
@@ -40,18 +42,18 @@ describe('landing public role visibility', () => {
         expect(html).not.toContain(`Fractured Order ${emDash} A Seminar Simulation`);
     });
 
-    it('uses the Fractured Order / Plenum / SSG landing brand lockup', () => {
+    it('uses the Fractured Order / Plenum landing brand lockup', () => {
         const html = readFileSync(LANDING_HTML_PATH, 'utf8');
 
         expect(html).toContain('<title>Fractured Order');
         // The poster lockup names the game and its type.
         expect(html).toContain('class="atm-title-name">Fractured Order<');
-        expect(html).toContain('class="atm-title-kind">An Economic Statecraft Seminar Game<');
-        // The landing stays branded Fractured Order on Plenum for SSG.
+        expect(html).toContain('class="atm-title-kind">An Economic Statecraft Simulation<');
+        // The landing stays branded Fractured Order on Plenum.
         expect(html).toContain('alt="Fractured Order - A Seminar Simulation"');
         expect(html).toContain('on Plenum');
-        expect(html).toContain('for SSG');
-        expect(html).not.toContain('Statecraft Sim');
+        expect(html).not.toMatch(/\bStatecraft Sim\b/);
+        expect(html).not.toContain('Statecraft Simulations Group');
     });
 
     it('contains the operator password field inside a form', () => {
@@ -76,5 +78,13 @@ describe('landing public role visibility', () => {
         expect(html).toContain('id="roleSelectionError"');
         expect(html).toContain('aria-describedby="operatorAccessCodeError"');
         expect(html).toContain('id="operatorAccessCodeError"');
+    });
+
+    it('bounds the landing session-code input to the shared validation maximum', () => {
+        const html = readFileSync(LANDING_HTML_PATH, 'utf8');
+
+        expect(html).toMatch(new RegExp(
+            `<input[^>]+id="sessionCode"[^>]+maxlength="${SESSION_CODE_MAX_LENGTH}"`
+        ));
     });
 });

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Fractured Order, a seminar simulation served on the Plenum platform for SSG.">
+    <meta name="description" content="Fractured Order, a seminar simulation served on the Plenum platform.">
     <title>Fractured Order</title>
     <link rel="icon" type="image/x-icon" href="./src/img/FO_icon.ico">
 
@@ -54,7 +54,7 @@
                         <div class="lf-field">
                             <label for="sessionCode">Session Code</label>
                             <input type="text" id="sessionCode" class="form-input" placeholder="ALPHA-2024"
-                                autocomplete="off" required aria-describedby="sessionCodeError"
+                                autocomplete="off" maxlength="50" required aria-describedby="sessionCodeError"
                                 style="text-transform:uppercase;letter-spacing:0.05em;">
                             <p class="form-error" id="sessionCodeError" role="alert" hidden></p>
                         </div>
@@ -168,7 +168,7 @@
                 console.warn('Failed to persist selected simulation', error);
             }
 
-            // Show the login page directly — no loading screen. Adding the
+            // Show the login page directly; no loading screen. Adding the
             // class starts the entrance animation, which always eases from its
             // first keyframe (no snapping, unlike a coalesced transition).
             if (landing) {

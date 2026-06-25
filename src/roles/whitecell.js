@@ -96,6 +96,7 @@ import {
     getNotetakerTimelineScopeLabel,
     isNotetakerSaveTimelineEvent
 } from '../features/notetaker/timelineDetails.js';
+import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
 
 const logger = createLogger('WhiteCell');
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
@@ -103,6 +104,13 @@ const WHITE_CELL_RED_TEAM_RECIPIENT = 'red';
 const WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE = 'scribe_deck_assignment';
 const WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY = 'whitecell:notifications-muted';
 export const WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS = 10000;
+const WHITE_CELL_REVIEW_GROUP_RENDER_LIMIT = 40;
+const WHITE_CELL_ADJUDICATION_RENDER_LIMIT = 50;
+export const WHITE_CELL_RFI_RENDER_LIMIT = 50;
+const WHITE_CELL_TRIBE_STREET_JOURNAL_RENDER_LIMIT = 60;
+const WHITE_CELL_VERBA_AI_RENDER_LIMIT = 60;
+const WHITE_CELL_COMMUNICATION_RENDER_LIMIT = 60;
+const WHITE_CELL_TIMELINE_RENDER_LIMIT = 50;
 const TEAM_LABELS = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team.label]))
 );
@@ -2446,13 +2454,18 @@ export class WhiteCellController {
 
         const panels = groups.map((group) => {
             const isActive = group.key === activeKey;
+            const visibleItems = group.items.slice(0, WHITE_CELL_REVIEW_GROUP_RENDER_LIMIT);
+            const hiddenCount = Math.max(0, group.items.length - visibleItems.length);
             const body = group.items.length
-                ? group.items.map((action) => this.renderActionCard(action, {
+                ? visibleItems.map((action) => this.renderActionCard(action, {
                     showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
                     includeOutcome: true,
                     isNew: newIds?.has(action.id)
                 })).join('')
                 : `<p class="text-sm text-gray-500" style="margin: 0;">${group.emptyHint}</p>`;
+            const overflowNote = hiddenCount
+                ? `<p class="text-xs text-gray-500" style="margin: var(--space-2) 0 0;">Showing the first ${WHITE_CELL_REVIEW_GROUP_RENDER_LIMIT} of ${group.items.length} records in this queue.</p>`
+                : '';
             return `
                 <div
                     class="tab-panel"
@@ -2460,7 +2473,7 @@ export class WhiteCellController {
                     data-review-panel="${group.key}"
                     role="tabpanel"
                     ${isActive ? '' : 'hidden'}
-                >${body}</div>
+                >${body}${overflowNote}</div>
             `;
         }).join('');
 
@@ -2501,7 +2514,12 @@ export class WhiteCellController {
             return;
         }
 
-        container.innerHTML = pendingActions.map((action) =>
+        const visiblePendingActions = pendingActions.slice(0, WHITE_CELL_ADJUDICATION_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, pendingActions.length - visiblePendingActions.length);
+
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_ADJUDICATION_RENDER_LIMIT} of ${pendingActions.length} pending records.</p>` : ''}
+            ${visiblePendingActions.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator(),
                 includeOutcome: false,
@@ -2509,7 +2527,8 @@ export class WhiteCellController {
                     || this.newGreenProposalIds.has(action.id)
                     || this.newRedResponseIds.has(action.id)
             })
-        ).join('');
+        ).join('')}
+        `;
 
         this.bindActionCardButtons(container);
     }
@@ -3152,7 +3171,12 @@ export class WhiteCellController {
             return;
         }
 
-        container.innerHTML = this.rfis.map((rfi) => {
+        const visibleRfis = this.rfis.slice(0, WHITE_CELL_RFI_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, this.rfis.length - visibleRfis.length);
+
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_RFI_RENDER_LIMIT} of ${this.rfis.length} pending RFIs.</p>` : ''}
+            ${visibleRfis.map((rfi) => {
             const queryText = rfi.query || rfi.question || '';
             return `
                 <div class="card card-bordered" data-rfi-id="${rfi.id}" style="padding: var(--space-4); margin-bottom: var(--space-3);">
@@ -3172,7 +3196,8 @@ export class WhiteCellController {
                     </div>
                 </div>
             `;
-        }).join('');
+        }).join('')}
+        `;
 
         container.querySelectorAll('.respond-rfi-btn').forEach((button) => {
             button.addEventListener('click', () => {
@@ -3981,7 +4006,7 @@ export class WhiteCellController {
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="newSessionCode">Join Code (optional)</label>
-                    <input id="newSessionCode" class="form-input" type="text" placeholder="Leave blank to auto-generate" maxlength="40">
+                    <input id="newSessionCode" class="form-input" type="text" placeholder="Leave blank to auto-generate" maxlength="${SESSION_CODE_MAX_LENGTH}">
                     <p class="form-hint">Participants enter this to join from the landing page.</p>
                 </div>
             </form>
@@ -4278,8 +4303,12 @@ export class WhiteCellController {
             return;
         }
 
+        const visibleEntries = this.tribeStreetJournalEntries.slice(0, WHITE_CELL_TRIBE_STREET_JOURNAL_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, this.tribeStreetJournalEntries.length - visibleEntries.length);
+
         container.innerHTML = `
-            ${this.tribeStreetJournalEntries.map((entry) => {
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_TRIBE_STREET_JOURNAL_RENDER_LIMIT} of ${this.tribeStreetJournalEntries.length} team captures.</p>` : ''}
+            ${visibleEntries.map((entry) => {
             const eventType = entry.type || entry.event_type || 'NOTE';
             const badgeVariant = {
                 NOTE: 'default',
@@ -4360,7 +4389,12 @@ export class WhiteCellController {
             return;
         }
 
-        container.innerHTML = this.verbaAiUpdates.map((communication) => `
+        const visibleUpdates = this.verbaAiUpdates.slice(0, WHITE_CELL_VERBA_AI_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, this.verbaAiUpdates.length - visibleUpdates.length);
+
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_VERBA_AI_RENDER_LIMIT} of ${this.verbaAiUpdates.length} Verba AI updates.</p>` : ''}
+            ${visibleUpdates.map((communication) => `
             <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3); border-left: 3px solid var(--color-success);">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
                     <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
@@ -4371,7 +4405,8 @@ export class WhiteCellController {
                 </div>
                 <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
             </div>
-        `).join('');
+        `).join('')}
+        `;
     }
 
     renderCommunicationHistory() {
@@ -4383,7 +4418,12 @@ export class WhiteCellController {
             return;
         }
 
-        container.innerHTML = this.communications.map((communication) => {
+        const visibleCommunications = this.communications.slice(0, WHITE_CELL_COMMUNICATION_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, this.communications.length - visibleCommunications.length);
+
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_COMMUNICATION_RENDER_LIMIT} of ${this.communications.length} communications.</p>` : ''}
+            ${visibleCommunications.map((communication) => {
             const isOutbound = communication.from_role === 'white_cell';
             const counterpartLabel = isOutbound
                 ? `To ${this.formatCommunicationRecipient(communication.to_role)}`
@@ -4401,7 +4441,8 @@ export class WhiteCellController {
                     <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
                 </div>
             `;
-        }).join('');
+        }).join('')}
+        `;
     }
 
     formatCommunicationRecipient(recipient) {
@@ -4487,7 +4528,15 @@ export class WhiteCellController {
             return;
         }
 
-        container.innerHTML = filteredEvents.slice(0, 50).map((event) => {
+        const visibleEvents = filteredEvents.slice(0, WHITE_CELL_TIMELINE_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, filteredEvents.length - visibleEvents.length);
+        const overflowNote = hiddenCount
+            ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_TIMELINE_RENDER_LIMIT} of ${filteredEvents.length} timeline events for the current filters.</p>`
+            : '';
+
+        container.innerHTML = `
+            ${overflowNote}
+            ${visibleEvents.map((event) => {
             const eventType = getWhiteCellTimelineEventType(event) || 'EVENT';
             const eventContent = event.content || event.description || '';
             const teamLabel = this.formatTeamLabel(event.team);
@@ -4533,7 +4582,8 @@ export class WhiteCellController {
                     </div>
                 </div>
             `;
-        }).join('');
+        }).join('')}
+        `;
     }
 
     formatTeamLabel(team) {

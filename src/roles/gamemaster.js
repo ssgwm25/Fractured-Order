@@ -14,7 +14,11 @@ import { showLoader, hideLoader, showInlineLoader } from '../components/ui/Loade
 import { showModal, confirmModal, closeModal } from '../components/ui/Modal.js';
 import { createBadge } from '../components/ui/Badge.js';
 import { formatRelativeTime } from '../utils/formatting.js';
-import { validateSessionCode } from '../utils/validation.js';
+import {
+    SESSION_CODE_MAX_LENGTH,
+    SESSION_CODE_MIN_LENGTH,
+    validateSessionCode
+} from '../utils/validation.js';
 import {
     buildJsonExportPayload,
     downloadJsonData,
@@ -88,8 +92,8 @@ export function getCreateSessionFormHtml() {
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="newSessionCode">Session Code *</label>
-                    <input type="text" id="newSessionCode" class="form-input" placeholder="e.g., ALPHA2024" maxlength="20" required>
-                    <p class="form-hint">Alphanumeric, 4-20 characters. Participants use this to join.</p>
+                    <input type="text" id="newSessionCode" class="form-input" placeholder="e.g., ALPHA2024" maxlength="${SESSION_CODE_MAX_LENGTH}" required>
+                    <p class="form-hint">Alphanumeric, ${SESSION_CODE_MIN_LENGTH}-${SESSION_CODE_MAX_LENGTH} characters. Participants use this to join.</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="newSessionDescription">Description</label>

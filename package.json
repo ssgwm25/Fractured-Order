@@ -14,9 +14,9 @@
     "test:coverage": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs run --coverage",
     "test:e2e": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test",
     "test:e2e:smoke": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/session-smoke.e2e.js",
-    "test:e2e:live-demo": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js",
+    "test:e2e:live-demo": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js tests/e2e/live-demo-scale.e2e.js",
     "test:e2e:live-demo:matrix": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-role-matrix.e2e.js",
-    "test:e2e:rehearsal": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js"
+    "test:e2e:rehearsal": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js tests/e2e/live-demo-scale.e2e.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0"

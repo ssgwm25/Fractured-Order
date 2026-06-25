@@ -283,6 +283,9 @@ export function validateSessionName(name) {
     };
 }
 
+export const SESSION_CODE_MIN_LENGTH = 3;
+export const SESSION_CODE_MAX_LENGTH = 50;
+
 /**
  * Validate a session code
  * @param {string} code - Session code to validate
@@ -295,12 +298,12 @@ export function validateSessionCode(code) {
 
     const trimmed = code.trim();
 
-    if (trimmed.length < 3) {
-        return 'Session code must be at least 3 characters';
+    if (trimmed.length < SESSION_CODE_MIN_LENGTH) {
+        return `Session code must be at least ${SESSION_CODE_MIN_LENGTH} characters`;
     }
 
-    if (trimmed.length > 50) {
-        return 'Session code must be less than 50 characters';
+    if (trimmed.length > SESSION_CODE_MAX_LENGTH) {
+        return `Session code must be at most ${SESSION_CODE_MAX_LENGTH} characters`;
     }
 
     // Session codes should be alphanumeric with optional hyphens/underscores
@@ -440,6 +443,8 @@ export function validateFormData(data, schema) {
 }
 
 export default {
+    SESSION_CODE_MIN_LENGTH,
+    SESSION_CODE_MAX_LENGTH,
     validateRequired,
     validateEnum,
     validateEnumArray,

@@ -11,27 +11,27 @@ import {
 
 describe('rehearsal runtime helpers', () => {
     it('detects hosted rehearsals from a configured base url', () => {
-        expect(isHostedRehearsal('https://seth-arc.github.io/SSG-Platform-v03/')).toBe(true);
+        expect(isHostedRehearsal('https://ssgwm25.github.io/Fractured-Order/')).toBe(true);
         expect(isHostedRehearsal('   ')).toBe(false);
         expect(isHostedRehearsal(undefined)).toBe(false);
     });
 
     it('normalizes the configured app base url to the repo root', () => {
-        expect(getConfiguredAppBaseUrl('https://seth-arc.github.io/SSG-Platform-v03/index.html')).toBe(
-            'https://seth-arc.github.io/SSG-Platform-v03/'
+        expect(getConfiguredAppBaseUrl('https://ssgwm25.github.io/Fractured-Order/index.html')).toBe(
+            'https://ssgwm25.github.io/Fractured-Order/'
         );
     });
 
     it('builds repo-relative hosted urls without dropping the GitHub Pages slug', () => {
-        const baseUrl = 'https://seth-arc.github.io/SSG-Platform-v03/';
+        const baseUrl = 'https://ssgwm25.github.io/Fractured-Order/';
 
-        expect(buildAppUrl('', baseUrl)).toBe('https://seth-arc.github.io/SSG-Platform-v03/');
-        expect(buildAppUrl('whitecell.html', baseUrl)).toBe('https://seth-arc.github.io/SSG-Platform-v03/whitecell.html');
+        expect(buildAppUrl('', baseUrl)).toBe('https://ssgwm25.github.io/Fractured-Order/');
+        expect(buildAppUrl('whitecell.html', baseUrl)).toBe('https://ssgwm25.github.io/Fractured-Order/whitecell.html');
     });
 
     it('reads and trims the hosted operator code only for hosted rehearsals', () => {
         expect(getHostedOperatorAccessCode({
-            baseUrl: 'https://seth-arc.github.io/SSG-Platform-v03/',
+            baseUrl: 'https://ssgwm25.github.io/Fractured-Order/',
             operatorAccessCode: '  live-code  '
         })).toBe('live-code');
 
@@ -43,7 +43,7 @@ describe('rehearsal runtime helpers', () => {
 
     it('prefers the hosted operator code and falls back to the local mock code', () => {
         expect(resolveOperatorAccessCode('admin2025', {
-            baseUrl: 'https://seth-arc.github.io/SSG-Platform-v03/',
+            baseUrl: 'https://ssgwm25.github.io/Fractured-Order/',
             operatorAccessCode: 'live-code'
         })).toBe('live-code');
 
@@ -55,7 +55,7 @@ describe('rehearsal runtime helpers', () => {
 
     it('classifies successful operator authorization from the destination url', () => {
         expect(classifyOperatorAuthorizationProgress({
-            currentUrl: 'https://seth-arc.github.io/SSG-Platform-v03/master.html',
+            currentUrl: 'https://ssgwm25.github.io/Fractured-Order/master.html',
             urlPattern: /master\.html(?:\?.*)?$/
         })).toEqual(expect.objectContaining({
             status: 'success'
@@ -64,7 +64,7 @@ describe('rehearsal runtime helpers', () => {
 
     it('classifies explicit operator auth failures from toast copy', () => {
         expect(classifyOperatorAuthorizationProgress({
-            currentUrl: 'https://seth-arc.github.io/SSG-Platform-v03/',
+            currentUrl: 'https://ssgwm25.github.io/Fractured-Order/',
             urlPattern: /master\.html(?:\?.*)?$/,
             toastText: 'Invalid operator access code.'
         })).toEqual(expect.objectContaining({
@@ -75,7 +75,7 @@ describe('rehearsal runtime helpers', () => {
 
     it('keeps operator authorization pending when neither success nor failure is visible yet', () => {
         expect(classifyOperatorAuthorizationProgress({
-            currentUrl: 'https://seth-arc.github.io/SSG-Platform-v03/index.html#operatorAccessSection',
+            currentUrl: 'https://ssgwm25.github.io/Fractured-Order/index.html#operatorAccessSection',
             urlPattern: /master\.html(?:\?.*)?$/
         })).toEqual(expect.objectContaining({
             status: 'pending'

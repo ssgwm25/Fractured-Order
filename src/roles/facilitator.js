@@ -92,6 +92,11 @@ import { navigateToApp } from '../core/navigation.js';
 const logger = createLogger('Facilitator');
 const TRIBE_STREET_JOURNAL_EVENT_TYPES = new Set(['NOTE', 'MOMENT', 'QUOTE']);
 const TRIBE_STREET_JOURNAL_LIMIT = 20;
+const ACTION_GROUP_RENDER_LIMIT = 40;
+const RFI_RENDER_LIMIT = 50;
+const RESPONSE_GROUP_RENDER_LIMIT = 30;
+export const FACILITATOR_VERBA_AI_RENDER_LIMIT = 40;
+export const FACILITATOR_TIMELINE_RENDER_LIMIT = 80;
 const BLUE_ACTION_WIZARD_PAGE_TOTAL = 3;
 const RESPONSE_TYPE_GROUPS = [
     {
@@ -157,6 +162,16 @@ export function buildTribeStreetJournalEntries(events = [], teamId = null) {
         .filter((event) => isTribeStreetJournalEntry(event, teamId))
         .sort((a, b) => getSortableEventTime(b) - getSortableEventTime(a))
         .slice(0, TRIBE_STREET_JOURNAL_LIMIT);
+}
+
+export function getVisibleFacilitatorTimelineEvents(events = [], limit = FACILITATOR_TIMELINE_RENDER_LIMIT) {
+    const allEvents = Array.isArray(events) ? events : [];
+    const visibleEvents = allEvents.slice(0, limit);
+
+    return {
+        visibleEvents,
+        hiddenCount: Math.max(0, allEvents.length - visibleEvents.length)
+    };
 }
 
 export function getFacilitatorAccessState({
@@ -979,6 +994,8 @@ export class FacilitatorController {
         const headingId = `responses-${group.key}-heading`;
         const itemCount = group.items?.length || 0;
         const countLabel = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+        const visibleItems = (group.items || []).slice(0, RESPONSE_GROUP_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, itemCount - visibleItems.length);
 
         return `
             <section class="response-type-group" aria-labelledby="${headingId}">
@@ -990,8 +1007,9 @@ export class FacilitatorController {
                     <span class="response-type-group__count" aria-label="${this.escapeHtml(`${group.title}: ${countLabel}`)}">${this.escapeHtml(countLabel)}</span>
                 </div>
                 <div class="response-type-group__items" role="list">
-                    ${group.items.map((response) => this.renderResponseCard(response)).join('')}
+                    ${visibleItems.map((response) => this.renderResponseCard(response)).join('')}
                 </div>
+                ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: var(--space-2) 0 0;">Showing the first ${RESPONSE_GROUP_RENDER_LIMIT} of ${itemCount} ${this.escapeHtml(group.title.toLowerCase())}.</p>` : ''}
             </section>
         `;
     }
@@ -1780,12 +1798,17 @@ export class FacilitatorController {
 
         const panels = visibleGroups.map((group) => {
             const groupActions = groupedActions.get(group.key) || [];
+            const visibleGroupActions = groupActions.slice(0, ACTION_GROUP_RENDER_LIMIT);
+            const hiddenCount = Math.max(0, groupActions.length - visibleGroupActions.length);
             const isActive = group.key === activeKey;
             const body = groupActions.length
                 ? `<div class="card-list" aria-labelledby="actions-group-${group.key}">
-                        ${groupActions.map((action) => this.renderActionCard(action)).join('')}
+                        ${visibleGroupActions.map((action) => this.renderActionCard(action)).join('')}
                    </div>`
                 : `<p class="text-sm text-gray-500" style="margin: 0;">${this.escapeHtml(this.getEmptyActionGroupMessage(group.key))}</p>`;
+            const overflowNote = hiddenCount
+                ? `<p class="text-xs text-gray-500" style="margin: var(--space-2) 0 0;">Showing the first ${ACTION_GROUP_RENDER_LIMIT} of ${groupActions.length} records in this status group.</p>`
+                : '';
 
             return `
                 <div
@@ -1811,6 +1834,7 @@ export class FacilitatorController {
                             </p>
                         </div>
                         ${body}
+                        ${overflowNote}
                     </section>
                 </div>
             `;
@@ -3901,7 +3925,12 @@ export class FacilitatorController {
             return;
         }
 
-        rfiList.innerHTML = this.rfis.map((rfi) => {
+        const visibleRfis = this.rfis.slice(0, RFI_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, this.rfis.length - visibleRfis.length);
+
+        rfiList.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${RFI_RENDER_LIMIT} of ${this.rfis.length} RFIs for this team.</p>` : ''}
+            ${visibleRfis.map((rfi) => {
             const queryText = rfi.query || rfi.question || '';
             return `
                 <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3);">
@@ -3923,7 +3952,8 @@ export class FacilitatorController {
                     <p class="text-xs text-gray-400 mt-2">${formatRelativeTime(rfi.created_at)}</p>
                 </div>
             `;
-        }).join('');
+        }).join('')}
+        `;
     }
 
     showCreateRfiModal() {
@@ -4190,7 +4220,12 @@ export class FacilitatorController {
             return;
         }
 
-        container.innerHTML = this.verbaAiUpdates.map((communication) => `
+        const visibleUpdates = this.verbaAiUpdates.slice(0, FACILITATOR_VERBA_AI_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, this.verbaAiUpdates.length - visibleUpdates.length);
+
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${FACILITATOR_VERBA_AI_RENDER_LIMIT} of ${this.verbaAiUpdates.length} Verba AI updates.</p>` : ''}
+            ${visibleUpdates.map((communication) => `
             <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3); border-left: 3px solid var(--color-success);">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-2);">
                     <div style="display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
@@ -4201,7 +4236,8 @@ export class FacilitatorController {
                 </div>
                 <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
             </div>
-        `).join('');
+        `).join('')}
+        `;
     }
 
     renderTimeline() {
@@ -4218,7 +4254,11 @@ export class FacilitatorController {
             return;
         }
 
-        container.innerHTML = this.timelineEvents.map((event) => `
+        const { visibleEvents, hiddenCount } = getVisibleFacilitatorTimelineEvents(this.timelineEvents);
+
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${FACILITATOR_TIMELINE_RENDER_LIMIT} of ${this.timelineEvents.length} timeline events.</p>` : ''}
+            ${visibleEvents.map((event) => `
             <div class="timeline-event" style="display: flex; gap: var(--space-3); padding: var(--space-3); border-bottom: 1px solid var(--color-gray-200);">
                 <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-primary-500); margin-top: 6px; flex-shrink: 0;"></div>
                 <div style="flex: 1;">
@@ -4230,7 +4270,8 @@ export class FacilitatorController {
                     <p class="text-xs text-gray-400 mt-1">${this.escapeHtml(this.formatTeamLabel(event.team))} | Move ${event.move || 1} | Phase ${event.phase || 1}</p>
                 </div>
             </div>
-        `).join('');
+        `).join('')}
+        `;
     }
 
     async handleCaptureSubmit(event) {

@@ -1572,4 +1572,39 @@ describe('Facilitator and scribe access', () => {
         expect(embedContainer.innerHTML).toContain('Open in new tab');
         expect(container.innerHTML).toContain('Harbor operators expect customs delays by nightfall.');
     });
+
+    it('bounds facilitator timeline rendering for large exercise datasets', async () => {
+        const { FACILITATOR_TIMELINE_RENDER_LIMIT, FacilitatorController } = await loadFacilitatorModule();
+        const timelineList = createFakeElement('timelineList');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    timelineList
+                }[id] || null;
+            }
+        };
+
+        const controller = new FacilitatorController();
+        controller.timelineEvents = Array.from({ length: FACILITATOR_TIMELINE_RENDER_LIMIT + 2 }, (_, index) => ({
+            id: `timeline-${index + 1}`,
+            team: 'blue',
+            type: 'NOTE',
+            content: `Facilitator timeline event ${index + 1}`,
+            move: 2,
+            phase: 1,
+            created_at: '2026-04-10T10:00:00.000Z'
+        }));
+
+        controller.renderTimeline();
+
+        expect(timelineList.innerHTML).toContain(
+            `Showing the first ${FACILITATOR_TIMELINE_RENDER_LIMIT} of ${FACILITATOR_TIMELINE_RENDER_LIMIT + 2} timeline events.`
+        );
+        expect(timelineList.innerHTML).toContain(`Facilitator timeline event ${FACILITATOR_TIMELINE_RENDER_LIMIT}`);
+        expect(timelineList.innerHTML).not.toContain(`Facilitator timeline event ${FACILITATOR_TIMELINE_RENDER_LIMIT + 1}`);
+    });
 });

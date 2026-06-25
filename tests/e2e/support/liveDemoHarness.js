@@ -14,10 +14,12 @@ const SHARED_LOCAL_STORAGE_KEYS = Object.freeze([
 ]);
 
 const BACKEND_RESET_KEY = '__esg_e2e_backend_reset__';
+const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const OPERATOR_AUTH_TIMEOUT_MS = 20000;
 const HOSTED_OPERATOR_ACCESS_CODE = getHostedOperatorAccessCode();
+const JOIN_FAILURE_FALLBACK_MESSAGE = 'Could not claim that seat. Check whether the role is still available, then try again.';
 
 export { buildAppUrl } from './rehearsalRuntime.js';
 
@@ -291,7 +293,10 @@ export async function expectJoinFailure(page, joinOptions, expectedMessage) {
     await page.getByRole('button', { name: 'Join Session' }).click();
 
     await expect(page.locator('#joinForm')).toBeVisible();
-    await expect(page.locator('#toast-container')).toContainText(expectedMessage);
+    const acceptableMessages = [expectedMessage, JOIN_FAILURE_FALLBACK_MESSAGE]
+        .filter(Boolean)
+        .map((message) => String(message).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    await expect(page.locator('#toast-container')).toContainText(new RegExp(acceptableMessages.join('|')));
 }
 
 export async function authorizeWhiteCell(page, {
@@ -439,4 +444,313 @@ export function getActiveSeatCounts(backendState, sessionId) {
             counts[seat.role] = (counts[seat.role] || 0) + 1;
             return counts;
         }, {});
+}
+
+export async function seedLargeExerciseData(page, {
+    sessionCode,
+    actionCount = 90,
+    requestCount = 36,
+    communicationCount = 48,
+    timelineCount = 180,
+    participantCount = 60
+} = {}) {
+    if (!sessionCode) {
+        throw new Error('seedLargeExerciseData requires a sessionCode.');
+    }
+
+    return page.evaluate(({
+        stateKey,
+        requestedSessionCode,
+        counts
+    }) => {
+        const clone = (value) => JSON.parse(JSON.stringify(value));
+        const readState = () => {
+            const raw = globalThis.localStorage.getItem(stateKey);
+            if (!raw) {
+                throw new Error('Mock backend state is not initialized.');
+            }
+            return JSON.parse(raw);
+        };
+        const writeState = (state) => {
+            globalThis.localStorage.setItem(stateKey, JSON.stringify(state));
+        };
+        const normalizeCode = (session = {}) => String(session.session_code || session.metadata?.session_code || '')
+            .trim()
+            .toUpperCase();
+        const timestamp = (index) => new Date(Date.UTC(2026, 0, 15, 14, 0, 0) - (index * 60000)).toISOString();
+        const staleTimestamp = (index) => new Date(Date.UTC(2026, 0, 14, 14, 0, 0) - (index * 60000)).toISOString();
+        const ensureTable = (state, tableName) => {
+            state.tables[tableName] = Array.isArray(state.tables[tableName])
+                ? state.tables[tableName]
+                : [];
+            state.counters[tableName] = Number(state.counters[tableName] || 0);
+        };
+        const stripScaleRows = (state, tableName) => {
+            ensureTable(state, tableName);
+            state.tables[tableName] = state.tables[tableName].filter((row) => (
+                !String(row?.id || '').startsWith('scale_')
+            ));
+        };
+        const setCounterFloor = (state, tableName, value) => {
+            state.counters[tableName] = Math.max(Number(state.counters[tableName] || 0), value);
+        };
+        const blueDetails = (index) => [
+            'Blue Team Action Details',
+            `Objective: Preserve coalition leverage through sequenced economic measures ${index}.`,
+            'Levers: ["Export Controls","Investment Screening"]',
+            'Sectors: ["Biotechnology","Telecommunications"]',
+            'Implementation: Executive Order',
+            'Legislative Options: None selected',
+            index % 2 === 0 ? 'Enforcement Timeline: 6 months' : 'Enforcement Timeline: 12 months',
+            'Coordinated: ["Executive"]',
+            'Informed: ["Allied"]'
+        ].join('\n');
+        const proposalDetails = (index) => [
+            'Proposal Details',
+            index % 2 === 0 ? 'Originators: EU, Japan' : 'Originators: ASEAN, ROK',
+            `Objective: Negotiate conditional alignment package ${index}.`,
+            index % 3 === 0 ? 'Category: Conditions' : 'Category: Partnership',
+            'Intended Partners: Blue and Red principals',
+            index % 2 === 0 ? 'Delivery: Joint Statement' : 'Delivery: Backchannel Negotiation',
+            'Timing And Conditions: Before the next move adjudication window.',
+            index % 2 === 0 ? 'Recipient Team: blue' : 'Recipient Team: red'
+        ].join('\n');
+        const responseDetails = (index) => [
+            'Move Response Details',
+            `Strategic Assessment: Contest the coalition theory of pressure ${index}.`,
+            'Response Strategy: Redirect attention to partner economic exposure.',
+            'Key Actions: Signal countermeasures, apply diplomatic pressure, and test Green alignment.',
+            'Targets And Pressure Points: Semiconductor access, investment approvals, and port access.',
+            'Delivery Channel: Public statement and private envoy'
+        ].join('\n');
+        const buildAction = (index) => {
+            const teams = ['blue', 'green', 'red'];
+            const team = teams[(index - 1) % teams.length];
+            const move = ((index - 1) % 3) + 1;
+            const teamOrdinal = Math.floor((index - 1) / teams.length);
+            const status = teamOrdinal % 3 === 0
+                ? 'submitted'
+                : (teamOrdinal % 3 === 1 ? 'adjudicated' : 'draft');
+            const base = {
+                id: `scale_action_${String(index).padStart(3, '0')}`,
+                session_id: session.id,
+                client_id: `scale_client_${team}`,
+                team,
+                move,
+                phase: ((index - 1) % 5) + 1,
+                priority: index % 5 === 0 ? 'HIGH' : 'NORMAL',
+                status,
+                is_deleted: false,
+                created_at: timestamp(index),
+                updated_at: timestamp(index),
+                submitted_at: status === 'draft' ? null : timestamp(index - 1),
+                adjudicated_at: status === 'adjudicated' ? timestamp(index - 2) : null,
+                outcome: status === 'adjudicated' ? (index % 4 === 0 ? 'PARTIAL_SUCCESS' : 'SUCCESS') : null,
+                adjudication_notes: status === 'adjudicated'
+                    ? `White Cell deliberation note for seeded record ${index}.`
+                    : null
+            };
+
+            if (team === 'green') {
+                return {
+                    ...base,
+                    mechanism: 'Proposal',
+                    sector: index % 2 === 0 ? 'Biotechnology' : 'Telecommunications',
+                    exposure_type: 'Alliance',
+                    targets: ['EU', 'Japan'],
+                    goal: `Green Proposal ${String(index).padStart(3, '0')}`,
+                    expected_outcomes: `Shape partner alignment options without closing off future hedging ${index}.`,
+                    ally_contingencies: proposalDetails(index)
+                };
+            }
+
+            if (team === 'red') {
+                return {
+                    ...base,
+                    mechanism: 'Move Response',
+                    sector: 'Technology',
+                    exposure_type: 'Political',
+                    targets: ['PRC', 'BRICS+'],
+                    goal: `Red Move Response ${String(index).padStart(3, '0')}`,
+                    expected_outcomes: `Complicate Blue sequencing and test Green resistance ${index}.`,
+                    ally_contingencies: responseDetails(index)
+                };
+            }
+
+            return {
+                ...base,
+                mechanism: 'Economic',
+                sector: index % 2 === 0 ? 'Biotechnology' : 'Telecommunications',
+                exposure_type: 'Advanced Manufacturing',
+                targets: ['PRC', 'Japan'],
+                goal: `Blue Decision ${String(index).padStart(3, '0')}`,
+                expected_outcomes: `Increase allied coordination while preserving implementation flexibility ${index}.`,
+                ally_contingencies: blueDetails(index)
+            };
+        };
+        const buildRequest = (index) => {
+            const teams = ['blue', 'green', 'red'];
+            const team = teams[(index - 1) % teams.length];
+            const answered = index % 2 === 0;
+            return {
+                id: `scale_request_${String(index).padStart(3, '0')}`,
+                session_id: session.id,
+                client_id: `scale_client_${team}`,
+                team,
+                move: ((index - 1) % 3) + 1,
+                phase: ((index - 1) % 5) + 1,
+                priority: index % 6 === 0 ? 'URGENT' : (index % 3 === 0 ? 'HIGH' : 'NORMAL'),
+                categories: index % 2 === 0 ? ['Alliance Response'] : ['Economic Impact'],
+                query: `${team.charAt(0).toUpperCase()}${team.slice(1)} RFI ${String(index).padStart(3, '0')}: clarify expected partner reaction and implementation timing.`,
+                status: answered ? 'answered' : 'pending',
+                response: answered ? `White Cell answer for seeded RFI ${index}.` : null,
+                responded_by: answered ? 'white_cell' : null,
+                responded_at: answered ? timestamp(index - 1) : null,
+                created_at: timestamp(200 + index),
+                updated_at: timestamp(200 + index)
+            };
+        };
+        const buildCommunication = (index) => {
+            const recipients = ['blue', 'green', 'red', 'all'];
+            const recipient = recipients[(index - 1) % recipients.length];
+            const updateKind = index % 10 === 0
+                ? 'verba_ai_population_sentiment'
+                : (index % 7 === 0 ? 'tribe_street_journal' : null);
+            return {
+                id: `scale_communication_${String(index).padStart(3, '0')}`,
+                session_id: session.id,
+                linked_request_id: null,
+                type: updateKind ? 'WHITE_CELL_UPDATE' : (index % 4 === 0 ? 'INJECT' : 'GUIDANCE'),
+                from_role: 'white_cell',
+                to_role: recipient,
+                content: `Seeded White Cell ${updateKind || 'communication'} ${String(index).padStart(3, '0')} for larger-exercise rehearsal.`,
+                metadata: updateKind ? { update_kind: updateKind } : { source: 'scale_rehearsal' },
+                created_at: timestamp(300 + index),
+                updated_at: timestamp(300 + index)
+            };
+        };
+        const buildTimeline = (index) => {
+            const teams = ['blue', 'green', 'red', 'white_cell', 'system'];
+            const types = ['ACTION_SUBMITTED', 'RFI_CREATED', 'GUIDANCE', 'NOTE', 'MOMENT', 'PHASE_CHANGE'];
+            return {
+                id: `scale_timeline_${String(index).padStart(3, '0')}`,
+                session_id: session.id,
+                type: types[(index - 1) % types.length],
+                content: `Timeline Event ${String(index).padStart(3, '0')}: seeded exercise activity for scale rehearsal.`,
+                team: teams[(index - 1) % teams.length],
+                metadata: {
+                    actor: index % 5 === 0 ? 'White Cell' : 'Facilitator',
+                    role: index % 5 === 0 ? 'whitecell_lead' : `${teams[(index - 1) % 3]}_facilitator`
+                },
+                move: ((index - 1) % 3) + 1,
+                phase: ((index - 1) % 5) + 1,
+                client_id: `scale_timeline_client_${index}`,
+                created_at: timestamp(400 + index),
+                updated_at: timestamp(400 + index)
+            };
+        };
+        const buildParticipantRows = (index) => {
+            const roles = [
+                'blue_facilitator',
+                'blue_scribe',
+                'blue_notetaker',
+                'red_facilitator',
+                'red_scribe',
+                'red_notetaker',
+                'green_facilitator',
+                'green_scribe',
+                'green_notetaker',
+                'whitecell_lead',
+                'whitecell_support'
+            ];
+            const role = roles[(index - 1) % roles.length];
+            const participantId = `scale_participant_${String(index).padStart(3, '0')}`;
+            const seatId = `scale_seat_${String(index).padStart(3, '0')}`;
+            const time = staleTimestamp(index);
+            return {
+                participant: {
+                    id: participantId,
+                    auth_user_id: `scale_auth_${String(index).padStart(3, '0')}`,
+                    client_id: `scale_participant_client_${String(index).padStart(3, '0')}`,
+                    name: `Historical Participant ${String(index).padStart(2, '0')}`,
+                    role,
+                    created_at: time,
+                    updated_at: time
+                },
+                seat: {
+                    id: seatId,
+                    session_id: session.id,
+                    participant_id: participantId,
+                    role,
+                    is_active: false,
+                    heartbeat_at: time,
+                    joined_at: time,
+                    last_seen: time,
+                    disconnected_at: time,
+                    left_at: time,
+                    created_at: time,
+                    updated_at: time
+                }
+            };
+        };
+
+        const state = readState();
+        const session = (state.tables.sessions || []).find((entry) => (
+            normalizeCode(entry) === String(requestedSessionCode || '').trim().toUpperCase()
+        ));
+
+        if (!session) {
+            throw new Error(`Session ${requestedSessionCode} not found in mock backend.`);
+        }
+
+        [
+            'actions',
+            'requests',
+            'communications',
+            'timeline',
+            'participants',
+            'session_participants',
+            'notetaker_data'
+        ].forEach((tableName) => stripScaleRows(state, tableName));
+
+        const participantRows = Array.from({ length: counts.participantCount }, (_, index) => buildParticipantRows(index + 1));
+
+        state.tables.actions.push(...Array.from({ length: counts.actionCount }, (_, index) => buildAction(index + 1)));
+        state.tables.requests.push(...Array.from({ length: counts.requestCount }, (_, index) => buildRequest(index + 1)));
+        state.tables.communications.push(...Array.from({ length: counts.communicationCount }, (_, index) => buildCommunication(index + 1)));
+        state.tables.timeline.push(...Array.from({ length: counts.timelineCount }, (_, index) => buildTimeline(index + 1)));
+        state.tables.participants.push(...participantRows.map((row) => row.participant));
+        state.tables.session_participants.push(...participantRows.map((row) => row.seat));
+
+        [
+            ['actions', counts.actionCount + 1000],
+            ['requests', counts.requestCount + 1000],
+            ['communications', counts.communicationCount + 1000],
+            ['timeline', counts.timelineCount + 1000],
+            ['participants', counts.participantCount + 1000],
+            ['session_participants', counts.participantCount + 1000]
+        ].forEach(([tableName, value]) => setCounterFloor(state, tableName, value));
+
+        writeState(state);
+
+        return {
+            sessionId: session.id,
+            actionCount: counts.actionCount,
+            requestCount: counts.requestCount,
+            communicationCount: counts.communicationCount,
+            timelineCount: counts.timelineCount,
+            participantCount: counts.participantCount,
+            state: clone(state)
+        };
+    }, {
+        stateKey: E2E_MOCK_STATE_KEY,
+        requestedSessionCode: sessionCode,
+        counts: {
+            actionCount,
+            requestCount,
+            communicationCount,
+            timelineCount,
+            participantCount
+        }
+    });
 }

@@ -1,153 +1,146 @@
 # Fractured Order
 
-![Fractured Order facilitator deck](screenshot.PNG)
+Fractured Order is an economic statecraft seminar simulation delivered through Plenum for Statecraft Simulations Group exercises. Plenum is the delivery platform: it provides the browser role surfaces, live session state, facilitator controls, decision capture, inject/communication handling, timeline visibility, and export paths needed to run and review the exercise.
 
-This repository holds the facilitation materials and the web-based delivery layer (the Plenum platform) for running the game.
+Statecraft Sim remains the package/internal product description in `package.json` and some operator-facing metadata. Public participant entry points should present the exercise as Fractured Order on Plenum.
 
----
+## What It Supports
 
-## What it is
+The current exercise topology ships with three actor teams and two operator surfaces:
 
-*Fractured Order* simulation tests how effective non-military tools - sanctions, export and investment controls, incentives, standards-setting, information, and diplomacy - actually are at shaping state behavior, and surfaces the inflection points where one actor's choices reinforce or undermine alliance cohesion.
+| Surface | Purpose |
+| --- | --- |
+| Landing | Session-code join, team selection, role selection, and operator access |
+| Game Master | Session creation/deletion, participant monitoring, and data export |
+| White Cell | Game controls, action/proposal/response review, RFI answers, communications, timeline review, and scribe deck assignment |
+| Team Facilitator | Blue strategic actions, Green proposals, Red move responses, RFIs, received White Cell updates, timeline, and quick capture |
+| Team Notetaker | Observations, team dynamics, alliance tracking, and move-scoped notes |
+| Team Scribe | Team support deck plus live action/communication slides |
 
-## Teams
+The built-in teams are Blue, Red, and Green. Do not expand team geography or role topology during demo hardening unless the exercise design explicitly changes.
 
-| Team | Plays | Role in the system |
-|------|-------|--------------------|
-| **Blue** | Sets the agenda with economic statecraft | Chooses instruments, targets, and sequencing to test coalition leverage |
-| **Green** | The swing weight whose alignment decides the outcome | Weighs Blue and Red pressure, then signals alignment, hedging, or resistance |
-| **Red** | Contests Blue, courts or coerces Green | Defines antagonistic objectives within the simulation |
-| **White Cell** | Control & adjudication | Clarifies requests, scores effects, paces and resets the scene |
-
-Supporting roles include a facilitator, facilitator assistants, IT/AV support, and notetakers seated with each team.
-
-## How a game runs
-
-Three **MOVES**, each following the same loop and separated by plenary adjudication:
-
-1. **Orient** to the current scene
-2. **Deliberate** within the team
-3. **Act** - Blue selects instruments and targets; Red responds and works Green directly; Green answers the three standing questions (*How are you positioned? What changes with Blue? What changes with Red?*)
-4. **Adjudicate** in plenary, where the White Cell scores effects and sets the next scene
-
-A closing hot wash reviews where cohesion held, where it cracked, which levers bit, and what each side could have done differently.
-
----
-
-## Repository contents
+## Repository Layout
 
 ```text
 .
-|-- decks/                          Facilitator support folders (HTML slide viewers)
-|   |-- fractured-order-facilitator-deck.html          # Blue team
-|   |-- fractured-order-green-facilitator-deck.html    # Green team
-|   `-- fractured-order-red-facilitator-deck.html      # Red team
-|-- platform/                       Plenum delivery platform
-|   |-- index.html                  Landing + boot loader, session join
-|   `-- src/                        Frontend modules and role surfaces
-`-- docs/                           Player's guide, scenario, reference matrices
+|-- index.html                 Landing and join flow
+|-- master.html                Game Master operator console
+|-- whitecell.html             White Cell operator interface
+|-- teams/
+|   |-- blue/
+|   |-- green/
+|   `-- red/                   Facilitator, notetaker, and scribe role pages
+|-- decks/                     Static facilitator deck HTML
+|-- src/
+|   |-- core/                  Config, role routing, enums, errors
+|   |-- services/              Supabase, realtime, sync, timer, heartbeat, mock backend
+|   |-- stores/                Session, game state, actions, RFIs, timeline, participants, communications
+|   |-- roles/                 Role-surface controllers
+|   `-- features/              Actions, RFIs, export, timeline, onboarding, scribe helpers
+|-- styles/                    Shared CSS tokens, layouts, components, and page styles
+|-- data/                      Supabase schema and migration SQL
+|-- docs/                      Deployment, Supabase setup, and live-demo runbook
+`-- tests/                     Vitest unit tests and Playwright e2e rehearsal tests
 ```
 
-> Adjust the tree above to match your actual layout - this reflects the materials produced so far.
+## Local Development
 
-### Facilitator decks
+Use the root project directory. This is a root-level Vite multi-page app.
 
-Each team has its own self-contained facilitator deck: a slide viewer with a sidebar table of contents, arrow/keyboard navigation, a clickable progress bar, and a fullscreen present mode. The slides are native HTML (editable text, not images), with a single team-accent CSS variable.
-
-Open any deck file directly in a browser - no build step or server required.
-
-| Key | Action |
-|-----|--------|
-| `ArrowRight` / `Space` / `PageDown` | Next slide |
-| `ArrowLeft` / `PageUp` | Previous slide |
-| `Home` / `End` | First / last slide |
-| `F` | Toggle fullscreen present mode |
-| `Esc` | Exit fullscreen |
-
-### Plenum platform
-
-The web delivery layer for running the game live: a **Vite** frontend with a **Supabase** backend, session-code access, realtime state push, and JSON export of game state for post-game analysis. Teams join by session code and select their team and role from the landing page.
-
-Dedicated facilitator, notetaker, and scribe role surfaces live under `teams/<team>/`. Scribe shells share the common modal stylesheet so logout and confirmation dialogs render consistently with the rest of the platform.
-
-Platform entry-point HTML files use `src/img/FO_icon.ico` as the browser favicon, with nested team and deck pages referencing the asset by relative path.
-
-Each role surface mounts a role-specific onboarding guide above the sidebar session label. The guide explains the role's main workflow plus the live move, phase, and timer indicators. When collapsed or completed, it remains available as `Start Here` so users can reopen the role reference without logging out and joining again.
-
-The White Cell guide explicitly walks operators through game controls, session operations, Blue actions, Green proposals, Red move responses, Tribe Street Journal, Verba AI sentiment updates, RFIs, communications, the session timeline, and queue notification muting.
-
-The Blue facilitator guide explicitly walks facilitators through strategic actions, RFIs, White Cell responses, received proposals, Tribe Street Journal, Verba AI sentiment updates, the timeline, and Quick Capture.
-
-The Green facilitator guide follows the same full tour pattern with proposal-specific guidance for drafting, White Cell review, forwarded proposal responses, RFIs, updates, timeline review, and Quick Capture.
-
-The Red facilitator guide follows the same full tour pattern with move-response-specific guidance for responding to Blue moves, White Cell review, forwarded proposals, RFIs, updates, timeline review, and Quick Capture.
-
-The facilitator `Responses` feed separates direct White Cell communications, RFI answers, White Cell updates, and forwarded proposals into horizontal labelled groups so facilitators can scan each response type independently.
-
-Game Master and White Cell operators can create and delete live sessions from their admin surfaces. Participant rosters are scoped, labeled, and filterable by session so operators can distinguish seats across concurrent exercises.
-
-White Cell scribe deck controls render default team decks immediately while live communications hydrate. Browser-uploaded decks remain same-device cache assignments; blocked browser storage and stalled repo deck validation must fail with an operator-visible error rather than leaving the deck workflow in a loading state.
-
-Scribe deck navigation is split into distinct `Actions` and `Deck` groups with a deliberate spacer between them. The section nav follows the minimalist facilitator sidebar pattern: unframed groups, compact rows, a single current-row rail marker, and no separate accented action-card treatment. Each section can be expanded or collapsed independently; closing the active section must not force another section open.
-
-White Cell operators can mute queue arrival notifications from the header. Muting suppresses the toast interruption only; sidebar counts and in-queue NEW labels remain visible so adjudication awareness is not lost.
-
-The Blue Team action builder includes inline helper text for Objective and Expected Outcomes so facilitators distinguish intended goals from anticipated downstream effects.
-
-### Research exports
-
-Game Master and White Cell export controls can generate a research ZIP for the selected session when research capture mode is enabled. The bundle includes the legacy JSON/CSV extracts plus a reproducible research archive: manifest, codebook, checksums, event log, participant metrics, action/proposal/RFI content, interaction edges, state transitions, decision lineage, scenario context, deterministic outcome taxonomy, training rubric evidence, network metrics, turning-point flags, and a data-quality summary.
-
-The bundle now includes audience-specific reports under `reports/`:
-
-| Report | Primary audience |
-|--------|------------------|
-| `policy_brief.html` | Policy makers reviewing instruments, partner alignment, and constraints |
-| `strategic_leader_brief.html` | Strategic leaders reviewing tempo, interaction flow, and decision highlights |
-| `training_evaluator_report.html` | Evaluators reviewing participant behavior, timing, and training evidence |
-| `analyst_report.html` | Analysts reviewing row counts, coverage, lineage, and reproducibility |
-
-`data_quality_summary.json` is the first stop before quantitative use. It records capture mode, derived-table fallback use, table coverage, notes appendix state, integrity references, and whether cross-session comparison is ready, limited, or not recommended. `decision_lineage.csv/json` links submitted artifacts to related RFIs, communications, review timestamps, and event IDs without claiming automatic causality. `scenario_context.json` records the session, runtime state, observed teams/moves, scenario messages, scribe deck assignments, and observed objectives.
-
-Additional derived research layers are deterministic evidence indexes, not AI scores. `outcome_taxonomy.csv/json` maps adjudication evidence to fixed dimensions such as escalation risk, alliance cohesion, implementation feasibility, economic pressure, legitimacy/reputation, operational delay, and resilience impact. `training_rubric.csv/json` records participant/team evidence against transparent thresholds. `network_metrics.csv/json` summarizes team-pair edge counts, latency, inbound/outbound volume, and reciprocity. `turning_points.csv/json` flags first cross-team interactions, first RFIs, proposal routing events, latency outliers, data-quality events, and the highest-activity move.
-
-For multi-run analysis, Game Master can export a Cross-Session ZIP once at least two sessions are loaded in research mode. `buildCrossSessionResearchExportBundle()` in `src/features/export/index.js` builds the same aggregate archive from existing session bundles or already-built research exports. It emits `cross_session_index.csv/json`, `cross_session_data_quality.json`, and nests each session bundle under `sessions/`.
-
-### UI accessibility contracts
-
-Role-surface sidebars are hash-addressable section navigators. Activating a sidebar link updates the visible section, sets `aria-current="page"` on the active link, preserves the section hash, and moves focus to the newly active section heading for keyboard and screen-reader orientation.
-
-Landing and operator access validation must render persistent inline errors in addition to toast notifications. Invalid fields set `aria-invalid`, point at their error region with `aria-describedby`, and keep the error visible until the user changes that field.
-
-Repeated team forms use semantic fieldsets for capture-type radio groups and explicit `for`/`id` label bindings for textareas, sliders, and other controls.
-
-Scribe alert panels are real dialogs: the trigger owns the panel with `aria-controls`, the panel has `role="dialog"` and `aria-modal="true"`, focus moves into the dialog on open, `Tab` wraps within it, `Escape` closes it, and focus returns to the trigger.
-
-Game Master create-session modal controls use modal-scoped IDs (`newSessionName`, `newSessionCode`, and `newSessionDescription`) so they do not collide with the sidebar session label IDs.
-
-Inline SVG icons in role and operator shells are decorative by default. They must include `aria-hidden="true"` and `focusable="false"` unless a future icon is intentionally named and exposed.
-
-Browser-facing UI source is guarded against common mojibake markers, including corrupted dash/apostrophe bytes and Unicode replacement characters.
-
----
-
-## Running a session
-
-**Tabletop / projector only.** Open the relevant facilitator deck in a browser, present fullscreen, and run the three-move loop from the schedule slides. This needs nothing beyond a browser.
-
-**Platform-backed.** Stand up the Plenum frontend and point it at a Supabase project, then share the session code with players. See `platform/` for setup.
-
-```bash
-# from platform/
-npm install
-npm run dev        # local development
-npm run build      # production build
+```powershell
+npm ci
+Copy-Item .env.example .env.local
+npm run dev
 ```
 
-Provide Supabase credentials via environment variables (see `platform/.env.example`).
+Set these values in `.env.local` before starting Vite:
 
----
+```text
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
+```
+
+The Supabase anon key is browser-public runtime configuration. It is not a service-role secret. Service-role/backend secrets must never be committed, embedded in Vite env vars, or exposed to browser traffic.
+
+## Build And Test
+
+```powershell
+npm run build
+npm test -- --run
+npm run test:e2e:smoke
+npm run test:e2e:live-demo
+```
+
+Pass conditions:
+
+- `npm run build` creates `dist/` from the root Vite MPA inputs.
+- The built site references bundled `assets/*.js`, not raw `./src/*.js` module paths.
+- Unit tests pass without stale layout or naming expectations.
+- E2E smoke/live-demo tests can create sessions, join role seats, exercise core flows, and render role surfaces without console failures.
+
+## Deployment
+
+GitHub Pages deployment is handled by `.github/workflows/deploy-pages.yml`. The workflow:
+
+- installs dependencies with `npm ci`
+- validates required Supabase repository secrets
+- builds the root Vite app into `dist`
+- adds `.nojekyll`
+- uploads the built `dist` artifact to GitHub Pages
+
+Required repository secrets:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+Optional repository secret:
+
+- `PAGES_ENABLEMENT_TOKEN`, only needed to bootstrap Pages if it has not been enabled manually.
+
+Known live URL:
+
+```text
+https://ssgwm25.github.io/Fractured-Order/
+```
+
+Hosted source check:
+
+```powershell
+Invoke-WebRequest -Uri "https://ssgwm25.github.io/Fractured-Order/" -UseBasicParsing |
+  Select-Object -ExpandProperty Content
+```
+
+Pass: page source contains `/Fractured-Order/assets/*.js` and does not contain `./src/main.js` or `./src/roles/landing.js`.
+
+See [docs/deployment.md](docs/deployment.md) for the full deployment checklist.
+
+## Supabase Setup
+
+The app requires anonymous auth to be enabled because browser clients establish a Supabase anonymous identity before joining sessions or claiming seats. Live access is then bounded by session-code lookup, role-seat RPCs, operator grants, and row-level security.
+
+Use [docs/supabase-setup.md](docs/supabase-setup.md) as the authoritative operator setup and verification guide. Legacy broad-policy SQL files are not the final live hardening state.
+
+## Live Demo Runbook
+
+For J7/JFSC-style rehearsals, use [docs/live-demo-runbook.md](docs/live-demo-runbook.md). The runbook covers:
+
+- pre-demo build/source checks
+- Supabase RPC and RLS verification
+- session creation
+- role-seat matrix
+- facilitator/White Cell workflows
+- larger-record rehearsal checks
+- degraded-sync and recovery expectations
+- export/AAR evidence checks
+
+## Accessibility And Reliability Contracts
+
+- Role surfaces include skip links, keyboard-reachable sidebar navigation, and persistent sync-degraded banners.
+- Landing validation renders inline errors as well as toast notifications.
+- Runtime backend misconfiguration blocks startup with an alert dialog and managed focus.
+- Scribe alert panels use dialog semantics and focus containment.
+- Browser-facing source is tested for common mojibake markers.
 
 ## Credits
 
-Developed by Sethu Nguna for the **Statecraft Simulations Group**, William & Mary (2026).
+Developed by Sethu Nguna for the Statecraft Simulations Group, William & Mary (2026).

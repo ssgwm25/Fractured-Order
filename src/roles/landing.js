@@ -37,7 +37,7 @@ const FIELD_ERROR_MAP = {
     operatorAccessCode: 'operatorAccessCodeError'
 };
 
-// No-op join overlay controller — used when there is no real DOM (unit tests)
+// No-op join overlay controller used when there is no real DOM (unit tests)
 // or when an operator-auth method is called without an overlay.
 const NOOP_CONFIRMATION = { confirm: () => Promise.resolve(), dismiss: () => {} };
 

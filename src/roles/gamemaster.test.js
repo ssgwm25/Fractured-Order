@@ -11,6 +11,10 @@ import {
     getAdminExportButtonConfig,
     getParticipantSessionLabel
 } from './gamemaster.js';
+import {
+    SESSION_CODE_MAX_LENGTH,
+    SESSION_CODE_MIN_LENGTH
+} from '../utils/validation.js';
 
 function escapeHtml(value) {
     return String(value)
@@ -156,6 +160,8 @@ describe('GameMaster session administration', () => {
         expect(html).toContain('id="newSessionName"');
         expect(html).toContain('for="newSessionCode"');
         expect(html).toContain('id="newSessionCode"');
+        expect(html).toContain(`maxlength="${SESSION_CODE_MAX_LENGTH}"`);
+        expect(html).toContain(`Alphanumeric, ${SESSION_CODE_MIN_LENGTH}-${SESSION_CODE_MAX_LENGTH} characters.`);
         expect(html).toContain('for="newSessionDescription"');
         expect(html).toContain('id="newSessionDescription"');
         expect(html).not.toContain('for="sessionName"');

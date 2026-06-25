@@ -5,6 +5,8 @@ import { mergeNotetakerRecord } from '../services/database.js';
 import {
     DEFAULT_ALLIANCE_DATA,
     DEFAULT_DYNAMICS_DATA,
+    NOTETAKER_INBOX_RENDER_LIMIT,
+    NOTETAKER_TIMELINE_RENDER_LIMIT,
     NotetakerController,
     NOTETAKER_TIMELINE_EVENT_SOURCE,
     buildNotetakerViewState,
@@ -384,6 +386,54 @@ describe('Notetaker move-scoped view state', () => {
         expect(markup).toContain('Emerging Leaders');
         expect(markup).toContain('Tariff sequencing dispute');
         expect(markup).toContain('Delegation cohesion softened after the caucus break.');
+    });
+
+    it('bounds notetaker timeline rendering for large exercise datasets', () => {
+        const fakeDocument = createFakeDocument(['timelineList']);
+        global.document = fakeDocument;
+
+        const controller = new NotetakerController();
+        controller.renderTimeline(Array.from({ length: NOTETAKER_TIMELINE_RENDER_LIMIT + 2 }, (_, index) => ({
+            id: `timeline-${index + 1}`,
+            type: 'NOTE',
+            content: `Notetaker timeline event ${index + 1}`,
+            created_at: '2026-04-10T09:00:00.000Z',
+            move: 2,
+            metadata: {
+                actor: 'Morgan'
+            }
+        })));
+
+        const markup = fakeDocument.elements.timelineList.innerHTML;
+        expect(markup).toContain(
+            `Showing the first ${NOTETAKER_TIMELINE_RENDER_LIMIT} of ${NOTETAKER_TIMELINE_RENDER_LIMIT + 2} timeline events.`
+        );
+        expect(markup).toContain(`Notetaker timeline event ${NOTETAKER_TIMELINE_RENDER_LIMIT}`);
+        expect(markup).not.toContain(`Notetaker timeline event ${NOTETAKER_TIMELINE_RENDER_LIMIT + 1}`);
+    });
+
+    it('bounds notetaker inbox rendering while preserving the full unread count', () => {
+        const fakeDocument = createFakeDocument(['inboxList', 'inboxBadge']);
+        global.document = fakeDocument;
+
+        const controller = new NotetakerController();
+        controller.inboxCommunications = Array.from({ length: NOTETAKER_INBOX_RENDER_LIMIT + 2 }, (_, index) => ({
+            id: `comm-${index + 1}`,
+            type: 'GUIDANCE',
+            content: `White Cell communication ${index + 1}`,
+            created_at: '2026-04-10T09:00:00.000Z',
+            metadata: {}
+        }));
+
+        controller.renderInbox();
+
+        const markup = fakeDocument.elements.inboxList.innerHTML;
+        expect(fakeDocument.elements.inboxBadge.textContent).toBe(String(NOTETAKER_INBOX_RENDER_LIMIT + 2));
+        expect(markup).toContain(
+            `Showing the first ${NOTETAKER_INBOX_RENDER_LIMIT} of ${NOTETAKER_INBOX_RENDER_LIMIT + 2} White Cell communications.`
+        );
+        expect(markup).toContain(`White Cell communication ${NOTETAKER_INBOX_RENDER_LIMIT}`);
+        expect(markup).not.toContain(`White Cell communication ${NOTETAKER_INBOX_RENDER_LIMIT + 1}`);
     });
 
     it('ships a dedicated White Cell inbox section on the notetaker surface', () => {

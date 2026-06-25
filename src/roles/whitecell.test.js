@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
+import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
+
 const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
 const showToast = vi.fn();
 const showModal = vi.fn();
@@ -2264,5 +2266,40 @@ describe('White Cell DOM contract', () => {
             'research-bundle.zip'
         );
         expect(showToast).toHaveBeenCalledWith({ message: 'Research archive is ready.', type: 'success' });
+    });
+
+    it('bounds the pending RFI queue for large exercise datasets', async () => {
+        const { WHITE_CELL_RFI_RENDER_LIMIT, WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(['rfiQueue']);
+        global.document = fakeDocument;
+
+        const controller = new WhiteCellController();
+        controller.rfis = Array.from({ length: WHITE_CELL_RFI_RENDER_LIMIT + 2 }, (_, index) => ({
+            id: `rfi-${index + 1}`,
+            team: 'blue',
+            query: `RFI question ${index + 1}`,
+            priority: 'NORMAL',
+            created_at: '2026-04-10T10:00:00.000Z'
+        }));
+
+        controller.renderRfiQueue();
+
+        const markup = fakeDocument.elements.rfiQueue.innerHTML;
+        expect(markup).toContain(
+            `Showing the first ${WHITE_CELL_RFI_RENDER_LIMIT} of ${WHITE_CELL_RFI_RENDER_LIMIT + 2} pending RFIs.`
+        );
+        expect(markup).toContain(`RFI question ${WHITE_CELL_RFI_RENDER_LIMIT}`);
+        expect(markup).not.toContain(`RFI question ${WHITE_CELL_RFI_RENDER_LIMIT + 1}`);
+    });
+
+    it('uses the shared session-code maximum in the White Cell create-session modal', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        global.document = createFakeDocument();
+
+        const controller = new WhiteCellController();
+        controller.showCreateSessionAdminModal();
+
+        const modalConfig = showModal.mock.calls.at(-1)?.[0];
+        expect(modalConfig?.content?.innerHTML).toContain(`maxlength="${SESSION_CODE_MAX_LENGTH}"`);
     });
 });

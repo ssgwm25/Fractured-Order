@@ -15,22 +15,21 @@ function extractMetaDescription(html) {
 }
 
 describe('public naming', () => {
-    it('brands the landing entry points as Fractured Order on Plenum for SSG', () => {
+    it('brands the landing entry points as Fractured Order on Plenum', () => {
         const landingHtml = readText('../../index.html');
 
-        expect(extractTitle(landingHtml)).toBe('Fractured Order - on Plenum, for SSG');
+        expect(extractTitle(landingHtml)).toBe('Fractured Order');
         expect(extractMetaDescription(landingHtml)).toBe(
-            'Fractured Order, a seminar simulation served on the Plenum platform for SSG.'
+            'Fractured Order, a seminar simulation served on the Plenum platform.'
         );
         // The poster lockup names the game and its type.
         expect(landingHtml).toContain('class="atm-title-name">Fractured Order<');
-        expect(landingHtml).toContain('class="atm-title-kind">An Economic Statecraft Seminar Game<');
-        // The landing itself stays branded as Fractured Order on Plenum for SSG.
+        expect(landingHtml).toContain('class="atm-title-kind">An Economic Statecraft Simulation<');
+        // The landing itself stays branded as Fractured Order on Plenum.
         expect(landingHtml).toContain('alt="Fractured Order - A Seminar Simulation"');
         expect(landingHtml).toContain('on Plenum');
-        expect(landingHtml).toContain('for SSG');
         // The public entry branding no longer surfaces the internal product name
-        expect(landingHtml).not.toContain('Statecraft Sim');
+        expect(landingHtml).not.toMatch(/\bStatecraft Sim\b/);
         expect(landingHtml).not.toContain('SSG Platform');
         expect(landingHtml).not.toContain('Statecraft Simulations Group');
         expect(landingHtml).not.toContain('ESG Economic Statecraft Simulation Platform');
@@ -40,10 +39,17 @@ describe('public naming', () => {
         const readme = readText('../../README.md');
         const packageJson = JSON.parse(readText('../../package.json'));
 
-        expect(readme).toContain('# Statecraft Sim');
-        expect(readme).toContain('Public product name: `Statecraft Sim`.');
-        expect(readme).toContain('Legacy `SSG` and `esg` identifiers still appear');
+        expect(readme).toContain('# Fractured Order');
+        expect(readme).toContain('Plenum is the delivery platform');
+        expect(readme).toContain('Statecraft Sim remains the package/internal product description');
         expect(packageJson.description).toBe('Statecraft Sim seminar simulation platform');
+    });
+
+    it('uses Plenum in browser-visible client metadata', () => {
+        const supabaseClientSource = readText('../../src/services/supabase.js');
+
+        expect(supabaseClientSource).toContain("'x-client-info': `plenum/${CONFIG.VERSION}`");
+        expect(supabaseClientSource).not.toContain('esg-platform/');
     });
 
     it('keeps operator and participant surfaces aligned on Statecraft Sim', () => {
