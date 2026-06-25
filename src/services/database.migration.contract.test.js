@@ -29,6 +29,10 @@ const INDUSTRY_TEAM_ROLE_CONTRACT_PATH = new URL(
     '../../data/2026-06-25_industry_team_role_contract.sql',
     import.meta.url
 );
+const SCRIBE_ACTION_SUBMIT_POLICY_PATH = new URL(
+    '../../data/2026-06-25_scribe_action_submit_policy.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -166,6 +170,21 @@ describe('database migration contracts', () => {
         expect(sendCommunicationBody).toContain("'industry_scribe'");
         expect(sendCommunicationBody).toContain("'industry_notetaker'");
         expect(sql).toContain("WHEN forwarded.to_role IN ('blue', 'red', 'green', 'industry') THEN forwarded.to_role");
+    });
+
+    it('allows same-team scribes to submit only facilitator-forwarded action rows', () => {
+        const sql = readFileSync(SCRIBE_ACTION_SUBMIT_POLICY_PATH, 'utf8');
+
+        expect(sql).toContain('DROP POLICY IF EXISTS actions_live_demo_update ON public.actions;');
+        expect(sql).toContain('CREATE POLICY actions_live_demo_update');
+        expect(sql).toContain("live_demo_can_write_team_session(session_id, team, ARRAY['facilitator']::TEXT[])");
+        expect(sql).toContain("live_demo_can_write_team_session(session_id, team, ARRAY['scribe']::TEXT[])");
+        expect(sql).toContain("AND status = 'draft'");
+        expect(sql).toContain("AND status IN ('draft', 'submitted')");
+        expect(sql).toContain("LIKE '%scribe handoff: forwarded%'");
+        expect(sql).toContain("LIKE 'strategic orientation details%'");
+        expect(sql).toContain("LIKE 'blue team action details%'");
+        expect(sql).toContain("status <> 'adjudicated'");
     });
 
     it('normalizes seat-claim role input before seat-limit evaluation', () => {

@@ -26,8 +26,9 @@ Use the current hardening path for live environments:
 
 1. Apply the complete/current schema baseline used for this repository.
 2. Apply dated hardening migrations in order.
-3. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the current build requires it.
-4. Verify RPCs and RLS policies before a demo.
+3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql` and `data/2026-06-25_scribe_action_submit_policy.sql` have been applied.
+4. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the current build requires it.
+5. Verify RPCs and RLS policies before a demo.
 
 Do not treat legacy broad-policy files such as `data/updated_supabase_schema.sql` as final production state. They are historical/setup artifacts and must be followed by the hardening migrations.
 
@@ -83,5 +84,6 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - public clients cannot list all sessions from the landing page
 - role seat limits are enforced by `claim_session_role_seat`
 - White Cell and Game Master actions require operator grants
+- same-team Scribes can submit facilitator-forwarded action and Strategic Orientation drafts to White Cell
 - direct browser writes remain bounded by RLS
 - research export RPCs return expected runtime configuration

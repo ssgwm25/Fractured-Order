@@ -6,7 +6,7 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
-3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql` before testing Industry seats.
+3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql` and `data/2026-06-25_scribe_action_submit_policy.sql` before testing Industry seats or Scribe-to-White Cell submissions.
 4. Confirm the role matrix can join: Blue, Red, Green, and Industry facilitators; scribes; notetakers; White Cell Lead; White Cell Support; Game Master.
 5. Confirm production source maps are not published by default.
 
@@ -98,6 +98,7 @@ Scribe:
 - confirm facilitator-forwarded Strategic Orientation artifacts appear as distinct orientation slides, separate from normal action slide treatment
 - confirm facilitator-forwarded actions and live communications appear as slides
 - project each Strategic Orientation selection/forecast for the team, then use the visible handoff control to submit it to White Cell
+- confirm Scribe submission succeeds for facilitator-forwarded Strategic Orientation artifacts and normal forwarded actions after the Scribe RLS policy patch is applied
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid
 
