@@ -272,6 +272,7 @@ export class FacilitatorController {
         };
         this.hasHydratedResponses = false;
         this.hasHydratedReceivedProposals = false;
+        this.strategicOrientationSubmissionInFlight = false;
     }
 
     async init() {
@@ -726,11 +727,40 @@ export class FacilitatorController {
 
     syncActionsFromStore() {
         this.actions = actionsStore.getByTeam(this.teamId);
+        this.updateStrategicOrientationControlAvailability();
         this.renderActionsList();
 
         const badge = document.getElementById('actionsBadge');
         if (badge) {
             badge.textContent = this.actions.length.toString();
+        }
+    }
+
+    updateStrategicOrientationControlAvailability(documentRef = globalThis.document) {
+        const button = documentRef?.getElementById?.('strategicOrientationBtn');
+        if (!button) return;
+
+        const supportsStrategicOrientation = ['blue', 'green', 'red'].includes(this.teamId);
+        const existingAction = this.getStrategicOrientationActionForTeam();
+        const locked = !supportsStrategicOrientation || Boolean(existingAction);
+
+        button.hidden = locked;
+        button.disabled = locked || this.isReadOnly || this.strategicOrientationSubmissionInFlight;
+
+        if (button.disabled) {
+            button.setAttribute?.('aria-disabled', 'true');
+        } else {
+            button.removeAttribute?.('aria-disabled');
+        }
+
+        if (this.strategicOrientationSubmissionInFlight) {
+            button.title = 'Strategic Orientation is being recorded for this team.';
+        } else if (existingAction) {
+            button.title = 'Strategic Orientation has already been recorded for this team.';
+        } else if (!supportsStrategicOrientation) {
+            button.title = 'Strategic Orientation is available only to Blue, Green, and Red.';
+        } else {
+            button.title = '';
         }
     }
 
@@ -1999,9 +2029,9 @@ export class FacilitatorController {
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
-        const canManageDraft = !this.isReadOnly && canEditAction(action);
+        const canManageDraft = !this.isReadOnly && !isStrategicOrientationFlow && canEditAction(action);
         const canSubmitDraft = !this.isReadOnly && canSubmitAction(action);
-        const canRemoveDraft = !this.isReadOnly && canDeleteAction(action);
+        const canRemoveDraft = !this.isReadOnly && !isStrategicOrientationFlow && canDeleteAction(action);
         const forwardedProposalCommunication = isGreenProposalFlow
             ? this.getForwardedProposalCommunication(action)
             : null;
@@ -2370,16 +2400,18 @@ export class FacilitatorController {
             return;
         }
 
-        const existingAction = action || this.getStrategicOrientationActionForTeam();
-        if (existingAction && !canEditAction(existingAction)) {
+        const existingAction = this.getStrategicOrientationActionForTeam()
+            || (action && isStrategicOrientationAction(action) ? action : null);
+        if (existingAction) {
+            this.updateStrategicOrientationControlAvailability();
             showToast({
-                message: 'This Strategic Orientation artifact has already been submitted to White Cell.',
+                message: 'Strategic Orientation has already been recorded for this team.',
                 type: 'info'
             });
             return;
         }
 
-        const content = this.createStrategicOrientationContent(existingAction || {});
+        const content = this.createStrategicOrientationContent({});
         const modalRef = { current: null };
         const copy = this.getStrategicOrientationModalCopy();
 
@@ -2390,8 +2422,8 @@ export class FacilitatorController {
         });
 
         this.bindStrategicOrientationModal(content, modalRef.current, {
-            actionId: existingAction?.id || null,
-            isEdit: Boolean(existingAction?.id)
+            actionId: null,
+            isEdit: false
         });
     }
 
@@ -2770,8 +2802,27 @@ export class FacilitatorController {
             return;
         }
 
+        if (this.strategicOrientationSubmissionInFlight) {
+            showToast({
+                message: 'Strategic Orientation is already being recorded for this team.',
+                type: 'info'
+            });
+            return;
+        }
+
+        if (this.getStrategicOrientationActionForTeam()) {
+            this.updateStrategicOrientationControlAvailability();
+            showToast({
+                message: 'Strategic Orientation has already been recorded for this team.',
+                type: 'info'
+            });
+            return;
+        }
+
         const option = STRATEGIC_ORIENTATION_OPTIONS[data.selected];
         const loader = showLoader({ message: 'Forwarding Strategic Orientation to Scribe...' });
+        this.strategicOrientationSubmissionInFlight = true;
+        this.updateStrategicOrientationControlAvailability();
 
         try {
             const payload = this.buildStrategicOrientationPayload(data);
@@ -2827,6 +2878,7 @@ export class FacilitatorController {
             });
             timelineStore.updateFromServer('INSERT', forwardedTimelineEvent);
 
+            this.updateStrategicOrientationControlAvailability();
             showToast({ message: 'Strategic Orientation forwarded to Scribe', type: 'success' });
             modal?.close();
         } catch (err) {
@@ -2838,6 +2890,8 @@ export class FacilitatorController {
                 type: 'error'
             });
         } finally {
+            this.strategicOrientationSubmissionInFlight = false;
+            this.updateStrategicOrientationControlAvailability();
             hideLoader();
         }
     }

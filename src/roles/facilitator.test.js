@@ -21,7 +21,11 @@ function createFakeElement(id = null, tagName = 'div') {
         tagName: tagName.toUpperCase(),
         className: '',
         hidden: false,
+        disabled: false,
+        title: '',
         style: {},
+        setAttribute: vi.fn(),
+        removeAttribute: vi.fn(),
         toggleAttribute: vi.fn(),
         querySelectorAll: vi.fn(() => []),
         get textContent() {
@@ -56,6 +60,34 @@ function createFakeDocument() {
         createElement(tagName) {
             return createFakeElement(null, tagName);
         }
+    };
+}
+
+async function createStrategicOrientationAction(overrides = {}) {
+    const { serializeStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+
+    return {
+        id: 'strategic-orientation-blue-1',
+        session_id: 'session-strategic-orientation',
+        team: 'blue',
+        status: 'draft',
+        goal: 'Strategic Orientation: Pressure',
+        mechanism: 'Strategic Orientation',
+        exposure_type: 'pre_move_1',
+        priority: 'HIGH',
+        move: 1,
+        phase: 1,
+        ally_contingencies: serializeStrategicOrientationDetails({
+            artifactType: 'selection',
+            team: 'blue',
+            orientation: 'pressure',
+            primaryLevers: ['Expanded financial sanctions'],
+            acceptedCosts: ['Sustained economic friction'],
+            posture: 'Calibrated \u2014 escalate deliberately',
+            rationale: 'Set the pre-Move 1 posture.',
+            scribeHandoff: 'Forwarded'
+        }),
+        ...overrides
     };
 }
 
@@ -233,6 +265,79 @@ describe('Facilitator and scribe access', () => {
             priority: 'HIGH'
         });
         expect(payload.ally_contingencies).toContain('Strategic Orientation Details');
+    });
+
+    it('removes the Strategic Orientation input option after the team records one', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const strategicOrientationBtn = createFakeElement('strategicOrientationBtn', 'button');
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            await createStrategicOrientationAction()
+        ]);
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.isReadOnly = false;
+
+        controller.updateStrategicOrientationControlAvailability({
+            getElementById(id) {
+                return id === 'strategicOrientationBtn' ? strategicOrientationBtn : null;
+            }
+        });
+
+        expect(strategicOrientationBtn.hidden).toBe(true);
+        expect(strategicOrientationBtn.disabled).toBe(true);
+        expect(strategicOrientationBtn.title).toBe('Strategic Orientation has already been recorded for this team.');
+        expect(strategicOrientationBtn.setAttribute).toHaveBeenCalledWith('aria-disabled', 'true');
+    });
+
+    it('rejects a stale Strategic Orientation modal open after the team records one', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const strategicOrientationBtn = createFakeElement('strategicOrientationBtn', 'button');
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            await createStrategicOrientationAction()
+        ]);
+        global.document = {
+            ...createFakeDocument(),
+            getElementById(id) {
+                return id === 'strategicOrientationBtn' ? strategicOrientationBtn : null;
+            }
+        };
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.isReadOnly = false;
+
+        controller.showStrategicOrientationModal();
+
+        expect(showModal).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Strategic Orientation has already been recorded for this team.',
+            type: 'info'
+        });
+        expect(strategicOrientationBtn.hidden).toBe(true);
+    });
+
+    it('renders recorded Strategic Orientation artifacts without draft edit or delete controls', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.isReadOnly = false;
+
+        const markup = controller.renderActionCard(await createStrategicOrientationAction({
+            id: 'strategic-orientation-blue-draft',
+            status: 'draft'
+        }));
+
+        expect(markup).toContain('Draft Strategic Orientation artifacts are projected by the Scribe before White Cell submission.');
+        expect(markup).not.toContain('Edit Draft');
+        expect(markup).not.toContain('Delete Draft');
+        expect(markup).not.toContain('Forward to Scribe');
     });
 
     it('mounts a Blue facilitator guide that covers every facilitator surface', async () => {
