@@ -68,7 +68,8 @@ describe('game state display helpers', () => {
         }, [
             buildStrategicOrientationAction('blue'),
             buildStrategicOrientationAction('green'),
-            buildStrategicOrientationAction('red')
+            buildStrategicOrientationAction('red'),
+            buildStrategicOrientationAction('industry')
         ]);
 
         expect(display).toMatchObject({

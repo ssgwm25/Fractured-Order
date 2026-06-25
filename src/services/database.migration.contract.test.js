@@ -33,6 +33,10 @@ const SCRIBE_ACTION_SUBMIT_POLICY_PATH = new URL(
     '../../data/2026-06-25_scribe_action_submit_policy.sql',
     import.meta.url
 );
+const PARTICIPANT_ROLE_RESOLVER_NORMALIZATION_PATH = new URL(
+    '../../data/2026-06-25_participant_role_resolver_normalization.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -185,6 +189,27 @@ describe('database migration contracts', () => {
         expect(sql).toContain("LIKE 'strategic orientation details%'");
         expect(sql).toContain("LIKE 'blue team action details%'");
         expect(sql).toContain("status <> 'adjudicated'");
+    });
+
+    it('normalizes participant seat roles before RLS derives write surface and team', () => {
+        const sql = readFileSync(PARTICIPANT_ROLE_RESOLVER_NORMALIZATION_PATH, 'utf8');
+        const normalizeRoleBody = extractFunctionBody(sql, 'live_demo_normalize_role');
+        const participantRoleBody = extractFunctionBody(sql, 'live_demo_participant_role');
+        const participantSurfaceBody = extractFunctionBody(sql, 'live_demo_participant_surface');
+        const participantTeamBody = extractFunctionBody(sql, 'live_demo_participant_team');
+        const seatLimitBody = extractFunctionBody(sql, 'get_session_role_seat_limit');
+
+        expect(normalizeRoleBody).toContain("regexp_replace(\n        LOWER(COALESCE(requested_role, '')),\n        '[^a-z_]+'");
+        expect(normalizeRoleBody).toContain("RETURN 'whitecell_lead';");
+        expect(participantRoleBody).toContain('public.live_demo_normalize_role(COALESCE(sp.role, p.role))');
+        expect(participantSurfaceBody).toContain("resolved_role ~ '^(blue|red|green|industry)_facilitator$'");
+        expect(participantSurfaceBody).toContain("resolved_role ~ '^whitecell(_lead|_support)?$'");
+        expect(participantTeamBody).toContain("split_part(resolved_role, '_', 1)");
+        expect(seatLimitBody).toContain('public.live_demo_normalize_role(requested_role)');
+        expect(sql).toContain('UPDATE public.session_participants sp');
+        expect(sql).toContain('UPDATE public.participants p');
+        expect(sql).toContain('INSERT INTO public.game_state');
+        expect(sql).toContain('ON CONFLICT (session_id) DO NOTHING;');
     });
 
     it('normalizes seat-claim role input before seat-limit evaluation', () => {

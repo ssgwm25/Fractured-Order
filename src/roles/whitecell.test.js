@@ -297,6 +297,15 @@ describe('White Cell DOM contract', () => {
                     team: 'red',
                     orientation: 'reframe'
                 })
+            },
+            {
+                team: 'industry',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'industry',
+                    orientation: 'stabilization'
+                })
             }
         ]);
         const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
@@ -370,6 +379,7 @@ describe('White Cell DOM contract', () => {
 
         expect(controller.shouldGateStrategicOrientation()).toBe(true);
         expect(controller.getStrategicOrientationGateMessage()).toContain('Red forecast');
+        expect(controller.getStrategicOrientationGateMessage()).toContain('Industry forecast');
 
         getAllSpy.mockReturnValue([
             ...baseActions,
@@ -380,6 +390,15 @@ describe('White Cell DOM contract', () => {
                     artifactType: 'forecast',
                     team: 'red',
                     orientation: 'reframe'
+                })
+            },
+            {
+                team: 'industry',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'industry',
+                    orientation: 'stabilization'
                 })
             }
         ]);

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
+
 class MemoryStorage {
     constructor() {
         this.store = new Map();
@@ -80,6 +82,41 @@ function buildActionPayload(sessionId, clientId, team = 'blue') {
     };
 }
 
+function getPolicyTestTeamLabel(team = '') {
+    return String(team || '')
+        .split(/[^a-z0-9]+/i)
+        .filter(Boolean)
+        .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+        .join(' ') || 'Team';
+}
+
+function buildStrategicOrientationForecastPayload(sessionId, clientId, team = 'green') {
+    const teamLabel = getPolicyTestTeamLabel(team);
+
+    return {
+        session_id: sessionId,
+        client_id: clientId,
+        move: 1,
+        phase: 1,
+        team,
+        mechanism: 'Strategic Orientation',
+        sector: '',
+        exposure_type: 'pre_move_1',
+        targets: [],
+        goal: `${teamLabel} Forecast: Blue Pressure Campaign`,
+        expected_outcomes: 'Forecast: Blue will choose Pressure Campaign.',
+        ally_contingencies: [
+            'Strategic Orientation Details',
+            'Artifact Type: forecast',
+            `Team: ${team}`,
+            'Orientation: pressure',
+            'Scribe Handoff: forwarded'
+        ].join('\n'),
+        priority: 'HIGH',
+        status: 'draft'
+    };
+}
+
 function buildRequestPayload(sessionId, clientId, team = 'blue') {
     return {
         session_id: sessionId,
@@ -91,6 +128,13 @@ function buildRequestPayload(sessionId, clientId, team = 'blue') {
         categories: ['intel'],
         query: 'What is the latest red-team posture?'
     };
+}
+
+function mutateMockBackendState(mutator) {
+    const rawState = localStorage.getItem(E2E_MOCK_STATE_KEY);
+    const state = rawState ? JSON.parse(rawState) : { counters: {}, tables: {} };
+    mutator(state);
+    localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify(state));
 }
 
 describe('database live-demo policy enforcement', () => {
@@ -166,6 +210,48 @@ describe('database live-demo policy enforcement', () => {
         )).rejects.toMatchObject({
             name: 'DatabaseError',
             message: 'new row violates row-level security policy for table "requests"'
+        });
+    });
+
+    it.each([
+        ['green', 'red'],
+        ['red', 'green'],
+        ['industry', 'red']
+    ])('normalizes a dirty %s facilitator seat before allowing same-team Strategic Orientation forecast inserts', async (team, deniedTeam) => {
+        const { sessionStore, database } = await loadModules();
+        const teamLabel = getPolicyTestTeamLabel(team);
+
+        setClientIdentity(sessionStore, 'client-gm');
+        const session = await createProtectedSession(
+            database,
+            `${teamLabel} Forecast Policy Session`,
+            `${team.toUpperCase().slice(0, 4)}2026`
+        );
+
+        setClientIdentity(sessionStore, `client-${team}-fac`);
+        await database.claimParticipantSeat(session.id, `${team}_facilitator`, `${teamLabel} Facilitator`);
+
+        mutateMockBackendState((state) => {
+            const seat = state.tables.session_participants.find((entry) => (
+                entry.session_id === session.id
+                && entry.role === `${team}_facilitator`
+            ));
+            seat.role = `${teamLabel.replace(/\s+/g, '_')}_Facilitator\u200B`;
+        });
+
+        await expect(database.createAction(
+            buildStrategicOrientationForecastPayload(session.id, sessionStore.getClientId(), deniedTeam)
+        )).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'new row violates row-level security policy for table "actions"'
+        });
+
+        await expect(database.createAction(
+            buildStrategicOrientationForecastPayload(session.id, sessionStore.getClientId(), team)
+        )).resolves.toMatchObject({
+            team,
+            mechanism: 'Strategic Orientation',
+            status: 'draft'
         });
     });
 });

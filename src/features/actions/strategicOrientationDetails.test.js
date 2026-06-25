@@ -71,7 +71,7 @@ describe('strategic orientation details helpers', () => {
         });
     });
 
-    it('requires Blue, Green, and Red Strategic Orientation artifacts to be submitted before completion', () => {
+    it('requires Blue, Green, Red, and Industry Strategic Orientation artifacts to be submitted before completion', () => {
         const actions = [
             {
                 team: 'blue',
@@ -99,18 +99,28 @@ describe('strategic orientation details helpers', () => {
                     team: 'red',
                     orientation: 'reframe'
                 })
+            },
+            {
+                team: 'industry',
+                status: 'draft',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'industry',
+                    orientation: 'stabilization'
+                })
             }
         ];
 
         expect(getStrategicOrientationCompletion(actions)).toMatchObject({
             complete: false,
             submittedTeams: ['blue', 'green'],
-            missingTeams: ['red']
+            missingTeams: ['red', 'industry']
         });
 
         expect(getStrategicOrientationCompletion([
             ...actions.slice(0, 2),
-            { ...actions[2], status: 'submitted' }
+            { ...actions[2], status: 'submitted' },
+            { ...actions[3], status: 'submitted' }
         ])).toMatchObject({
             complete: true,
             missingTeams: []

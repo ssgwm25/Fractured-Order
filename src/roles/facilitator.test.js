@@ -231,10 +231,11 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('id="verbaAiBadge"');
     });
 
-    it('ships Strategic Orientation controls on Blue, Green, and Red facilitator surfaces', () => {
+    it('ships Strategic Orientation controls on Blue, Green, Red, and Industry facilitator surfaces', () => {
         const blueHtml = readFileSync(FACILITATOR_HTML_PATH, 'utf8');
         const greenHtml = readFileSync(GREEN_FACILITATOR_HTML_PATH, 'utf8');
         const redHtml = readFileSync(RED_FACILITATOR_HTML_PATH, 'utf8');
+        const industryHtml = readFileSync(INDUSTRY_FACILITATOR_HTML_PATH, 'utf8');
 
         expect(blueHtml).toContain('id="strategicOrientationBtn"');
         expect(blueHtml).toContain('Strategic Orientation');
@@ -242,6 +243,8 @@ describe('Facilitator and scribe access', () => {
         expect(greenHtml).toContain('Forecast Blue');
         expect(redHtml).toContain('id="strategicOrientationBtn"');
         expect(redHtml).toContain('Forecast Blue');
+        expect(industryHtml).toContain('id="strategicOrientationBtn"');
+        expect(industryHtml).toContain('Forecast Blue');
     });
 
     it('builds Strategic Orientation payloads with a non-null action sector', async () => {
@@ -289,6 +292,28 @@ describe('Facilitator and scribe access', () => {
         expect(strategicOrientationBtn.disabled).toBe(true);
         expect(strategicOrientationBtn.title).toBe('Strategic Orientation has already been recorded for this team.');
         expect(strategicOrientationBtn.setAttribute).toHaveBeenCalledWith('aria-disabled', 'true');
+    });
+
+    it('leaves the Strategic Orientation input available for Industry before its forecast is recorded', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const strategicOrientationBtn = createFakeElement('strategicOrientationBtn', 'button');
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([]);
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+        controller.isReadOnly = false;
+
+        controller.updateStrategicOrientationControlAvailability({
+            getElementById(id) {
+                return id === 'strategicOrientationBtn' ? strategicOrientationBtn : null;
+            }
+        });
+
+        expect(strategicOrientationBtn.hidden).toBe(false);
+        expect(strategicOrientationBtn.disabled).toBe(false);
+        expect(strategicOrientationBtn.title).toBe('');
+        expect(strategicOrientationBtn.removeAttribute).toHaveBeenCalledWith('aria-disabled');
     });
 
     it('rejects a stale Strategic Orientation modal open after the team records one', async () => {

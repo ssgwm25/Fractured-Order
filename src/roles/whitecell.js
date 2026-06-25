@@ -1255,7 +1255,7 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Review Strategic Orientation',
-                    body: 'Strategic Orientation collects the Blue selection and Green/Red forecasts after each Scribe submits them to White Cell.',
+                    body: 'Strategic Orientation collects the Blue selection plus Green, Red, and Industry forecasts after each Scribe submits them to White Cell.',
                     highlight: navTarget('strategicOrientation')
                 },
                 {
@@ -1790,7 +1790,8 @@ export class WhiteCellController {
         const labels = {
             blue: 'Blue selection',
             green: 'Green forecast',
-            red: 'Red forecast'
+            red: 'Red forecast',
+            industry: 'Industry forecast'
         };
         const missingLabels = completion.missingTeams
             .map((teamId) => labels[teamId] || teamId)

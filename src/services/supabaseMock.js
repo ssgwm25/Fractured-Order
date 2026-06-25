@@ -558,7 +558,18 @@ function shapeSelectedRows(tableName, rows, selectClause, state) {
 }
 
 function normalizeSeatRole(role = '') {
-    const normalizedRole = String(role || '').trim();
+    const rawRole = role === null || role === undefined ? '' : String(role);
+    const compatibilityNormalizedRole = typeof rawRole.normalize === 'function'
+        ? rawRole.normalize('NFKC')
+        : rawRole;
+    const normalizedRole = compatibilityNormalizedRole
+        .replace(/[^a-z_]+/gi, '')
+        .toLowerCase();
+
+    if (normalizedRole === 'white') {
+        return 'whitecell_lead';
+    }
+
     const match = normalizedRole.match(/^(?:(blue|red|green|industry)_)?whitecell(?:_(lead|support))?$/);
 
     if (!match) {

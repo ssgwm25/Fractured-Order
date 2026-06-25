@@ -104,6 +104,7 @@ import { navigateToApp } from '../core/navigation.js';
 
 const logger = createLogger('Facilitator');
 const PROPOSAL_TEAM_IDS = new Set(['green', 'industry']);
+const STRATEGIC_ORIENTATION_TEAM_IDS = new Set(['blue', 'green', 'red', 'industry']);
 const TRIBE_STREET_JOURNAL_EVENT_TYPES = new Set(['NOTE', 'MOMENT', 'QUOTE']);
 const TRIBE_STREET_JOURNAL_LIMIT = 20;
 const ACTION_GROUP_RENDER_LIMIT = 40;
@@ -659,7 +660,8 @@ export class FacilitatorController {
         const labels = {
             blue: 'Blue selection',
             green: 'Green forecast',
-            red: 'Red forecast'
+            red: 'Red forecast',
+            industry: 'Industry forecast'
         };
         const missingLabels = completion.missingTeams
             .map((teamId) => labels[teamId] || teamId)
@@ -740,7 +742,7 @@ export class FacilitatorController {
         const button = documentRef?.getElementById?.('strategicOrientationBtn');
         if (!button) return;
 
-        const supportsStrategicOrientation = ['blue', 'green', 'red'].includes(this.teamId);
+        const supportsStrategicOrientation = STRATEGIC_ORIENTATION_TEAM_IDS.has(this.teamId);
         const existingAction = this.getStrategicOrientationActionForTeam();
         const locked = !supportsStrategicOrientation || Boolean(existingAction);
 
@@ -758,7 +760,7 @@ export class FacilitatorController {
         } else if (existingAction) {
             button.title = 'Strategic Orientation has already been recorded for this team.';
         } else if (!supportsStrategicOrientation) {
-            button.title = 'Strategic Orientation is available only to Blue, Green, and Red.';
+            button.title = 'Strategic Orientation is available only to Blue, Green, Red, and Industry.';
         } else {
             button.title = '';
         }
@@ -2392,9 +2394,9 @@ export class FacilitatorController {
 
     showStrategicOrientationModal(action = null) {
         if (!this.requireWriteAccess()) return;
-        if (!['blue', 'green', 'red'].includes(this.teamId)) {
+        if (!STRATEGIC_ORIENTATION_TEAM_IDS.has(this.teamId)) {
             showToast({
-                message: 'Strategic Orientation is available only to Blue, Green, and Red.',
+                message: 'Strategic Orientation is available only to Blue, Green, Red, and Industry.',
                 type: 'warning'
             });
             return;

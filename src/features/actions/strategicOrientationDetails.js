@@ -3,13 +3,14 @@
  *
  * Pre-Move 1 submissions use the same actions table as normal move records, but
  * are explicitly marked as Strategic Orientation artifacts. Blue records its
- * selected orientation; Green and Red record forecasts of Blue's orientation.
+ * selected orientation; Green, Red, and Industry record forecasts of Blue's
+ * orientation.
  */
 
 export const STRATEGIC_ORIENTATION_DETAILS_PREFIX = 'Strategic Orientation Details';
 export const STRATEGIC_ORIENTATION_ACTION_MECHANISM = 'Strategic Orientation';
 export const STRATEGIC_ORIENTATION_PERIOD = 'pre_move_1';
-export const STRATEGIC_ORIENTATION_REQUIRED_TEAMS = Object.freeze(['blue', 'green', 'red']);
+export const STRATEGIC_ORIENTATION_REQUIRED_TEAMS = Object.freeze(['blue', 'green', 'red', 'industry']);
 
 export const STRATEGIC_ORIENTATION_ARTIFACT_TYPES = Object.freeze({
     SELECTION: 'selection',
@@ -191,7 +192,8 @@ function getTeamLabel(teamId = '') {
     const labels = {
         blue: 'Blue',
         green: 'Green',
-        red: 'Red'
+        red: 'Red',
+        industry: 'Industry'
     };
 
     return labels[normalizeString(teamId).toLowerCase()] || normalizeString(teamId) || 'Team';

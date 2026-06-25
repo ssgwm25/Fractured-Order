@@ -6,7 +6,7 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
-3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql` and `data/2026-06-25_scribe_action_submit_policy.sql` before testing Industry seats or Scribe-to-White Cell submissions.
+3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, and `data/2026-06-25_participant_role_resolver_normalization.sql` before testing Industry seats, Strategic Orientation forecasts, or Scribe-to-White Cell submissions.
 4. Confirm the role matrix can join: Blue, Red, Green, and Industry facilitators; scribes; notetakers; White Cell Lead; White Cell Support; Game Master.
 5. Confirm production source maps are not published by default.
 
@@ -72,7 +72,8 @@ White Cell Support should be able to monitor and communicate but not perform lea
 
 Facilitator:
 
-- before Move 1, Blue completes Strategic Orientation and Green/Red complete forecasts of Blue orientation; all three go to the Scribe first
+- before Move 1, Blue completes Strategic Orientation and Green, Red, and Industry complete forecasts of Blue orientation; all four go to the Scribe first
+- if a Green, Red, or Industry forecast insert returns a 403 on `actions` or the browser warns that `game_state` is missing, apply `data/2026-06-25_participant_role_resolver_normalization.sql`; pass condition is that the same-team facilitator can forward the Strategic Orientation forecast, cross-team writes still fail, and the live tracker loads from the backend
 - confirm the Strategic Orientation button disappears after the team records its selection or forecast; it is a one-time pre-Move-1 input
 - confirm the header live tracker reads Strategic Orientation / Pre-Move 1 until all required orientation artifacts reach White Cell, then returns to Move 1 / Internal Deliberation
 - create a draft action/proposal/response
@@ -83,8 +84,8 @@ Facilitator:
 
 White Cell:
 
-- confirm Move 1 start/advance controls remain blocked until Blue selection plus Green and Red forecasts arrive from Scribe
-- confirm the Strategic Orientation queue shows Blue selection plus Green/Red forecasts after Scribe submission
+- confirm Move 1 start/advance controls remain blocked until Blue selection plus Green, Red, and Industry forecasts arrive from Scribe
+- confirm the Strategic Orientation queue shows Blue selection plus Green, Red, and Industry forecasts after Scribe submission
 - advance/regress phase and move after the Strategic Orientation gate clears
 - start/pause/reset timer as lead after the Strategic Orientation gate clears
 - deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then actions/proposals/responses from their role-specific queues
