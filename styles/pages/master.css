@@ -87,6 +87,18 @@
     font-family: var(--font-mono);
 }
 
+.master-page .header-game-state.is-strategic-orientation {
+    border-radius: var(--radius-lg);
+    max-width: 28rem;
+}
+
+.master-page .header-game-state.is-strategic-orientation .game-state-value {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: 0;
+    white-space: normal;
+}
+
 /* ==================== CARD POLISH ==================== */
 
 .master-page .card {

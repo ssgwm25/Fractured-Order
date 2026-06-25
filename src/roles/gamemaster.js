@@ -34,8 +34,11 @@ import {
 } from '../features/export/index.js';
 import { navigateToApp } from '../core/navigation.js';
 import { OPERATOR_SURFACES } from '../core/teamContext.js';
-import { getPhaseLabel } from '../core/enums.js';
 import { getUserMessage } from '../core/errors.js';
+import {
+    applyHeaderGameStateDisplay,
+    getHeaderGameStateDisplay
+} from '../utils/gameStateDisplay.js';
 
 const logger = createLogger('GameMaster');
 
@@ -322,8 +325,8 @@ export class GameMasterController {
                 },
                 {
                     title: 'Check session state',
-                    body: 'The header mirrors the selected session move and phase. Use the dashboard and White Cell console for timer-driven run control.',
-                    highlight: '#headerMove'
+                    body: 'The header mirrors the selected session state, including Strategic Orientation before Move 1. Use the dashboard and White Cell console for timer-driven run control.',
+                    highlight: '.header-center'
                 },
                 {
                     title: 'Session overview',
@@ -562,7 +565,7 @@ export class GameMasterController {
         this.renderDashboardStats(buildDashboardModel(bundles));
         this.renderRecentActivity(buildRecentActivityModel(bundles));
         this.renderActiveParticipants(buildConnectedParticipantsModel(bundles));
-        this.updateHeaderSessionState(liveBundle.session, liveBundle.gameState);
+        this.updateHeaderSessionState(liveBundle.session, liveBundle.gameState, liveBundle.actions);
         this.renderParticipantsPanel(liveBundle);
         this.updateExportAvailability(liveBundle);
 
@@ -578,22 +581,17 @@ export class GameMasterController {
         }
     }
 
-    updateHeaderSessionState(session, gameState) {
+    updateHeaderSessionState(session, gameState, actions = []) {
         const sessionName = document.getElementById('sessionName');
-        const headerMove = document.getElementById('headerMove');
-        const headerPhase = document.getElementById('headerPhase');
+        const headerDisplay = getHeaderGameStateDisplay(gameState, actions, {
+            fallbackToMoveOne: Boolean(session)
+        });
 
         if (sessionName) {
             sessionName.textContent = session ? session.name : 'No Session Selected';
         }
 
-        if (headerMove) {
-            headerMove.textContent = gameState?.move ?? '-';
-        }
-
-        if (headerPhase) {
-            headerPhase.textContent = gameState?.phase ? getPhaseLabel(gameState.phase) : '-';
-        }
+        applyHeaderGameStateDisplay(headerDisplay);
     }
 
     renderSessionSelectors() {

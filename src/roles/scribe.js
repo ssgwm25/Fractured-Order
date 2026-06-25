@@ -642,8 +642,8 @@ export class ScribeController {
                 },
                 {
                     title: 'Follow move, phase, and timer',
-                    body: 'The header shows the live move, phase, countdown timer, and paused or running state so the projected deck stays in sync with the room.',
-                    highlight: '#timerDisplay'
+                    body: 'The header shows Strategic Orientation before Move 1, then the live move, phase, countdown timer, and paused or running state so the projected deck stays in sync with the room.',
+                    highlight: '.header-center'
                 },
                 {
                     title: 'Navigate the support deck',

@@ -55,6 +55,10 @@ import {
     openResearchPrintWindow
 } from '../features/export/index.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
+import {
+    applyHeaderGameStateDisplay,
+    getHeaderGameStateDisplay
+} from '../utils/gameStateDisplay.js';
 import { CONFIG } from '../core/config.js';
 import { ENUMS, canAdjudicateAction, getPhaseLabel, isAdjudicatedAction, isDraftAction } from '../core/enums.js';
 import { getUserMessage, ValidationError } from '../core/errors.js';
@@ -1236,8 +1240,8 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Watch the live tracker',
-                    body: 'The header mirrors the current move, phase, countdown timer, and paused or running state that every team sees.',
-                    highlight: '#timerDisplay'
+                    body: 'The header mirrors the current state every team sees: Strategic Orientation before Move 1, then move, phase, countdown timer, and paused or running state.',
+                    highlight: '.header-center'
                 },
                 {
                     title: 'Run game controls',
@@ -1748,15 +1752,13 @@ export class WhiteCellController {
         const currentPhase = document.getElementById('currentPhase');
         const currentMoveLabel = document.getElementById('moveLabel');
         const currentPhaseLabel = document.getElementById('phaseLabel');
-        const headerMove = document.getElementById('headerMove');
-        const headerPhase = document.getElementById('headerPhase');
+        const headerDisplay = getHeaderGameStateDisplay(gameState, actionsStore.getAll());
 
         if (currentMove) currentMove.textContent = move;
         if (currentPhase) currentPhase.textContent = phase;
         if (currentMoveLabel) currentMoveLabel.textContent = moveLabel;
         if (currentPhaseLabel) currentPhaseLabel.textContent = phaseLabel;
-        if (headerMove) headerMove.textContent = move;
-        if (headerPhase) headerPhase.textContent = phaseLabel;
+        applyHeaderGameStateDisplay(headerDisplay);
 
         this.updateGameControlAvailability(move, phase);
     }
@@ -2120,7 +2122,7 @@ export class WhiteCellController {
         this.renderProposals();
         this.renderAdjudicationQueue();
         const gameState = this.getCurrentGameState();
-        this.updateGameControlAvailability(gameState.move ?? 1, gameState.phase ?? 1);
+        this.updateGameStateDisplay(gameState);
         this.updateTimerControlButtons();
 
         this.updateSidebarBadge('strategicOrientationBadge', pendingStrategicOrientationArtifacts.length);

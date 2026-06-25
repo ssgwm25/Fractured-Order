@@ -368,7 +368,7 @@ describe('Facilitator and scribe access', () => {
             'Revisit this guide'
         ]);
         expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
-            '#timerDisplay',
+            '.header-center',
             '.sidebar-link[data-section="actions"]',
             '.sidebar-link[data-section="requests"]',
             '.sidebar-link[data-section="responses"]',
@@ -379,6 +379,7 @@ describe('Facilitator and scribe access', () => {
             '.sidebar-link[data-section="capture"]',
             '.sidebar-session'
         ]);
+        expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
         expect(guide.steps[0].body).toContain('capture observations');
         expect(guide.steps[4].body).toContain('explicit White Cell communications');
         expect(guide.steps[7].body).toContain('sentiment updates');
@@ -417,7 +418,7 @@ describe('Facilitator and scribe access', () => {
             'Revisit this guide'
         ]);
         expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
-            '#timerDisplay',
+            '.header-center',
             '.sidebar-link[data-section="actions"]',
             '.sidebar-link[data-section="requests"]',
             '.sidebar-link[data-section="responses"]',
@@ -428,6 +429,7 @@ describe('Facilitator and scribe access', () => {
             '.sidebar-link[data-section="capture"]',
             '.sidebar-session'
         ]);
+        expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
         expect(guide.steps[0].body).toContain('prepare proposals');
         expect(guide.steps[2].body).toContain("Create and revise your team's proposals");
         expect(guide.steps[5].body).toContain('proposals that White Cell has approved and forwarded for your team');
@@ -491,7 +493,7 @@ describe('Facilitator and scribe access', () => {
             'Revisit this guide'
         ]);
         expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
-            '#timerDisplay',
+            '.header-center',
             '.sidebar-link[data-section="actions"]',
             '.sidebar-link[data-section="requests"]',
             '.sidebar-link[data-section="responses"]',
@@ -502,6 +504,7 @@ describe('Facilitator and scribe access', () => {
             '.sidebar-link[data-section="capture"]',
             '.sidebar-session'
         ]);
+        expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
         expect(guide.steps[0].body).toContain('prepare move responses');
         expect(guide.steps[2].body).toContain("Create and revise your team's move responses");
         expect(guide.steps[2].body).toContain('White Cell reviews them');

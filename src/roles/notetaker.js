@@ -296,8 +296,8 @@ export class NotetakerController {
                 },
                 {
                     title: 'Follow move, phase, and timer',
-                    body: 'The header shows the active move, phase, countdown timer, and running or paused state. Use it to timestamp notes against the current exercise window.',
-                    highlight: '#timerDisplay'
+                    body: 'The header shows Strategic Orientation before Move 1, then the active move, phase, countdown timer, and running or paused state. Use it to timestamp notes against the current exercise window.',
+                    highlight: '.header-center'
                 },
                 {
                     title: 'Capture the record',

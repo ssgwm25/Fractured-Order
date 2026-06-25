@@ -322,12 +322,13 @@ describe('scribe surface', () => {
             'Revisit this guide'
         ]);
         expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
-            '#timerDisplay',
+            '.header-center',
             '#scribeSectionList',
             '#scribeAlertsBtn',
             '#presentBtn',
             '.sidebar-session'
         ]);
+        expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
     });
 
     it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {

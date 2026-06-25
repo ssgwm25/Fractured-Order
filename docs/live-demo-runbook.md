@@ -74,6 +74,7 @@ Facilitator:
 
 - before Move 1, Blue completes Strategic Orientation and Green/Red complete forecasts of Blue orientation; all three go to the Scribe first
 - confirm the Strategic Orientation button disappears after the team records its selection or forecast; it is a one-time pre-Move-1 input
+- confirm the header live tracker reads Strategic Orientation / Pre-Move 1 until all required orientation artifacts reach White Cell, then returns to Move 1 / Internal Deliberation
 - create a draft action/proposal/response
 - forward completed Strategic Orientation artifacts and actions to the Scribe; normal proposals and move responses still enter White Cell review from their role-specific flows
 - submit RFIs across multiple category tabs

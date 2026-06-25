@@ -481,7 +481,7 @@ describe('White Cell DOM contract', () => {
             'Revisit this guide'
         ]);
         expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
-            '#timerDisplay',
+            '.header-center',
             '.sidebar-link[data-section="controls"]',
             '#settingsTabs .tab-list',
             '.sidebar-link[data-section="strategicOrientation"]',
@@ -496,6 +496,7 @@ describe('White Cell DOM contract', () => {
             '#whiteCellNotificationsMuteBtn',
             '.sidebar-session'
         ]);
+        expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
         expect(guide.steps[3].body).toContain('live sessions');
         expect(guide.steps[3].body).toContain('participant rosters');
         expect(guide.steps[3].body).toContain('scribe deck assignments');

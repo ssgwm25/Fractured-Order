@@ -7,6 +7,7 @@
 
 import { sessionStore } from './stores/session.js';
 import { gameStateStore } from './stores/gameState.js';
+import { actionsStore } from './stores/actions.js';
 import { participantsStore } from './stores/participants.js';
 import { syncService, SYNC_STATUS } from './services/sync.js';
 import { getRuntimeConfigStatus, renderMissingBackendNotice } from './services/supabase.js';
@@ -17,7 +18,10 @@ import { confirm as confirmModal } from './components/ui/Modal.js';
 import { ConfigurationError, getUserMessage } from './core/errors.js';
 import { isLandingPage, navigateToApp } from './core/navigation.js';
 import { isPublicRoleSurface, parseTeamRole } from './core/teamContext.js';
-import { getPhaseLabel } from './core/enums.js';
+import {
+    applyHeaderGameStateDisplay,
+    getHeaderGameStateDisplay
+} from './utils/gameStateDisplay.js';
 
 const logger = createLogger('Main');
 const runtimeConfigStatus = getRuntimeConfigStatus();
@@ -781,7 +785,9 @@ function initializeSession() {
         }
 
         if (!gameStateStore.getState()) {
-            updateGameStateDisplay(sessionData?.gameState);
+            updateGameStateDisplay(sessionData?.gameState, {
+                fallbackToMoveOne: Boolean(sessionId)
+            });
         }
     }
 
@@ -791,6 +797,13 @@ function initializeSession() {
 
     gameStateStore.subscribe((_event, state) => {
         updateGameStateDisplay(state);
+    });
+
+    actionsStore.subscribe(() => {
+        const snapshot = sessionStore.getSnapshot();
+        updateGameStateDisplay(gameStateStore.getState() || snapshot?.sessionData?.gameState, {
+            fallbackToMoveOne: Boolean(snapshot?.sessionId)
+        });
     });
 }
 
@@ -843,19 +856,15 @@ function setupSyncLifecycle() {
  * Update the game state display in the header
  * @param {Object} gameState - Current game state
  */
-function updateGameStateDisplay(gameState) {
-    const headerMove = document.getElementById('headerMove');
-    const headerPhase = document.getElementById('headerPhase');
+function updateGameStateDisplay(gameState, {
+    fallbackToMoveOne = true
+} = {}) {
     const timerDisplay = document.getElementById('timerDisplay');
     const timerStatus = document.getElementById('timerStatus');
-
-    if (headerMove) {
-        headerMove.textContent = gameState?.move ?? 1;
-    }
-
-    if (headerPhase) {
-        headerPhase.textContent = getPhaseLabel(gameState?.phase ?? 1);
-    }
+    const headerDisplay = getHeaderGameStateDisplay(gameState, actionsStore.getAll(), {
+        fallbackToMoveOne
+    });
+    applyHeaderGameStateDisplay(headerDisplay);
 
     if (timerDisplay && gameState?.timer_seconds !== undefined) {
         timerDisplay.textContent = formatTime(gameState.timer_seconds);

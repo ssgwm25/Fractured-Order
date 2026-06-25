@@ -353,8 +353,8 @@ export class FacilitatorController {
                 },
                 {
                     title: 'Read the live tracker',
-                    body: 'The header shows the current move, phase, countdown timer, and whether the timer is running. White Cell controls these values; use them to pace deliberation and submissions.',
-                    highlight: '#timerDisplay'
+                    body: 'The header shows the current state, including Strategic Orientation before Move 1, the active move or phase, countdown timer, and whether the timer is running. White Cell controls these values; use them to pace deliberation and submissions.',
+                    highlight: '.header-center'
                 },
                 {
                     title: actionTitle,

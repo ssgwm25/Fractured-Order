@@ -4,6 +4,7 @@ const {
     mockSessionStore,
     mockSyncService,
     mockParticipantsStore,
+    mockActionsStore,
     mockNavigateToApp
 } = vi.hoisted(() => ({
     mockSessionStore: {
@@ -23,6 +24,10 @@ const {
     mockParticipantsStore: {
         leave: vi.fn()
     },
+    mockActionsStore: {
+        getAll: vi.fn(() => []),
+        subscribe: vi.fn(() => vi.fn())
+    },
     mockNavigateToApp: vi.fn()
 }));
 
@@ -32,6 +37,10 @@ vi.mock('./stores/session.js', () => ({
 
 vi.mock('./stores/gameState.js', () => ({
     gameStateStore: {}
+}));
+
+vi.mock('./stores/actions.js', () => ({
+    actionsStore: mockActionsStore
 }));
 
 vi.mock('./stores/participants.js', () => ({
