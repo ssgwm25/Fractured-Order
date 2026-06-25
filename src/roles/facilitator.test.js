@@ -370,6 +370,76 @@ describe('Facilitator and scribe access', () => {
         expect(cardsCss).toContain('.response-card--new {');
     });
 
+    it('renders facilitator RFIs as category tabs for single-category scanning', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const rfiList = createFakeElement('rfiList');
+
+        global.document = {
+            ...createFakeDocument(),
+            getElementById(id) {
+                return {
+                    rfiList
+                }[id] || null;
+            }
+        };
+
+        const controller = new FacilitatorController();
+        controller.rfis = [
+            {
+                id: 'rfi-political-1',
+                team: 'blue',
+                status: 'pending',
+                priority: 'HIGH',
+                query: 'Can Blue secure cabinet support?',
+                categories: ['Political Feasibility'],
+                created_at: '2026-04-09T10:08:00.000Z'
+            },
+            {
+                id: 'rfi-alliance-political-1',
+                team: 'blue',
+                status: 'answered',
+                priority: 'NORMAL',
+                query: 'Will allies support a joint inspection?',
+                categories: ['Alliance Response', 'Political Feasibility'],
+                response: 'White Cell confirms limited ally support.',
+                created_at: '2026-04-09T10:10:00.000Z'
+            },
+            {
+                id: 'rfi-legacy-1',
+                team: 'blue',
+                status: 'pending',
+                priority: 'LOW',
+                query: 'Legacy RFI without category metadata.',
+                categories: [],
+                created_at: '2026-04-09T10:05:00.000Z'
+            }
+        ];
+
+        controller.renderRfiList();
+
+        expect(rfiList.innerHTML).toContain('class="tabbed-section rfi-tabs"');
+        expect(rfiList.innerHTML).toContain('data-rfi-tabs');
+        expect(rfiList.innerHTML).toContain('role="tablist" aria-label="RFI categories"');
+        expect(rfiList.innerHTML).toContain('data-rfi-tab="economic-impact"');
+        expect(rfiList.innerHTML).toContain('data-rfi-tab="political-feasibility"');
+        expect(rfiList.innerHTML).toContain('data-rfi-tab="alliance-response"');
+        expect(rfiList.innerHTML).toContain('data-rfi-tab="uncategorized"');
+        expect(rfiList.innerHTML).toContain('Economic Impact<span class="tab-badge">0</span>');
+        expect(rfiList.innerHTML).toContain('Political Feasibility<span class="tab-badge">2</span>');
+        expect(rfiList.innerHTML).toContain('Alliance Response<span class="tab-badge">1</span>');
+        expect(rfiList.innerHTML).toContain('Uncategorized<span class="tab-badge">1</span>');
+        expect(rfiList.innerHTML).toContain('data-rfi-tab="political-feasibility"\n                    role="tab"\n                    aria-selected="true"');
+        expect(rfiList.innerHTML).toContain('data-rfi-panel="economic-impact"\n                    role="tabpanel"\n                    hidden');
+        expect(rfiList.innerHTML).toContain('data-rfi-panel="alliance-response"\n                    role="tabpanel"\n                    hidden');
+        expect(rfiList.innerHTML).toContain('data-rfi-panel="uncategorized"\n                    role="tabpanel"\n                    hidden');
+        expect(rfiList.innerHTML).toContain('aria-labelledby="rfi-category-political-feasibility-heading"');
+        expect(rfiList.innerHTML).toContain('role="list"');
+        expect(rfiList.innerHTML).toContain('role="listitem"');
+        expect(rfiList.innerHTML).toContain('Will allies support a joint inspection?');
+        expect(rfiList.innerHTML).toContain('White Cell confirms limited ally support.');
+        expect(rfiList.innerHTML).toContain('Legacy RFI without category metadata.');
+    });
+
     it('labels the Green facilitator action trigger as New Proposal', () => {
         const html = readFileSync(GREEN_FACILITATOR_HTML_PATH, 'utf8');
 

@@ -134,6 +134,14 @@ const RESPONSE_TYPE_GROUP_BY_KIND = new Map(
     RESPONSE_TYPE_GROUPS.map((group) => [group.kind, group])
 );
 
+function getRfiCategoryKey(category = '') {
+    return String(category || 'uncategorized')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'uncategorized';
+}
+
 function getEventTimestamp(event = {}) {
     return event?.created_at || event?.updated_at || event?.timestamp || null;
 }
@@ -220,6 +228,7 @@ export class FacilitatorController {
         this.responses = [];
         this.receivedProposals = [];
         this.actionsActiveTab = 'draft';
+        this.rfiActiveTab = getRfiCategoryKey(ENUMS.RFI_CATEGORIES[0]);
         this.responsesActiveTab = 'communication';
         this.proposalsActiveTab = 'unread';
         this.journalEntries = [];
@@ -330,7 +339,7 @@ export class FacilitatorController {
                 },
                 {
                     title: 'Ask White Cell with RFIs',
-                    body: 'Send RFIs when the team needs a ruling, clarification, or scenario detail. Answers return to this surface.',
+                    body: 'Send RFIs when the team needs a ruling, clarification, or scenario detail. The RFI list uses category tabs so you can review one request type at a time.',
                     highlight: navTarget('requests')
                 },
                 {
@@ -463,8 +472,8 @@ export class FacilitatorController {
 
         if (requestsDescription) {
             requestsDescription.textContent = this.isReadOnly
-                ? 'Passive observer view of RFIs and responses. Request submission is disabled in observer mode.'
-                : 'Submit questions to White Cell and monitor the response status.';
+                ? 'Passive observer view of RFIs by category. Request submission is disabled in observer mode.'
+                : 'Submit questions to White Cell and use category tabs to monitor response status.';
         }
 
         if (responsesDescription) {
@@ -519,6 +528,13 @@ export class FacilitatorController {
             const tabButton = event.target.closest('.tab-button[data-actions-tab]');
             if (!tabButton || !actionsListEl.contains(tabButton)) return;
             this.setActionsActiveTab(tabButton.dataset.actionsTab);
+        });
+
+        const rfiListEl = document.getElementById('rfiList');
+        rfiListEl?.addEventListener('click', (event) => {
+            const tabButton = event.target.closest('.tab-button[data-rfi-tab]');
+            if (!tabButton || !rfiListEl.contains(tabButton)) return;
+            this.setRfiActiveTab(tabButton.dataset.rfiTab);
         });
 
         const responsesListEl = document.getElementById('responsesList');
@@ -1568,6 +1584,21 @@ export class FacilitatorController {
         });
         container.querySelectorAll('.tab-panel[data-actions-panel]').forEach((panel) => {
             panel.hidden = panel.dataset.actionsPanel !== tab;
+        });
+    }
+
+    setRfiActiveTab(tab) {
+        if (!tab || tab === this.rfiActiveTab) return;
+        this.rfiActiveTab = tab;
+        const container = document.getElementById('rfiList');
+        if (!container || typeof container.querySelectorAll !== 'function') return;
+        container.querySelectorAll('.tab-button[data-rfi-tab]').forEach((button) => {
+            const isActive = button.dataset.rfiTab === tab;
+            button.classList.toggle('tab-button-active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        container.querySelectorAll('.tab-panel[data-rfi-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.rfiPanel !== tab;
         });
     }
 
@@ -3951,34 +3982,178 @@ export class FacilitatorController {
             return;
         }
 
-        const visibleRfis = this.rfis.slice(0, RFI_RENDER_LIMIT);
-        const hiddenCount = Math.max(0, this.rfis.length - visibleRfis.length);
+        rfiList.innerHTML = this.renderTabbedRfiList();
+    }
 
-        rfiList.innerHTML = `
-            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${RFI_RENDER_LIMIT} of ${this.rfis.length} RFIs for this team.</p>` : ''}
-            ${visibleRfis.map((rfi) => {
-            const queryText = rfi.query || rfi.question || '';
-            return `
-                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3);">
-                    <div class="card-header" style="display: flex; justify-content: space-between; gap: var(--space-2);">
-                        <span class="text-sm font-semibold">${this.escapeHtml(queryText)}</span>
-                        <div style="display: flex; gap: var(--space-2);">
-                            ${createStatusBadge(rfi.status || 'pending').outerHTML}
-                            ${createPriorityBadge(rfi.priority || 'NORMAL').outerHTML}
-                        </div>
+    getRfiCategoryGroups(rfis = []) {
+        const baseGroups = ENUMS.RFI_CATEGORIES.map((category) => ({
+            key: getRfiCategoryKey(category),
+            title: category,
+            description: `RFIs tagged ${category}.`,
+            items: []
+        }));
+        const groupsByKey = new Map(baseGroups.map((group) => [group.key, group]));
+        const customGroupsByKey = new Map();
+        const uncategorizedItems = [];
+
+        rfis.forEach((rfi) => {
+            const rawCategories = Array.isArray(rfi.categories)
+                ? rfi.categories
+                : (rfi.category ? [rfi.category] : []);
+            const categories = [...new Set(
+                rawCategories
+                    .map((category) => String(category || '').trim())
+                    .filter(Boolean)
+            )];
+
+            if (categories.length === 0) {
+                uncategorizedItems.push(rfi);
+                return;
+            }
+
+            categories.forEach((category) => {
+                const key = getRfiCategoryKey(category);
+                const existingGroup = groupsByKey.get(key) || customGroupsByKey.get(key);
+                if (existingGroup) {
+                    existingGroup.items.push(rfi);
+                    return;
+                }
+
+                customGroupsByKey.set(key, {
+                    key,
+                    title: category,
+                    description: `RFIs tagged ${category}.`,
+                    items: [rfi]
+                });
+            });
+        });
+
+        const customGroups = [...customGroupsByKey.values()]
+            .sort((left, right) => left.title.localeCompare(right.title));
+        const groups = [...baseGroups, ...customGroups];
+
+        if (uncategorizedItems.length) {
+            groups.push({
+                key: 'uncategorized',
+                title: 'Uncategorized',
+                description: 'Legacy RFIs without category metadata.',
+                items: uncategorizedItems
+            });
+        }
+
+        return groups.map((group) => ({
+            ...group,
+            items: [...group.items].sort((left, right) => getSortableEventTime(right) - getSortableEventTime(left))
+        }));
+    }
+
+    renderRfiCard(rfi = {}) {
+        const queryText = rfi.query || rfi.question || '';
+        const categories = Array.isArray(rfi.categories)
+            ? rfi.categories
+            : (rfi.category ? [rfi.category] : []);
+
+        return `
+            <article class="card card-bordered" role="listitem" style="padding: var(--space-4);">
+                <div class="card-header" style="display: flex; justify-content: space-between; gap: var(--space-2);">
+                    <span class="text-sm font-semibold">${this.escapeHtml(queryText)}</span>
+                    <div style="display: flex; gap: var(--space-2);">
+                        ${createStatusBadge(rfi.status || 'pending').outerHTML}
+                        ${createPriorityBadge(rfi.priority || 'NORMAL').outerHTML}
                     </div>
-                    ${Array.isArray(rfi.categories) && rfi.categories.length ? `
-                        <p class="text-xs text-gray-500 mt-2"><strong>Categories:</strong> ${this.escapeHtml(rfi.categories.join(', '))}</p>
-                    ` : ''}
-                    ${rfi.response ? `
-                        <div class="mt-3 p-3 bg-gray-50 rounded">
-                            <strong>Response:</strong> ${this.escapeHtml(rfi.response)}
-                        </div>
-                    ` : ''}
-                    <p class="text-xs text-gray-400 mt-2">${formatRelativeTime(rfi.created_at)}</p>
+                </div>
+                ${categories.length ? `
+                    <p class="text-xs text-gray-500 mt-2"><strong>Categories:</strong> ${this.escapeHtml(categories.join(', '))}</p>
+                ` : ''}
+                ${rfi.response ? `
+                    <div class="mt-3 p-3 bg-gray-50 rounded">
+                        <strong>Response:</strong> ${this.escapeHtml(rfi.response)}
+                    </div>
+                ` : ''}
+                <p class="text-xs text-gray-400 mt-2">${formatRelativeTime(rfi.created_at)}</p>
+            </article>
+        `;
+    }
+
+    renderRfiCategoryGroup(group = {}) {
+        const headingId = `rfi-category-${group.key}-heading`;
+        const itemCount = group.items?.length || 0;
+        const visibleRfis = (group.items || []).slice(0, RFI_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, itemCount - visibleRfis.length);
+        const body = itemCount
+            ? `<div class="card-list" role="list" aria-labelledby="${headingId}">
+                    ${visibleRfis.map((rfi) => this.renderRfiCard(rfi)).join('')}
+               </div>`
+            : `<p class="text-sm text-gray-500" style="margin: 0;">No RFIs in this category.</p>`;
+
+        return `
+            <section
+                data-rfi-category-group="${group.key}"
+                aria-labelledby="${headingId}"
+                style="display: grid; gap: var(--space-3);"
+            >
+                <div style="padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border-light);">
+                    <h3
+                        id="${headingId}"
+                        class="font-semibold text-sm"
+                        style="margin: 0;"
+                    >${this.escapeHtml(`${group.title} (${itemCount})`)}</h3>
+                    <p class="text-xs text-gray-500" style="margin: var(--space-1) 0 0;">
+                        ${this.escapeHtml(group.description)}
+                    </p>
+                </div>
+                ${body}
+                ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: var(--space-2) 0 0;">Showing the first ${RFI_RENDER_LIMIT} of ${itemCount} RFIs in this category.</p>` : ''}
+            </section>
+        `;
+    }
+
+    renderTabbedRfiList() {
+        const groups = this.getRfiCategoryGroups(this.rfis);
+        const currentActiveGroup = groups.find((group) => group.key === this.rfiActiveTab);
+        const fallbackGroup = groups.find((group) => group.items.length > 0) || groups[0];
+        const activeKey = currentActiveGroup?.items?.length
+            ? this.rfiActiveTab
+            : fallbackGroup?.key;
+        this.rfiActiveTab = activeKey;
+
+        const tabList = groups.map((group) => {
+            const count = group.items?.length || 0;
+            const isActive = group.key === activeKey;
+            return `
+                <button
+                    type="button"
+                    class="tab-button${isActive ? ' tab-button-active' : ''}"
+                    data-rfi-tab="${group.key}"
+                    role="tab"
+                    aria-selected="${isActive ? 'true' : 'false'}"
+                    aria-controls="rfiPanel-${group.key}"
+                >${this.escapeHtml(group.title)}<span class="tab-badge">${count}</span></button>
+            `;
+        }).join('');
+
+        const panels = groups.map((group) => {
+            const isActive = group.key === activeKey;
+            return `
+                <div
+                    class="tab-panel"
+                    id="rfiPanel-${group.key}"
+                    data-rfi-panel="${group.key}"
+                    role="tabpanel"
+                    ${isActive ? '' : 'hidden'}
+                >
+                    ${this.renderRfiCategoryGroup(group)}
                 </div>
             `;
-        }).join('')}
+        }).join('');
+
+        return `
+            <div class="tabbed-section rfi-tabs" data-rfi-tabs>
+                <div class="tab-list" role="tablist" aria-label="RFI categories">
+                    ${tabList}
+                </div>
+                ${panels}
+            </div>
         `;
     }
 
