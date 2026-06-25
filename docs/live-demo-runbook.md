@@ -21,6 +21,10 @@ npm run test:e2e:live-demo
 
 Pass: unit tests, production build, smoke, and live-demo role tests complete without failures.
 
+Note: the local E2E static server serves built files even when the build uses
+`VITE_PUBLIC_BASE_PATH="/Fractured-Order/"`, so these checks can run in the
+same shell after the hosted-source build command.
+
 ## Hosted Source Check
 
 ```powershell
