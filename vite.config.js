@@ -64,7 +64,11 @@ export default defineConfig(({ mode }) => {
                     greenFacilitatorDeck: resolve(__dirname, 'decks/green/fractured-order-facilitator-deck.html'),
                     greenFacilitator: resolve(__dirname, 'teams/green/facilitator.html'),
                     greenScribe: resolve(__dirname, 'teams/green/scribe.html'),
-                    greenNotetaker: resolve(__dirname, 'teams/green/notetaker.html')
+                    greenNotetaker: resolve(__dirname, 'teams/green/notetaker.html'),
+                    industryFacilitatorDeck: resolve(__dirname, 'decks/industry/fractured-order-facilitator-deck.html'),
+                    industryFacilitator: resolve(__dirname, 'teams/industry/facilitator.html'),
+                    industryScribe: resolve(__dirname, 'teams/industry/scribe.html'),
+                    industryNotetaker: resolve(__dirname, 'teams/industry/notetaker.html')
                 },
                 output: {
                     manualChunks: {

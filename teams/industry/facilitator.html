@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Statecraft Sim Industry Team facilitator interface.">
+    <title>Statecraft Sim | Industry Team Facilitator</title>
+    <link rel="icon" type="image/x-icon" href="../../src/img/FO_icon.ico">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="../../styles/base/reset.css">
+    <link rel="stylesheet" href="../../styles/base/variables.css">
+    <link rel="stylesheet" href="../../styles/base/typography.css">
+    <link rel="stylesheet" href="../../styles/components/buttons.css">
+    <link rel="stylesheet" href="../../styles/components/forms.css">
+    <link rel="stylesheet" href="../../styles/components/cards.css">
+    <link rel="stylesheet" href="../../styles/components/modals.css">
+    <link rel="stylesheet" href="../../styles/components/badges.css">
+    <link rel="stylesheet" href="../../styles/components/loader.css">
+    <link rel="stylesheet" href="../../styles/layouts/app-layout.css">
+    <link rel="stylesheet" href="../../styles/layouts/header.css">
+    <link rel="stylesheet" href="../../styles/layouts/sidebar.css">
+    <link rel="stylesheet" href="../../styles/layouts/grid.css">
+    <style>
+        .skip-link {
+            position: absolute;
+            left: 0;
+            top: -40px;
+            background: var(--color-primary-600);
+            color: white;
+            padding: 0.5rem 1rem;
+            z-index: 1000;
+            text-decoration: none;
+            border-radius: 0 0 var(--radius-md) 0;
+        }
+
+        .skip-link:focus {
+            top: 0;
+        }
+    </style>
+</head>
+<body data-team="industry">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div class="app-layout">
+        <!-- Header -->
+        <header class="page-header" id="pageHeader">
+            <div class="header-left">
+                <button class="header-menu-btn btn btn-ghost btn-icon-only" id="menuToggle" aria-label="Toggle menu">
+                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </button>
+                <div class="header-session-info">
+                    <span class="session-role" id="sessionRoleLabel">Facilitator</span>
+                    <span class="session-indicator" id="connectionIndicator"></span>
+                </div>
+            </div>
+
+            <div class="header-center">
+                <div class="header-game-state">
+                    <div class="game-state-item">
+                        <span class="game-state-label">Move</span>
+                        <span class="game-state-value" id="headerMove">1</span>
+                    </div>
+                    <div class="game-state-item">
+                        <span class="game-state-label">Phase</span>
+                        <span class="game-state-value" id="headerPhase">Internal Deliberation</span>
+                    </div>
+                </div>
+                <div class="header-timer">
+                    <span class="timer-display" id="timerDisplay">90:00</span>
+                    <span class="timer-status" id="timerStatus">Paused</span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <div class="header-actions">
+                    <button class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <svg viewBox="0 0 20 20" fill="currentColor" class="sidebar-toggle-icon" aria-hidden="true" focusable="false">
+                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+            </button>
+
+            <nav class="sidebar-nav">
+                <ul class="sidebar-menu">
+                    <li class="sidebar-heading">Navigation</li>
+                    <li class="sidebar-menu-item">
+                        <a href="#actions" class="sidebar-link sidebar-link-active" data-section="actions">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Proposals</span>
+                            <span class="sidebar-badge" id="actionsBadge">0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#requests" class="sidebar-link" data-section="requests">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">RFIs</span>
+                            <span class="sidebar-badge" id="rfiBadge">0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#responses" class="sidebar-link" data-section="responses">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Responses</span>
+                            <span class="sidebar-badge" id="responsesBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#receivedProposals" class="sidebar-link" data-section="receivedProposals">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path d="M10 3a1 1 0 01.894.553l1.382 2.804 3.093.45a1 1 0 01.554 1.706l-2.237 2.18.528 3.08a1 1 0 01-1.451 1.054L10 13.347l-2.763 1.452a1 1 0 01-1.45-1.054l.527-3.08-2.237-2.18a1 1 0 01.554-1.706l3.093-.45 1.382-2.804A1 1 0 0110 3z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Received Proposals</span>
+                            <span class="sidebar-badge" id="receivedProposalsBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#tribeStreetJournal" class="sidebar-link" data-section="tribeStreetJournal">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h9a2 2 0 002-2V8.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 009.586 3H4zm5 1.5V8a1 1 0 001 1h3.5"/>
+                                    <path d="M6 11a1 1 0 011-1h5a1 1 0 110 2H7a1 1 0 01-1-1zm0 3a1 1 0 011-1h5a1 1 0 110 2H7a1 1 0 01-1-1z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Tribe Street Journal</span>
+                            <span class="sidebar-badge" id="tribeStreetJournalBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#verbaAi" class="sidebar-link" data-section="verbaAi">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Verba AI Population Sentiments</span>
+                            <span class="sidebar-badge" id="verbaAiBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#timeline" class="sidebar-link" data-section="timeline">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Timeline</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-divider"></li>
+                    <li class="sidebar-menu-item" id="captureNavItem">
+                        <a href="#capture" class="sidebar-link" data-section="capture">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Quick Capture</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="sidebar-session">
+                <span class="sidebar-session-label">Session</span>
+                <span class="sidebar-session-name" id="sessionName">Loading...</span>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-content">
+            <div class="page-container">
+                <div
+                    id="facilitatorModeNotice"
+                    class="card card-bordered"
+                    style="display: none; padding: var(--space-4); margin-bottom: var(--space-4);"
+                    role="status"
+                    aria-live="polite"
+                ></div>
+
+                <!-- Proposals Section -->
+                <section id="actionsSection" class="content-section">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Proposals</h2>
+                            <p class="section-description">Draft proposals and send them to the Blue or Red team.</p>
+                        </div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary" id="newActionBtn" data-write-control="true">New Proposal</button>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div class="card-list" id="actionsList" aria-live="polite">
+                            <!-- Proposals will be populated here -->
+                            <div class="empty-state">
+                                <div class="empty-state-icon">
+                                    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                                <h3 class="empty-state-title">No Proposals Yet</h3>
+                                <p class="empty-state-message">Create your first proposal to start the White Cell review flow.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Requests Section -->
+                <section id="requestsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Requests for Information (RFIs)</h2>
+                            <p class="section-description">Submit questions to White Cell and use category tabs to monitor response status.</p>
+                        </div>
+                        <div class="section-actions">
+                            <button class="btn btn-primary" id="newRfiBtn" data-write-control="true">New RFI</button>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div class="card-list" id="rfiList" aria-live="polite">
+                            <!-- RFIs will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Responses Section -->
+                <section id="responsesSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">White Cell Responses</h2>
+                            <p class="section-description">Use category tabs to review direct White Cell communications, update notices, forwarded proposals, and RFI answers.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="responsesList" aria-live="polite">
+                            <!-- Responses will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Received Proposals Section -->
+                <section id="receivedProposalsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Received Proposals</h2>
+                            <p class="section-description">Review proposals that White Cell has forwarded to your team.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="receivedProposalsList" aria-live="polite">
+                            <p class="text-sm text-gray-500">No proposals received yet.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tribe Street Journal Section -->
+                <section id="tribeStreetJournalSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Tribe Street Journal</h2>
+                            <p class="section-description">Review the latest team notes, moments, and quotes captured during the exercise.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="tribeStreetJournalEmbed"></div>
+                        <div id="tribeStreetJournalList" aria-live="polite">
+                            <!-- Tribe Street Journal entries will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Verba AI Population Sentiments Section -->
+                <section id="verbaAiSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Verba AI Population Sentiments</h2>
+                            <p class="section-description">AI-generated sentiment analysis of populations</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="verbaAiList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">Sentiment data will appear here.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Timeline Section -->
+                <section id="timelineSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Session Timeline</h2>
+                            <p class="section-description">Chronological view of all events</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="timelineList" aria-live="polite">
+                            <!-- Timeline will be populated here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Quick Capture Section -->
+                <section id="captureSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Quick Capture</h2>
+                            <p class="section-description">Record observations, moments, and quotes</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <form id="captureForm" class="card card-bordered" style="padding: var(--space-4);" data-write-control="true">
+                            <fieldset class="form-group">
+                                <legend class="form-label">Type</legend>
+                                <div class="form-check-inline">
+                                    <label class="form-check">
+                                        <input type="radio" name="captureType" value="NOTE" class="form-radio" checked>
+                                        <span class="form-check-label">Note</span>
+                                    </label>
+                                    <label class="form-check">
+                                        <input type="radio" name="captureType" value="MOMENT" class="form-radio">
+                                        <span class="form-check-label">Key Moment</span>
+                                    </label>
+                                    <label class="form-check">
+                                        <input type="radio" name="captureType" value="QUOTE" class="form-radio">
+                                        <span class="form-check-label">Quote</span>
+                                    </label>
+                                </div>
+                            </fieldset>
+
+                            <div class="form-group">
+                                <label class="form-label" for="captureContent">Content</label>
+                                <textarea id="captureContent" class="form-input form-textarea" rows="4" placeholder="Enter your observation..."></textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Save Observation</button>
+                        </form>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile sidebar overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script type="module" src="../../src/main.js"></script>
+    <script type="module" src="../../src/roles/facilitator.js"></script>
+</body>
+</html>

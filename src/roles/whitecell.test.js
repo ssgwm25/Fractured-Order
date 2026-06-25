@@ -372,7 +372,7 @@ describe('White Cell DOM contract', () => {
             'Run game controls',
             'Manage session operations',
             'Review Blue actions',
-            'Review Green proposals',
+            'Review proposals',
             'Review Red responses',
             'Read field intelligence',
             'Publish sentiment updates',
@@ -604,10 +604,14 @@ describe('White Cell DOM contract', () => {
             { value: 'blue', label: 'Blue Team' },
             { value: 'red', label: 'Red Team' },
             { value: 'green', label: 'Green Team' },
+            { value: 'industry', label: 'Industry Team' },
             { value: 'blue_facilitator', label: 'Blue Team Facilitator' },
             { value: 'blue_scribe', label: 'Blue Team Scribe' },
             { value: 'red_notetaker', label: 'Red Team Notetaker' },
-            { value: 'green_facilitator', label: 'Green Team Facilitator' }
+            { value: 'green_facilitator', label: 'Green Team Facilitator' },
+            { value: 'industry_facilitator', label: 'Industry Team Facilitator' },
+            { value: 'industry_scribe', label: 'Industry Team Scribe' },
+            { value: 'industry_notetaker', label: 'Industry Team Notetaker' }
         ]));
     });
 
@@ -1261,7 +1265,7 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('Keep the queue visible while muted');
     });
 
-    it('keeps reviewed Green proposals visible in the White Cell proposals queue', async () => {
+    it('keeps reviewed proposal-team submissions visible in the White Cell proposals queue', async () => {
         const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
@@ -1293,20 +1297,39 @@ describe('White Cell DOM contract', () => {
                 recipientTeam: 'blue'
             })
         };
+        const industryProposal = {
+            ...greenProposal,
+            id: 'action-104-industry',
+            team: 'industry',
+            goal: 'Coordinate industrial surge alignment',
+            adjudication_notes: 'Forwarded to Red Team for review.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['Industry'],
+                objective: 'Align production capacity before the next move.',
+                category: 'Alignment',
+                intendedPartners: 'Red Team',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Immediately after White Cell review.',
+                recipientTeam: 'red'
+            })
+        };
 
         vi.spyOn(actionsStore, 'getPending').mockReturnValue([]);
-        vi.spyOn(actionsStore, 'getAll').mockReturnValue([greenProposal]);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([greenProposal, industryProposal]);
 
         const controller = new WhiteCellController();
         controller.operatorRole = 'lead';
 
         controller.syncActionsFromStore();
 
+        expect(controller.proposalTeamProposals.map((proposal) => proposal.team)).toEqual(['green', 'industry']);
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Coordinate biotech export alignment');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Coordinate industrial surge alignment');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Deliberation Underway');
         expect(fakeDocument.elements.proposalsList.innerHTML).not.toContain('Adjudicated');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Outcome:</strong> SUCCESS');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Notes:</strong> Forwarded to Blue Team for review.');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Notes:</strong> Forwarded to Red Team for review.');
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(true);
     });
 
@@ -1614,7 +1637,7 @@ describe('White Cell DOM contract', () => {
         expect(modalConfig?.content?.innerHTML).toContain('Forward to Blue Team');
         expect(modalConfig?.content?.innerHTML).toContain('Request Changes');
         expect(modalConfig?.content?.innerHTML).toContain('Reject Proposal');
-        expect(modalConfig?.content?.innerHTML).toContain('Green Team must submit a new proposal');
+        expect(modalConfig?.content?.innerHTML).toContain('the submitting team must submit a new proposal');
         expect(modalConfig?.content?.innerHTML).toContain('Proposal Overview');
     });
 
@@ -1648,7 +1671,7 @@ describe('White Cell DOM contract', () => {
         vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
         const adjudicateAction = vi.spyOn(database, 'adjudicateAction').mockResolvedValue({
             id: 'action-92',
-            team: 'green',
+            team: 'industry',
             move: 2,
             phase: 1,
             status: 'adjudicated',
@@ -1688,7 +1711,7 @@ describe('White Cell DOM contract', () => {
         const modal = { close: vi.fn() };
         const proposal = {
             id: 'action-92',
-            team: 'green',
+            team: 'industry',
             move: 2,
             phase: 1,
             status: 'submitted',
@@ -1720,11 +1743,12 @@ describe('White Cell DOM contract', () => {
             type: 'PROPOSAL_FORWARDED',
             metadata: expect.objectContaining({
                 source_proposal_id: 'action-92',
-                source_team: 'green',
+                source_team: 'industry',
                 outcome: 'SUCCESS',
                 review_decision: 'forward_to_recipient'
             })
         }));
+        expect(createCommunication.mock.calls[0][0].content).toContain('Forwarded Industry Team proposal');
         expect(createCommunication.mock.calls[0][0].content).toContain('White Cell decision: Forwarded to Blue Team');
         expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             session_id: 'session-11',

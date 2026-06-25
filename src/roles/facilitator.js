@@ -90,6 +90,7 @@ import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { navigateToApp } from '../core/navigation.js';
 
 const logger = createLogger('Facilitator');
+const PROPOSAL_TEAM_IDS = new Set(['green', 'industry']);
 const TRIBE_STREET_JOURNAL_EVENT_TYPES = new Set(['NOTE', 'MOMENT', 'QUOTE']);
 const TRIBE_STREET_JOURNAL_LIMIT = 20;
 const ACTION_GROUP_RENDER_LIMIT = 40;
@@ -98,6 +99,11 @@ const RESPONSE_GROUP_RENDER_LIMIT = 30;
 export const FACILITATOR_VERBA_AI_RENDER_LIMIT = 40;
 export const FACILITATOR_TIMELINE_RENDER_LIMIT = 80;
 const BLUE_ACTION_WIZARD_PAGE_TOTAL = 3;
+
+function isProposalTeamId(teamId) {
+    return PROPOSAL_TEAM_IDS.has(teamId);
+}
+
 const RESPONSE_TYPE_GROUPS = [
     {
         key: 'communication',
@@ -313,10 +319,10 @@ export class FacilitatorController {
 
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
-        const actionNoun = this.teamId === 'green'
+        const actionNoun = this.isProposalTeam()
             ? 'proposals'
             : (this.teamId === 'red' ? 'move responses' : 'actions');
-        const actionTitle = this.teamId === 'green'
+        const actionTitle = this.isProposalTeam()
             ? 'Build proposals'
             : (this.teamId === 'red' ? 'Prepare move responses' : 'Draft actions');
         this.onboarding = mountFollowAlong({
@@ -451,7 +457,7 @@ export class FacilitatorController {
         }
 
         if (actionsDescription) {
-            const isGreenProposalFlow = this.teamId === 'green';
+            const isGreenProposalFlow = this.isProposalTeam();
             const isRedResponseFlow = this.teamId === 'red';
             if (this.isReadOnly) {
                 if (isGreenProposalFlow) {
@@ -1063,6 +1069,8 @@ export class FacilitatorController {
                 return 'Red Team';
             case 'green':
                 return 'Green Team';
+            case 'industry':
+                return 'Industry Team';
             default:
                 return team || 'Recipient team';
         }
@@ -1237,10 +1245,7 @@ export class FacilitatorController {
                 : {};
             const title = snapshot.title || 'Untitled proposal';
             const sourceTeam = metadata.source_team || 'green';
-            const sourceLabel = sourceTeam === 'green' ? 'Green Team'
-                : sourceTeam === 'blue' ? 'Blue Team'
-                : sourceTeam === 'red' ? 'Red Team'
-                : sourceTeam;
+            const sourceLabel = this.formatProposalRecipientTeamLabel(sourceTeam);
             const outcome = metadata.outcome || 'APPROVED';
             const receivedAt = communication.created_at;
             const status = getProposalRecipientStatus(communication);
@@ -1635,7 +1640,7 @@ export class FacilitatorController {
     renderActionsList() {
         const actionsList = document.getElementById('actionsList');
         if (!actionsList) return;
-        const isGreenProposalFlow = this.teamId === 'green';
+        const isGreenProposalFlow = this.isProposalTeam();
         const isRedResponseFlow = this.teamId === 'red';
         const emptyStateTitle = isGreenProposalFlow
             ? 'No Proposals Yet'
@@ -1698,7 +1703,7 @@ export class FacilitatorController {
     }
 
     getActionStatusGroupDefinitions() {
-        if (this.teamId === 'green') {
+        if (this.isProposalTeam()) {
             return [
                 {
                     key: 'draft',
@@ -1803,7 +1808,7 @@ export class FacilitatorController {
     }
 
     getEmptyActionGroupMessage(key) {
-        const noun = this.teamId === 'green'
+        const noun = this.isProposalTeam()
             ? 'proposals'
             : (this.teamId === 'red' ? 'move responses' : 'actions');
         switch (key) {
@@ -1920,7 +1925,7 @@ export class FacilitatorController {
 
     renderActionCard(action) {
         const blueAction = getBlueActionViewModel(action);
-        const isGreenProposalFlow = this.teamId === 'green';
+        const isGreenProposalFlow = this.isProposalTeam();
         const isRedResponseFlow = this.teamId === 'red';
         const moveResponse = isRedResponseFlow ? getMoveResponseViewModel(action) : null;
         const title = isRedResponseFlow ? moveResponse.title : blueAction.title;
@@ -2195,8 +2200,12 @@ export class FacilitatorController {
         return this.teamId === 'blue' && (!action || !action.team || action.team === this.teamId);
     }
 
+    isProposalTeam() {
+        return isProposalTeamId(this.teamId);
+    }
+
     isGreenTeamProposalEnabled(action = null) {
-        return this.teamId === 'green' && (!action || !action.team || action.team === this.teamId);
+        return this.isProposalTeam() && (!action || !action.team || action.team === this.teamId);
     }
 
     isRedTeamResponseEnabled(action = null) {
@@ -2500,8 +2509,10 @@ export class FacilitatorController {
             `;
         };
 
+        const formId = `${this.teamId}ProposalForm`;
+
         content.innerHTML = `
-            <form id="greenProposalForm" novalidate>
+            <form id="${this.escapeHtml(formId)}" novalidate>
                 <div class="form-group">
                     <label class="form-label" for="proposalTitle">Proposal Title *</label>
                     <input
@@ -2655,7 +2666,7 @@ export class FacilitatorController {
     }
 
     bindGreenProposalModal(content, modal, { actionId = null, isEdit = false } = {}) {
-        const form = content.querySelector('#greenProposalForm');
+        const form = content.querySelector(`#${this.teamId}ProposalForm`);
 
         const bindOtherToggle = (selectId, groupId, inputId) => {
             const select = form.querySelector(`#${selectId}`);

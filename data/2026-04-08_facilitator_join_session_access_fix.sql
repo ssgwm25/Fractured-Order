@@ -93,7 +93,7 @@ AS $$
 DECLARE
     current_user_id UUID := auth.uid();
     normalized_role TEXT := CASE
-        WHEN requested_role ~ '^(blue|red|green)_whitecell$'
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell$'
             THEN regexp_replace(BTRIM(requested_role), '_whitecell$', '_whitecell_lead')
         ELSE BTRIM(requested_role)
     END;
@@ -101,7 +101,7 @@ DECLARE
     normalized_client_id TEXT := NULLIF(BTRIM(requested_client_id), '');
     normalized_timeout_seconds INTEGER := GREATEST(COALESCE(requested_timeout_seconds, 90), 1);
     normalized_team TEXT := CASE
-        WHEN normalized_role ~ '^(blue|red|green)_' THEN split_part(normalized_role, '_', 1)
+        WHEN normalized_role ~ '^(blue|red|green|industry)_' THEN split_part(normalized_role, '_', 1)
         ELSE NULL
     END;
     role_limit INTEGER := public.get_session_role_seat_limit(normalized_role);
@@ -141,7 +141,7 @@ BEGIN
             USING ERRCODE = '42501';
     END IF;
 
-    IF normalized_role ~ '^(blue|red|green)_whitecell(_lead|_support)?$'
+    IF normalized_role ~ '^(blue|red|green|industry)_whitecell(_lead|_support)?$'
        AND NOT public.live_demo_has_operator_grant('whitecell', requested_session_id, normalized_team, normalized_role) THEN
         RAISE EXCEPTION 'White Cell seats require operator authorization.'
             USING ERRCODE = '42501';

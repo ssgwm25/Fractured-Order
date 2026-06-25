@@ -411,7 +411,7 @@ function inferTeamFromRole(role = '', explicitTeam = null) {
         return ROLE_TO_TEAM[normalizedRole];
     }
 
-    const prefixedTeam = normalizedRole.match(/^(blue|red|green)_/i)?.[1];
+    const prefixedTeam = normalizedRole.match(/^(blue|red|green|industry)_/i)?.[1];
     return prefixedTeam || null;
 }
 
@@ -3863,7 +3863,7 @@ export function buildResearchReportHtml(dataset, {
     const displayedEventLogRows = eventLogTruncated
         ? eventLogRows.slice(0, EVENT_LOG_DISPLAY_LIMIT)
         : eventLogRows;
-    const teamActivityOrder = ['blue', 'red', 'green', 'whitecell', 'gamemaster'];
+    const teamActivityOrder = ['blue', 'red', 'green', 'industry', 'whitecell', 'gamemaster'];
     const teamActivityMap = new Map();
     const ensureTeamActivity = (team) => {
         const key = String(team || '').trim().toLowerCase() || 'unassigned';
@@ -3942,7 +3942,7 @@ export function buildResearchReportHtml(dataset, {
         },
         {
             title: 'Proposals: Content And Review',
-            description: 'Green-team proposal records, routing intent, review rationale, and recipient outcomes.'
+            description: 'Proposal-team records, routing intent, review rationale, and recipient outcomes.'
         },
         {
             title: 'Move Responses',
@@ -5025,7 +5025,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Proposals: Content And Review</h2>
-                    <p class="report-section-intro">Green-team proposal records, routing intent, review rationale, and recipient-state outcomes.</p>
+                    <p class="report-section-intro">Proposal-team records, routing intent, review rationale, and recipient-state outcomes.</p>
                 </div>
             </div>
             ${renderReportEntityCollection(proposalCards, 'No proposal records were captured for this export.')}

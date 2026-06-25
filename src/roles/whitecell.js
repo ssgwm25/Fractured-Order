@@ -114,6 +114,7 @@ const WHITE_CELL_TIMELINE_RENDER_LIMIT = 50;
 const TEAM_LABELS = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team.label]))
 );
+const PROPOSAL_TEAM_IDS = new Set(['green', 'industry']);
 const WHITE_CELL_FILTER_TEAM_ORDER = Object.freeze([
     ...TEAM_OPTIONS.map((team) => team.id),
     'white_cell',
@@ -168,6 +169,10 @@ const PROPOSAL_REVIEW_DECISIONS = Object.freeze({
     REQUEST_CHANGES: 'request_changes',
     REJECT: 'reject'
 });
+
+function isProposalTeamId(teamId) {
+    return PROPOSAL_TEAM_IDS.has(teamId);
+}
 
 function readWhiteCellNotificationsMutedPreference() {
     try {
@@ -1080,6 +1085,7 @@ export class WhiteCellController {
         this.actions = [];
         this.blueTeamActions = [];
         this.greenTeamProposals = [];
+        this.proposalTeamProposals = this.greenTeamProposals;
         this.redTeamResponses = [];
         this.reviewActiveTabs = { actions: 'pending', responses: 'pending', proposals: 'pending' };
         this.rfis = [];
@@ -1225,8 +1231,8 @@ export class WhiteCellController {
                     highlight: navTarget('actions')
                 },
                 {
-                    title: 'Review Green proposals',
-                    body: 'Proposals is the Green Team queue. Forward proposals to recipients, request changes, or reject proposals with White Cell notes.',
+                    title: 'Review proposals',
+                    body: 'Proposals is the Green and Industry queue. Forward proposals to recipients, request changes, or reject proposals with White Cell notes.',
                     highlight: navTarget('proposals')
                 },
                 {
@@ -1241,7 +1247,7 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Publish sentiment updates',
-                    body: 'Verba AI Population Sentiments is where White Cell composes and reviews Blue, Green, and Red sentiment updates.',
+                    body: 'Verba AI Population Sentiments is where White Cell composes and reviews Blue, Green, Red, and Industry sentiment updates.',
                     highlight: navTarget('verbaAi')
                 },
                 {
@@ -1984,19 +1990,21 @@ export class WhiteCellController {
         this.blueTeamActions = allActions.filter((action) => (
             action?.team === 'blue' && !isDraftAction(action)
         ));
-        this.greenTeamProposals = allActions.filter((action) => (
-            action?.team === 'green'
+        this.proposalTeamProposals = allActions.filter((action) => (
+            isProposalTeamId(action?.team)
             && !isDraftAction(action)
             && this.isProposalAction(action)
         ));
+        this.greenTeamProposals = this.proposalTeamProposals;
         this.redTeamResponses = allActions.filter((action) => (
             action?.team === 'red' && !isDraftAction(action)
         ));
         const pendingBlueTeamActions = this.blueTeamActions.filter((action) => canAdjudicateAction(action));
-        const pendingGreenTeamProposals = this.greenTeamProposals.filter((action) => canAdjudicateAction(action));
+        const pendingProposalTeamProposals = this.proposalTeamProposals.filter((action) => canAdjudicateAction(action));
         const pendingRedTeamResponses = this.redTeamResponses.filter((action) => canAdjudicateAction(action));
         this.captureQueueArrivals({
             blueTeamActions: this.blueTeamActions,
+            proposalTeamProposals: this.proposalTeamProposals,
             greenTeamProposals: this.greenTeamProposals,
             redTeamResponses: this.redTeamResponses
         }, {
@@ -2009,7 +2017,7 @@ export class WhiteCellController {
         this.renderAdjudicationQueue();
 
         this.updateSidebarBadge('actionsBadge', pendingBlueTeamActions.length);
-        this.updateSidebarBadge('proposalsBadge', pendingGreenTeamProposals.length);
+        this.updateSidebarBadge('proposalsBadge', pendingProposalTeamProposals.length);
         this.updateSidebarBadge('responsesBadge', pendingRedTeamResponses.length);
     }
 
@@ -2027,6 +2035,7 @@ export class WhiteCellController {
 
     captureQueueArrivals({
         blueTeamActions = [],
+        proposalTeamProposals = null,
         greenTeamProposals = [],
         redTeamResponses = []
     } = {}, {
@@ -2043,7 +2052,7 @@ export class WhiteCellController {
 
         this.captureQueueArrivalSet({
             queueName: 'proposals',
-            nextItems: greenTeamProposals,
+            nextItems: proposalTeamProposals || greenTeamProposals,
             seenSet: this.seenGreenProposalIds,
             newSet: this.newGreenProposalIds,
             hydratedFlag: 'hasHydratedGreenProposalQueue',
@@ -2148,7 +2157,7 @@ export class WhiteCellController {
             summaryParts.push(`${actionCount} Blue action${actionCount === 1 ? '' : 's'}`);
         }
         if (proposalCount > 0) {
-            summaryParts.push(`${proposalCount} Green proposal${proposalCount === 1 ? '' : 's'}`);
+            summaryParts.push(`${proposalCount} proposal${proposalCount === 1 ? '' : 's'}`);
         }
         if (responseCount > 0) {
             summaryParts.push(`${responseCount} Red move response${responseCount === 1 ? '' : 's'}`);
@@ -2249,6 +2258,8 @@ export class WhiteCellController {
                 return 'Red Team';
             case 'green':
                 return 'Green Team';
+            case 'industry':
+                return 'Industry Team';
             default:
                 return team || 'Recipient team';
         }
@@ -2399,11 +2410,11 @@ export class WhiteCellController {
     }
 
     renderProposals() {
-        this.renderReviewQueue(document.getElementById('proposalsList'), this.greenTeamProposals, {
+        this.renderReviewQueue(document.getElementById('proposalsList'), this.proposalTeamProposals, {
             section: 'proposals',
             newIds: this.newGreenProposalIds,
-            ariaLabel: 'Green Team proposal review',
-            emptyMessage: 'No Green Team proposals have been submitted yet.'
+            ariaLabel: 'Green and Industry proposal review',
+            emptyMessage: 'No Green or Industry proposals have been submitted yet.'
         });
     }
 
@@ -2878,7 +2889,7 @@ export class WhiteCellController {
                         ${decisionMarkup}
                     </div>
                     <p class="form-hint" id="proposalReviewDecisionHint">
-                        Forward sends the proposal to ${this.escapeHtml(recipientLabel)}. Request Changes records White Cell feedback without forwarding; Green Team must submit a new proposal if they want to continue this line.
+                        Forward sends the proposal to ${this.escapeHtml(recipientLabel)}. Request Changes records White Cell feedback without forwarding; the submitting team must submit a new proposal if they want to continue this line.
                     </p>
                 </fieldset>
 
@@ -3002,7 +3013,9 @@ export class WhiteCellController {
         }
 
         const viewModel = getProposalViewModel(actionWithProposalDetails || resolvedAction);
-        const recipientLabel = recipientTeam === 'blue' ? 'Blue Team' : 'Red Team';
+        const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
+        const sourceTeam = resolvedAction.team || 'green';
+        const sourceLabel = this.formatProposalRecipientTeamLabel(sourceTeam);
         const proposalTitle = viewModel.title || 'Untitled proposal';
         const originators = formatProposalSelection(viewModel.originators, 'Not specified');
         const gameState = this.getCurrentGameState();
@@ -3020,7 +3033,7 @@ export class WhiteCellController {
         };
 
         const commContent = [
-            `Forwarded Green Team proposal (sent by White Cell after review).`,
+            `Forwarded ${sourceLabel} proposal (sent by White Cell after review).`,
             `Title: ${proposalTitle}`,
             `Category: ${viewModel.category || 'Not specified'}`,
             `Originators: ${originators}`,
@@ -3037,7 +3050,7 @@ export class WhiteCellController {
         try {
             const recipientMetadata = buildWhiteCellRecipientMetadata(recipientTeam, {
                 source_proposal_id: resolvedAction.id,
-                source_team: resolvedAction.team || 'green',
+                source_team: sourceTeam,
                 outcome,
                 review_decision: reviewDecision,
                 review_stage: 'forwarded_to_recipient',
@@ -3056,12 +3069,12 @@ export class WhiteCellController {
             const timelineEvent = await database.createTimelineEvent({
                 session_id: sessionId,
                 type: 'PROPOSAL_FORWARDED',
-                content: `Green proposal forwarded to ${recipientLabel} after White Cell approval: ${proposalTitle}`,
+                content: `${sourceLabel} proposal forwarded to ${recipientLabel} after White Cell approval: ${proposalTitle}`,
                 metadata: {
                     related_id: resolvedAction.id,
                     role: this.getTimelineActorRole(),
                     ...buildWhiteCellRecipientMetadata(recipientTeam, {
-                        source_team: resolvedAction.team || 'green',
+                        source_team: sourceTeam,
                         outcome,
                         review_decision: reviewDecision,
                         review_stage: 'forwarded_to_recipient',

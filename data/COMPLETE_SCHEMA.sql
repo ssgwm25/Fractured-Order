@@ -172,11 +172,11 @@ LANGUAGE SQL
 IMMUTABLE
 AS $$
     SELECT CASE
-        WHEN requested_role ~ '^(blue|red|green)_facilitator$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_scribe$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_notetaker$' THEN 2
-        WHEN requested_role ~ '^(blue|red|green)_whitecell(_lead)?$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_whitecell_support$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_facilitator$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_scribe$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_notetaker$' THEN 2
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell(_lead)?$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell_support$' THEN 1
         WHEN requested_role = 'white' THEN 1
         ELSE NULL
     END
@@ -281,7 +281,7 @@ SET search_path = public
 AS $$
 DECLARE
     normalized_role TEXT := CASE
-        WHEN requested_role ~ '^(blue|red|green)_whitecell$'
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell$'
             THEN regexp_replace(BTRIM(requested_role), '_whitecell$', '_whitecell_lead')
         ELSE BTRIM(requested_role)
     END;

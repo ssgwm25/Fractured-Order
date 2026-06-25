@@ -331,19 +331,19 @@ BEGIN
         RETURN 'viewer';
     END IF;
 
-    IF resolved_role ~ '^(blue|red|green)_facilitator$' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_facilitator$' THEN
         RETURN 'facilitator';
     END IF;
 
-    IF resolved_role ~ '^(blue|red|green)_scribe$' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_scribe$' THEN
         RETURN 'scribe';
     END IF;
 
-    IF resolved_role ~ '^(blue|red|green)_notetaker$' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_notetaker$' THEN
         RETURN 'notetaker';
     END IF;
 
-    IF resolved_role ~ '^(blue|red|green)_whitecell(_lead|_support)?$' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_whitecell(_lead|_support)?$' THEN
         RETURN 'whitecell';
     END IF;
 
@@ -361,7 +361,7 @@ AS $$
 DECLARE
     resolved_role TEXT := public.live_demo_participant_role(requested_session_id);
 BEGIN
-    IF resolved_role ~ '^(blue|red|green)_' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_' THEN
         RETURN split_part(resolved_role, '_', 1);
     END IF;
 
@@ -480,7 +480,7 @@ DECLARE
     normalized_surface TEXT := LOWER(BTRIM(requested_surface));
     normalized_team TEXT := LOWER(NULLIF(BTRIM(requested_team_id), ''));
     normalized_role TEXT := CASE
-        WHEN requested_role ~ '^(blue|red|green)_whitecell$'
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell$'
             THEN regexp_replace(BTRIM(requested_role), '_whitecell$', '_whitecell_lead')
         ELSE NULLIF(BTRIM(requested_role), '')
     END;
@@ -512,7 +512,7 @@ BEGIN
                 USING ERRCODE = '22023';
         END IF;
 
-        IF normalized_team NOT IN ('blue', 'red', 'green') THEN
+        IF normalized_team NOT IN ('blue', 'red', 'green', 'industry') THEN
             RAISE EXCEPTION 'White Cell authorization requires a supported team.'
                 USING ERRCODE = '22023';
         END IF;
@@ -1016,15 +1016,19 @@ BEGIN
         'blue',
         'red',
         'green',
+        'industry',
         'blue_facilitator',
         'blue_scribe',
         'red_facilitator',
         'red_scribe',
         'green_facilitator',
         'green_scribe',
+        'industry_facilitator',
+        'industry_scribe',
         'blue_notetaker',
         'red_notetaker',
-        'green_notetaker'
+        'green_notetaker',
+        'industry_notetaker'
     ) THEN
         RAISE EXCEPTION 'White Cell communications are limited to supported live-demo recipients.'
             USING ERRCODE = '42501';
@@ -1079,11 +1083,11 @@ LANGUAGE SQL
 IMMUTABLE
 AS $$
     SELECT CASE
-        WHEN requested_role ~ '^(blue|red|green)_facilitator$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_scribe$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_notetaker$' THEN 2
-        WHEN requested_role ~ '^(blue|red|green)_whitecell(_lead)?$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_whitecell_support$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_facilitator$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_scribe$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_notetaker$' THEN 2
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell(_lead)?$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell_support$' THEN 1
         ELSE NULL
     END
 $$;
@@ -1243,7 +1247,7 @@ AS $$
 DECLARE
     current_user_id UUID := auth.uid();
     normalized_role TEXT := CASE
-        WHEN requested_role ~ '^(blue|red|green)_whitecell$'
+        WHEN requested_role ~ '^(blue|red|green|industry)_whitecell$'
             THEN regexp_replace(BTRIM(requested_role), '_whitecell$', '_whitecell_lead')
         ELSE BTRIM(requested_role)
     END;
@@ -1251,7 +1255,7 @@ DECLARE
     normalized_client_id TEXT := NULLIF(BTRIM(requested_client_id), '');
     normalized_timeout_seconds INTEGER := GREATEST(COALESCE(requested_timeout_seconds, 90), 1);
     normalized_team TEXT := CASE
-        WHEN normalized_role ~ '^(blue|red|green)_' THEN split_part(normalized_role, '_', 1)
+        WHEN normalized_role ~ '^(blue|red|green|industry)_' THEN split_part(normalized_role, '_', 1)
         ELSE NULL
     END;
     role_limit INTEGER := public.get_session_role_seat_limit(normalized_role);
@@ -1291,7 +1295,7 @@ BEGIN
             USING ERRCODE = '42501';
     END IF;
 
-    IF normalized_role ~ '^(blue|red|green)_whitecell(_lead|_support)?$'
+    IF normalized_role ~ '^(blue|red|green|industry)_whitecell(_lead|_support)?$'
        AND NOT public.live_demo_has_operator_grant('whitecell', requested_session_id, normalized_team, normalized_role) THEN
         RAISE EXCEPTION 'White Cell seats require operator authorization.'
             USING ERRCODE = '42501';

@@ -32,7 +32,8 @@ export const OPERATOR_SURFACES = Object.freeze({
 export const TEAM_OPTIONS = Object.freeze([
     { id: 'blue', label: 'Blue Team', shortLabel: 'Blue' },
     { id: 'red', label: 'Red Team', shortLabel: 'Red' },
-    { id: 'green', label: 'Green Team', shortLabel: 'Green' }
+    { id: 'green', label: 'Green Team', shortLabel: 'Green' },
+    { id: 'industry', label: 'Industry Team', shortLabel: 'Industry' }
 ]);
 
 const WHITE_CELL_CANONICAL_ROUTE = 'whitecell.html';
@@ -45,6 +46,12 @@ const WHITE_CELL_TEAM_CONFIG = Object.freeze({
 
 const TEAM_MAP = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team]))
+);
+const PUBLIC_TEAM_PATTERN = TEAM_OPTIONS.map((team) => team.id).join('|');
+const PUBLIC_TEAM_ROLE_REGEX = new RegExp(`^(${PUBLIC_TEAM_PATTERN})_(facilitator|scribe|notetaker)$`);
+const TEAM_ROUTE_REGEX = new RegExp(`^teams\\/(${PUBLIC_TEAM_PATTERN})\\/`);
+const WHITE_CELL_OPERATOR_ROLE_REGEX = new RegExp(
+    `^(?:(${PUBLIC_TEAM_PATTERN})_)?whitecell(?:_(lead|support))?$`
 );
 
 export function getTeamConfig(teamId = 'blue') {
@@ -94,7 +101,7 @@ export function buildWhiteCellOperatorRole(teamIdOrOperatorRole = WHITE_CELL_OPE
 }
 
 export function isWhiteCellOperatorRole(role = '') {
-    return /^(?:(blue|red|green)_)?whitecell(?:_(lead|support))?$/.test(role);
+    return WHITE_CELL_OPERATOR_ROLE_REGEX.test(role);
 }
 
 export function normalizeWhiteCellOperatorRole(role = '') {
@@ -103,7 +110,7 @@ export function normalizeWhiteCellOperatorRole(role = '') {
     }
 
     const normalizedRole = role.trim();
-    const match = normalizedRole.match(/^(?:(blue|red|green)_)?whitecell(?:_(lead|support))?$/);
+    const match = normalizedRole.match(WHITE_CELL_OPERATOR_ROLE_REGEX);
     if (!match) {
         return role;
     }
@@ -143,7 +150,7 @@ export function parseTeamRole(role = '') {
         };
     }
 
-    const match = normalizedRole.match(/^(blue|red|green)_(facilitator|scribe|notetaker)$/);
+    const match = normalizedRole.match(PUBLIC_TEAM_ROLE_REGEX);
     if (!match) {
         return {
             teamId: null,
@@ -247,7 +254,7 @@ export function resolveTeamContext({
     const relativePath = getCurrentAppRelativePath({ locationRef, basePath });
     const onWhiteCellRoute = relativePath.replace(/^\//, '') === WHITE_CELL_CANONICAL_ROUTE
         || relativePath.endsWith('/' + WHITE_CELL_CANONICAL_ROUTE);
-    const routeTeam = relativePath.match(/^teams\/(blue|red|green)\//)?.[1];
+    const routeTeam = relativePath.match(TEAM_ROUTE_REGEX)?.[1];
     const resolvedTeamId = datasetTeam === 'white_cell' || onWhiteCellRoute
         ? 'white_cell'
         : (datasetTeam || routeTeam || fallbackTeamId);

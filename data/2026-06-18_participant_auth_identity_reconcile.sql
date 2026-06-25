@@ -55,15 +55,15 @@ BEGIN
         'g'
     );
     normalized_role := CASE
-        WHEN sanitized_requested_role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
-        WHEN sanitized_requested_role ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
+        WHEN sanitized_requested_role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
+        WHEN sanitized_requested_role ~ '^(?:(blue|red|green|industry)_)?whitecell_support$' THEN 'whitecell_support'
         ELSE sanitized_requested_role
     END;
     normalized_name := NULLIF(BTRIM(requested_name), '');
     normalized_client_id := NULLIF(BTRIM(requested_client_id), '');
     normalized_timeout_seconds := GREATEST(COALESCE(requested_timeout_seconds, 90), 1);
     normalized_team := CASE
-        WHEN normalized_role ~ '^(blue|red|green)_' THEN split_part(normalized_role, '_', 1)
+        WHEN normalized_role ~ '^(blue|red|green|industry)_' THEN split_part(normalized_role, '_', 1)
         ELSE NULL
     END;
     role_limit := public.get_session_role_seat_limit(normalized_role);

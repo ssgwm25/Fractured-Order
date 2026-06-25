@@ -13,6 +13,7 @@ import { serializeBlueActionDetails } from '../features/actions/blueActionDetail
 
 const BLUE_SCRIBE_HTML_PATH = new URL('../../teams/blue/scribe.html', import.meta.url);
 const GREEN_SCRIBE_HTML_PATH = new URL('../../teams/green/scribe.html', import.meta.url);
+const INDUSTRY_SCRIBE_HTML_PATH = new URL('../../teams/industry/scribe.html', import.meta.url);
 const RED_SCRIBE_HTML_PATH = new URL('../../teams/red/scribe.html', import.meta.url);
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
 const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
@@ -348,6 +349,9 @@ describe('scribe surface', () => {
         expect(normalizeScribeDeckPath('custom-scribe-deck.html', {
             teamId: 'red'
         })).toBe('decks/red/custom-scribe-deck.html');
+        expect(normalizeScribeDeckPath('industry-brief.html', {
+            teamId: 'industry'
+        })).toBe('decks/industry/industry-brief.html');
 
         expect(getScribeDeckAssignmentDetails({
             id: 'comm-red-scribe',
@@ -906,6 +910,7 @@ describe('scribe surface', () => {
         for (const path of [
             BLUE_SCRIBE_HTML_PATH,
             GREEN_SCRIBE_HTML_PATH,
+            INDUSTRY_SCRIBE_HTML_PATH,
             RED_SCRIBE_HTML_PATH
         ]) {
             const html = readFileSync(path, 'utf8');
@@ -921,6 +926,7 @@ describe('scribe surface', () => {
         for (const path of [
             BLUE_SCRIBE_HTML_PATH,
             GREEN_SCRIBE_HTML_PATH,
+            INDUSTRY_SCRIBE_HTML_PATH,
             RED_SCRIBE_HTML_PATH
         ]) {
             const html = readFileSync(path, 'utf8');
@@ -963,6 +969,7 @@ describe('scribe surface', () => {
         expect(config).toContain("resolve(__dirname, 'decks/blue/fractured-order-facilitator-deck.html')");
         expect(config).toContain("resolve(__dirname, 'decks/red/fractured-order-facilitator-deck.html')");
         expect(config).toContain("resolve(__dirname, 'decks/green/fractured-order-facilitator-deck.html')");
+        expect(config).toContain("resolve(__dirname, 'decks/industry/fractured-order-facilitator-deck.html')");
     });
 
     it('switches the scribe surface into presentation mode without leaving the sidebar open', async () => {

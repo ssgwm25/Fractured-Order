@@ -1,3 +1,5 @@
+import { TEAM_OPTIONS } from '../../core/teamContext.js';
+
 export const DEFAULT_SCRIBE_DECK_FILE = 'fractured-order-facilitator-deck.html';
 export const DEFAULT_SCRIBE_DECK_TEAM = 'blue';
 export const DEFAULT_SCRIBE_DECK_PATH = `decks/${DEFAULT_SCRIBE_DECK_TEAM}/${DEFAULT_SCRIBE_DECK_FILE}`;
@@ -5,9 +7,10 @@ export const DEFAULT_SCRIBE_DECK_LABEL = 'Fractured Order Facilitator Deck';
 export const SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND = 'SCRIBE_DECK_ASSIGNMENT';
 export const SCRIBE_DECK_SOURCE_REPO = 'repo_path';
 export const SCRIBE_DECK_SOURCE_UPLOAD = 'browser_upload';
+const SCRIBE_DECK_TEAM_IDS = new Set(TEAM_OPTIONS.map((team) => team.id));
 
 function normalizeScribeDeckTeamId(teamId = DEFAULT_SCRIBE_DECK_TEAM) {
-    return ['blue', 'red', 'green'].includes(teamId)
+    return SCRIBE_DECK_TEAM_IDS.has(teamId)
         ? teamId
         : DEFAULT_SCRIBE_DECK_TEAM;
 }

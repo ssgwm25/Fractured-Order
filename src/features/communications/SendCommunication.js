@@ -13,6 +13,7 @@ import { showToast } from '../../components/ui/Toast.js';
 import { showModal } from '../../components/ui/Modal.js';
 import { createLogger } from '../../utils/logger.js';
 import { getUserMessage } from '../../core/errors.js';
+import { TEAM_OPTIONS } from '../../core/teamContext.js';
 
 const logger = createLogger('SendCommunication');
 
@@ -29,8 +30,9 @@ const COMM_TYPES = [
  * Recipient options
  */
 const RECIPIENTS = [
-    { value: 'blue', label: 'Blue Team' },
-    { value: 'all', label: 'All Teams' }
+    ...TEAM_OPTIONS.filter((team) => team.id === 'blue').map((team) => ({ value: team.id, label: team.label })),
+    { value: 'all', label: 'All Teams' },
+    ...TEAM_OPTIONS.filter((team) => team.id !== 'blue').map((team) => ({ value: team.id, label: team.label }))
 ];
 
 /**

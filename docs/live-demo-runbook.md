@@ -7,7 +7,7 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
 3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass.
-4. Confirm the role matrix can join: Blue, Red, Green facilitators; scribes; notetakers; White Cell Lead; White Cell Support; Game Master.
+4. Confirm the role matrix can join: Blue, Red, Green, and Industry facilitators; scribes; notetakers; White Cell Lead; White Cell Support; Game Master.
 5. Confirm production source maps are not published by default.
 
 Commands:

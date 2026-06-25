@@ -559,7 +559,7 @@ function shapeSelectedRows(tableName, rows, selectClause, state) {
 
 function normalizeSeatRole(role = '') {
     const normalizedRole = String(role || '').trim();
-    const match = normalizedRole.match(/^(?:(blue|red|green)_)?whitecell(?:_(lead|support))?$/);
+    const match = normalizedRole.match(/^(?:(blue|red|green|industry)_)?whitecell(?:_(lead|support))?$/);
 
     if (!match) {
         return normalizedRole;
@@ -571,13 +571,13 @@ function normalizeSeatRole(role = '') {
 function getSessionRoleSeatLimit(role = '') {
     const normalizedRole = normalizeSeatRole(role);
 
-    if (/^(blue|red|green)_facilitator$/.test(normalizedRole)) {
+    if (/^(blue|red|green|industry)_facilitator$/.test(normalizedRole)) {
         return 1;
     }
-    if (/^(blue|red|green)_scribe$/.test(normalizedRole)) {
+    if (/^(blue|red|green|industry)_scribe$/.test(normalizedRole)) {
         return 1;
     }
-    if (/^(blue|red|green)_notetaker$/.test(normalizedRole)) {
+    if (/^(blue|red|green|industry)_notetaker$/.test(normalizedRole)) {
         return 2;
     }
     if (/^whitecell(_lead)?$/.test(normalizedRole)) {
@@ -643,15 +643,15 @@ function getLiveDemoParticipantSurface(state, authUserId, sessionId) {
         return 'viewer';
     }
 
-    if (/^(blue|red|green)_facilitator$/.test(role || '')) {
+    if (/^(blue|red|green|industry)_facilitator$/.test(role || '')) {
         return 'facilitator';
     }
 
-    if (/^(blue|red|green)_scribe$/.test(role || '')) {
+    if (/^(blue|red|green|industry)_scribe$/.test(role || '')) {
         return 'scribe';
     }
 
-    if (/^(blue|red|green)_notetaker$/.test(role || '')) {
+    if (/^(blue|red|green|industry)_notetaker$/.test(role || '')) {
         return 'notetaker';
     }
 
@@ -664,7 +664,7 @@ function getLiveDemoParticipantSurface(state, authUserId, sessionId) {
 
 function getLiveDemoParticipantTeam(state, authUserId, sessionId) {
     const role = getLiveDemoParticipantRole(state, authUserId, sessionId);
-    return role?.match(/^(blue|red|green)_/)?.[1] || null;
+    return role?.match(/^(blue|red|green|industry)_/)?.[1] || null;
 }
 
 function liveDemoHasOperatorGrant(state, authUserId, surface, sessionId = null, teamId = null, role = null) {
@@ -1539,11 +1539,11 @@ function resolveProposalRecipientTeam(communication = {}) {
     }
 
     const toRole = String(communication?.to_role || '').trim().toLowerCase();
-    if (['blue', 'red', 'green'].includes(toRole)) {
+    if (['blue', 'red', 'green', 'industry'].includes(toRole)) {
         return toRole;
     }
 
-    return toRole.match(/^(blue|red|green)_/)?.[1] || null;
+    return toRole.match(/^(blue|red|green|industry)_/)?.[1] || null;
 }
 
 function updateProposalRecipientStatus(state, params) {

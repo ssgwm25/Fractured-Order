@@ -61,9 +61,9 @@ describe('database migration contracts', () => {
         const sql = readFileSync(GLOBAL_WHITE_CELL_ROLE_CONTRACT_PATH, 'utf8');
         const seatLimitBody = extractFunctionBody(sql, 'get_session_role_seat_limit');
 
-        expect(seatLimitBody).toContain("requested_role ~ '^(blue|red|green)_facilitator$' THEN 1");
-        expect(seatLimitBody).toContain("requested_role ~ '^(blue|red|green)_scribe$' THEN 1");
-        expect(seatLimitBody).toContain("requested_role ~ '^(blue|red|green)_notetaker$' THEN 2");
+        expect(seatLimitBody).toContain("requested_role ~ '^(blue|red|green|industry)_facilitator$' THEN 1");
+        expect(seatLimitBody).toContain("requested_role ~ '^(blue|red|green|industry)_scribe$' THEN 1");
+        expect(seatLimitBody).toContain("requested_role ~ '^(blue|red|green|industry)_notetaker$' THEN 2");
         expect(seatLimitBody).not.toContain("requested_role = 'viewer'");
     });
 
@@ -74,6 +74,10 @@ describe('database migration contracts', () => {
         expect(sendCommunicationBody).toContain("'blue_facilitator'");
         expect(sendCommunicationBody).toContain("'blue_scribe'");
         expect(sendCommunicationBody).toContain("'blue_notetaker'");
+        expect(sendCommunicationBody).toContain("'industry'");
+        expect(sendCommunicationBody).toContain("'industry_facilitator'");
+        expect(sendCommunicationBody).toContain("'industry_scribe'");
+        expect(sendCommunicationBody).toContain("'industry_notetaker'");
         expect(sendCommunicationBody).toContain('requested_metadata');
     });
 

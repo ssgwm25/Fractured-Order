@@ -25,6 +25,8 @@ describe('public naming', () => {
         // The poster lockup names the game and its type.
         expect(landingHtml).toContain('class="atm-title-name">Fractured Order<');
         expect(landingHtml).toContain('class="atm-title-kind">An Economic Statecraft Simulation<');
+        expect(landingHtml).toContain('data-team="industry"');
+        expect(landingHtml).toContain('Industry team delegation surface');
         // The landing itself stays branded as Fractured Order on Plenum.
         expect(landingHtml).toContain('alt="Fractured Order - A Seminar Simulation"');
         expect(landingHtml).toContain('on Plenum');
@@ -80,6 +82,11 @@ describe('public naming', () => {
                 description: 'Statecraft Sim Green Team facilitator interface.'
             },
             {
+                path: '../../teams/industry/facilitator.html',
+                title: 'Statecraft Sim | Industry Team Facilitator',
+                description: 'Statecraft Sim Industry Team facilitator interface.'
+            },
+            {
                 path: '../../teams/blue/notetaker.html',
                 title: 'Statecraft Sim | Blue Team Notetaker',
                 description: 'Statecraft Sim Blue Team notetaker interface.'
@@ -93,6 +100,11 @@ describe('public naming', () => {
                 path: '../../teams/green/notetaker.html',
                 title: 'Statecraft Sim | Green Team Notetaker',
                 description: 'Statecraft Sim Green Team notetaker interface.'
+            },
+            {
+                path: '../../teams/industry/notetaker.html',
+                title: 'Statecraft Sim | Industry Team Notetaker',
+                description: 'Statecraft Sim Industry Team notetaker interface.'
             }
         ];
 

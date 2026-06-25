@@ -19,7 +19,11 @@ const EXPECTED_INPUTS = Object.freeze({
     greenFacilitatorDeck: 'decks/green/fractured-order-facilitator-deck.html',
     greenFacilitator: 'teams/green/facilitator.html',
     greenScribe: 'teams/green/scribe.html',
-    greenNotetaker: 'teams/green/notetaker.html'
+    greenNotetaker: 'teams/green/notetaker.html',
+    industryFacilitatorDeck: 'decks/industry/fractured-order-facilitator-deck.html',
+    industryFacilitator: 'teams/industry/facilitator.html',
+    industryScribe: 'teams/industry/scribe.html',
+    industryNotetaker: 'teams/industry/notetaker.html'
 });
 
 describe('vite multi-page entries', () => {

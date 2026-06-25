@@ -15,12 +15,17 @@ const PLATFORM_HTML_FAVICON_TARGETS = [
     ['teams/green/facilitator.html', NESTED_FAVICON],
     ['teams/green/notetaker.html', NESTED_FAVICON],
     ['teams/green/scribe.html', NESTED_FAVICON],
+    ['teams/industry/facilitator.html', NESTED_FAVICON],
+    ['teams/industry/notetaker.html', NESTED_FAVICON],
+    ['teams/industry/scribe.html', NESTED_FAVICON],
     ['teams/red/facilitator.html', NESTED_FAVICON],
     ['teams/red/notetaker.html', NESTED_FAVICON],
     ['teams/red/scribe.html', NESTED_FAVICON],
     ['decks/blue/fractured-order-facilitator-deck.html', NESTED_FAVICON],
     ['decks/green/fractured-order-facilitator-deck.html', NESTED_FAVICON],
     ['decks/green/fractured-order-green-facilitator-deck.html', NESTED_FAVICON],
+    ['decks/industry/fractured-order-facilitator-deck.html', NESTED_FAVICON],
+    ['decks/industry/fractured-order-industry-facilitator-deck.html', NESTED_FAVICON],
     ['decks/red/fractured-order-facilitator-deck.html', NESTED_FAVICON],
     ['decks/red/fractured-order-red-facilitator-deck.html', NESTED_FAVICON]
 ];

@@ -413,7 +413,7 @@ describe('landing secure join flow', () => {
 
         const { LandingController } = await loadLandingModule();
         const controller = new LandingController();
-        controller.selectedTeam = 'green';
+        controller.selectedTeam = 'industry';
         controller.selectedRoleSurface = 'scribe';
         controller.selectedRole = 'scribe';
         controller.redirectToRole = vi.fn();
@@ -422,14 +422,14 @@ describe('landing secure join flow', () => {
             preventDefault() {}
         });
 
-        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('session-2', 'green_scribe', 'Taylor');
-        expect(mockSessionStore.setRole).toHaveBeenCalledWith('green_scribe');
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('session-2', 'industry_scribe', 'Taylor');
+        expect(mockSessionStore.setRole).toHaveBeenCalledWith('industry_scribe');
         expect(mockSessionStore.setSessionData).toHaveBeenCalledWith(expect.objectContaining({
-            role: 'green_scribe',
-            team: 'green',
+            role: 'industry_scribe',
+            team: 'industry',
             roleSurface: 'scribe'
         }));
-        expect(controller.redirectToRole).toHaveBeenCalledWith('green_scribe');
+        expect(controller.redirectToRole).toHaveBeenCalledWith('industry_scribe');
     });
 
     it('routes public code lookup through the server-side contract only', async () => {

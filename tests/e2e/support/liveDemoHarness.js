@@ -524,7 +524,7 @@ export async function seedLargeExerciseData(page, {
             'Delivery Channel: Public statement and private envoy'
         ].join('\n');
         const buildAction = (index) => {
-            const teams = ['blue', 'green', 'red'];
+            const teams = ['blue', 'green', 'red', 'industry'];
             const team = teams[(index - 1) % teams.length];
             const move = ((index - 1) % 3) + 1;
             const teamOrdinal = Math.floor((index - 1) / teams.length);
@@ -551,14 +551,15 @@ export async function seedLargeExerciseData(page, {
                     : null
             };
 
-            if (team === 'green') {
+            if (team === 'green' || team === 'industry') {
+                const teamLabel = team === 'industry' ? 'Industry' : 'Green';
                 return {
                     ...base,
                     mechanism: 'Proposal',
                     sector: index % 2 === 0 ? 'Biotechnology' : 'Telecommunications',
                     exposure_type: 'Alliance',
                     targets: ['EU', 'Japan'],
-                    goal: `Green Proposal ${String(index).padStart(3, '0')}`,
+                    goal: `${teamLabel} Proposal ${String(index).padStart(3, '0')}`,
                     expected_outcomes: `Shape partner alignment options without closing off future hedging ${index}.`,
                     ally_contingencies: proposalDetails(index)
                 };
@@ -589,7 +590,7 @@ export async function seedLargeExerciseData(page, {
             };
         };
         const buildRequest = (index) => {
-            const teams = ['blue', 'green', 'red'];
+            const teams = ['blue', 'green', 'red', 'industry'];
             const team = teams[(index - 1) % teams.length];
             const answered = index % 2 === 0;
             return {
@@ -611,7 +612,7 @@ export async function seedLargeExerciseData(page, {
             };
         };
         const buildCommunication = (index) => {
-            const recipients = ['blue', 'green', 'red', 'all'];
+            const recipients = ['blue', 'green', 'red', 'industry', 'all'];
             const recipient = recipients[(index - 1) % recipients.length];
             const updateKind = index % 10 === 0
                 ? 'verba_ai_population_sentiment'
@@ -630,8 +631,9 @@ export async function seedLargeExerciseData(page, {
             };
         };
         const buildTimeline = (index) => {
-            const teams = ['blue', 'green', 'red', 'white_cell', 'system'];
+            const teams = ['blue', 'green', 'red', 'industry', 'white_cell', 'system'];
             const types = ['ACTION_SUBMITTED', 'RFI_CREATED', 'GUIDANCE', 'NOTE', 'MOMENT', 'PHASE_CHANGE'];
+            const actorTeam = teams[(index - 1) % 4];
             return {
                 id: `scale_timeline_${String(index).padStart(3, '0')}`,
                 session_id: session.id,
@@ -640,7 +642,7 @@ export async function seedLargeExerciseData(page, {
                 team: teams[(index - 1) % teams.length],
                 metadata: {
                     actor: index % 5 === 0 ? 'White Cell' : 'Facilitator',
-                    role: index % 5 === 0 ? 'whitecell_lead' : `${teams[(index - 1) % 3]}_facilitator`
+                    role: index % 5 === 0 ? 'whitecell_lead' : `${actorTeam}_facilitator`
                 },
                 move: ((index - 1) % 3) + 1,
                 phase: ((index - 1) % 5) + 1,
@@ -660,6 +662,9 @@ export async function seedLargeExerciseData(page, {
                 'green_facilitator',
                 'green_scribe',
                 'green_notetaker',
+                'industry_facilitator',
+                'industry_scribe',
+                'industry_notetaker',
                 'whitecell_lead',
                 'whitecell_support'
             ];

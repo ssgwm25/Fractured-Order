@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const FACILITATOR_HTML_PATH = new URL('../../teams/blue/facilitator.html', import.meta.url);
 const GREEN_FACILITATOR_HTML_PATH = new URL('../../teams/green/facilitator.html', import.meta.url);
+const INDUSTRY_FACILITATOR_HTML_PATH = new URL('../../teams/industry/facilitator.html', import.meta.url);
 const RED_FACILITATOR_HTML_PATH = new URL('../../teams/red/facilitator.html', import.meta.url);
 const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
 const GRID_CSS_PATH = new URL('../../styles/layouts/grid.css', import.meta.url);
@@ -292,6 +293,30 @@ describe('Facilitator and scribe access', () => {
         expect(guide.steps[5].body).not.toContain('Green Team proposals');
     });
 
+    it('mounts an Industry facilitator guide with the same proposal flow', async () => {
+        global.document = {
+            ...createFakeDocument(),
+            body: { dataset: { team: 'industry' } }
+        };
+
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+
+        expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
+            storageKey: 'followalong:facilitator:industry',
+            title: 'Industry Team Facilitator guide'
+        }));
+
+        const guide = mockMountFollowAlong.mock.calls[0][0];
+        expect(guide.steps[0].title).toBe('Industry Team Facilitator');
+        expect(guide.steps[2].title).toBe('Build proposals');
+        expect(guide.steps[0].body).toContain('prepare proposals');
+        expect(guide.steps[2].body).toContain("Create and revise your team's proposals");
+    });
+
     it('mounts a Red facilitator guide that covers move responses and every facilitator surface', async () => {
         global.document = {
             ...createFakeDocument(),
@@ -453,6 +478,20 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('id="receivedProposalsList"');
     });
 
+    it('labels the Industry facilitator action trigger as New Proposal', () => {
+        const html = readFileSync(INDUSTRY_FACILITATOR_HTML_PATH, 'utf8');
+
+        expect(html).toContain('body data-team="industry"');
+        expect(html).toContain('id="newActionBtn"');
+        expect(html).toContain('New Proposal');
+        expect(html).toContain('No Proposals Yet');
+        expect(html).toContain('Create your first proposal to start the White Cell review flow.');
+        expect(html).not.toContain('No Actions Yet');
+        expect(html).toContain('data-section="receivedProposals"');
+        expect(html).toContain('id="receivedProposalsSection"');
+        expect(html).toContain('id="receivedProposalsList"');
+    });
+
     it('labels the Red facilitator action trigger as New Response', () => {
         const html = readFileSync(RED_FACILITATOR_HTML_PATH, 'utf8');
 
@@ -488,6 +527,43 @@ describe('Facilitator and scribe access', () => {
         expect(actionsList.innerHTML).toContain('Create your first proposal to start the White Cell review flow.');
         expect(actionsList.innerHTML).not.toContain('No Actions Yet');
         expect(actionsList.innerHTML).not.toContain('strategic action');
+    });
+
+    it('renders proposal-specific empty-state copy for the Industry facilitator queue', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+        controller.teamLabel = 'Industry Team';
+        controller.actions = [];
+        controller.isReadOnly = false;
+
+        const actionsList = createFakeElement('actionsList');
+        global.document = {
+            getElementById(id) {
+                return {
+                    actionsList
+                }[id] || null;
+            }
+        };
+
+        controller.renderActionsList();
+
+        expect(actionsList.innerHTML).toContain('No Proposals Yet');
+        expect(actionsList.innerHTML).toContain('Create your first proposal to start the White Cell review flow.');
+        expect(actionsList.innerHTML).not.toContain('No Actions Yet');
+        expect(actionsList.innerHTML).not.toContain('strategic action');
+    });
+
+    it('uses an Industry-scoped proposal form selector for the Industry proposal modal', async () => {
+        global.document = createFakeDocument();
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+
+        const content = controller.createGreenProposalContent();
+
+        expect(content.innerHTML).toContain('id="industryProposalForm"');
+        expect(content.innerHTML).not.toContain('id="greenProposalForm"');
     });
 
     it('renders response-specific empty-state copy for the Red facilitator queue', async () => {

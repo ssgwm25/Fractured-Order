@@ -322,15 +322,19 @@ BEGIN
         'blue',
         'red',
         'green',
+        'industry',
         'blue_facilitator',
         'blue_scribe',
         'red_facilitator',
         'red_scribe',
         'green_facilitator',
         'green_scribe',
+        'industry_facilitator',
+        'industry_scribe',
         'blue_notetaker',
         'red_notetaker',
-        'green_notetaker'
+        'green_notetaker',
+        'industry_notetaker'
     ) THEN
         RAISE EXCEPTION 'White Cell communications are limited to supported live-demo recipients.'
             USING ERRCODE = '42501';
@@ -441,8 +445,8 @@ BEGIN
     recipient_team := COALESCE(
         NULLIF(BTRIM(communication_row.metadata ->> 'recipient_team'), ''),
         CASE
-            WHEN communication_row.to_role IN ('blue', 'red', 'green') THEN communication_row.to_role
-            WHEN communication_row.to_role ~ '^(blue|red|green)_' THEN split_part(communication_row.to_role, '_', 1)
+            WHEN communication_row.to_role IN ('blue', 'red', 'green', 'industry') THEN communication_row.to_role
+            WHEN communication_row.to_role ~ '^(blue|red|green|industry)_' THEN split_part(communication_row.to_role, '_', 1)
             ELSE NULL
         END
     );
@@ -506,8 +510,8 @@ CREATE POLICY communications_live_demo_insert
               AND COALESCE(
                   NULLIF(BTRIM(forwarded.metadata ->> 'recipient_team'), ''),
                   CASE
-                      WHEN forwarded.to_role IN ('blue', 'red', 'green') THEN forwarded.to_role
-                      WHEN forwarded.to_role ~ '^(blue|red|green)_' THEN split_part(forwarded.to_role, '_', 1)
+                      WHEN forwarded.to_role IN ('blue', 'red', 'green', 'industry') THEN forwarded.to_role
+                      WHEN forwarded.to_role ~ '^(blue|red|green|industry)_' THEN split_part(forwarded.to_role, '_', 1)
                       ELSE NULL
                   END
               ) = public.live_demo_participant_team(communications.session_id)

@@ -16,7 +16,8 @@ const SESSION_CODE = 'MATRIX26';
 const TEAM_OPTIONS = Object.freeze([
     { id: 'blue', shortLabel: 'Blue' },
     { id: 'red', shortLabel: 'Red' },
-    { id: 'green', shortLabel: 'Green' }
+    { id: 'green', shortLabel: 'Green' },
+    { id: 'industry', shortLabel: 'Industry' }
 ]);
 
 const ROLE_SURFACES = Object.freeze({
@@ -142,7 +143,7 @@ test('@live-demo browser role matrix covers all teams and roles through join, re
         expect(session).toBeTruthy();
     });
 
-    await test.step('join every shipped role across blue, red, and green and preserve the active seat across reload', async () => {
+    await test.step('join every shipped role across blue, red, green, and industry and preserve the active seat across reload', async () => {
         for (const roleCase of LIVE_DEMO_ROLE_MATRIX) {
             const actorPage = await createIsolatedActorPage(context, roleCase.actorName);
 

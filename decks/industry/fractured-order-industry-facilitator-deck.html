@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/x-icon" href="../../src/img/FO_icon.ico">
+<title>Fractured Order — Industry Facilitator Folder</title>
+<style>
+  :root{
+    --wm-industry:#115740; --wm-industry-deep:#0c3e2d;
+    --wm-gold:#b9975b; --wm-gold-bright:#cfa95f;
+    --paper:#f4f2ec; --ink:#1c241f; --muted:#6f7a72;
+    --rule:#dcd8cc; --shadow:rgba(12,35,25,.22);
+    --slide-bg:#0c211a; --slide-ink:#eef3f0; --slide-dim:#9fb2a8;
+    --slide-rule:rgba(255,255,255,.14); --slide-panel:rgba(255,255,255,.04);
+    --accent:#3fae6b; --accent-soft:rgba(63,174,107,.16);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:"Inter","Helvetica Neue",Arial,sans-serif;background:var(--paper);color:var(--ink);overflow:hidden}
+
+  header{height:60px;background:var(--wm-industry);color:#fff;display:flex;align-items:center;padding:0 18px;gap:16px;border-bottom:3px solid var(--wm-gold);position:relative;z-index:30}
+  .crest{width:34px;height:34px;border-radius:5px;background:var(--wm-industry-deep);border:1px solid var(--wm-gold);color:var(--wm-gold);font-family:Georgia,serif;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px;letter-spacing:.5px;flex-shrink:0}
+  .brand{display:flex;flex-direction:column;line-height:1.1;min-width:0}
+  .brand .t1{font-family:Georgia,"Times New Roman",serif;font-size:16px;font-weight:600;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand .t2{font-size:11px;color:var(--wm-gold-bright);letter-spacing:.18em;text-transform:uppercase;white-space:nowrap}
+  .teamtag{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:#0c211a;background:var(--accent);padding:4px 9px;border-radius:4px;white-space:nowrap}
+  .spacer{flex:1}
+  .topbtn{background:transparent;border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:6px;padding:7px 12px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s,border-color .15s;white-space:nowrap}
+  .topbtn:hover{background:rgba(255,255,255,.12);border-color:var(--wm-gold)}
+  .topbtn:focus-visible{outline:2px solid var(--wm-gold);outline-offset:2px}
+  .topbtn svg{width:15px;height:15px;display:block}
+
+  .shell{display:flex;height:calc(100% - 60px)}
+  aside{width:248px;flex-shrink:0;background:#fff;border-right:1px solid var(--rule);overflow-y:auto;transition:margin-left .25s ease}
+  aside.collapsed{margin-left:-248px}
+  .sec{border-bottom:1px solid var(--rule)}
+  .sec-h{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:13px 16px 7px}
+  .thumb{display:flex;align-items:center;gap:10px;padding:7px 12px 7px 16px;cursor:pointer;border-left:3px solid transparent;transition:background .12s}
+  .thumb:hover{background:#f3f1ea}
+  .thumb.active{background:#eef3f0;border-left-color:var(--accent)}
+  .thumb-chip{width:64px;height:36px;border-radius:3px;border:1px solid var(--rule);flex-shrink:0;background:var(--slide-bg);color:var(--accent);display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+  .thumb-meta{min-width:0}
+  .thumb-num{font-size:10px;color:var(--muted);font-weight:600}
+  .thumb-title{font-size:11.5px;line-height:1.25;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .thumb.active .thumb-title{color:var(--wm-industry);font-weight:600}
+
+  main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:26px 64px;position:relative;min-height:0;background:radial-gradient(circle at 50% 0%, #fbfaf6, var(--paper) 70%)}
+  .slide-frame{max-width:100%;max-height:100%;aspect-ratio:16/9;width:100%;box-shadow:0 18px 48px var(--shadow),0 2px 6px rgba(12,35,25,.12);border-radius:6px;overflow:hidden;background:var(--slide-bg);position:relative}
+
+  /* ---- the slide canvas ---- */
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;background:var(--slide-bg);color:var(--slide-ink);container-type:size}
+  .slide.show{display:flex}
+  /* scale everything to the 16:9 box via cqw units so it never overflows */
+  .slide{padding:6cqw 7cqw}
+  .eyebrow{font-size:1.5cqw;letter-spacing:.34em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.6cqw;display:flex;align-items:center;gap:1.4cqw}
+  .eyebrow::after{content:"";flex:1;height:1px;background:var(--slide-rule)}
+  h1.s{font-family:Georgia,"Times New Roman",serif;font-weight:600;font-size:6.4cqw;line-height:1.04;letter-spacing:-.01em}
+  h2.s{font-family:Georgia,"Times New Roman",serif;font-weight:600;font-size:4cqw;line-height:1.08;letter-spacing:-.005em;margin-bottom:.4cqw}
+  .sub{font-size:2.1cqw;color:var(--slide-dim);line-height:1.4;margin-top:1.4cqw;max-width:64cqw}
+  .lead{font-size:2.4cqw;line-height:1.42;color:var(--slide-ink);max-width:74cqw}
+  .foot{position:absolute;left:7cqw;right:7cqw;bottom:3.4cqw;display:flex;justify-content:space-between;align-items:center;font-size:1.35cqw;letter-spacing:.12em;text-transform:uppercase;color:var(--slide-dim);border-top:1px solid var(--slide-rule);padding-top:1.4cqw}
+  .foot .mk{color:var(--accent);font-weight:700}
+
+  .cols{display:flex;gap:3.4cqw;margin-top:2.4cqw;flex:1;min-height:0}
+  .col{flex:1;min-width:0}
+  ul.s{list-style:none;margin-top:1.2cqw}
+  ul.s li{font-size:2cqw;line-height:1.34;color:var(--slide-ink);padding:.85cqw 0 .85cqw 3cqw;position:relative;border-bottom:1px solid var(--slide-rule)}
+  ul.s li:last-child{border-bottom:none}
+  ul.s li::before{content:"";position:absolute;left:0;top:1.7cqw;width:1.3cqw;height:1.3cqw;background:var(--accent);border-radius:2px}
+  ul.s li b{color:#fff;font-weight:700}
+  ul.s li small{display:block;font-size:1.55cqw;color:var(--slide-dim);margin-top:.3cqw;line-height:1.3}
+
+  .cards{display:grid;gap:2cqw;margin-top:2.4cqw;flex:1}
+  .cards.c2{grid-template-columns:1fr 1fr}
+  .cards.c3{grid-template-columns:1fr 1fr 1fr}
+  .card{background:var(--slide-panel);border:1px solid var(--slide-rule);border-left:3px solid var(--accent);border-radius:5px;padding:2cqw 2.2cqw;display:flex;flex-direction:column}
+  .card h3{font-family:Georgia,serif;font-size:2.2cqw;color:#fff;margin-bottom:.7cqw;font-weight:600}
+  .card .kx{font-size:1.4cqw;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:.8cqw}
+  .card p{font-size:1.7cqw;line-height:1.36;color:var(--slide-dim)}
+  .cards.tight{gap:1.3cqw;margin-top:1.6cqw}
+  .cards.tight .card{padding:1.3cqw 1.6cqw}
+  .cards.tight .card h3{font-size:1.9cqw;margin-bottom:.4cqw}
+  .cards.tight .card p{font-size:1.5cqw}
+  .sub.compact{font-size:1.7cqw;margin-top:1.2cqw;max-width:none}
+  .card ul{list-style:none;margin-top:.6cqw}
+  .card ul li{font-size:1.6cqw;line-height:1.3;color:var(--slide-ink);padding:.4cqw 0 .4cqw 1.8cqw;position:relative}
+  .card ul li::before{content:"\2013";position:absolute;left:0;color:var(--accent)}
+
+  table.s{width:100%;border-collapse:collapse;margin-top:2cqw;font-size:1.7cqw}
+  table.s th{text-align:left;color:var(--accent);font-size:1.4cqw;letter-spacing:.14em;text-transform:uppercase;font-weight:700;padding:1cqw 1.2cqw;border-bottom:1px solid var(--accent)}
+  table.s td{padding:1cqw 1.2cqw;border-bottom:1px solid var(--slide-rule);color:var(--slide-ink);vertical-align:top;line-height:1.3}
+  table.s td b{color:#fff}
+  table.s tr:last-child td{border-bottom:none}
+
+  .timeline{margin-top:2.2cqw;flex:1}
+  .tl-row{display:flex;gap:2.4cqw;padding:1.2cqw 0;border-bottom:1px solid var(--slide-rule);align-items:flex-start}
+  .tl-row:last-child{border-bottom:none}
+  .tl-time{flex:0 0 16cqw;color:var(--accent);font-weight:700;font-size:1.8cqw;font-variant-numeric:tabular-nums}
+  .tl-what b{color:#fff;font-size:1.95cqw}
+  .tl-what{font-size:1.7cqw;color:var(--slide-dim);line-height:1.32}
+
+  .big{font-family:Georgia,serif;font-size:9cqw;color:var(--accent);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+
+  /* section break slide */
+  .slide.break{align-items:flex-start;justify-content:center;background:linear-gradient(135deg,#0c211a,#0a2c20 60%,#0c211a)}
+  .slide.break .eyebrow{color:var(--accent)}
+  .slide.break h1.s{font-size:7.4cqw;max-width:80cqw}
+
+  /* title slide */
+  .slide.title{justify-content:center}
+  .slide.title .kicker{font-size:1.7cqw;letter-spacing:.32em;text-transform:uppercase;color:var(--slide-dim);font-weight:700}
+  .slide.title h1.s{font-size:9cqw;margin:2cqw 0 1cqw}
+  .slide.title .accentbar{width:14cqw;height:.7cqw;background:var(--accent);border-radius:3px;margin:1.4cqw 0}
+  .slide.title .org{font-size:2cqw;color:var(--slide-dim);letter-spacing:.04em}
+  .slide.title .teamrole{position:absolute;top:6cqw;right:7cqw;font-size:1.6cqw;letter-spacing:.2em;text-transform:uppercase;color:#0c211a;background:var(--accent);padding:.8cqw 1.6cqw;border-radius:4px;font-weight:700}
+
+  .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;background:#fff;border:1px solid var(--rule);box-shadow:0 4px 14px var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--wm-industry);transition:transform .12s,background .12s;z-index:10}
+  .nav-arrow:hover{background:var(--wm-industry);color:#fff;transform:translateY(-50%) scale(1.06)}
+  .nav-arrow:focus-visible{outline:2px solid var(--wm-gold);outline-offset:2px}
+  .nav-arrow.prev{left:14px}.nav-arrow.next{right:14px}
+  .nav-arrow svg{width:20px;height:20px}
+  .nav-arrow[disabled]{opacity:.32;cursor:default;pointer-events:none}
+
+  .controls{height:52px;flex-shrink:0;background:#fff;border-top:1px solid var(--rule);display:flex;align-items:center;gap:14px;padding:0 18px}
+  .counter{font-variant-numeric:tabular-nums;font-size:13px;color:var(--ink);font-weight:600;white-space:nowrap}
+  .counter .of{color:var(--muted);font-weight:400}
+  .now-title{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .progress{flex:1;height:5px;background:var(--rule);border-radius:3px;overflow:hidden;cursor:pointer;min-width:60px}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--wm-industry),var(--accent));transition:width .2s ease;width:0}
+  .ctrlbtn{background:#fff;border:1px solid var(--rule);border-radius:6px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--wm-industry);transition:background .12s,border-color .12s;flex-shrink:0}
+  .ctrlbtn:hover{background:#f1f4f2;border-color:var(--wm-industry)}
+  .ctrlbtn:focus-visible{outline:2px solid var(--wm-gold);outline-offset:2px}
+  .ctrlbtn svg{width:17px;height:17px}
+
+  body.fs main{position:fixed;inset:0;z-index:60;background:#0c211a}
+  body.fs .stage{background:#0c211a;padding:0}
+  body.fs .slide-frame{border-radius:0;box-shadow:none;max-height:100vh;height:100vh;aspect-ratio:auto}
+  body.fs aside,body.fs header{display:none}
+  body.fs .controls{position:fixed;bottom:0;left:0;right:0;background:rgba(12,33,26,.86);border-top:1px solid rgba(255,255,255,.12);color:#fff;backdrop-filter:blur(6px);opacity:0;transition:opacity .2s}
+  body.fs main:hover .controls{opacity:1}
+  body.fs .counter,body.fs .now-title{color:#fff}
+  body.fs .ctrlbtn{background:transparent;border-color:rgba(255,255,255,.3);color:#fff}
+  body.fs .ctrlbtn:hover{background:rgba(255,255,255,.14)}
+  body.fs .progress{background:rgba(255,255,255,.18)}
+
+  @media (max-width:820px){aside{position:absolute;top:0;bottom:0;z-index:25;box-shadow:8px 0 24px var(--shadow)}.stage{padding:14px 52px}.brand .t2{display:none}}
+  @media (max-width:520px){.stage{padding:10px 8px}.nav-arrow{width:36px;height:36px}.nav-arrow.prev{left:4px}.nav-arrow.next{right:4px}.now-title{display:none}.topbtn span{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="crest">SSG</div>
+  <div class="brand">
+    <div class="t1">Fractured Order — Industry Facilitator Folder</div>
+    <div class="t2">Statecraft Simulations Group &middot; William &amp; Mary</div>
+  </div>
+  <div class="teamtag">INDUSTRY TEAM</div>
+  <div class="spacer"></div>
+  <button class="topbtn" id="toggleSidebar" title="Toggle slide list">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <span>Slides</span>
+  </button>
+  <button class="topbtn" id="fsBtn" title="Present fullscreen (F)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/></svg>
+    <span>Present</span>
+  </button>
+</header>
+
+<div class="shell">
+  <aside id="sidebar"></aside>
+  <main>
+    <div class="stage">
+      <button class="nav-arrow prev" id="prevBtn" aria-label="Previous slide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="slide-frame" id="frame">
+<section class="slide title" data-title="Title — Industry Facilitator Folder" data-n="1">
+    
+    <div class="teamrole">INDUSTRY &middot; Facilitator</div>
+    <div class="kicker">William &amp; Mary &middot; Statecraft Simulations Group</div>
+    <h1 class="s">Fractured Order</h1>
+    <div class="accentbar"></div>
+    <div class="org">INDUSTRY Team &mdash; Facilitator Support Folder</div>
+    <div class="sub">Partners &amp; allies navigating U.S.&ndash;PRC competition: Asia-Pacific and Europe cells weighing alignment, exposure, and autonomy.</div>
+    <div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>1 / 31</span></div></section>
+<section class="slide" data-title="Fractured Order — A Seminar Simulation" data-n="2"><div class="eyebrow">The Game</div><h2 class="s">A one-day seminar wargame</h2><div class="lead">Participants manage sustained U.S.&ndash;PRC strategic competition using non-military instruments. The <b>Industry Team</b> plays the partners and allies whose choices decide whether the U.S. alliance structure holds or fractures.</div><div class="cards c3"><div class="card"><div class="kx">Blue</div><p>United States &mdash; sets economic statecraft.</p></div><div class="card"><div class="kx">Industry</div><p>Partners &amp; allies &mdash; you.</p></div><div class="card"><div class="kx">Red</div><p>PRC &amp; Russia &mdash; the competitor.</p></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>2 / 31</span></div></section>
+<section class="slide" data-title="Simulation Purpose" data-n="3"><div class="eyebrow">Why we play</div><h2 class="s">Purpose</h2><div class="lead">Explore how alliance cohesion is built or broken when a great power leans on economic statecraft, and surface the inflection points where partner action reinforces or undermines the U.S.-led order.</div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>3 / 31</span></div></section>
+<section class="slide" data-title="Industry Team Objective" data-n="4"><div class="eyebrow">Your mandate</div><h2 class="s">Industry Team objective</h2><ul class="s"><li><b>Protect national interest first.</b><small>Security, economy, and domestic politics of your own state set your bottom line.</small></li><li><b>Decide your alignment.</b><small>How far you move with Blue, how far you hedge toward Red, and on what terms.</small></li><li><b>Manage exposure.</b><small>Trade, supply-chain, and technology dependence shape what you can actually afford to do.</small></li><li><b>Keep your options open.</b><small>Autonomy is a resource; do not spend it cheaply for either side.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>4 / 31</span></div></section>
+<section class="slide" data-title="Game Day Schedule" data-n="5"><div class="eyebrow">Run of day</div><h2 class="s">Game day schedule</h2><div class="timeline"><div class="tl-row"><div class="tl-time">0900</div><div class="tl-what"><b>Arrival & briefing</b> &mdash; Roles, room layout, ground rules.</div></div><div class="tl-row"><div class="tl-time">0930</div><div class="tl-what"><b>Opening plenary</b> &mdash; White Cell sets the January 2027 scene.</div></div><div class="tl-row"><div class="tl-time">1000</div><div class="tl-what"><b>MOVE 1</b> &mdash; Orient, deliberate, submit positions.</div></div><div class="tl-row"><div class="tl-time">1115</div><div class="tl-what"><b>Plenary 1</b> &mdash; Adjudication; scene update.</div></div><div class="tl-row"><div class="tl-time">1145</div><div class="tl-what"><b>MOVE 2</b> &mdash; Respond to Blue and Red pressure.</div></div><div class="tl-row"><div class="tl-time">1300</div><div class="tl-what"><b>Plenary 2</b> &mdash; Adjudication; scene update.</div></div><div class="tl-row"><div class="tl-time">1330</div><div class="tl-what"><b>MOVE 3</b> &mdash; Final positioning.</div></div><div class="tl-row"><div class="tl-time">1500</div><div class="tl-what"><b>Hot wash</b> &mdash; What held the alliance, what cracked it.</div></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>5 / 31</span></div></section>
+<section class="slide" data-title="Introductions" data-n="6"><div class="eyebrow">Before MOVE 1</div><h2 class="s">Introductions</h2><ul class="s"><li><b>Name and chair.</b><small>Which partner government or bloc you speak for.</small></li><li><b>One sentence on your starting posture.</b><small>Closer to Blue, hedging, or genuinely undecided.</small></li><li><b>Your single hardest constraint.</b><small>The dependency or domestic line you cannot cross.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>6 / 31</span></div></section>
+<section class="slide" data-title="MOVE 1 Schedule — INDUSTRY Team" data-n="7"><div class="eyebrow">Turn structure</div><h2 class="s">MOVE 1 Schedule</h2><div class="timeline"><div class="tl-row"><div class="tl-time">00:00</div><div class="tl-what"><b>Orient</b> &mdash; Read the scene; assess your position before anyone acts.</div></div><div class="tl-row"><div class="tl-time">00:10</div><div class="tl-what"><b>Consult</b> &mdash; Cross-talk within and across Industry cells.</div></div><div class="tl-row"><div class="tl-time">00:30</div><div class="tl-what"><b>Position</b> &mdash; Answer the three standing questions (next slide).</div></div><div class="tl-row"><div class="tl-time">00:40</div><div class="tl-what"><b>Submit</b> &mdash; Hand positions to the facilitator for adjudication.</div></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>7 / 31</span></div></section>
+<section class="slide" data-title="MOVE 2 Schedule — INDUSTRY Team" data-n="8"><div class="eyebrow">Turn structure</div><h2 class="s">MOVE 2 Schedule</h2><div class="timeline"><div class="tl-row"><div class="tl-time">00:00</div><div class="tl-what"><b>Digest</b> &mdash; Absorb Blue actions and Red counter-moves from Plenary 1.</div></div><div class="tl-row"><div class="tl-time">00:10</div><div class="tl-what"><b>Re-assess</b> &mdash; What changed for you, specifically?</div></div><div class="tl-row"><div class="tl-time">00:30</div><div class="tl-what"><b>Re-position</b> &mdash; Move, hold, or condition your alignment.</div></div><div class="tl-row"><div class="tl-time">00:40</div><div class="tl-what"><b>Submit</b> &mdash; Updated positions to the facilitator.</div></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>8 / 31</span></div></section>
+<section class="slide" data-title="MOVE 3 Schedule — INDUSTRY Team" data-n="9"><div class="eyebrow">Turn structure</div><h2 class="s">MOVE 3 Schedule</h2><div class="timeline"><div class="tl-row"><div class="tl-time">00:00</div><div class="tl-what"><b>Take stock</b> &mdash; Where does the alliance stand after two moves?</div></div><div class="tl-row"><div class="tl-time">00:15</div><div class="tl-what"><b>Commit</b> &mdash; Lock your final posture and any conditions.</div></div><div class="tl-row"><div class="tl-time">00:35</div><div class="tl-what"><b>Submit</b> &mdash; Final positions and rationale.</div></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>9 / 31</span></div></section>
+<section class="slide" data-title="The Three Standing Questions" data-n="10"><div class="eyebrow">Every move</div><h2 class="s">The three standing questions</h2><div class="cards c3"><div class="card"><div class="kx">Question 1</div><h3>How are you positioned?</h3><p>Your security, economic, and political starting point this move.</p></div><div class="card"><div class="kx">Question 2</div><h3>What changes with Blue?</h3><p>How U.S. action shifts your calculus &mdash; for better or worse.</p></div><div class="card"><div class="kx">Question 3</div><h3>What changes with Red?</h3><p>How PRC / Russia pressure or incentive moves you.</p></div></div><div class="sub">Your answers are your move. Be concrete: name the action, the actor, and the condition.</div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>10 / 31</span></div></section>
+<section class="slide" data-title="Roles — Actor Relationships" data-n="11"><div class="eyebrow">Where Industry sits</div><h2 class="s">Roles &mdash; actor relationships</h2><table class="s"><tr><th>Actor</th><th>Plays</th><th>Industry relationship</th></tr><tr><td><b>Blue</b></td><td>United States</td><td>Ally / partner seeking your alignment.</td></tr><tr><td><b>Red</b></td><td>PRC &amp; Russia</td><td>Competitor courting or coercing you.</td></tr><tr><td><b>White Cell</b></td><td>Control &amp; adjudication</td><td>Clarifies, scores, sets the scene.</td></tr><tr><td><b>Industry (you)</b></td><td>Partners &amp; allies</td><td>The swing weight in the system.</td></tr></table><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>11 / 31</span></div></section>
+<section class="slide" data-title="Industry Cell Composition" data-n="12"><div class="eyebrow">Who you are</div><h2 class="s">Industry cell composition</h2><div class="cards c2"><div class="card"><div class="kx">Asia-Pacific Cell</div><h3>Regional partners</h3><ul><li>Australia</li><li>Japan</li><li>Republic of Korea</li></ul><p>High exposure to PRC trade and to regional security risk.</p></div><div class="card"><div class="kx">Europe Cell</div><h3>European partners</h3><ul><li>European Union</li><li>Germany</li><li>United Kingdom</li></ul><p>Trade-and-standards exposure; debating strategic autonomy.</p></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>12 / 31</span></div></section>
+<section class="slide" data-title="Industry Team Tasks" data-n="13"><div class="eyebrow">Per move</div><h2 class="s">Industry Team tasks</h2><ul class="s"><li><b>Assess your exposure.</b><small>Where Blue or Red action actually reaches your economy and security.</small></li><li><b>State your conditions.</b><small>What you need from Blue to move, or from Red to stay.</small></li><li><b>Coordinate &mdash; or don't.</b><small>Alignment inside your cell is a choice, not a given.</small></li><li><b>Signal clearly.</b><small>Ambiguity is a tactic, but the White Cell scores what you actually submit.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>13 / 31</span></div></section>
+<section class="slide" data-title="Strategic Postures" data-n="14"><div class="eyebrow">Pick your lane</div><h2 class="s">Strategic postures</h2><div class="cards c3"><div class="card"><div class="kx">Align</div><h3>Move with Blue</h3><p>Coordinate on restrictions and standards; accept cost for solidarity.</p></div><div class="card"><div class="kx">Hedge</div><h3>Keep both doors open</h3><p>Bank gains from both sides; commit to neither prematurely.</p></div><div class="card"><div class="kx">Defect</div><h3>Tilt toward Red</h3><p>Take Red's terms where exposure or incentive makes alignment too costly.</p></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>14 / 31</span></div></section>
+<section class="slide" data-title="Industry Team Roles" data-n="15"><div class="eyebrow">Inside the cell</div><h2 class="s">Industry Team roles</h2><ul class="s"><li><b>Head of Delegation.</b><small>Owns the final position and speaks for the chair.</small></li><li><b>Economic lead.</b><small>Tracks trade, supply-chain, and standards exposure.</small></li><li><b>Security lead.</b><small>Weighs regional risk and defense ties.</small></li><li><b>Domestic-politics lead.</b><small>Names the lines the home audience will not accept.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>15 / 31</span></div></section>
+<section class="slide" data-title="Game Play — Team Interactions" data-n="16"><div class="eyebrow">How rounds flow</div><h2 class="s">Game play &mdash; team interactions</h2><div class="lead">Blue acts. Red responds. <b>Industry is lobbied by both</b> and answers the three standing questions. The White Cell adjudicates effects and updates the world before the next move.</div><div class="cards c2"><div class="card"><div class="kx">Inbound</div><p>Requests, incentives, and pressure from Blue and Red.</p></div><div class="card"><div class="kx">Outbound</div><p>Your position, conditions, and any cell coordination.</p></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>16 / 31</span></div></section>
+<section class="slide" data-title="Move Flow (Industry Perspective)" data-n="17"><div class="eyebrow">Your loop</div><h2 class="s">Move flow &mdash; Industry perspective</h2><div class="timeline"><div class="tl-row"><div class="tl-time">Step 1</div><div class="tl-what"><b>Read the scene</b> &mdash; Scene update from the last plenary.</div></div><div class="tl-row"><div class="tl-time">Step 2</div><div class="tl-what"><b>Receive overtures</b> &mdash; Blue and Red make their case to you.</div></div><div class="tl-row"><div class="tl-time">Step 3</div><div class="tl-what"><b>Deliberate</b> &mdash; Inside your cell, weigh exposure vs. autonomy.</div></div><div class="tl-row"><div class="tl-time">Step 4</div><div class="tl-what"><b>Answer the three questions</b> &mdash; Position, Blue effect, Red effect.</div></div><div class="tl-row"><div class="tl-time">Step 5</div><div class="tl-what"><b>Submit</b> &mdash; Hand to facilitator for adjudication.</div></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>17 / 31</span></div></section>
+<section class="slide" data-title="Industry Support Materials" data-n="18"><div class="eyebrow">On your table</div><h2 class="s">Industry support materials</h2><ul class="s"><li><b>Player&rsquo;s guide.</b><small>Scenario, rules, and the three standing questions.</small></li><li><b>Exposure matrix.</b><small>Your trade and supply-chain dependence by sector.</small></li><li><b>Position worksheet.</b><small>Where you record your move each round.</small></li><li><b>Tribe Street Journal.</b><small>In-world economic feedback between moves.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>18 / 31</span></div></section>
+<section class="slide" data-title="Exposure by Sector" data-n="19"><div class="eyebrow">Know your dependence</div><h2 class="s">Exposure by sector</h2><table class="s"><tr><th>Sector</th><th>Typical Industry exposure</th></tr><tr><td><b>Critical minerals</b></td><td>Refining concentrated in PRC; few near-term alternatives.</td></tr><tr><td><b>Telecommunications</b></td><td>Standards and equipment lock-in risk.</td></tr><tr><td><b>Advanced manufacturing</b></td><td>Component and tooling supply chains.</td></tr><tr><td><b>Energy</b></td><td>Import dependence shapes coercion risk.</td></tr><tr><td><b>Biotechnology</b></td><td>Emerging standards competition.</td></tr></table><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>19 / 31</span></div></section>
+<section class="slide" data-title="BRICS+ Strategic Sovereign Systems Initiative" data-n="20"><div class="eyebrow">Red&rsquo;s play</div><h2 class="s">BRICS+ SSSI</h2><div class="lead">Red&rsquo;s initiative locks participating states into PRC technical standards across telecom, biotech, and agriculture. For Industry, joining buys access and certainty &mdash; at the cost of autonomy.</div><div class="cards c2"><div class="card"><div class="kx">Upside</div><p>Market access, investment, standards certainty.</p></div><div class="card"><div class="kx">Downside</div><p>Lock-in, dependency, friction with Blue.</p></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>20 / 31</span></div></section>
+<section class="slide" data-title="Opening Plenary — Room Layout" data-n="21"><div class="eyebrow">Setup</div><h2 class="s">Opening plenary &mdash; room layout</h2><div class="lead">All teams face the White Cell for the scene-set. Industry cells sit together so Asia-Pacific and Europe can caucus quickly during moves.</div><ul class="s"><li><b>Front:</b> White Cell &amp; screen.</li><li><b>Left:</b> Asia-Pacific cell.</li><li><b>Right:</b> Europe cell.</li><li><b>Notetakers:</b> seated with each cell.</li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>21 / 31</span></div></section>
+<section class="slide" data-title="Move 1 Setup — Room Layout" data-n="22"><div class="eyebrow">Setup</div><h2 class="s">Move 1 setup &mdash; room layout</h2><div class="lead">Cells break to their tables. Blue and Red liaisons may visit Industry tables to make their case; the facilitator keeps the clock and routes submissions to the White Cell.</div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>22 / 31</span></div></section>
+<section class="slide break" data-title="Section Break — Facilitation" data-n="23"><div class="eyebrow">Running the Industry table</div><h1 class="s">Facilitation</h1><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>23 / 31</span></div></section>
+<section class="slide" data-title="Industry Support Cell" data-n="24"><div class="eyebrow">Around the table</div><h2 class="s">Industry support cell</h2><div class="cards c2"><div class="card"><div class="kx">Facilitator</div><p>Keeps time, enforces the loop, routes submissions.</p></div><div class="card"><div class="kx">Notetakers</div><p>Capture positions, conditions, and the reasons behind shifts.</p></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>24 / 31</span></div></section>
+<section class="slide" data-title="Industry Team — Facilitator Prompts" data-n="25"><div class="eyebrow">Keep it moving</div><h2 class="s">Facilitator prompts</h2><ul class="s"><li>&ldquo;What does Blue have to give you to move?&rdquo;</li><li>&ldquo;What does Red have to threaten before you defect?&rdquo;</li><li>&ldquo;Is your cell actually aligned, or just sitting together?&rdquo;</li><li>&ldquo;Name the domestic line you can&rsquo;t cross.&rdquo;</li><li>&ldquo;Put a condition on it &mdash; what would change your answer?&rdquo;</li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>25 / 31</span></div></section>
+<section class="slide" data-title="What Notetakers Capture" data-n="26"><div class="eyebrow">For the hot wash</div><h2 class="s">What notetakers capture</h2><ul class="s"><li><b>Response patterns.</b><small>How each state answered the three standing questions.</small></li><li><b>Alliance dynamics.</b><small>Agreement, friction, and any new position after consulting.</small></li><li><b>Vulnerability.</b><small>Exposure, industrial capacity, and political alignment limits.</small></li><li><b>Conditions.</b><small>The terms attached to every shift.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>26 / 31</span></div></section>
+<section class="slide break" data-title="Section Break — Outcomes" data-n="27"><div class="eyebrow">After the game</div><h1 class="s">Outcomes &amp; debrief</h1><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>27 / 31</span></div></section>
+<section class="slide" data-title="Outcomes" data-n="28"><div class="eyebrow">What we&rsquo;re looking for</div><h2 class="s">Outcomes</h2><ul class="s"><li><b>Where cohesion held.</b><small>The moments allies moved together.</small></li><li><b>Where it cracked.</b><small>The pressure or incentive that peeled a partner away.</small></li><li><b>What Blue could have offered.</b><small>The missing assurance or compensation.</small></li><li><b>Insights for real policy.</b><small>How to sustain alliances under economic pressure.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>28 / 31</span></div></section>
+<section class="slide" data-title="Game Hot Wash" data-n="29"><div class="eyebrow">Debrief</div><h2 class="s">Game hot wash</h2><ul class="s"><li>Did the alliance hold? Where and why?</li><li>Which partner moved first &mdash; toward Blue or Red?</li><li>What single offer would have changed a defection?</li><li>Where did hedging pay off, and where did it cost you?</li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>29 / 31</span></div></section>
+<section class="slide" data-title="Industry Move (Step-by-Step)" data-n="30"><div class="eyebrow">Quick reference</div><h2 class="s">Industry move &mdash; step by step</h2><div class="timeline"><div class="tl-row"><div class="tl-time">1</div><div class="tl-what"><b>Read</b> &mdash; Scene update from plenary.</div></div><div class="tl-row"><div class="tl-time">2</div><div class="tl-what"><b>Listen</b> &mdash; Take Blue and Red overtures.</div></div><div class="tl-row"><div class="tl-time">3</div><div class="tl-what"><b>Weigh</b> &mdash; Exposure vs. autonomy, inside the cell.</div></div><div class="tl-row"><div class="tl-time">4</div><div class="tl-what"><b>Answer</b> &mdash; The three standing questions.</div></div><div class="tl-row"><div class="tl-time">5</div><div class="tl-what"><b>Condition</b> &mdash; Attach terms to your position.</div></div><div class="tl-row"><div class="tl-time">6</div><div class="tl-what"><b>Submit</b> &mdash; To the facilitator for adjudication.</div></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>30 / 31</span></div></section>
+<section class="slide break" data-title="Closing — SSG" data-n="31"><div class="eyebrow">William &amp; Mary &middot; SSG</div><h1 class="s">Thank you for playing the Industry Team.</h1><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>31 / 31</span></div></section>
+      </div>
+      <button class="nav-arrow next" id="nextBtn" aria-label="Next slide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+    <div class="controls">
+      <span class="counter"><span id="cur">1</span> <span class="of">/ <span id="total">0</span></span></span>
+      <div class="progress" id="progress"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="now-title" id="nowTitle"></span>
+      <button class="ctrlbtn" id="firstBtn" title="First slide (Home)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg></button>
+      <button class="ctrlbtn" id="lastBtn" title="Last slide (End)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg></button>
+    </div>
+  </main>
+</div>
+
+<script>
+  const SECTIONS = [["Overview", [1, 2, 3, 4]], ["Schedule", [5, 6, 7, 8, 9]], ["Roles & Objectives", [10, 11, 12, 13, 14, 15]], ["Game Play", [16, 17, 18]], ["Support Materials", [19, 20, 21]], ["Room Layouts", [22, 23]], ["Facilitation", [24, 25, 26, 27]], ["Wrap-up", [28, 29, 30, 31]]];
+  const slides = [...document.querySelectorAll('.slide')];
+  const titles = slides.map(s => s.dataset.title);
+  let idx = 0;
+  const cur=document.getElementById('cur'), total=document.getElementById('total'),
+        nowTitle=document.getElementById('nowTitle'), progressFill=document.getElementById('progressFill'),
+        sidebar=document.getElementById('sidebar'), prevBtn=document.getElementById('prevBtn'), nextBtn=document.getElementById('nextBtn');
+  total.textContent = slides.length;
+
+  SECTIONS.forEach(([name,nums])=>{
+    const sec=document.createElement('div'); sec.className='sec';
+    const h=document.createElement('div'); h.className='sec-h'; h.textContent=name; sec.appendChild(h);
+    nums.forEach(n=>{
+      const t=document.createElement('div'); t.className='thumb'; t.dataset.idx=n-1;
+      t.innerHTML=`<div class="thumb-chip">${n}</div><div class="thumb-meta"><div class="thumb-num">Slide ${n}</div><div class="thumb-title">${titles[n-1]}</div></div>`;
+      t.addEventListener('click',()=>goTo(n-1)); sec.appendChild(t);
+    });
+    sidebar.appendChild(sec);
+  });
+  const thumbs=[...document.querySelectorAll('.thumb')];
+
+  function render(){
+    slides.forEach((s,i)=>s.classList.toggle('show',i===idx));
+    cur.textContent=idx+1; nowTitle.textContent=titles[idx];
+    progressFill.style.width=((idx+1)/slides.length*100)+'%';
+    prevBtn.disabled=idx===0; nextBtn.disabled=idx===slides.length-1;
+    thumbs.forEach(t=>{const on=+t.dataset.idx===idx;t.classList.toggle('active',on);if(on)t.scrollIntoView({block:'nearest'});});
+  }
+  function goTo(i){idx=Math.max(0,Math.min(slides.length-1,i));render();}
+  const next=()=>goTo(idx+1), prev=()=>goTo(idx-1);
+  prevBtn.onclick=prev; nextBtn.onclick=next;
+  document.getElementById('firstBtn').onclick=()=>goTo(0);
+  document.getElementById('lastBtn').onclick=()=>goTo(slides.length-1);
+  document.getElementById('toggleSidebar').onclick=()=>sidebar.classList.toggle('collapsed');
+
+  const fsBtn=document.getElementById('fsBtn');
+  function toggleFs(){if(!document.fullscreenElement){document.documentElement.requestFullscreen?.();document.body.classList.add('fs');}else{document.exitFullscreen?.();}}
+  fsBtn.onclick=toggleFs;
+  document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fs',!!document.fullscreenElement));
+  document.getElementById('progress').onclick=e=>{const r=e.currentTarget.getBoundingClientRect();goTo(Math.round((e.clientX-r.left)/r.width*(slides.length-1)));};
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();next();}
+    else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();prev();}
+    else if(e.key==='Home'){e.preventDefault();goTo(0);}
+    else if(e.key==='End'){e.preventDefault();goTo(slides.length-1);}
+    else if(e.key==='f'||e.key==='F'){toggleFs();}
+    else if(e.key==='Escape'&&document.body.classList.contains('fs')){document.exitFullscreen?.();}
+  });
+  document.getElementById('frame').addEventListener('click',e=>{if(!e.target.closest('a,button'))next();});
+  render();
+</script>
+</body>
+</html>

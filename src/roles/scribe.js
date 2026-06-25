@@ -749,6 +749,7 @@ export class ScribeController {
         case 'blue': return 'Blue Team';
         case 'red': return 'Red Team';
         case 'green': return 'Green Team';
+        case 'industry': return 'Industry Team';
         default: return team || 'Another team';
         }
     }

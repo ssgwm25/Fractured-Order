@@ -11,31 +11,31 @@ BEGIN;
 
 UPDATE public.participants
 SET role = CASE
-        WHEN role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
-        WHEN role ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
+        WHEN role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
+        WHEN role ~ '^(?:(blue|red|green|industry)_)?whitecell_support$' THEN 'whitecell_support'
         ELSE role
     END,
     updated_at = NOW()
-WHERE role ~ '^(?:(blue|red|green)_)?whitecell(?:_(lead|support))?$';
+WHERE role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_(lead|support))?$';
 
 UPDATE public.session_participants
 SET role = CASE
-        WHEN role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
-        WHEN role ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
+        WHEN role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
+        WHEN role ~ '^(?:(blue|red|green|industry)_)?whitecell_support$' THEN 'whitecell_support'
         ELSE role
     END
-WHERE role ~ '^(?:(blue|red|green)_)?whitecell(?:_(lead|support))?$';
+WHERE role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_(lead|support))?$';
 
 UPDATE public.operator_grants
 SET role = CASE
-        WHEN role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
-        WHEN role ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
+        WHEN role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
+        WHEN role ~ '^(?:(blue|red|green|industry)_)?whitecell_support$' THEN 'whitecell_support'
         ELSE role
     END,
     team_id = NULL,
     updated_at = NOW()
 WHERE surface = 'whitecell'
-   OR role ~ '^(?:(blue|red|green)_)?whitecell(?:_(lead|support))?$';
+   OR role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_(lead|support))?$';
 
 WITH ranked_white_cell_seats AS (
     SELECT
@@ -66,11 +66,11 @@ LANGUAGE SQL
 IMMUTABLE
 AS $$
     SELECT CASE
-        WHEN requested_role ~ '^(blue|red|green)_facilitator$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_scribe$' THEN 1
-        WHEN requested_role ~ '^(blue|red|green)_notetaker$' THEN 2
-        WHEN requested_role ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 1
-        WHEN requested_role ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_facilitator$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_scribe$' THEN 1
+        WHEN requested_role ~ '^(blue|red|green|industry)_notetaker$' THEN 2
+        WHEN requested_role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_lead)?$' THEN 1
+        WHEN requested_role ~ '^(?:(blue|red|green|industry)_)?whitecell_support$' THEN 1
         WHEN requested_role = 'white' THEN 1
         ELSE NULL
     END
@@ -90,19 +90,19 @@ BEGIN
         RETURN 'viewer';
     END IF;
 
-    IF resolved_role ~ '^(blue|red|green)_facilitator$' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_facilitator$' THEN
         RETURN 'facilitator';
     END IF;
 
-    IF resolved_role ~ '^(blue|red|green)_scribe$' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_scribe$' THEN
         RETURN 'scribe';
     END IF;
 
-    IF resolved_role ~ '^(blue|red|green)_notetaker$' THEN
+    IF resolved_role ~ '^(blue|red|green|industry)_notetaker$' THEN
         RETURN 'notetaker';
     END IF;
 
-    IF resolved_role ~ '^(?:(blue|red|green)_)?whitecell(?:_(lead|support))?$' THEN
+    IF resolved_role ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_(lead|support))?$' THEN
         RETURN 'whitecell';
     END IF;
 
@@ -128,8 +128,8 @@ DECLARE
     normalized_surface TEXT := LOWER(BTRIM(requested_surface));
     normalized_team TEXT := LOWER(NULLIF(BTRIM(requested_team_id), ''));
     normalized_role TEXT := CASE
-        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
-        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
+        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
+        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green|industry)_)?whitecell_support$' THEN 'whitecell_support'
         ELSE NULLIF(BTRIM(requested_role), '')
     END;
     normalized_name TEXT := NULLIF(BTRIM(requested_operator_name), '');
@@ -232,15 +232,15 @@ AS $$
 DECLARE
     current_user_id UUID := auth.uid();
     normalized_role TEXT := CASE
-        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
-        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green)_)?whitecell_support$' THEN 'whitecell_support'
+        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green|industry)_)?whitecell(?:_lead)?$' THEN 'whitecell_lead'
+        WHEN COALESCE(BTRIM(requested_role), '') ~ '^(?:(blue|red|green|industry)_)?whitecell_support$' THEN 'whitecell_support'
         ELSE BTRIM(requested_role)
     END;
     normalized_name TEXT := NULLIF(BTRIM(requested_name), '');
     normalized_client_id TEXT := NULLIF(BTRIM(requested_client_id), '');
     normalized_timeout_seconds INTEGER := GREATEST(COALESCE(requested_timeout_seconds, 90), 1);
     normalized_team TEXT := CASE
-        WHEN normalized_role ~ '^(blue|red|green)_' THEN split_part(normalized_role, '_', 1)
+        WHEN normalized_role ~ '^(blue|red|green|industry)_' THEN split_part(normalized_role, '_', 1)
         ELSE NULL
     END;
     role_limit INTEGER := public.get_session_role_seat_limit(normalized_role);

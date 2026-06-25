@@ -19,13 +19,17 @@ describe('teamContext', () => {
         expect(buildTeamRole('blue', ROLE_SURFACES.FACILITATOR)).toBe('blue_facilitator');
         expect(buildTeamRole('blue', ROLE_SURFACES.SCRIBE)).toBe('blue_scribe');
         expect(buildTeamRole('red', ROLE_SURFACES.NOTETAKER)).toBe('red_notetaker');
+        expect(buildTeamRole('industry', ROLE_SURFACES.FACILITATOR)).toBe('industry_facilitator');
+        expect(buildTeamRole('industry', ROLE_SURFACES.SCRIBE)).toBe('industry_scribe');
+        expect(buildTeamRole('industry', ROLE_SURFACES.NOTETAKER)).toBe('industry_notetaker');
         expect(buildTeamRole('green', ROLE_SURFACES.WHITECELL)).toBe('whitecell_lead');
         expect(buildWhiteCellOperatorRole('green', WHITE_CELL_OPERATOR_ROLES.SUPPORT)).toBe('whitecell_support');
 
         expect(getRoleRoute('red_facilitator', { basePath: '/repo-slug/' })).toBe('/repo-slug/teams/red/facilitator.html');
         expect(getRoleRoute('blue_scribe', { basePath: '/repo-slug/' })).toBe('/repo-slug/teams/blue/scribe.html');
+        expect(getRoleRoute('industry_notetaker', { basePath: '/repo-slug/' })).toBe('/repo-slug/teams/industry/notetaker.html');
         expect(getRoleRoute('whitecell_support', { basePath: '/repo-slug/' })).toBe('/repo-slug/whitecell.html');
-        expect(getRoleRoute('viewer', { observerTeamId: 'red', basePath: '/repo-slug/' })).toBe('/repo-slug/teams/red/facilitator.html?mode=observer');
+        expect(getRoleRoute('viewer', { observerTeamId: 'industry', basePath: '/repo-slug/' })).toBe('/repo-slug/teams/industry/facilitator.html?mode=observer');
     });
 
     it('resolves team context from page markup and formats role labels', () => {
@@ -50,8 +54,11 @@ describe('teamContext', () => {
         expect(context.scribeRoute).toBe('/repo-slug/teams/green/scribe.html');
         expect(getRoleDisplayName('green_notetaker')).toBe('Green Team Notetaker');
         expect(getRoleDisplayName('green_scribe')).toBe('Green Team Scribe');
+        expect(getRoleDisplayName('industry_facilitator')).toBe('Industry Team Facilitator');
+        expect(getRoleDisplayName('industry_scribe')).toBe('Industry Team Scribe');
+        expect(getRoleDisplayName('industry_notetaker')).toBe('Industry Team Notetaker');
         expect(getRoleDisplayName('green_whitecell_support')).toBe('White Cell Support');
-        expect(getRoleDisplayName('viewer', { observerTeamId: 'green' })).toBe('Green Team Observer');
+        expect(getRoleDisplayName('viewer', { observerTeamId: 'industry' })).toBe('Industry Team Observer');
     });
 
     it('defines explicit public and operator surface boundaries', () => {

@@ -1,8 +1,8 @@
 /**
  * Proposal Details
  *
- * Shared option lists + serialization for the New Proposal modal used by Green
- * (and eventually Blue) teams. Fields are packed into an action's
+ * Shared option lists + serialization for the New Proposal modal used by
+ * proposal-capable teams. Fields are packed into an action's
  * `ally_contingencies` text blob behind a recognizable prefix so existing
  * card / review code paths can opt into proposal-shaped display via
  * `getProposalViewModel`.
