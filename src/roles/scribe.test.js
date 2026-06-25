@@ -869,7 +869,7 @@ describe('scribe surface', () => {
         expect(liveSlides.slideCount).toBe(1);
         expect(liveSlides.slides[0]).toMatchObject({
             slideKey: 'action-orientation-blue-1',
-            slideType: 'action',
+            slideType: 'strategic-orientation',
             title: 'Strategic Orientation: Pressure',
             sidebarOrdinal: 'SO',
             sidebarKicker: 'Forwarded to Scribe | Pre-Move 1 | Selection'
@@ -1060,16 +1060,19 @@ describe('scribe surface', () => {
 
         const html = controller.renderActionSlide({
             slideKey: 'action-orientation-forecast-preview',
-            slideType: 'action',
+            slideType: 'strategic-orientation',
             sidebarOrdinal: 'SO',
             sidebarKicker: 'Forwarded to Scribe | Pre-Move 1 | Forecast',
             action
         });
 
         expect(html).toContain('Strategic Orientation Forecast');
+        expect(html).toContain('scribe-orientation-slide');
         expect(html).toContain('Forecasted Blue posture');
         expect(html).toContain('Orientation at a glance');
         expect(html).toContain('Friend-shoring agreements');
+        expect(html).toContain('Scribe-to-White Cell handoff');
+        expect(html).toContain('Project orientation, then send to White Cell');
         expect(html).toContain('Project Forecast');
         expect(html).toContain('Submit to White Cell');
         expect(html).not.toContain('Coordinated tick boxes');
@@ -1399,12 +1402,15 @@ describe('scribe surface', () => {
         expect(css).toContain('.scribe-stage-image-wrap {\n    position: relative;\n    width: min(100%, 74rem);');
         expect(css).toContain('box-shadow: none;');
         expect(css).toContain('.scribe-slide-link.is-action {');
+        expect(css).toContain('.scribe-orientation-slide {');
+        expect(css).toContain('.scribe-slide-link.is-orientation .scribe-slide-link-number');
         expect(css).toContain('.scribe-action-slide::before {');
         expect(css).toContain('.scribe-action-slide-glance-grid {');
         expect(css).toContain('.scribe-action-slide-columns {');
         expect(css).toContain('.scribe-action-slide-note-card {');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-sidebar');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-stage-card');
+        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-orientation-slide .scribe-action-slide-submit-panel');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-stage-nav');
     });
 });

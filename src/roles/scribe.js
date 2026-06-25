@@ -302,7 +302,7 @@ export function buildScribeActionSlides(actions = [], {
 
         return {
             slideKey: `action-${action.id}`,
-            slideType: 'action',
+            slideType: isStrategicOrientationSlide ? 'strategic-orientation' : 'action',
             action,
             actionViewModel,
             strategicOrientation,
@@ -332,6 +332,14 @@ function buildActionSection(actions = [], {
         slideCount: actionSlides.slideCount,
         slides: actionSlides.slides
     };
+}
+
+function getLiveSlideTypeClass(slide = {}) {
+    if (slide.slideType === 'strategic-orientation') {
+        return ' is-action is-orientation';
+    }
+
+    return slide.slideType !== 'image' ? ' is-action' : '';
 }
 
 function normalizeComparableText(value = '') {
@@ -482,6 +490,22 @@ function buildScribeSubmissionMetadata(selections = {}) {
 }
 
 function getActionSlideAnnouncementLabel(action = {}) {
+    if (isStrategicOrientationAction(action)) {
+        if (isDraftAction(action)) {
+            return 'Forwarded Strategic Orientation artifact';
+        }
+
+        if (isAdjudicatedAction(action)) {
+            return 'Reviewed Strategic Orientation artifact';
+        }
+
+        if (isSubmittedAction(action)) {
+            return 'Submitted Strategic Orientation artifact';
+        }
+
+        return 'Strategic Orientation artifact';
+    }
+
     if (isDraftAction(action)) {
         return 'Forwarded action';
     }
@@ -1514,7 +1538,7 @@ export class ScribeController {
 
             const slideMarkup = section.slides.map((slide, slideIndex) => {
                 const isActiveSlide = getSlideKey(slide) === currentSlideKey;
-                const isActionSlide = slide.slideType !== 'image';
+                const slideTypeClass = getLiveSlideTypeClass(slide);
                 const slideOrdinal = slide.sidebarOrdinal || slide.n || slideIndex + 1;
                 const slideKicker = slide.slideType === 'image'
                     ? `Slide ${slideIndex + 1} of ${section.slides.length}`
@@ -1523,7 +1547,7 @@ export class ScribeController {
                     <li>
                         <button
                             type="button"
-                            class="scribe-slide-link${isActiveSlide ? ' is-active' : ''}${isActionSlide ? ' is-action' : ''}"
+                            class="scribe-slide-link${isActiveSlide ? ' is-active' : ''}${slideTypeClass}"
                             data-slide-key="${escapeHtml(getSlideKey(slide))}"
                             data-slide-type="${escapeHtml(slide.slideType || 'image')}"
                             ${isActiveSlide ? 'aria-current="true"' : ''}
@@ -1673,8 +1697,8 @@ export class ScribeController {
             >
                 <div class="scribe-action-slide-submit-head">
                     <div>
-                        <p class="scribe-action-slide-section-label">Scribe finalization</p>
-                        <h3 class="scribe-action-slide-submit-title">Project and submit</h3>
+                        <p class="scribe-action-slide-section-label">Scribe-to-White Cell handoff</p>
+                        <h3 class="scribe-action-slide-submit-title">Project orientation, then send to White Cell</h3>
                     </div>
                     <button
                         type="button"
@@ -2116,7 +2140,7 @@ export class ScribeController {
             : '';
 
         return `
-            <article class="scribe-action-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
+            <article class="scribe-action-slide scribe-orientation-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
                         <p class="scribe-action-slide-eyebrow">${viewModel.isForecast ? 'Strategic Orientation Forecast' : 'Strategic Orientation Selection'}</p>
@@ -2163,9 +2187,11 @@ export class ScribeController {
                 label: 'Posture',
                 value: viewModel.posture || 'Not specified',
                 support: viewModel.isForecast ? 'Forecast posture' : 'Selected posture'
-            })}
+                            })}
                         </div>
                     </section>
+
+                    ${scribeSubmissionControls}
 
                     <div class="scribe-action-slide-columns">
                         <section class="scribe-action-slide-block" aria-label="Configuration snapshot">
@@ -2198,8 +2224,6 @@ export class ScribeController {
                             ${whiteCellNoteMarkup}
                         </section>
                     </div>
-
-                    ${scribeSubmissionControls}
                 </section>
             </article>
         `;

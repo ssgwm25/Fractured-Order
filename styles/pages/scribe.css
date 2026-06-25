@@ -749,6 +749,53 @@ body::before {
     background: linear-gradient(180deg, var(--color-info-600) 0%, var(--color-team-blue) 100%);
 }
 
+.scribe-orientation-slide {
+    border-color: rgba(185, 151, 91, 0.5);
+    background: var(--color-surface);
+}
+
+.scribe-orientation-slide::before {
+    inset: 0 0 auto 0;
+    width: auto;
+    height: 0.45rem;
+    background: var(--color-gold);
+}
+
+.scribe-orientation-slide .scribe-action-slide-eyebrow,
+.scribe-orientation-slide .scribe-action-slide-section-label,
+.scribe-orientation-slide .scribe-action-slide-note-label {
+    color: var(--color-navy);
+}
+
+.scribe-orientation-slide .scribe-action-slide-panel {
+    border-color: rgba(185, 151, 91, 0.24);
+    background: var(--color-surface);
+}
+
+.scribe-orientation-slide .scribe-action-slide-lead {
+    border-color: rgba(185, 151, 91, 0.35);
+    background: var(--color-surface-alt);
+}
+
+.scribe-orientation-slide .scribe-action-slide-glance-card:first-child {
+    border-left: 4px solid var(--color-gold);
+}
+
+.scribe-orientation-slide .scribe-action-slide-submit-panel {
+    border-color: rgba(17, 87, 64, 0.28);
+    background: var(--color-navy-soft);
+}
+
+.scribe-slide-link.is-orientation .scribe-slide-link-number {
+    background: rgba(185, 151, 91, 0.16);
+    color: var(--color-navy);
+}
+
+.scribe-slide-link.is-orientation.is-active .scribe-slide-link-number {
+    background: var(--color-gold);
+    color: var(--color-text-primary);
+}
+
 .scribe-action-slide-placeholder {
     max-width: 44rem;
     place-items: center;
@@ -1187,6 +1234,11 @@ body[data-scribe-presentation="active"] .scribe-action-slide {
 
 body[data-scribe-presentation="active"] .scribe-action-slide-submit-panel {
     display: none;
+}
+
+body[data-scribe-presentation="active"] .scribe-orientation-slide .scribe-action-slide-submit-panel {
+    display: grid;
+    padding: var(--space-3);
 }
 
 body[data-scribe-presentation="active"] .scribe-stage-nav {

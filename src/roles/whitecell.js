@@ -275,6 +275,7 @@ export const WHITE_CELL_DOM_IDS = [
     'timerDisplay',
     'timerStatusLabel',
     'timerStatus',
+    'strategicOrientationBadge',
     'actionsBadge',
     'proposalsBadge',
     'responsesBadge',
@@ -285,6 +286,7 @@ export const WHITE_CELL_DOM_IDS = [
     'participantsList',
     'scribeDeckSettingsSummary',
     'scribeDeckSettingsList',
+    'strategicOrientationList',
     'actionsList',
     'responsesList',
     'proposalsList',
@@ -1096,10 +1098,16 @@ export class WhiteCellController {
     constructor() {
         this.actions = [];
         this.blueTeamActions = [];
+        this.strategicOrientationArtifacts = [];
         this.greenTeamProposals = [];
         this.proposalTeamProposals = this.greenTeamProposals;
         this.redTeamResponses = [];
-        this.reviewActiveTabs = { actions: 'pending', responses: 'pending', proposals: 'pending' };
+        this.reviewActiveTabs = {
+            strategicOrientation: 'pending',
+            actions: 'pending',
+            responses: 'pending',
+            proposals: 'pending'
+        };
         this.rfis = [];
         this.communications = [];
         this.tribeStreetJournalEntries = [];
@@ -1130,15 +1138,19 @@ export class WhiteCellController {
         this.notificationsMuted = readWhiteCellNotificationsMutedPreference();
         this.seenBlueActionIds = new Set();
         this.newBlueActionIds = new Set();
+        this.seenStrategicOrientationIds = new Set();
+        this.newStrategicOrientationIds = new Set();
         this.seenGreenProposalIds = new Set();
         this.newGreenProposalIds = new Set();
         this.seenRedResponseIds = new Set();
         this.newRedResponseIds = new Set();
         this.pendingQueueArrivalSummary = {
+            strategicOrientation: new Set(),
             actions: new Set(),
             proposals: new Set(),
             responses: new Set()
         };
+        this.hasHydratedStrategicOrientationQueue = false;
         this.hasHydratedBlueActionQueue = false;
         this.hasHydratedGreenProposalQueue = false;
         this.hasHydratedRedResponseQueue = false;
@@ -1236,6 +1248,11 @@ export class WhiteCellController {
                     title: 'Manage session operations',
                     body: 'The Simulation Settings tabs also cover live sessions, participant rosters, scribe deck assignments, and export controls.',
                     highlight: '#settingsTabs .tab-list'
+                },
+                {
+                    title: 'Review Strategic Orientation',
+                    body: 'Strategic Orientation collects the Blue selection and Green/Red forecasts after each Scribe submits them to White Cell.',
+                    highlight: navTarget('strategicOrientation')
                 },
                 {
                     title: 'Review Blue actions',
@@ -1463,6 +1480,7 @@ export class WhiteCellController {
         }
 
         [
+            ['strategicOrientationList', 'strategicOrientation'],
             ['actionsList', 'actions'],
             ['responsesList', 'responses'],
             ['proposalsList', 'proposals']
@@ -1574,6 +1592,10 @@ export class WhiteCellController {
 
         document.querySelectorAll?.('.sidebar-link[data-section]')?.forEach((link) => {
             link.addEventListener('click', () => {
+                if (link.dataset.section === 'strategicOrientation') {
+                    this.clearQueueArrivalHighlights('strategicOrientation');
+                }
+
                 if (link.dataset.section === 'actions') {
                     this.clearQueueArrivalHighlights('actions');
                 }
@@ -2056,24 +2078,34 @@ export class WhiteCellController {
     } = {}) {
         const allActions = actionsStore.getAll();
         this.actions = actionsStore.getPending();
+        this.strategicOrientationArtifacts = allActions.filter((action) => (
+            isStrategicOrientationAction(action) && !isDraftAction(action)
+        ));
         // Keep both awaiting-review and already-deliberated items so each review
         // section can split them across "Awaiting Review" / "Deliberated" tabs.
         this.blueTeamActions = allActions.filter((action) => (
-            action?.team === 'blue' && !isDraftAction(action)
+            action?.team === 'blue'
+            && !isDraftAction(action)
+            && !isStrategicOrientationAction(action)
         ));
         this.proposalTeamProposals = allActions.filter((action) => (
             isProposalTeamId(action?.team)
             && !isDraftAction(action)
-            && (this.isProposalAction(action) || isStrategicOrientationAction(action))
+            && !isStrategicOrientationAction(action)
+            && this.isProposalAction(action)
         ));
         this.greenTeamProposals = this.proposalTeamProposals;
         this.redTeamResponses = allActions.filter((action) => (
-            action?.team === 'red' && !isDraftAction(action)
+            action?.team === 'red'
+            && !isDraftAction(action)
+            && !isStrategicOrientationAction(action)
         ));
+        const pendingStrategicOrientationArtifacts = this.strategicOrientationArtifacts.filter((action) => canAdjudicateAction(action));
         const pendingBlueTeamActions = this.blueTeamActions.filter((action) => canAdjudicateAction(action));
         const pendingProposalTeamProposals = this.proposalTeamProposals.filter((action) => canAdjudicateAction(action));
         const pendingRedTeamResponses = this.redTeamResponses.filter((action) => canAdjudicateAction(action));
         this.captureQueueArrivals({
+            strategicOrientationArtifacts: this.strategicOrientationArtifacts,
             blueTeamActions: this.blueTeamActions,
             proposalTeamProposals: this.proposalTeamProposals,
             greenTeamProposals: this.greenTeamProposals,
@@ -2082,6 +2114,7 @@ export class WhiteCellController {
             announce
         });
 
+        this.renderStrategicOrientationReview();
         this.renderActionReview();
         this.renderMoveResponses();
         this.renderProposals();
@@ -2090,6 +2123,7 @@ export class WhiteCellController {
         this.updateGameControlAvailability(gameState.move ?? 1, gameState.phase ?? 1);
         this.updateTimerControlButtons();
 
+        this.updateSidebarBadge('strategicOrientationBadge', pendingStrategicOrientationArtifacts.length);
         this.updateSidebarBadge('actionsBadge', pendingBlueTeamActions.length);
         this.updateSidebarBadge('proposalsBadge', pendingProposalTeamProposals.length);
         this.updateSidebarBadge('responsesBadge', pendingRedTeamResponses.length);
@@ -2108,6 +2142,7 @@ export class WhiteCellController {
     }
 
     captureQueueArrivals({
+        strategicOrientationArtifacts = [],
         blueTeamActions = [],
         proposalTeamProposals = null,
         greenTeamProposals = [],
@@ -2115,6 +2150,15 @@ export class WhiteCellController {
     } = {}, {
         announce = false
     } = {}) {
+        this.captureQueueArrivalSet({
+            queueName: 'strategicOrientation',
+            nextItems: strategicOrientationArtifacts,
+            seenSet: this.seenStrategicOrientationIds,
+            newSet: this.newStrategicOrientationIds,
+            hydratedFlag: 'hasHydratedStrategicOrientationQueue',
+            announce
+        });
+
         this.captureQueueArrivalSet({
             queueName: 'actions',
             nextItems: blueTeamActions,
@@ -2186,6 +2230,13 @@ export class WhiteCellController {
 
     clearQueueArrivalHighlights(queueName = '') {
         const queueMap = {
+            strategicOrientation: {
+                newSet: this.newStrategicOrientationIds,
+                rerender: () => {
+                    this.renderStrategicOrientationReview();
+                    this.renderAdjudicationQueue();
+                }
+            },
             actions: {
                 newSet: this.newBlueActionIds,
                 rerender: () => {
@@ -2218,15 +2269,19 @@ export class WhiteCellController {
     }
 
     flushQueueArrivalAnnouncement() {
+        const strategicOrientationCount = this.pendingQueueArrivalSummary.strategicOrientation.size;
         const actionCount = this.pendingQueueArrivalSummary.actions.size;
         const proposalCount = this.pendingQueueArrivalSummary.proposals.size;
         const responseCount = this.pendingQueueArrivalSummary.responses.size;
 
-        if (actionCount === 0 && proposalCount === 0 && responseCount === 0) {
+        if (strategicOrientationCount === 0 && actionCount === 0 && proposalCount === 0 && responseCount === 0) {
             return;
         }
 
         const summaryParts = [];
+        if (strategicOrientationCount > 0) {
+            summaryParts.push(`${strategicOrientationCount} Strategic Orientation artifact${strategicOrientationCount === 1 ? '' : 's'}`);
+        }
         if (actionCount > 0) {
             summaryParts.push(`${actionCount} Blue action${actionCount === 1 ? '' : 's'}`);
         }
@@ -2245,6 +2300,7 @@ export class WhiteCellController {
             });
         }
 
+        this.pendingQueueArrivalSummary.strategicOrientation.clear();
         this.pendingQueueArrivalSummary.actions.clear();
         this.pendingQueueArrivalSummary.proposals.clear();
         this.pendingQueueArrivalSummary.responses.clear();
@@ -2470,6 +2526,15 @@ export class WhiteCellController {
         });
     }
 
+    renderStrategicOrientationReview() {
+        this.renderReviewQueue(document.getElementById('strategicOrientationList'), this.strategicOrientationArtifacts, {
+            section: 'strategicOrientation',
+            newIds: this.newStrategicOrientationIds,
+            ariaLabel: 'Strategic Orientation review',
+            emptyMessage: 'No Strategic Orientation artifacts have reached White Cell yet.'
+        });
+    }
+
     renderActionReview() {
         this.renderReviewQueue(document.getElementById('actionsList'), this.blueTeamActions, {
             section: 'actions',
@@ -2614,6 +2679,7 @@ export class WhiteCellController {
                 showAdjudicateAction: this.isLeadOperator(),
                 includeOutcome: false,
                 isNew: this.newBlueActionIds.has(action.id)
+                    || this.newStrategicOrientationIds.has(action.id)
                     || this.newGreenProposalIds.has(action.id)
                     || this.newRedResponseIds.has(action.id)
             })

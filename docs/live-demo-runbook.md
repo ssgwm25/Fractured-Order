@@ -82,9 +82,10 @@ Facilitator:
 White Cell:
 
 - confirm Move 1 start/advance controls remain blocked until Blue selection plus Green and Red forecasts arrive from Scribe
+- confirm the Strategic Orientation queue shows Blue selection plus Green/Red forecasts after Scribe submission
 - advance/regress phase and move after the Strategic Orientation gate clears
 - start/pause/reset timer as lead after the Strategic Orientation gate clears
-- deliberate submitted Strategic Orientation artifacts/actions/proposals/responses
+- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then actions/proposals/responses from their role-specific queues
 - answer RFIs
 - send direct communications and section updates
 - review participant roster filters
@@ -93,15 +94,18 @@ White Cell:
 Scribe:
 
 - confirm default deck loads
-- confirm facilitator-forwarded Strategic Orientation artifacts, facilitator-forwarded actions, and live communications appear as slides
-- project each Strategic Orientation selection/forecast for the team, then submit it to White Cell
+- confirm facilitator-forwarded Strategic Orientation artifacts appear as distinct orientation slides, separate from normal action slide treatment
+- confirm facilitator-forwarded actions and live communications appear as slides
+- project each Strategic Orientation selection/forecast for the team, then use the visible handoff control to submit it to White Cell
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid
 
 Implementation note: Strategic Orientation artifacts and Red move responses share
 the `actions` table with normal Blue actions. They intentionally persist
 `sector` as an empty string when no sector applies, because the live table keeps
-that column non-null; role surfaces should render that as `Not specified`.
+that column non-null; role surfaces should render that as `Not specified`. White
+Cell renders Strategic Orientation in its own review queue even though the
+underlying persistence remains in `actions`.
 
 Notetaker:
 

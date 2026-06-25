@@ -468,6 +468,7 @@ describe('White Cell DOM contract', () => {
             'Watch the live tracker',
             'Run game controls',
             'Manage session operations',
+            'Review Strategic Orientation',
             'Review Blue actions',
             'Review proposals',
             'Review Red responses',
@@ -483,6 +484,7 @@ describe('White Cell DOM contract', () => {
             '#timerDisplay',
             '.sidebar-link[data-section="controls"]',
             '#settingsTabs .tab-list',
+            '.sidebar-link[data-section="strategicOrientation"]',
             '.sidebar-link[data-section="actions"]',
             '.sidebar-link[data-section="proposals"]',
             '.sidebar-link[data-section="responses"]',
@@ -1221,6 +1223,26 @@ describe('White Cell DOM contract', () => {
 
         const pendingItems = [
             {
+                id: 'orientation-blue-1',
+                team: 'blue',
+                move: 1,
+                phase: 1,
+                goal: 'Strategic Orientation: Pressure',
+                mechanism: 'Strategic Orientation',
+                status: 'submitted',
+                created_at: '2026-04-08T08:45:00.000Z',
+                submitted_at: '2026-04-08T08:55:00.000Z',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'selection',
+                    team: 'blue',
+                    orientation: 'pressure',
+                    primaryLevers: ['Expanded financial sanctions'],
+                    acceptedCosts: ['Sustained economic friction'],
+                    posture: 'Calibrated - escalate deliberately',
+                    scribeHandoff: 'Forwarded'
+                })
+            },
+            {
                 id: 'action-101',
                 team: 'blue',
                 move: 2,
@@ -1272,12 +1294,15 @@ describe('White Cell DOM contract', () => {
 
         controller.syncActionsFromStore();
 
+        expect(fakeDocument.elements.strategicOrientationBadge.textContent).toBe('1');
         expect(fakeDocument.elements.actionsBadge.textContent).toBe('1');
         expect(fakeDocument.elements.proposalsBadge.textContent).toBe('1');
         expect(fakeDocument.elements.responsesBadge.textContent).toBe('1');
+        expect(fakeDocument.elements.strategicOrientationBadge.hidden).toBe(false);
         expect(fakeDocument.elements.actionsBadge.hidden).toBe(false);
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(false);
         expect(fakeDocument.elements.responsesBadge.hidden).toBe(false);
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Strategic Orientation: Pressure');
         expect(fakeDocument.elements.actionsBadge.textContent).not.toBe('3');
     });
 
@@ -1320,6 +1345,57 @@ describe('White Cell DOM contract', () => {
         });
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('NEW');
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('Stabilize port access');
+    });
+
+    it('raises a dedicated arrival cue when Strategic Orientation reaches White Cell', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        let pendingItems = [];
+        let allItems = [];
+        vi.spyOn(actionsStore, 'getPending').mockImplementation(() => pendingItems);
+        vi.spyOn(actionsStore, 'getAll').mockImplementation(() => allItems);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.syncActionsFromStore();
+
+        pendingItems = [{
+            id: 'orientation-arrival-1',
+            team: 'red',
+            move: 1,
+            phase: 1,
+            goal: 'Red Forecast: Blue Reframe',
+            mechanism: 'Strategic Orientation',
+            status: 'submitted',
+            created_at: '2026-04-08T08:50:00.000Z',
+            submitted_at: '2026-04-08T08:55:00.000Z',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'forecast',
+                team: 'red',
+                orientation: 'reframe',
+                primaryLevers: ['Friend-shoring agreements'],
+                acceptedCosts: ['Transitional inefficiencies'],
+                posture: 'Gradual - long-horizon reallocation',
+                scribeHandoff: 'Forwarded'
+            })
+        }];
+        allItems = pendingItems;
+
+        controller.syncActionsFromStore({ announce: true });
+        controller.flushQueueArrivalAnnouncement();
+
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'New team submissions arrived: 1 Strategic Orientation artifact.',
+            type: 'warning',
+            duration: 10000
+        });
+        expect(fakeDocument.elements.strategicOrientationBadge.textContent).toBe('1');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('NEW');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red Forecast: Blue Reframe');
+        expect(fakeDocument.elements.responsesBadge.hidden).toBe(true);
     });
 
     it('mutes White Cell queue arrival toasts without hiding visible queue cues', async () => {
