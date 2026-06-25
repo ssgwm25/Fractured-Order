@@ -75,7 +75,7 @@ Facilitator:
 - create a draft action/proposal/response
 - submit it to White Cell
 - submit an RFI
-- confirm White Cell responses and forwarded proposals appear
+- confirm White Cell responses are separated by category tabs and forwarded proposals appear
 - confirm timeline and quick capture render
 
 White Cell:

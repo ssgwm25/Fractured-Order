@@ -220,6 +220,7 @@ export class FacilitatorController {
         this.responses = [];
         this.receivedProposals = [];
         this.actionsActiveTab = 'draft';
+        this.responsesActiveTab = 'communication';
         this.proposalsActiveTab = 'unread';
         this.journalEntries = [];
         this.journalUpdates = [];
@@ -334,7 +335,7 @@ export class FacilitatorController {
                 },
                 {
                     title: 'Read White Cell responses',
-                    body: 'Responses groups explicit White Cell communications, update notices, forwarded proposals, and answers to your RFIs by type.',
+                    body: 'Responses uses category tabs for explicit White Cell communications, update notices, forwarded proposals, and answers to your RFIs.',
                     highlight: navTarget('responses')
                 },
                 {
@@ -468,8 +469,8 @@ export class FacilitatorController {
 
         if (responsesDescription) {
             responsesDescription.textContent = this.isReadOnly
-                ? 'Passive grouped feed of direct White Cell communications, update notices, forwarded proposals, and responses to this team.'
-                : 'View direct White Cell communications, update notices, forwarded proposals, and RFI answers grouped by type.';
+                ? 'Passive tabbed feed of direct White Cell communications, update notices, forwarded proposals, and responses to this team.'
+                : 'Use category tabs to review direct White Cell communications, update notices, forwarded proposals, and RFI answers.';
         }
 
         if (journalDescription) {
@@ -513,6 +514,20 @@ export class FacilitatorController {
         const newRfiBtn = document.getElementById('newRfiBtn');
         const captureForm = document.getElementById('captureForm');
 
+        const actionsListEl = document.getElementById('actionsList');
+        actionsListEl?.addEventListener('click', (event) => {
+            const tabButton = event.target.closest('.tab-button[data-actions-tab]');
+            if (!tabButton || !actionsListEl.contains(tabButton)) return;
+            this.setActionsActiveTab(tabButton.dataset.actionsTab);
+        });
+
+        const responsesListEl = document.getElementById('responsesList');
+        responsesListEl?.addEventListener('click', (event) => {
+            const tabButton = event.target.closest('.tab-button[data-responses-tab]');
+            if (!tabButton || !responsesListEl.contains(tabButton)) return;
+            this.setResponsesActiveTab(tabButton.dataset.responsesTab);
+        });
+
         if (this.isReadOnly) {
             newActionBtn?.setAttribute('aria-disabled', 'true');
             newRfiBtn?.setAttribute('aria-disabled', 'true');
@@ -526,13 +541,6 @@ export class FacilitatorController {
         newActionBtn?.addEventListener('click', () => this.showCreateActionModal());
         newRfiBtn?.addEventListener('click', () => this.showCreateRfiModal());
         captureForm?.addEventListener('submit', (event) => this.handleCaptureSubmit(event));
-
-        const actionsListEl = document.getElementById('actionsList');
-        actionsListEl?.addEventListener('click', (event) => {
-            const tabButton = event.target.closest('.tab-button[data-actions-tab]');
-            if (!tabButton || !actionsListEl.contains(tabButton)) return;
-            this.setActionsActiveTab(tabButton.dataset.actionsTab);
-        });
 
         const receivedProposalsList = document.getElementById('receivedProposalsList');
         receivedProposalsList?.addEventListener('click', (event) => {
@@ -996,6 +1004,11 @@ export class FacilitatorController {
         const countLabel = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
         const visibleItems = (group.items || []).slice(0, RESPONSE_GROUP_RENDER_LIMIT);
         const hiddenCount = Math.max(0, itemCount - visibleItems.length);
+        const body = itemCount
+            ? `<div class="response-type-group__items" role="list">
+                    ${visibleItems.map((response) => this.renderResponseCard(response)).join('')}
+               </div>`
+            : `<p class="text-sm text-gray-500" style="margin: 0;">No ${this.escapeHtml(group.title.toLowerCase())} yet.</p>`;
 
         return `
             <section class="response-type-group" aria-labelledby="${headingId}">
@@ -1006,9 +1019,7 @@ export class FacilitatorController {
                     </div>
                     <span class="response-type-group__count" aria-label="${this.escapeHtml(`${group.title}: ${countLabel}`)}">${this.escapeHtml(countLabel)}</span>
                 </div>
-                <div class="response-type-group__items" role="list">
-                    ${visibleItems.map((response) => this.renderResponseCard(response)).join('')}
-                </div>
+                ${body}
                 ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: var(--space-2) 0 0;">Showing the first ${RESPONSE_GROUP_RENDER_LIMIT} of ${itemCount} ${this.escapeHtml(group.title.toLowerCase())}.</p>` : ''}
             </section>
         `;
@@ -1557,6 +1568,21 @@ export class FacilitatorController {
         });
         container.querySelectorAll('.tab-panel[data-actions-panel]').forEach((panel) => {
             panel.hidden = panel.dataset.actionsPanel !== tab;
+        });
+    }
+
+    setResponsesActiveTab(tab) {
+        if (!tab || tab === this.responsesActiveTab) return;
+        this.responsesActiveTab = tab;
+        const container = document.getElementById('responsesList');
+        if (!container || typeof container.querySelectorAll !== 'function') return;
+        container.querySelectorAll('.tab-button[data-responses-tab]').forEach((button) => {
+            const isActive = button.dataset.responsesTab === tab;
+            button.classList.toggle('tab-button-active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        container.querySelectorAll('.tab-panel[data-responses-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.responsesPanel !== tab;
         });
     }
 
@@ -4112,11 +4138,63 @@ export class FacilitatorController {
             return;
         }
 
-        container.innerHTML = `
-            <div class="response-type-grid">
-                ${this.getResponseTypeGroups(this.responses)
-                    .map((group) => this.renderResponseTypeGroup(group))
-                    .join('')}
+        container.innerHTML = this.renderTabbedResponseList();
+    }
+
+    renderTabbedResponseList() {
+        const populatedGroups = this.getResponseTypeGroups(this.responses);
+        const groupedResponses = new Map(
+            populatedGroups.map((group) => [group.key, group])
+        );
+        const visibleGroups = RESPONSE_TYPE_GROUPS
+            .filter((group) => group.key !== 'other' || groupedResponses.has(group.key))
+            .map((group) => ({
+                ...group,
+                items: groupedResponses.get(group.key)?.items || []
+            }));
+        const currentActiveGroup = visibleGroups.find((group) => group.key === this.responsesActiveTab);
+        const fallbackGroup = visibleGroups.find((group) => group.items.length > 0) || visibleGroups[0];
+        const activeKey = currentActiveGroup?.items?.length
+            ? this.responsesActiveTab
+            : fallbackGroup?.key;
+        this.responsesActiveTab = activeKey;
+
+        const tabList = visibleGroups.map((group) => {
+            const count = group.items?.length || 0;
+            const isActive = group.key === activeKey;
+            return `
+                <button
+                    type="button"
+                    class="tab-button${isActive ? ' tab-button-active' : ''}"
+                    data-responses-tab="${group.key}"
+                    role="tab"
+                    aria-selected="${isActive ? 'true' : 'false'}"
+                    aria-controls="responsesPanel-${group.key}"
+                >${this.escapeHtml(group.title)}<span class="tab-badge">${count}</span></button>
+            `;
+        }).join('');
+
+        const panels = visibleGroups.map((group) => {
+            const isActive = group.key === activeKey;
+            return `
+                <div
+                    class="tab-panel"
+                    id="responsesPanel-${group.key}"
+                    data-responses-panel="${group.key}"
+                    role="tabpanel"
+                    ${isActive ? '' : 'hidden'}
+                >
+                    ${this.renderResponseTypeGroup(group)}
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="tabbed-section response-tabs" data-responses-tabs>
+                <div class="tab-list" role="tablist" aria-label="White Cell response categories">
+                    ${tabList}
+                </div>
+                ${panels}
             </div>
         `;
     }

@@ -5,6 +5,7 @@ const FACILITATOR_HTML_PATH = new URL('../../teams/blue/facilitator.html', impor
 const GREEN_FACILITATOR_HTML_PATH = new URL('../../teams/green/facilitator.html', import.meta.url);
 const RED_FACILITATOR_HTML_PATH = new URL('../../teams/red/facilitator.html', import.meta.url);
 const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
+const GRID_CSS_PATH = new URL('../../styles/layouts/grid.css', import.meta.url);
 
 const { mockMountFollowAlong } = vi.hoisted(() => ({
     mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() }))
@@ -355,16 +356,18 @@ describe('Facilitator and scribe access', () => {
         });
     });
 
-    it('styles grouped facilitator response feed sections as horizontal categories', () => {
-        const css = readFileSync(CARDS_CSS_PATH, 'utf8');
+    it('styles facilitator response cards inside reusable horizontal tabs', () => {
+        const cardsCss = readFileSync(CARDS_CSS_PATH, 'utf8');
+        const gridCss = readFileSync(GRID_CSS_PATH, 'utf8');
 
-        expect(css).toContain('.response-type-grid {\n    display: grid;');
-        expect(css).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));');
-        expect(css).toContain('.response-type-group {');
-        expect(css).toContain('.response-type-group__header {');
-        expect(css).toContain('.response-type-group__count {');
-        expect(css).toContain('.response-card {');
-        expect(css).toContain('.response-card--new {');
+        expect(gridCss).toContain('.tab-list {');
+        expect(gridCss).toContain('.tab-button {');
+        expect(gridCss).toContain('.tab-panel[hidden] {');
+        expect(cardsCss).toContain('.response-type-group {');
+        expect(cardsCss).toContain('.response-type-group__header {');
+        expect(cardsCss).toContain('.response-type-group__count {');
+        expect(cardsCss).toContain('.response-card {');
+        expect(cardsCss).toContain('.response-card--new {');
     });
 
     it('labels the Green facilitator action trigger as New Proposal', () => {
@@ -978,7 +981,7 @@ describe('Facilitator and scribe access', () => {
         expect(proposalsBadge.hidden).toBe(false);
     });
 
-    it('groups White Cell responses by response type for easier scanning', async () => {
+    it('renders White Cell response categories as tabs for single-category scanning', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { communicationsStore } = await import('../stores/communications.js');
         const { requestsStore } = await import('../stores/requests.js');
@@ -1051,7 +1054,25 @@ describe('Facilitator and scribe access', () => {
         const controller = new FacilitatorController();
         controller.syncResponsesFromStores();
 
-        expect(responsesList.innerHTML).toContain('class="response-type-grid"');
+        expect(responsesList.innerHTML).toContain('class="tabbed-section response-tabs"');
+        expect(responsesList.innerHTML).toContain('data-responses-tabs');
+        expect(responsesList.innerHTML).toContain('role="tablist" aria-label="White Cell response categories"');
+        expect(responsesList.innerHTML).toContain('data-responses-tab="communication"');
+        expect(responsesList.innerHTML).toContain('data-responses-tab="rfi"');
+        expect(responsesList.innerHTML).toContain('data-responses-tab="white-cell-update"');
+        expect(responsesList.innerHTML).toContain('data-responses-tab="proposal"');
+        expect(responsesList.innerHTML).toContain('Direct Communications<span class="tab-badge">1</span>');
+        expect(responsesList.innerHTML).toContain('RFI Answers<span class="tab-badge">1</span>');
+        expect(responsesList.innerHTML).toContain('White Cell Updates<span class="tab-badge">1</span>');
+        expect(responsesList.innerHTML).toContain('Forwarded Proposals<span class="tab-badge">1</span>');
+        expect(responsesList.innerHTML).toContain('data-responses-panel="communication"');
+        expect(responsesList.innerHTML).toContain('data-responses-panel="rfi"');
+        expect(responsesList.innerHTML).toContain('data-responses-panel="white-cell-update"');
+        expect(responsesList.innerHTML).toContain('data-responses-panel="proposal"');
+        expect(responsesList.innerHTML).toContain('data-responses-tab="communication"\n                    role="tab"\n                    aria-selected="true"');
+        expect(responsesList.innerHTML).toContain('data-responses-panel="rfi"\n                    role="tabpanel"\n                    hidden');
+        expect(responsesList.innerHTML).toContain('data-responses-panel="white-cell-update"\n                    role="tabpanel"\n                    hidden');
+        expect(responsesList.innerHTML).toContain('data-responses-panel="proposal"\n                    role="tabpanel"\n                    hidden');
         expect(responsesList.innerHTML).toContain('aria-labelledby="responses-communication-heading"');
         expect(responsesList.innerHTML).toContain('Direct Communications');
         expect(responsesList.innerHTML).toContain('RFI Answers');
