@@ -212,6 +212,29 @@ describe('Facilitator and scribe access', () => {
         expect(redHtml).toContain('Forecast Blue');
     });
 
+    it('builds Strategic Orientation payloads with a non-null action sector', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+
+        const payload = controller.buildStrategicOrientationPayload({
+            selected: 'pressure',
+            levers: ['Expanded financial sanctions'],
+            costs: ['Sustained economic friction'],
+            posture: 'Calibrated \u2014 escalate deliberately',
+            rationale: 'Set the pre-Move 1 posture.'
+        });
+
+        expect(payload).toMatchObject({
+            mechanism: 'Strategic Orientation',
+            sector: '',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH'
+        });
+        expect(payload.ally_contingencies).toContain('Strategic Orientation Details');
+    });
+
     it('mounts a Blue facilitator guide that covers every facilitator surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();

@@ -189,19 +189,23 @@ function resolvePersistedActionMechanism(actionData = {}, {
 
 function resolveActionWritePayload(actionData = {}, operation = 'actionWrite', {
     requireMechanism = false,
-    allowEmptyMechanism = false
+    allowEmptyMechanism = false,
+    requireSector = false
 } = {}) {
     const hasExplicitMechanism = 'mechanism' in actionData;
+    const hasExplicitSector = 'sector' in actionData;
     const mechanism = resolvePersistedActionMechanism(actionData, {
         allowEmptyMechanism
     });
     const shouldWriteMechanism = requireMechanism || hasExplicitMechanism || Boolean(mechanism);
+    const shouldWriteSector = requireSector || hasExplicitSector;
 
     if (shouldWriteMechanism && mechanism == null) {
         if (allowEmptyMechanism && hasExplicitMechanism) {
             return {
                 ...actionData,
-                mechanism: ''
+                mechanism: '',
+                ...(shouldWriteSector ? { sector: actionData.sector ?? '' } : {})
             };
         }
 
@@ -210,7 +214,8 @@ function resolveActionWritePayload(actionData = {}, operation = 'actionWrite', {
 
     return {
         ...actionData,
-        ...(shouldWriteMechanism ? { mechanism } : {})
+        ...(shouldWriteMechanism ? { mechanism } : {}),
+        ...(shouldWriteSector ? { sector: actionData.sector ?? '' } : {})
     };
 }
 
@@ -959,7 +964,8 @@ export const database = {
         }
         const resolvedActionData = resolveActionWritePayload(actionData, 'createAction', {
             requireMechanism: true,
-            allowEmptyMechanism: status === ENUMS.ACTION_STATUS.DRAFT
+            allowEmptyMechanism: status === ENUMS.ACTION_STATUS.DRAFT,
+            requireSector: true
         });
         const submittedAt = status === ENUMS.ACTION_STATUS.SUBMITTED
             ? (resolvedActionData.submitted_at || new Date().toISOString())

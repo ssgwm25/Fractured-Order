@@ -2736,7 +2736,7 @@ export class FacilitatorController {
                 ? `${this.teamLabel} Forecast: Blue ${option.name}`
                 : `Strategic Orientation: ${option.name}`,
             mechanism: STRATEGIC_ORIENTATION_ACTION_MECHANISM,
-            sector: null,
+            sector: '',
             exposure_type: STRATEGIC_ORIENTATION_PERIOD,
             priority: 'HIGH',
             targets: [],
@@ -2993,7 +2993,7 @@ export class FacilitatorController {
         return {
             goal: data.title,
             mechanism: MOVE_RESPONSE_ACTION_MECHANISM,
-            sector: null,
+            sector: '',
             exposure_type: null,
             priority: 'NORMAL',
             targets: [],

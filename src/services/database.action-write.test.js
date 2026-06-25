@@ -134,7 +134,8 @@ describe('database action write contracts', () => {
         });
 
         expect(insert).toHaveBeenCalledWith(expect.objectContaining({
-            mechanism: 'Strategic Orientation'
+            mechanism: 'Strategic Orientation',
+            sector: ''
         }));
     });
 
@@ -170,6 +171,7 @@ describe('database action write contracts', () => {
         });
 
         expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+            sector: '',
             status: 'submitted',
             submitted_at: '2026-04-09T10:20:00.000Z'
         }));

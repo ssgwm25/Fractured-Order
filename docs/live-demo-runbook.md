@@ -98,6 +98,11 @@ Scribe:
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid
 
+Implementation note: Strategic Orientation artifacts and Red move responses share
+the `actions` table with normal Blue actions. They intentionally persist
+`sector` as an empty string when no sector applies, because the live table keeps
+that column non-null; role surfaces should render that as `Not specified`.
+
 Notetaker:
 
 - save dynamics and alliance notes
