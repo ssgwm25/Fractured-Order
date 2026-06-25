@@ -31,6 +31,7 @@ import {
     BLUE_ACTION_INSTRUMENTS,
     BLUE_ACTION_LEGISLATIVE_OPTIONS,
     BLUE_ACTION_LEVERS,
+    BLUE_ACTION_SCRIBE_HANDOFF,
     BLUE_ACTION_SECTORS,
     BLUE_ACTION_SUPPLY_CHAIN_FOCUS,
     formatActionSequenceLabel,
@@ -325,6 +326,9 @@ export class FacilitatorController {
         const actionTitle = this.isProposalTeam()
             ? 'Build proposals'
             : (this.teamId === 'red' ? 'Prepare move responses' : 'Draft actions');
+        const actionGuideBody = this.teamId === 'blue'
+            ? `Create and revise your team's ${actionNoun} here. Forward completed actions to the Scribe; the Scribe projects and submits them to White Cell.`
+            : `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`;
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:facilitator:${this.teamId}`,
             title: `${this.teamContext.facilitatorLabel} guide`,
@@ -340,7 +344,7 @@ export class FacilitatorController {
                 },
                 {
                     title: actionTitle,
-                    body: `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`,
+                    body: actionGuideBody,
                     highlight: navTarget('actions')
                 },
                 {
@@ -472,7 +476,7 @@ export class FacilitatorController {
             } else if (isRedResponseFlow) {
                 actionsDescription.textContent = 'Respond to Blue Team moves. White Cell reviews each response before it takes effect.';
             } else {
-                actionsDescription.textContent = 'Draft actions, submit them to White Cell, and track White Cell deliberation.';
+                actionsDescription.textContent = 'Draft actions, forward them to the Scribe, and track White Cell deliberation after scribe submission.';
             }
         }
 
@@ -1655,7 +1659,7 @@ export class FacilitatorController {
                 ? 'Create your first proposal to start the White Cell review flow.'
                 : (isRedResponseFlow
                     ? 'Create your first response to start the White Cell review flow.'
-                    : 'Create your first strategic action to start the draft to White Cell review flow.'));
+                    : 'Create your first strategic action to start the facilitator-to-scribe review flow.'));
 
         if (this.actions.length === 0) {
             actionsList.innerHTML = `
@@ -1683,11 +1687,11 @@ export class FacilitatorController {
             });
         });
 
-        actionsList.querySelectorAll('.submit-action-btn').forEach((button) => {
+        actionsList.querySelectorAll('.forward-action-btn').forEach((button) => {
             button.addEventListener('click', () => {
                 const action = this.actions.find((candidate) => candidate.id === button.dataset.actionId);
                 if (action) {
-                    this.confirmSubmitAction(action);
+                    this.confirmForwardAction(action);
                 }
             });
         });
@@ -1766,13 +1770,13 @@ export class FacilitatorController {
                 key: 'draft',
                 tabLabel: 'Draft',
                 title: 'Draft Strategic Actions',
-                description: 'Editable actions that have not yet been submitted to White Cell.'
+                description: 'Editable actions that have not yet been forwarded to the Scribe.'
             },
             {
                 key: 'submitted',
                 tabLabel: 'Submitted',
                 title: 'Submitted to White Cell',
-                description: 'Read-only actions currently awaiting White Cell review.'
+                description: 'Read-only actions submitted to White Cell by the Scribe.'
             },
             {
                 key: 'reviewed',
@@ -1994,7 +1998,7 @@ export class FacilitatorController {
                     ? [{ label: 'Legislative Route', value: legislativeOptionsLabel, wide: true }]
                     : []),
                 { label: 'Coordinated', value: formatBlueActionSelection(blueAction.coordinated, 'None selected') },
-                { label: 'Informed', value: formatBlueActionSelection(blueAction.informed, 'None selected') }
+                { label: 'Informed/Engaged', value: formatBlueActionSelection(blueAction.informed, 'None selected') }
             ]
             : [
                 ...(action.ally_contingencies ? [{ label: 'Ally Contingencies', value: action.ally_contingencies, wide: true }] : []),
@@ -2012,7 +2016,7 @@ export class FacilitatorController {
                     ? 'Draft proposals can be edited, sent to White Cell, or deleted by the active team-lead seat.'
                     : (isRedResponseFlow
                         ? 'Draft move responses can be edited, submitted, or deleted by the active team-lead seat.'
-                        : 'Draft actions can be edited, submitted, or deleted by the active team-lead seat.')}
+                        : 'Draft actions can be edited, forwarded to the Scribe, or deleted by the active team-lead seat.')}
             </p>
         `;
 
@@ -2026,7 +2030,7 @@ export class FacilitatorController {
                         ? 'This proposal is now read-only for facilitator and scribe seats until White Cell review.'
                         : (isRedResponseFlow
                             ? 'White Cell deliberation is underway. This move response is now read-only for facilitator and scribe seats.'
-                            : 'White Cell deliberation is underway. This action is now read-only for facilitator and scribe seats.')}
+                            : 'White Cell deliberation is underway. This action was submitted by the Scribe and is now read-only for facilitator and scribe seats.')}
                 </p>
             `;
         } else if (isAdjudicatedAction(action)) {
@@ -2087,8 +2091,8 @@ export class FacilitatorController {
                             </button>
                         ` : ''}
                         ${canSubmitDraft ? `
-                            <button class="btn btn-primary btn-sm submit-action-btn" data-action-id="${action.id}">
-                                Submit to White Cell
+                            <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
+                                Forward to Scribe
                             </button>
                         ` : ''}
                         ${canRemoveDraft ? `
@@ -3144,7 +3148,7 @@ export class FacilitatorController {
                             </div>
                         </div>
                         <div class="card card-bordered" style="padding: var(--space-4);">
-                            <h4 class="font-semibold" style="margin: 0 0 var(--space-3);">Informed</h4>
+                            <h4 class="font-semibold" style="margin: 0 0 var(--space-3);">Informed/Engaged</h4>
                             <div style="display: grid; gap: var(--space-3);">
                                 ${renderCheckboxOptions({
                                     values: BLUE_ACTION_INFORMED_OPTIONS,
@@ -3167,7 +3171,7 @@ export class FacilitatorController {
                 ? '<button type="button" class="btn btn-primary" data-blue-action-nav="saveChanges">Save Changes</button>'
                 : `
                                 <button type="button" class="btn btn-secondary" data-blue-action-nav="saveDraft">Save Draft</button>
-                                <button type="button" class="btn btn-primary" data-blue-action-nav="submit">Submit</button>
+                                <button type="button" class="btn btn-primary" data-blue-action-nav="submit">Forward to Scribe</button>
                             `}
                     </div>
                 </div>
@@ -3343,8 +3347,8 @@ export class FacilitatorController {
         });
 
         submitButton?.addEventListener('click', () => {
-            this.submitBlueActionFromWizard(modal, form).catch((error) => {
-                logger.error('Failed to submit Blue team action from wizard:', error);
+            this.forwardBlueActionFromWizard(modal, form).catch((error) => {
+                logger.error('Failed to forward Blue team action from wizard:', error);
             });
         });
 
@@ -3474,7 +3478,9 @@ export class FacilitatorController {
         return null;
     }
 
-    buildBlueActionPayload(wizardData) {
+    buildBlueActionPayload(wizardData, {
+        scribeHandoff = BLUE_ACTION_SCRIBE_HANDOFF.DRAFT
+    } = {}) {
         return {
             goal: wizardData.actionTitle,
             mechanism: wizardData.instrumentOfPower,
@@ -3490,8 +3496,32 @@ export class FacilitatorController {
                 implementation: wizardData.implementation,
                 legislativeOptions: wizardData.legislativeOptions,
                 enforcementTimeline: wizardData.enforcementTimeline,
+                scribeHandoff,
                 coordinated: wizardData.coordinated,
                 informed: wizardData.informed
+            })
+        };
+    }
+
+    buildForwardedBlueActionUpdate(action = {}) {
+        const actionViewModel = getBlueActionViewModel(action);
+        if (!actionViewModel.hasBlueActionDetails) {
+            return {};
+        }
+
+        return {
+            ally_contingencies: serializeBlueActionDetails({
+                objective: actionViewModel.objective,
+                levers: actionViewModel.levers,
+                sectors: actionViewModel.sectors,
+                implementation: actionViewModel.implementation,
+                legislativeOptions: actionViewModel.legislativeOptions,
+                enforcementTimeline: actionViewModel.enforcementTimeline,
+                scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED,
+                coordinatedDecision: actionViewModel.coordinatedDecision,
+                coordinated: actionViewModel.coordinated,
+                informedEngagedDecision: actionViewModel.informedEngagedDecision,
+                informed: actionViewModel.informed
             })
         };
     }
@@ -3571,7 +3601,15 @@ export class FacilitatorController {
         const loader = showLoader({ message: 'Updating draft...' });
 
         try {
-            const updatedAction = await database.updateDraftAction(actionId, this.buildBlueActionPayload(wizardData));
+            const existingAction = this.actions.find((candidate) => candidate?.id === actionId)
+                || actionsStore.getById(actionId)
+                || {};
+            const existingActionViewModel = getBlueActionViewModel(existingAction);
+            const updatedAction = await database.updateDraftAction(actionId, this.buildBlueActionPayload(wizardData, {
+                scribeHandoff: existingActionViewModel.scribeHandoff === BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
+                    ? BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
+                    : BLUE_ACTION_SCRIBE_HANDOFF.DRAFT
+            }));
             actionsStore.updateFromServer('UPDATE', updatedAction);
             showToast({ message: 'Draft action updated', type: 'success' });
             modal?.close();
@@ -3588,7 +3626,7 @@ export class FacilitatorController {
         }
     }
 
-    async submitBlueActionFromWizard(modal, form) {
+    async forwardBlueActionFromWizard(modal, form) {
         if (!this.requireWriteAccess()) return;
 
         const wizardData = this.getBlueActionWizardData(form);
@@ -3609,8 +3647,8 @@ export class FacilitatorController {
 
         const confirmed = await confirmModal({
             title: 'Confirm Action',
-            message: `Submit ${sequenceContext.label} to White Cell? It will appear as submitted immediately after confirmation.`,
-            confirmLabel: 'Submit',
+            message: `Forward ${sequenceContext.label} to the Scribe? The Scribe will project it and submit the completed action to White Cell.`,
+            confirmLabel: 'Forward',
             variant: 'primary'
         });
 
@@ -3618,12 +3656,14 @@ export class FacilitatorController {
             return;
         }
 
-        const loader = showLoader({ message: 'Submitting action...' });
+        const loader = showLoader({ message: 'Forwarding action to Scribe...' });
 
         try {
             const gameState = this.getCurrentGameState();
             const draftAction = await database.createAction({
-                ...this.buildBlueActionPayload(wizardData),
+                ...this.buildBlueActionPayload(wizardData, {
+                    scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
+                }),
                 session_id: sessionId,
                 client_id: sessionStore.getClientId(),
                 team: this.teamId,
@@ -3647,30 +3687,28 @@ export class FacilitatorController {
             });
             timelineStore.updateFromServer('INSERT', draftTimelineEvent);
 
-            const submittedAction = await database.submitAction(draftAction.id);
-            actionsStore.updateFromServer('UPDATE', submittedAction);
-
-            const submittedTimelineEvent = await database.createTimelineEvent({
-                session_id: submittedAction.session_id,
-                type: 'ACTION_SUBMITTED',
-                content: `Action submitted to White Cell: ${submittedAction.goal || 'Untitled action'}`,
+            const forwardedTimelineEvent = await database.createTimelineEvent({
+                session_id: draftAction.session_id,
+                type: 'ACTION_FORWARDED_TO_SCRIBE',
+                content: `Action forwarded to Scribe: ${draftAction.goal || 'Untitled action'}`,
                 metadata: {
-                    related_id: submittedAction.id,
-                    role: this.role || this.getCurrentLeadRole()
+                    related_id: draftAction.id,
+                    role: this.role || this.getCurrentLeadRole(),
+                    next_step: 'scribe_submit_to_white_cell'
                 },
                 team: this.teamId,
-                move: submittedAction.move ?? 1,
-                phase: submittedAction.phase ?? 1
+                move: draftAction.move ?? 1,
+                phase: draftAction.phase ?? 1
             });
-            timelineStore.updateFromServer('INSERT', submittedTimelineEvent);
+            timelineStore.updateFromServer('INSERT', forwardedTimelineEvent);
 
-            showToast({ message: 'Action submitted to White Cell', type: 'success' });
+            showToast({ message: 'Action forwarded to Scribe', type: 'success' });
             modal?.close();
         } catch (err) {
-            logger.error('Failed to submit Blue team action:', err);
+            logger.error('Failed to forward Blue team action:', err);
             showToast({
                 message: getUserMessage(err, {
-                    fallback: 'Failed to submit action. Refresh the draft and try again.'
+                    fallback: 'Failed to forward action. Refresh the draft and try again.'
                 }),
                 type: 'error'
             });
@@ -3878,10 +3916,10 @@ export class FacilitatorController {
         }
     }
 
-    async confirmSubmitAction(action) {
+    async confirmForwardAction(action) {
         if (!this.requireWriteAccess()) return;
         if (!canSubmitAction(action)) {
-            showToast({ message: 'Only draft actions can be submitted.', type: 'error' });
+            showToast({ message: 'Only draft actions can be forwarded to the Scribe.', type: 'error' });
             return;
         }
 
@@ -3890,31 +3928,37 @@ export class FacilitatorController {
             : 'this draft';
 
         const confirmed = await confirmModal({
-            title: 'Submit Action',
-            message: `Submit ${sequenceLabel} to White Cell for review? After submission it becomes read-only for facilitator and scribe seats.`,
-            confirmLabel: 'Submit',
+            title: 'Forward Action to Scribe',
+            message: `Forward ${sequenceLabel} to the Scribe? The Scribe will project it and submit the completed action to White Cell.`,
+            confirmLabel: 'Forward',
             variant: 'primary'
         });
 
         if (!confirmed) return;
-        await this.submitAction(action.id);
+        await this.forwardActionToScribe(action.id);
     }
 
-    async submitAction(actionId) {
+    async forwardActionToScribe(actionId) {
         if (!this.requireWriteAccess()) return;
-        const loader = showLoader({ message: 'Submitting action...' });
+        const loader = showLoader({ message: 'Forwarding action to Scribe...' });
 
         try {
-            const action = await database.submitAction(actionId);
+            const existingAction = actionsStore.getById(actionId)
+                || this.actions.find((candidate) => candidate?.id === actionId);
+            const action = await database.updateDraftAction(
+                actionId,
+                existingAction ? this.buildForwardedBlueActionUpdate(existingAction) : {}
+            );
             actionsStore.updateFromServer('UPDATE', action);
 
             const timelineEvent = await database.createTimelineEvent({
                 session_id: action.session_id,
-                type: 'ACTION_SUBMITTED',
-                content: `Action submitted to White Cell: ${action.goal || 'Untitled action'}`,
+                type: 'ACTION_FORWARDED_TO_SCRIBE',
+                content: `Action forwarded to Scribe: ${action.goal || 'Untitled action'}`,
                 metadata: {
                     related_id: action.id,
-                    role: this.role || this.getCurrentLeadRole()
+                    role: this.role || this.getCurrentLeadRole(),
+                    next_step: 'scribe_submit_to_white_cell'
                 },
                 team: this.teamId,
                 move: action.move ?? 1,
@@ -3922,12 +3966,12 @@ export class FacilitatorController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            showToast({ message: 'Action submitted to White Cell', type: 'success' });
+            showToast({ message: 'Action forwarded to Scribe', type: 'success' });
         } catch (err) {
-            logger.error('Failed to submit action:', err);
+            logger.error('Failed to forward action:', err);
             showToast({
                 message: getUserMessage(err, {
-                    fallback: 'Failed to submit action. Refresh the draft and try again.'
+                    fallback: 'Failed to forward action. Refresh the draft and try again.'
                 }),
                 type: 'error'
             });

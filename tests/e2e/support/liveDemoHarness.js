@@ -37,7 +37,7 @@ export const DEFAULT_ACTION_PAYLOAD = Object.freeze({
     enforcementTimeline: '6 months',
     expectedOutcomes: 'Reduce allied dependence and build leverage before the next move begins.',
     coordinated: ['Executive'],
-    informed: ['Allied']
+    informed: ['Allies']
 });
 
 function resolveExpectedUrlPattern(roleSurface) {
@@ -390,11 +390,47 @@ export async function createDraftAction(page, {
     await expect(page.locator('#actionsList')).toContainText(goal);
 }
 
-export async function submitAction(page, goal) {
+export async function forwardActionToScribe(page, goal) {
     const actionCard = page.locator('#actionsList > *').filter({ hasText: goal }).first();
-    await actionCard.getByRole('button', { name: 'Submit to White Cell' }).click();
+    await actionCard.getByRole('button', { name: 'Forward to Scribe' }).click();
+    await page.locator('.modal-overlay').getByRole('button', { name: 'Forward' }).click();
+    await expect(page.locator('#toast-container')).toContainText('Action forwarded to Scribe');
+}
+
+export async function submitActionFromScribe(page, goal, {
+    coordinated = ['Executive'],
+    informed = ['Allies']
+} = {}) {
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+    const actionsSectionTrigger = page.locator('#scribeSectionList .scribe-section-trigger[data-section-label="Actions"]').first();
+    await expect(actionsSectionTrigger).toBeVisible({ timeout: 20000 });
+    if (await actionsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+        await actionsSectionTrigger.click();
+    }
+
+    const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]').filter({ hasText: goal }).first();
+    await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
+    await actionSlideLink.click();
+
+    const panel = page.locator('[data-scribe-action-submit-panel]').filter({ hasText: 'Scribe finalization' }).first();
+    await expect(page.locator('#main-content')).toContainText(goal);
+    await panel.locator('[data-scribe-action-radio="coordinated"][value="yes"]').check();
+    for (const coordinatedValue of coordinated) {
+        await panel.locator(`[data-scribe-action-checkbox="coordinated"][value="${coordinatedValue}"]`).check();
+    }
+
+    await panel.locator('[data-scribe-action-radio="informed-engaged"][value="yes"]').check();
+    for (const informedValue of informed) {
+        await panel.locator(`[data-scribe-action-checkbox="informed-engaged"][value="${informedValue}"]`).check();
+    }
+
+    const submitButton = panel.getByRole('button', { name: 'Submit to White Cell' });
+    await expect(submitButton).toBeVisible();
+    await submitButton.click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
-    await expect(actionCard).toContainText('Submitted to White Cell');
+    await expect(page.locator('#main-content')).toContainText('Submitted to White Cell');
 }
 
 export async function adjudicateAction(page, {
@@ -503,7 +539,7 @@ export async function seedLargeExerciseData(page, {
             'Legislative Options: None selected',
             index % 2 === 0 ? 'Enforcement Timeline: 6 months' : 'Enforcement Timeline: 12 months',
             'Coordinated: ["Executive"]',
-            'Informed: ["Allied"]'
+            'Informed: ["Allies"]'
         ].join('\n');
         const proposalDetails = (index) => [
             'Proposal Details',

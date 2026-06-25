@@ -18,8 +18,22 @@ const RED_SCRIBE_HTML_PATH = new URL('../../teams/red/scribe.html', import.meta.
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
 const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
-const { mockMountFollowAlong } = vi.hoisted(() => ({
-    mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() }))
+const {
+    mockConfirmModal,
+    mockCreateTimelineEvent,
+    mockHideLoader,
+    mockMountFollowAlong,
+    mockShowLoader,
+    mockSubmitAction,
+    mockUpdateDraftAction
+} = vi.hoisted(() => ({
+    mockConfirmModal: vi.fn(),
+    mockCreateTimelineEvent: vi.fn(),
+    mockHideLoader: vi.fn(),
+    mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() })),
+    mockShowLoader: vi.fn(() => ({})),
+    mockSubmitAction: vi.fn(),
+    mockUpdateDraftAction: vi.fn()
 }));
 
 function normalizeLineEndings(value) {
@@ -38,6 +52,23 @@ function sectionButtonMarkup(html = '', label = '') {
 
 vi.mock('../components/ui/Toast.js', () => ({
     showToast: vi.fn()
+}));
+
+vi.mock('../components/ui/Loader.js', () => ({
+    showLoader: mockShowLoader,
+    hideLoader: mockHideLoader
+}));
+
+vi.mock('../components/ui/Modal.js', () => ({
+    confirmModal: mockConfirmModal
+}));
+
+vi.mock('../services/database.js', () => ({
+    database: {
+        updateDraftAction: mockUpdateDraftAction,
+        submitAction: mockSubmitAction,
+        createTimelineEvent: mockCreateTimelineEvent
+    }
 }));
 
 vi.mock('../features/onboarding/followAlong.js', () => ({
@@ -213,6 +244,7 @@ async function loadScribeModule() {
 
 describe('scribe surface', () => {
     afterEach(() => {
+        vi.clearAllMocks();
         vi.restoreAllMocks();
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
         global.document?.body?.removeAttribute?.('data-scribe-presentation');
@@ -502,6 +534,46 @@ describe('scribe surface', () => {
         });
     });
 
+    it('keeps forwarded action slides usable when the support deck cannot load', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { showToast } = await import('../components/ui/Toast.js');
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'blue';
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 404
+        });
+
+        const controller = new ScribeController();
+        controller.teamActions = [{
+            id: 'action-forwarded-fallback',
+            team: 'blue',
+            move: 1,
+            phase: 1,
+            goal: 'Keep the forwarded action usable',
+            expected_outcomes: 'Scribe can still submit without the support deck.',
+            mechanism: 'Economic',
+            status: 'draft',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Keep the forwarded action usable.',
+                scribeHandoff: 'Forwarded'
+            })
+        }];
+        controller.renderSections = vi.fn();
+        controller.renderSlide = vi.fn();
+
+        await controller.loadDeck();
+
+        expect(global.document.body.dataset.scribeDeckState).toBe('ready');
+        expect(controller.getCurrentSlideKey()).toBe('action-action-forwarded-fallback');
+        expect(controller.renderSections).toHaveBeenCalled();
+        expect(controller.renderSlide).toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'The scribe support deck could not be loaded. Showing live action slides only.',
+            type: 'warning'
+        });
+    });
+
     it('moves focus into the scribe alerts dialog, traps Tab, and restores focus on Escape', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
@@ -676,7 +748,7 @@ describe('scribe surface', () => {
         );
     });
 
-    it('builds live scribe action slides from facilitator drafts and submitted actions instead of deck images', async () => {
+    it('builds live scribe action slides from forwarded drafts and submitted actions instead of deck images', async () => {
         const { buildScribeActionSlides } = await loadScribeModule();
 
         const placeholderSlides = buildScribeActionSlides([], {
@@ -690,6 +762,23 @@ describe('scribe surface', () => {
         });
 
         const liveSlides = buildScribeActionSlides([{
+            id: 'action-unforwarded-draft',
+            team: 'blue',
+            move: 1,
+            phase: 1,
+            goal: 'Facilitator-only draft',
+            expected_outcomes: 'This draft has not been handed to the scribe.',
+            mechanism: 'Economic',
+            sector: 'Semiconductors',
+            exposure_type: 'Supply Chain',
+            targets: ['PRC'],
+            priority: 'NORMAL',
+            status: 'draft',
+            created_at: '2026-06-15T09:55:00.000Z',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Hold this draft inside the facilitator surface.'
+            })
+        }, {
             id: 'action-draft-1',
             team: 'blue',
             move: 1,
@@ -704,7 +793,15 @@ describe('scribe surface', () => {
             priority: 'HIGH',
             status: 'draft',
             created_at: '2026-06-15T10:00:00.000Z',
-            updated_at: '2026-06-15T10:05:00.000Z'
+            updated_at: '2026-06-15T10:05:00.000Z',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Coordinate allied export controls.',
+                levers: ['Export Controls'],
+                sectors: ['Semiconductors'],
+                implementation: 'Executive Order',
+                enforcementTimeline: '6 months',
+                scribeHandoff: 'Forwarded'
+            })
         }, {
             id: 'action-1',
             team: 'blue',
@@ -726,12 +823,13 @@ describe('scribe surface', () => {
         });
 
         expect(liveSlides.slideCount).toBe(2);
+        expect(liveSlides.slides.some((slide) => slide.slideKey === 'action-action-unforwarded-draft')).toBe(false);
         expect(liveSlides.slides[0]).toMatchObject({
             slideKey: 'action-action-draft-1',
             slideType: 'action',
             title: 'Coordinate allied export controls',
             sidebarOrdinal: '1',
-            sidebarKicker: 'Draft Preview | Blue Team | Move 1 | Action 1'
+            sidebarKicker: 'Forwarded to Scribe | Blue Team | Move 1 | Action 1'
         });
         expect(liveSlides.slides[1]).toMatchObject({
             slideKey: 'action-action-1',
@@ -772,7 +870,7 @@ describe('scribe surface', () => {
                 legislativeOptions: ['Existing legislation/policy'],
                 enforcementTimeline: '6 months',
                 coordinated: ['Legislative'],
-                informed: ['Allied']
+                informed: ['Allies']
             })
         };
 
@@ -795,7 +893,7 @@ describe('scribe surface', () => {
         expect(html).toContain('Keep public messaging aligned with allied licensing language.');
     });
 
-    it('moves the projected scribe stage onto a newly saved team draft slide', async () => {
+    it('moves the projected scribe stage onto a newly forwarded team draft slide', async () => {
         const { ScribeController } = await loadScribeModule();
         const { actionsStore } = await import('../stores/actions.js');
         const controller = new ScribeController();
@@ -804,11 +902,15 @@ describe('scribe surface', () => {
             team: controller.teamId,
             move: 1,
             phase: 1,
-            goal: 'Project the saved draft immediately',
-            description: 'Make the saved draft visible in the room before submission.',
+            goal: 'Project the forwarded draft immediately',
+            description: 'Make the forwarded draft visible in the room before submission.',
             status: 'draft',
             created_at: '2026-06-15T10:00:00.000Z',
-            updated_at: '2026-06-15T10:05:00.000Z'
+            updated_at: '2026-06-15T10:05:00.000Z',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Project the forwarded draft immediately.',
+                scribeHandoff: 'Forwarded'
+            })
         };
         const getByTeamSpy = vi.spyOn(actionsStore, 'getByTeam').mockReturnValue([draftAction]);
         controller.renderSlide = vi.fn();
@@ -832,7 +934,7 @@ describe('scribe surface', () => {
         getByTeamSpy.mockRestore();
     });
 
-    it('renders saved draft actions as room-ready preview slides before White Cell submission', async () => {
+    it('renders forwarded draft actions as room-ready Scribe submission slides before White Cell submission', async () => {
         const { ScribeController } = await loadScribeModule();
         global.document = createFakeDocument();
         global.document.body.dataset.team = 'blue';
@@ -859,6 +961,7 @@ describe('scribe surface', () => {
                 sectors: ['Semiconductors'],
                 implementation: 'Executive',
                 enforcementTimeline: 'Immediate',
+                scribeHandoff: 'Forwarded',
                 coordinated: ['Diplomatic'],
                 informed: ['Industry']
             })
@@ -868,17 +971,147 @@ describe('scribe surface', () => {
             slideKey: 'action-action-draft-preview',
             slideType: 'action',
             sidebarOrdinal: '1',
-            sidebarKicker: 'Draft Preview | Blue Team | Move 1 | Action 1',
+            sidebarKicker: 'Forwarded to Scribe | Blue Team | Move 1 | Action 1',
             action
         });
 
-        expect(html).toContain('Facilitator Draft Preview');
-        expect(html).toContain('What Blue Team is preparing');
-        expect(html).toContain('The working draft the team can review in the room before sending it to White Cell.');
+        expect(html).toContain('Facilitator Action for Scribe');
+        expect(html).toContain('What Blue Team is asking the Scribe to submit');
+        expect(html).toContain('Project this action for the room, complete the scribe coordination fields, then submit it to White Cell.');
         expect(html).toContain('Draft status');
         expect(html).toContain('Draft saved');
         expect(html).toContain('Not yet submitted to White Cell');
-        expect(html).toContain('Ready for facilitator submission');
+        expect(html).toContain('Awaiting Scribe submission');
+        expect(html).toContain('Scribe finalization');
+        expect(html).toContain('Project Action');
+        expect(html).toContain('Coordinated');
+        expect(html).toContain('Informed/Engaged');
+        expect(html).toContain('value="Industry"');
+        expect(html).toContain('value="Allies"');
+        expect(html).toContain('data-scribe-action-submit');
+        expect(html).toContain('hidden disabled aria-hidden="true"');
+    });
+
+    it('requires scribe yes/no decisions and selected tick boxes before showing submit', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+
+        expect(controller.isScribeActionSelectionsComplete({
+            coordinatedDecision: '',
+            informedEngagedDecision: '',
+            coordinatedValues: [],
+            informedValues: []
+        })).toBe(false);
+
+        expect(controller.isScribeActionSelectionsComplete({
+            coordinatedDecision: 'yes',
+            informedEngagedDecision: 'yes',
+            coordinatedValues: ['Legislative'],
+            informedValues: []
+        })).toBe(false);
+
+        expect(controller.isScribeActionSelectionsComplete({
+            coordinatedDecision: 'no',
+            informedEngagedDecision: 'yes',
+            coordinatedValues: [],
+            informedValues: ['Industry']
+        })).toBe(true);
+    });
+
+    it('submits completed action details from the scribe to White Cell', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        const actionsStoreSpy = vi.spyOn(actionsStore, 'updateFromServer');
+        const timelineStoreSpy = vi.spyOn(timelineStore, 'updateFromServer');
+        const action = {
+            id: 'action-scribe-submit',
+            session_id: 'session-scribe-submit',
+            team: 'blue',
+            move: 1,
+            phase: 2,
+            goal: 'Submit through the scribe',
+            expected_outcomes: 'White Cell receives only the completed action.',
+            mechanism: 'Economic',
+            sector: 'Biotechnology',
+            exposure_type: 'Refinement',
+            targets: ['PRC'],
+            priority: 'NORMAL',
+            status: 'draft',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Keep the scribe in the action submission loop.',
+                levers: ['Export Controls'],
+                sectors: ['Biotechnology'],
+                implementation: 'Legislative',
+                legislativeOptions: ['Existing legislation/policy'],
+                enforcementTimeline: '6 months',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+        const updatedDraft = {
+            ...action,
+            ally_contingencies: 'completed-details'
+        };
+        const submittedAction = {
+            ...updatedDraft,
+            status: 'submitted',
+            submitted_at: '2026-06-15T10:20:00.000Z'
+        };
+        mockUpdateDraftAction.mockResolvedValue(updatedDraft);
+        mockSubmitAction.mockResolvedValue(submittedAction);
+        mockCreateTimelineEvent.mockResolvedValue({
+            id: 'timeline-scribe-submit',
+            session_id: action.session_id,
+            type: 'ACTION_SUBMITTED',
+            content: 'Action submitted to White Cell by Scribe: Submit through the scribe',
+            team: 'blue',
+            move: 1,
+            phase: 2
+        });
+
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'blue';
+        const controller = new ScribeController();
+        controller.role = 'blue_scribe';
+        controller.teamId = 'blue';
+
+        await controller.submitScribeAction(action, {
+            coordinatedDecision: 'yes',
+            coordinatedValues: ['Legislative'],
+            informedEngagedDecision: 'yes',
+            informedValues: ['Industry', 'Allies']
+        });
+
+        expect(mockUpdateDraftAction).toHaveBeenCalledWith('action-scribe-submit', {
+            ally_contingencies: expect.stringContaining('Coordinated Decision: Yes')
+        });
+        expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Scribe Handoff: Forwarded');
+        expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Coordinated: ["Legislative"]');
+        expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Informed/Engaged Decision: Yes');
+        expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Informed: ["Industry","Allies"]');
+        expect(mockSubmitAction).toHaveBeenCalledWith('action-scribe-submit');
+        expect(mockCreateTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'ACTION_SUBMITTED',
+            content: 'Action submitted to White Cell by Scribe: Submit through the scribe',
+            metadata: expect.objectContaining({
+                submitted_by: 'scribe',
+                coordinated: {
+                    decision: 'Yes',
+                    legislative: true,
+                    executive: false
+                },
+                informed_engaged: {
+                    decision: 'Yes',
+                    industry: true,
+                    allies: true
+                }
+            })
+        }));
+        expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', updatedDraft);
+        expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', submittedAction);
+        expect(timelineStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'timeline-scribe-submit'
+        }));
     });
 
     it('ships a standalone blue scribe html shell with live session state ids and requested sidebar labels', () => {

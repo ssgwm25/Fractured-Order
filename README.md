@@ -13,9 +13,9 @@ The current exercise topology ships with four actor teams and two operator surfa
 | Landing | Session-code join, team selection, role selection, and operator access |
 | Game Master | Session creation/deletion, participant monitoring, and data export |
 | White Cell | Game controls, action/proposal/response review, RFI answers, communications, timeline review, and scribe deck assignment |
-| Team Facilitator | Blue strategic actions, Green and Industry proposals, Red move responses, RFIs, received White Cell updates, timeline, and quick capture |
+| Team Facilitator | Blue strategic action drafting and scribe handoff, Green and Industry proposals, Red move responses, RFIs, received White Cell updates, timeline, and quick capture |
 | Team Notetaker | Observations, team dynamics, alliance tracking, and move-scoped notes |
-| Team Scribe | Team support deck plus live action/communication slides |
+| Team Scribe | Team support deck, live action/communication slides, venue projection, and final Blue action submission to White Cell |
 
 The built-in teams are Blue, Red, Green, and Industry. Do not expand team geography or role topology during demo hardening unless the exercise design explicitly changes.
 

@@ -1514,7 +1514,7 @@ describe('White Cell DOM contract', () => {
                 legislativeOptions: ['Existing legislation/policy', 'Proposing new legislation/policy'],
                 enforcementTimeline: '12 months',
                 coordinated: ['Legislative'],
-                informed: ['Allied']
+                informed: ['Allies']
             })
         };
 
@@ -1530,11 +1530,13 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Focus Countries:</strong> PRC, Japan');
         expect(markup).toContain('Timeline:</strong> 12 months');
         expect(markup).toContain('Coordinated:</strong> Legislative');
+        expect(markup).toContain('Informed/Engaged:</strong> Allies');
         expect(markup).toContain('Blue Team | Move 2 | Action 2 &middot; Phase 2');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Objective: Constrain upstream dependency before the next move.');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Levers: Investment Screening, Industrial Policy');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Legislative Route: Existing legislation/policy, Proposing new legislation/policy');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Enforcement Timeline: 12 months');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Informed/Engaged: Allies');
     });
 
     it('renders structured Green proposal details for White Cell review', async () => {

@@ -11,12 +11,13 @@ import {
     createSessionFromMaster,
     adjudicateAction,
     expectJoinFailure,
+    forwardActionToScribe,
     getActiveSeatCounts,
     getSessionFromState,
     joinPublicParticipant,
     logoutCurrentUser,
     openSidebarSection,
-    submitAction,
+    submitActionFromScribe,
     waitForToast
 } from './support/liveDemoHarness.js';
 
@@ -134,10 +135,12 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         }, 'The requested role is full. Please choose another seat.');
     });
 
-    await test.step('verify the dedicated scribe deck and complete the facilitator to White Cell workflow', async () => {
+    await test.step('verify the dedicated scribe deck and complete the facilitator-to-scribe-to-White Cell workflow', async () => {
         await createDraftAction(facilitator, {
             goal: actionGoal
         });
+
+        await forwardActionToScribe(facilitator, actionGoal);
 
         await expect(scribe).toHaveURL(/\/teams\/blue\/scribe\.html(?:\?.*)?$/);
         await expect(scribe.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
@@ -159,7 +162,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         await expect(scribe.locator('#deckActionFrame')).toBeVisible();
         await expect(scribe.locator('#main-content')).toContainText(actionGoal);
 
-        await submitAction(facilitator, actionGoal);
+        await submitActionFromScribe(scribe, actionGoal);
 
         await adjudicateAction(whiteCellLead, {
             goal: actionGoal,

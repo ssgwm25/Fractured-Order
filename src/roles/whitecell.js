@@ -774,7 +774,7 @@ export function buildSharedActionCommunicationContent(action = {}) {
             contentParts.push(`Coordinated: ${blueAction.coordinated.join(', ')}`);
         }
         if (blueAction.informed.length) {
-            contentParts.push(`Informed: ${blueAction.informed.join(', ')}`);
+            contentParts.push(`Informed/Engaged: ${blueAction.informed.join(', ')}`);
         }
     } else if (action.ally_contingencies) {
         contentParts.push(`Ally Contingencies: ${action.ally_contingencies}`);
@@ -2600,7 +2600,7 @@ export class WhiteCellController {
                             ? [{ label: 'Legislative Route', value: legislativeOptionsLabel, wide: true }]
                             : []),
                         { label: 'Coordinated', value: formatBlueActionSelection(blueAction.coordinated, 'None selected') },
-                        { label: 'Informed', value: formatBlueActionSelection(blueAction.informed, 'None selected') }
+                        { label: 'Informed/Engaged', value: formatBlueActionSelection(blueAction.informed, 'None selected') }
                     ]
                     : [
                         ...(action.ally_contingencies ? [{ label: 'Ally Contingencies', value: action.ally_contingencies, wide: true }] : []),
@@ -2799,7 +2799,7 @@ export class WhiteCellController {
                     ` : ''}
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                         <strong>Coordinated:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.coordinated, 'None selected'))} |
-                        <strong>Informed:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}
+                        <strong>Informed/Engaged:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}
                     </p>
                 ` : action.ally_contingencies ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">

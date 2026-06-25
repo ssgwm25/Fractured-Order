@@ -25,6 +25,10 @@ const RESEARCH_EXPORT_CAPTURE_PATH = new URL(
     '../../data/2026-06-04_research_export_capture.sql',
     import.meta.url
 );
+const INDUSTRY_TEAM_ROLE_CONTRACT_PATH = new URL(
+    '../../data/2026-06-25_industry_team_role_contract.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -145,6 +149,23 @@ describe('database migration contracts', () => {
         expect(sql).toContain("type = 'PROPOSAL_RESPONSE'");
         expect(sql).toContain("forwarded.type = 'PROPOSAL_FORWARDED'");
         expect(sql).toContain("NOT IN ('responded', 'declined', 'ignored')");
+    });
+
+    it('ships a follow-up patch that adds Industry to live Supabase role contracts', () => {
+        const sql = readFileSync(INDUSTRY_TEAM_ROLE_CONTRACT_PATH, 'utf8');
+        const seatLimitBody = extractFunctionBody(sql, 'get_session_role_seat_limit');
+        const claimSeatBody = extractFunctionBody(sql, 'claim_session_role_seat');
+        const sendCommunicationBody = extractFunctionBody(sql, 'operator_send_communication');
+
+        expect(seatLimitBody).toContain("normalized_role ~ '^(blue|red|green|industry)_facilitator$' THEN 1");
+        expect(seatLimitBody).toContain("normalized_role ~ '^(blue|red|green|industry)_scribe$' THEN 1");
+        expect(seatLimitBody).toContain("normalized_role ~ '^(blue|red|green|industry)_notetaker$' THEN 2");
+        expect(claimSeatBody).toContain("WHEN normalized_role ~ '^(blue|red|green|industry)_' THEN split_part(normalized_role, '_', 1)");
+        expect(sendCommunicationBody).toContain("'industry'");
+        expect(sendCommunicationBody).toContain("'industry_facilitator'");
+        expect(sendCommunicationBody).toContain("'industry_scribe'");
+        expect(sendCommunicationBody).toContain("'industry_notetaker'");
+        expect(sql).toContain("WHEN forwarded.to_role IN ('blue', 'red', 'green', 'industry') THEN forwarded.to_role");
     });
 
     it('normalizes seat-claim role input before seat-limit evaluation', () => {

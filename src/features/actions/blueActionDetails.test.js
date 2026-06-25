@@ -15,11 +15,17 @@ describe('blue action details helpers', () => {
             implementation: 'Legislative',
             legislativeOptions: ['Existing legislation/policy', 'Proposing new legislation/policy'],
             enforcementTimeline: '6 months',
+            scribeHandoff: 'Forwarded',
+            coordinatedDecision: 'Yes',
             coordinated: ['Executive'],
-            informed: ['Corporate', 'Allied']
+            informedEngagedDecision: 'Yes',
+            informed: ['Industry', 'Allies']
         });
 
         expect(serialized).toContain('Blue Team Action Details');
+        expect(serialized).toContain('Scribe Handoff: Forwarded');
+        expect(serialized).toContain('Coordinated Decision: Yes');
+        expect(serialized).toContain('Informed/Engaged Decision: Yes');
         expect(parseBlueActionDetails(serialized)).toEqual({
             objective: 'Pressure semiconductor inputs before the next move.',
             lever: 'Export Controls',
@@ -29,8 +35,11 @@ describe('blue action details helpers', () => {
             implementation: 'Legislative',
             legislativeOptions: ['Existing legislation/policy', 'Proposing new legislation/policy'],
             enforcementTimeline: '6 months',
+            scribeHandoff: 'Forwarded',
+            coordinatedDecision: 'Yes',
             coordinated: ['Executive'],
-            informed: ['Corporate', 'Allied']
+            informedEngagedDecision: 'Yes',
+            informed: ['Industry', 'Allies']
         });
     });
 
@@ -54,7 +63,10 @@ describe('blue action details helpers', () => {
             implementation: 'Executive Order',
             legislativeOptions: [],
             enforcementTimeline: '6 months',
+            scribeHandoff: '',
+            coordinatedDecision: '',
             coordinated: ['Executive'],
+            informedEngagedDecision: '',
             informed: ['Corporate', 'Allied']
         });
     });
@@ -75,8 +87,11 @@ describe('blue action details helpers', () => {
                 implementation: 'Legislative',
                 legislativeOptions: ['Existing legislation/policy'],
                 enforcementTimeline: '12 months',
+                scribeHandoff: 'Forwarded',
+                coordinatedDecision: 'Yes',
                 coordinated: ['Legislative'],
-                informed: ['Allied']
+                informedEngagedDecision: 'Yes',
+                informed: ['Allies']
             })
         };
 
@@ -93,8 +108,11 @@ describe('blue action details helpers', () => {
             legislativeOptions: ['Existing legislation/policy'],
             enforcementTimeline: '12 months',
             focusCountries: ['PRC', 'Japan'],
+            scribeHandoff: 'Forwarded',
+            coordinatedDecision: 'Yes',
             coordinated: ['Legislative'],
-            informed: ['Allied']
+            informedEngagedDecision: 'Yes',
+            informed: ['Allies']
         });
     });
 });

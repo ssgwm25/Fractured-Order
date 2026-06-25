@@ -67,9 +67,20 @@ export const BLUE_ACTION_COORDINATED_OPTIONS = Object.freeze([
 ]);
 
 export const BLUE_ACTION_INFORMED_OPTIONS = Object.freeze([
-    'Corporate',
-    'Allied'
+    'Industry',
+    'Allies'
 ]);
+
+const ScribeDecisionValues = Object.freeze({
+    YES: 'Yes',
+    NO: 'No',
+    NOT_SELECTED: 'Not selected'
+});
+
+export const BLUE_ACTION_SCRIBE_HANDOFF = Object.freeze({
+    DRAFT: 'Draft',
+    FORWARDED: 'Forwarded'
+});
 
 function normalizeString(value) {
     return typeof value === 'string'
@@ -113,6 +124,34 @@ function parseStringList(value = '', emptyLabel = 'None selected') {
     return normalizeStringList(normalizedValue.split(','));
 }
 
+function normalizeScribeDecision(value = '') {
+    const normalizedValue = normalizeString(value).toLowerCase();
+
+    if (normalizedValue === 'yes') {
+        return ScribeDecisionValues.YES;
+    }
+
+    if (normalizedValue === 'no') {
+        return ScribeDecisionValues.NO;
+    }
+
+    return '';
+}
+
+function normalizeScribeHandoff(value = '') {
+    const normalizedValue = normalizeString(value).toLowerCase();
+
+    if (normalizedValue === 'forwarded' || normalizedValue === 'forwarded to scribe') {
+        return BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED;
+    }
+
+    if (normalizedValue === 'draft') {
+        return BLUE_ACTION_SCRIBE_HANDOFF.DRAFT;
+    }
+
+    return '';
+}
+
 function getActionTargets(action = {}) {
     return Array.isArray(action.targets)
         ? action.targets
@@ -133,6 +172,12 @@ export function serializeBlueActionDetails(details = {}) {
     const legislativeOptions = normalizeStringList(details.legislativeOptions);
     const coordinated = normalizeStringList(details.coordinated);
     const informed = normalizeStringList(details.informed);
+    const coordinatedDecision = normalizeScribeDecision(details.coordinatedDecision);
+    const informedEngagedDecision = normalizeScribeDecision(
+        details.informedEngagedDecision || details.informedDecision
+    );
+    const scribeHandoff = normalizeScribeHandoff(details.scribeHandoff)
+        || BLUE_ACTION_SCRIBE_HANDOFF.DRAFT;
 
     return [
         BLUE_ACTION_DETAILS_PREFIX,
@@ -142,7 +187,10 @@ export function serializeBlueActionDetails(details = {}) {
         `Implementation: ${normalizeString(details.implementation)}`,
         `Legislative Options: ${serializeStringList(legislativeOptions)}`,
         `Enforcement Timeline: ${normalizeString(details.enforcementTimeline)}`,
+        `Scribe Handoff: ${scribeHandoff}`,
+        `Coordinated Decision: ${coordinatedDecision || ScribeDecisionValues.NOT_SELECTED}`,
         `Coordinated: ${serializeStringList(coordinated)}`,
+        `Informed/Engaged Decision: ${informedEngagedDecision || ScribeDecisionValues.NOT_SELECTED}`,
         `Informed: ${serializeStringList(informed)}`
     ].join('\n');
 }
@@ -178,6 +226,11 @@ export function parseBlueActionDetails(value = '') {
         const legislativeOptions = parseStringList(parsed['Legislative Options']);
         const coordinated = parseStringList(parsed.Coordinated);
         const informed = parseStringList(parsed.Informed);
+        const coordinatedDecision = normalizeScribeDecision(parsed['Coordinated Decision']);
+        const informedEngagedDecision = normalizeScribeDecision(
+            parsed['Informed/Engaged Decision'] || parsed['Informed Decision']
+        );
+        const scribeHandoff = normalizeScribeHandoff(parsed['Scribe Handoff']);
 
         return {
             objective: normalizeString(parsed.Objective),
@@ -188,7 +241,10 @@ export function parseBlueActionDetails(value = '') {
             implementation: normalizeString(parsed.Implementation),
             legislativeOptions,
             enforcementTimeline: normalizeString(parsed['Enforcement Timeline']),
+            scribeHandoff,
+            coordinatedDecision,
             coordinated,
+            informedEngagedDecision,
             informed
         };
     } catch (_error) {
@@ -221,10 +277,17 @@ export function getBlueActionViewModel(action = {}) {
         focusCountries: getActionTargets(action),
         enforcementTimeline: details?.enforcementTimeline || '',
         expectedOutcomes: action.expected_outcomes || action.description || '',
+        scribeHandoff: details?.scribeHandoff || '',
+        coordinatedDecision: details?.coordinatedDecision || '',
         coordinated: details?.coordinated || [],
+        informedEngagedDecision: details?.informedEngagedDecision || '',
         informed: details?.informed || [],
         legacyNotes: details ? '' : normalizeString(action.ally_contingencies)
     };
+}
+
+export function isBlueActionForwardedToScribe(action = {}) {
+    return getBlueActionViewModel(action).scribeHandoff === BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED;
 }
 
 export function formatBlueActionSelection(values = [], fallback = 'Not specified') {

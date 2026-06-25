@@ -11,13 +11,14 @@ import {
     authorizeWhiteCell,
     createDraftAction,
     createSessionFromMaster,
+    forwardActionToScribe,
     joinPublicParticipant,
     LANDING_URL_PATTERN,
     logoutCurrentUser,
-    submitAction
+    submitActionFromScribe
 } from './support/liveDemoHarness.js';
 
-test('@smoke session creation, role join, action submit, and White Cell adjudication', async ({ browser }) => {
+test('@smoke session creation, facilitator handoff, scribe action submit, and White Cell adjudication', async ({ browser }) => {
     const context = await browser.newContext();
     await enableE2EMockBackend(context);
 
@@ -40,7 +41,7 @@ test('@smoke session creation, role join, action submit, and White Cell adjudica
         });
     });
 
-    await test.step('join as facilitator and submit an action', async () => {
+    await test.step('join as facilitator and forward an action to the scribe', async () => {
         await joinPublicParticipant(page, {
             sessionCode,
             displayName: 'Blue Lead',
@@ -52,7 +53,21 @@ test('@smoke session creation, role join, action submit, and White Cell adjudica
             goal: actionGoal
         });
 
-        await submitAction(page, actionGoal);
+        await forwardActionToScribe(page, actionGoal);
+    });
+
+    await test.step('join as scribe and submit the action to White Cell', async () => {
+        await logoutCurrentUser(page);
+        await page.waitForURL(LANDING_URL_PATTERN);
+
+        await joinPublicParticipant(page, {
+            sessionCode,
+            displayName: 'Blue Scribe',
+            team: 'blue',
+            roleSurface: 'scribe'
+        });
+
+        await submitActionFromScribe(page, actionGoal);
     });
 
     await test.step('rejoin as White Cell and adjudicate the submitted action', async () => {

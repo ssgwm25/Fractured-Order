@@ -6,7 +6,7 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
-3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass.
+3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql` before testing Industry seats.
 4. Confirm the role matrix can join: Blue, Red, Green, and Industry facilitators; scribes; notetakers; White Cell Lead; White Cell Support; Game Master.
 5. Confirm production source maps are not published by default.
 
@@ -73,7 +73,7 @@ White Cell Support should be able to monitor and communicate but not perform lea
 Facilitator:
 
 - create a draft action/proposal/response
-- submit it to White Cell
+- forward completed actions to the Scribe; proposals and move responses still enter White Cell review from their role-specific flows
 - submit RFIs across multiple category tabs
 - confirm White Cell responses are separated by category tabs and forwarded proposals appear
 - confirm timeline and quick capture render
@@ -91,7 +91,8 @@ White Cell:
 Scribe:
 
 - confirm default deck loads
-- confirm live actions/communications appear as slides
+- confirm only facilitator-forwarded actions and live communications appear as slides
+- project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid
 
 Notetaker:

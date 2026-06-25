@@ -1,9 +1,13 @@
 import { sessionStore } from '../stores/session.js';
 import { actionsStore } from '../stores/actions.js';
+import { timelineStore } from '../stores/timeline.js';
 import { communicationsStore } from '../stores/communications.js';
+import { database } from '../services/database.js';
 import { createLogger } from '../utils/logger.js';
 import { formatDateTime, formatRelativeTime, formatStatus } from '../utils/formatting.js';
 import { showToast } from '../components/ui/Toast.js';
+import { showLoader, hideLoader } from '../components/ui/Loader.js';
+import { confirmModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { createOutcomeBadge, createPriorityBadge, createStatusBadge } from '../components/ui/Badge.js';
@@ -16,10 +20,15 @@ import {
 } from '../core/enums.js';
 import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
 import {
+    BLUE_ACTION_COORDINATED_OPTIONS,
+    BLUE_ACTION_INFORMED_OPTIONS,
+    BLUE_ACTION_SCRIBE_HANDOFF,
     formatActionSequenceLabel,
     formatBlueActionSelection,
     getActionSequenceNumber,
-    getBlueActionViewModel
+    getBlueActionViewModel,
+    isBlueActionForwardedToScribe,
+    serializeBlueActionDetails
 } from '../features/actions/blueActionDetails.js';
 import {
     buildDefaultScribeDeckPath,
@@ -230,13 +239,13 @@ function buildActionPlaceholderSlide({
         title: `Awaiting ${teamLabel} facilitator decisions`,
         sidebarOrdinal: '0',
         sidebarKicker: 'No live action slides yet',
-        summary: 'Saved drafts, submitted actions, and White Cell updates will appear here as follow-along briefing slides for the team scribe.'
+        summary: 'Facilitator-forwarded drafts, scribe submissions, and White Cell updates will appear here as follow-along briefing slides for the team scribe.'
     };
 }
 
 function getActionSlideLifecycleLabel(action = {}) {
     if (isDraftAction(action)) {
-        return 'Draft Preview';
+        return 'Forwarded to Scribe';
     }
 
     if (isAdjudicatedAction(action)) {
@@ -250,10 +259,14 @@ function getActionSlideLifecycleLabel(action = {}) {
     return 'Action';
 }
 
+function isScribeVisibleAction(action = {}) {
+    return !isDraftAction(action) || isBlueActionForwardedToScribe(action);
+}
+
 export function buildScribeActionSlides(actions = [], {
     teamLabel = 'Team'
 } = {}) {
-    const sortedActions = sortTeamActions(actions);
+    const sortedActions = sortTeamActions(actions.filter(isScribeVisibleAction));
 
     if (!sortedActions.length) {
         return {
@@ -296,7 +309,7 @@ function buildActionSection(actions = [], {
     return {
         id: ACTIONS_SECTION_ID,
         label: 'Actions',
-        description: 'Live facilitator drafts, submitted actions, and White Cell deliberation updates for the scribe seat.',
+        description: 'Live facilitator-forwarded drafts, scribe submissions, and White Cell deliberation updates for the scribe seat.',
         slideCount: actionSlides.slideCount,
         slides: actionSlides.slides
     };
@@ -342,9 +355,116 @@ function renderActionSlideDataRow({
     `;
 }
 
+function normalizeScribeDecision(value = '') {
+    const normalizedValue = String(value || '').trim().toLowerCase();
+
+    if (normalizedValue === 'yes') {
+        return 'yes';
+    }
+
+    if (normalizedValue === 'no') {
+        return 'no';
+    }
+
+    return '';
+}
+
+function formatScribeDecision(value = '') {
+    return normalizeScribeDecision(value) === 'yes' ? 'Yes'
+        : (normalizeScribeDecision(value) === 'no' ? 'No' : '');
+}
+
+function buildScribeControlId(actionId = '', group = '', suffix = '') {
+    const safeActionId = String(actionId || 'action').replace(/[^a-z0-9]+/gi, '-');
+    const safeSuffix = String(suffix || 'option').replace(/[^a-z0-9]+/gi, '-');
+    return `scribe-${safeActionId}-${group}-${safeSuffix}`;
+}
+
+function isScribeOptionSelected(value = '', selectedValues = []) {
+    if (selectedValues.includes(value)) {
+        return true;
+    }
+
+    const aliases = {
+        Industry: ['Corporate'],
+        Allies: ['Allied']
+    };
+
+    return (aliases[value] || []).some((alias) => selectedValues.includes(alias));
+}
+
+function renderScribeDecisionRadio({
+    actionId = '',
+    group = '',
+    value = '',
+    label = '',
+    checked = false
+} = {}) {
+    const optionId = buildScribeControlId(actionId, group, value);
+
+    return `
+        <label class="scribe-action-slide-radio" for="${escapeHtml(optionId)}">
+            <input
+                id="${escapeHtml(optionId)}"
+                type="radio"
+                name="scribe-${escapeHtml(String(actionId || 'action'))}-${escapeHtml(group)}"
+                value="${escapeHtml(value)}"
+                data-scribe-action-radio="${escapeHtml(group)}"
+                ${checked ? 'checked' : ''}
+            >
+            <span>${escapeHtml(label)}</span>
+        </label>
+    `;
+}
+
+function renderScribeActionCheckboxes({
+    actionId = '',
+    group = '',
+    values = [],
+    selectedValues = [],
+    disabled = false
+} = {}) {
+    return values.map((value) => {
+        const optionId = buildScribeControlId(actionId, group, value);
+        const isChecked = isScribeOptionSelected(value, selectedValues);
+
+        return `
+            <label class="scribe-action-slide-check" for="${escapeHtml(optionId)}">
+                <input
+                    id="${escapeHtml(optionId)}"
+                    type="checkbox"
+                    value="${escapeHtml(value)}"
+                    data-scribe-action-checkbox="${escapeHtml(group)}"
+                    ${isChecked ? 'checked' : ''}
+                    ${disabled ? 'disabled' : ''}
+                >
+                <span>${escapeHtml(value)}</span>
+            </label>
+        `;
+    }).join('');
+}
+
+function buildScribeSubmissionMetadata(selections = {}) {
+    const coordinatedValues = selections.coordinatedValues || [];
+    const informedValues = selections.informedValues || [];
+
+    return {
+        coordinated: {
+            decision: formatScribeDecision(selections.coordinatedDecision),
+            legislative: coordinatedValues.includes('Legislative'),
+            executive: coordinatedValues.includes('Executive')
+        },
+        informed_engaged: {
+            decision: formatScribeDecision(selections.informedEngagedDecision),
+            industry: informedValues.includes('Industry'),
+            allies: informedValues.includes('Allies')
+        }
+    };
+}
+
 function getActionSlideAnnouncementLabel(action = {}) {
     if (isDraftAction(action)) {
-        return 'Draft preview';
+        return 'Forwarded action';
     }
 
     if (isAdjudicatedAction(action)) {
@@ -414,6 +534,7 @@ export class ScribeController {
         this.alertsReturnFocus = null;
         this.knownCommunicationIds = new Set();
         this.actionStatusById = new Map();
+        this.actionVisibleById = new Map();
         this.communicationsSeeded = false;
         this.actionsSeeded = false;
     }
@@ -570,6 +691,34 @@ export class ScribeController {
             void this.loadDeck();
         });
 
+        const actionFrame = document.getElementById('deckActionFrame');
+        actionFrame?.addEventListener('change', (event) => {
+            if (
+                event.target.closest('[data-scribe-action-radio]')
+                || event.target.closest('[data-scribe-action-checkbox]')
+            ) {
+                const panel = event.target.closest('[data-scribe-action-submit-panel]');
+                this.updateScribeActionSubmitState(panel);
+            }
+        });
+        actionFrame?.addEventListener('click', (event) => {
+            const projectButton = event.target.closest('[data-scribe-action-project]');
+            if (projectButton) {
+                this.projectScribeAction(projectButton.dataset.actionId || '').catch((error) => {
+                    logger.error('Failed to project scribe action:', error);
+                });
+                return;
+            }
+
+            const submitButton = event.target.closest('[data-scribe-action-submit]');
+            if (submitButton) {
+                const panel = submitButton.closest('[data-scribe-action-submit-panel]');
+                this.confirmSubmitScribeAction(submitButton.dataset.actionId || '', panel).catch((error) => {
+                    logger.error('Failed to submit scribe action:', error);
+                });
+            }
+        });
+
         const sectionListEl = document.getElementById('scribeSectionList');
         sectionListEl?.addEventListener('click', (event) => {
             const slideButton = event.target.closest('[data-slide-key]');
@@ -709,6 +858,7 @@ export class ScribeController {
             (event === 'created' || event === 'updated')
             && data?.team === this.teamId
             && isDraftAction(data)
+            && isScribeVisibleAction(data)
         );
         const preferredSlideKey = shouldFocusDraftPreview
             ? `action-${data.id}`
@@ -738,6 +888,7 @@ export class ScribeController {
         actionsStore.getByTeam(this.teamId).forEach((action) => {
             if (action?.id) {
                 this.actionStatusById.set(action.id, action.status);
+                this.actionVisibleById.set(action.id, isScribeVisibleAction(action));
             }
         });
         this.actionsSeeded = true;
@@ -760,6 +911,7 @@ export class ScribeController {
             this.teamActions.forEach((action) => {
                 if (action?.id) {
                     this.actionStatusById.set(action.id, action.status);
+                    this.actionVisibleById.set(action.id, isScribeVisibleAction(action));
                 }
             });
             this.actionsSeeded = true;
@@ -771,10 +923,17 @@ export class ScribeController {
         }
 
         const previousStatus = this.actionStatusById.get(data.id);
+        const wasVisible = this.actionVisibleById.get(data.id) === true;
         const nextStatus = data.status;
-        const isNewAction = event === 'created' || previousStatus === undefined;
+        const isVisible = isScribeVisibleAction(data);
+        const isNewAction = event === 'created' || previousStatus === undefined || (!wasVisible && isVisible);
         const statusChanged = previousStatus !== nextStatus;
         this.actionStatusById.set(data.id, nextStatus);
+        this.actionVisibleById.set(data.id, isVisible);
+
+        if (!isVisible) {
+            return;
+        }
 
         // Skip silent edits (e.g. draft re-saves) that don't change lifecycle state.
         if (!isNewAction && !statusChanged) {
@@ -801,7 +960,7 @@ export class ScribeController {
         } else if (isSubmittedAction(action)) {
             title = 'Action submitted to White Cell';
         } else if (isDraftAction(action)) {
-            title = isNewAction ? 'New action drafted' : 'Draft action updated';
+            title = isNewAction ? 'Action forwarded by Facilitator' : 'Facilitator action updated';
         } else {
             title = 'Action updated';
         }
@@ -1175,6 +1334,22 @@ export class ScribeController {
             this.renderSlide();
         } catch (error) {
             logger.error('Failed to load scribe deck:', error);
+            this.facilitatorDeckSlides = [];
+            this.rebuildDeck({
+                preferActionsSection: true
+            });
+            const actionSection = this.sections.find((section) => section.id === ACTIONS_SECTION_ID);
+            if ((actionSection?.slideCount || 0) > 0) {
+                this.setDeckState('ready');
+                this.renderSections();
+                this.renderSlide();
+                showToast({
+                    message: 'The scribe support deck could not be loaded. Showing live action slides only.',
+                    type: 'warning'
+                });
+                return;
+            }
+
             this.setDeckState('error');
             this.renderDeckState({
                 title: 'Support deck unavailable',
@@ -1459,6 +1634,303 @@ export class ScribeController {
         this.renderSections();
     }
 
+    renderScribeActionSubmissionControls(action = {}, actionViewModel = getBlueActionViewModel(action)) {
+        if (!isDraftAction(action)) {
+            return '';
+        }
+
+        if (!isBlueActionForwardedToScribe(action)) {
+            return '';
+        }
+
+        const actionId = String(action.id || '');
+        const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
+        const informedEngagedDecision = normalizeScribeDecision(actionViewModel.informedEngagedDecision);
+        const coordinatedValues = actionViewModel.coordinated || [];
+        const informedValues = actionViewModel.informed || [];
+        const selections = {
+            coordinatedDecision,
+            informedEngagedDecision,
+            coordinatedValues: coordinatedDecision === 'yes' ? coordinatedValues : [],
+            informedValues: informedEngagedDecision === 'yes' ? informedValues : []
+        };
+        const isComplete = this.isScribeActionSelectionsComplete(selections);
+
+        return `
+            <section
+                class="scribe-action-slide-submit-panel"
+                data-scribe-action-submit-panel
+                data-action-id="${escapeHtml(actionId)}"
+                aria-label="Scribe action submission controls"
+            >
+                <div class="scribe-action-slide-submit-head">
+                    <div>
+                        <p class="scribe-action-slide-section-label">Scribe finalization</p>
+                        <h3 class="scribe-action-slide-submit-title">Project, coordinate, and submit</h3>
+                    </div>
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        data-scribe-action-project
+                        data-action-id="${escapeHtml(actionId)}"
+                    >Project Action</button>
+                </div>
+
+                <div class="scribe-action-slide-submit-grid">
+                    <fieldset class="scribe-action-slide-fieldset" data-scribe-action-group="coordinated">
+                        <legend>Coordinated</legend>
+                        <div class="scribe-action-slide-radio-row" role="radiogroup" aria-label="Coordinated decision">
+                            ${renderScribeDecisionRadio({
+            actionId,
+            group: 'coordinated',
+            value: 'yes',
+            label: 'Yes',
+            checked: coordinatedDecision === 'yes'
+        })}
+                            ${renderScribeDecisionRadio({
+            actionId,
+            group: 'coordinated',
+            value: 'no',
+            label: 'No',
+            checked: coordinatedDecision === 'no'
+        })}
+                        </div>
+                        <div class="scribe-action-slide-check-row" aria-label="Coordinated tick boxes">
+                            ${renderScribeActionCheckboxes({
+            actionId,
+            group: 'coordinated',
+            values: BLUE_ACTION_COORDINATED_OPTIONS,
+            selectedValues: coordinatedValues,
+            disabled: coordinatedDecision !== 'yes'
+        })}
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="scribe-action-slide-fieldset" data-scribe-action-group="informed-engaged">
+                        <legend>Informed/Engaged</legend>
+                        <div class="scribe-action-slide-radio-row" role="radiogroup" aria-label="Informed or engaged decision">
+                            ${renderScribeDecisionRadio({
+            actionId,
+            group: 'informed-engaged',
+            value: 'yes',
+            label: 'Yes',
+            checked: informedEngagedDecision === 'yes'
+        })}
+                            ${renderScribeDecisionRadio({
+            actionId,
+            group: 'informed-engaged',
+            value: 'no',
+            label: 'No',
+            checked: informedEngagedDecision === 'no'
+        })}
+                        </div>
+                        <div class="scribe-action-slide-check-row" aria-label="Informed or engaged tick boxes">
+                            ${renderScribeActionCheckboxes({
+            actionId,
+            group: 'informed-engaged',
+            values: BLUE_ACTION_INFORMED_OPTIONS,
+            selectedValues: informedValues,
+            disabled: informedEngagedDecision !== 'yes'
+        })}
+                        </div>
+                    </fieldset>
+                </div>
+
+                <div class="scribe-action-slide-submit-actions">
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-scribe-action-submit
+                        data-action-id="${escapeHtml(actionId)}"
+                        ${isComplete ? '' : 'hidden disabled aria-hidden="true"'}
+                    >Submit to White Cell</button>
+                </div>
+            </section>
+        `;
+    }
+
+    updateScribeActionSubmitState(panel) {
+        if (!panel) {
+            return;
+        }
+
+        ['coordinated', 'informed-engaged'].forEach((group) => {
+            const decision = normalizeScribeDecision(
+                panel.querySelector(`[data-scribe-action-radio="${group}"]:checked`)?.value
+            );
+            const checkboxes = Array.from(panel.querySelectorAll(`[data-scribe-action-checkbox="${group}"]`));
+            const disableCheckboxes = decision !== 'yes';
+
+            checkboxes.forEach((checkbox) => {
+                checkbox.disabled = disableCheckboxes;
+                if (decision === 'no') {
+                    checkbox.checked = false;
+                }
+            });
+        });
+
+        const submitButton = panel.querySelector('[data-scribe-action-submit]');
+        const isComplete = this.isScribeActionSelectionsComplete(this.getScribeActionSelections(panel));
+        if (submitButton) {
+            submitButton.hidden = !isComplete;
+            submitButton.disabled = !isComplete;
+            submitButton.toggleAttribute?.('aria-hidden', !isComplete);
+        }
+    }
+
+    getScribeActionSelections(panel) {
+        const coordinatedDecision = normalizeScribeDecision(
+            panel?.querySelector?.('[data-scribe-action-radio="coordinated"]:checked')?.value
+        );
+        const informedEngagedDecision = normalizeScribeDecision(
+            panel?.querySelector?.('[data-scribe-action-radio="informed-engaged"]:checked')?.value
+        );
+        const coordinatedValues = coordinatedDecision === 'yes'
+            ? Array.from(panel?.querySelectorAll?.('[data-scribe-action-checkbox="coordinated"]:checked') || [])
+                .map((checkbox) => checkbox.value)
+            : [];
+        const informedValues = informedEngagedDecision === 'yes'
+            ? Array.from(panel?.querySelectorAll?.('[data-scribe-action-checkbox="informed-engaged"]:checked') || [])
+                .map((checkbox) => checkbox.value)
+            : [];
+
+        return {
+            coordinatedDecision,
+            informedEngagedDecision,
+            coordinatedValues,
+            informedValues
+        };
+    }
+
+    isScribeActionSelectionsComplete(selections = {}) {
+        const coordinatedDecision = normalizeScribeDecision(selections.coordinatedDecision);
+        const informedEngagedDecision = normalizeScribeDecision(selections.informedEngagedDecision);
+
+        if (!coordinatedDecision || !informedEngagedDecision) {
+            return false;
+        }
+
+        if (coordinatedDecision === 'yes' && !(selections.coordinatedValues || []).length) {
+            return false;
+        }
+
+        if (informedEngagedDecision === 'yes' && !(selections.informedValues || []).length) {
+            return false;
+        }
+
+        return true;
+    }
+
+    buildCompletedActionDetails(action = {}, selections = {}) {
+        const actionViewModel = getBlueActionViewModel(action);
+
+        return serializeBlueActionDetails({
+            objective: actionViewModel.objective,
+            levers: actionViewModel.levers,
+            sectors: actionViewModel.sectors,
+            implementation: actionViewModel.implementation,
+            legislativeOptions: actionViewModel.legislativeOptions,
+            enforcementTimeline: actionViewModel.enforcementTimeline,
+            scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED,
+            coordinatedDecision: formatScribeDecision(selections.coordinatedDecision),
+            coordinated: selections.coordinatedValues || [],
+            informedEngagedDecision: formatScribeDecision(selections.informedEngagedDecision),
+            informed: selections.informedValues || []
+        });
+    }
+
+    async projectScribeAction(actionId = '') {
+        if (!actionId) {
+            return;
+        }
+
+        this.setSlideByKey(`action-${actionId}`);
+
+        if (!this.isPresentationModeActive()) {
+            await this.togglePresentationMode();
+        }
+    }
+
+    async confirmSubmitScribeAction(actionId = '', panel = null) {
+        const action = this.teamActions.find((candidate) => candidate?.id === actionId);
+        if (!action) {
+            showToast({ message: 'Action not found. Refresh the scribe view and try again.', type: 'error' });
+            return;
+        }
+
+        if (!isDraftAction(action)) {
+            showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
+            return;
+        }
+
+        if (!isBlueActionForwardedToScribe(action)) {
+            showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
+            return;
+        }
+
+        const selections = this.getScribeActionSelections(panel);
+        if (!this.isScribeActionSelectionsComplete(selections)) {
+            showToast({ message: 'Select Coordinated and Informed/Engaged details before submitting.', type: 'error' });
+            return;
+        }
+
+        const confirmed = await confirmModal({
+            title: 'Submit Action to White Cell',
+            message: 'Submit this completed action to White Cell? The action will become read-only for facilitator and scribe seats.',
+            confirmLabel: 'Submit',
+            variant: 'primary'
+        });
+
+        if (!confirmed) {
+            return;
+        }
+
+        await this.submitScribeAction(action, selections);
+    }
+
+    async submitScribeAction(action = {}, selections = {}) {
+        if (!isDraftAction(action) || !isBlueActionForwardedToScribe(action)) {
+            showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
+            return;
+        }
+
+        const loader = showLoader({ message: 'Submitting action to White Cell...' });
+
+        try {
+            const completedDetails = this.buildCompletedActionDetails(action, selections);
+            const updatedDraft = await database.updateDraftAction(action.id, {
+                ally_contingencies: completedDetails
+            });
+            actionsStore.updateFromServer('UPDATE', updatedDraft);
+
+            const submittedAction = await database.submitAction(action.id);
+            actionsStore.updateFromServer('UPDATE', submittedAction);
+
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: submittedAction.session_id || action.session_id,
+                type: 'ACTION_SUBMITTED',
+                content: `Action submitted to White Cell by Scribe: ${submittedAction.goal || action.goal || 'Untitled action'}`,
+                metadata: {
+                    related_id: submittedAction.id || action.id,
+                    role: this.role || this.teamContext.scribeRole,
+                    submitted_by: 'scribe',
+                    ...buildScribeSubmissionMetadata(selections)
+                },
+                team: this.teamId,
+                move: submittedAction.move ?? action.move ?? 1,
+                phase: submittedAction.phase ?? action.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+
+            showToast({ message: 'Action submitted to White Cell', type: 'success' });
+        } catch (error) {
+            logger.error('Failed to submit scribe action:', error);
+            showToast({ message: 'Failed to submit action. Refresh the scribe view and try again.', type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
     renderActionSlide(slide) {
         if (slide.slideType === 'action-placeholder') {
             return `
@@ -1521,7 +1993,7 @@ export class ScribeController {
         const focusSupport = sectors !== 'Not specified'
             ? `Sectors: ${sectors}`
             : 'Sector detail pending';
-        const coordinationSupport = `Informed: ${informed}`;
+        const coordinationSupport = `Informed/Engaged: ${informed}`;
         const whiteCellNoteMarkup = action.adjudication_notes
             ? `
                 <section class="scribe-action-slide-note-card" aria-label="White Cell note">
@@ -1531,13 +2003,13 @@ export class ScribeController {
             `
             : '';
         const slideEyebrow = isDraftPreview
-            ? 'Facilitator Draft Preview'
+            ? 'Facilitator Action for Scribe'
             : 'Facilitator Decision';
         const sectionLabel = isDraftPreview
-            ? `What ${this.teamLabel} is preparing`
+            ? `What ${this.teamLabel} is asking the Scribe to submit`
             : `What ${this.teamLabel} is doing`;
         const glanceCopy = isDraftPreview
-            ? 'The working draft the team can review in the room before sending it to White Cell.'
+            ? 'Project this action for the room, complete the scribe coordination fields, then submit it to White Cell.'
             : 'The core move, where it lands, and how it will be carried out.';
         const statusBlockTitle = isDraftPreview
             ? 'Draft status'
@@ -1554,7 +2026,7 @@ export class ScribeController {
                 },
                 {
                     label: 'Submission',
-                    value: 'Ready for facilitator submission'
+                    value: 'Awaiting Scribe submission'
                 },
                 {
                     label: 'White Cell status',
@@ -1586,6 +2058,9 @@ export class ScribeController {
                     <p class="scribe-action-slide-note-body">${escapeHtml(actionViewModel.legacyNotes)}</p>
                 </section>
             `
+            : '';
+        const scribeSubmissionControls = isDraftPreview
+            ? this.renderScribeActionSubmissionControls(action, actionViewModel)
             : '';
 
         return `
@@ -1677,6 +2152,7 @@ export class ScribeController {
                     </div>
 
                     ${legacyNotes}
+                    ${scribeSubmissionControls}
                 </section>
             </article>
         `;

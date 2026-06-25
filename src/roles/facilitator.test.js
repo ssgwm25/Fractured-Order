@@ -697,7 +697,7 @@ describe('Facilitator and scribe access', () => {
                 legislativeOptions: ['Existing legislation/policy', 'Proposing new legislation/policy'],
                 enforcementTimeline: '6 months',
                 coordinated: ['Executive'],
-                informed: ['Allied']
+                informed: ['Allies']
             })
         }];
         const markup = controller.renderActionCard(controller.actions[1]);
@@ -707,7 +707,7 @@ describe('Facilitator and scribe access', () => {
         expect(markup).toContain('Sectors:</strong> Biotechnology, Agriculture');
         expect(markup).toContain('Legislative Route:</strong> Existing legislation/policy, Proposing new legislation/policy');
         expect(markup).toContain('Coordinated:</strong> Executive');
-        expect(markup).toContain('Informed:</strong> Allied');
+        expect(markup).toContain('Informed/Engaged:</strong> Allies');
         expect(markup).toContain('Timeline:</strong> 6 months');
         expect(markup).toContain('Blue Team | Move 2 | Action 2');
     });
@@ -788,7 +788,7 @@ describe('Facilitator and scribe access', () => {
                 }
 
                 if (selector === '[data-blue-action-checkbox="informed"]:checked') {
-                    return [{ value: 'Allied' }];
+                    return [{ value: 'Allies' }];
                 }
 
                 return [];
@@ -799,7 +799,7 @@ describe('Facilitator and scribe access', () => {
         expect(wizardData.sectors).toEqual(['Biotechnology', 'Agriculture']);
         expect(wizardData.focusCountries).toEqual(['Kenya', 'BRICS+']);
         expect(wizardData.coordinated).toEqual(['Executive']);
-        expect(wizardData.informed).toEqual(['Allied']);
+        expect(wizardData.informed).toEqual(['Allies']);
 
         global.document = {
             getElementById(id) {
@@ -993,6 +993,80 @@ describe('Facilitator and scribe access', () => {
         }));
         expect(showToast).toHaveBeenCalledWith({ message: 'Draft action saved', type: 'success' });
         expect(modal.close).toHaveBeenCalled();
+    });
+
+    it('forwards Blue drafts to the Scribe without submitting them to White Cell', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        const forwardedAction = {
+            id: 'action-blue-draft-1',
+            session_id: 'session-blue-forward',
+            team: 'blue',
+            goal: 'Secure corridor access',
+            move: 2,
+            phase: 3,
+            status: 'draft',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Secure corridor access.',
+                levers: ['Export Controls'],
+                sectors: ['Biotechnology'],
+                implementation: 'Legislative',
+                legislativeOptions: ['Existing legislation/policy'],
+                enforcementTimeline: '6 months',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+        updateDraftAction.mockResolvedValue(forwardedAction);
+        createTimelineEvent.mockResolvedValue({
+            id: 'timeline-blue-forward-1',
+            session_id: 'session-blue-forward',
+            type: 'ACTION_FORWARDED_TO_SCRIBE',
+            content: 'Action forwarded to Scribe: Secure corridor access',
+            team: 'blue',
+            move: 2,
+            phase: 3
+        });
+        const actionsStoreSpy = vi.spyOn(actionsStore, 'updateFromServer');
+        const timelineStoreSpy = vi.spyOn(timelineStore, 'updateFromServer');
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.role = 'blue_facilitator';
+        controller.isReadOnly = false;
+        controller.actions = [{
+            ...forwardedAction,
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Secure corridor access.',
+                levers: ['Export Controls'],
+                sectors: ['Biotechnology'],
+                implementation: 'Legislative',
+                legislativeOptions: ['Existing legislation/policy'],
+                enforcementTimeline: '6 months'
+            })
+        }];
+
+        await controller.forwardActionToScribe('action-blue-draft-1');
+
+        expect(updateDraftAction).toHaveBeenCalledWith('action-blue-draft-1', {
+            ally_contingencies: expect.stringContaining('Scribe Handoff: Forwarded')
+        });
+        expect(submitActionRecord).not.toHaveBeenCalled();
+        expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'ACTION_FORWARDED_TO_SCRIBE',
+            content: 'Action forwarded to Scribe: Secure corridor access',
+            metadata: expect.objectContaining({
+                related_id: 'action-blue-draft-1',
+                next_step: 'scribe_submit_to_white_cell'
+            })
+        }));
+        expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', forwardedAction);
+        expect(timelineStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'timeline-blue-forward-1'
+        }));
+        expect(showToast).toHaveBeenCalledWith({ message: 'Action forwarded to Scribe', type: 'success' });
     });
 
     it('collects legislative route selections when implementation is Legislative', async () => {
