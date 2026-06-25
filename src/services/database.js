@@ -25,6 +25,10 @@ import {
     parseMoveResponseDetails
 } from '../features/actions/moveResponseDetails.js';
 import {
+    STRATEGIC_ORIENTATION_ACTION_MECHANISM,
+    parseStrategicOrientationDetails
+} from '../features/actions/strategicOrientationDetails.js';
+import {
     annotateObservationTimelineEntries,
     buildNotetakerParticipantContext,
     mergeObservationTimeline,
@@ -169,6 +173,10 @@ function resolvePersistedActionMechanism(actionData = {}, {
 
     if (parseMoveResponseDetails(actionData.ally_contingencies)) {
         return MOVE_RESPONSE_ACTION_MECHANISM;
+    }
+
+    if (parseStrategicOrientationDetails(actionData.ally_contingencies)) {
+        return STRATEGIC_ORIENTATION_ACTION_MECHANISM;
     }
 
     if (allowEmptyMechanism && hasExplicitMechanism) {

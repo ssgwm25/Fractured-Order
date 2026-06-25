@@ -31,6 +31,13 @@ import {
     serializeBlueActionDetails
 } from '../features/actions/blueActionDetails.js';
 import {
+    STRATEGIC_ORIENTATION_PERIOD,
+    formatStrategicOrientationSelection,
+    getStrategicOrientationViewModel,
+    isStrategicOrientationAction,
+    isStrategicOrientationForwardedToScribe
+} from '../features/actions/strategicOrientationDetails.js';
+import {
     buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
     DEFAULT_SCRIBE_DECK_PATH,
@@ -260,13 +267,16 @@ function getActionSlideLifecycleLabel(action = {}) {
 }
 
 function isScribeVisibleAction(action = {}) {
-    return !isDraftAction(action) || isBlueActionForwardedToScribe(action);
+    return !isDraftAction(action)
+        || isBlueActionForwardedToScribe(action)
+        || isStrategicOrientationForwardedToScribe(action);
 }
 
 export function buildScribeActionSlides(actions = [], {
     teamLabel = 'Team'
 } = {}) {
     const sortedActions = sortTeamActions(actions.filter(isScribeVisibleAction));
+    const sequencedActions = sortedActions.filter((action) => !isStrategicOrientationAction(action));
 
     if (!sortedActions.length) {
         return {
@@ -276,8 +286,14 @@ export function buildScribeActionSlides(actions = [], {
     }
 
     const slides = sortedActions.map((action, index) => {
-        const actionViewModel = getBlueActionViewModel(action);
-        const actionNumber = getActionSequenceNumber(sortedActions, action) || index + 1;
+        const strategicOrientation = getStrategicOrientationViewModel(action);
+        const isStrategicOrientationSlide = strategicOrientation.hasStrategicOrientationDetails;
+        const actionViewModel = isStrategicOrientationSlide
+            ? null
+            : getBlueActionViewModel(action);
+        const actionNumber = isStrategicOrientationSlide
+            ? null
+            : (getActionSequenceNumber(sequencedActions, action) || sequencedActions.indexOf(action) + 1 || index + 1);
         const sequenceLabel = formatActionSequenceLabel({
             teamLabel,
             move: action.move || 1,
@@ -289,9 +305,12 @@ export function buildScribeActionSlides(actions = [], {
             slideType: 'action',
             action,
             actionViewModel,
-            title: actionViewModel.title,
-            sidebarOrdinal: String(actionNumber),
-            sidebarKicker: `${getActionSlideLifecycleLabel(action)} | ${sequenceLabel}`
+            strategicOrientation,
+            title: isStrategicOrientationSlide ? strategicOrientation.title : actionViewModel.title,
+            sidebarOrdinal: isStrategicOrientationSlide ? 'SO' : String(actionNumber),
+            sidebarKicker: isStrategicOrientationSlide
+                ? `${getActionSlideLifecycleLabel(action)} | Pre-Move 1 | ${strategicOrientation.isForecast ? 'Forecast' : 'Selection'}`
+                : `${getActionSlideLifecycleLabel(action)} | ${sequenceLabel}`
         };
     });
 
@@ -1634,7 +1653,61 @@ export class ScribeController {
         this.renderSections();
     }
 
+    renderScribeStrategicOrientationSubmissionControls(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
+        if (!isDraftAction(action)) {
+            return '';
+        }
+
+        if (!isStrategicOrientationForwardedToScribe(action)) {
+            return '';
+        }
+
+        const actionId = String(action.id || '');
+
+        return `
+            <section
+                class="scribe-action-slide-submit-panel"
+                data-scribe-action-submit-panel
+                data-action-id="${escapeHtml(actionId)}"
+                aria-label="Scribe Strategic Orientation submission controls"
+            >
+                <div class="scribe-action-slide-submit-head">
+                    <div>
+                        <p class="scribe-action-slide-section-label">Scribe finalization</p>
+                        <h3 class="scribe-action-slide-submit-title">Project and submit</h3>
+                    </div>
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        data-scribe-action-project
+                        data-action-id="${escapeHtml(actionId)}"
+                    >${viewModel.isForecast ? 'Project Forecast' : 'Project Orientation'}</button>
+                </div>
+
+                <p class="scribe-action-slide-lead-note">
+                    Project this ${viewModel.isForecast ? 'forecast' : 'orientation selection'} for ${escapeHtml(this.teamLabel)}, verify the team sees their completed work, then submit it to White Cell.
+                </p>
+
+                <div class="scribe-action-slide-submit-actions">
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-scribe-action-submit
+                        data-action-id="${escapeHtml(actionId)}"
+                    >Submit to White Cell</button>
+                </div>
+            </section>
+        `;
+    }
+
     renderScribeActionSubmissionControls(action = {}, actionViewModel = getBlueActionViewModel(action)) {
+        if (isStrategicOrientationAction(action)) {
+            return this.renderScribeStrategicOrientationSubmissionControls(
+                action,
+                getStrategicOrientationViewModel(action)
+            );
+        }
+
         if (!isDraftAction(action)) {
             return '';
         }
@@ -1863,6 +1936,28 @@ export class ScribeController {
             return;
         }
 
+        if (isStrategicOrientationAction(action)) {
+            if (!isStrategicOrientationForwardedToScribe(action)) {
+                showToast({ message: 'Only facilitator-forwarded Strategic Orientation drafts can be submitted by the scribe.', type: 'error' });
+                return;
+            }
+
+            const viewModel = getStrategicOrientationViewModel(action);
+            const confirmed = await confirmModal({
+                title: 'Submit Strategic Orientation to White Cell',
+                message: `Submit ${viewModel.title} to White Cell? The artifact will become read-only for facilitator and scribe seats.`,
+                confirmLabel: 'Submit',
+                variant: 'primary'
+            });
+
+            if (!confirmed) {
+                return;
+            }
+
+            await this.submitScribeAction(action);
+            return;
+        }
+
         if (!isBlueActionForwardedToScribe(action)) {
             showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
             return;
@@ -1889,6 +1984,11 @@ export class ScribeController {
     }
 
     async submitScribeAction(action = {}, selections = {}) {
+        if (isStrategicOrientationAction(action)) {
+            await this.submitScribeStrategicOrientation(action);
+            return;
+        }
+
         if (!isDraftAction(action) || !isBlueActionForwardedToScribe(action)) {
             showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
             return;
@@ -1931,6 +2031,180 @@ export class ScribeController {
         }
     }
 
+    async submitScribeStrategicOrientation(action = {}) {
+        if (!isDraftAction(action) || !isStrategicOrientationForwardedToScribe(action)) {
+            showToast({ message: 'Only facilitator-forwarded Strategic Orientation drafts can be submitted by the scribe.', type: 'error' });
+            return;
+        }
+
+        const viewModel = getStrategicOrientationViewModel(action);
+        const loader = showLoader({ message: 'Submitting Strategic Orientation to White Cell...' });
+
+        try {
+            const submittedAction = await database.submitAction(action.id);
+            actionsStore.updateFromServer('UPDATE', submittedAction);
+
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: submittedAction.session_id || action.session_id,
+                type: 'STRATEGIC_ORIENTATION_SUBMITTED',
+                content: `Strategic Orientation submitted to White Cell by Scribe: ${submittedAction.goal || action.goal || viewModel.title}`,
+                metadata: {
+                    related_id: submittedAction.id || action.id,
+                    role: this.role || this.teamContext.scribeRole,
+                    submitted_by: 'scribe',
+                    strategic_orientation: true,
+                    period: STRATEGIC_ORIENTATION_PERIOD,
+                    artifact_type: viewModel.artifactType,
+                    orientation: viewModel.orientation
+                },
+                team: this.teamId,
+                move: submittedAction.move ?? action.move ?? 1,
+                phase: submittedAction.phase ?? action.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+
+            showToast({ message: 'Strategic Orientation submitted to White Cell', type: 'success' });
+        } catch (error) {
+            logger.error('Failed to submit Strategic Orientation:', error);
+            showToast({ message: 'Failed to submit Strategic Orientation. Refresh the scribe view and try again.', type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
+    renderStrategicOrientationSlide(slide, viewModel = getStrategicOrientationViewModel(slide.action || {})) {
+        const action = slide.action || {};
+        const badges = [
+            createStatusBadge(action.status || ENUMS.ACTION_STATUS.DRAFT).outerHTML,
+            createPriorityBadge(action.priority || 'HIGH').outerHTML,
+            action.outcome ? createOutcomeBadge(action.outcome).outerHTML : ''
+        ].filter(Boolean).join('');
+        const submittedLabel = action.submitted_at
+            ? formatDateTime(action.submitted_at)
+            : '';
+        const adjudicatedLabel = action.adjudicated_at
+            ? formatDateTime(action.adjudicated_at)
+            : '';
+        const draftSavedLabel = action.updated_at
+            ? formatDateTime(action.updated_at)
+            : (action.created_at ? formatDateTime(action.created_at) : '');
+        const isDraftPreview = isDraftAction(action);
+        const leadCopy = viewModel.isForecast
+            ? `${viewModel.teamLabel} forecasts Blue will choose ${viewModel.orientationLabel}.`
+            : `${viewModel.teamLabel} selected ${viewModel.orientationLabel}.`;
+        const statusRows = isDraftPreview
+            ? [
+                { label: 'Draft saved', value: draftSavedLabel || 'Saved in the facilitator workspace' },
+                { label: 'Submission', value: 'Awaiting Scribe submission' },
+                { label: 'White Cell status', value: 'Not yet submitted to White Cell' }
+            ]
+            : [
+                { label: 'Submitted', value: submittedLabel || 'Awaiting submission' },
+                { label: 'Outcome', value: action.outcome ? formatStatus(action.outcome) : 'Awaiting White Cell outcome' },
+                { label: 'White Cell update', value: adjudicatedLabel || 'No White Cell update yet' }
+            ];
+        const whiteCellNoteMarkup = action.adjudication_notes
+            ? `
+                <section class="scribe-action-slide-note-card" aria-label="White Cell note">
+                    <p class="scribe-action-slide-note-label">White Cell note</p>
+                    <p class="scribe-action-slide-note-body">${escapeHtml(action.adjudication_notes)}</p>
+                </section>
+            `
+            : '';
+        const scribeSubmissionControls = isDraftPreview
+            ? this.renderScribeStrategicOrientationSubmissionControls(action, viewModel)
+            : '';
+
+        return `
+            <article class="scribe-action-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
+                <header class="scribe-action-slide-header">
+                    <div>
+                        <p class="scribe-action-slide-eyebrow">${viewModel.isForecast ? 'Strategic Orientation Forecast' : 'Strategic Orientation Selection'}</p>
+                        <h2 class="scribe-action-slide-title">${escapeHtml(viewModel.title)}</h2>
+                        <p class="scribe-action-slide-summary">${escapeHtml(slide.sidebarKicker || 'Pre-Move 1 | Strategic Orientation')}</p>
+                    </div>
+                    <div class="scribe-action-slide-badges">${badges}</div>
+                </header>
+
+                <section class="scribe-action-slide-panel">
+                    <div class="scribe-action-slide-meta">
+                        <span>Pre-Move 1</span>
+                        <span>${escapeHtml(formatStatus(action.status || ENUMS.ACTION_STATUS.DRAFT))}</span>
+                        <span>${escapeHtml(viewModel.isForecast ? 'Forecast' : 'Selection')}</span>
+                    </div>
+                    <section class="scribe-action-slide-lead" aria-label="Strategic Orientation brief">
+                        <p class="scribe-action-slide-section-label">${escapeHtml(viewModel.isForecast ? 'Forecasted Blue posture' : 'Selected strategic posture')}</p>
+                        <p class="scribe-action-slide-body">${escapeHtml(leadCopy)}</p>
+                        <p class="scribe-action-slide-lead-note"><strong>Orientation tag:</strong> ${escapeHtml(viewModel.orientationTag || 'Not specified')}</p>
+                    </section>
+
+                    <section class="scribe-action-slide-glance" aria-label="Strategic Orientation at a glance">
+                        <div class="scribe-action-slide-section-header">
+                            <h3 class="scribe-action-slide-section-title">Orientation at a glance</h3>
+                            <p class="scribe-action-slide-section-copy">Project these choices for the team before submitting to White Cell.</p>
+                        </div>
+                        <div class="scribe-action-slide-glance-grid">
+                            ${renderActionSlideGlanceCard({
+                label: 'Orientation',
+                value: viewModel.orientationLabel,
+                support: viewModel.orientationTag || 'Tag pending'
+            })}
+                            ${renderActionSlideGlanceCard({
+                label: 'Primary levers',
+                value: formatStrategicOrientationSelection(viewModel.primaryLevers),
+                support: 'Configured before Move 1'
+            })}
+                            ${renderActionSlideGlanceCard({
+                label: 'Accepted costs',
+                value: formatStrategicOrientationSelection(viewModel.acceptedCosts),
+                support: 'Recorded with the orientation'
+            })}
+                            ${renderActionSlideGlanceCard({
+                label: 'Posture',
+                value: viewModel.posture || 'Not specified',
+                support: viewModel.isForecast ? 'Forecast posture' : 'Selected posture'
+            })}
+                        </div>
+                    </section>
+
+                    <div class="scribe-action-slide-columns">
+                        <section class="scribe-action-slide-block" aria-label="Configuration snapshot">
+                            <h3 class="scribe-action-slide-block-title">Configuration snapshot</h3>
+                            <dl class="scribe-action-slide-data-list">
+                                ${renderActionSlideDataRow({
+                label: 'Primary levers',
+                value: formatStrategicOrientationSelection(viewModel.primaryLevers)
+            })}
+                                ${renderActionSlideDataRow({
+                label: 'Accepted costs',
+                value: formatStrategicOrientationSelection(viewModel.acceptedCosts)
+            })}
+                                ${renderActionSlideDataRow({
+                label: 'Posture',
+                value: viewModel.posture || 'Not specified'
+            })}
+                                ${renderActionSlideDataRow({
+                label: 'Team rationale',
+                value: viewModel.rationale || 'No rationale provided.'
+            })}
+                            </dl>
+                        </section>
+
+                        <section class="scribe-action-slide-block" aria-label="Status and White Cell">
+                            <h3 class="scribe-action-slide-block-title">Status and White Cell</h3>
+                            <dl class="scribe-action-slide-data-list">
+                                ${statusRows.map((row) => renderActionSlideDataRow(row)).join('')}
+                            </dl>
+                            ${whiteCellNoteMarkup}
+                        </section>
+                    </div>
+
+                    ${scribeSubmissionControls}
+                </section>
+            </article>
+        `;
+    }
+
     renderActionSlide(slide) {
         if (slide.slideType === 'action-placeholder') {
             return `
@@ -1943,6 +2217,11 @@ export class ScribeController {
         }
 
         const action = slide.action || {};
+        const strategicOrientation = slide.strategicOrientation || getStrategicOrientationViewModel(action);
+        if (strategicOrientation.hasStrategicOrientationDetails) {
+            return this.renderStrategicOrientationSlide(slide, strategicOrientation);
+        }
+
         const actionViewModel = slide.actionViewModel || getBlueActionViewModel(action);
         const badges = [
             createStatusBadge(action.status || ENUMS.ACTION_STATUS.DRAFT).outerHTML,

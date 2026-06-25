@@ -103,6 +103,41 @@ describe('database action write contracts', () => {
         }));
     });
 
+    it('derives the Strategic Orientation mechanism before inserting a pre-Move 1 artifact', async () => {
+        const { database } = await import('./database.js');
+        const { serializeStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        const { insert } = mockInsertChain();
+
+        await database.createAction({
+            session_id: 'session-1',
+            client_id: 'client-action-write-test',
+            move: 1,
+            phase: 1,
+            team: 'blue',
+            mechanism: null,
+            sector: null,
+            exposure_type: 'pre_move_1',
+            targets: [],
+            goal: 'Strategic Orientation: Pressure',
+            expected_outcomes: 'Focus on affecting PRC GDP growth',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'selection',
+                team: 'blue',
+                orientation: 'pressure',
+                primaryLevers: ['Expanded financial sanctions'],
+                acceptedCosts: ['Sustained economic friction'],
+                posture: 'Calibrated \u2014 escalate deliberately',
+                scribeHandoff: 'Forwarded'
+            }),
+            priority: 'HIGH',
+            status: 'draft'
+        });
+
+        expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+            mechanism: 'Strategic Orientation'
+        }));
+    });
+
     it('stamps submitted_at when creating an item directly in submitted state', async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-04-09T10:20:00.000Z'));

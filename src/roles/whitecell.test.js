@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
+import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
 const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
 const showToast = vi.fn();
@@ -268,6 +269,36 @@ describe('White Cell DOM contract', () => {
 
     it('updates White Cell timer controls to expose pause and resume states clearly', async () => {
         const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            {
+                team: 'blue',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'selection',
+                    team: 'blue',
+                    orientation: 'pressure'
+                })
+            },
+            {
+                team: 'green',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'green',
+                    orientation: 'pressure'
+                })
+            },
+            {
+                team: 'red',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'red',
+                    orientation: 'reframe'
+                })
+            }
+        ]);
         const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
         global.document = fakeDocument;
 
@@ -308,6 +339,72 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.startTimerBtn.disabled).toBe(false);
         expect(fakeDocument.elements.pauseTimerBtn.disabled).toBe(true);
         expect(fakeDocument.elements.timerStatus.textContent).toBe('Paused');
+    });
+
+    it('gates Move 1 controls until all Strategic Orientation artifacts reach White Cell', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const controller = new WhiteCellController();
+        controller.getCurrentGameState = () => ({ move: 1, phase: 1 });
+        const baseActions = [
+            {
+                team: 'blue',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'selection',
+                    team: 'blue',
+                    orientation: 'pressure'
+                })
+            },
+            {
+                team: 'green',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'green',
+                    orientation: 'pressure'
+                })
+            }
+        ];
+        const getAllSpy = vi.spyOn(actionsStore, 'getAll').mockReturnValue(baseActions);
+
+        expect(controller.shouldGateStrategicOrientation()).toBe(true);
+        expect(controller.getStrategicOrientationGateMessage()).toContain('Red forecast');
+
+        getAllSpy.mockReturnValue([
+            ...baseActions,
+            {
+                team: 'red',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'red',
+                    orientation: 'reframe'
+                })
+            }
+        ]);
+
+        expect(controller.shouldGateStrategicOrientation()).toBe(false);
+    });
+
+    it('does not allow Blue Strategic Orientation selections to be shared to Red as normal actions', async () => {
+        const { canShareActionToRedTeam } = await loadWhiteCellModule();
+
+        expect(canShareActionToRedTeam({
+            team: 'blue',
+            mechanism: 'Strategic Orientation',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'selection',
+                team: 'blue',
+                orientation: 'pressure'
+            })
+        })).toBe(false);
+
+        expect(canShareActionToRedTeam({
+            team: 'blue',
+            mechanism: 'Economic',
+            ally_contingencies: ''
+        })).toBe(true);
     });
 
     it('blocks access without a matching operator grant and enforces team/session scope', async () => {

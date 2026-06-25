@@ -25,6 +25,12 @@ import {
     getBlueActionViewModel
 } from '../features/actions/blueActionDetails.js';
 import {
+    formatStrategicOrientationSelection,
+    getStrategicOrientationCompletion,
+    getStrategicOrientationViewModel,
+    isStrategicOrientationAction
+} from '../features/actions/strategicOrientationDetails.js';
+import {
     parseProposalDetails,
     getProposalViewModel,
     formatProposalSelection
@@ -138,6 +144,8 @@ const WHITE_CELL_TIMELINE_ACTIVITY_TYPE_ORDER = Object.freeze([
     'ACTION_CREATED',
     'ACTION_SUBMITTED',
     'ACTION_ADJUDICATED',
+    'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
+    'STRATEGIC_ORIENTATION_SUBMITTED',
     'PROPOSAL_SUBMITTED',
     'PROPOSAL_FORWARDED',
     'PROPOSAL_RESPONSE',
@@ -156,6 +164,8 @@ const WHITE_CELL_TIMELINE_ACTIVITY_TYPE_ORDER = Object.freeze([
 const WHITE_CELL_TIMELINE_FACILITATOR_TYPES = Object.freeze([
     'ACTION_CREATED',
     'ACTION_SUBMITTED',
+    'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
+    'STRATEGIC_ORIENTATION_SUBMITTED',
     'PROPOSAL_SUBMITTED',
     'RFI_CREATED'
 ]);
@@ -712,6 +722,8 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
         ACTION_CREATED: 'Action Created',
         ACTION_SUBMITTED: 'Action Submitted',
         ACTION_ADJUDICATED: 'Deliberation Update',
+        STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE: 'Strategic Orientation Forwarded',
+        STRATEGIC_ORIENTATION_SUBMITTED: 'Strategic Orientation Submitted',
         PROPOSAL_SUBMITTED: 'Proposal Submitted',
         PROPOSAL_FORWARDED: 'Proposal Forwarded',
         PROPOSAL_RESPONSE: 'Proposal Response',
@@ -732,7 +744,7 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
 }
 
 export function canShareActionToRedTeam(action = {}) {
-    return action?.team === 'blue';
+    return action?.team === 'blue' && !isStrategicOrientationAction(action);
 }
 
 export function buildSharedActionCommunicationContent(action = {}) {
@@ -1680,16 +1692,19 @@ export class WhiteCellController {
         const shouldShowResume = !this.timerRunning
             && hasRemainingTime
             && this.currentTimerSeconds < CONFIG.DEFAULT_TIMER_SECONDS;
+        const orientationGateActive = this.shouldGateStrategicOrientation();
 
         if (startTimerBtn) {
             startTimerBtn.textContent = shouldShowResume ? 'Resume' : 'Start';
-            startTimerBtn.disabled = !canControl || this.timerRunning || !hasRemainingTime;
+            startTimerBtn.disabled = !canControl || this.timerRunning || !hasRemainingTime || orientationGateActive;
             startTimerBtn.setAttribute?.('aria-disabled', startTimerBtn.disabled ? 'true' : 'false');
             startTimerBtn.title = !canControl
                 ? 'White Cell support is read-only for game controls.'
-                : (!hasRemainingTime
+                : (orientationGateActive
+                    ? this.getStrategicOrientationGateMessage()
+                    : (!hasRemainingTime
                     ? 'Reset the timer before starting again.'
-                    : (this.timerRunning ? 'Timer is already running.' : 'Start the timer.'));
+                    : (this.timerRunning ? 'Timer is already running.' : 'Start the timer.')));
         }
 
         if (pauseTimerBtn) {
@@ -1724,11 +1739,48 @@ export class WhiteCellController {
         this.updateGameControlAvailability(move, phase);
     }
 
+    getStrategicOrientationGateState() {
+        return getStrategicOrientationCompletion(actionsStore.getAll());
+    }
+
+    isStrategicOrientationPeriodComplete() {
+        return this.getStrategicOrientationGateState().complete;
+    }
+
+    shouldGateStrategicOrientation({
+        move = null,
+        phase = null,
+        phaseOneOnly = true
+    } = {}) {
+        const gameState = this.getCurrentGameState();
+        const resolvedMove = move ?? gameState.move ?? 1;
+        const resolvedPhase = phase ?? gameState.phase ?? 1;
+
+        return resolvedMove === 1
+            && (!phaseOneOnly || resolvedPhase === 1)
+            && !this.isStrategicOrientationPeriodComplete();
+    }
+
+    getStrategicOrientationGateMessage() {
+        const completion = this.getStrategicOrientationGateState();
+        const labels = {
+            blue: 'Blue selection',
+            green: 'Green forecast',
+            red: 'Red forecast'
+        };
+        const missingLabels = completion.missingTeams
+            .map((teamId) => labels[teamId] || teamId)
+            .join(', ');
+
+        return `Strategic Orientation must be completed before Move 1 begins. Missing: ${missingLabels || 'none'}.`;
+    }
+
     updateGameControlAvailability(move, phase) {
         const prevMoveBtn = document.getElementById('prevMoveBtn');
         const nextMoveBtn = document.getElementById('nextMoveBtn');
         const prevPhaseBtn = document.getElementById('prevPhaseBtn');
         const nextPhaseBtn = document.getElementById('nextPhaseBtn');
+        const orientationGateActive = this.shouldGateStrategicOrientation({ move, phase });
 
         if (!this.isLeadOperator()) {
             if (prevMoveBtn) prevMoveBtn.disabled = true;
@@ -1739,13 +1791,18 @@ export class WhiteCellController {
         }
 
         if (prevMoveBtn) prevMoveBtn.disabled = move <= 1;
-        if (nextMoveBtn) nextMoveBtn.disabled = move >= 3;
+        if (nextMoveBtn) nextMoveBtn.disabled = move >= 3 || orientationGateActive;
         if (prevPhaseBtn) prevPhaseBtn.disabled = phase <= 1;
-        if (nextPhaseBtn) nextPhaseBtn.disabled = phase >= 5;
+        if (nextPhaseBtn) nextPhaseBtn.disabled = phase >= 5 || orientationGateActive;
     }
 
     async startTimer() {
         if (this.timerRunning) return;
+
+        if (this.shouldGateStrategicOrientation()) {
+            showToast({ message: this.getStrategicOrientationGateMessage(), type: 'warning' });
+            return;
+        }
 
         await gameStateStore.startTimer();
 
@@ -1785,6 +1842,11 @@ export class WhiteCellController {
         const currentState = this.getCurrentGameState();
         const currentPhase = currentState.phase ?? 1;
         const currentMove = currentState.move ?? 1;
+
+        if (this.shouldGateStrategicOrientation({ move: currentMove, phase: currentPhase })) {
+            showToast({ message: this.getStrategicOrientationGateMessage(), type: 'warning' });
+            return;
+        }
 
         if (currentPhase >= 5) {
             showToast({ message: 'Already at the final phase for this move.', type: 'warning' });
@@ -1886,6 +1948,15 @@ export class WhiteCellController {
 
         const currentState = this.getCurrentGameState();
         const currentMove = currentState.move ?? 1;
+
+        if (this.shouldGateStrategicOrientation({
+            move: currentMove,
+            phase: currentState.phase ?? 1,
+            phaseOneOnly: false
+        })) {
+            showToast({ message: this.getStrategicOrientationGateMessage(), type: 'warning' });
+            return;
+        }
 
         if (currentMove >= 3) {
             showToast({ message: 'Already at the final move (Move 3).', type: 'warning' });
@@ -1993,7 +2064,7 @@ export class WhiteCellController {
         this.proposalTeamProposals = allActions.filter((action) => (
             isProposalTeamId(action?.team)
             && !isDraftAction(action)
-            && this.isProposalAction(action)
+            && (this.isProposalAction(action) || isStrategicOrientationAction(action))
         ));
         this.greenTeamProposals = this.proposalTeamProposals;
         this.redTeamResponses = allActions.filter((action) => (
@@ -2015,6 +2086,9 @@ export class WhiteCellController {
         this.renderMoveResponses();
         this.renderProposals();
         this.renderAdjudicationQueue();
+        const gameState = this.getCurrentGameState();
+        this.updateGameControlAvailability(gameState.move ?? 1, gameState.phase ?? 1);
+        this.updateTimerControlButtons();
 
         this.updateSidebarBadge('actionsBadge', pendingBlueTeamActions.length);
         this.updateSidebarBadge('proposalsBadge', pendingProposalTeamProposals.length);
@@ -2383,7 +2457,12 @@ export class WhiteCellController {
     }
 
     getBlueTeamActionSequenceLabel(action = {}) {
-        const actionNumber = getActionSequenceNumber(actionsStore.getAll(), action);
+        const actionNumber = isStrategicOrientationAction(action)
+            ? null
+            : getActionSequenceNumber(
+                actionsStore.getAll().filter((candidate) => !isStrategicOrientationAction(candidate)),
+                action
+            );
         return formatActionSequenceLabel({
             teamLabel: this.formatTeamLabel(action.team),
             move: action.move || 1,
@@ -2561,14 +2640,22 @@ export class WhiteCellController {
         isNew = false
     } = {}) {
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
+        const strategicOrientation = getStrategicOrientationViewModel(action);
+        const isStrategicOrientationFlow = strategicOrientation.hasStrategicOrientationDetails;
         const blueAction = getBlueActionViewModel(action);
         const proposalViewModel = getProposalViewModel(action);
-        const expectedOutcomes = blueAction.expectedOutcomes || '';
+        const expectedOutcomes = isStrategicOrientationFlow
+            ? (strategicOrientation.isForecast
+                ? (strategicOrientation.forecastSummary || `Forecast: Blue will choose ${strategicOrientation.orientationLabel}.`)
+                : (strategicOrientation.orientationTag || 'Strategic Orientation selected.'))
+            : (blueAction.expectedOutcomes || '');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
         const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
         const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
         const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
-        const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
+        const sequenceLabel = isStrategicOrientationFlow
+            ? 'Pre-Move 1 | Strategic Orientation'
+            : this.getBlueTeamActionSequenceLabel(action);
         const submittedMarkup = action.submitted_at
             ? `<p class="entity-card__note"><strong>Submitted:</strong> ${this.escapeHtml(formatDateTime(action.submitted_at))}</p>`
             : '';
@@ -2578,13 +2665,34 @@ export class WhiteCellController {
         const notesMarkup = includeOutcome && action.adjudication_notes
             ? `<p class="entity-card__note"><strong>Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}</p>`
             : '';
-        const secondaryBadge = blueAction.hasBlueActionDetails && blueAction.enforcementTimeline
+        const secondaryBadge = isStrategicOrientationFlow
+            ? createBadge({
+                text: strategicOrientation.isForecast ? 'Forecast' : 'Selection',
+                variant: 'info',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
+            : blueAction.hasBlueActionDetails && blueAction.enforcementTimeline
             ? createBadge({ text: blueAction.enforcementTimeline, variant: 'info', size: 'sm', rounded: true }).outerHTML
             : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
         const statusAccent = isAdjudicatedAction(action)
             ? 'deliberated'
             : (canAdjudicateAction(action) ? 'submitted' : '');
-        const detailsMarkup = proposalViewModel.hasProposalDetails
+        const detailsMarkup = isStrategicOrientationFlow
+            ? this.renderDetailGrid([
+                {
+                    label: strategicOrientation.isForecast ? 'Forecasted Blue Orientation' : 'Selected Orientation',
+                    value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
+                    wide: true
+                },
+                { label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) },
+                { label: 'Accepted Costs', value: formatStrategicOrientationSelection(strategicOrientation.acceptedCosts) },
+                { label: 'Posture', value: strategicOrientation.posture || 'Not specified' },
+                ...(strategicOrientation.rationale
+                    ? [{ label: 'Team Rationale', value: strategicOrientation.rationale, wide: true }]
+                    : [])
+            ])
+            : proposalViewModel.hasProposalDetails
             ? this.renderProposalDetails(action)
             : this.renderDetailGrid(
                 blueAction.hasBlueActionDetails
@@ -2609,7 +2717,7 @@ export class WhiteCellController {
                         { label: 'Exposure', value: action.exposure_type || 'Not specified' }
                     ]
             );
-        const proposalRecipientStateMarkup = proposalViewModel.hasProposalDetails
+        const proposalRecipientStateMarkup = proposalViewModel.hasProposalDetails && !isStrategicOrientationFlow
             ? this.renderProposalRecipientState(action)
             : '';
         const arrivalBadgeMarkup = isNew
@@ -2622,15 +2730,15 @@ export class WhiteCellController {
         }
 
         if (showAdjudicateAction) {
-            actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Record Deliberation'}</button>`);
+            actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Record Deliberation')}</button>`);
         }
 
         return `
             <div class="entity-card${statusAccent ? ` entity-card--${statusAccent}` : ''}" data-action-id="${action.id}"${isNew ? ' style="background: var(--color-surface-alt);"' : ''}>
                 <div class="entity-card__head">
                     <div>
-                        <p class="entity-card__eyebrow">${this.escapeHtml(blueAction.instrumentOfPower || 'No mechanism')} &middot; ${this.escapeHtml(sequenceLabel)} &middot; Phase ${action.phase || 1}</p>
-                        <h3 class="entity-card__title">${this.escapeHtml(blueAction.title)}</h3>
+                        <p class="entity-card__eyebrow">${this.escapeHtml(isStrategicOrientationFlow ? 'Strategic Orientation' : (blueAction.instrumentOfPower || 'No mechanism'))} &middot; ${this.escapeHtml(sequenceLabel)} &middot; Phase ${action.phase || 1}</p>
+                        <h3 class="entity-card__title">${this.escapeHtml(isStrategicOrientationFlow ? strategicOrientation.title : blueAction.title)}</h3>
                     </div>
                     <div class="entity-card__badges">
                         ${arrivalBadgeMarkup}
@@ -2638,7 +2746,7 @@ export class WhiteCellController {
                         ${secondaryBadge}
                     </div>
                 </div>
-                ${proposalViewModel.hasProposalDetails ? '' : `<p class="card-summary">${this.escapeHtml(expectedOutcomes || 'No expected outcomes recorded.')}</p>`}
+                ${proposalViewModel.hasProposalDetails && !isStrategicOrientationFlow ? '' : `<p class="card-summary">${this.escapeHtml(expectedOutcomes || 'No expected outcomes recorded.')}</p>`}
                 ${detailsMarkup}
                 ${proposalRecipientStateMarkup}
                 ${submittedMarkup}
@@ -2757,6 +2865,11 @@ export class WhiteCellController {
             return;
         }
 
+        if (isStrategicOrientationAction(action)) {
+            this.showStrategicOrientationReviewModal(action);
+            return;
+        }
+
         const outcomeOptions = ENUMS.OUTCOMES
             .map((value) => `<option value="${value}">${value}</option>`)
             .join('');
@@ -2842,6 +2955,78 @@ export class WhiteCellController {
                     onClick: () => {
                         this.handleAdjudicate(modalRef.current, action.id).catch((err) => {
                             logger.error('Failed to submit adjudication:', err);
+                        });
+                        return false;
+                    }
+                }
+            ]
+        });
+    }
+
+    showStrategicOrientationReviewModal(action) {
+        const outcomeOptions = ENUMS.OUTCOMES
+            .map((value) => `<option value="${value}">${value}</option>`)
+            .join('');
+        const viewModel = getStrategicOrientationViewModel(action);
+        const content = document.createElement('div');
+
+        content.innerHTML = `
+            <div class="mb-4">
+                <h4 class="font-semibold">${this.escapeHtml(viewModel.title)}</h4>
+                <p class="text-sm text-gray-500">Strategic Orientation | Pre-Move 1 | ${this.escapeHtml(viewModel.isForecast ? 'Forecast' : 'Selection')}</p>
+                ${action.submitted_at ? `
+                    <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
+                        <strong>Submitted:</strong> ${this.escapeHtml(formatDateTime(action.submitted_at))}
+                    </p>
+                ` : ''}
+                ${this.renderDetailGrid([
+        {
+            label: viewModel.isForecast ? 'Forecasted Blue Orientation' : 'Selected Orientation',
+            value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`,
+            wide: true
+        },
+        { label: 'Primary Levers', value: formatStrategicOrientationSelection(viewModel.primaryLevers) },
+        { label: 'Accepted Costs', value: formatStrategicOrientationSelection(viewModel.acceptedCosts) },
+        { label: 'Posture', value: viewModel.posture || 'Not specified' },
+        ...(viewModel.rationale
+            ? [{ label: 'Team Rationale', value: viewModel.rationale, wide: true }]
+            : [])
+    ])}
+            </div>
+
+            <form id="adjudicateForm">
+                <div class="form-group">
+                    <label class="form-label" for="outcomeSelect">Outcome *</label>
+                    <select id="outcomeSelect" class="form-select" required>
+                        <option value="">Select outcome</option>
+                        ${outcomeOptions}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="adjudicationNotes">Notes</label>
+                    <textarea id="adjudicationNotes" class="form-input form-textarea" rows="4" placeholder="Record White Cell notes on the pre-Move-1 artifact..."></textarea>
+                </div>
+            </form>
+        `;
+
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Review Strategic Orientation',
+            content,
+            size: 'md',
+            buttons: [
+                {
+                    label: 'Cancel',
+                    variant: 'secondary',
+                    onClick: () => {}
+                },
+                {
+                    label: 'Record Review',
+                    variant: 'primary',
+                    onClick: () => {
+                        this.handleAdjudicate(modalRef.current, action.id).catch((err) => {
+                            logger.error('Failed to submit Strategic Orientation review:', err);
                         });
                         return false;
                     }

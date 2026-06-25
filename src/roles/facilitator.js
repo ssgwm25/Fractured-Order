@@ -56,6 +56,18 @@ import {
     getMoveResponseViewModel
 } from '../features/actions/moveResponseDetails.js';
 import {
+    STRATEGIC_ORIENTATION_ACTION_MECHANISM,
+    STRATEGIC_ORIENTATION_ARTIFACT_TYPES,
+    STRATEGIC_ORIENTATION_OPTIONS,
+    STRATEGIC_ORIENTATION_PERIOD,
+    STRATEGIC_ORIENTATION_SCRIBE_HANDOFF,
+    formatStrategicOrientationSelection,
+    getStrategicOrientationCompletion,
+    getStrategicOrientationViewModel,
+    isStrategicOrientationAction,
+    serializeStrategicOrientationDetails
+} from '../features/actions/strategicOrientationDetails.js';
+import {
     PROPOSAL_RECIPIENT_STATUSES,
     countUnreadProposals,
     getProposalRecipientEntry,
@@ -100,6 +112,7 @@ const RESPONSE_GROUP_RENDER_LIMIT = 30;
 export const FACILITATOR_VERBA_AI_RENDER_LIMIT = 40;
 export const FACILITATOR_TIMELINE_RENDER_LIMIT = 80;
 const BLUE_ACTION_WIZARD_PAGE_TOTAL = 3;
+const STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL = 2;
 
 function isProposalTeamId(teamId) {
     return PROPOSAL_TEAM_IDS.has(teamId);
@@ -530,6 +543,7 @@ export class FacilitatorController {
 
     bindEventListeners() {
         const newActionBtn = document.getElementById('newActionBtn');
+        const strategicOrientationBtn = document.getElementById('strategicOrientationBtn');
         const newRfiBtn = document.getElementById('newRfiBtn');
         const captureForm = document.getElementById('captureForm');
 
@@ -556,6 +570,7 @@ export class FacilitatorController {
 
         if (this.isReadOnly) {
             newActionBtn?.setAttribute('aria-disabled', 'true');
+            strategicOrientationBtn?.setAttribute('aria-disabled', 'true');
             newRfiBtn?.setAttribute('aria-disabled', 'true');
             captureForm?.querySelectorAll?.('button, input, select, textarea').forEach((control) => {
                 control.disabled = true;
@@ -565,6 +580,7 @@ export class FacilitatorController {
         }
 
         newActionBtn?.addEventListener('click', () => this.showCreateActionModal());
+        strategicOrientationBtn?.addEventListener('click', () => this.showStrategicOrientationModal());
         newRfiBtn?.addEventListener('click', () => this.showCreateRfiModal());
         captureForm?.addEventListener('submit', (event) => this.handleCaptureSubmit(event));
 
@@ -623,12 +639,41 @@ export class FacilitatorController {
         };
     }
 
+    getStrategicOrientationGateState() {
+        return getStrategicOrientationCompletion(actionsStore.getAll());
+    }
+
+    isStrategicOrientationGateActive() {
+        const gameState = this.getCurrentGameState();
+        const move = gameState.move ?? 1;
+        const phase = gameState.phase ?? 1;
+
+        return move === 1
+            && phase === 1
+            && !this.getStrategicOrientationGateState().complete;
+    }
+
+    getStrategicOrientationGateMessage() {
+        const completion = this.getStrategicOrientationGateState();
+        const labels = {
+            blue: 'Blue selection',
+            green: 'Green forecast',
+            red: 'Red forecast'
+        };
+        const missingLabels = completion.missingTeams
+            .map((teamId) => labels[teamId] || teamId)
+            .join(', ');
+
+        return `Strategic Orientation is required before Move 1 begins. Missing: ${missingLabels || 'none'}.`;
+    }
+
     getBlueActionSequenceContext(action = null) {
         const gameState = this.getCurrentGameState();
         const move = action?.move || gameState.move || 1;
+        const sequencedActions = this.actions.filter((candidate) => !isStrategicOrientationAction(candidate));
         const actionNumber = action?.id
-            ? getActionSequenceNumber(this.actions, action)
-            : getNextActionSequenceNumber(this.actions, this.teamId, move);
+            ? getActionSequenceNumber(sequencedActions, action)
+            : getNextActionSequenceNumber(sequencedActions, this.teamId, move);
 
         return {
             move,
@@ -1928,19 +1973,29 @@ export class FacilitatorController {
     }
 
     renderActionCard(action) {
+        const strategicOrientation = getStrategicOrientationViewModel(action);
+        const isStrategicOrientationFlow = strategicOrientation.hasStrategicOrientationDetails;
         const blueAction = getBlueActionViewModel(action);
-        const isGreenProposalFlow = this.isProposalTeam();
-        const isRedResponseFlow = this.teamId === 'red';
+        const isGreenProposalFlow = this.isProposalTeam() && !isStrategicOrientationFlow;
+        const isRedResponseFlow = this.teamId === 'red' && !isStrategicOrientationFlow;
         const moveResponse = isRedResponseFlow ? getMoveResponseViewModel(action) : null;
-        const title = isRedResponseFlow ? moveResponse.title : blueAction.title;
-        const expectedOutcomes = isRedResponseFlow
+        const title = isStrategicOrientationFlow
+            ? strategicOrientation.title
+            : (isRedResponseFlow ? moveResponse.title : blueAction.title);
+        const expectedOutcomes = isStrategicOrientationFlow
+            ? (strategicOrientation.isForecast
+                ? (strategicOrientation.forecastSummary || `Forecast: Blue will choose ${strategicOrientation.orientationLabel}.`)
+                : (strategicOrientation.orientationTag || 'Strategic Orientation selected.'))
+            : isRedResponseFlow
             ? (moveResponse.expectedEffect || 'No expected effect recorded')
             : (blueAction.expectedOutcomes || 'No expected outcomes');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
         const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
         const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
         const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
-        const sequenceLabel = this.isBlueTeamActionWizardEnabled(action)
+        const sequenceLabel = isStrategicOrientationFlow
+            ? 'Pre-Move 1 | Strategic Orientation'
+            : this.isBlueTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
@@ -1951,7 +2006,14 @@ export class FacilitatorController {
             ? this.getForwardedProposalCommunication(action)
             : null;
         const shouldHideWhiteCellReviewDetails = Boolean(isGreenProposalFlow && forwardedProposalCommunication);
-        const statusBadge = isRedResponseFlow && isSubmittedAction(action)
+        const statusBadge = isStrategicOrientationFlow && isSubmittedAction(action)
+            ? createBadge({
+                text: 'With White Cell',
+                variant: 'info',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
+            : isRedResponseFlow && isSubmittedAction(action)
             ? createBadge({
                 text: 'Deliberation Underway',
                 variant: 'warning',
@@ -1969,7 +2031,14 @@ export class FacilitatorController {
         const outcomeBadge = action.outcome
             ? createOutcomeBadge(action.outcome).outerHTML
             : '';
-        const secondaryBadge = blueAction.hasBlueActionDetails && blueAction.enforcementTimeline
+        const secondaryBadge = isStrategicOrientationFlow
+            ? createBadge({
+                text: strategicOrientation.isForecast ? 'Forecast' : 'Selection',
+                variant: 'info',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
+            : blueAction.hasBlueActionDetails && blueAction.enforcementTimeline
             ? createBadge({
                 text: blueAction.enforcementTimeline,
                 variant: 'info',
@@ -1977,7 +2046,21 @@ export class FacilitatorController {
                 rounded: true
             }).outerHTML
             : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
-        const detailFields = isRedResponseFlow
+        const detailFields = isStrategicOrientationFlow
+            ? [
+                {
+                    label: strategicOrientation.isForecast ? 'Forecasted Blue Orientation' : 'Selected Orientation',
+                    value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
+                    wide: true
+                },
+                { label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) },
+                { label: 'Accepted Costs', value: formatStrategicOrientationSelection(strategicOrientation.acceptedCosts) },
+                { label: 'Posture', value: strategicOrientation.posture || 'Not specified' },
+                ...(strategicOrientation.rationale
+                    ? [{ label: 'Team Rationale', value: strategicOrientation.rationale, wide: true }]
+                    : [])
+            ]
+            : isRedResponseFlow
             ? [
                 { label: 'Strategic Assessment', value: moveResponse.strategicAssessment || 'Not specified', wide: true },
                 { label: 'Response Strategy', value: moveResponse.responseStrategy || 'Not specified', wide: true },
@@ -2012,7 +2095,9 @@ export class FacilitatorController {
 
         let lifecycleMessage = `
             <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                ${isGreenProposalFlow
+                    ${isStrategicOrientationFlow
+                        ? 'Draft Strategic Orientation artifacts are projected by the Scribe before White Cell submission.'
+                        : isGreenProposalFlow
                     ? 'Draft proposals can be edited, sent to White Cell, or deleted by the active team-lead seat.'
                     : (isRedResponseFlow
                         ? 'Draft move responses can be edited, submitted, or deleted by the active team-lead seat.'
@@ -2023,10 +2108,14 @@ export class FacilitatorController {
         if (isSubmittedAction(action)) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    ${isGreenProposalFlow
+                    ${isStrategicOrientationFlow
+                        ? 'Submitted to White Cell'
+                        : isGreenProposalFlow
                         ? 'Sent to White Cell'
                         : (isRedResponseFlow ? 'Submitted to White Cell' : 'Submitted to White Cell')} ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
-                    ${isGreenProposalFlow
+                    ${isStrategicOrientationFlow
+                        ? 'This pre-Move-1 artifact is now read-only for facilitator and scribe seats.'
+                        : isGreenProposalFlow
                         ? 'This proposal is now read-only for facilitator and scribe seats until White Cell review.'
                         : (isRedResponseFlow
                             ? 'White Cell deliberation is underway. This move response is now read-only for facilitator and scribe seats.'
@@ -2038,7 +2127,9 @@ export class FacilitatorController {
                 ? ''
                 : `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                        White Cell ${isGreenProposalFlow
+                        White Cell ${isStrategicOrientationFlow
+                            ? 'reviewed this Strategic Orientation artifact'
+                            : isGreenProposalFlow
                             ? 'reviewed this proposal'
                             : (isRedResponseFlow ? 'reviewed this move response' : 'reviewed this action')} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
                     </p>
@@ -2046,7 +2137,9 @@ export class FacilitatorController {
         } else if (this.isReadOnly) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    ${isGreenProposalFlow
+                    ${isStrategicOrientationFlow
+                        ? 'Observer mode is read-only. Strategic Orientation artifacts are visible but cannot be changed from this page.'
+                        : isGreenProposalFlow
                         ? 'Observer mode is read-only. Draft proposals are visible but cannot be changed from this page.'
                         : (isRedResponseFlow
                             ? 'Observer mode is read-only. Move responses are visible but cannot be changed from this page.'
@@ -2083,14 +2176,14 @@ export class FacilitatorController {
                 ` : ''}
                 ${lifecycleMessage}
 
-                ${(canManageDraft || canSubmitDraft || canRemoveDraft) ? `
+                ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow) || canRemoveDraft) ? `
                     <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
                         ${canManageDraft ? `
                             <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
                                 Edit Draft
                             </button>
                         ` : ''}
-                        ${canSubmitDraft ? `
+                        ${canSubmitDraft && !isStrategicOrientationFlow ? `
                             <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
                                 Forward to Scribe
                             </button>
@@ -2108,6 +2201,14 @@ export class FacilitatorController {
 
     showCreateActionModal() {
         if (!this.requireWriteAccess()) return;
+
+        if (this.isStrategicOrientationGateActive()) {
+            showToast({
+                message: this.getStrategicOrientationGateMessage(),
+                type: 'warning'
+            });
+            return;
+        }
 
         if (this.isBlueTeamActionWizardEnabled()) {
             this.showBlueActionWizard();
@@ -2158,6 +2259,11 @@ export class FacilitatorController {
             return;
         }
 
+        if (isStrategicOrientationAction(action)) {
+            this.showStrategicOrientationModal(action);
+            return;
+        }
+
         if (this.isBlueTeamActionWizardEnabled(action)) {
             this.showBlueActionWizard(action);
             return;
@@ -2201,7 +2307,9 @@ export class FacilitatorController {
     }
 
     isBlueTeamActionWizardEnabled(action = null) {
-        return this.teamId === 'blue' && (!action || !action.team || action.team === this.teamId);
+        return this.teamId === 'blue'
+            && (!action || !action.team || action.team === this.teamId)
+            && (!action || !isStrategicOrientationAction(action));
     }
 
     isProposalTeam() {
@@ -2209,11 +2317,529 @@ export class FacilitatorController {
     }
 
     isGreenTeamProposalEnabled(action = null) {
-        return this.isProposalTeam() && (!action || !action.team || action.team === this.teamId);
+        return this.isProposalTeam()
+            && (!action || !action.team || action.team === this.teamId)
+            && (!action || !isStrategicOrientationAction(action));
     }
 
     isRedTeamResponseEnabled(action = null) {
-        return this.teamId === 'red' && (!action || !action.team || action.team === this.teamId);
+        return this.teamId === 'red'
+            && (!action || !action.team || action.team === this.teamId)
+            && (!action || !isStrategicOrientationAction(action));
+    }
+
+    getStrategicOrientationArtifactType() {
+        return this.teamId === 'blue'
+            ? STRATEGIC_ORIENTATION_ARTIFACT_TYPES.SELECTION
+            : STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST;
+    }
+
+    getStrategicOrientationActionForTeam() {
+        return actionsStore.getAll().find((action) => (
+            action?.team === this.teamId
+            && isStrategicOrientationAction(action)
+        )) || null;
+    }
+
+    getStrategicOrientationModalCopy() {
+        const isBlue = this.teamId === 'blue';
+        return {
+            title: isBlue ? 'Strategic Orientation' : 'Forecast Blue Strategic Orientation',
+            eyebrow: 'Pre-Move 1 \u00b7 Team Selection',
+            stepOneTitle: isBlue ? 'Select one orientation' : 'Forecast Blue orientation',
+            stepOneInstruction: isBlue
+                ? 'Each orientation reflects a distinct posture toward strategic competition with the PRC. They are mutually exclusive. Review the doctrine and the trade-offs, then select one.'
+                : 'Forecast the orientation Blue is most likely to choose before Move 1. Each option is mutually exclusive; choose one and configure the expected posture.',
+            fieldLabel: isBlue ? 'Orientation' : 'Forecasted Blue orientation',
+            configureButton: isBlue ? 'Next: Configure' : 'Next: Forecast',
+            confirmButton: isBlue ? 'Confirm Orientation' : 'Confirm Forecast',
+            statusReady: isBlue ? 'Ready to confirm orientation.' : 'Ready to confirm forecast.',
+            rationalePlaceholder: isBlue
+                ? 'Briefly state why your team chose this orientation and configuration. Recorded for the White Cell and the after-action review.'
+                : 'Briefly state why your team forecasts Blue will choose this orientation and configuration. Recorded for the White Cell and the after-action review.'
+        };
+    }
+
+    showStrategicOrientationModal(action = null) {
+        if (!this.requireWriteAccess()) return;
+        if (!['blue', 'green', 'red'].includes(this.teamId)) {
+            showToast({
+                message: 'Strategic Orientation is available only to Blue, Green, and Red.',
+                type: 'warning'
+            });
+            return;
+        }
+
+        const existingAction = action || this.getStrategicOrientationActionForTeam();
+        if (existingAction && !canEditAction(existingAction)) {
+            showToast({
+                message: 'This Strategic Orientation artifact has already been submitted to White Cell.',
+                type: 'info'
+            });
+            return;
+        }
+
+        const content = this.createStrategicOrientationContent(existingAction || {});
+        const modalRef = { current: null };
+        const copy = this.getStrategicOrientationModalCopy();
+
+        modalRef.current = showModal({
+            title: copy.title,
+            content,
+            size: 'xl'
+        });
+
+        this.bindStrategicOrientationModal(content, modalRef.current, {
+            actionId: existingAction?.id || null,
+            isEdit: Boolean(existingAction?.id)
+        });
+    }
+
+    createStrategicOrientationContent(action = {}) {
+        const content = document.createElement('div');
+        const copy = this.getStrategicOrientationModalCopy();
+        const viewModel = getStrategicOrientationViewModel(action);
+        const selectedOrientation = viewModel.hasStrategicOrientationDetails
+            ? viewModel.orientation
+            : '';
+        const renderOrientationCard = (option) => {
+            const isSelected = selectedOrientation === option.id;
+            return `
+                <button class="opt${isSelected ? ' selected' : ''}" type="button" data-orientation="${this.escapeHtml(option.id)}" aria-pressed="${isSelected ? 'true' : 'false'}">
+                    <div class="opt-head">
+                        <div>
+                            <div class="opt-num">${this.escapeHtml(option.number)}</div>
+                            <div class="opt-name">${this.escapeHtml(option.name)}</div>
+                        </div>
+                        <div class="opt-check" aria-hidden="true">&check;</div>
+                    </div>
+                    <div class="opt-tag">${this.escapeHtml(option.tag)}</div>
+                    <p class="opt-desc">${this.escapeHtml(option.description)}</p>
+                    <div class="opt-chars">
+                        ${option.characteristics.map((item) => `
+                            <div class="char">
+                                <div class="k">${this.escapeHtml(item.key)}</div>
+                                <div class="v">${this.escapeHtml(item.value)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </button>
+            `;
+        };
+
+        content.innerHTML = `
+            <section class="strategic-orientation-modal" data-strategic-orientation-modal>
+                <div class="modal-head">
+                    <div class="mh-top">
+                        <div>
+                            <div class="eyebrow">${this.escapeHtml(copy.eyebrow)}</div>
+                            <h1>${this.escapeHtml(copy.title)}</h1>
+                        </div>
+                        <div class="step-pill" id="stepPill">Step 1 of ${STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL}</div>
+                    </div>
+                    <p id="mhSub">Choose the posture that will frame the first move. The Scribe must present the completed submission before White Cell receives it.</p>
+                </div>
+
+                <div class="view show" id="step1" data-orientation-step="1">
+                    <div class="content-pad">
+                        <h2>${this.escapeHtml(copy.stepOneTitle)}</h2>
+                        <p class="instruction">${this.escapeHtml(copy.stepOneInstruction)}</p>
+
+                        <div class="field-label">${this.escapeHtml(copy.fieldLabel)} <span class="req">&middot; required</span></div>
+
+                        <div class="options" id="options">
+                            ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map(renderOrientationCard).join('')}
+                        </div>
+                    </div>
+
+                    <div class="footer">
+                        <div class="foot-status" id="footPick">${selectedOrientation ? this.escapeHtml(`Selected: ${viewModel.orientationLabel}`) : 'No orientation selected'}</div>
+                        <div class="foot-actions">
+                            <button class="btn btn-ghost" type="button" data-orientation-nav="cancel">Cancel</button>
+                            <button class="btn btn-primary" id="nextBtn" type="button" data-orientation-nav="next" ${selectedOrientation ? '' : 'disabled'}>${this.escapeHtml(copy.configureButton)}</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="view" id="step2" data-orientation-step="2">
+                    <div class="content-pad">
+                        <h2>Configure orientation</h2>
+                        <div class="config-banner">
+                            <div class="cb-title" id="configTitle">Selected orientation</div>
+                            <div class="cb-sub" id="configSub">Select primary levers, accepted costs, and posture.</div>
+                        </div>
+
+                        <p class="instruction">Configuration choices make the orientation operational for the game record. Select at least one lever, one accepted cost, and one posture.</p>
+
+                        <div class="field-label">Primary levers <span class="req">&middot; select at least one</span></div>
+                        <div class="chips" id="leverChips"></div>
+
+                        <div class="field-label">Accepted costs <span class="req">&middot; select at least one</span></div>
+                        <div class="chips" id="costChips"></div>
+
+                        <div class="field-label">Posture <span class="req">&middot; select one</span></div>
+                        <div class="chips" id="postureChips"></div>
+
+                        <div class="field-label">Team rationale <span class="opt-note">(recorded with your selection)</span></div>
+                        <textarea id="rationale" placeholder="${this.escapeHtml(copy.rationalePlaceholder)}">${this.escapeHtml(viewModel.rationale)}</textarea>
+                        <div class="help">Optional but recommended. Your rationale travels with the selection and gives the White Cell context for how to read your moves.</div>
+                    </div>
+
+                    <div class="footer">
+                        <div class="foot-status" id="configStatus">Select required configuration choices.</div>
+                        <div class="foot-actions">
+                            <button class="btn btn-ghost" type="button" data-orientation-nav="back">Back</button>
+                            <button class="btn btn-primary" id="confirmBtn" type="button" data-orientation-nav="confirm" disabled>${this.escapeHtml(copy.confirmButton)}</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="view confirm-view" id="confirmView" data-orientation-step="confirm">
+                    <div class="content-pad">
+                        <div class="confirm-icon" aria-hidden="true">&check;</div>
+                        <h2>Strategic Orientation recorded</h2>
+                        <p class="instruction">This submission will be forwarded to the Scribe for team projection before it goes to White Cell.</p>
+
+                        <div class="summary">
+                            <div class="s-k">Orientation</div>
+                            <div class="s-v" id="sumOrientation">-</div>
+                            <div class="s-k">Primary levers</div>
+                            <div class="s-v" id="sumLevers">-</div>
+                            <div class="s-k">Accepted costs</div>
+                            <div class="s-v" id="sumCosts">-</div>
+                            <div class="s-k">Posture</div>
+                            <div class="s-v" id="sumPosture">-</div>
+                            <div class="s-k">Team rationale</div>
+                            <div class="s-v" id="sumRationale">-</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+
+        content.__strategicOrientationInitialState = {
+            selected: selectedOrientation,
+            levers: viewModel.primaryLevers || [],
+            costs: viewModel.acceptedCosts || [],
+            posture: viewModel.posture || '',
+            rationale: viewModel.rationale || ''
+        };
+
+        return content;
+    }
+
+    bindStrategicOrientationModal(content, modal, { actionId = null, isEdit = false } = {}) {
+        const state = {
+            selected: content.__strategicOrientationInitialState?.selected || null,
+            levers: [...(content.__strategicOrientationInitialState?.levers || [])],
+            costs: [...(content.__strategicOrientationInitialState?.costs || [])],
+            posture: content.__strategicOrientationInitialState?.posture || '',
+            rationale: content.__strategicOrientationInitialState?.rationale || ''
+        };
+        const stepPill = content.querySelector('#stepPill');
+        const step1 = content.querySelector('#step1');
+        const step2 = content.querySelector('#step2');
+        const confirmView = content.querySelector('#confirmView');
+        const footPick = content.querySelector('#footPick');
+        const nextBtn = content.querySelector('#nextBtn');
+        const confirmBtn = content.querySelector('#confirmBtn');
+        const configStatus = content.querySelector('#configStatus');
+        const rationaleEl = content.querySelector('#rationale');
+        const copy = this.getStrategicOrientationModalCopy();
+        const makeChip = (group, value, selected) => {
+            const safeValue = this.escapeHtml(value);
+            return `
+                <button class="chip" type="button" data-orientation-chip="${group}" data-chip-value="${safeValue}" aria-pressed="${selected ? 'true' : 'false'}">
+                    <span class="dot" aria-hidden="true">&check;</span>
+                    <span>${safeValue}</span>
+                </button>
+            `;
+        };
+        const setStep = (step) => {
+            step1?.classList.toggle('show', step === 1);
+            step2?.classList.toggle('show', step === 2);
+            confirmView?.classList.toggle('show', step === 'confirm');
+
+            if (stepPill) {
+                stepPill.textContent = step === 2
+                    ? `Step 2 of ${STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL}`
+                    : (step === 'confirm' ? 'Confirmed' : `Step 1 of ${STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL}`);
+            }
+        };
+        const renderConfig = () => {
+            const option = STRATEGIC_ORIENTATION_OPTIONS[state.selected];
+            if (!option) return;
+
+            const configTitle = content.querySelector('#configTitle');
+            const configSub = content.querySelector('#configSub');
+            if (configTitle) configTitle.textContent = option.name;
+            if (configSub) configSub.textContent = option.tag;
+
+            const leverChips = content.querySelector('#leverChips');
+            const costChips = content.querySelector('#costChips');
+            const postureChips = content.querySelector('#postureChips');
+            if (leverChips) {
+                leverChips.innerHTML = option.levers
+                    .map((value) => makeChip('lever', value, state.levers.includes(value)))
+                    .join('');
+            }
+            if (costChips) {
+                costChips.innerHTML = option.costs
+                    .map((value) => makeChip('cost', value, state.costs.includes(value)))
+                    .join('');
+            }
+            if (postureChips) {
+                postureChips.innerHTML = option.posture
+                    .map((value) => makeChip('posture', value, state.posture === value))
+                    .join('');
+            }
+        };
+        const updateConfirmState = () => {
+            const isComplete = Boolean(state.levers.length && state.costs.length && state.posture);
+            if (configStatus) {
+                configStatus.textContent = isComplete ? copy.statusReady : 'Select required configuration choices.';
+            }
+            if (confirmBtn) {
+                confirmBtn.disabled = !isComplete;
+            }
+        };
+        const selectOrientation = (orientation) => {
+            const option = STRATEGIC_ORIENTATION_OPTIONS[orientation];
+            if (!option) return;
+
+            state.selected = orientation;
+            state.levers = state.levers.filter((value) => option.levers.includes(value));
+            state.costs = state.costs.filter((value) => option.costs.includes(value));
+            state.posture = option.posture.includes(state.posture) ? state.posture : '';
+
+            content.querySelectorAll('[data-orientation]').forEach((button) => {
+                const selected = button.dataset.orientation === orientation;
+                button.classList.toggle('selected', selected);
+                button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            });
+
+            if (footPick) footPick.textContent = `Selected: ${option.name}`;
+            if (nextBtn) nextBtn.disabled = false;
+            renderConfig();
+            updateConfirmState();
+        };
+        const toggleChip = (button) => {
+            const group = button?.dataset?.orientationChip;
+            const value = button?.dataset?.chipValue;
+            if (!group || !value) return;
+
+            if (group === 'posture') {
+                state.posture = value;
+                content.querySelectorAll('[data-orientation-chip="posture"]').forEach((chip) => {
+                    const selected = chip.dataset.chipValue === value;
+                    chip.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                });
+            } else {
+                const key = group === 'lever' ? 'levers' : 'costs';
+                const hasValue = state[key].includes(value);
+                state[key] = hasValue
+                    ? state[key].filter((item) => item !== value)
+                    : [...state[key], value];
+                button.setAttribute('aria-pressed', hasValue ? 'false' : 'true');
+            }
+
+            updateConfirmState();
+        };
+        const renderSummary = () => {
+            const option = STRATEGIC_ORIENTATION_OPTIONS[state.selected];
+            const setText = (selector, value) => {
+                const element = content.querySelector(selector);
+                if (element) element.textContent = value;
+            };
+
+            setText('#sumOrientation', option ? `${option.name} - ${option.tag}` : '-');
+            setText('#sumLevers', formatStrategicOrientationSelection(state.levers, '-'));
+            setText('#sumCosts', formatStrategicOrientationSelection(state.costs, '-'));
+            setText('#sumPosture', state.posture || '-');
+            setText('#sumRationale', state.rationale || 'No rationale provided.');
+        };
+
+        content.querySelectorAll('[data-orientation]').forEach((button) => {
+            button.addEventListener('click', () => selectOrientation(button.dataset.orientation));
+        });
+        content.addEventListener('click', (event) => {
+            const chip = event.target.closest('[data-orientation-chip]');
+            if (chip && content.contains(chip)) {
+                toggleChip(chip);
+            }
+        });
+        rationaleEl?.addEventListener('input', () => {
+            state.rationale = rationaleEl.value.trim();
+        });
+        content.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => {
+            modal?.close();
+        });
+        content.querySelector('[data-orientation-nav="back"]')?.addEventListener('click', () => {
+            setStep(1);
+        });
+        content.querySelector('[data-orientation-nav="next"]')?.addEventListener('click', () => {
+            if (!state.selected) {
+                showToast({ message: 'Select one orientation before configuring it.', type: 'error' });
+                return;
+            }
+            renderConfig();
+            updateConfirmState();
+            setStep(2);
+        });
+        content.querySelector('[data-orientation-nav="confirm"]')?.addEventListener('click', () => {
+            state.rationale = rationaleEl?.value?.trim() || '';
+            const error = this.validateStrategicOrientationData(state);
+            if (error) {
+                showToast({ message: error, type: 'error' });
+                return;
+            }
+            renderSummary();
+            setStep('confirm');
+            this.submitStrategicOrientation(modal, state, { actionId, isEdit }).catch((err) => {
+                logger.error('Failed to forward Strategic Orientation:', err);
+            });
+        });
+
+        if (state.selected) {
+            selectOrientation(state.selected);
+        }
+        renderConfig();
+        updateConfirmState();
+    }
+
+    validateStrategicOrientationData(data = {}) {
+        if (!data.selected || !STRATEGIC_ORIENTATION_OPTIONS[data.selected]) {
+            return 'Select one orientation.';
+        }
+        if (!data.levers?.length) {
+            return 'Select at least one primary lever.';
+        }
+        if (!data.costs?.length) {
+            return 'Select at least one accepted cost.';
+        }
+        if (!data.posture) {
+            return 'Select one posture.';
+        }
+        return null;
+    }
+
+    buildStrategicOrientationPayload(data = {}) {
+        const option = STRATEGIC_ORIENTATION_OPTIONS[data.selected];
+        const artifactType = this.getStrategicOrientationArtifactType();
+        const isForecast = artifactType === STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST;
+        const forecastSummary = isForecast
+            ? `Forecast: Blue will choose ${option.name} - ${option.tag}.`
+            : '';
+
+        return {
+            goal: isForecast
+                ? `${this.teamLabel} Forecast: Blue ${option.name}`
+                : `Strategic Orientation: ${option.name}`,
+            mechanism: STRATEGIC_ORIENTATION_ACTION_MECHANISM,
+            sector: null,
+            exposure_type: STRATEGIC_ORIENTATION_PERIOD,
+            priority: 'HIGH',
+            targets: [],
+            expected_outcomes: isForecast ? forecastSummary : option.tag,
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType,
+                team: this.teamId,
+                orientation: option.id,
+                primaryLevers: data.levers,
+                acceptedCosts: data.costs,
+                posture: data.posture,
+                rationale: data.rationale,
+                forecastSummary,
+                scribeHandoff: STRATEGIC_ORIENTATION_SCRIBE_HANDOFF.FORWARDED
+            })
+        };
+    }
+
+    async submitStrategicOrientation(modal, data = {}, { actionId = null, isEdit = false } = {}) {
+        if (!this.requireWriteAccess()) return;
+
+        const error = this.validateStrategicOrientationData(data);
+        if (error) {
+            showToast({ message: error, type: 'error' });
+            return;
+        }
+
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No session found', type: 'error' });
+            return;
+        }
+
+        const option = STRATEGIC_ORIENTATION_OPTIONS[data.selected];
+        const loader = showLoader({ message: 'Forwarding Strategic Orientation to Scribe...' });
+
+        try {
+            const payload = this.buildStrategicOrientationPayload(data);
+            let action;
+
+            if (isEdit && actionId) {
+                action = await database.updateDraftAction(actionId, payload);
+                actionsStore.updateFromServer('UPDATE', action);
+            } else {
+                action = await database.createAction({
+                    ...payload,
+                    session_id: sessionId,
+                    client_id: sessionStore.getClientId(),
+                    team: this.teamId,
+                    status: ENUMS.ACTION_STATUS.DRAFT,
+                    move: 1,
+                    phase: 1
+                });
+                actionsStore.updateFromServer('INSERT', action);
+
+                const createdTimelineEvent = await database.createTimelineEvent({
+                    session_id: sessionId,
+                    type: 'ACTION_CREATED',
+                    content: `Strategic Orientation draft created: ${action.goal || option.name}`,
+                    metadata: {
+                        related_id: action.id,
+                        role: this.role || this.getCurrentLeadRole(),
+                        strategic_orientation: true,
+                        period: STRATEGIC_ORIENTATION_PERIOD
+                    },
+                    team: this.teamId,
+                    move: 1,
+                    phase: 1
+                });
+                timelineStore.updateFromServer('INSERT', createdTimelineEvent);
+            }
+
+            const forwardedTimelineEvent = await database.createTimelineEvent({
+                session_id: action.session_id || sessionId,
+                type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
+                content: `Strategic Orientation forwarded to Scribe: ${action.goal || option.name}`,
+                metadata: {
+                    related_id: action.id,
+                    role: this.role || this.getCurrentLeadRole(),
+                    strategic_orientation: true,
+                    artifact_type: this.getStrategicOrientationArtifactType(),
+                    orientation: option.id,
+                    next_step: 'scribe_project_then_submit_to_white_cell'
+                },
+                team: this.teamId,
+                move: 1,
+                phase: 1
+            });
+            timelineStore.updateFromServer('INSERT', forwardedTimelineEvent);
+
+            showToast({ message: 'Strategic Orientation forwarded to Scribe', type: 'success' });
+            modal?.close();
+        } catch (err) {
+            logger.error('Failed to forward Strategic Orientation:', err);
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to forward Strategic Orientation. Refresh the draft and try again.'
+                }),
+                type: 'error'
+            });
+        } finally {
+            hideLoader();
+        }
     }
 
     showRedResponseModal(action = null) {

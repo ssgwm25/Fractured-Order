@@ -418,3 +418,328 @@ body.loader-active {
         background-position: -200% 0;
     }
 }
+
+/* ==================== STRATEGIC ORIENTATION MODAL ==================== */
+
+.strategic-orientation-modal {
+    --so-ink: #18211d;
+    --so-muted: #60716b;
+    --so-line: #dce5df;
+    --so-surface: #ffffff;
+    --so-soft: #f3f7f4;
+    --so-green: #115740;
+    --so-gold: #c8a24a;
+    color: var(--so-ink);
+    background: var(--so-surface);
+}
+
+.strategic-orientation-modal .modal-head {
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--so-line);
+    background: linear-gradient(180deg, #f9fbf8 0%, #ffffff 100%);
+}
+
+.strategic-orientation-modal .mh-top,
+.strategic-orientation-modal .footer,
+.strategic-orientation-modal .opt-head,
+.strategic-orientation-modal .foot-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.strategic-orientation-modal .eyebrow,
+.strategic-orientation-modal .field-label,
+.strategic-orientation-modal .s-k,
+.strategic-orientation-modal .opt-num {
+    color: var(--so-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.strategic-orientation-modal h1,
+.strategic-orientation-modal h2 {
+    margin: 0;
+    color: var(--so-ink);
+    letter-spacing: 0;
+}
+
+.strategic-orientation-modal h1 {
+    margin-top: var(--space-1);
+    font-size: var(--text-2xl);
+}
+
+.strategic-orientation-modal h2 {
+    font-size: var(--text-xl);
+}
+
+.strategic-orientation-modal #mhSub,
+.strategic-orientation-modal .instruction,
+.strategic-orientation-modal .help,
+.strategic-orientation-modal .foot-status,
+.strategic-orientation-modal .opt-desc,
+.strategic-orientation-modal .cb-sub {
+    color: var(--so-muted);
+}
+
+.strategic-orientation-modal #mhSub,
+.strategic-orientation-modal .instruction {
+    margin: var(--space-2) 0 0;
+    line-height: 1.55;
+}
+
+.strategic-orientation-modal .step-pill {
+    flex: 0 0 auto;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--so-line);
+    border-radius: var(--radius-full);
+    background: var(--so-soft);
+    color: var(--so-green);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+}
+
+.strategic-orientation-modal .view {
+    display: none;
+}
+
+.strategic-orientation-modal .view.show {
+    display: block;
+}
+
+.strategic-orientation-modal .content-pad {
+    padding: var(--space-6);
+}
+
+.strategic-orientation-modal .field-label {
+    margin: var(--space-5) 0 var(--space-2);
+}
+
+.strategic-orientation-modal .req {
+    color: var(--so-green);
+    text-transform: none;
+}
+
+.strategic-orientation-modal .opt-note {
+    color: var(--so-muted);
+    font-weight: var(--font-medium);
+    text-transform: none;
+}
+
+.strategic-orientation-modal .options {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.strategic-orientation-modal .opt {
+    width: 100%;
+    padding: var(--space-4);
+    border: 1px solid var(--so-line);
+    border-radius: var(--radius-lg);
+    background: #ffffff;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.strategic-orientation-modal .opt:hover,
+.strategic-orientation-modal .opt:focus-visible {
+    border-color: var(--so-gold);
+    box-shadow: 0 10px 30px rgba(17, 87, 64, 0.12);
+    outline: none;
+}
+
+.strategic-orientation-modal .opt.selected {
+    border-color: var(--so-green);
+    box-shadow: 0 0 0 2px rgba(17, 87, 64, 0.14);
+}
+
+.strategic-orientation-modal .opt-name {
+    margin-top: var(--space-1);
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+}
+
+.strategic-orientation-modal .opt-tag {
+    margin-top: var(--space-2);
+    color: var(--so-green);
+    font-weight: var(--font-semibold);
+}
+
+.strategic-orientation-modal .opt-desc {
+    margin: var(--space-3) 0 0;
+    line-height: 1.5;
+}
+
+.strategic-orientation-modal .opt-check {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--so-line);
+    border-radius: 999px;
+    color: transparent;
+}
+
+.strategic-orientation-modal .opt.selected .opt-check {
+    border-color: var(--so-green);
+    background: var(--so-green);
+    color: #ffffff;
+}
+
+.strategic-orientation-modal .opt-chars {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.strategic-orientation-modal .char {
+    min-width: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--so-line);
+    border-radius: var(--radius-md);
+    background: var(--so-soft);
+}
+
+.strategic-orientation-modal .char .k {
+    color: var(--so-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+}
+
+.strategic-orientation-modal .char .v {
+    margin-top: var(--space-1);
+    font-weight: var(--font-semibold);
+}
+
+.strategic-orientation-modal .footer {
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--so-line);
+    background: #ffffff;
+}
+
+.strategic-orientation-modal .config-banner {
+    margin-top: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid rgba(17, 87, 64, 0.2);
+    border-radius: var(--radius-lg);
+    background: var(--so-soft);
+}
+
+.strategic-orientation-modal .cb-title {
+    color: var(--so-green);
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+}
+
+.strategic-orientation-modal .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.strategic-orientation-modal .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--so-line);
+    border-radius: var(--radius-full);
+    background: #ffffff;
+    color: var(--so-ink);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+}
+
+.strategic-orientation-modal .chip[aria-pressed="true"] {
+    border-color: var(--so-green);
+    background: rgba(17, 87, 64, 0.08);
+    color: var(--so-green);
+}
+
+.strategic-orientation-modal .dot {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--so-line);
+    color: transparent;
+    font-size: 11px;
+}
+
+.strategic-orientation-modal .chip[aria-pressed="true"] .dot {
+    background: var(--so-green);
+    color: #ffffff;
+}
+
+.strategic-orientation-modal textarea {
+    width: 100%;
+    min-height: 84px;
+    padding: var(--space-3);
+    border: 1px solid var(--so-line);
+    border-radius: var(--radius-md);
+    color: var(--so-ink);
+    resize: vertical;
+}
+
+.strategic-orientation-modal textarea:focus {
+    border-color: var(--so-green);
+    box-shadow: 0 0 0 3px rgba(17, 87, 64, 0.12);
+    outline: none;
+}
+
+.strategic-orientation-modal .help {
+    margin-top: var(--space-2);
+    font-size: var(--text-xs);
+}
+
+.strategic-orientation-modal .confirm-view {
+    text-align: center;
+}
+
+.strategic-orientation-modal .confirm-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    margin-bottom: var(--space-3);
+    border-radius: 999px;
+    background: var(--so-green);
+    color: #ffffff;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+}
+
+.strategic-orientation-modal .summary {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+    text-align: left;
+}
+
+.strategic-orientation-modal .s-v {
+    min-width: 0;
+    color: var(--so-ink);
+    line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+    .strategic-orientation-modal .mh-top,
+    .strategic-orientation-modal .footer {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .strategic-orientation-modal .opt-chars,
+    .strategic-orientation-modal .summary {
+        grid-template-columns: 1fr;
+    }
+}

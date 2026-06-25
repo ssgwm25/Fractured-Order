@@ -10,6 +10,7 @@ import {
     normalizeScribeDeckPath
 } from '../features/scribe/deckConfig.js';
 import { serializeBlueActionDetails } from '../features/actions/blueActionDetails.js';
+import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
 const BLUE_SCRIBE_HTML_PATH = new URL('../../teams/blue/scribe.html', import.meta.url);
 const GREEN_SCRIBE_HTML_PATH = new URL('../../teams/green/scribe.html', import.meta.url);
@@ -839,6 +840,42 @@ describe('scribe surface', () => {
         });
     });
 
+    it('includes forwarded Strategic Orientation drafts as pre-Move 1 Scribe slides', async () => {
+        const { buildScribeActionSlides } = await loadScribeModule();
+
+        const liveSlides = buildScribeActionSlides([{
+            id: 'orientation-blue-1',
+            team: 'blue',
+            move: 1,
+            phase: 1,
+            goal: 'Strategic Orientation: Pressure',
+            mechanism: 'Strategic Orientation',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH',
+            status: 'draft',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'selection',
+                team: 'blue',
+                orientation: 'pressure',
+                primaryLevers: ['Expanded financial sanctions'],
+                acceptedCosts: ['Sustained economic friction'],
+                posture: 'Calibrated \u2014 escalate deliberately',
+                scribeHandoff: 'Forwarded'
+            })
+        }], {
+            teamLabel: 'Blue Team'
+        });
+
+        expect(liveSlides.slideCount).toBe(1);
+        expect(liveSlides.slides[0]).toMatchObject({
+            slideKey: 'action-orientation-blue-1',
+            slideType: 'action',
+            title: 'Strategic Orientation: Pressure',
+            sidebarOrdinal: 'SO',
+            sidebarKicker: 'Forwarded to Scribe | Pre-Move 1 | Selection'
+        });
+    });
+
     it('renders blue action slides as structured briefing panels that are easier for the team to follow', async () => {
         const { ScribeController } = await loadScribeModule();
         global.document = createFakeDocument();
@@ -992,6 +1029,52 @@ describe('scribe surface', () => {
         expect(html).toContain('hidden disabled aria-hidden="true"');
     });
 
+    it('renders forwarded Strategic Orientation drafts with project-then-submit controls', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'green';
+        const controller = new ScribeController();
+        const action = {
+            id: 'orientation-forecast-preview',
+            team: 'green',
+            move: 1,
+            phase: 1,
+            goal: 'Green Forecast: Blue Reframe',
+            mechanism: 'Strategic Orientation',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH',
+            status: 'draft',
+            created_at: '2026-06-15T09:55:00.000Z',
+            updated_at: '2026-06-15T10:05:00.000Z',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'forecast',
+                team: 'green',
+                orientation: 'reframe',
+                primaryLevers: ['Friend-shoring agreements'],
+                acceptedCosts: ['Transitional inefficiencies'],
+                posture: 'Gradual \u2014 long-horizon reallocation',
+                rationale: 'Green expects Blue to pivot into alliance structure-building.',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const html = controller.renderActionSlide({
+            slideKey: 'action-orientation-forecast-preview',
+            slideType: 'action',
+            sidebarOrdinal: 'SO',
+            sidebarKicker: 'Forwarded to Scribe | Pre-Move 1 | Forecast',
+            action
+        });
+
+        expect(html).toContain('Strategic Orientation Forecast');
+        expect(html).toContain('Forecasted Blue posture');
+        expect(html).toContain('Orientation at a glance');
+        expect(html).toContain('Friend-shoring agreements');
+        expect(html).toContain('Project Forecast');
+        expect(html).toContain('Submit to White Cell');
+        expect(html).not.toContain('Coordinated tick boxes');
+    });
+
     it('requires scribe yes/no decisions and selected tick boxes before showing submit', async () => {
         const { ScribeController } = await loadScribeModule();
         const controller = new ScribeController();
@@ -1111,6 +1194,74 @@ describe('scribe surface', () => {
         expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', submittedAction);
         expect(timelineStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
             id: 'timeline-scribe-submit'
+        }));
+    });
+
+    it('submits Strategic Orientation drafts from Scribe to White Cell without Blue coordination rewrites', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        const actionsStoreSpy = vi.spyOn(actionsStore, 'updateFromServer');
+        const timelineStoreSpy = vi.spyOn(timelineStore, 'updateFromServer');
+        const action = {
+            id: 'orientation-scribe-submit',
+            session_id: 'session-scribe-submit',
+            team: 'red',
+            move: 1,
+            phase: 1,
+            goal: 'Red Forecast: Blue Pressure',
+            mechanism: 'Strategic Orientation',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH',
+            status: 'draft',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'forecast',
+                team: 'red',
+                orientation: 'pressure',
+                primaryLevers: ['Expanded financial sanctions'],
+                acceptedCosts: ['Elevated escalation risk'],
+                posture: 'Assertive \u2014 accept elevated escalation',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+        const submittedAction = {
+            ...action,
+            status: 'submitted',
+            submitted_at: '2026-06-15T10:20:00.000Z'
+        };
+        mockSubmitAction.mockResolvedValue(submittedAction);
+        mockCreateTimelineEvent.mockResolvedValue({
+            id: 'timeline-orientation-submit',
+            session_id: action.session_id,
+            type: 'STRATEGIC_ORIENTATION_SUBMITTED',
+            content: 'Strategic Orientation submitted to White Cell by Scribe: Red Forecast: Blue Pressure',
+            team: 'red',
+            move: 1,
+            phase: 1
+        });
+
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'red';
+        const controller = new ScribeController();
+        controller.role = 'red_scribe';
+        controller.teamId = 'red';
+
+        await controller.submitScribeAction(action);
+
+        expect(mockUpdateDraftAction).not.toHaveBeenCalled();
+        expect(mockSubmitAction).toHaveBeenCalledWith('orientation-scribe-submit');
+        expect(mockCreateTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'STRATEGIC_ORIENTATION_SUBMITTED',
+            metadata: expect.objectContaining({
+                submitted_by: 'scribe',
+                strategic_orientation: true,
+                artifact_type: 'forecast',
+                orientation: 'pressure'
+            })
+        }));
+        expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', submittedAction);
+        expect(timelineStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'timeline-orientation-submit'
         }));
     });
 

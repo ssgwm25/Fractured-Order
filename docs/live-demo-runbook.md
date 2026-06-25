@@ -72,17 +72,19 @@ White Cell Support should be able to monitor and communicate but not perform lea
 
 Facilitator:
 
+- before Move 1, Blue completes Strategic Orientation and Green/Red complete forecasts of Blue orientation; all three go to the Scribe first
 - create a draft action/proposal/response
-- forward completed actions to the Scribe; proposals and move responses still enter White Cell review from their role-specific flows
+- forward completed Strategic Orientation artifacts and actions to the Scribe; normal proposals and move responses still enter White Cell review from their role-specific flows
 - submit RFIs across multiple category tabs
 - confirm White Cell responses are separated by category tabs and forwarded proposals appear
 - confirm timeline and quick capture render
 
 White Cell:
 
-- advance/regress phase and move
-- start/pause/reset timer as lead
-- deliberate submitted actions/proposals/responses
+- confirm Move 1 start/advance controls remain blocked until Blue selection plus Green and Red forecasts arrive from Scribe
+- advance/regress phase and move after the Strategic Orientation gate clears
+- start/pause/reset timer as lead after the Strategic Orientation gate clears
+- deliberate submitted Strategic Orientation artifacts/actions/proposals/responses
 - answer RFIs
 - send direct communications and section updates
 - review participant roster filters
@@ -91,7 +93,8 @@ White Cell:
 Scribe:
 
 - confirm default deck loads
-- confirm only facilitator-forwarded actions and live communications appear as slides
+- confirm facilitator-forwarded Strategic Orientation artifacts, facilitator-forwarded actions, and live communications appear as slides
+- project each Strategic Orientation selection/forecast for the team, then submit it to White Cell
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid
 

@@ -199,6 +199,19 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('id="verbaAiBadge"');
     });
 
+    it('ships Strategic Orientation controls on Blue, Green, and Red facilitator surfaces', () => {
+        const blueHtml = readFileSync(FACILITATOR_HTML_PATH, 'utf8');
+        const greenHtml = readFileSync(GREEN_FACILITATOR_HTML_PATH, 'utf8');
+        const redHtml = readFileSync(RED_FACILITATOR_HTML_PATH, 'utf8');
+
+        expect(blueHtml).toContain('id="strategicOrientationBtn"');
+        expect(blueHtml).toContain('Strategic Orientation');
+        expect(greenHtml).toContain('id="strategicOrientationBtn"');
+        expect(greenHtml).toContain('Forecast Blue');
+        expect(redHtml).toContain('id="strategicOrientationBtn"');
+        expect(redHtml).toContain('Forecast Blue');
+    });
+
     it('mounts a Blue facilitator guide that covers every facilitator surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
