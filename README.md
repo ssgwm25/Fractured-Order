@@ -121,18 +121,6 @@ The app requires anonymous auth to be enabled because browser clients establish 
 
 Use [docs/supabase-setup.md](docs/supabase-setup.md) as the authoritative operator setup and verification guide. Legacy broad-policy SQL files are not the final live hardening state.
 
-## Live Demo Runbook
-
-For J7/JFSC-style rehearsals, use [docs/live-demo-runbook.md](docs/live-demo-runbook.md). The runbook covers:
-
-- pre-demo build/source checks
-- Supabase RPC and RLS verification
-- session creation
-- role-seat matrix
-- facilitator/White Cell workflows
-- larger-record rehearsal checks
-- degraded-sync and recovery expectations
-- export/AAR evidence checks
 
 ## Accessibility And Reliability Contracts
 
