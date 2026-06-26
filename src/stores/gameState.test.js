@@ -21,7 +21,8 @@ vi.mock('../core/config.js', () => ({
 }));
 
 vi.mock('../core/enums.js', () => ({
-    ENUMS: {}
+    ENUMS: {},
+    getPhaseLabel: vi.fn((phase) => `Phase ${phase}`)
 }));
 
 vi.mock('../utils/logger.js', () => ({
@@ -45,6 +46,12 @@ function buildGameState(overrides = {}) {
         move: 1,
         phase: 1,
         timer_seconds: 5400,
+        timer_allocations: {
+            strategic_orientation: 5400,
+            move_1: 5400,
+            move_2: 5400,
+            move_3: 5400
+        },
         timer_running: false,
         timer_last_update: null,
         status: 'active',
@@ -84,6 +91,12 @@ describe('GameStateStore resilience', () => {
                 move: 1,
                 phase: 1,
                 timer_seconds: 5400,
+                timer_allocations: {
+                    strategic_orientation: 5400,
+                    move_1: 5400,
+                    move_2: 5400,
+                    move_3: 5400
+                },
                 timer_running: false,
                 status: 'active'
             })
@@ -94,6 +107,94 @@ describe('GameStateStore resilience', () => {
         expect(gameStateStore.initialized).toBe(true);
         expect(gameStateStore.getCurrentMove()).toBe(1);
         expect(gameStateStore.getCurrentPhase()).toBe(1);
+
+        gameStateStore.reset();
+    });
+
+    it('persists normalized timer allocations for each game-state mark', async () => {
+        let persistedState = buildGameState({
+            session_id: 'session-live-allocations'
+        });
+
+        mockDatabase.getGameState.mockResolvedValue(persistedState);
+        mockDatabase.updateGameState.mockImplementation(async (_sessionId, updates) => {
+            persistedState = buildGameState({
+                ...persistedState,
+                ...updates,
+                updated_at: new Date().toISOString(),
+                last_updated: new Date().toISOString()
+            });
+            return persistedState;
+        });
+
+        const { gameStateStore } = await loadGameStateModule();
+
+        await gameStateStore.initialize('session-live-allocations');
+        await gameStateStore.setTimerAllocations({
+            strategic_orientation: 1800,
+            move_1: 2700,
+            move_2: 3600,
+            move_3: 4500,
+            ignored: 999
+        });
+
+        expect(mockDatabase.updateGameState).toHaveBeenLastCalledWith('session-live-allocations', {
+            timer_allocations: {
+                strategic_orientation: 1800,
+                move_1: 2700,
+                move_2: 3600,
+                move_3: 4500
+            }
+        });
+        expect(gameStateStore.getTimerAllocations()).toEqual({
+            strategic_orientation: 1800,
+            move_1: 2700,
+            move_2: 3600,
+            move_3: 4500
+        });
+
+        gameStateStore.reset();
+    });
+
+    it('resets the timer to the target move allocation when advancing moves', async () => {
+        let persistedState = buildGameState({
+            session_id: 'session-live-move-allocation',
+            timer_seconds: 120,
+            timer_allocations: {
+                strategic_orientation: 1800,
+                move_1: 2700,
+                move_2: 3600,
+                move_3: 4500
+            }
+        });
+
+        mockDatabase.getGameState.mockResolvedValue(persistedState);
+        mockDatabase.updateGameState.mockImplementation(async (_sessionId, updates) => {
+            persistedState = buildGameState({
+                ...persistedState,
+                ...updates,
+                updated_at: new Date().toISOString(),
+                last_updated: new Date().toISOString()
+            });
+            return persistedState;
+        });
+
+        const { gameStateStore } = await loadGameStateModule();
+
+        await gameStateStore.initialize('session-live-move-allocation');
+        await gameStateStore.advanceMove();
+
+        expect(mockDatabase.updateGameState).toHaveBeenLastCalledWith('session-live-move-allocation', {
+            move: 2,
+            phase: 1,
+            timer_seconds: 3600,
+            timer_running: false,
+            timer_last_update: '2026-04-08T16:30:00.000Z'
+        });
+
+        expect(gameStateStore.getCurrentMove()).toBe(2);
+        expect(gameStateStore.getTimerSeconds()).toBe(3600);
+        expect(gameStateStore.isTimerRunning()).toBe(false);
 
         gameStateStore.reset();
     });

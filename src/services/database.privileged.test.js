@@ -87,6 +87,51 @@ describe('database privileged write contracts', () => {
         });
     });
 
+    it('routes timer allocation changes through the protected White Cell RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                session_id: 'session-1',
+                move: 1,
+                phase: 1,
+                timer_seconds: 5400,
+                timer_allocations: {
+                    strategic_orientation: 1800,
+                    move_1: 2700,
+                    move_2: 3600,
+                    move_3: 4500
+                },
+                timer_running: false
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.updateGameState('session-1', {
+            timer_allocations: {
+                strategic_orientation: 1800,
+                move_1: 2700,
+                move_2: 3600,
+                move_3: 4500,
+                ignored: 1200
+            }
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('operator_update_game_state', {
+            requested_session_id: 'session-1',
+            requested_move: null,
+            requested_phase: null,
+            requested_timer_seconds: null,
+            requested_timer_running: null,
+            requested_timer_last_update: null,
+            requested_timer_allocations: {
+                strategic_orientation: 1800,
+                move_1: 2700,
+                move_2: 3600,
+                move_3: 4500
+            }
+        });
+    });
+
     it('routes answered request updates through the protected White Cell RPC', async () => {
         mockSupabase.rpc.mockResolvedValue({
             data: {

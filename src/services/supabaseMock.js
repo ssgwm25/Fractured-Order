@@ -4,6 +4,12 @@ const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
 const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
 const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+const DEFAULT_TIMER_ALLOCATIONS = Object.freeze({
+    strategic_orientation: 5400,
+    move_1: 5400,
+    move_2: 5400,
+    move_3: 5400
+});
 
 const MOCK_TABLES = [
     'sessions',
@@ -419,6 +425,7 @@ function normalizeInsertRow(tableName, payload, state) {
                 move: 1,
                 phase: 1,
                 timer_seconds: 0,
+                timer_allocations: cloneValue(DEFAULT_TIMER_ALLOCATIONS),
                 timer_running: false,
                 timer_last_update: null,
                 updated_at: timestamp,
@@ -998,6 +1005,7 @@ function createLiveDemoSession(state, {
         move: 1,
         phase: 1,
         timer_seconds: 5400,
+        timer_allocations: cloneValue(DEFAULT_TIMER_ALLOCATIONS),
         timer_running: false,
         timer_last_update: null
     }, state));
@@ -1418,6 +1426,7 @@ function operatorUpdateGameState(state, params) {
         move: params?.requested_move ?? gameState.move,
         phase: params?.requested_phase ?? gameState.phase,
         timer_seconds: params?.requested_timer_seconds ?? gameState.timer_seconds,
+        timer_allocations: params?.requested_timer_allocations ?? gameState.timer_allocations ?? cloneValue(DEFAULT_TIMER_ALLOCATIONS),
         timer_running: params?.requested_timer_running ?? gameState.timer_running,
         timer_last_update: params?.requested_timer_last_update ?? gameState.timer_last_update,
         last_updated: getTimestamp(),

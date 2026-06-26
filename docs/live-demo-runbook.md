@@ -6,7 +6,7 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
-3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, and `data/2026-06-25_participant_role_resolver_normalization.sql` before testing Industry seats, Strategic Orientation forecasts, or Scribe-to-White Cell submissions.
+3. Confirm Supabase anonymous auth, RPCs, and RLS checks pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, and `data/2026-06-25_timer_allocations_game_state.sql` before testing Industry seats, Strategic Orientation forecasts, Scribe-to-White Cell submissions, or White Cell time allocations.
 4. Confirm the role matrix can join: Blue, Red, Green, and Industry facilitators; scribes; notetakers; White Cell Lead; White Cell Support; Game Master.
 5. Confirm production source maps are not published by default.
 
@@ -84,10 +84,12 @@ Facilitator:
 
 White Cell:
 
-- confirm Move 1 start/advance controls remain blocked until Blue selection plus Green, Red, and Industry forecasts arrive from Scribe
+- confirm Move 1 phase/move advance controls remain blocked until Blue selection plus Green, Red, and Industry forecasts arrive from Scribe
 - confirm the Strategic Orientation queue shows Blue selection plus Green, Red, and Industry forecasts after Scribe submission
+- set Time Allocations for Strategic Orientation, Move 1, Move 2, and Move 3; confirm reset uses the active state mark allocation
+- start/pause/reset the Strategic Orientation timer as lead while the pre-Move-1 gate is still incomplete
 - advance/regress phase and move after the Strategic Orientation gate clears
-- start/pause/reset timer as lead after the Strategic Orientation gate clears
+- confirm advancing or regressing moves pauses the timer and loads the target move allocation
 - deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then actions/proposals/responses from their role-specific queues
 - answer RFIs
 - send direct communications and section updates

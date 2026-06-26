@@ -274,4 +274,23 @@ CREATE TRIGGER update_request_on_communication
     FOR EACH ROW
     EXECUTE FUNCTION public.update_request_response_time();
 
+-- ============================================================================
+-- 4. GAME STATE TIMER ALLOCATIONS
+-- ============================================================================
+
+ALTER TABLE public.game_state
+    ADD COLUMN IF NOT EXISTS timer_allocations JSONB;
+
+UPDATE public.game_state
+SET timer_allocations = COALESCE(
+    timer_allocations,
+    '{"strategic_orientation":5400,"move_1":5400,"move_2":5400,"move_3":5400}'::jsonb
+);
+
+ALTER TABLE public.game_state
+    ALTER COLUMN timer_allocations SET DEFAULT '{"strategic_orientation":5400,"move_1":5400,"move_2":5400,"move_3":5400}'::jsonb,
+    ALTER COLUMN timer_allocations SET NOT NULL;
+
+COMMENT ON COLUMN public.game_state.timer_allocations IS 'White Cell-managed timer allocation map, in seconds, for strategic_orientation and move_1 through move_3.';
+
 COMMIT;

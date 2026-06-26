@@ -350,8 +350,81 @@
                                             <button class="btn btn-success flex-1" id="startTimerBtn">Start</button>
                                             <button class="btn btn-warning flex-1" id="pauseTimerBtn">Pause</button>
                                         </div>
-                                        <button class="btn btn-secondary w-full" id="resetTimerBtn">Reset to 90:00</button>
+                                        <button class="btn btn-secondary w-full" id="resetTimerBtn">Reset to 90 min</button>
                                     </div>
+                                </div>
+
+                                <div class="card card-bordered" style="padding: var(--space-4); margin-top: var(--space-4);">
+                                    <h3 class="text-base font-semibold mb-2">Time Allocations</h3>
+                                    <form id="timerAllocationForm">
+                                        <div class="section-grid section-grid-4" id="timerAllocationFields">
+                                            <label class="form-label" for="timerAllocationStrategicOrientation">
+                                                Strategic Orientation
+                                                <input
+                                                    class="form-input"
+                                                    id="timerAllocationStrategicOrientation"
+                                                    data-timer-allocation-mark="strategic_orientation"
+                                                    type="number"
+                                                    min="1"
+                                                    max="600"
+                                                    step="1"
+                                                    value="90"
+                                                    inputmode="numeric"
+                                                    aria-label="Strategic Orientation minutes"
+                                                >
+                                            </label>
+                                            <label class="form-label" for="timerAllocationMove1">
+                                                Move 1
+                                                <input
+                                                    class="form-input"
+                                                    id="timerAllocationMove1"
+                                                    data-timer-allocation-mark="move_1"
+                                                    type="number"
+                                                    min="1"
+                                                    max="600"
+                                                    step="1"
+                                                    value="90"
+                                                    inputmode="numeric"
+                                                    aria-label="Move 1 minutes"
+                                                >
+                                            </label>
+                                            <label class="form-label" for="timerAllocationMove2">
+                                                Move 2
+                                                <input
+                                                    class="form-input"
+                                                    id="timerAllocationMove2"
+                                                    data-timer-allocation-mark="move_2"
+                                                    type="number"
+                                                    min="1"
+                                                    max="600"
+                                                    step="1"
+                                                    value="90"
+                                                    inputmode="numeric"
+                                                    aria-label="Move 2 minutes"
+                                                >
+                                            </label>
+                                            <label class="form-label" for="timerAllocationMove3">
+                                                Move 3
+                                                <input
+                                                    class="form-input"
+                                                    id="timerAllocationMove3"
+                                                    data-timer-allocation-mark="move_3"
+                                                    type="number"
+                                                    min="1"
+                                                    max="600"
+                                                    step="1"
+                                                    value="90"
+                                                    inputmode="numeric"
+                                                    aria-label="Move 3 minutes"
+                                                >
+                                            </label>
+                                        </div>
+                                        <p class="text-sm text-gray-500" id="timerAllocationCurrentMark" style="margin-top: var(--space-3);">Current reset target: Move 1 - 90 minutes</p>
+                                        <div class="flex gap-2" style="margin-top: var(--space-3);">
+                                            <button class="btn btn-primary" id="timerAllocationSaveBtn" type="submit">Save Allocations</button>
+                                            <button class="btn btn-secondary" id="timerAllocationResetCurrentBtn" type="button">Reset Current Mark</button>
+                                        </div>
+                                    </form>
                                 </div>
                             </div>
 

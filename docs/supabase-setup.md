@@ -26,7 +26,7 @@ Use the current hardening path for live environments:
 
 1. Apply the complete/current schema baseline used for this repository.
 2. Apply dated hardening migrations in order.
-3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, and `data/2026-06-25_participant_role_resolver_normalization.sql` have been applied.
+3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, and `data/2026-06-25_timer_allocations_game_state.sql` have been applied.
 4. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the current build requires it.
 5. Verify RPCs and RLS policies before a demo.
 
@@ -86,5 +86,6 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - White Cell and Game Master actions require operator grants
 - stored participant roles are normalized before RLS derives write surface/team
 - same-team Scribes can submit facilitator-forwarded action and Strategic Orientation drafts to White Cell
+- White Cell can persist timer allocations for Strategic Orientation and Moves 1-3 through `operator_update_game_state`
 - direct browser writes remain bounded by RLS
 - research export RPCs return expected runtime configuration

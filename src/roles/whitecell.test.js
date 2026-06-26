@@ -101,11 +101,20 @@ function createFakeElement(id = null, tagName = 'div') {
         value: '',
         checked: false,
         hidden: false,
+        disabled: false,
+        dataset: {},
+        attributes: {},
         listeners: {},
         classList: {
             add() {},
             remove() {},
             toggle() {}
+        },
+        setAttribute(name, value) {
+            this.attributes[name] = String(value);
+        },
+        getAttribute(name) {
+            return this.attributes[name];
         },
         querySelectorAll() {
             return [];
@@ -153,6 +162,13 @@ function createFakeDocument(ids = []) {
         },
         getElementById(id) {
             return elements[id] || null;
+        },
+        querySelectorAll(selector) {
+            if (selector === '[data-timer-allocation-mark]') {
+                return Object.values(elements).filter((element) => element.dataset?.timerAllocationMark);
+            }
+
+            return [];
         }
     };
 }
@@ -348,6 +364,138 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.startTimerBtn.disabled).toBe(false);
         expect(fakeDocument.elements.pauseTimerBtn.disabled).toBe(true);
         expect(fakeDocument.elements.timerStatus.textContent).toBe('Paused');
+    });
+
+    it('saves White Cell timer allocations as seconds for each game-state mark', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { gameStateStore } = await import('../stores/gameState.js');
+        const fakeDocument = createFakeDocument([
+            'timerAllocationStrategicOrientation',
+            'timerAllocationMove1',
+            'timerAllocationMove2',
+            'timerAllocationMove3',
+            'timerAllocationCurrentMark',
+            'timerAllocationSaveBtn',
+            'timerAllocationResetCurrentBtn',
+            'resetTimerBtn'
+        ]);
+        global.document = fakeDocument;
+
+        fakeDocument.elements.timerAllocationStrategicOrientation.dataset.timerAllocationMark = 'strategic_orientation';
+        fakeDocument.elements.timerAllocationStrategicOrientation.value = '30';
+        fakeDocument.elements.timerAllocationMove1.dataset.timerAllocationMark = 'move_1';
+        fakeDocument.elements.timerAllocationMove1.value = '45';
+        fakeDocument.elements.timerAllocationMove2.dataset.timerAllocationMark = 'move_2';
+        fakeDocument.elements.timerAllocationMove2.value = '60';
+        fakeDocument.elements.timerAllocationMove3.dataset.timerAllocationMark = 'move_3';
+        fakeDocument.elements.timerAllocationMove3.value = '75';
+
+        const setTimerAllocations = vi.spyOn(gameStateStore, 'setTimerAllocations').mockResolvedValue({
+            timer_allocations: {
+                strategic_orientation: 1800,
+                move_1: 2700,
+                move_2: 3600,
+                move_3: 4500
+            }
+        });
+
+        const controller = new WhiteCellController();
+        await controller.handleTimerAllocationSubmit({ preventDefault: vi.fn() });
+
+        expect(setTimerAllocations).toHaveBeenCalledWith({
+            strategic_orientation: 1800,
+            move_1: 2700,
+            move_2: 3600,
+            move_3: 4500
+        });
+        expect(fakeDocument.elements.timerAllocationCurrentMark.textContent).toBe(
+            'Current reset target: Strategic Orientation - 30 minutes'
+        );
+        expect(showToast).toHaveBeenCalledWith({ message: 'Timer allocations saved', type: 'success' });
+    });
+
+    it('resets the timer to the active Strategic Orientation allocation before the Move 1 gate clears', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const { gameStateStore } = await import('../stores/gameState.js');
+
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            {
+                team: 'blue',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'selection',
+                    team: 'blue',
+                    orientation: 'pressure'
+                })
+            }
+        ]);
+        vi.spyOn(gameStateStore, 'getState').mockReturnValue({
+            move: 1,
+            phase: 1,
+            timer_seconds: 5400,
+            timer_running: false,
+            timer_allocations: {
+                strategic_orientation: 1800,
+                move_1: 2700,
+                move_2: 3600,
+                move_3: 4500
+            }
+        });
+        const resetTimer = vi.spyOn(gameStateStore, 'resetTimer').mockResolvedValue({});
+        confirmModal.mockResolvedValue(true);
+
+        const controller = new WhiteCellController();
+        controller.timerAllocations = {
+            strategic_orientation: 1800,
+            move_1: 2700,
+            move_2: 3600,
+            move_3: 4500
+        };
+
+        await controller.resetTimerToCurrentAllocation();
+
+        expect(confirmModal).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Reset Timer',
+            message: 'Reset the timer to 30 minutes for Strategic Orientation?'
+        }));
+        expect(resetTimer).toHaveBeenCalledWith(1800);
+        expect(showToast).toHaveBeenCalledWith({ message: 'Strategic Orientation timer reset', type: 'success' });
+    });
+
+    it('allows the Strategic Orientation timer to start while move controls remain gated', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const { gameStateStore } = await import('../stores/gameState.js');
+
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            {
+                team: 'blue',
+                status: 'submitted',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'selection',
+                    team: 'blue',
+                    orientation: 'pressure'
+                })
+            }
+        ]);
+        vi.spyOn(gameStateStore, 'getState').mockReturnValue({
+            move: 1,
+            phase: 1,
+            timer_seconds: 1800,
+            timer_running: false
+        });
+        const startTimer = vi.spyOn(gameStateStore, 'startTimer').mockResolvedValue({});
+
+        const controller = new WhiteCellController();
+        controller.timerRunning = false;
+
+        expect(controller.shouldGateStrategicOrientation()).toBe(true);
+
+        await controller.startTimer();
+
+        expect(startTimer).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith({ message: 'Timer started', type: 'success' });
     });
 
     it('gates Move 1 controls until all Strategic Orientation artifacts reach White Cell', async () => {

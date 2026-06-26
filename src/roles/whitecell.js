@@ -59,6 +59,15 @@ import {
     applyHeaderGameStateDisplay,
     getHeaderGameStateDisplay
 } from '../utils/gameStateDisplay.js';
+import {
+    TIMER_ALLOCATION_MARKS,
+    buildDefaultTimerAllocations,
+    getTimerAllocationSeconds,
+    minutesToAllocationSeconds,
+    normalizeTimerAllocations,
+    resolveGameStateTimerMark,
+    secondsToWholeMinutes
+} from '../utils/timerAllocations.js';
 import { CONFIG } from '../core/config.js';
 import { ENUMS, canAdjudicateAction, getPhaseLabel, isAdjudicatedAction, isDraftAction } from '../core/enums.js';
 import { getUserMessage, ValidationError } from '../core/errors.js';
@@ -279,6 +288,15 @@ export const WHITE_CELL_DOM_IDS = [
     'timerDisplay',
     'timerStatusLabel',
     'timerStatus',
+    'timerAllocationForm',
+    'timerAllocationFields',
+    'timerAllocationStrategicOrientation',
+    'timerAllocationMove1',
+    'timerAllocationMove2',
+    'timerAllocationMove3',
+    'timerAllocationCurrentMark',
+    'timerAllocationSaveBtn',
+    'timerAllocationResetCurrentBtn',
     'strategicOrientationBadge',
     'actionsBadge',
     'proposalsBadge',
@@ -1122,6 +1140,7 @@ export class WhiteCellController {
         this.adminSessions = [];
         this.storeUnsubscribers = [];
         this.currentTimerSeconds = CONFIG.DEFAULT_TIMER_SECONDS;
+        this.timerAllocations = buildDefaultTimerAllocations();
         this.timerRunning = false;
         this.participantFilters = {
             session: null,
@@ -1392,6 +1411,8 @@ export class WhiteCellController {
         const startTimerBtn = document.getElementById('startTimerBtn');
         const pauseTimerBtn = document.getElementById('pauseTimerBtn');
         const resetTimerBtn = document.getElementById('resetTimerBtn');
+        const timerAllocationForm = document.getElementById('timerAllocationForm');
+        const timerAllocationResetCurrentBtn = document.getElementById('timerAllocationResetCurrentBtn');
         const prevPhaseBtn = document.getElementById('prevPhaseBtn');
         const nextPhaseBtn = document.getElementById('nextPhaseBtn');
         const prevMoveBtn = document.getElementById('prevMoveBtn');
@@ -1413,6 +1434,8 @@ export class WhiteCellController {
             startTimerBtn?.addEventListener('click', () => this.startTimer());
             pauseTimerBtn?.addEventListener('click', () => this.pauseTimer());
             resetTimerBtn?.addEventListener('click', () => this.resetTimer());
+            timerAllocationForm?.addEventListener('submit', (event) => this.handleTimerAllocationSubmit(event));
+            timerAllocationResetCurrentBtn?.addEventListener('click', () => this.resetTimerToCurrentAllocation());
             prevPhaseBtn?.addEventListener('click', () => this.regressPhase());
             nextPhaseBtn?.addEventListener('click', () => this.advancePhase());
             prevMoveBtn?.addEventListener('click', () => this.regressMove());
@@ -1422,6 +1445,8 @@ export class WhiteCellController {
                 startTimerBtn,
                 pauseTimerBtn,
                 resetTimerBtn,
+                document.getElementById('timerAllocationSaveBtn'),
+                timerAllocationResetCurrentBtn,
                 prevPhaseBtn,
                 nextPhaseBtn,
                 prevMoveBtn,
@@ -1669,15 +1694,148 @@ export class WhiteCellController {
     syncGameStateFromStore(gameState) {
         const safeGameState = gameState || {};
         this.currentTimerSeconds = gameState?.timer_seconds ?? CONFIG.DEFAULT_TIMER_SECONDS;
+        this.timerAllocations = normalizeTimerAllocations(gameState?.timer_allocations);
         this.timerRunning = Boolean(gameState?.timer_running && this.currentTimerSeconds > 0);
         this.updateGameStateDisplay({
             ...safeGameState,
+            timer_allocations: this.timerAllocations,
             timer_seconds: this.currentTimerSeconds,
             timer_running: this.timerRunning
         });
         this.updateTimerDisplay();
         this.updateTimerStatusDisplay();
+        this.updateTimerAllocationControls();
         this.updateTimerControlButtons();
+    }
+
+    getCurrentTimerMark() {
+        return resolveGameStateTimerMark(this.getCurrentGameState(), actionsStore.getAll());
+    }
+
+    getCurrentTimerAllocationSeconds() {
+        return getTimerAllocationSeconds(this.timerAllocations, this.getCurrentTimerMark().key);
+    }
+
+    updateTimerAllocationControls() {
+        const canControl = this.isLeadOperator();
+        const currentMark = this.getCurrentTimerMark();
+        const currentMinutes = secondsToWholeMinutes(
+            getTimerAllocationSeconds(this.timerAllocations, currentMark.key)
+        );
+        const currentMarkEl = document.getElementById('timerAllocationCurrentMark');
+        const resetTimerBtn = document.getElementById('resetTimerBtn');
+        const saveBtn = document.getElementById('timerAllocationSaveBtn');
+        const resetCurrentBtn = document.getElementById('timerAllocationResetCurrentBtn');
+        const fields = Array.from(
+            document.querySelectorAll?.('[data-timer-allocation-mark]') || []
+        );
+
+        fields.forEach((field) => {
+            const markKey = field.dataset?.timerAllocationMark;
+            if (!markKey) return;
+
+            field.value = String(secondsToWholeMinutes(
+                getTimerAllocationSeconds(this.timerAllocations, markKey)
+            ));
+            field.disabled = !canControl;
+            field.setAttribute?.('aria-disabled', field.disabled ? 'true' : 'false');
+        });
+
+        if (currentMarkEl) {
+            currentMarkEl.textContent = `Current reset target: ${currentMark.label} - ${currentMinutes} minute${currentMinutes === 1 ? '' : 's'}`;
+        }
+
+        if (resetTimerBtn) {
+            resetTimerBtn.textContent = `Reset to ${currentMinutes} min`;
+        }
+
+        [resetTimerBtn, saveBtn, resetCurrentBtn].forEach((button) => {
+            if (!button) return;
+            button.disabled = !canControl;
+            button.setAttribute?.('aria-disabled', button.disabled ? 'true' : 'false');
+            button.title = canControl
+                ? ''
+                : 'White Cell support is read-only for game controls.';
+        });
+    }
+
+    readTimerAllocationFormValues() {
+        const nextAllocations = { ...this.timerAllocations };
+        const fields = Array.from(
+            document.querySelectorAll?.('[data-timer-allocation-mark]') || []
+        );
+        const errors = [];
+
+        fields.forEach((field) => {
+            const markKey = field.dataset?.timerAllocationMark;
+            const mark = TIMER_ALLOCATION_MARKS.find((entry) => entry.key === markKey);
+            if (!mark) return;
+
+            const minutes = Number(field.value);
+            if (!Number.isFinite(minutes) || minutes < 1 || minutes > 600) {
+                errors.push(`${mark.label} must be between 1 and 600 minutes.`);
+                return;
+            }
+
+            nextAllocations[mark.key] = minutesToAllocationSeconds(minutes);
+        });
+
+        return {
+            allocations: normalizeTimerAllocations(nextAllocations),
+            errors
+        };
+    }
+
+    async handleTimerAllocationSubmit(event) {
+        event?.preventDefault?.();
+
+        if (!this.isLeadOperator()) {
+            showToast({ message: 'White Cell support is read-only for game controls.', type: 'warning' });
+            return;
+        }
+
+        const { allocations, errors } = this.readTimerAllocationFormValues();
+        if (errors.length > 0) {
+            showToast({ message: errors[0], type: 'error' });
+            return;
+        }
+
+        try {
+            const updatedState = await gameStateStore.setTimerAllocations(allocations);
+            this.timerAllocations = normalizeTimerAllocations(updatedState?.timer_allocations || allocations);
+            this.updateTimerAllocationControls();
+            showToast({ message: 'Timer allocations saved', type: 'success' });
+        } catch (err) {
+            logger.error('Failed to save timer allocations:', err);
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to save timer allocations. Apply the timer allocation database patch and try again.'
+                }),
+                type: 'error'
+            });
+        }
+    }
+
+    async resetTimerToCurrentAllocation() {
+        if (!this.isLeadOperator()) {
+            showToast({ message: 'White Cell support is read-only for game controls.', type: 'warning' });
+            return;
+        }
+
+        const currentMark = this.getCurrentTimerMark();
+        const seconds = getTimerAllocationSeconds(this.timerAllocations, currentMark.key);
+        const minutes = secondsToWholeMinutes(seconds);
+        const confirmed = await confirmModal({
+            title: 'Reset Timer',
+            message: `Reset the timer to ${minutes} minute${minutes === 1 ? '' : 's'} for ${currentMark.label}?`,
+            confirmLabel: 'Reset',
+            variant: 'primary'
+        });
+
+        if (!confirmed) return;
+
+        await gameStateStore.resetTimer(seconds);
+        showToast({ message: `${currentMark.label} timer reset`, type: 'success' });
     }
 
     updateTimerDisplay() {
@@ -1715,22 +1873,20 @@ export class WhiteCellController {
 
         const canControl = this.isLeadOperator();
         const hasRemainingTime = this.currentTimerSeconds > 0;
+        const currentAllocationSeconds = this.getCurrentTimerAllocationSeconds();
         const shouldShowResume = !this.timerRunning
             && hasRemainingTime
-            && this.currentTimerSeconds < CONFIG.DEFAULT_TIMER_SECONDS;
-        const orientationGateActive = this.shouldGateStrategicOrientation();
+            && this.currentTimerSeconds < currentAllocationSeconds;
 
         if (startTimerBtn) {
             startTimerBtn.textContent = shouldShowResume ? 'Resume' : 'Start';
-            startTimerBtn.disabled = !canControl || this.timerRunning || !hasRemainingTime || orientationGateActive;
+            startTimerBtn.disabled = !canControl || this.timerRunning || !hasRemainingTime;
             startTimerBtn.setAttribute?.('aria-disabled', startTimerBtn.disabled ? 'true' : 'false');
             startTimerBtn.title = !canControl
                 ? 'White Cell support is read-only for game controls.'
-                : (orientationGateActive
-                    ? this.getStrategicOrientationGateMessage()
-                    : (!hasRemainingTime
+                : (!hasRemainingTime
                     ? 'Reset the timer before starting again.'
-                    : (this.timerRunning ? 'Timer is already running.' : 'Start the timer.')));
+                    : (this.timerRunning ? 'Timer is already running.' : 'Start the timer.'));
         }
 
         if (pauseTimerBtn) {
@@ -1824,11 +1980,6 @@ export class WhiteCellController {
     async startTimer() {
         if (this.timerRunning) return;
 
-        if (this.shouldGateStrategicOrientation()) {
-            showToast({ message: this.getStrategicOrientationGateMessage(), type: 'warning' });
-            return;
-        }
-
         await gameStateStore.startTimer();
 
         showToast({ message: 'Timer started', type: 'success' });
@@ -1846,18 +1997,7 @@ export class WhiteCellController {
     }
 
     async resetTimer() {
-        const confirmed = await confirmModal({
-            title: 'Reset Timer',
-            message: 'Are you sure you want to reset the timer to the default duration?',
-            confirmLabel: 'Reset',
-            variant: 'primary'
-        });
-
-        if (!confirmed) return;
-
-        await gameStateStore.resetTimer(CONFIG.DEFAULT_TIMER_SECONDS);
-
-        showToast({ message: 'Timer reset', type: 'success' });
+        await this.resetTimerToCurrentAllocation();
     }
 
     async advancePhase() {
@@ -2124,6 +2264,7 @@ export class WhiteCellController {
         this.renderAdjudicationQueue();
         const gameState = this.getCurrentGameState();
         this.updateGameStateDisplay(gameState);
+        this.updateTimerAllocationControls();
         this.updateTimerControlButtons();
 
         this.updateSidebarBadge('strategicOrientationBadge', pendingStrategicOrientationArtifacts.length);

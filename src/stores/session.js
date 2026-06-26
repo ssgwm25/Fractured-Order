@@ -9,6 +9,10 @@ import {
     isOperatorSurface,
     normalizeWhiteCellOperatorRole
 } from '../core/teamContext.js';
+import {
+    buildDefaultTimerAllocations,
+    normalizeTimerAllocations
+} from '../utils/timerAllocations.js';
 
 const logger = createLogger('SessionStore');
 const STORAGE_KEYS = Object.freeze({
@@ -160,6 +164,7 @@ function buildDefaultGameState() {
         move: 1,
         phase: 1,
         timer_seconds: 0,
+        timer_allocations: buildDefaultTimerAllocations(),
         timer_running: false
     };
 }
@@ -207,7 +212,8 @@ function normalizeSessionData(data, sessionId = currentSessionId) {
         displayName: data.displayName || currentUserName || null,
         gameState: {
             ...buildDefaultGameState(),
-            ...(data.gameState || {})
+            ...(data.gameState || {}),
+            timer_allocations: normalizeTimerAllocations(data.gameState?.timer_allocations)
         }
     };
 }

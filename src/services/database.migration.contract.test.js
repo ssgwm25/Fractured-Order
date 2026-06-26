@@ -37,6 +37,10 @@ const PARTICIPANT_ROLE_RESOLVER_NORMALIZATION_PATH = new URL(
     '../../data/2026-06-25_participant_role_resolver_normalization.sql',
     import.meta.url
 );
+const TIMER_ALLOCATIONS_GAME_STATE_PATH = new URL(
+    '../../data/2026-06-25_timer_allocations_game_state.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -210,6 +214,21 @@ describe('database migration contracts', () => {
         expect(sql).toContain('UPDATE public.participants p');
         expect(sql).toContain('INSERT INTO public.game_state');
         expect(sql).toContain('ON CONFLICT (session_id) DO NOTHING;');
+    });
+
+    it('adds protected game-state timer allocations for White Cell run control', () => {
+        const sql = readFileSync(TIMER_ALLOCATIONS_GAME_STATE_PATH, 'utf8');
+        const updateGameStateBody = extractFunctionBody(sql, 'operator_update_game_state');
+
+        expect(sql).toContain('ADD COLUMN IF NOT EXISTS timer_allocations JSONB');
+        expect(sql).toContain("'strategic_orientation'");
+        expect(sql).toContain("'move_1'");
+        expect(sql).toContain("'move_2'");
+        expect(sql).toContain("'move_3'");
+        expect(sql).toContain('requested_timer_allocations JSONB DEFAULT NULL');
+        expect(updateGameStateBody).toContain('public.normalize_game_state_timer_allocations(requested_timer_allocations)');
+        expect(updateGameStateBody).toContain("public.live_demo_has_operator_grant('whitecell'");
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_update_game_state(UUID, INTEGER, INTEGER, INTEGER, BOOLEAN, TIMESTAMPTZ, JSONB) TO authenticated;');
     });
 
     it('normalizes seat-claim role input before seat-limit evaluation', () => {

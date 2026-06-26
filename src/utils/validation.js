@@ -346,6 +346,22 @@ export function validateGameState(state) {
         }
     }
 
+    if (state.timer_allocations !== undefined) {
+        const allocations = state.timer_allocations;
+        const requiredMarks = ['strategic_orientation', 'move_1', 'move_2', 'move_3'];
+        if (!allocations || typeof allocations !== 'object' || Array.isArray(allocations)) {
+            errors.push('timer_allocations must be an object');
+        } else {
+            requiredMarks.forEach((mark) => {
+                try {
+                    validateRange(allocations[mark], `timer_allocations.${mark}`, { min: 60, max: 36000 });
+                } catch (e) {
+                    errors.push(e.message);
+                }
+            });
+        }
+    }
+
     return {
         valid: errors.length === 0,
         errors

@@ -20,6 +20,7 @@
  * @property {number} move - Current move (1-3)
  * @property {number} phase - Current phase (1-5)
  * @property {number} timer_seconds - Remaining timer seconds
+ * @property {Object<string, number>} timer_allocations - Per-state timer allocations in seconds
  * @property {boolean} timer_running - Whether timer is currently running
  * @property {string|null} timer_last_update - ISO timestamp of last timer update
  * @property {string} updated_at - ISO timestamp of last update

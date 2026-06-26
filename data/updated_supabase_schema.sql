@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS game_state (
     move INTEGER NOT NULL DEFAULT 1 CHECK (move >= 1 AND move <= 3),
     phase INTEGER NOT NULL DEFAULT 1 CHECK (phase >= 1 AND phase <= 5),
     timer_seconds INTEGER DEFAULT 5400,
+    timer_allocations JSONB NOT NULL DEFAULT '{"strategic_orientation":5400,"move_1":5400,"move_2":5400,"move_3":5400}'::jsonb,
     timer_running BOOLEAN DEFAULT false,
     timer_last_update TIMESTAMPTZ,
     last_updated TIMESTAMPTZ DEFAULT NOW(),

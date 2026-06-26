@@ -13,6 +13,12 @@
 import { database } from '../services/database.js';
 import { createLogger } from '../utils/logger.js';
 import { CONFIG } from '../core/config.js';
+import {
+    buildDefaultTimerAllocations,
+    getMoveTimerAllocationKey,
+    getTimerAllocationSeconds,
+    normalizeTimerAllocations
+} from '../utils/timerAllocations.js';
 
 const logger = createLogger('GameStateStore');
 
@@ -29,6 +35,7 @@ function buildFallbackGameState(sessionId) {
         move: 1,
         phase: 1,
         timer_seconds: CONFIG.DEFAULT_TIMER_SECONDS,
+        timer_allocations: buildDefaultTimerAllocations(),
         timer_running: false,
         timer_last_update: null,
         last_updated: timestamp,
@@ -44,6 +51,7 @@ function buildFallbackGameState(sessionId) {
  * @property {number} move - Current move (1-3)
  * @property {number} phase - Current phase (1-5)
  * @property {number} timer_seconds - Remaining timer seconds
+ * @property {Object<string, number>} timer_allocations - Per-state timer allocations in seconds
  * @property {boolean} timer_running - Whether timer is active
  * @property {string} timer_last_update - ISO timestamp of last timer update
  * @property {string} last_updated - ISO timestamp of last update
@@ -166,6 +174,23 @@ class GameStateStore {
     }
 
     /**
+     * Get the per-mark timer allocation map.
+     * @returns {Object<string, number>}
+     */
+    getTimerAllocations() {
+        return normalizeTimerAllocations(this.state?.timer_allocations);
+    }
+
+    /**
+     * Get timer allocation for a move mark.
+     * @param {number} move
+     * @returns {number}
+     */
+    getTimerAllocationForMove(move = 1) {
+        return getTimerAllocationSeconds(this.getTimerAllocations(), getMoveTimerAllocationKey(move));
+    }
+
+    /**
      * Check if timer is running
      * @returns {boolean}
      */
@@ -258,6 +283,21 @@ class GameStateStore {
             timer_seconds: Math.max(0, seconds),
             timer_last_update: new Date().toISOString()
         }, 'timer_updated');
+    }
+
+    /**
+     * Persist per-mark timer allocations.
+     * @param {Object<string, number>} allocations
+     * @returns {Promise<GameState>}
+     */
+    async setTimerAllocations(allocations) {
+        if (!this.state) {
+            return this.state;
+        }
+
+        return this.persistState({
+            timer_allocations: normalizeTimerAllocations(allocations)
+        }, 'timer_allocations_updated');
     }
 
     /**
@@ -364,10 +404,14 @@ class GameStateStore {
 
         const newMove = currentMove + 1;
         logger.info('Advancing move from', currentMove, 'to', newMove);
+        const timerSeconds = this.getTimerAllocationForMove(newMove);
 
         return this.persistState({
             move: newMove,
-            phase: 1
+            phase: 1,
+            timer_seconds: timerSeconds,
+            timer_running: false,
+            timer_last_update: new Date().toISOString()
         }, 'move_advanced');
     }
 
@@ -388,10 +432,14 @@ class GameStateStore {
 
         const newMove = currentMove - 1;
         logger.info('Regressing move from', currentMove, 'to', newMove);
+        const timerSeconds = this.getTimerAllocationForMove(newMove);
 
         return this.persistState({
             move: newMove,
-            phase: 1
+            phase: 1,
+            timer_seconds: timerSeconds,
+            timer_running: false,
+            timer_last_update: new Date().toISOString()
         }, 'move_regressed');
     }
 
@@ -473,6 +521,7 @@ class GameStateStore {
         }
 
         const normalizedState = { ...state };
+        normalizedState.timer_allocations = normalizeTimerAllocations(normalizedState.timer_allocations);
         const storedSeconds = normalizedState.timer_seconds ?? CONFIG.DEFAULT_TIMER_SECONDS;
 
         if (!normalizedState.timer_running || !normalizedState.timer_last_update) {

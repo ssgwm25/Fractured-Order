@@ -34,6 +34,9 @@ import {
     mergeObservationTimeline,
     mergeParticipantScopedNotetakerSection
 } from '../features/notetaker/storage.js';
+import {
+    normalizeTimerAllocations
+} from '../utils/timerAllocations.js';
 
 const logger = createLogger('Database');
 let latestAuthenticatedSession = null;
@@ -631,14 +634,24 @@ export const database = {
             delete mappedUpdates.last_update;
         }
 
-        const { data, error } = await supabase.rpc('operator_update_game_state', {
+        if ('timer_allocations' in mappedUpdates) {
+            mappedUpdates.timer_allocations = normalizeTimerAllocations(mappedUpdates.timer_allocations);
+        }
+
+        const rpcParams = {
             requested_session_id: sessionId,
             requested_move: mappedUpdates.move ?? null,
             requested_phase: mappedUpdates.phase ?? null,
             requested_timer_seconds: mappedUpdates.timer_seconds ?? null,
             requested_timer_running: mappedUpdates.timer_running ?? null,
             requested_timer_last_update: mappedUpdates.timer_last_update ?? null
-        });
+        };
+
+        if ('timer_allocations' in mappedUpdates) {
+            rpcParams.requested_timer_allocations = mappedUpdates.timer_allocations;
+        }
+
+        const { data, error } = await supabase.rpc('operator_update_game_state', rpcParams);
 
         if (error) {
             throw fromSupabaseError(error, 'updateGameState');
