@@ -17,6 +17,8 @@ The current exercise topology ships with four actor teams and two operator surfa
 | Team Notetaker | Observations, team dynamics, alliance tracking, and move-scoped notes |
 | Team Scribe | Team support deck, distinct Strategic Orientation slides, live action/communication slides, venue projection, and final Strategic Orientation/action submission to White Cell |
 
+Facilitator action controls prioritize Strategic Orientation first: the orientation or forecast button is the primary green control until that team records its artifact, then the orientation control becomes secondary and the action/proposal/response control becomes primary.
+
 The built-in teams are Blue, Red, Green, and Industry. Do not expand team geography or role topology during demo hardening unless the exercise design explicitly changes.
 
 ## Repository Layout

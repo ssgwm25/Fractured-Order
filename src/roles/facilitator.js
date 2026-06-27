@@ -740,14 +740,36 @@ export class FacilitatorController {
 
     updateStrategicOrientationControlAvailability(documentRef = globalThis.document) {
         const button = documentRef?.getElementById?.('strategicOrientationBtn');
-        if (!button) return;
+        const actionButton = documentRef?.getElementById?.('newActionBtn');
+        if (!button && !actionButton) return;
 
         const supportsStrategicOrientation = STRATEGIC_ORIENTATION_TEAM_IDS.has(this.teamId);
         const existingAction = this.getStrategicOrientationActionForTeam();
-        const locked = !supportsStrategicOrientation || Boolean(existingAction);
+        const hasStrategicOrientation = Boolean(existingAction);
 
-        button.hidden = locked;
-        button.disabled = locked || this.isReadOnly || this.strategicOrientationSubmissionInFlight;
+        this.setActionControlVariant(button, hasStrategicOrientation ? 'secondary' : 'primary');
+        this.setActionControlVariant(actionButton, hasStrategicOrientation ? 'primary' : 'secondary');
+
+        if (actionButton) {
+            actionButton.disabled = this.isReadOnly;
+            actionButton.title = hasStrategicOrientation
+                ? ''
+                : 'Record Strategic Orientation before creating actions.';
+
+            if (actionButton.disabled) {
+                actionButton.setAttribute?.('aria-disabled', 'true');
+            } else {
+                actionButton.removeAttribute?.('aria-disabled');
+            }
+        }
+
+        if (!button) return;
+
+        button.hidden = !supportsStrategicOrientation;
+        button.disabled = !supportsStrategicOrientation
+            || hasStrategicOrientation
+            || this.isReadOnly
+            || this.strategicOrientationSubmissionInFlight;
 
         if (button.disabled) {
             button.setAttribute?.('aria-disabled', 'true');
@@ -764,6 +786,17 @@ export class FacilitatorController {
         } else {
             button.title = '';
         }
+    }
+
+    setActionControlVariant(button, variant = 'secondary') {
+        if (!button) return;
+
+        const nextClassName = variant === 'primary' ? 'btn-primary' : 'btn-secondary';
+        const classNames = new Set(String(button.className || '').split(/\s+/).filter(Boolean));
+        classNames.delete('btn-primary');
+        classNames.delete('btn-secondary');
+        classNames.add(nextClassName);
+        button.className = Array.from(classNames).join(' ');
     }
 
     syncRfisFromStore() {

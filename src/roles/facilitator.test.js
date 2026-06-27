@@ -238,12 +238,20 @@ describe('Facilitator and scribe access', () => {
         const industryHtml = readFileSync(INDUSTRY_FACILITATOR_HTML_PATH, 'utf8');
 
         expect(blueHtml).toContain('id="strategicOrientationBtn"');
+        expect(blueHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
+        expect(blueHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
         expect(blueHtml).toContain('Strategic Orientation');
         expect(greenHtml).toContain('id="strategicOrientationBtn"');
+        expect(greenHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
+        expect(greenHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
         expect(greenHtml).toContain('Forecast Blue');
         expect(redHtml).toContain('id="strategicOrientationBtn"');
+        expect(redHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
+        expect(redHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
         expect(redHtml).toContain('Forecast Blue');
         expect(industryHtml).toContain('id="strategicOrientationBtn"');
+        expect(industryHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
+        expect(industryHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
         expect(industryHtml).toContain('Forecast Blue');
     });
 
@@ -290,10 +298,13 @@ describe('Facilitator and scribe access', () => {
         expect(html).not.toContain(removedDescriptionClass);
     });
 
-    it('removes the Strategic Orientation input option after the team records one', async () => {
+    it('swaps Strategic Orientation and action button priority after the team records one', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { actionsStore } = await import('../stores/actions.js');
         const strategicOrientationBtn = createFakeElement('strategicOrientationBtn', 'button');
+        const newActionBtn = createFakeElement('newActionBtn', 'button');
+        strategicOrientationBtn.className = 'btn btn-primary';
+        newActionBtn.className = 'btn btn-secondary';
         vi.spyOn(actionsStore, 'getAll').mockReturnValue([
             await createStrategicOrientationAction()
         ]);
@@ -304,20 +315,31 @@ describe('Facilitator and scribe access', () => {
 
         controller.updateStrategicOrientationControlAvailability({
             getElementById(id) {
-                return id === 'strategicOrientationBtn' ? strategicOrientationBtn : null;
+                return {
+                    strategicOrientationBtn,
+                    newActionBtn
+                }[id] || null;
             }
         });
 
-        expect(strategicOrientationBtn.hidden).toBe(true);
+        expect(strategicOrientationBtn.hidden).toBe(false);
         expect(strategicOrientationBtn.disabled).toBe(true);
+        expect(strategicOrientationBtn.className).toContain('btn-secondary');
         expect(strategicOrientationBtn.title).toBe('Strategic Orientation has already been recorded for this team.');
         expect(strategicOrientationBtn.setAttribute).toHaveBeenCalledWith('aria-disabled', 'true');
+        expect(newActionBtn.disabled).toBe(false);
+        expect(newActionBtn.className).toContain('btn-primary');
+        expect(newActionBtn.title).toBe('');
+        expect(newActionBtn.removeAttribute).toHaveBeenCalledWith('aria-disabled');
     });
 
-    it('leaves the Strategic Orientation input available for Industry before its forecast is recorded', async () => {
+    it('prioritizes the Industry Strategic Orientation forecast before its forecast is recorded', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { actionsStore } = await import('../stores/actions.js');
         const strategicOrientationBtn = createFakeElement('strategicOrientationBtn', 'button');
+        const newActionBtn = createFakeElement('newActionBtn', 'button');
+        strategicOrientationBtn.className = 'btn btn-secondary';
+        newActionBtn.className = 'btn btn-primary';
         vi.spyOn(actionsStore, 'getAll').mockReturnValue([]);
 
         const controller = new FacilitatorController();
@@ -326,14 +348,22 @@ describe('Facilitator and scribe access', () => {
 
         controller.updateStrategicOrientationControlAvailability({
             getElementById(id) {
-                return id === 'strategicOrientationBtn' ? strategicOrientationBtn : null;
+                return {
+                    strategicOrientationBtn,
+                    newActionBtn
+                }[id] || null;
             }
         });
 
         expect(strategicOrientationBtn.hidden).toBe(false);
         expect(strategicOrientationBtn.disabled).toBe(false);
+        expect(strategicOrientationBtn.className).toContain('btn-primary');
         expect(strategicOrientationBtn.title).toBe('');
         expect(strategicOrientationBtn.removeAttribute).toHaveBeenCalledWith('aria-disabled');
+        expect(newActionBtn.disabled).toBe(false);
+        expect(newActionBtn.className).toContain('btn-secondary');
+        expect(newActionBtn.title).toBe('Record Strategic Orientation before creating actions.');
+        expect(newActionBtn.removeAttribute).toHaveBeenCalledWith('aria-disabled');
     });
 
     it('rejects a stale Strategic Orientation modal open after the team records one', async () => {
@@ -362,7 +392,9 @@ describe('Facilitator and scribe access', () => {
             message: 'Strategic Orientation has already been recorded for this team.',
             type: 'info'
         });
-        expect(strategicOrientationBtn.hidden).toBe(true);
+        expect(strategicOrientationBtn.hidden).toBe(false);
+        expect(strategicOrientationBtn.disabled).toBe(true);
+        expect(strategicOrientationBtn.className).toContain('btn-secondary');
     });
 
     it('renders recorded Strategic Orientation artifacts without draft edit or delete controls', async () => {
