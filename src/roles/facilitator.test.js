@@ -270,6 +270,26 @@ describe('Facilitator and scribe access', () => {
         expect(payload.ally_contingencies).toContain('Strategic Orientation Details');
     });
 
+    it('renders the Strategic Orientation modal without the removed explanatory copy', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+
+        const content = controller.createStrategicOrientationContent({});
+        const html = content.innerHTML;
+        const removedScribeCopy = ['The Scribe', 'must present the completed submission before White Cell receives it.'].join(' ');
+        const removedOrientationInstruction = ['Each orientation', 'reflects a distinct posture toward strategic competition with the PRC.'].join(' ');
+        const removedDescriptionClass = ['opt', 'desc'].join('-');
+
+        expect(html).toContain('Choose the posture that will frame the first move.');
+        expect(html).not.toContain(removedScribeCopy);
+        expect(html).not.toContain(removedOrientationInstruction);
+        expect(html).not.toContain(removedDescriptionClass);
+    });
+
     it('removes the Strategic Orientation input option after the team records one', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { actionsStore } = await import('../stores/actions.js');

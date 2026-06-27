@@ -2380,7 +2380,7 @@ export class FacilitatorController {
             eyebrow: 'Pre-Move 1 \u00b7 Team Selection',
             stepOneTitle: isBlue ? 'Select one orientation' : 'Forecast Blue orientation',
             stepOneInstruction: isBlue
-                ? 'Each orientation reflects a distinct posture toward strategic competition with the PRC. They are mutually exclusive. Review the doctrine and the trade-offs, then select one.'
+                ? ''
                 : 'Forecast the orientation Blue is most likely to choose before Move 1. Each option is mutually exclusive; choose one and configure the expected posture.',
             fieldLabel: isBlue ? 'Orientation' : 'Forecasted Blue orientation',
             configureButton: isBlue ? 'Next: Configure' : 'Next: Forecast',
@@ -2436,6 +2436,9 @@ export class FacilitatorController {
         const selectedOrientation = viewModel.hasStrategicOrientationDetails
             ? viewModel.orientation
             : '';
+        const stepOneInstruction = copy.stepOneInstruction
+            ? `<p class="instruction">${this.escapeHtml(copy.stepOneInstruction)}</p>`
+            : '';
         const renderOrientationCard = (option) => {
             const isSelected = selectedOrientation === option.id;
             return `
@@ -2448,7 +2451,6 @@ export class FacilitatorController {
                         <div class="opt-check" aria-hidden="true">&check;</div>
                     </div>
                     <div class="opt-tag">${this.escapeHtml(option.tag)}</div>
-                    <p class="opt-desc">${this.escapeHtml(option.description)}</p>
                     <div class="opt-chars">
                         ${option.characteristics.map((item) => `
                             <div class="char">
@@ -2471,13 +2473,13 @@ export class FacilitatorController {
                         </div>
                         <div class="step-pill" id="stepPill">Step 1 of ${STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL}</div>
                     </div>
-                    <p id="mhSub">Choose the posture that will frame the first move. The Scribe must present the completed submission before White Cell receives it.</p>
+                    <p id="mhSub">Choose the posture that will frame the first move.</p>
                 </div>
 
                 <div class="view show" id="step1" data-orientation-step="1">
                     <div class="content-pad">
                         <h2>${this.escapeHtml(copy.stepOneTitle)}</h2>
-                        <p class="instruction">${this.escapeHtml(copy.stepOneInstruction)}</p>
+                        ${stepOneInstruction}
 
                         <div class="field-label">${this.escapeHtml(copy.fieldLabel)} <span class="req">&middot; required</span></div>
 
