@@ -392,9 +392,40 @@ export async function createDraftAction(page, {
 
 export async function forwardActionToScribe(page, goal) {
     const actionCard = page.locator('#actionsList > *').filter({ hasText: goal }).first();
-    await actionCard.getByRole('button', { name: 'Forward to Scribe' }).click();
+    await actionCard.getByRole('button', { name: 'Forward to Facilitator' }).click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Forward' }).click();
-    await expect(page.locator('#toast-container')).toContainText('Action forwarded to Scribe');
+    await expect(page.locator('#toast-container')).toContainText('Action forwarded to Facilitator');
+}
+
+export async function recordStrategicOrientationFromScribe(page, {
+    orientation = 'pressure',
+    rationale = 'Topology rehearsal orientation recorded before the normal move gate.'
+} = {}) {
+    const orientationTitles = {
+        pressure: 'Strategic Orientation: Pressure',
+        stabilization: 'Strategic Orientation: Stabilization',
+        reframe: 'Strategic Orientation: Reframe'
+    };
+    const goal = orientationTitles[orientation] || 'Strategic Orientation';
+
+    await page.locator('#strategicOrientationBtn').click();
+
+    const modal = page.locator('.modal-overlay');
+    await modal.locator(`[data-orientation="${orientation}"]`).click();
+    await modal.getByRole('button', { name: /Next:/ }).click();
+    await modal.locator('[data-orientation-chip="lever"]').first().click();
+    await modal.locator('[data-orientation-chip="cost"]').first().click();
+    await modal.locator('[data-orientation-chip="posture"]').first().click();
+    await modal.locator('#rationale').fill(rationale);
+
+    const confirmButton = modal.getByRole('button', { name: /Confirm (Orientation|Forecast)/ });
+    await expect(confirmButton).toBeEnabled();
+    await confirmButton.click();
+
+    await expect(page.locator('#toast-container')).toContainText('Strategic Orientation forwarded to Facilitator');
+    await expect(page.locator('#actionsList')).toContainText(goal);
+
+    return goal;
 }
 
 export async function submitActionFromScribe(page, goal, {
@@ -414,7 +445,7 @@ export async function submitActionFromScribe(page, goal, {
     await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
     await actionSlideLink.click();
 
-    const panel = page.locator('[data-scribe-action-submit-panel]').filter({ hasText: 'Scribe finalization' }).first();
+    const panel = page.locator('[data-scribe-action-submit-panel]').filter({ hasText: 'Facilitator finalization' }).first();
     await expect(page.locator('#main-content')).toContainText(goal);
     await panel.locator('[data-scribe-action-radio="coordinated"][value="yes"]').check();
     for (const coordinatedValue of coordinated) {
@@ -429,6 +460,28 @@ export async function submitActionFromScribe(page, goal, {
     const submitButton = panel.getByRole('button', { name: 'Submit to White Cell' });
     await expect(submitButton).toBeVisible();
     await submitButton.click();
+    await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
+    await expect(page.locator('#main-content')).toContainText('Submitted to White Cell');
+}
+
+export async function submitStrategicOrientationFromScribe(page, goal) {
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+    const actionsSectionTrigger = page.locator('#scribeSectionList .scribe-section-trigger[data-section-label="Actions"]').first();
+    await expect(actionsSectionTrigger).toBeVisible({ timeout: 20000 });
+    if (await actionsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+        await actionsSectionTrigger.click();
+    }
+
+    const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]').filter({ hasText: goal }).first();
+    await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
+    await actionSlideLink.click();
+
+    const panel = page.locator('[data-scribe-action-submit-panel]').filter({ hasText: 'Facilitator-to-White Cell handoff' }).first();
+    await expect(page.locator('#main-content')).toContainText(goal);
+    await expect(panel).toBeVisible();
+    await panel.getByRole('button', { name: 'Submit to White Cell' }).click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
     await expect(page.locator('#main-content')).toContainText('Submitted to White Cell');
 }
@@ -451,6 +504,24 @@ export async function adjudicateAction(page, {
     await modal.locator('#outcomeSelect').selectOption(outcome);
     await modal.locator('#adjudicationNotes').fill(notes);
     await modal.getByRole('button', { name: /^(Record Deliberation|Submit Adjudication)$/ }).click();
+}
+
+export async function reviewStrategicOrientation(page, {
+    goal,
+    outcome = 'SUCCESS',
+    notes = 'Validated Strategic Orientation through the live-demo topology suite.'
+} = {}) {
+    await openSidebarSection(page, 'strategicOrientation');
+
+    const orientationCard = page.locator('#strategicOrientationList > *').filter({ hasText: goal }).first();
+    await expect(orientationCard).toContainText(goal);
+    await orientationCard.locator('.adjudicate-btn').click();
+
+    const modal = page.locator('.modal-overlay');
+    await modal.locator('#outcomeSelect').selectOption(outcome);
+    await modal.locator('#adjudicationNotes').fill(notes);
+    await modal.getByRole('button', { name: 'Record Review' }).click();
+    await expect(page.locator('#toast-container')).toContainText('Deliberation recorded');
 }
 
 export async function waitForToast(page, message) {
@@ -677,7 +748,7 @@ export async function seedLargeExerciseData(page, {
                 content: `Timeline Event ${String(index).padStart(3, '0')}: seeded exercise activity for scale rehearsal.`,
                 team: teams[(index - 1) % teams.length],
                 metadata: {
-                    actor: index % 5 === 0 ? 'White Cell' : 'Facilitator',
+                    actor: index % 5 === 0 ? 'White Cell' : 'Scribe',
                     role: index % 5 === 0 ? 'whitecell_lead' : `${actorTeam}_facilitator`
                 },
                 move: ((index - 1) % 3) + 1,

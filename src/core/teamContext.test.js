@@ -9,6 +9,8 @@ import {
     buildWhiteCellOperatorRole,
     getRoleDisplayName,
     getRoleRoute,
+    getRoleSurfaceDisplayLabel,
+    getSemanticRoleSurface,
     isOperatorSurface,
     isPublicRoleSurface,
     resolveTeamContext
@@ -50,15 +52,26 @@ describe('teamContext', () => {
         expect(context.teamId).toBe('green');
         expect(context.facilitatorRole).toBe('green_facilitator');
         expect(context.scribeRole).toBe('green_scribe');
+        expect(context.facilitatorLabel).toBe('Green Team Scribe');
+        expect(context.scribeLabel).toBe('Green Team Facilitator');
         expect(context.notetakerRoute).toBe('/repo-slug/teams/green/notetaker.html');
         expect(context.scribeRoute).toBe('/repo-slug/teams/green/scribe.html');
         expect(getRoleDisplayName('green_notetaker')).toBe('Green Team Notetaker');
-        expect(getRoleDisplayName('green_scribe')).toBe('Green Team Scribe');
-        expect(getRoleDisplayName('industry_facilitator')).toBe('Industry Team Facilitator');
-        expect(getRoleDisplayName('industry_scribe')).toBe('Industry Team Scribe');
+        expect(getRoleDisplayName('green_scribe')).toBe('Green Team Facilitator');
+        expect(getRoleDisplayName('industry_facilitator')).toBe('Industry Team Scribe');
+        expect(getRoleDisplayName('industry_scribe')).toBe('Industry Team Facilitator');
         expect(getRoleDisplayName('industry_notetaker')).toBe('Industry Team Notetaker');
         expect(getRoleDisplayName('green_whitecell_support')).toBe('White Cell Support');
         expect(getRoleDisplayName('viewer', { observerTeamId: 'industry' })).toBe('Industry Team Observer');
+    });
+
+    it('keeps legacy surface identifiers while exposing corrected semantic role names', () => {
+        expect(getRoleSurfaceDisplayLabel(ROLE_SURFACES.FACILITATOR)).toBe('Scribe');
+        expect(getRoleSurfaceDisplayLabel(ROLE_SURFACES.SCRIBE)).toBe('Facilitator');
+        expect(getSemanticRoleSurface(ROLE_SURFACES.FACILITATOR)).toBe(ROLE_SURFACES.SCRIBE);
+        expect(getSemanticRoleSurface(ROLE_SURFACES.SCRIBE)).toBe(ROLE_SURFACES.FACILITATOR);
+        expect(buildTeamRole('blue', ROLE_SURFACES.FACILITATOR)).toBe('blue_facilitator');
+        expect(buildTeamRole('blue', ROLE_SURFACES.SCRIBE)).toBe('blue_scribe');
     });
 
     it('defines explicit public and operator surface boundaries', () => {

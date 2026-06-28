@@ -40,8 +40,14 @@ import {
 } from './ParticipantList.js';
 
 describe('ParticipantList role contract', () => {
-    it('returns a first-class scribe label instead of falling back to observer copy', () => {
+    it('returns corrected role labels for legacy scribe and facilitator keys', () => {
         expect(getParticipantRoleConfig('blue_scribe')).toEqual(
+            expect.objectContaining({
+                label: 'Blue Facilitator',
+                icon: 'B'
+            })
+        );
+        expect(getParticipantRoleConfig('blue_facilitator')).toEqual(
             expect.objectContaining({
                 label: 'Blue Scribe',
                 icon: 'B'

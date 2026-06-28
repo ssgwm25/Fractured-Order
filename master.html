@@ -96,6 +96,22 @@
                             <span class="sidebar-label">Export Data</span>
                         </a>
                     </li>
+
+                    <li class="sidebar-heading">
+                        Tools</li>
+
+                    <li class="sidebar-menu-item">
+                        <a href="#plugins" class="sidebar-link" data-section="plugins">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                    <path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.063-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z">
+                                    </path>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Plugins</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
 
@@ -127,8 +143,7 @@
                         <span class="game-state-label">Move</span>
                         <span class="game-state-value" id="headerMove">-</span>
                     </div>
-                    <div class="game-state-item"
-                        style="border-left: 1px solid var(--color-border); padding-left: var(--space-4);">
+                    <div class="game-state-item">
                         <span class="game-state-label">Phase</span>
                         <span class="game-state-value" id="headerPhase">-</span>
                     </div>
@@ -186,8 +201,7 @@
                                     <h3>Recent Activity Log</h3>
                                 </div>
                                 <div class="card-body" id="recentActivity">
-                                    <div
-                                        style="padding: var(--space-4); text-align: center; color: var(--color-text-muted);">
+                                    <div class="p-4 text-center text-muted">
                                         No recent activity has been recorded for active sessions.
                                     </div>
                                 </div>
@@ -198,8 +212,7 @@
                                     <h3>Connected Participants</h3>
                                 </div>
                                 <div class="card-body" id="activeParticipants">
-                                    <div
-                                        style="padding: var(--space-4); text-align: center; color: var(--color-text-muted);">
+                                    <div class="p-4 text-center text-muted">
                                         No participants are currently connected.
                                     </div>
                                 </div>
@@ -225,7 +238,7 @@
                     <div class="section-body">
                         <div class="card-list" id="sessionsList">
                             <!-- Sessions will be populated here -->
-                            <div class="card" style="padding: var(--space-8); text-align: center;">
+                            <div class="card p-8 text-center">
                                 <p class="text-muted">Loading available sessions...</p>
                             </div>
                         </div>
@@ -256,8 +269,7 @@
 
                     <div class="section-body">
                         <p class="text-sm text-gray-500 mb-4" id="participantsSelectionState">Select a session from Session Management to view participants.</p>
-                        <div id="participantsList" class="card"
-                            style="min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                        <div id="participantsList" class="card min-h-pane flex items-center justify-center">
                             <p class="text-gray-500">Select a session from the Session Management tab to view
                                 participants</p>
                         </div>
@@ -284,8 +296,8 @@
 
                         <div class="section-grid section-grid-3">
                             <div class="card card-bordered card-hoverable" id="exportJson">
-                                <div class="card-body" style="text-align: center; padding: var(--space-8);">
-                                    <div style="margin-bottom: var(--space-4); color: var(--color-navy);">
+                                <div class="card-body text-center p-8">
+                                    <div class="mb-4 text-primary">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
                                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -301,8 +313,8 @@
                             </div>
 
                             <div class="card card-bordered card-hoverable" id="exportCsv">
-                                <div class="card-body" style="text-align: center; padding: var(--space-8);">
-                                    <div style="margin-bottom: var(--space-4); color: var(--color-success);">
+                                <div class="card-body text-center p-8">
+                                    <div class="mb-4 text-success">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
                                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -314,7 +326,7 @@
                                     </div>
                                     <h3>CSV Exports</h3>
                                     <p class="text-sm text-gray-500 mb-4">Download individual session data tables</p>
-                                    <div style="display: grid; gap: var(--space-2);">
+                                    <div class="grid gap-2">
                                         <button class="btn btn-outline btn-sm" id="exportActionsCsvBtn" disabled>Actions CSV</button>
                                         <button class="btn btn-outline btn-sm" id="exportRequestsCsvBtn" disabled>RFIs CSV</button>
                                         <button class="btn btn-outline btn-sm" id="exportTimelineCsvBtn" disabled>Timeline CSV</button>
@@ -324,8 +336,8 @@
                             </div>
 
                             <div class="card card-bordered card-hoverable" id="exportResearchArchive">
-                                <div class="card-body" style="text-align: center; padding: var(--space-8);">
-                                    <div style="margin-bottom: var(--space-4); color: var(--color-warning);">
+                                <div class="card-body text-center p-8">
+                                    <div class="mb-4 text-warning">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
                                             <path d="M4 7h16"></path>
@@ -336,14 +348,14 @@
                                     </div>
                                     <h3>Research Archive</h3>
                                     <p class="text-sm text-gray-500 mb-4">Single ZIP bundle with machine-readable tables, report.html, and the legacy export subset</p>
-                                    <label for="exportResearchIncludeNotes" class="switch-field" style="margin-bottom: var(--space-4); text-align: left;">
+                                    <label for="exportResearchIncludeNotes" class="switch-field mb-4 text-left">
                                         <span class="switch-field-label text-gray-500">Include notes appendix in report.html when study consent allows it</span>
                                         <span class="switch">
                                             <input type="checkbox" id="exportResearchIncludeNotes">
                                             <span class="switch-track"></span>
                                         </span>
                                     </label>
-                                    <div style="display: grid; gap: var(--space-2);">
+                                    <div class="grid gap-2">
                                         <button class="btn btn-outline btn-sm" id="exportResearchArchiveBtn" disabled>Download Research ZIP</button>
                                         <button class="btn btn-outline btn-sm" id="printResearchReportBtn" disabled>Print Report</button>
                                         <button class="btn btn-outline btn-sm" id="exportCrossSessionResearchArchiveBtn" disabled>Cross-Session ZIP</button>
@@ -351,6 +363,20 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </section>
+
+                <!-- Plugins Section -->
+                <section id="pluginsSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Plugins</h2>
+                            <p class="section-description">Operator capabilities mounted for the selected session. Enable or disable plugins from the White Cell settings.</p>
+                        </div>
+                    </div>
+
+                    <div class="section-body">
+                        <div id="gameMasterPluginMounts" class="plugin-mounts" aria-live="polite"></div>
                     </div>
                 </section>
             </div>

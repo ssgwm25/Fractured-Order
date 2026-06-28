@@ -438,7 +438,7 @@
 /* Danger zone */
 .danger-zone {
     border: 1px solid var(--color-alert);
-    background-color: #fff5f5;
+    background-color: var(--color-error-soft);
     padding: var(--space-md);
     border-radius: var(--radius-lg);
     margin-top: var(--space-md);
@@ -816,4 +816,58 @@
     color: var(--color-text-muted);
     line-height: var(--leading-snug);
     margin: var(--space-2) 0 0;
+}
+
+/* ==================== DATA TABLE ====================
+   Used by the operator participant roster and session detail. Gives cells real
+   padding (so action buttons don't collide), hairline row dividers, an uppercase
+   header, row hover, and a right-aligned actions column with spacing between
+   multiple controls. */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.table th {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.table td {
+    padding: var(--space-3) var(--space-4);
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-border-light);
+    vertical-align: middle;
+}
+
+.table tbody tr {
+    transition: background-color var(--transition-fast);
+}
+
+.table tbody tr:hover {
+    background: var(--color-surface-alt);
+}
+
+.table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Actions column — right-align the controls and keep them off the edge. */
+.table th:last-child,
+.table td:last-child {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Breathing room when an actions cell holds more than one control. */
+.table td:last-child .btn + .btn {
+    margin-left: var(--space-2);
 }

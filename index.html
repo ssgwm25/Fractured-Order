@@ -53,9 +53,8 @@
                     <div class="lf-row">
                         <div class="lf-field">
                             <label for="sessionCode">Session Code</label>
-                            <input type="text" id="sessionCode" class="form-input" placeholder="ALPHA-2024"
-                                autocomplete="off" maxlength="50" required aria-describedby="sessionCodeError"
-                                style="text-transform:uppercase;letter-spacing:0.05em;">
+                            <input type="text" id="sessionCode" class="form-input input-code" placeholder="ALPHA-2024"
+                                autocomplete="off" maxlength="50" required aria-describedby="sessionCodeError">
                             <p class="form-error" id="sessionCodeError" role="alert" hidden></p>
                         </div>
                         <div class="lf-field">
@@ -91,16 +90,16 @@
                         <div class="lf-chips" id="roleSelectionGroup" role="group" aria-label="Role selection"
                             aria-describedby="roleSelectionHelp roleSelectionError">
                             <button type="button" class="chip chip--role" data-role-surface="facilitator" aria-pressed="false"
-                                title="1 seat per team &middot; Submits actions and RFIs"
-                                aria-label="Facilitator, one seat per team, submits actions and RFIs">
+                                title="1 seat per team &middot; Records and forwards team decisions"
+                                aria-label="Scribe, one seat per team, records and forwards team decisions">
                                 <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                Facilitator
+                                Scribe
                             </button>
                             <button type="button" class="chip chip--role" data-role-surface="scribe" aria-pressed="false"
                                 title="1 seat per team &middot; Opens the support slide deck"
-                                aria-label="Scribe, one seat per team, opens the support slide deck">
+                                aria-label="Facilitator, one seat per team, opens the support slide deck">
                                 <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                                Scribe
+                                Facilitator
                             </button>
                             <button type="button" class="chip chip--role" data-role-surface="notetaker" aria-pressed="false"
                                 title="2 seats per team &middot; Captures notes, quotes, key moments"
@@ -109,7 +108,7 @@
                                 Notetaker
                             </button>
                         </div>
-                        <p class="lf-help" id="roleSelectionHelp">Facilitator and Scribe are single-seat roles. Notetaker supports two seats per team.</p>
+                        <p class="lf-help" id="roleSelectionHelp">Scribe and Facilitator are single-seat roles. Notetaker supports two seats per team.</p>
                         <p class="form-error" id="roleSelectionError" role="alert" hidden></p>
                         <input type="hidden" id="selectedRole" name="role">
                     </fieldset>

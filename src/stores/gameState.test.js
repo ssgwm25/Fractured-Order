@@ -52,6 +52,10 @@ function buildGameState(overrides = {}) {
             move_2: 5400,
             move_3: 5400
         },
+        plugin_state: {
+            intercom: { enabled: false },
+            'session-recorder': { enabled: false }
+        },
         timer_running: false,
         timer_last_update: null,
         status: 'active',
@@ -151,6 +155,86 @@ describe('GameStateStore resilience', () => {
             move_1: 2700,
             move_2: 3600,
             move_3: 4500
+        });
+
+        gameStateStore.reset();
+    });
+
+    it('persists registered plugin enablement in game state', async () => {
+        let persistedState = buildGameState({
+            session_id: 'session-live-plugins'
+        });
+
+        mockDatabase.getGameState.mockResolvedValue(persistedState);
+        mockDatabase.updateGameState.mockImplementation(async (_sessionId, updates) => {
+            persistedState = buildGameState({
+                ...persistedState,
+                ...updates,
+                updated_at: new Date().toISOString(),
+                last_updated: new Date().toISOString()
+            });
+            return persistedState;
+        });
+
+        const { gameStateStore } = await loadGameStateModule();
+
+        await gameStateStore.initialize('session-live-plugins');
+        await gameStateStore.setPluginEnabled('intercom', true);
+
+        expect(mockDatabase.updateGameState).toHaveBeenLastCalledWith('session-live-plugins', {
+            plugin_state: {
+                intercom: { enabled: true },
+                'session-recorder': { enabled: false }
+            }
+        });
+        expect(gameStateStore.isPluginEnabled('intercom')).toBe(true);
+        expect(gameStateStore.isPluginEnabled('session-recorder')).toBe(false);
+
+        gameStateStore.reset();
+    });
+
+    it('persists Session Recorder runtime state for the participant recording notice', async () => {
+        let persistedState = buildGameState({
+            session_id: 'session-live-recorder'
+        });
+
+        mockDatabase.getGameState.mockResolvedValue(persistedState);
+        mockDatabase.updateGameState.mockImplementation(async (_sessionId, updates) => {
+            persistedState = buildGameState({
+                ...persistedState,
+                ...updates,
+                updated_at: new Date().toISOString(),
+                last_updated: new Date().toISOString()
+            });
+            return persistedState;
+        });
+
+        const { gameStateStore } = await loadGameStateModule();
+
+        await gameStateStore.initialize('session-live-recorder');
+        await gameStateStore.setPluginEnabled('session-recorder', true);
+        await gameStateStore.setSessionRecorderRuntimeState({
+            recording_status: 'recording',
+            recording_id: 'recording-1',
+            recording_started_at_utc: '2026-04-08T16:30:00.000Z',
+            recording_updated_at_utc: '2026-04-08T16:31:00.000Z',
+            recording_operator_role: 'whitecell',
+            recording_operator_label: 'White Cell Lead'
+        });
+
+        expect(mockDatabase.updateGameState).toHaveBeenLastCalledWith('session-live-recorder', {
+            plugin_state: {
+                intercom: { enabled: false },
+                'session-recorder': {
+                    enabled: true,
+                    recording_status: 'recording',
+                    recording_id: 'recording-1',
+                    recording_started_at_utc: '2026-04-08T16:30:00.000Z',
+                    recording_updated_at_utc: '2026-04-08T16:31:00.000Z',
+                    recording_operator_role: 'whitecell',
+                    recording_operator_label: 'White Cell Lead'
+                }
+            }
         });
 
         gameStateStore.reset();

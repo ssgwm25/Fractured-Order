@@ -1,4 +1,5 @@
 import { CONFIG } from '../../core/config.js';
+import { getRoleDisplayName } from '../../core/teamContext.js';
 import {
     formatBlueActionSelection,
     getActionSequenceNumber,
@@ -22,12 +23,13 @@ import {
     exportSessionRequestsCsv,
     exportSessionTimelineCsv
 } from './exportCsv.js';
+import { getStoredSessionRecordingArtifacts } from '../plugins/sessionRecorder.js';
 import { SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
-export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.3.0';
-export const RESEARCH_EXPORT_FORMAT_REVISION = 4;
+export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.4.0';
+export const RESEARCH_EXPORT_FORMAT_REVISION = 5;
 
 const HASHED_EVENT_FIELDS = [
     'event_id',
@@ -265,6 +267,27 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'occurred_utc',
         'latency_s'
     ],
+    session_recording_artifacts: [
+        'session_id',
+        'recording_id',
+        'started_utc',
+        'stopped_utc',
+        'duration_seconds',
+        'mime_type',
+        'file_size_bytes',
+        'generated_by_role',
+        'generated_by_user',
+        'plugin_id',
+        'filename',
+        'storage_reference',
+        'object_url',
+        'object_url_lifecycle',
+        'capture_constraints_requested',
+        'recorder_mime_type_selected',
+        'audio_bits_per_second_requested',
+        'audio_bits_per_second_used',
+        'created_at_utc'
+    ],
     data_quality_events: [
         'dq_event_id',
         'session_id',
@@ -443,6 +466,18 @@ function escapeHtml(value = '') {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function formatRoleForReport(role = '') {
+    const rawRole = String(role || '').trim();
+    if (!rawRole) {
+        return '';
+    }
+
+    const displayRole = getRoleDisplayName(rawRole);
+    return displayRole && displayRole !== rawRole
+        ? `${displayRole} (${rawRole})`
+        : rawRole;
 }
 
 function normalizeCaptureMode(mode = 'standard') {
@@ -1948,6 +1983,120 @@ function buildDerivedSessionMetrics({
     ];
 }
 
+function normalizeNullableNumber(value) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function buildSessionRecordingArtifactRow(rawArtifact = {}, fallbackSessionId = null) {
+    const artifact = safeObject(rawArtifact);
+    const sessionId = artifact.session_id || artifact.sessionId || fallbackSessionId || null;
+    const recordingId = artifact.recording_id || artifact.recordingId || artifact.id || null;
+    const objectUrl = artifact.object_url || artifact.objectUrl || null;
+
+    if (!recordingId) {
+        return null;
+    }
+
+    const startedUtc = asUtcIso(
+        artifact.started_utc
+        || artifact.startedAtUtc
+        || artifact.started_at_utc
+        || artifact.started_at
+    );
+    const stoppedUtc = asUtcIso(
+        artifact.stopped_utc
+        || artifact.stoppedAtUtc
+        || artifact.stopped_at_utc
+        || artifact.stopped_at
+    );
+
+    return {
+        session_id: sessionId,
+        recording_id: recordingId,
+        started_utc: startedUtc,
+        stopped_utc: stoppedUtc,
+        duration_seconds: normalizeNullableNumber(artifact.duration_seconds ?? artifact.durationSeconds),
+        mime_type: artifact.mime_type || artifact.mimeType || null,
+        file_size_bytes: normalizeNullableNumber(artifact.file_size_bytes ?? artifact.fileSizeBytes),
+        generated_by_role: artifact.generated_by_role || artifact.generatedByRole || artifact.role || null,
+        generated_by_user: artifact.generated_by_user || artifact.generatedByUser || artifact.user || null,
+        plugin_id: artifact.plugin_id || artifact.pluginId || 'session-recorder',
+        filename: artifact.filename || null,
+        storage_reference: artifact.storage_reference || artifact.storageReference || artifact.storage_ref || artifact.storageRef || null,
+        object_url: objectUrl,
+        object_url_lifecycle: artifact.object_url_lifecycle || artifact.objectUrlLifecycle || (objectUrl ? 'current_browser_document' : 'none'),
+        capture_constraints_requested: safeObject(
+            artifact.capture_constraints_requested
+            || artifact.captureConstraintsRequested
+            || artifact.constraints
+        ),
+        recorder_mime_type_selected: artifact.recorder_mime_type_selected
+            || artifact.recorderMimeTypeSelected
+            || artifact.mime_type
+            || artifact.mimeType
+            || null,
+        audio_bits_per_second_requested: normalizeNullableNumber(
+            artifact.audio_bits_per_second_requested ?? artifact.audioBitsPerSecondRequested
+        ),
+        audio_bits_per_second_used: normalizeNullableNumber(
+            artifact.audio_bits_per_second_used ?? artifact.audioBitsPerSecondUsed
+        ),
+        created_at_utc: asUtcIso(
+            artifact.created_at_utc
+            || artifact.createdAtUtc
+            || artifact.created_at
+            || stoppedUtc
+            || startedUtc
+        )
+    };
+}
+
+function buildSessionRecordingArtifactRows(bundle = {}) {
+    const sessionId = bundle.session?.id || bundle.gameState?.session_id || null;
+    const explicitArtifacts = [
+        ...safeArray(bundle.researchSessionRecordingArtifacts),
+        ...safeArray(bundle.sessionRecordingArtifacts)
+    ];
+    let browserArtifacts = [];
+
+    if (sessionId) {
+        try {
+            browserArtifacts = getStoredSessionRecordingArtifacts(sessionId);
+        } catch {
+            browserArtifacts = [];
+        }
+    }
+
+    const byRecordingId = new Map();
+    [...explicitArtifacts, ...browserArtifacts].forEach((artifact) => {
+        const row = buildSessionRecordingArtifactRow(artifact, sessionId);
+        if (!row) {
+            return;
+        }
+        if (sessionId && row.session_id && row.session_id !== sessionId) {
+            return;
+        }
+
+        const existing = byRecordingId.get(row.recording_id);
+        byRecordingId.set(row.recording_id, existing
+            ? {
+                ...row,
+                ...existing,
+                object_url: existing.object_url || row.object_url,
+                object_url_lifecycle: existing.object_url
+                    ? existing.object_url_lifecycle
+                    : (row.object_url_lifecycle || existing.object_url_lifecycle)
+            }
+            : row);
+    });
+
+    return [...byRecordingId.values()].sort((left, right) => (
+        String(left.started_utc || '').localeCompare(String(right.started_utc || ''))
+        || String(left.recording_id || '').localeCompare(String(right.recording_id || ''))
+    ));
+}
+
 function countByValue(rows = [], selector) {
     return safeArray(rows).reduce((counts, row) => {
         const rawValue = typeof selector === 'function' ? selector(row) : row?.[selector];
@@ -1980,6 +2129,7 @@ function buildResearchTableCoverage({
     moveResponseContent,
     rfiContent,
     interactionEdges,
+    sessionRecordingArtifacts,
     dataQualityEvents,
     derivedParticipantMetrics,
     derivedSessionMetrics,
@@ -2002,6 +2152,7 @@ function buildResearchTableCoverage({
         move_response_content: moveResponseContent,
         rfi_content: rfiContent,
         interaction_edges: interactionEdges,
+        session_recording_artifacts: sessionRecordingArtifacts,
         data_quality_events: dataQualityEvents,
         derived_participant_metrics: derivedParticipantMetrics,
         derived_session_metrics: derivedSessionMetrics,
@@ -2024,6 +2175,7 @@ function buildResearchTableCoverage({
         move_response_content: safeArray(bundle.researchMoveResponseContent).length,
         rfi_content: safeArray(bundle.researchRfiContent).length,
         interaction_edges: safeArray(bundle.researchInteractionEdges).length,
+        session_recording_artifacts: safeArray(bundle.researchSessionRecordingArtifacts).length,
         data_quality_events: safeArray(bundle.researchDataQualityEvents).length,
         derived_participant_metrics: safeArray(bundle.researchDerivedParticipantMetrics).length,
         derived_session_metrics: safeArray(bundle.researchDerivedSessionMetrics).length
@@ -2041,6 +2193,7 @@ function buildResearchTableCoverage({
         'move_response_content',
         'rfi_content',
         'interaction_edges',
+        'session_recording_artifacts',
         'data_quality_events',
         'derived_participant_metrics',
         'derived_session_metrics',
@@ -2057,7 +2210,9 @@ function buildResearchTableCoverage({
         const explicitCount = explicitResearchRows[tableName] || 0;
         const source = explicitCount
             ? 'research_table'
-            : (derivedTables.has(tableName) ? 'derived_at_export' : 'not_available');
+            : (tableName === 'session_recording_artifacts' && rowCount
+                ? 'local_browser_metadata'
+                : (derivedTables.has(tableName) ? 'derived_at_export' : 'not_available'));
 
         return {
             table_name: tableName,
@@ -2092,6 +2247,7 @@ function buildDataQualitySummary({
     moveResponseContent,
     rfiContent,
     interactionEdges,
+    sessionRecordingArtifacts,
     dataQualityEvents,
     derivedParticipantMetrics,
     derivedSessionMetrics,
@@ -2116,6 +2272,7 @@ function buildDataQualitySummary({
         moveResponseContent,
         rfiContent,
         interactionEdges,
+        sessionRecordingArtifacts,
         dataQualityEvents,
         derivedParticipantMetrics,
         derivedSessionMetrics,
@@ -3031,7 +3188,7 @@ function buildPersonaReports(dataset = {}) {
     ]);
     const participantRows = safeArray(dataset.derivedParticipantMetrics).map((participant) => [
         participant.participant_pseudonym,
-        participant.role,
+        formatRoleForReport(participant.role),
         participant.team,
         participant.events_count,
         participant.submissions_count,
@@ -3173,24 +3330,28 @@ function buildCodebookRows() {
                 ? 'timestamp_utc'
                 : /(_count|_number|_index|_sequence)$/.test(columnName)
                     ? 'integer'
-                    : /(duration|latency|seconds|_s)$/.test(columnName)
+                    : /(duration|latency|seconds|_s|_bytes|bits_per_second)/.test(columnName)
                         ? 'number'
                         : /(_state|_role|_team|_type|_status)$/.test(columnName)
                             ? 'string'
-                            : ['payload', 'before_state', 'after_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev', 'keyword_hits', 'evidence_refs', 'evidence_edge_ids', 'related_rfi_ids', 'related_communication_ids', 'related_response_ids', 'related_event_ids'].includes(columnName)
+                            : ['payload', 'before_state', 'after_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev', 'keyword_hits', 'evidence_refs', 'evidence_edge_ids', 'related_rfi_ids', 'related_communication_ids', 'related_response_ids', 'related_event_ids', 'capture_constraints_requested'].includes(columnName)
                                 ? 'json'
                                 : 'string',
-            units: /(duration|latency|seconds|_s)$/.test(columnName)
-                ? 'seconds'
-                : /_count$/.test(columnName)
-                    ? 'count'
-                    : /length_chars$/.test(columnName)
-                        ? 'characters'
-                        : null,
+            units: /_bytes$/.test(columnName)
+                ? 'bytes'
+                : /bits_per_second/.test(columnName)
+                    ? 'bits_per_second'
+                    : /(duration|latency|seconds|_s)$/.test(columnName)
+                        ? 'seconds'
+                        : /_count$/.test(columnName)
+                            ? 'count'
+                            : /length_chars$/.test(columnName)
+                                ? 'characters'
+                                : null,
             allowed_values: null,
             nullable: !['session_id', 'participant_pseudonym', 'author_pseudonym', 'event_type', 'entity_type', 'to_state', 'occurred_utc'].includes(columnName),
-            is_derived: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points'].includes(tableName),
-            derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points'].includes(tableName)
+            is_derived: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName),
+            derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName)
                 ? 'Computed client-side at export time from canonical event and content tables.'
                 : null,
             pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action|evidence_summary|evidence_excerpt/.test(columnName)
@@ -3307,6 +3468,23 @@ function formatReportDuration(value, fallback = 'N/A') {
     ].filter(Boolean);
 
     return parts.join(' ');
+}
+
+function formatReportBytes(value, fallback = 'N/A') {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes < 0) {
+        return fallback;
+    }
+
+    if (bytes < 1024) {
+        return `${Math.round(bytes)} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(bytes >= 10 * 1024 ? 0 : 1)} KB`;
+    }
+
+    return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 1 : 2)} MB`;
 }
 
 function formatReportValue(value, fallback = 'N/A') {
@@ -3487,7 +3665,7 @@ function renderReportContentsList(items = []) {
 function formatActorLabel(actor = {}) {
     return [
         actor.actor_pseudonym,
-        actor.actor_role,
+        formatRoleForReport(actor.actor_role),
         actor.actor_team
     ].filter((entry) => hasReportValue(entry)).join(' / ');
 }
@@ -3531,7 +3709,7 @@ export function buildResearchReportHtml(dataset, {
         .map(([key, value]) => [humanizeReportLabel(key), String(value)]);
     const participantRosterRows = safeArray(dataset.participants).map((participant) => [
         participant.participant_pseudonym || '',
-        participant.role || '',
+        formatRoleForReport(participant.role),
         participant.team || '',
         participant.seat_index === null || participant.seat_index === undefined ? '' : String(participant.seat_index),
         formatReportTimestamp(participant.first_seen_utc),
@@ -3541,7 +3719,7 @@ export function buildResearchReportHtml(dataset, {
     ]);
     const participantMetricRows = dataset.derivedParticipantMetrics.map((participant) => [
         participant.participant_pseudonym || '',
-        participant.role || '',
+        formatRoleForReport(participant.role),
         participant.team || '',
         String(participant.events_count || 0),
         String(participant.notes_count || 0),
@@ -3569,7 +3747,7 @@ export function buildResearchReportHtml(dataset, {
             transition.entity_id || '',
             transition.from_state || '',
             transition.to_state || '',
-            transition.actor_role || '',
+            formatRoleForReport(transition.actor_role),
             transition.recipient_team || '',
             transition.move_number === null || transition.move_number === undefined ? '' : String(transition.move_number),
             formatReportDuration(transition.dwell_in_from_s)
@@ -3609,9 +3787,19 @@ export function buildResearchReportHtml(dataset, {
         formatReportTimestamp(edge.occurred_utc),
         formatReportDuration(edge.latency_s)
     ]);
+    const sessionRecordingArtifactRows = safeArray(dataset.sessionRecordingArtifacts).map((artifact) => [
+        artifact.filename || artifact.recording_id || '',
+        formatReportTimestamp(artifact.started_utc),
+        formatReportTimestamp(artifact.stopped_utc),
+        formatReportDuration(artifact.duration_seconds),
+        artifact.mime_type || artifact.recorder_mime_type_selected || '',
+        formatReportBytes(artifact.file_size_bytes),
+        [formatRoleForReport(artifact.generated_by_role), artifact.generated_by_user].filter(Boolean).join(' / '),
+        artifact.storage_reference || artifact.object_url || ''
+    ]);
     const notesSummaryRows = dataset.notes.map((note) => [
         note.author_pseudonym || '',
-        note.author_role || '',
+        formatRoleForReport(note.author_role),
         note.author_team || '',
         note.scope || '',
         note.visibility || '',
@@ -3622,7 +3810,7 @@ export function buildResearchReportHtml(dataset, {
     ]);
     const notesRows = dataset.notes.map((note) => [
         note.author_pseudonym || '',
-        note.author_role || '',
+        formatRoleForReport(note.author_role),
         note.author_team || '',
         formatReportTimestamp(note.created_utc),
         note.content_text || ''
@@ -3707,7 +3895,7 @@ export function buildResearchReportHtml(dataset, {
                 { label: action.action_type || 'unspecified', tone: 'muted' }
             ],
             metadata: [
-                { label: 'Author', value: `${action.author_pseudonym || 'N/A'} / ${action.author_role || 'unknown'}` },
+                { label: 'Author', value: `${action.author_pseudonym || 'N/A'} / ${formatRoleForReport(action.author_role) || 'unknown'}` },
                 { label: 'Submitted', value: formatReportTimestamp(action.submitted_utc) },
                 { label: 'Targets', value: action.targets },
                 { label: 'Instrument Of Power', value: action.instruments },
@@ -3758,7 +3946,7 @@ export function buildResearchReportHtml(dataset, {
                 { label: proposal.final_recipient_state || proposal.intended_recipient_team || 'awaiting recipient', tone: 'muted' }
             ],
             metadata: [
-                { label: 'Author', value: `${proposal.author_pseudonym || 'N/A'} / ${proposal.author_role || 'unknown'}` },
+                { label: 'Author', value: `${proposal.author_pseudonym || 'N/A'} / ${formatRoleForReport(proposal.author_role) || 'unknown'}` },
                 { label: 'Intended Recipient', value: proposal.intended_recipient_team },
                 { label: 'Forwarded To', value: proposal.forwarded_to_team },
                 { label: 'Submitted', value: formatReportTimestamp(proposal.submitted_utc) },
@@ -3805,7 +3993,7 @@ export function buildResearchReportHtml(dataset, {
                 { label: response.posture || 'posture not set', tone: 'muted' }
             ],
             metadata: [
-                { label: 'Author', value: `${response.author_pseudonym || 'N/A'} / ${response.author_role || 'unknown'}` },
+                { label: 'Author', value: `${response.author_pseudonym || 'N/A'} / ${formatRoleForReport(response.author_role) || 'unknown'}` },
                 { label: 'Submitted', value: formatReportTimestamp(response.submitted_utc) },
                 { label: 'Responding To', value: response.responding_to_entity_type }
             ],
@@ -3833,7 +4021,7 @@ export function buildResearchReportHtml(dataset, {
             { label: rfi.status || 'pending', tone: 'success' }
         ],
         metadata: [
-            { label: 'Requester', value: `${rfi.requester_pseudonym || 'N/A'} / ${rfi.requester_role || 'unknown'}` },
+            { label: 'Requester', value: `${rfi.requester_pseudonym || 'N/A'} / ${formatRoleForReport(rfi.requester_role) || 'unknown'}` },
             { label: 'Raised UTC', value: formatReportTimestamp(rfi.raised_utc) },
             { label: 'Answered UTC', value: formatReportTimestamp(rfi.answered_utc) }
         ],
@@ -3950,11 +4138,15 @@ export function buildResearchReportHtml(dataset, {
         },
         {
             title: 'Requests For Information',
-            description: 'Question-and-answer exchanges between team facilitators and White Cell.'
+            description: 'Question-and-answer exchanges between team scribes and White Cell.'
         },
         {
             title: 'Communications And Interaction Summary',
             description: 'Cross-team communication flows, response latency, and interaction counts.'
+        },
+        {
+            title: 'Session Recordings',
+            description: 'Operator-controlled audio artifact references captured by the Session Recorder plugin.'
         },
         {
             title: 'Notes And Observation Capture',
@@ -4862,7 +5054,8 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Actions Submitted', value: sessionMetrics.actions_submitted ?? 0, detail: `${sessionMetrics.actions_adjudicated ?? 0} adjudicated` },
                 { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
                 { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
-                { label: 'Mean Proposal Latency', value: formatReportDuration(sessionMetrics.mean_proposal_response_latency_s), detail: 'review response time' }
+                { label: 'Mean Proposal Latency', value: formatReportDuration(sessionMetrics.mean_proposal_response_latency_s), detail: 'review response time' },
+                { label: 'Session Recordings', value: sessionRecordingArtifactRows.length, detail: 'metadata references' }
             ])}
             ${renderReportSectionBlock('Activity By Team', renderReportTable(
                 ['Team', 'Participants', 'Actions', 'Proposals', 'Responses', 'RFIs', 'Notes'],
@@ -5045,7 +5238,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Requests For Information</h2>
-                    <p class="report-section-intro">Question-and-answer exchanges between team facilitators and White Cell.</p>
+                    <p class="report-section-intro">Question-and-answer exchanges between team scribes and White Cell.</p>
                 </div>
             </div>
             ${renderReportEntityCollection(rfiCards, 'No RFI records were captured for this export.')}
@@ -5063,6 +5256,24 @@ export function buildResearchReportHtml(dataset, {
                 ['Type', 'Source Team', 'Target Team', 'Direction', 'Move', 'Occurred UTC', 'Latency'],
                 communicationRows
             ))}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Session Recordings</h2>
+                    <p class="report-section-intro">Operator-controlled browser recordings captured for post-game review. The research archive preserves metadata and file references; keep downloaded audio files with this ZIP.</p>
+                </div>
+            </div>
+            ${renderReportSectionBlock('Recording Artifact Metadata', renderReportTable(
+                ['Filename', 'Started UTC', 'Stopped UTC', 'Duration', 'MIME', 'Size', 'Generated By', 'Reference'],
+                sessionRecordingArtifactRows
+            ))}
+            ${renderReportSectionBlock('Export Handling', renderReportMetaGrid([
+                { label: 'Audio Files In ZIP', value: 'No. Browser recording audio remains a local download; this report and the session recording artifact files carry reference metadata.' },
+                { label: 'CSV Reference', value: manifest.session_recording_artifacts_ref },
+                { label: 'JSON Reference', value: manifest.session_recording_artifacts_json_ref }
+            ]))}
         </section>
 
         <section class="report-section">
@@ -5211,6 +5422,7 @@ function buildFileDefinitions({
     moveResponseContent,
     rfiContent,
     interactionEdges,
+    sessionRecordingArtifacts,
     dataQualityEvents,
     derivedParticipantMetrics,
     derivedSessionMetrics,
@@ -5414,6 +5626,16 @@ function buildFileDefinitions({
             mimeType: 'application/json'
         },
         {
+            path: 'session_recording_artifacts.csv',
+            content: arrayToCsv(sessionRecordingArtifacts, RESEARCH_EXPORT_COLUMNS.session_recording_artifacts),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'session_recording_artifacts.json',
+            content: toJsonFileContent(sessionRecordingArtifacts),
+            mimeType: 'application/json'
+        },
+        {
             path: 'data_quality_events.csv',
             content: arrayToCsv(dataQualityEvents, RESEARCH_EXPORT_COLUMNS.data_quality_events),
             mimeType: 'text/csv'
@@ -5557,6 +5779,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         dataQualityEvents,
         decisionLineage
     });
+    const sessionRecordingArtifacts = buildSessionRecordingArtifactRows(bundle);
     const rowCounts = {
         event_log: eventLog.length,
         participants: participantRegistry.rows.length,
@@ -5570,6 +5793,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         move_response_content: moveResponseContent.length,
         rfi_content: rfiContent.length,
         interaction_edges: interactionEdges.length,
+        session_recording_artifacts: sessionRecordingArtifacts.length,
         data_quality_events: dataQualityEvents.length,
         decision_lineage: decisionLineage.length,
         outcome_taxonomy: outcomeTaxonomy.length,
@@ -5608,7 +5832,9 @@ export async function buildResearchExportBundle(bundle = {}, {
         outcome_taxonomy_ref: 'outcome_taxonomy.csv',
         training_rubric_ref: 'training_rubric.csv',
         network_metrics_ref: 'network_metrics.csv',
-        turning_points_ref: 'turning_points.csv'
+        turning_points_ref: 'turning_points.csv',
+        session_recording_artifacts_ref: 'session_recording_artifacts.csv',
+        session_recording_artifacts_json_ref: 'session_recording_artifacts.json'
     };
     const scenarioContext = buildScenarioContext(bundle, {
         manifest,
@@ -5633,6 +5859,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         moveResponseContent,
         rfiContent,
         interactionEdges,
+        sessionRecordingArtifacts,
         dataQualityEvents,
         derivedParticipantMetrics,
         derivedSessionMetrics,
@@ -5670,6 +5897,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         moveResponseContent,
         rfiContent,
         interactionEdges,
+        sessionRecordingArtifacts,
         dataQualityEvents,
         dataQualitySummary,
         decisionLineage,
@@ -5710,6 +5938,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         moveResponseContent,
         rfiContent,
         interactionEdges,
+        sessionRecordingArtifacts,
         dataQualityEvents,
         derivedParticipantMetrics,
         derivedSessionMetrics,

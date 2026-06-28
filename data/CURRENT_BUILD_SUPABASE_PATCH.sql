@@ -293,4 +293,18 @@ ALTER TABLE public.game_state
 
 COMMENT ON COLUMN public.game_state.timer_allocations IS 'White Cell-managed timer allocation map, in seconds, for strategic_orientation and move_1 through move_3.';
 
+ALTER TABLE public.game_state
+    ADD COLUMN IF NOT EXISTS plugin_state JSONB;
+
+UPDATE public.game_state
+SET plugin_state = COALESCE(plugin_state, '{}'::jsonb)
+WHERE plugin_state IS NULL
+   OR jsonb_typeof(plugin_state) <> 'object';
+
+ALTER TABLE public.game_state
+    ALTER COLUMN plugin_state SET DEFAULT '{}'::jsonb,
+    ALTER COLUMN plugin_state SET NOT NULL;
+
+COMMENT ON COLUMN public.game_state.plugin_state IS 'White Cell-managed registered plugin enablement map for the active session.';
+
 COMMIT;

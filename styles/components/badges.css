@@ -88,7 +88,7 @@
 /* Backfire special style */
 .badge-backfire {
     background-color: rgba(124, 45, 18, 0.14);
-    color: #7c2d12;
+    color: var(--color-outcome-backfire);
 }
 
 /* Dot badge */

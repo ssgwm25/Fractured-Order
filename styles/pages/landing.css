@@ -437,6 +437,13 @@ html, body {
     color: #fff;
 }
 
+/* Touch devices: ensure the team/role chips meet the 44px hit-area floor. */
+@media (pointer: coarse) {
+    .chip {
+        min-height: 44px;
+    }
+}
+
 .chip svg {
     opacity: 0.55;
     flex-shrink: 0;

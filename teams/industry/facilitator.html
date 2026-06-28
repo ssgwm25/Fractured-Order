@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Statecraft Sim Industry Team facilitator interface.">
-    <title>Statecraft Sim | Industry Team Facilitator</title>
+    <meta name="description" content="Statecraft Sim Industry Team scribe workspace.">
+    <title>Statecraft Sim | Industry Team Scribe</title>
     <link rel="icon" type="image/x-icon" href="../../src/img/FO_icon.ico">
 
     <!-- Styles -->
@@ -20,24 +20,7 @@
     <link rel="stylesheet" href="../../styles/layouts/app-layout.css">
     <link rel="stylesheet" href="../../styles/layouts/header.css">
     <link rel="stylesheet" href="../../styles/layouts/sidebar.css">
-    <link rel="stylesheet" href="../../styles/layouts/grid.css">
-    <style>
-        .skip-link {
-            position: absolute;
-            left: 0;
-            top: -40px;
-            background: var(--color-primary-600);
-            color: white;
-            padding: 0.5rem 1rem;
-            z-index: 1000;
-            text-decoration: none;
-            border-radius: 0 0 var(--radius-md) 0;
-        }
-
-        .skip-link:focus {
-            top: 0;
-        }
-    </style>
+    <link rel="stylesheet" href="../../styles/layouts/grid.css">
 </head>
 <body data-team="industry">
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -51,7 +34,7 @@
                     </svg>
                 </button>
                 <div class="header-session-info">
-                    <span class="session-role" id="sessionRoleLabel">Facilitator</span>
+                    <span class="session-role" id="sessionRoleLabel">Scribe</span>
                     <span class="session-indicator" id="connectionIndicator"></span>
                 </div>
             </div>
@@ -192,8 +175,8 @@
             <div class="page-container">
                 <div
                     id="facilitatorModeNotice"
-                    class="card card-bordered"
-                    style="display: none; padding: var(--space-4); margin-bottom: var(--space-4);"
+                    class="card card-bordered p-4 mb-4"
+                    style="display: none;"
                     role="status"
                     aria-live="polite"
                 ></div>
@@ -337,7 +320,7 @@
                     </div>
 
                     <div class="section-body">
-                        <form id="captureForm" class="card card-bordered" style="padding: var(--space-4);" data-write-control="true">
+                        <form id="captureForm" class="card card-bordered p-4" data-write-control="true">
                             <fieldset class="form-group">
                                 <legend class="form-label">Type</legend>
                                 <div class="form-check-inline">

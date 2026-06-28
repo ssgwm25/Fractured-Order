@@ -3,9 +3,9 @@ const SCRIBE_DECK_STORAGE_STORE = 'uploaded-decks';
 const SCRIBE_DECK_STORAGE_VERSION = 1;
 export const SCRIBE_DECK_STORAGE_TIMEOUT_MS = 5000;
 
-function createScribeDeckStorageTimeoutError(operation = 'accessing uploaded scribe deck storage') {
+function createScribeDeckStorageTimeoutError(operation = 'accessing uploaded facilitator deck storage') {
     return new Error(
-        `Uploaded scribe deck browser storage timed out while ${operation}. Check browser storage permissions and try again.`
+        `Uploaded facilitator deck browser storage timed out while ${operation}. Check browser storage permissions and try again.`
     );
 }
 
@@ -18,7 +18,7 @@ function resolveIndexedDb() {
 function requireIndexedDb() {
     const indexedDb = resolveIndexedDb();
     if (!indexedDb) {
-        throw new Error('Uploaded scribe decks require browser storage support.');
+        throw new Error('Uploaded facilitator decks require browser storage support.');
     }
 
     return indexedDb;
@@ -54,7 +54,7 @@ function openDeckStorageDatabase() {
         }
 
         if (!request) {
-            settle(reject, new Error('Uploaded scribe deck storage open request did not start.'));
+            settle(reject, new Error('Uploaded facilitator deck storage open request did not start.'));
             return;
         }
 
@@ -77,13 +77,13 @@ function openDeckStorageDatabase() {
         };
 
         request.onerror = () => {
-            settle(reject, request.error || new Error('Unable to open uploaded scribe deck storage.'));
+            settle(reject, request.error || new Error('Unable to open uploaded facilitator deck storage.'));
         };
 
         request.onblocked = () => {
             settle(
                 reject,
-                new Error('Uploaded scribe deck storage is blocked by another open tab. Close other Fractured Order tabs and try again.')
+                new Error('Uploaded facilitator deck storage is blocked by another open tab. Close other Fractured Order tabs and try again.')
             );
         };
     });
@@ -127,7 +127,7 @@ async function runDeckStorageRequest(mode, callback) {
         }
 
         if (!request) {
-            settle(reject, new Error('Uploaded scribe deck storage request did not start.'));
+            settle(reject, new Error('Uploaded facilitator deck storage request did not start.'));
             return;
         }
 
@@ -146,15 +146,15 @@ async function runDeckStorageRequest(mode, callback) {
         };
 
         request.onerror = () => {
-            settle(reject, request.error || new Error('Uploaded scribe deck storage request failed.'));
+            settle(reject, request.error || new Error('Uploaded facilitator deck storage request failed.'));
         };
 
         transaction.onabort = () => {
-            settle(reject, transaction.error || new Error('Uploaded scribe deck storage transaction failed.'));
+            settle(reject, transaction.error || new Error('Uploaded facilitator deck storage transaction failed.'));
         };
 
         transaction.onerror = () => {
-            settle(reject, transaction.error || new Error('Uploaded scribe deck storage transaction failed.'));
+            settle(reject, transaction.error || new Error('Uploaded facilitator deck storage transaction failed.'));
         };
 
         transaction.oncomplete = () => {
@@ -170,7 +170,7 @@ export function buildUploadedScribeDeckStorageKey(sessionId = '', teamId = '') {
     const normalizedTeamId = String(teamId || '').trim().toLowerCase();
 
     if (!normalizedSessionId || !normalizedTeamId) {
-        throw new Error('Uploaded scribe decks require both a session ID and team ID.');
+        throw new Error('Uploaded facilitator decks require both a session ID and team ID.');
     }
 
     return `scribe-deck:${normalizedSessionId}:${normalizedTeamId}`;
@@ -187,11 +187,11 @@ export async function saveUploadedScribeDeck({
 } = {}) {
     const normalizedStorageKey = String(storageKey || '').trim();
     if (!normalizedStorageKey) {
-        throw new Error('Uploaded scribe deck storage key is required.');
+        throw new Error('Uploaded facilitator deck storage key is required.');
     }
 
     if (!Array.isArray(slides) || !slides.length) {
-        throw new Error('Uploaded scribe decks must include at least one slide.');
+        throw new Error('Uploaded facilitator decks must include at least one slide.');
     }
 
     const payload = {

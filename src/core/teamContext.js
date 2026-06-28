@@ -24,6 +24,22 @@ export const PUBLIC_ROLE_SURFACES = Object.freeze([
     ROLE_SURFACES.NOTETAKER,
 ]);
 
+export const ROLE_SURFACE_DISPLAY_LABELS = Object.freeze({
+    [ROLE_SURFACES.FACILITATOR]: 'Scribe',
+    [ROLE_SURFACES.SCRIBE]: 'Facilitator',
+    [ROLE_SURFACES.NOTETAKER]: 'Notetaker',
+    [ROLE_SURFACES.WHITECELL]: 'White Cell',
+    [ROLE_SURFACES.VIEWER]: 'Observer'
+});
+
+export const ROLE_SURFACE_SEMANTICS = Object.freeze({
+    [ROLE_SURFACES.FACILITATOR]: ROLE_SURFACES.SCRIBE,
+    [ROLE_SURFACES.SCRIBE]: ROLE_SURFACES.FACILITATOR,
+    [ROLE_SURFACES.NOTETAKER]: ROLE_SURFACES.NOTETAKER,
+    [ROLE_SURFACES.WHITECELL]: ROLE_SURFACES.WHITECELL,
+    [ROLE_SURFACES.VIEWER]: ROLE_SURFACES.VIEWER
+});
+
 export const OPERATOR_SURFACES = Object.freeze({
     GAME_MASTER: 'gamemaster',
     WHITE_CELL: ROLE_SURFACES.WHITECELL
@@ -71,6 +87,14 @@ export function isPublicRoleSurface(surface = '') {
 
 export function isOperatorSurface(surface = '') {
     return Object.values(OPERATOR_SURFACES).includes(surface);
+}
+
+export function getRoleSurfaceDisplayLabel(surface = '') {
+    return ROLE_SURFACE_DISPLAY_LABELS[surface] || surface || '';
+}
+
+export function getSemanticRoleSurface(surface = '') {
+    return ROLE_SURFACE_SEMANTICS[surface] || surface || null;
 }
 
 export function buildTeamRole(teamId, surface) {
@@ -171,9 +195,9 @@ export function getTeamRoleLabels(teamId) {
 
     return {
         team: team.label,
-        facilitator: `${team.label} Facilitator`,
-        scribe: `${team.label} Scribe`,
-        notetaker: `${team.label} Notetaker`,
+        facilitator: `${team.label} ${getRoleSurfaceDisplayLabel(ROLE_SURFACES.FACILITATOR)}`,
+        scribe: `${team.label} ${getRoleSurfaceDisplayLabel(ROLE_SURFACES.SCRIBE)}`,
+        notetaker: `${team.label} ${getRoleSurfaceDisplayLabel(ROLE_SURFACES.NOTETAKER)}`,
         whitecell: `${team.label} White Cell`,
         whitecellLead: `${team.label} White Cell Lead`,
         whitecellSupport: `${team.label} White Cell Support`,

@@ -12,12 +12,14 @@ The current exercise topology ships with four actor teams and two operator surfa
 | --- | --- |
 | Landing | Session-code join, team selection, role selection, and operator access |
 | Game Master | Session creation/deletion, participant monitoring, and data export |
-| White Cell | Game controls with per-mark time allocations for Strategic Orientation and Moves 1-3, pre-Move 1 Strategic Orientation gating for move/phase advancement, dedicated Strategic Orientation review, action/proposal/response review, RFI answers, communications, timeline review, and scribe deck assignment |
-| Team Facilitator | One-time Blue Strategic Orientation selection and strategic action drafting with scribe handoff, one-time Green and Red Strategic Orientation forecasts, Green and Industry proposals, Red move responses, RFIs, received White Cell updates, timeline, and quick capture |
+| White Cell | Game controls with per-mark time allocations for Strategic Orientation and Moves 1-3, pre-Move 1 Strategic Orientation gating for move/phase advancement, dedicated Strategic Orientation review, action/proposal/response review, RFI answers, communications, timeline review, facilitator deck assignment, and session-scoped plugin management |
+| Team Scribe | One-time Blue Strategic Orientation selection and strategic action drafting with handoff to the Facilitator, one-time Green and Red Strategic Orientation forecasts, Green and Industry proposals, Red move responses, RFIs, received White Cell updates, timeline, and quick capture |
 | Team Notetaker | Observations, team dynamics, alliance tracking, and move-scoped notes |
-| Team Scribe | Team support deck, distinct Strategic Orientation slides, live action/communication slides, venue projection, and final Strategic Orientation/action submission to White Cell |
+| Team Facilitator | Team support deck, distinct Strategic Orientation slides, live action/communication slides, venue projection, and final Strategic Orientation/action submission to White Cell |
 
-Facilitator action controls prioritize Strategic Orientation first: the orientation or forecast button is the primary green control until that team records its artifact, then the orientation control becomes secondary and the action/proposal/response control becomes primary.
+Scribe action controls prioritize Strategic Orientation first: the orientation or forecast button is the primary green control until that team records its artifact, then the orientation control becomes secondary and the action/proposal/response control becomes primary.
+
+Compatibility note: the current route and storage keys remain `teams/<team>/facilitator.html` / `*_facilitator` for the Scribe workspace and `teams/<team>/scribe.html` / `*_scribe` for the Facilitator support deck. New display labels use the corrected role semantics while legacy identifiers remain stable for existing sessions and Supabase policies. When a schema migration introduces canonical role IDs, new persisted identifiers should use semantic role names rather than carrying the inversion forward.
 
 The built-in teams are Blue, Red, Green, and Industry. Do not expand team geography or role topology during demo hardening unless the exercise design explicitly changes.
 
@@ -32,14 +34,14 @@ The built-in teams are Blue, Red, Green, and Industry. Do not expand team geogra
 |   |-- blue/
 |   |-- green/
 |   |-- red/
-|   `-- industry/              Facilitator, notetaker, and scribe role pages
+|   `-- industry/              Scribe, facilitator-support, and notetaker role pages
 |-- decks/                     Static facilitator deck HTML
 |-- src/
 |   |-- core/                  Config, role routing, enums, errors
 |   |-- services/              Supabase, realtime, sync, timer, heartbeat, mock backend
 |   |-- stores/                Session, game state, actions, RFIs, timeline, participants, communications
 |   |-- roles/                 Role-surface controllers
-|   `-- features/              Actions, RFIs, export, timeline, onboarding, scribe helpers
+|   `-- features/              Actions, RFIs, export, timeline, onboarding, plugin registry, and deck helpers
 |-- styles/                    Shared CSS tokens, layouts, components, and page styles
 |-- data/                      Supabase schema and migration SQL
 |-- docs/                      Deployment, Supabase setup, and live-demo runbook
@@ -129,7 +131,7 @@ Use [docs/supabase-setup.md](docs/supabase-setup.md) as the authoritative operat
 - Role surfaces include skip links, keyboard-reachable sidebar navigation, and persistent sync-degraded banners.
 - Landing validation renders inline errors as well as toast notifications.
 - Runtime backend misconfiguration blocks startup with an alert dialog and managed focus.
-- Scribe alert panels use dialog semantics and focus containment.
+- Facilitator alert panels use dialog semantics and focus containment.
 - Browser-facing source is tested for common mojibake markers.
 
 ## Credits

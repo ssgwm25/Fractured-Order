@@ -1,5 +1,6 @@
 import {
     WHITE_CELL_OPERATOR_ROLES,
+    getRoleSurfaceDisplayLabel,
     parseTeamRole,
     ROLE_SURFACES
 } from '../../core/teamContext.js';
@@ -119,12 +120,10 @@ export function createRoleBadge(role) {
         config = { text: 'Game Master', variant: 'success' };
     } else if (role === 'viewer') {
         config = { text: 'Observer', variant: 'default' };
-    } else if (parsedRole.surface === ROLE_SURFACES.FACILITATOR) {
-        config = { text: 'Facilitator', variant: 'primary' };
-    } else if (parsedRole.surface === ROLE_SURFACES.SCRIBE) {
-        config = { text: 'Scribe', variant: 'primary' };
+    } else if (parsedRole.surface === ROLE_SURFACES.FACILITATOR || parsedRole.surface === ROLE_SURFACES.SCRIBE) {
+        config = { text: getRoleSurfaceDisplayLabel(parsedRole.surface), variant: 'primary' };
     } else if (parsedRole.surface === ROLE_SURFACES.NOTETAKER) {
-        config = { text: 'Notetaker', variant: 'info' };
+        config = { text: getRoleSurfaceDisplayLabel(parsedRole.surface), variant: 'info' };
     } else if (parsedRole.surface === ROLE_SURFACES.WHITECELL) {
         config = {
             text: parsedRole.operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT

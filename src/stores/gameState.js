@@ -19,6 +19,13 @@ import {
     getTimerAllocationSeconds,
     normalizeTimerAllocations
 } from '../utils/timerAllocations.js';
+import {
+    buildDefaultPluginState,
+    isPluginEnabled,
+    normalizePluginState,
+    setPluginEnabledInState,
+    setSessionRecorderRuntimeStateInPluginState
+} from '../features/plugins/registry.js';
 
 const logger = createLogger('GameStateStore');
 
@@ -36,6 +43,7 @@ function buildFallbackGameState(sessionId) {
         phase: 1,
         timer_seconds: CONFIG.DEFAULT_TIMER_SECONDS,
         timer_allocations: buildDefaultTimerAllocations(),
+        plugin_state: buildDefaultPluginState(),
         timer_running: false,
         timer_last_update: null,
         last_updated: timestamp,
@@ -52,6 +60,7 @@ function buildFallbackGameState(sessionId) {
  * @property {number} phase - Current phase (1-5)
  * @property {number} timer_seconds - Remaining timer seconds
  * @property {Object<string, number>} timer_allocations - Per-state timer allocations in seconds
+ * @property {Object<string, {enabled: boolean}>} plugin_state - Registered plugin enablement map
  * @property {boolean} timer_running - Whether timer is active
  * @property {string} timer_last_update - ISO timestamp of last timer update
  * @property {string} last_updated - ISO timestamp of last update
@@ -182,6 +191,23 @@ class GameStateStore {
     }
 
     /**
+     * Get the registered plugin enablement map.
+     * @returns {Object<string, {enabled: boolean}>}
+     */
+    getPluginState() {
+        return normalizePluginState(this.state?.plugin_state);
+    }
+
+    /**
+     * Check whether a registered plugin is enabled.
+     * @param {string} pluginId
+     * @returns {boolean}
+     */
+    isPluginEnabled(pluginId) {
+        return isPluginEnabled(this.getPluginState(), pluginId);
+    }
+
+    /**
      * Get timer allocation for a move mark.
      * @param {number} move
      * @returns {number}
@@ -298,6 +324,40 @@ class GameStateStore {
         return this.persistState({
             timer_allocations: normalizeTimerAllocations(allocations)
         }, 'timer_allocations_updated');
+    }
+
+    /**
+     * Persist a registered plugin enablement change.
+     * @param {string} pluginId
+     * @param {boolean} enabled
+     * @returns {Promise<GameState>}
+     */
+    async setPluginEnabled(pluginId, enabled) {
+        if (!this.state) {
+            return this.state;
+        }
+
+        return this.persistState({
+            plugin_state: setPluginEnabledInState(this.getPluginState(), pluginId, enabled)
+        }, 'plugin_state_updated');
+    }
+
+    /**
+     * Persist bounded Session Recorder runtime status for participant notices.
+     * @param {Object} runtimeState
+     * @returns {Promise<GameState>}
+     */
+    async setSessionRecorderRuntimeState(runtimeState = {}) {
+        if (!this.state) {
+            return this.state;
+        }
+
+        return this.persistState({
+            plugin_state: setSessionRecorderRuntimeStateInPluginState(
+                this.getPluginState(),
+                runtimeState
+            )
+        }, 'session_recorder_runtime_updated');
     }
 
     /**
@@ -522,6 +582,7 @@ class GameStateStore {
 
         const normalizedState = { ...state };
         normalizedState.timer_allocations = normalizeTimerAllocations(normalizedState.timer_allocations);
+        normalizedState.plugin_state = normalizePluginState(normalizedState.plugin_state);
         const storedSeconds = normalizedState.timer_seconds ?? CONFIG.DEFAULT_TIMER_SECONDS;
 
         if (!normalizedState.timer_running || !normalizedState.timer_last_update) {

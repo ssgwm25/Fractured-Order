@@ -37,6 +37,9 @@ import {
 import {
     normalizeTimerAllocations
 } from '../utils/timerAllocations.js';
+import {
+    normalizePluginState
+} from '../features/plugins/registry.js';
 
 const logger = createLogger('Database');
 let latestAuthenticatedSession = null;
@@ -638,6 +641,10 @@ export const database = {
             mappedUpdates.timer_allocations = normalizeTimerAllocations(mappedUpdates.timer_allocations);
         }
 
+        if ('plugin_state' in mappedUpdates) {
+            mappedUpdates.plugin_state = normalizePluginState(mappedUpdates.plugin_state);
+        }
+
         const rpcParams = {
             requested_session_id: sessionId,
             requested_move: mappedUpdates.move ?? null,
@@ -649,6 +656,10 @@ export const database = {
 
         if ('timer_allocations' in mappedUpdates) {
             rpcParams.requested_timer_allocations = mappedUpdates.timer_allocations;
+        }
+
+        if ('plugin_state' in mappedUpdates) {
+            rpcParams.requested_plugin_state = mappedUpdates.plugin_state;
         }
 
         const { data, error } = await supabase.rpc('operator_update_game_state', rpcParams);

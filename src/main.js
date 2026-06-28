@@ -15,6 +15,7 @@ import { createLogger } from './utils/logger.js';
 import { showToast } from './components/ui/Toast.js';
 import { hideLoader } from './components/ui/Loader.js';
 import { confirm as confirmModal } from './components/ui/Modal.js';
+import { mountSessionRecordingNotice } from './features/plugins/sessionRecorder.js';
 import { ConfigurationError, getUserMessage } from './core/errors.js';
 import { isLandingPage, navigateToApp } from './core/navigation.js';
 import { isPublicRoleSurface, parseTeamRole } from './core/teamContext.js';
@@ -82,6 +83,10 @@ export async function enforceReloadReauthentication({
 async function initApp() {
     logger.info('Initializing ESG Simulation Platform v2.0');
 
+    // Theme toggle is pure UI — wire it before any backend gate so it works
+    // even when configuration is missing.
+    setupThemeToggle();
+
     if (!runtimeConfigStatus.ready) {
         logger.error('Backend configuration is missing:', runtimeConfigStatus.issues);
         renderMissingBackendNotice();
@@ -100,6 +105,7 @@ async function initApp() {
     // Setup connection indicator
     setupConnectionIndicator();
     setupSyncStatusBanner();
+    setupSessionRecordingNotice();
 
     // Setup logout handler
     setupLogoutHandler();
@@ -147,6 +153,92 @@ function setupErrorHandling() {
     });
 }
 
+/* ==================== THEME (light / dark) ====================
+   With no stored choice the CSS @media query follows the OS automatically.
+   The toggle pins an explicit preference (data-theme on <html>) and persists it. */
+const THEME_STORAGE_KEY = 'fo-theme';
+
+function prefersDarkOS() {
+    return typeof window !== 'undefined'
+        && typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function getStoredTheme() {
+    try {
+        const value = window.localStorage.getItem(THEME_STORAGE_KEY);
+        return value === 'dark' || value === 'light' ? value : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function effectiveTheme() {
+    return getStoredTheme() || (prefersDarkOS() ? 'dark' : 'light');
+}
+
+/** Reflect any stored preference onto <html> as early as the module loads. */
+function applyStoredTheme() {
+    const root = document.documentElement;
+    if (!root) return;
+    const stored = getStoredTheme();
+    if (stored) {
+        root.setAttribute('data-theme', stored);
+    } else {
+        // No explicit choice — let the media query track the OS.
+        root.removeAttribute('data-theme');
+    }
+}
+
+applyStoredTheme();
+
+const THEME_ICON_SUN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+const THEME_ICON_MOON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+
+/**
+ * Inject a light/dark toggle into the page header (where one exists). The button
+ * shows the icon of the theme it will switch TO.
+ */
+function setupThemeToggle() {
+    if (typeof document === 'undefined') return;
+    const host = document.querySelector('.header-actions');
+    if (!host || document.getElementById('themeToggleBtn')) return;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'themeToggleBtn';
+    btn.className = 'btn btn-ghost btn-sm btn-icon-only theme-toggle';
+    host.insertBefore(btn, host.firstChild);
+
+    function render() {
+        const isDark = effectiveTheme() === 'dark';
+        btn.innerHTML = isDark ? THEME_ICON_SUN : THEME_ICON_MOON;
+        const label = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+        btn.setAttribute('aria-label', label);
+        btn.title = label;
+    }
+
+    btn.addEventListener('click', () => {
+        const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try {
+            window.localStorage.setItem(THEME_STORAGE_KEY, next);
+        } catch (error) {
+            logger.warn('Failed to persist theme preference', error);
+        }
+        render();
+    });
+
+    // Keep the icon in step with the OS while no preference is pinned.
+    if (typeof window.matchMedia === 'function') {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!getStoredTheme()) render();
+        });
+    }
+
+    render();
+}
+
 /**
  * Setup connection status indicator
  */
@@ -154,15 +246,24 @@ function setupConnectionIndicator() {
     const indicator = document.getElementById('connectionIndicator');
     if (!indicator) return;
 
+    // The dot conveys connection state by colour alone (green vs red). Expose it
+    // as an image with a text label so the state is available to screen readers
+    // and on hover — not colour-only. (WCAG 1.4.1)
+    indicator.setAttribute('role', 'img');
+
+    function setConnectionState(connected) {
+        const label = connected ? 'Connected' : 'Disconnected';
+        indicator.classList.toggle('connected', connected);
+        indicator.classList.toggle('disconnected', !connected);
+        indicator.title = label;
+        indicator.setAttribute('aria-label', `Connection status: ${label}`);
+    }
+
     function updateConnectionStatus() {
         if (navigator.onLine) {
-            indicator.classList.remove('disconnected');
-            indicator.classList.add('connected');
-            indicator.title = 'Connected';
+            setConnectionState(true);
         } else {
-            indicator.classList.remove('connected');
-            indicator.classList.add('disconnected');
-            indicator.title = 'Disconnected';
+            setConnectionState(false);
             showToast({
                 message: 'Connection lost. Some features may be unavailable.',
                 type: 'warning'
@@ -317,6 +418,20 @@ export function setupSyncStatusBanner({
         windowRef?.removeEventListener?.('online', updateFromCurrentStatus);
         windowRef?.removeEventListener?.('offline', updateFromCurrentStatus);
     };
+}
+
+export function setupSessionRecordingNotice({
+    documentRef = typeof document !== 'undefined' ? document : null,
+    gameStateStoreRef = gameStateStore
+} = {}) {
+    if (!documentRef?.body) {
+        return null;
+    }
+
+    return mountSessionRecordingNotice({
+        document: documentRef,
+        gameStateStore: gameStateStoreRef
+    });
 }
 
 /**

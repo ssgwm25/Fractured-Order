@@ -19,29 +19,7 @@
     <link rel="stylesheet" href="../../styles/layouts/app-layout.css">
     <link rel="stylesheet" href="../../styles/layouts/header.css">
     <link rel="stylesheet" href="../../styles/layouts/sidebar.css">
-    <link rel="stylesheet" href="../../styles/layouts/grid.css">
-    <style>
-        .skip-link {
-            position: absolute;
-            left: -9999px;
-            top: auto;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            z-index: 1000;
-        }
-
-        .skip-link:focus {
-            left: 1rem;
-            top: 1rem;
-            width: auto;
-            height: auto;
-            padding: 0.75rem 1rem;
-            background: #111827;
-            color: #ffffff;
-            border-radius: 0.375rem;
-        }
-    </style>
+    <link rel="stylesheet" href="../../styles/layouts/grid.css">
 </head>
 <body data-team="red">
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -178,7 +156,7 @@
                     </div>
 
                     <div class="section-body">
-                        <form id="captureForm" class="card card-bordered" style="padding: var(--space-4);">
+                        <form id="captureForm" class="card card-bordered p-4">
                             <fieldset class="form-group">
                                 <legend class="form-label">Type</legend>
                                 <div class="form-check-inline">
@@ -230,7 +208,7 @@
                     <div class="section-body">
                         <form id="dynamicsForm">
                             <div class="section-grid section-grid-2">
-                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                <div class="card card-bordered p-4">
                                     <h3 class="text-base font-semibold mb-3">Leadership Observations</h3>
                                     <div class="form-group">
                                         <label class="form-label" for="emergingLeaders">Emerging Leaders</label>
@@ -242,7 +220,7 @@
                                     </div>
                                 </div>
 
-                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                <div class="card card-bordered p-4">
                                     <h3 class="text-base font-semibold mb-3">Friction Points</h3>
                                     <div class="form-group">
                                         <label class="form-label" for="frictionLevel">Friction Level (1-10)</label>
@@ -260,7 +238,7 @@
                                 </div>
                             </div>
 
-                            <div class="card card-bordered mt-4" style="padding: var(--space-4);">
+                            <div class="card card-bordered mt-4 p-4">
                                 <h3 class="text-base font-semibold mb-3">Consensus Building</h3>
                                 <div class="form-group">
                                     <label class="form-label" for="consensusLevel">Consensus Level (1-10)</label>
@@ -295,7 +273,7 @@
 
                     <div class="section-body">
                         <form id="allianceForm">
-                            <div class="card card-bordered" style="padding: var(--space-4);">
+                            <div class="card card-bordered p-4">
                                 <h3 class="text-base font-semibold mb-3">External Factors</h3>
                                 <div class="form-group">
                                     <label class="form-label" for="allianceNotes">Alliance Coordination Notes</label>

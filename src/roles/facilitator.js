@@ -101,6 +101,11 @@ import {
 } from '../core/enums.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { navigateToApp } from '../core/navigation.js';
+import { WHITE_CELL_PLUGIN_IDS } from '../features/plugins/registry.js';
+import {
+    mountScribeIntercomReceiver,
+    unmountScribeIntercomReceiver
+} from '../features/plugins/intercom.js';
 
 const logger = createLogger('Facilitator');
 const PROPOSAL_TEAM_IDS = new Set(['green', 'industry']);
@@ -274,10 +279,11 @@ export class FacilitatorController {
         this.hasHydratedResponses = false;
         this.hasHydratedReceivedProposals = false;
         this.strategicOrientationSubmissionInFlight = false;
+        this.intercomReceiver = null;
     }
 
     async init() {
-        logger.info('Initializing Facilitator interface');
+        logger.info('Initializing Scribe workspace');
 
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {
@@ -306,7 +312,7 @@ export class FacilitatorController {
             showToast({
                 message: accessState.reason === 'observer-team-mismatch'
                     ? 'Observer access is limited to the team selected when you joined the session.'
-                    : `This page is only available to the ${this.teamLabel} Facilitator role.`,
+                    : `This page is only available to the ${this.teamContext.facilitatorLabel} role.`,
                 type: 'error'
             });
             navigateToApp(redirectPath || '', { replace: true });
@@ -328,9 +334,10 @@ export class FacilitatorController {
         this.syncReceivedProposalsFromStore();
         this.syncWhiteCellUpdateSectionsFromStore();
         this.syncTimelineFromStore();
+        this.reconcileIntercomReceiver();
         this.mountFollowAlongOnboarding();
 
-        logger.info('Facilitator interface initialized');
+        logger.info('Scribe workspace initialized');
     }
 
     mountFollowAlongOnboarding() {
@@ -342,7 +349,7 @@ export class FacilitatorController {
             ? 'Build proposals'
             : (this.teamId === 'red' ? 'Prepare move responses' : 'Draft actions');
         const actionGuideBody = this.teamId === 'blue'
-            ? `Create and revise your team's ${actionNoun} here. Forward completed actions to the Scribe; the Scribe projects and submits them to White Cell.`
+            ? `Create and revise your team's ${actionNoun} here. Forward completed actions to the Facilitator; the Facilitator projects and submits them to White Cell.`
             : `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`;
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:facilitator:${this.teamId}`,
@@ -350,7 +357,7 @@ export class FacilitatorController {
             steps: [
                 {
                     title: this.teamContext.facilitatorLabel,
-                    body: `Use this workspace to guide ${this.teamLabel}, prepare ${actionNoun}, ask White Cell for clarification, review incoming updates, capture observations, and track the session record.`
+                    body: `Use this workspace to record ${this.teamLabel} decisions, prepare ${actionNoun}, ask White Cell for clarification, review incoming updates, capture observations, and track the session record.`
                 },
                 {
                     title: 'Read the live tracker',
@@ -426,7 +433,7 @@ export class FacilitatorController {
     }
 
     getCurrentLeadSurfaceLabel() {
-        return 'Facilitator';
+        return 'Scribe';
     }
 
     configureAccessMode() {
@@ -484,14 +491,14 @@ export class FacilitatorController {
                 } else if (isRedResponseFlow) {
                     actionsDescription.textContent = 'Passive observer view of move responses. Entries are visible but cannot be created, edited, submitted, or deleted.';
                 } else {
-                    actionsDescription.textContent = 'Passive observer view of facilitator actions. Drafts are visible but cannot be created, edited, submitted, or deleted.';
+                    actionsDescription.textContent = 'Passive observer view of scribe actions. Drafts are visible but cannot be created, edited, submitted, or deleted.';
                 }
             } else if (isGreenProposalFlow) {
                 actionsDescription.textContent = 'Draft proposals and send them to the Blue or Red team.';
             } else if (isRedResponseFlow) {
                 actionsDescription.textContent = 'Respond to Blue Team moves. White Cell reviews each response before it takes effect.';
             } else {
-                actionsDescription.textContent = 'Draft actions, forward them to the Scribe, and track White Cell deliberation after scribe submission.';
+                actionsDescription.textContent = 'Draft actions, forward them to the Facilitator, and track White Cell deliberation after facilitator submission.';
             }
         }
 
@@ -531,7 +538,7 @@ export class FacilitatorController {
                 notice.innerHTML = `
                     <h2 class="font-semibold mb-2">Observer Mode</h2>
                     <p class="text-sm text-gray-600">
-                        This page is passive for the observer role. You can review facilitator actions,
+                        This page is passive for the observer role. You can review scribe actions,
                         White Cell responses, RFIs, and the timeline, but create, edit, submit, delete,
                         and capture paths are blocked in code and hidden in the interface.
                     </p>
@@ -628,7 +635,7 @@ export class FacilitatorController {
         }
 
         showToast({
-            message: 'Observer mode is read-only on the facilitator page.',
+            message: 'Observer mode is read-only on the scribe page.',
             type: 'error'
         });
         return false;
@@ -641,8 +648,20 @@ export class FacilitatorController {
         };
     }
 
+    getActionStoreSnapshot() {
+        if (typeof actionsStore.getAll === 'function') {
+            return actionsStore.getAll();
+        }
+
+        if (typeof actionsStore.getByTeam === 'function') {
+            return actionsStore.getByTeam(this.teamId);
+        }
+
+        return this.actions || [];
+    }
+
     getStrategicOrientationGateState() {
-        return getStrategicOrientationCompletion(actionsStore.getAll());
+        return getStrategicOrientationCompletion(this.getActionStoreSnapshot());
     }
 
     isStrategicOrientationGateActive() {
@@ -725,6 +744,44 @@ export class FacilitatorController {
                 this.syncTimelineFromStore();
             })
         );
+
+        if (typeof gameStateStore.subscribe === 'function') {
+            this.storeUnsubscribers.push(
+                gameStateStore.subscribe(() => {
+                    this.reconcileIntercomReceiver();
+                })
+            );
+        }
+    }
+
+    shouldRunIntercomReceiver() {
+        const intercomEnabled = typeof gameStateStore.isPluginEnabled === 'function'
+            ? gameStateStore.isPluginEnabled(WHITE_CELL_PLUGIN_IDS.INTERCOM)
+            : Boolean(gameStateStore.getState?.()?.plugin_state?.[WHITE_CELL_PLUGIN_IDS.INTERCOM]?.enabled);
+
+        return Boolean(
+            !this.isReadOnly
+            && this.role === this.teamContext.facilitatorRole
+            && intercomEnabled
+        );
+    }
+
+    reconcileIntercomReceiver() {
+        if (this.shouldRunIntercomReceiver()) {
+            if (!this.intercomReceiver) {
+                this.intercomReceiver = mountScribeIntercomReceiver({
+                    sessionId: sessionStore.getSessionId(),
+                    role: this.role,
+                    teamLabel: this.teamLabel
+                });
+            }
+            return;
+        }
+
+        if (this.intercomReceiver) {
+            unmountScribeIntercomReceiver(this.intercomReceiver);
+            this.intercomReceiver = null;
+        }
     }
 
     syncActionsFromStore() {
@@ -1764,12 +1821,12 @@ export class FacilitatorController {
                 ? 'No team proposals have been created yet.'
                 : (isRedResponseFlow
                     ? 'No move responses have been created yet.'
-                    : 'No facilitator actions have been created yet.'))
+                    : 'No scribe actions have been created yet.'))
             : (isGreenProposalFlow
                 ? 'Create your first proposal to start the White Cell review flow.'
                 : (isRedResponseFlow
                     ? 'Create your first response to start the White Cell review flow.'
-                    : 'Create your first strategic action to start the facilitator-to-scribe review flow.'));
+                    : 'Create your first strategic action to start the scribe-to-facilitator review flow.'));
 
         if (this.actions.length === 0) {
             actionsList.innerHTML = `
@@ -1880,13 +1937,13 @@ export class FacilitatorController {
                 key: 'draft',
                 tabLabel: 'Draft',
                 title: 'Draft Strategic Actions',
-                description: 'Editable actions that have not yet been forwarded to the Scribe.'
+                description: 'Editable actions that have not yet been forwarded to the Facilitator.'
             },
             {
                 key: 'submitted',
                 tabLabel: 'Submitted',
                 title: 'Submitted to White Cell',
-                description: 'Read-only actions submitted to White Cell by the Scribe.'
+                description: 'Read-only actions submitted to White Cell by the Facilitator.'
             },
             {
                 key: 'reviewed',
@@ -2161,12 +2218,12 @@ export class FacilitatorController {
         let lifecycleMessage = `
             <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
                     ${isStrategicOrientationFlow
-                        ? 'Draft Strategic Orientation artifacts are projected by the Scribe before White Cell submission.'
+                        ? 'Draft Strategic Orientation artifacts are projected by the Facilitator before White Cell submission.'
                         : isGreenProposalFlow
                     ? 'Draft proposals can be edited, sent to White Cell, or deleted by the active team-lead seat.'
                     : (isRedResponseFlow
                         ? 'Draft move responses can be edited, submitted, or deleted by the active team-lead seat.'
-                        : 'Draft actions can be edited, forwarded to the Scribe, or deleted by the active team-lead seat.')}
+                        : 'Draft actions can be edited, forwarded to the Facilitator, or deleted by the active team-lead seat.')}
             </p>
         `;
 
@@ -2179,12 +2236,12 @@ export class FacilitatorController {
                         ? 'Sent to White Cell'
                         : (isRedResponseFlow ? 'Submitted to White Cell' : 'Submitted to White Cell')} ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
                     ${isStrategicOrientationFlow
-                        ? 'This pre-Move-1 artifact is now read-only for facilitator and scribe seats.'
+                        ? 'This pre-Move-1 artifact is now read-only for Scribe and Facilitator seats.'
                         : isGreenProposalFlow
-                        ? 'This proposal is now read-only for facilitator and scribe seats until White Cell review.'
+                        ? 'This proposal is now read-only for Scribe and Facilitator seats until White Cell review.'
                         : (isRedResponseFlow
-                            ? 'White Cell deliberation is underway. This move response is now read-only for facilitator and scribe seats.'
-                            : 'White Cell deliberation is underway. This action was submitted by the Scribe and is now read-only for facilitator and scribe seats.')}
+                            ? 'White Cell deliberation is underway. This move response is now read-only for Scribe and Facilitator seats.'
+                            : 'White Cell deliberation is underway. This action was submitted by the Facilitator and is now read-only for Scribe and Facilitator seats.')}
                 </p>
             `;
         } else if (isAdjudicatedAction(action)) {
@@ -2250,7 +2307,7 @@ export class FacilitatorController {
                         ` : ''}
                         ${canSubmitDraft && !isStrategicOrientationFlow ? `
                             <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
-                                Forward to Scribe
+                                Forward to Facilitator
                             </button>
                         ` : ''}
                         ${canRemoveDraft ? `
@@ -2400,7 +2457,7 @@ export class FacilitatorController {
     }
 
     getStrategicOrientationActionForTeam() {
-        return actionsStore.getAll().find((action) => (
+        return this.getActionStoreSnapshot().find((action) => (
             action?.team === this.teamId
             && isStrategicOrientationAction(action)
         )) || null;
@@ -2567,7 +2624,7 @@ export class FacilitatorController {
                     <div class="content-pad">
                         <div class="confirm-icon" aria-hidden="true">&check;</div>
                         <h2>Strategic Orientation recorded</h2>
-                        <p class="instruction">This submission will be forwarded to the Scribe for team projection before it goes to White Cell.</p>
+                        <p class="instruction">This submission will be forwarded to the Facilitator for team projection before it goes to White Cell.</p>
 
                         <div class="summary">
                             <div class="s-k">Orientation</div>
@@ -2857,7 +2914,7 @@ export class FacilitatorController {
         }
 
         const option = STRATEGIC_ORIENTATION_OPTIONS[data.selected];
-        const loader = showLoader({ message: 'Forwarding Strategic Orientation to Scribe...' });
+        const loader = showLoader({ message: 'Forwarding Strategic Orientation to Facilitator...' });
         this.strategicOrientationSubmissionInFlight = true;
         this.updateStrategicOrientationControlAvailability();
 
@@ -2900,14 +2957,15 @@ export class FacilitatorController {
             const forwardedTimelineEvent = await database.createTimelineEvent({
                 session_id: action.session_id || sessionId,
                 type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
-                content: `Strategic Orientation forwarded to Scribe: ${action.goal || option.name}`,
+                content: `Strategic Orientation forwarded to Facilitator: ${action.goal || option.name}`,
                 metadata: {
                     related_id: action.id,
                     role: this.role || this.getCurrentLeadRole(),
                     strategic_orientation: true,
                     artifact_type: this.getStrategicOrientationArtifactType(),
                     orientation: option.id,
-                    next_step: 'scribe_project_then_submit_to_white_cell'
+                    next_step: 'scribe_project_then_submit_to_white_cell',
+                    semantic_next_step: 'facilitator_project_then_submit_to_white_cell'
                 },
                 team: this.teamId,
                 move: 1,
@@ -2916,7 +2974,7 @@ export class FacilitatorController {
             timelineStore.updateFromServer('INSERT', forwardedTimelineEvent);
 
             this.updateStrategicOrientationControlAvailability();
-            showToast({ message: 'Strategic Orientation forwarded to Scribe', type: 'success' });
+            showToast({ message: 'Strategic Orientation forwarded to Facilitator', type: 'success' });
             modal?.close();
         } catch (err) {
             logger.error('Failed to forward Strategic Orientation:', err);
@@ -3888,7 +3946,7 @@ export class FacilitatorController {
                 ? '<button type="button" class="btn btn-primary" data-blue-action-nav="saveChanges">Save Changes</button>'
                 : `
                                 <button type="button" class="btn btn-secondary" data-blue-action-nav="saveDraft">Save Draft</button>
-                                <button type="button" class="btn btn-primary" data-blue-action-nav="submit">Forward to Scribe</button>
+                                <button type="button" class="btn btn-primary" data-blue-action-nav="submit">Forward to Facilitator</button>
                             `}
                     </div>
                 </div>
@@ -4364,7 +4422,7 @@ export class FacilitatorController {
 
         const confirmed = await confirmModal({
             title: 'Confirm Action',
-            message: `Forward ${sequenceContext.label} to the Scribe? The Scribe will project it and submit the completed action to White Cell.`,
+            message: `Forward ${sequenceContext.label} to the Facilitator? The Facilitator will project it and submit the completed action to White Cell.`,
             confirmLabel: 'Forward',
             variant: 'primary'
         });
@@ -4373,7 +4431,7 @@ export class FacilitatorController {
             return;
         }
 
-        const loader = showLoader({ message: 'Forwarding action to Scribe...' });
+        const loader = showLoader({ message: 'Forwarding action to Facilitator...' });
 
         try {
             const gameState = this.getCurrentGameState();
@@ -4407,11 +4465,12 @@ export class FacilitatorController {
             const forwardedTimelineEvent = await database.createTimelineEvent({
                 session_id: draftAction.session_id,
                 type: 'ACTION_FORWARDED_TO_SCRIBE',
-                content: `Action forwarded to Scribe: ${draftAction.goal || 'Untitled action'}`,
+                content: `Action forwarded to Facilitator: ${draftAction.goal || 'Untitled action'}`,
                 metadata: {
                     related_id: draftAction.id,
                     role: this.role || this.getCurrentLeadRole(),
-                    next_step: 'scribe_submit_to_white_cell'
+                    next_step: 'scribe_submit_to_white_cell',
+                    semantic_next_step: 'facilitator_submit_to_white_cell'
                 },
                 team: this.teamId,
                 move: draftAction.move ?? 1,
@@ -4419,7 +4478,7 @@ export class FacilitatorController {
             });
             timelineStore.updateFromServer('INSERT', forwardedTimelineEvent);
 
-            showToast({ message: 'Action forwarded to Scribe', type: 'success' });
+            showToast({ message: 'Action forwarded to Facilitator', type: 'success' });
             modal?.close();
         } catch (err) {
             logger.error('Failed to forward Blue team action:', err);
@@ -4636,7 +4695,7 @@ export class FacilitatorController {
     async confirmForwardAction(action) {
         if (!this.requireWriteAccess()) return;
         if (!canSubmitAction(action)) {
-            showToast({ message: 'Only draft actions can be forwarded to the Scribe.', type: 'error' });
+            showToast({ message: 'Only draft actions can be forwarded to the Facilitator.', type: 'error' });
             return;
         }
 
@@ -4645,8 +4704,8 @@ export class FacilitatorController {
             : 'this draft';
 
         const confirmed = await confirmModal({
-            title: 'Forward Action to Scribe',
-            message: `Forward ${sequenceLabel} to the Scribe? The Scribe will project it and submit the completed action to White Cell.`,
+            title: 'Forward Action to Facilitator',
+            message: `Forward ${sequenceLabel} to the Facilitator? The Facilitator will project it and submit the completed action to White Cell.`,
             confirmLabel: 'Forward',
             variant: 'primary'
         });
@@ -4657,7 +4716,7 @@ export class FacilitatorController {
 
     async forwardActionToScribe(actionId) {
         if (!this.requireWriteAccess()) return;
-        const loader = showLoader({ message: 'Forwarding action to Scribe...' });
+        const loader = showLoader({ message: 'Forwarding action to Facilitator...' });
 
         try {
             const existingAction = actionsStore.getById(actionId)
@@ -4671,11 +4730,12 @@ export class FacilitatorController {
             const timelineEvent = await database.createTimelineEvent({
                 session_id: action.session_id,
                 type: 'ACTION_FORWARDED_TO_SCRIBE',
-                content: `Action forwarded to Scribe: ${action.goal || 'Untitled action'}`,
+                content: `Action forwarded to Facilitator: ${action.goal || 'Untitled action'}`,
                 metadata: {
                     related_id: action.id,
                     role: this.role || this.getCurrentLeadRole(),
-                    next_step: 'scribe_submit_to_white_cell'
+                    next_step: 'scribe_submit_to_white_cell',
+                    semantic_next_step: 'facilitator_submit_to_white_cell'
                 },
                 team: this.teamId,
                 move: action.move ?? 1,
@@ -4683,7 +4743,7 @@ export class FacilitatorController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            showToast({ message: 'Action forwarded to Scribe', type: 'success' });
+            showToast({ message: 'Action forwarded to Facilitator', type: 'success' });
         } catch (err) {
             logger.error('Failed to forward action:', err);
             showToast({
@@ -5389,6 +5449,10 @@ export class FacilitatorController {
     }
 
     destroy() {
+        if (this.intercomReceiver) {
+            unmountScribeIntercomReceiver(this.intercomReceiver);
+            this.intercomReceiver = null;
+        }
         this.storeUnsubscribers.forEach((unsubscribe) => unsubscribe?.());
         this.storeUnsubscribers = [];
     }

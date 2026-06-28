@@ -1,4 +1,4 @@
-import { ROLE_SURFACES, parseTeamRole } from '../../core/teamContext.js';
+import { ROLE_SURFACES, getRoleDisplayName, getRoleSurfaceDisplayLabel, parseTeamRole } from '../../core/teamContext.js';
 
 export const WHITE_CELL_UPDATE_KINDS = Object.freeze({
     TRIBE_STREET_JOURNAL: 'TRIBE_STREET_JOURNAL',
@@ -297,10 +297,7 @@ export function isWhiteCellTimelineEventVisibleToNotetaker(event = {}, teamConte
 }
 
 export function getWhiteCellUpdateAudienceLabel(recipient = '', {
-    teamLabel = null,
-    facilitatorLabel = null,
-    scribeLabel = null,
-    notetakerLabel = null
+    teamLabel = null
 } = {}) {
     const recipientContext = resolveCommunicationRecipientContext(recipient);
     if (recipientContext.recipient === 'all') {
@@ -308,14 +305,9 @@ export function getWhiteCellUpdateAudienceLabel(recipient = '', {
     }
 
     if (recipientContext.recipientRole) {
-        if (recipientContext.recipientRole === facilitatorLabel?.toLowerCase?.()) {
-            return facilitatorLabel;
-        }
-        if (recipientContext.recipientRole === scribeLabel?.toLowerCase?.()) {
-            return scribeLabel;
-        }
-        if (recipientContext.recipientRole === notetakerLabel?.toLowerCase?.()) {
-            return notetakerLabel;
+        const displayName = getRoleDisplayName(recipientContext.recipientRole);
+        if (displayName && displayName !== recipientContext.recipientRole) {
+            return displayName;
         }
     }
 
@@ -341,11 +333,10 @@ export function getLiveRoleSurfaceLabel(role = '') {
     const parsedRole = parseTeamRole(role);
     switch (parsedRole.surface) {
         case ROLE_SURFACES.FACILITATOR:
-            return 'Facilitator';
         case ROLE_SURFACES.SCRIBE:
-            return 'Scribe';
+            return getRoleSurfaceDisplayLabel(parsedRole.surface);
         case ROLE_SURFACES.NOTETAKER:
-            return 'Notetaker';
+            return getRoleSurfaceDisplayLabel(parsedRole.surface);
         default:
             return null;
     }

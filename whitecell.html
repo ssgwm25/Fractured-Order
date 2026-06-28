@@ -21,24 +21,7 @@
     <link rel="stylesheet" href="./styles/layouts/sidebar.css">
     <link rel="stylesheet" href="./styles/layouts/grid.css">
     <style>
-        .skip-link {
-            position: absolute;
-            top: -48px;
-            left: var(--space-4);
-            z-index: 1000;
-            padding: var(--space-2) var(--space-3);
-            background: var(--color-surface);
-            color: var(--color-text);
-            border: 1px solid var(--color-border);
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-md);
-            transition: top 0.2s ease;
-        }
-
-        .skip-link:focus {
-            top: var(--space-4);
-        }
-
+        /* Skip link is defined centrally in styles/base/reset.css. */
         .scribe-deck-card {
             padding: var(--space-4);
             display: grid;
@@ -116,6 +99,88 @@
         .scribe-deck-panel {
             display: grid;
             gap: var(--space-3);
+        }
+
+        .plugin-settings-list {
+            display: grid;
+            gap: var(--space-3);
+        }
+
+        .plugin-card {
+            padding: var(--space-4);
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: var(--space-4);
+            align-items: center;
+        }
+
+        .plugin-card-main {
+            display: grid;
+            gap: var(--space-3);
+            min-width: 0;
+        }
+
+        .plugin-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-3);
+        }
+
+        .plugin-status {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            flex-shrink: 0;
+        }
+
+        .plugin-status-icon {
+            width: 12px;
+            height: 12px;
+            display: inline-flex;
+            color: var(--color-text-muted);
+        }
+
+        .plugin-status-icon svg {
+            width: 12px;
+            height: 12px;
+            fill: currentColor;
+        }
+
+        .plugin-status-icon-enabled {
+            color: var(--color-success);
+        }
+
+        .plugin-status-icon-disabled {
+            color: var(--color-text-muted);
+        }
+
+        .plugin-tags {
+            margin: 0;
+        }
+
+        .plugin-toggle-field {
+            min-width: 170px;
+            justify-content: flex-end;
+        }
+
+        .plugin-mounts[hidden] {
+            display: none !important;
+        }
+
+        @media (max-width: 720px) {
+            .plugin-card {
+                grid-template-columns: 1fr;
+            }
+
+            .plugin-card-head,
+            .plugin-toggle-field {
+                align-items: flex-start;
+            }
+
+            .plugin-toggle-field {
+                justify-content: space-between;
+            }
         }
     </style>
 </head>
@@ -308,13 +373,14 @@
                                 <button type="button" class="tab-button" data-settings-tab="sessions" role="tab" aria-selected="false" aria-controls="settingsPanelSessions">Sessions</button>
                                 <button type="button" class="tab-button" data-settings-tab="participants" role="tab" aria-selected="false" aria-controls="settingsPanelParticipants">Participants</button>
                                 <button type="button" class="tab-button" data-settings-tab="scribeDecks" role="tab" aria-selected="false" aria-controls="settingsPanelScribeDecks">Scribe Decks</button>
+                                <button type="button" class="tab-button" data-settings-tab="plugins" role="tab" aria-selected="false" aria-controls="settingsPanelPlugins">Plugins</button>
                                 <button type="button" class="tab-button" data-settings-tab="exportData" role="tab" aria-selected="false" aria-controls="settingsPanelExportData">Export Data</button>
                             </div>
 
                             <div class="tab-panel" id="settingsPanelGameControls" data-settings-panel="gameControls" role="tabpanel">
                                 <div class="section-grid section-grid-3">
                                     <!-- Move Control -->
-                                    <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <div class="card card-bordered p-4">
                                         <h3 class="text-base font-semibold mb-3">Move Control</h3>
                                         <div class="text-center mb-4">
                                             <span class="text-4xl font-bold text-primary" id="currentMove">1</span>
@@ -327,7 +393,7 @@
                                     </div>
 
                                     <!-- Phase Control -->
-                                    <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <div class="card card-bordered p-4">
                                         <h3 class="text-base font-semibold mb-3">Phase Control</h3>
                                         <div class="text-center mb-4">
                                             <span class="text-4xl font-bold text-primary" id="currentPhase">1</span>
@@ -340,7 +406,7 @@
                                     </div>
 
                                     <!-- Timer Control -->
-                                    <div class="card card-bordered" style="padding: var(--space-4);">
+                                    <div class="card card-bordered p-4">
                                         <h3 class="text-base font-semibold mb-3">Timer Control</h3>
                                         <div class="text-center mb-4">
                                             <span class="text-4xl font-bold font-mono" id="controlTimerDisplay">90:00</span>
@@ -354,7 +420,7 @@
                                     </div>
                                 </div>
 
-                                <div class="card card-bordered" style="padding: var(--space-4); margin-top: var(--space-4);">
+                                <div class="card card-bordered p-4 mt-4">
                                     <h3 class="text-base font-semibold mb-2">Time Allocations</h3>
                                     <form id="timerAllocationForm">
                                         <div class="section-grid section-grid-4" id="timerAllocationFields">
@@ -419,8 +485,8 @@
                                                 >
                                             </label>
                                         </div>
-                                        <p class="text-sm text-gray-500" id="timerAllocationCurrentMark" style="margin-top: var(--space-3);">Current reset target: Move 1 - 90 minutes</p>
-                                        <div class="flex gap-2" style="margin-top: var(--space-3);">
+                                        <p class="text-sm text-gray-500 mt-3" id="timerAllocationCurrentMark">Current reset target: Move 1 - 90 minutes</p>
+                                        <div class="flex gap-2 mt-3">
                                             <button class="btn btn-primary" id="timerAllocationSaveBtn" type="submit">Save Allocations</button>
                                             <button class="btn btn-secondary" id="timerAllocationResetCurrentBtn" type="button">Reset Current Mark</button>
                                         </div>
@@ -429,37 +495,37 @@
                             </div>
 
                             <div class="tab-panel" id="settingsPanelSessions" data-settings-panel="sessions" role="tabpanel" hidden>
-                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                <div class="card card-bordered p-4">
                                     <h3 class="text-base font-semibold mb-2">Sessions</h3>
                                     <p class="text-sm text-gray-500" id="sessionsSummary">Review and manage simulation sessions.</p>
-                                    <div id="sessionsList" class="card-list" aria-live="polite" style="margin-top: var(--space-3);">
+                                    <div id="sessionsList" class="card-list mt-3" aria-live="polite">
                                         <p class="text-sm text-gray-500">No sessions available yet.</p>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="tab-panel" id="settingsPanelParticipants" data-settings-panel="participants" role="tabpanel" hidden>
-                                <div class="card card-bordered" style="padding: var(--space-4);">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                                <div class="card card-bordered p-4">
+                                    <div class="flex justify-between items-start gap-3 mb-3">
                                         <div>
                                             <h3 class="text-base font-semibold">Live Participants</h3>
                                             <p class="text-sm text-gray-500" id="participantsSummary">Loading participant roster...</p>
                                         </div>
                                     </div>
-                                    <div class="section-grid section-grid-3" style="margin-bottom: var(--space-3);">
-                                        <div class="form-group" style="margin-bottom: 0;">
+                                    <div class="section-grid section-grid-3 mb-3">
+                                        <div class="form-group mb-0">
                                             <label class="form-label" for="participantsSessionFilter">Session Filter</label>
                                             <select id="participantsSessionFilter" class="form-input form-select" aria-controls="participantsList">
                                                 <option value="">All Sessions</option>
                                             </select>
                                         </div>
-                                        <div class="form-group" style="margin-bottom: 0;">
+                                        <div class="form-group mb-0">
                                             <label class="form-label" for="participantsTeamFilter">Team Filter</label>
                                             <select id="participantsTeamFilter" class="form-input form-select" aria-controls="participantsList">
                                                 <option value="">All Teams</option>
                                             </select>
                                         </div>
-                                        <div class="form-group" style="margin-bottom: 0;">
+                                        <div class="form-group mb-0">
                                             <label class="form-label" for="participantsRoleFilter">Role Filter</label>
                                             <select id="participantsRoleFilter" class="form-input form-select" aria-controls="participantsList">
                                                 <option value="">All Roles</option>
@@ -473,8 +539,8 @@
                             </div>
 
                             <div class="tab-panel" id="settingsPanelScribeDecks" data-settings-panel="scribeDecks" role="tabpanel" hidden>
-                                <div class="card card-bordered" style="padding: var(--space-4);">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-3);">
+                                <div class="card card-bordered p-4">
+                                    <div class="flex justify-between items-start gap-3 mb-3">
                                         <div>
                                             <h3 class="text-base font-semibold">Scribe Deck Assignments</h3>
                                             <p class="text-sm text-gray-500" id="scribeDeckSettingsSummary">Loading current scribe deck assignments...</p>
@@ -486,11 +552,26 @@
                                 </div>
                             </div>
 
+                            <div class="tab-panel" id="settingsPanelPlugins" data-settings-panel="plugins" role="tabpanel" hidden>
+                                <div class="card card-bordered p-4">
+                                    <div class="flex justify-between items-start gap-3 mb-3">
+                                        <div>
+                                            <h3 class="text-base font-semibold">Plugins</h3>
+                                            <p class="text-sm text-gray-500">Enable or disable registered White Cell capabilities for this session.</p>
+                                        </div>
+                                    </div>
+                                    <div id="pluginSettingsList" class="plugin-settings-list" aria-live="polite">
+                                        <p class="text-sm text-gray-500">Plugin controls will appear here.</p>
+                                    </div>
+                                    <div id="whiteCellPluginMounts" class="plugin-mounts" hidden></div>
+                                </div>
+                            </div>
+
                             <div class="tab-panel" id="settingsPanelExportData" data-settings-panel="exportData" role="tabpanel" hidden>
-                                <div class="card card-bordered" style="padding: var(--space-4);">
+                                <div class="card card-bordered p-4">
                                     <h3 class="text-base font-semibold mb-2">Export Data</h3>
                                     <p class="text-sm text-gray-500">Download legacy session exports, plus the research bundle by default. Switch backend runtime config to standard to lock the research archive.</p>
-                                    <div id="exportDataList" class="card-list" aria-live="polite" style="margin-top: var(--space-3);">
+                                    <div id="exportDataList" class="card-list mt-3" aria-live="polite">
                                         <p class="text-sm text-gray-500">Export controls will appear here.</p>
                                     </div>
                                 </div>
@@ -589,7 +670,7 @@
                     </div>
 
                     <div class="section-body">
-                        <form id="commForm" class="card card-bordered mb-4" style="padding: var(--space-4);">
+                        <form id="commForm" class="card card-bordered mb-4 p-4">
                             <div class="form-group">
                                 <label class="form-label" for="commRecipient">Recipient</label>
                                 <select id="commRecipient" class="form-input form-select">
@@ -652,26 +733,26 @@
                     </div>
 
                     <div class="section-body">
-                        <div class="section-grid section-grid-4" style="margin-bottom: var(--space-4);">
-                            <div class="form-group" style="margin-bottom: 0;">
+                        <div class="section-grid section-grid-4 mb-4">
+                            <div class="form-group mb-0">
                                 <label class="form-label" for="timelineTeamFilter">Team Filter</label>
                                 <select id="timelineTeamFilter" class="form-input form-select" aria-controls="timelineList">
                                     <option value="">All Teams</option>
                                 </select>
                             </div>
-                            <div class="form-group" style="margin-bottom: 0;">
+                            <div class="form-group mb-0">
                                 <label class="form-label" for="timelineRoleFilter">Role Filter</label>
                                 <select id="timelineRoleFilter" class="form-input form-select" aria-controls="timelineList">
                                     <option value="">All Roles</option>
                                 </select>
                             </div>
-                            <div class="form-group" style="margin-bottom: 0;">
+                            <div class="form-group mb-0">
                                 <label class="form-label" for="timelineMoveFilter">Move Filter</label>
                                 <select id="timelineMoveFilter" class="form-input form-select" aria-controls="timelineList">
                                     <option value="">All Moves</option>
                                 </select>
                             </div>
-                            <div class="form-group" style="margin-bottom: 0;">
+                            <div class="form-group mb-0">
                                 <label class="form-label" for="timelineActivityTypeFilter">Activity Type Filter</label>
                                 <select id="timelineActivityTypeFilter" class="form-input form-select" aria-controls="timelineList">
                                     <option value="">All Activity Types</option>

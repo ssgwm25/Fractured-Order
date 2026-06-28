@@ -11,7 +11,12 @@ import { showInlineLoader } from '../../components/ui/Loader.js';
 import { formatRelativeTime } from '../../utils/formatting.js';
 import { getRoleLimit } from '../../core/config.js';
 import { createLogger } from '../../utils/logger.js';
-import { TEAM_OPTIONS, normalizeWhiteCellOperatorRole } from '../../core/teamContext.js';
+import {
+    ROLE_SURFACES,
+    TEAM_OPTIONS,
+    getRoleSurfaceDisplayLabel,
+    normalizeWhiteCellOperatorRole
+} from '../../core/teamContext.js';
 
 const logger = createLogger('ParticipantList');
 
@@ -28,9 +33,9 @@ const ROLE_CONFIG = {
     whitecell_support: { label: 'White Cell Support', color: 'warning', icon: 'WS' },
     ...Object.fromEntries(
         TEAM_OPTIONS.flatMap((team) => ([
-            [`${team.id}_facilitator`, { label: `${team.shortLabel} Facilitator`, color: 'info', icon: team.shortLabel.slice(0, 1) }],
-            [`${team.id}_scribe`, { label: `${team.shortLabel} Scribe`, color: 'info', icon: team.shortLabel.slice(0, 1) }],
-            [`${team.id}_notetaker`, { label: `${team.shortLabel} Notetaker`, color: 'success', icon: team.shortLabel.slice(0, 1) }]
+            [`${team.id}_facilitator`, { label: `${team.shortLabel} ${getRoleSurfaceDisplayLabel(ROLE_SURFACES.FACILITATOR)}`, color: 'info', icon: team.shortLabel.slice(0, 1) }],
+            [`${team.id}_scribe`, { label: `${team.shortLabel} ${getRoleSurfaceDisplayLabel(ROLE_SURFACES.SCRIBE)}`, color: 'info', icon: team.shortLabel.slice(0, 1) }],
+            [`${team.id}_notetaker`, { label: `${team.shortLabel} ${getRoleSurfaceDisplayLabel(ROLE_SURFACES.NOTETAKER)}`, color: 'success', icon: team.shortLabel.slice(0, 1) }]
         ]))
     )
 };

@@ -112,8 +112,8 @@ code {
 pre {
     font-family: var(--font-mono);
     font-size: var(--text-sm);
-    background-color: var(--color-gray-800);
-    color: var(--color-gray-100);
+    background-color: var(--code-bg);
+    color: var(--code-fg);
     padding: var(--space-4);
     border-radius: var(--radius-lg);
     overflow-x: auto;
@@ -264,6 +264,10 @@ kbd {
     font-size: var(--text-3xl);
 }
 
+.text-4xl {
+    font-size: var(--text-4xl);
+}
+
 .font-normal {
     font-weight: var(--font-normal);
 }
@@ -278,6 +282,10 @@ kbd {
 
 .font-bold {
     font-weight: var(--font-bold);
+}
+
+.font-mono {
+    font-family: var(--font-mono);
 }
 
 .text-left {

@@ -6,6 +6,8 @@
 /* Base button */
 .btn {
     padding: var(--btn-padding-y) var(--btn-padding-x);
+    min-height: var(--btn-height);
+    /* Guarantees the 44px touch-target floor regardless of font/line-height */
     border: 1px solid transparent;
     /* Always have border */
     border-radius: var(--btn-radius);
@@ -46,6 +48,7 @@
 /* Size variants */
 .btn-sm {
     padding: 6px 12px;
+    min-height: var(--btn-height-sm);
     font-size: var(--text-sm);
 }
 
@@ -77,6 +80,20 @@
 
 .btn-secondary:hover:not(:disabled) {
     background: rgba(118, 118, 128, 0.2);
+    border-color: var(--color-text-muted);
+    color: var(--color-text);
+}
+
+/* Outline button - transparent fill with a visible hairline; reads in both
+   light and dark (used for low-emphasis actions like Select / Export). */
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+}
+
+.btn-outline:hover:not(:disabled) {
+    background: var(--color-surface-hover);
     border-color: var(--color-text-muted);
     color: var(--color-text);
 }
@@ -161,6 +178,23 @@
 
 .btn-icon-only.btn-lg {
     width: var(--btn-height-lg);
+}
+
+/* Touch devices: lift compact controls to the 44px hit-area floor without
+   inflating dense desktop (fine-pointer) layouts. */
+@media (pointer: coarse) {
+    .btn-sm,
+    .quick-btn,
+    .quick-add-btn {
+        min-height: 44px;
+    }
+
+    .btn-icon-only,
+    .btn-icon-only.btn-sm {
+        min-width: 44px;
+        min-height: 44px;
+        width: 44px;
+    }
 }
 
 /* Button icon */

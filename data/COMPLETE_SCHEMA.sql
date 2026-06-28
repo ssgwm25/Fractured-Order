@@ -622,6 +622,7 @@ CREATE TABLE IF NOT EXISTS game_state (
     phase INTEGER NOT NULL DEFAULT 1 CHECK (phase >= 1 AND phase <= 5),
     timer_seconds INTEGER DEFAULT 5400,
     timer_allocations JSONB NOT NULL DEFAULT '{"strategic_orientation":5400,"move_1":5400,"move_2":5400,"move_3":5400}'::jsonb,
+    plugin_state JSONB NOT NULL DEFAULT '{}'::jsonb,
     timer_running BOOLEAN DEFAULT false,
     timer_last_update TIMESTAMPTZ,
     last_updated TIMESTAMPTZ DEFAULT NOW(),
@@ -1227,6 +1228,7 @@ COMMENT ON TABLE rfi_action_links IS 'RESEARCH: Links between RFIs and actions t
 
 COMMENT ON COLUMN game_state.timer_seconds IS 'Current timer value in seconds (default: 5400 = 90 minutes)';
 COMMENT ON COLUMN game_state.timer_allocations IS 'White Cell-managed timer allocation map, in seconds, for strategic_orientation and move_1 through move_3';
+COMMENT ON COLUMN game_state.plugin_state IS 'White Cell-managed registered plugin enablement map for the active session';
 COMMENT ON COLUMN game_state.timer_running IS 'Whether the timer is currently running';
 COMMENT ON COLUMN game_state.timer_last_update IS 'Timestamp of last timer update for calculating elapsed time';
 

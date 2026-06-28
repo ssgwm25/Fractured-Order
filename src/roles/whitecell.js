@@ -107,6 +107,14 @@ import {
     saveUploadedScribeDeck
 } from '../features/scribe/deckStorage.js';
 import {
+    buildDefaultPluginState,
+    getRegisteredPlugins,
+    isSessionRecorderNoticeActive,
+    isPluginVisible,
+    normalizePluginState,
+    setPluginEnabledInState
+} from '../features/plugins/registry.js';
+import {
     TRIBE_STREET_JOURNAL_EMBED_URL,
     createTribeStreetJournalEmbedMarkup
 } from '../features/tribeStreetJournalEmbed.js';
@@ -215,7 +223,7 @@ function writeWhiteCellNotificationsMutedPreference(isMuted = false) {
 
 function createScribeDeckValidationTimeoutError() {
     return new ValidationError(
-        'Scribe deck validation timed out. Check the deck path and try again.',
+        'Facilitator deck validation timed out. Check the deck path and try again.',
         'deckPath'
     );
 }
@@ -297,6 +305,8 @@ export const WHITE_CELL_DOM_IDS = [
     'timerAllocationCurrentMark',
     'timerAllocationSaveBtn',
     'timerAllocationResetCurrentBtn',
+    'pluginSettingsList',
+    'whiteCellPluginMounts',
     'strategicOrientationBadge',
     'actionsBadge',
     'proposalsBadge',
@@ -692,8 +702,8 @@ export function getWhiteCellRoleFilterValue(role = null) {
 
 export function getWhiteCellFilterRoleLabel(role = null) {
     const labels = {
-        [ROLE_SURFACES.FACILITATOR]: 'Facilitators',
-        [ROLE_SURFACES.SCRIBE]: 'Scribes',
+        [ROLE_SURFACES.FACILITATOR]: 'Scribes',
+        [ROLE_SURFACES.SCRIBE]: 'Facilitators',
         [ROLE_SURFACES.NOTETAKER]: 'Notetakers',
         [ROLE_SURFACES.WHITECELL]: 'White Cell',
         [ROLE_SURFACES.VIEWER]: 'Observers',
@@ -1110,10 +1120,10 @@ function buildScribeDeckAssignmentCommunicationContent({
     deckFileName = ''
 } = {}) {
     if (deckSource === SCRIBE_DECK_SOURCE_UPLOAD) {
-        return `White Cell uploaded "${deckLabel}" to ${teamLabel} Scribe (${deckFileName || 'browser upload'}).`;
+        return `White Cell uploaded "${deckLabel}" to ${teamLabel} Facilitator (${deckFileName || 'browser upload'}).`;
     }
 
-    return `White Cell loaded "${deckLabel}" into ${teamLabel} Scribe (${deckPath}).`;
+    return `White Cell loaded "${deckLabel}" into ${teamLabel} Facilitator (${deckPath}).`;
 }
 
 export class WhiteCellController {
@@ -1141,6 +1151,8 @@ export class WhiteCellController {
         this.storeUnsubscribers = [];
         this.currentTimerSeconds = CONFIG.DEFAULT_TIMER_SECONDS;
         this.timerAllocations = buildDefaultTimerAllocations();
+        this.pluginState = buildDefaultPluginState();
+        this.mountedPlugins = new Map();
         this.timerRunning = false;
         this.participantFilters = {
             session: null,
@@ -1218,6 +1230,7 @@ export class WhiteCellController {
         const sessionId = accessState.sessionId;
 
         this.renderScribeDeckSettings();
+        this.renderPluginSettings();
 
         await syncService.initialize(sessionId, {
             participantId: sessionStore.getSessionParticipantId?.() || null
@@ -1269,12 +1282,12 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Manage session operations',
-                    body: 'The Simulation Settings tabs also cover live sessions, participant rosters, scribe deck assignments, and export controls.',
+                    body: 'The Simulation Settings tabs also cover live sessions, participant rosters, facilitator deck assignments, plugins, and export controls.',
                     highlight: '#settingsTabs .tab-list'
                 },
                 {
                     title: 'Review Strategic Orientation',
-                    body: 'Strategic Orientation collects the Blue selection plus Green, Red, and Industry forecasts after each Scribe submits them to White Cell.',
+                    body: 'Strategic Orientation collects the Blue selection plus Green, Red, and Industry forecasts after each Facilitator submits them to White Cell.',
                     highlight: navTarget('strategicOrientation')
                 },
                 {
@@ -1294,7 +1307,7 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Read field intelligence',
-                    body: 'Tribe Street Journal surfaces facilitator, scribe, and notetaker captures so White Cell can turn selected moments into updates.',
+                    body: 'Tribe Street Journal surfaces Scribe, Facilitator, and Notetaker captures so White Cell can turn selected moments into updates.',
                     highlight: navTarget('tribeStreetJournal')
                 },
                 {
@@ -1422,6 +1435,7 @@ export class WhiteCellController {
         const participantsTeamFilter = document.getElementById('participantsTeamFilter');
         const participantsRoleFilter = document.getElementById('participantsRoleFilter');
         const scribeDeckSettingsList = document.getElementById('scribeDeckSettingsList');
+        const pluginSettingsList = document.getElementById('pluginSettingsList');
         const notificationsMuteBtn = document.getElementById('whiteCellNotificationsMuteBtn');
         const timelineTeamFilter = document.getElementById('timelineTeamFilter');
         const timelineRoleFilter = document.getElementById('timelineRoleFilter');
@@ -1461,6 +1475,13 @@ export class WhiteCellController {
 
         commForm?.addEventListener('submit', (event) => this.handleCommunicationSubmit(event));
         notificationsMuteBtn?.addEventListener('click', () => this.toggleNotificationsMuted());
+        pluginSettingsList?.addEventListener('change', (event) => {
+            const toggle = event.target.closest('input[data-plugin-toggle]');
+            if (!toggle || !pluginSettingsList.contains(toggle)) return;
+            this.handlePluginToggle(toggle).catch((err) => {
+                logger.error('Failed to handle plugin toggle:', err);
+            });
+        });
         participantsSessionFilter?.addEventListener('change', (event) => {
             this.participantFilters.session = event.currentTarget.value || null;
             this.renderParticipants();
@@ -1588,7 +1609,7 @@ export class WhiteCellController {
                 useDefault: action === 'reset',
                 useUpload: action === 'upload'
             }).catch((err) => {
-                logger.error('Failed to assign scribe deck:', err);
+                logger.error('Failed to assign facilitator deck:', err);
             });
         });
 
@@ -1695,10 +1716,12 @@ export class WhiteCellController {
         const safeGameState = gameState || {};
         this.currentTimerSeconds = gameState?.timer_seconds ?? CONFIG.DEFAULT_TIMER_SECONDS;
         this.timerAllocations = normalizeTimerAllocations(gameState?.timer_allocations);
+        this.pluginState = normalizePluginState(gameState?.plugin_state);
         this.timerRunning = Boolean(gameState?.timer_running && this.currentTimerSeconds > 0);
         this.updateGameStateDisplay({
             ...safeGameState,
             timer_allocations: this.timerAllocations,
+            plugin_state: this.pluginState,
             timer_seconds: this.currentTimerSeconds,
             timer_running: this.timerRunning
         });
@@ -1706,6 +1729,8 @@ export class WhiteCellController {
         this.updateTimerStatusDisplay();
         this.updateTimerAllocationControls();
         this.updateTimerControlButtons();
+        this.renderPluginSettings();
+        this.reconcilePluginMounts();
     }
 
     getCurrentTimerMark() {
@@ -1757,6 +1782,203 @@ export class WhiteCellController {
                 ? ''
                 : 'White Cell support is read-only for game controls.';
         });
+    }
+
+    applyPluginState(pluginState = {}) {
+        this.pluginState = normalizePluginState(pluginState);
+        this.renderPluginSettings();
+        this.reconcilePluginMounts();
+    }
+
+    async handlePluginToggle(toggle) {
+        const pluginId = toggle?.dataset?.pluginId;
+        const plugin = getRegisteredPlugins().find((entry) => entry.id === pluginId);
+        if (!plugin) {
+            showToast({ message: 'Unknown plugin selection.', type: 'error' });
+            return;
+        }
+
+        const previousState = normalizePluginState(this.pluginState);
+        const enabled = Boolean(toggle.checked);
+        const mountedPlugin = this.mountedPlugins.get(pluginId);
+        const sharedRecordingActive = pluginId === 'session-recorder' && isSessionRecorderNoticeActive(previousState);
+        if (!enabled && (mountedPlugin?.mountResult?.isRecordingActive?.() || sharedRecordingActive)) {
+            const confirmed = await confirmModal({
+                title: 'Stop active recording?',
+                message: `Disabling ${plugin.label} will stop the active recording and release the microphone.`,
+                confirmLabel: 'Stop And Disable',
+                cancelLabel: 'Keep Recording',
+                variant: 'warning'
+            });
+
+            if (!confirmed) {
+                toggle.checked = true;
+                return;
+            }
+        }
+
+        const nextState = setPluginEnabledInState(previousState, pluginId, enabled);
+        this.applyPluginState(nextState);
+
+        try {
+            const updatedState = await gameStateStore.setPluginEnabled(pluginId, enabled);
+            if (!updatedState) {
+                throw new Error('Game state is not available for plugin persistence.');
+            }
+
+            this.applyPluginState(updatedState.plugin_state || nextState);
+            showToast({
+                message: `${plugin.label} ${enabled ? 'enabled' : 'disabled'}.`,
+                type: 'success'
+            });
+        } catch (err) {
+            logger.error('Failed to save plugin state:', err);
+            this.applyPluginState(previousState);
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: `Failed to ${enabled ? 'enable' : 'disable'} ${plugin.label}. Check the session state and try again.`
+                }),
+                type: 'error'
+            });
+        }
+    }
+
+    renderPluginSettings() {
+        const container = document.getElementById('pluginSettingsList');
+        if (!container) return;
+
+        const plugins = getRegisteredPlugins();
+        if (plugins.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No plugins are registered for this build.</p>';
+            return;
+        }
+
+        const state = normalizePluginState(this.pluginState);
+        container.innerHTML = plugins.map((plugin) => {
+            const enabled = Boolean(state[plugin.id]?.enabled);
+            const statusText = enabled ? 'Enabled' : 'Disabled';
+            const statusVariant = enabled ? 'success' : 'default';
+            const descriptionId = `pluginDescription-${plugin.id}`;
+            const statusId = `pluginStatus-${plugin.id}`;
+            const toggleId = `pluginToggle-${plugin.id}`;
+            const tags = (plugin.capabilityTags || []).map((tag) => (
+                createBadge({
+                    text: tag,
+                    variant: 'info',
+                    size: 'sm',
+                    rounded: true
+                }).outerHTML
+            )).join('');
+
+            return `
+                <div class="plugin-card card card-bordered" data-plugin-id="${this.escapeHtml(plugin.id)}" data-plugin-enabled="${enabled ? 'true' : 'false'}">
+                    <div class="plugin-card-main">
+                        <div class="plugin-card-head">
+                            <div>
+                                <h4 class="text-base font-semibold" style="margin: 0 0 var(--space-1);">${this.escapeHtml(plugin.label)}</h4>
+                                <p class="text-sm text-gray-500" id="${this.escapeHtml(descriptionId)}" style="margin: 0;">${this.escapeHtml(plugin.description)}</p>
+                            </div>
+                            <div class="plugin-status" id="${this.escapeHtml(statusId)}">
+                                <span class="plugin-status-icon ${enabled ? 'plugin-status-icon-enabled' : 'plugin-status-icon-disabled'}" aria-hidden="true">
+                                    <svg viewBox="0 0 12 12" focusable="false">
+                                        <circle cx="6" cy="6" r="4"></circle>
+                                    </svg>
+                                </span>
+                                ${createBadge({ text: statusText, variant: statusVariant, size: 'sm', rounded: true }).outerHTML}
+                            </div>
+                        </div>
+                        ${tags ? `<div class="badge-group plugin-tags" aria-label="${this.escapeHtml(plugin.label)} capability tags">${tags}</div>` : ''}
+                    </div>
+                    <label class="switch-field plugin-toggle-field" for="${this.escapeHtml(toggleId)}">
+                        <span class="switch-field-label">Enable plugin</span>
+                        <span class="switch">
+                            <input
+                                type="checkbox"
+                                id="${this.escapeHtml(toggleId)}"
+                                data-plugin-toggle
+                                data-plugin-id="${this.escapeHtml(plugin.id)}"
+                                aria-label="${this.escapeHtml(`${enabled ? 'Disable' : 'Enable'} ${plugin.label}`)}"
+                                aria-describedby="${this.escapeHtml(`${descriptionId} ${statusId}`)}"
+                                ${enabled ? 'checked' : ''}
+                            >
+                            <span class="switch-track"></span>
+                        </span>
+                    </label>
+                </div>
+            `;
+        }).join('');
+    }
+
+    getPluginMountHost(pluginId) {
+        const container = document.getElementById('whiteCellPluginMounts');
+        if (!container) return null;
+
+        container.hidden = false;
+        const existingHost = Array.from(container.children || [])
+            .find((child) => child?.dataset?.pluginMount === pluginId);
+        if (existingHost) {
+            return existingHost;
+        }
+
+        const host = document.createElement('div');
+        host.className = 'plugin-mount';
+        host.dataset.pluginMount = pluginId;
+        container.appendChild(host);
+        return host;
+    }
+
+    reconcilePluginMounts() {
+        const state = normalizePluginState(this.pluginState);
+        const documentRef = typeof document !== 'undefined' ? document : null;
+        if (!documentRef) return;
+
+        const context = {
+            controller: this,
+            document: documentRef,
+            gameState: this.getCurrentGameState(),
+            gameStateStore,
+            sessionStore
+        };
+
+        getRegisteredPlugins().forEach((plugin) => {
+            const shouldMount = isPluginVisible(plugin, state, context);
+            const mountedPlugin = this.mountedPlugins.get(plugin.id);
+
+            if (shouldMount && !mountedPlugin) {
+                const host = this.getPluginMountHost(plugin.id);
+                const mountResult = plugin.mount?.({
+                    ...context,
+                    host,
+                    plugin,
+                    pluginState: state[plugin.id]
+                }) ?? null;
+                this.mountedPlugins.set(plugin.id, {
+                    host,
+                    mountResult,
+                    plugin
+                });
+                return;
+            }
+
+            if (!shouldMount && mountedPlugin) {
+                mountedPlugin.plugin.unmount?.(mountedPlugin.mountResult, {
+                    ...context,
+                    host: mountedPlugin.host,
+                    plugin,
+                    pluginState: state[plugin.id]
+                });
+                if (mountedPlugin.host) {
+                    mountedPlugin.host.innerHTML = '';
+                    mountedPlugin.host.remove?.();
+                }
+                this.mountedPlugins.delete(plugin.id);
+            }
+        });
+
+        const mountContainer = document.getElementById('whiteCellPluginMounts');
+        if (mountContainer && this.mountedPlugins.size === 0) {
+            mountContainer.hidden = true;
+        }
     }
 
     readTimerAllocationFormValues() {
@@ -3958,7 +4180,7 @@ export class WhiteCellController {
         if (filteredParticipants.length === 0) {
             container.innerHTML = hasActiveFilters
                 ? '<p class="text-sm text-gray-500">No participants match the selected filters.</p>'
-                : '<p class="text-sm text-gray-500">No facilitator, scribe, notetaker, or White Cell seats are connected in this session yet.</p>';
+                : '<p class="text-sm text-gray-500">No Scribe, Facilitator, Notetaker, or White Cell seats are connected in this session yet.</p>';
             return;
         }
 
@@ -4014,7 +4236,7 @@ export class WhiteCellController {
             return;
         }
 
-        summary.textContent = "Set the slide deck each team's scribe presents.";
+        summary.textContent = "Set the slide deck each team's facilitator presents.";
 
         container.innerHTML = TEAM_OPTIONS.map((team) => {
             const assignment = this.scribeDeckAssignments[team.id] || buildDefaultScribeDeckAssignment(team);
@@ -4045,14 +4267,14 @@ export class WhiteCellController {
                 <section class="card card-bordered scribe-deck-card" data-deck-method="${method}">
                     <div class="scribe-deck-card-head">
                         <div>
-                            <p class="scribe-deck-team">${this.escapeHtml(team.label)} Scribe</p>
+                            <p class="scribe-deck-team">${this.escapeHtml(team.label)} Facilitator</p>
                             <p class="scribe-deck-deck">${this.escapeHtml(currentDeckLabel)}</p>
                             <p class="scribe-deck-meta">${this.escapeHtml(metaText)}</p>
                         </div>
                         ${sourceBadge}
                     </div>
 
-                    <div class="scribe-deck-toggle" role="group" aria-label="Deck source for ${this.escapeHtml(team.label)} Scribe">
+                    <div class="scribe-deck-toggle" role="group" aria-label="Deck source for ${this.escapeHtml(team.label)} Facilitator">
                         <button type="button" data-scribe-deck-method="repo" data-scribe-deck-team="${teamId}" aria-pressed="${method === 'repo'}">Repo deck</button>
                         <button type="button" data-scribe-deck-method="upload" data-scribe-deck-team="${teamId}" aria-pressed="${method === 'upload'}">Upload file</button>
                     </div>
@@ -4098,7 +4320,7 @@ export class WhiteCellController {
                                 type="file"
                                 accept=".html,text/html"
                             >
-                            <p class="form-help">Cached in this browser — same-device scribe tabs only.</p>
+                            <p class="form-help">Cached in this browser — same-device facilitator tabs only.</p>
                         </div>
                         <div class="card-actions" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
                             <button type="button" class="btn btn-primary btn-sm" data-scribe-deck-action="upload" data-scribe-deck-team="${teamId}">Upload deck</button>
@@ -4119,7 +4341,7 @@ export class WhiteCellController {
     } = {}) {
         const team = TEAM_OPTIONS.find((entry) => entry.id === teamId);
         if (!team) {
-            showToast({ message: 'Unknown team selected for the scribe deck.', type: 'error' });
+            showToast({ message: 'Unknown team selected for the facilitator deck.', type: 'error' });
             return;
         }
 
@@ -4184,10 +4406,10 @@ export class WhiteCellController {
 
         const loader = showLoader({
             message: useUpload
-                ? `Uploading ${team.label} scribe slides...`
+                ? `Uploading ${team.label} facilitator slides...`
                 : useDefault
-                ? `Restoring ${team.label} scribe deck...`
-                : `Loading ${team.label} scribe deck...`
+                ? `Restoring ${team.label} facilitator deck...`
+                : `Loading ${team.label} facilitator deck...`
         });
 
         try {
@@ -4252,8 +4474,8 @@ export class WhiteCellController {
                 session_id: sessionId,
                 type: 'GUIDANCE',
                 content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                    ? `White Cell uploaded ${deckLabel} to ${team.label} Scribe`
-                    : `White Cell loaded ${deckLabel} into ${team.label} Scribe`,
+                    ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
+                    : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
                 metadata: {
                     role: this.getTimelineActorRole(),
                     ...recipientMetadata
@@ -4267,8 +4489,8 @@ export class WhiteCellController {
                 session_id: sessionId,
                 type: 'GUIDANCE',
                 content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                    ? `White Cell uploaded ${deckLabel} to ${team.label} Scribe`
-                    : `White Cell loaded ${deckLabel} into ${team.label} Scribe`,
+                    ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
+                    : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
                 metadata: {
                     role: this.getTimelineActorRole(),
                     ...recipientMetadata
@@ -4281,17 +4503,17 @@ export class WhiteCellController {
 
             showToast({
                 message: useUpload
-                    ? `${team.label} scribe slides uploaded.`
+                    ? `${team.label} facilitator slides uploaded.`
                     : useDefault
-                    ? `${team.label} scribe deck reset to default.`
-                    : `${team.label} scribe deck updated.`,
+                    ? `${team.label} facilitator deck reset to default.`
+                    : `${team.label} facilitator deck updated.`,
                 type: 'success'
             });
         } catch (err) {
-            logger.error('Failed to assign scribe deck:', err);
+            logger.error('Failed to assign facilitator deck:', err);
             showToast({
                 message: getUserMessage(err, {
-                    fallback: 'Failed to load the scribe deck. Check the deck source and try again.'
+                    fallback: 'Failed to load the facilitator deck. Check the deck source and try again.'
                 }),
                 type: 'error'
             });
@@ -5006,6 +5228,24 @@ export class WhiteCellController {
     }
 
     destroy() {
+        const documentRef = typeof document !== 'undefined' ? document : null;
+        this.mountedPlugins.forEach((mountedPlugin) => {
+            mountedPlugin.plugin.unmount?.(mountedPlugin.mountResult, {
+                controller: this,
+                document: documentRef,
+                gameState: this.getCurrentGameState(),
+                gameStateStore,
+                host: mountedPlugin.host,
+                plugin: mountedPlugin.plugin,
+                pluginState: this.pluginState[mountedPlugin.plugin.id],
+                sessionStore
+            });
+            if (mountedPlugin.host) {
+                mountedPlugin.host.innerHTML = '';
+                mountedPlugin.host.remove?.();
+            }
+        });
+        this.mountedPlugins.clear();
         this.storeUnsubscribers.forEach((unsubscribe) => unsubscribe?.());
         this.storeUnsubscribers = [];
     }

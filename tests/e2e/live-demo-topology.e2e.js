@@ -6,18 +6,17 @@ import {
     LANDING_URL_PATTERN,
     authorizeGameMaster,
     authorizeWhiteCell,
-    createDraftAction,
     createIsolatedActorPage,
     createSessionFromMaster,
-    adjudicateAction,
     expectJoinFailure,
-    forwardActionToScribe,
     getActiveSeatCounts,
     getSessionFromState,
     joinPublicParticipant,
     logoutCurrentUser,
     openSidebarSection,
-    submitActionFromScribe,
+    recordStrategicOrientationFromScribe,
+    reviewStrategicOrientation,
+    submitStrategicOrientationFromScribe,
     waitForToast
 } from './support/liveDemoHarness.js';
 
@@ -32,12 +31,12 @@ async function fillAndWaitForAutoSave(page, {
     await expect(page.locator(statusSelector)).toHaveText('Saved to your notes');
 }
 
-test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, the dedicated scribe deck, and seat contention', async ({ browser }) => {
+test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, the dedicated facilitator deck, and seat contention', async ({ browser }) => {
     test.slow();
 
     const context = await browser.newContext();
     const sessionCode = 'TOPO2026';
-    const actionGoal = 'Coordinate allied export controls before the next semiconductor escalation window.';
+    const orientationReviewNotes = 'Approved by White Cell lead during the topology rehearsal.';
 
     const gameMaster = await createIsolatedActorPage(context, 'game-master', { resetBackend: true });
     const intruder = await createIsolatedActorPage(context, 'whitecell-intruder');
@@ -69,14 +68,14 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
     await test.step('fill the one-team public and operator seat topology', async () => {
         await joinPublicParticipant(facilitator, {
             sessionCode,
-            displayName: 'Blue Facilitator',
+            displayName: 'Blue Scribe',
             team: 'blue',
             roleSurface: 'facilitator'
         });
 
         await joinPublicParticipant(scribe, {
             sessionCode,
-            displayName: 'Blue Scribe',
+            displayName: 'Blue Facilitator',
             team: 'blue',
             roleSurface: 'scribe'
         });
@@ -115,14 +114,14 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
 
         await expectJoinFailure(extraFacilitator, {
             sessionCode,
-            displayName: 'Blocked Facilitator',
+            displayName: 'Blocked Scribe',
             team: 'blue',
             roleSurface: 'facilitator'
         }, 'The requested role is full. Please choose another seat.');
 
         await expectJoinFailure(extraScribe, {
             sessionCode,
-            displayName: 'Blocked Scribe',
+            displayName: 'Blocked Facilitator',
             team: 'blue',
             roleSurface: 'scribe'
         }, 'The requested role is full. Please choose another seat.');
@@ -135,12 +134,8 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         }, 'The requested role is full. Please choose another seat.');
     });
 
-    await test.step('verify the dedicated scribe deck and complete the facilitator-to-scribe-to-White Cell workflow', async () => {
-        await createDraftAction(facilitator, {
-            goal: actionGoal
-        });
-
-        await forwardActionToScribe(facilitator, actionGoal);
+    await test.step('verify the dedicated facilitator deck and complete the Scribe-to-Facilitator-to-White Cell workflow', async () => {
+        const orientationGoal = await recordStrategicOrientationFromScribe(facilitator);
 
         await expect(scribe).toHaveURL(/\/teams\/blue\/scribe\.html(?:\?.*)?$/);
         await expect(scribe.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
@@ -148,7 +143,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         await expect(scribe.locator('#scribeSectionList')).toContainText('Communications');
         await expect(scribe.locator('#deckActionFrame')).toBeVisible();
         await expect(scribe.locator('#deckSlideImage')).toBeHidden();
-        await expect(scribe.locator('#main-content')).toContainText(actionGoal);
+        await expect(scribe.locator('#main-content')).toContainText(orientationGoal);
         await expect(scribe.locator('#newActionBtn')).toHaveCount(0);
 
         const actionsSectionTrigger = scribe.locator('#scribeSectionList .scribe-section-trigger').first();
@@ -157,23 +152,23 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
 
         const actionSlideLink = scribe.locator('#scribeSectionList button[data-slide-key^="action-"]').first();
         await expect(actionSlideLink).toBeVisible();
-        await expect(actionSlideLink).toContainText(actionGoal);
+        await expect(actionSlideLink).toContainText(orientationGoal);
         await actionSlideLink.click();
         await expect(scribe.locator('#deckActionFrame')).toBeVisible();
-        await expect(scribe.locator('#main-content')).toContainText(actionGoal);
+        await expect(scribe.locator('#main-content')).toContainText(orientationGoal);
 
-        await submitActionFromScribe(scribe, actionGoal);
+        await submitStrategicOrientationFromScribe(scribe, orientationGoal);
 
-        await adjudicateAction(whiteCellLead, {
-            goal: actionGoal,
-            notes: 'Approved by White Cell lead during the topology rehearsal.'
+        await reviewStrategicOrientation(whiteCellLead, {
+            goal: orientationGoal,
+            notes: orientationReviewNotes
         });
 
-        await expect(whiteCellLead.locator('#adjudicationQueue')).toContainText('No actions are waiting for White Cell deliberation.');
+        await expect(whiteCellLead.locator('#strategicOrientationList')).toContainText(orientationGoal);
 
         await expect(scribe.locator('#nextSlideBtn')).toBeVisible();
-        await expect(scribe.locator('#main-content')).toContainText(actionGoal);
-        await expect(scribe.locator('#main-content')).toContainText('Approved by White Cell lead during the topology rehearsal.');
+        await expect(scribe.locator('#main-content')).toContainText(orientationGoal);
+        await expect(scribe.locator('#main-content')).toContainText(orientationReviewNotes);
     });
 
     await test.step('record the active seat counts for the one-team topology', async () => {
@@ -218,14 +213,14 @@ test('@live-demo facilitator disconnect recovery and concurrent notetaker captur
 
         await joinPublicParticipant(facilitator, {
             sessionCode,
-            displayName: 'Recovery Facilitator A',
+            displayName: 'Recovery Scribe A',
             team: 'blue',
             roleSurface: 'facilitator'
         });
 
         await expectJoinFailure(facilitatorRetry, {
             sessionCode,
-            displayName: 'Recovery Facilitator B',
+            displayName: 'Recovery Scribe B',
             team: 'blue',
             roleSurface: 'facilitator'
         }, 'The requested role is full. Please choose another seat.');
@@ -235,7 +230,7 @@ test('@live-demo facilitator disconnect recovery and concurrent notetaker captur
 
         await joinPublicParticipant(facilitatorRetry, {
             sessionCode,
-            displayName: 'Recovery Facilitator B',
+            displayName: 'Recovery Scribe B',
             team: 'blue',
             roleSurface: 'facilitator'
         });

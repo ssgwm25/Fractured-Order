@@ -193,6 +193,37 @@ function buildBundleFixture() {
                 }
             }
         ],
+        sessionRecordingArtifacts: [
+            {
+                session_id: 'session-research-1',
+                recording_id: 'session-recording-alpha-1',
+                started_utc: '2026-06-03T10:04:00.000Z',
+                stopped_utc: '2026-06-03T10:19:00.000Z',
+                duration_seconds: 900,
+                mime_type: 'audio/webm;codecs=opus',
+                file_size_bytes: 1048576,
+                generated_by_role: 'whitecell',
+                generated_by_user: 'White Cell Lead',
+                plugin_id: 'session-recorder',
+                filename: 'session-recording-session-research-1-alpha.webm',
+                storage_reference: 'browser-download:session-recording-session-research-1-alpha.webm',
+                object_url: 'blob:http://localhost/session-recording-alpha-1',
+                object_url_lifecycle: 'current_browser_document',
+                capture_constraints_requested: {
+                    audio: {
+                        echoCancellation: { ideal: true },
+                        noiseSuppression: { ideal: true },
+                        autoGainControl: { ideal: true },
+                        channelCount: { ideal: 1 },
+                        sampleRate: { ideal: 48000 }
+                    }
+                },
+                recorder_mime_type_selected: 'audio/webm;codecs=opus',
+                audio_bits_per_second_requested: 256000,
+                audio_bits_per_second_used: 256000,
+                created_at_utc: '2026-06-03T10:19:05.000Z'
+            }
+        ],
         timeline: [
             {
                 id: 'timeline-1',
@@ -255,7 +286,7 @@ function buildBundleFixture() {
 }
 
 describe('research export builder', () => {
-    it('builds the full research archive dataset with the 1.3.0 file set', async () => {
+    it('builds the full research archive dataset with the 1.4.0 file set', async () => {
         const exportBundle = await buildResearchExportBundle(buildBundleFixture(), {
             generatedAtUtc: '2026-06-03T12:00:00.000Z',
             generatedByPseudonym: 'gm-1234abcd',
@@ -274,7 +305,8 @@ describe('research export builder', () => {
             action_content: 1,
             proposal_content: 1,
             move_response_content: 1,
-            rfi_content: 1
+            rfi_content: 1,
+            session_recording_artifacts: 1
         });
         expect(exportBundle.manifest).toMatchObject({
             data_quality_summary_ref: 'data_quality_summary.json',
@@ -284,6 +316,8 @@ describe('research export builder', () => {
             training_rubric_ref: 'training_rubric.csv',
             network_metrics_ref: 'network_metrics.csv',
             turning_points_ref: 'turning_points.csv',
+            session_recording_artifacts_ref: 'session_recording_artifacts.csv',
+            session_recording_artifacts_json_ref: 'session_recording_artifacts.json',
             persona_report_refs: {
                 policy_brief: 'reports/policy_brief.html',
                 strategic_leader_brief: 'reports/strategic_leader_brief.html',
@@ -347,8 +381,13 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Decision Lineage');
         expect(exportBundle.reportHtml).toContain('Draft And Submission History');
         expect(exportBundle.reportHtml).toContain('Scenario Context');
+        expect(exportBundle.reportHtml).toContain('Session Recordings');
+        expect(exportBundle.reportHtml).toContain('session-recording-session-research-1-alpha.webm');
+        expect(exportBundle.reportHtml).toContain('Browser recording audio remains a local download');
         expect(exportBundle.reportHtml).toContain('Research Readiness');
         expect(exportBundle.reportHtml).toContain('Data Quality And Export Integrity');
+        expect(exportBundle.reportHtml).toContain('Blue Team Scribe (blue_facilitator)');
+        expect(exportBundle.reportHtml).toContain('Question-and-answer exchanges between team scribes and White Cell.');
         expect(exportBundle.reportHtml).toContain('ALPHA-R');
         expect(exportBundle.reportHtml).toContain('1h 30m');
         expect(exportBundle.reportHtml).toContain('Forwarded Green Team proposal.');
@@ -362,6 +401,20 @@ describe('research export builder', () => {
                 notes_appendix_included: true,
                 identity_map_exported: false
             }
+        });
+        expect(exportBundle.dataQualitySummary.coverage.table_coverage).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                table_name: 'session_recording_artifacts',
+                rows: 1,
+                source: 'local_browser_metadata',
+                status: 'present'
+            })
+        ]));
+        expect(exportBundle.sessionRecordingArtifacts[0]).toMatchObject({
+            recording_id: 'session-recording-alpha-1',
+            filename: 'session-recording-session-research-1-alpha.webm',
+            recorder_mime_type_selected: 'audio/webm;codecs=opus',
+            audio_bits_per_second_used: 256000
         });
         expect(exportBundle.decisionLineage).toEqual(expect.arrayContaining([
             expect.objectContaining({
@@ -440,6 +493,8 @@ describe('research export builder', () => {
             'network_metrics.json',
             'turning_points.csv',
             'turning_points.json',
+            'session_recording_artifacts.csv',
+            'session_recording_artifacts.json',
             'event_log.jsonl',
             'action_content.csv',
             'proposal_content.json',

@@ -7,6 +7,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
 
 :root {
+    /* Theme: follow the OS by default; the manual toggle sets data-theme on
+       <html> to force light/dark. accent-color tints native controls and the
+       <select> option highlight with the brand green instead of the OS blue. */
+    color-scheme: light;
+    accent-color: var(--color-navy);
+
     /* ==================== CORE PALETTE ==================== */
 
     /* Navy - Primary accent (restrained use) */
@@ -97,6 +103,8 @@
     --color-error-light: #fee2e2;
     --color-error-100: #fee2e2;
     --color-error-700: #b91c1c;
+    /* Soft red wash behind destructive zones / invalid inputs */
+    --color-error-soft: #fff5f5;
 
     /* Info */
     --color-info-100: #dbeafe;
@@ -258,6 +266,20 @@
     --glass-bg: rgba(255, 255, 255, 0.72);
     --glass-border: rgba(255, 255, 255, 0.6);
     --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
+    /* Frosted chrome (fixed header, sidebar) — own tokens so dark mode can swap
+       the tint without touching the layout CSS. */
+    --glass-header-bg: rgba(255, 255, 255, 0.72);
+    --glass-sidebar-bg: rgba(248, 248, 250, 0.8);
+    /* Full-screen loading scrims */
+    --loader-overlay-bg: rgba(255, 255, 255, 0.9);
+    --loader-overlay-bg-transparent: rgba(255, 255, 255, 0.7);
+
+    /* Scrollbar + code surfaces — tokenised so dark mode swaps the value, not the rule */
+    --scrollbar-thumb: rgba(0, 0, 0, 0.22);
+    --scrollbar-thumb-hover: rgba(0, 0, 0, 0.38);
+    --scrollbar-track-thin: rgba(0, 0, 0, 0.28);
+    --code-bg: var(--color-gray-800);
+    --code-fg: var(--color-gray-100);
 
     /* ==================== Z-INDEX ==================== */
 
@@ -280,8 +302,10 @@
 
     /* ==================== COMPONENT DEFAULTS ==================== */
 
-    /* Buttons */
-    --btn-height: 40px;
+    /* Buttons — default height meets the 44px touch-target floor (Apple HIG /
+       Material). Compact (sm) stays smaller on fine pointers but is lifted to
+       44px on coarse pointers via @media (pointer: coarse) in buttons.css. */
+    --btn-height: 44px;
     --btn-height-sm: 32px;
     --btn-height-lg: 48px;
     --btn-padding-x: 18px;
@@ -302,6 +326,218 @@
     /* Navigation */
     --nav-item-padding: 12px var(--space-sm);
     --nav-item-radius: var(--radius-md);
+}
+
+/* ==================== DARK MODE ====================
+   Dark mode is implemented purely by re-pointing the semantic tokens — every
+   component reads these, so the whole UI follows. Honour the OS preference.
+   Contrast notes: --color-text-muted ≈ 5:1 and the brand green ≈ 4.5:1 as text
+   on the elevated surface; white-on-green button labels sit a touch under AA
+   (the common dark-theme tradeoff for a coloured primary CTA). */
+/* The dark token set is applied in two cases that MUST stay in sync:
+   (1) the OS prefers dark and the user has not forced light;
+   (2) the user explicitly chose dark via the toggle ([data-theme="dark"]).
+   Both selectors carry identical declarations — edit them together. The toggle
+   (setupThemeToggle in main.js) sets data-theme on <html>; with no attribute the
+   media query alone drives the theme straight from the OS (no flash). */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        color-scheme: dark;
+
+        --color-bg: #1c1c1e;
+        --color-bg-app: #000000;
+        --color-surface: #1c1c1e;
+        --color-surface-alt: #2c2c2e;
+        --color-surface-hover: #3a3a3c;
+
+        --color-border: #38383a;
+        --color-border-light: #2e2e30;
+        --color-border-subtle: rgba(255, 255, 255, 0.06);
+        --color-border-focus: rgba(84, 183, 143, 0.5);
+        --color-focus-ring: rgba(84, 183, 143, 0.4);
+
+        --color-text: #f5f5f7;
+        --color-text-primary: #f5f5f7;
+        --color-text-secondary: #aeaeb2;
+        --color-text-muted: #98989d;
+
+        --color-gray-50: #1a1a1c;
+        --color-gray-100: #2c2c2e;
+        --color-gray-200: #38383a;
+        --color-gray-300: #48484a;
+        --color-gray-400: #636366;
+        --color-gray-500: #8e8e93;
+        --color-gray-600: #aeaeb2;
+        --color-gray-700: #c7c7cc;
+        --color-gray-800: #e5e5ea;
+        --color-gray-900: #f5f5f7;
+
+        --color-navy: #3aa178;
+        --color-navy-deep: #2d8763;
+        --color-navy-muted: #54b78f;
+        --color-navy-soft: rgba(84, 183, 143, 0.14);
+        --color-navy-strong: rgba(84, 183, 143, 0.22);
+        --color-navy-bright: #6cc7a0;
+
+        --color-gold: #cda869;
+        --color-gold-light: #e0c48f;
+
+        --color-primary-100: rgba(84, 183, 143, 0.14);
+        --color-primary-200: rgba(84, 183, 143, 0.22);
+        --color-primary-500: #3aa178;
+        --color-primary-600: #2d8763;
+        --color-primary-700: #226d4f;
+        --color-primary-900: #8fd9b8;
+
+        --color-success: #34c759;
+        --color-success-light: rgba(48, 209, 88, 0.16);
+        --color-success-100: rgba(48, 209, 88, 0.16);
+        --color-success-700: #4ade80;
+
+        --color-warning: #ffd60a;
+        --color-warning-light: rgba(255, 214, 10, 0.16);
+        --color-warning-100: rgba(255, 214, 10, 0.16);
+        --color-warning-700: #fbbf24;
+
+        --color-alert: #ff6a4d;
+        --color-error: #ff453b;
+        --color-error-light: rgba(255, 69, 58, 0.16);
+        --color-error-100: rgba(255, 69, 58, 0.16);
+        --color-error-700: #f87171;
+        --color-error-soft: rgba(255, 69, 58, 0.12);
+
+        --color-info-100: rgba(91, 154, 255, 0.16);
+        --color-info-600: #5b9aff;
+
+        --color-outcome-backfire: #fca5a5;
+
+        --color-team-blue: #5b9bd5;
+        --color-team-green: #5fb87a;
+        --color-team-red: #e06c79;
+        --color-team-industry: #9aa0ab;
+
+        --glass-bg: rgba(28, 28, 30, 0.72);
+        --glass-border: rgba(255, 255, 255, 0.08);
+        --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        --glass-header-bg: rgba(28, 28, 30, 0.72);
+        --glass-sidebar-bg: rgba(28, 28, 30, 0.72);
+        --loader-overlay-bg: rgba(20, 20, 22, 0.9);
+        --loader-overlay-bg-transparent: rgba(20, 20, 22, 0.7);
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+        --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+        --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.7);
+        --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
+        --shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
+        --shadow-glow: 0 0 0 4px rgba(84, 183, 143, 0.18);
+
+        --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+        --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
+        --scrollbar-track-thin: rgba(255, 255, 255, 0.28);
+        --code-bg: var(--color-surface-alt);
+        --code-fg: var(--color-text);
+    }
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --color-bg: #1c1c1e;
+    --color-bg-app: #000000;
+    --color-surface: #1c1c1e;
+    --color-surface-alt: #2c2c2e;
+    --color-surface-hover: #3a3a3c;
+
+    --color-border: #38383a;
+    --color-border-light: #2e2e30;
+    --color-border-subtle: rgba(255, 255, 255, 0.06);
+    --color-border-focus: rgba(84, 183, 143, 0.5);
+    --color-focus-ring: rgba(84, 183, 143, 0.4);
+
+    --color-text: #f5f5f7;
+    --color-text-primary: #f5f5f7;
+    --color-text-secondary: #aeaeb2;
+    --color-text-muted: #98989d;
+
+    --color-gray-50: #1a1a1c;
+    --color-gray-100: #2c2c2e;
+    --color-gray-200: #38383a;
+    --color-gray-300: #48484a;
+    --color-gray-400: #636366;
+    --color-gray-500: #8e8e93;
+    --color-gray-600: #aeaeb2;
+    --color-gray-700: #c7c7cc;
+    --color-gray-800: #e5e5ea;
+    --color-gray-900: #f5f5f7;
+
+    --color-navy: #3aa178;
+    --color-navy-deep: #2d8763;
+    --color-navy-muted: #54b78f;
+    --color-navy-soft: rgba(84, 183, 143, 0.14);
+    --color-navy-strong: rgba(84, 183, 143, 0.22);
+    --color-navy-bright: #6cc7a0;
+
+    --color-gold: #cda869;
+    --color-gold-light: #e0c48f;
+
+    --color-primary-100: rgba(84, 183, 143, 0.14);
+    --color-primary-200: rgba(84, 183, 143, 0.22);
+    --color-primary-500: #3aa178;
+    --color-primary-600: #2d8763;
+    --color-primary-700: #226d4f;
+    --color-primary-900: #8fd9b8;
+
+    --color-success: #34c759;
+    --color-success-light: rgba(48, 209, 88, 0.16);
+    --color-success-100: rgba(48, 209, 88, 0.16);
+    --color-success-700: #4ade80;
+
+    --color-warning: #ffd60a;
+    --color-warning-light: rgba(255, 214, 10, 0.16);
+    --color-warning-100: rgba(255, 214, 10, 0.16);
+    --color-warning-700: #fbbf24;
+
+    --color-alert: #ff6a4d;
+    --color-error: #ff453b;
+    --color-error-light: rgba(255, 69, 58, 0.16);
+    --color-error-100: rgba(255, 69, 58, 0.16);
+    --color-error-700: #f87171;
+    --color-error-soft: rgba(255, 69, 58, 0.12);
+
+    --color-info-100: rgba(91, 154, 255, 0.16);
+    --color-info-600: #5b9aff;
+
+    --color-outcome-backfire: #fca5a5;
+
+    --color-team-blue: #5b9bd5;
+    --color-team-green: #5fb87a;
+    --color-team-red: #e06c79;
+    --color-team-industry: #9aa0ab;
+
+    --glass-bg: rgba(28, 28, 30, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    --glass-header-bg: rgba(28, 28, 30, 0.72);
+    --glass-sidebar-bg: rgba(28, 28, 30, 0.72);
+    --loader-overlay-bg: rgba(20, 20, 22, 0.9);
+    --loader-overlay-bg-transparent: rgba(20, 20, 22, 0.7);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+    --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.7);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 0 4px rgba(84, 183, 143, 0.18);
+
+    --scrollbar-thumb: rgba(255, 255, 255, 0.22);
+    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.38);
+    --scrollbar-track-thin: rgba(255, 255, 255, 0.28);
+    --code-bg: var(--color-surface-alt);
+    --code-fg: var(--color-text);
 }
 
 /* Reset and base styles */
@@ -335,7 +571,7 @@ body {
 /* Subtle, neutral overlay scrollbar (Apple style) */
 * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.28) transparent;
+    scrollbar-color: var(--scrollbar-track-thin) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -348,14 +584,14 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.22);
+    background: var(--scrollbar-thumb);
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.38);
+    background: var(--scrollbar-thumb-hover);
     background-clip: padding-box;
 }
 

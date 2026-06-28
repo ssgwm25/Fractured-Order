@@ -155,11 +155,18 @@
 .p-2 { padding: var(--space-2); }
 .p-4 { padding: var(--space-4); }
 .p-6 { padding: var(--space-6); }
+.p-8 { padding: var(--space-8); }
 
 .mb-2 { margin-bottom: var(--space-2); }
 .mb-3 { margin-bottom: var(--space-3); }
 .mb-4 { margin-bottom: var(--space-4); }
 .mb-6 { margin-bottom: var(--space-6); }
+
+.mb-0 { margin-bottom: 0; }
+.mt-2 { margin-top: var(--space-2); }
+.mt-3 { margin-top: var(--space-3); }
+.mt-4 { margin-top: var(--space-4); }
+.mt-6 { margin-top: var(--space-6); }
 
 /* ==================== SIZE UTILITIES ==================== */
 
@@ -167,3 +174,7 @@
 .h-full { height: 100%; }
 .hidden { display: none; }
 .visible { display: block; }
+.grid { display: grid; }
+
+/* Centered placeholder pane (e.g. "select a session" empty states) */
+.min-h-pane { min-height: 200px; }

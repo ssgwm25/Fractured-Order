@@ -14,7 +14,7 @@
 /* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
-    background: rgba(248, 248, 250, 0.8);
+    background: var(--glass-sidebar-bg);
     -webkit-backdrop-filter: saturate(180%) blur(var(--blur-md));
     backdrop-filter: saturate(180%) blur(var(--blur-md));
     border-right: 1px solid var(--color-border-light);

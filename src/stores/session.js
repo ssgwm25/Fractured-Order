@@ -13,6 +13,10 @@ import {
     buildDefaultTimerAllocations,
     normalizeTimerAllocations
 } from '../utils/timerAllocations.js';
+import {
+    buildDefaultPluginState,
+    normalizePluginState
+} from '../features/plugins/registry.js';
 
 const logger = createLogger('SessionStore');
 const STORAGE_KEYS = Object.freeze({
@@ -165,6 +169,7 @@ function buildDefaultGameState() {
         phase: 1,
         timer_seconds: 0,
         timer_allocations: buildDefaultTimerAllocations(),
+        plugin_state: buildDefaultPluginState(),
         timer_running: false
     };
 }
@@ -213,7 +218,8 @@ function normalizeSessionData(data, sessionId = currentSessionId) {
         gameState: {
             ...buildDefaultGameState(),
             ...(data.gameState || {}),
-            timer_allocations: normalizeTimerAllocations(data.gameState?.timer_allocations)
+            timer_allocations: normalizeTimerAllocations(data.gameState?.timer_allocations),
+            plugin_state: normalizePluginState(data.gameState?.plugin_state)
         }
     };
 }
@@ -573,7 +579,13 @@ export const sessionStore = {
             gameState: {
                 ...buildDefaultGameState(),
                 ...(currentData.gameState || {}),
-                ...(partialData.gameState || {})
+                ...(partialData.gameState || {}),
+                timer_allocations: normalizeTimerAllocations(
+                    partialData.gameState?.timer_allocations ?? currentData.gameState?.timer_allocations
+                ),
+                plugin_state: normalizePluginState(
+                    partialData.gameState?.plugin_state ?? currentData.gameState?.plugin_state
+                )
             }
         };
 

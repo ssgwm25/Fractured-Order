@@ -10,6 +10,7 @@ const DEFAULT_TIMER_ALLOCATIONS = Object.freeze({
     move_2: 5400,
     move_3: 5400
 });
+const DEFAULT_PLUGIN_STATE = Object.freeze({});
 
 const MOCK_TABLES = [
     'sessions',
@@ -426,6 +427,7 @@ function normalizeInsertRow(tableName, payload, state) {
                 phase: 1,
                 timer_seconds: 0,
                 timer_allocations: cloneValue(DEFAULT_TIMER_ALLOCATIONS),
+                plugin_state: cloneValue(DEFAULT_PLUGIN_STATE),
                 timer_running: false,
                 timer_last_update: null,
                 updated_at: timestamp,
@@ -1006,6 +1008,7 @@ function createLiveDemoSession(state, {
         phase: 1,
         timer_seconds: 5400,
         timer_allocations: cloneValue(DEFAULT_TIMER_ALLOCATIONS),
+        plugin_state: cloneValue(DEFAULT_PLUGIN_STATE),
         timer_running: false,
         timer_last_update: null
     }, state));
@@ -1427,6 +1430,7 @@ function operatorUpdateGameState(state, params) {
         phase: params?.requested_phase ?? gameState.phase,
         timer_seconds: params?.requested_timer_seconds ?? gameState.timer_seconds,
         timer_allocations: params?.requested_timer_allocations ?? gameState.timer_allocations ?? cloneValue(DEFAULT_TIMER_ALLOCATIONS),
+        plugin_state: params?.requested_plugin_state ?? gameState.plugin_state ?? cloneValue(DEFAULT_PLUGIN_STATE),
         timer_running: params?.requested_timer_running ?? gameState.timer_running,
         timer_last_update: params?.requested_timer_last_update ?? gameState.timer_last_update,
         last_updated: getTimestamp(),

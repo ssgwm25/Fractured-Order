@@ -142,7 +142,7 @@ async function loadFacilitatorModule() {
     return import('./facilitator.js');
 }
 
-describe('Facilitator and scribe access', () => {
+describe('legacy facilitator route and corrected Scribe access', () => {
     afterEach(async () => {
         vi.clearAllMocks();
         delete global.document;
@@ -151,7 +151,7 @@ describe('Facilitator and scribe access', () => {
         sessionStore.clearAll();
     });
 
-    it('allows facilitator seats and rejects scribe seats on the facilitator surface', async () => {
+    it('allows legacy facilitator seats and rejects legacy scribe seats on the Scribe workspace', async () => {
         const { getFacilitatorAccessState } = await loadFacilitatorModule();
         const teamContext = {
             teamId: 'blue',
@@ -178,7 +178,7 @@ describe('Facilitator and scribe access', () => {
         });
     });
 
-    it('renders facilitator-mode labels on the facilitator surface', async () => {
+    it('renders Scribe labels on the legacy facilitator surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         controller.role = 'blue_facilitator';
@@ -212,13 +212,57 @@ describe('Facilitator and scribe access', () => {
         controller.configureAccessMode();
 
         expect(global.document.body.dataset.facilitatorMode).toBe('facilitator');
-        expect(roleLabel.textContent).toBe('Facilitator');
-        expect(headerTitle.textContent).toBe('Blue Team Facilitator');
+        expect(roleLabel.textContent).toBe('Scribe');
+        expect(headerTitle.textContent).toBe('Blue Team Scribe');
         expect(notice.style.display).toBe('none');
         expect(notice.innerHTML).toBe('');
     });
 
-    it('ships a standalone Tribe Street Journal sidebar section in the facilitator view', () => {
+    it('runs the Intercom receiver only for enabled actual Scribe seats', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { gameStateStore } = await import('../stores/gameState.js');
+        const controller = new FacilitatorController();
+        controller.isReadOnly = false;
+        controller.role = 'blue_facilitator';
+        controller.teamContext = {
+            teamId: 'blue',
+            facilitatorRole: 'blue_facilitator',
+            scribeRole: 'blue_scribe'
+        };
+
+        try {
+            gameStateStore.state = {
+                plugin_state: {
+                    intercom: { enabled: true }
+                }
+            };
+
+            expect(controller.shouldRunIntercomReceiver()).toBe(true);
+
+            controller.role = 'blue_scribe';
+            expect(controller.shouldRunIntercomReceiver()).toBe(false);
+
+            controller.role = 'blue_facilitator';
+            gameStateStore.state = {
+                plugin_state: {
+                    intercom: { enabled: false }
+                }
+            };
+            expect(controller.shouldRunIntercomReceiver()).toBe(false);
+
+            controller.isReadOnly = true;
+            gameStateStore.state = {
+                plugin_state: {
+                    intercom: { enabled: true }
+                }
+            };
+            expect(controller.shouldRunIntercomReceiver()).toBe(false);
+        } finally {
+            gameStateStore.reset();
+        }
+    });
+
+    it('ships a standalone Tribe Street Journal sidebar section in the Scribe workspace', () => {
         const html = readFileSync(FACILITATOR_HTML_PATH, 'utf8');
 
         expect(html).toContain('data-section="tribeStreetJournal"');
@@ -231,7 +275,7 @@ describe('Facilitator and scribe access', () => {
         expect(html).toContain('id="verbaAiBadge"');
     });
 
-    it('ships Strategic Orientation controls on Blue, Green, Red, and Industry facilitator surfaces', () => {
+    it('ships Strategic Orientation controls on Blue, Green, Red, and Industry Scribe workspaces', () => {
         const blueHtml = readFileSync(FACILITATOR_HTML_PATH, 'utf8');
         const greenHtml = readFileSync(GREEN_FACILITATOR_HTML_PATH, 'utf8');
         const redHtml = readFileSync(RED_FACILITATOR_HTML_PATH, 'utf8');
@@ -411,13 +455,13 @@ describe('Facilitator and scribe access', () => {
             status: 'draft'
         }));
 
-        expect(markup).toContain('Draft Strategic Orientation artifacts are projected by the Scribe before White Cell submission.');
+        expect(markup).toContain('Draft Strategic Orientation artifacts are projected by the Facilitator before White Cell submission.');
         expect(markup).not.toContain('Edit Draft');
         expect(markup).not.toContain('Delete Draft');
-        expect(markup).not.toContain('Forward to Scribe');
+        expect(markup).not.toContain('Forward to Facilitator');
     });
 
-    it('mounts a Blue facilitator guide that covers every facilitator surface', async () => {
+    it('mounts a Blue Scribe guide that covers every Scribe workspace surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
 
@@ -427,12 +471,12 @@ describe('Facilitator and scribe access', () => {
         expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
         expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
             storageKey: 'followalong:facilitator:blue',
-            title: 'Blue Team Facilitator guide'
+            title: 'Blue Team Scribe guide'
         }));
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Blue Team Facilitator',
+            'Blue Team Scribe',
             'Read the live tracker',
             'Draft actions',
             'Ask White Cell with RFIs',
@@ -457,12 +501,12 @@ describe('Facilitator and scribe access', () => {
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[0].body).toContain('capture observations');
+        expect(guide.steps[0].body).toContain('record Blue Team decisions');
         expect(guide.steps[4].body).toContain('explicit White Cell communications');
         expect(guide.steps[7].body).toContain('sentiment updates');
     });
 
-    it('mounts a Green facilitator guide that covers proposals and every facilitator surface', async () => {
+    it('mounts a Green Scribe guide that covers proposals and every Scribe workspace surface', async () => {
         global.document = {
             ...createFakeDocument(),
             body: { dataset: { team: 'green' } }
@@ -477,12 +521,12 @@ describe('Facilitator and scribe access', () => {
         expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
         expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
             storageKey: 'followalong:facilitator:green',
-            title: 'Green Team Facilitator guide'
+            title: 'Green Team Scribe guide'
         }));
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Green Team Facilitator',
+            'Green Team Scribe',
             'Read the live tracker',
             'Build proposals',
             'Ask White Cell with RFIs',
@@ -507,7 +551,7 @@ describe('Facilitator and scribe access', () => {
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[0].body).toContain('prepare proposals');
+        expect(guide.steps[0].body).toContain('record Green Team decisions');
         expect(guide.steps[2].body).toContain("Create and revise your team's proposals");
         expect(guide.steps[5].body).toContain('proposals that White Cell has approved and forwarded for your team');
         expect(guide.steps[5].body).not.toContain('Green Team proposals');
@@ -527,17 +571,17 @@ describe('Facilitator and scribe access', () => {
 
         expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
             storageKey: 'followalong:facilitator:industry',
-            title: 'Industry Team Facilitator guide'
+            title: 'Industry Team Scribe guide'
         }));
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
-        expect(guide.steps[0].title).toBe('Industry Team Facilitator');
+        expect(guide.steps[0].title).toBe('Industry Team Scribe');
         expect(guide.steps[2].title).toBe('Build proposals');
-        expect(guide.steps[0].body).toContain('prepare proposals');
+        expect(guide.steps[0].body).toContain('record Industry Team decisions');
         expect(guide.steps[2].body).toContain("Create and revise your team's proposals");
     });
 
-    it('mounts a Red facilitator guide that covers move responses and every facilitator surface', async () => {
+    it('mounts a Red Scribe guide that covers move responses and every Scribe workspace surface', async () => {
         global.document = {
             ...createFakeDocument(),
             body: { dataset: { team: 'red' } }
@@ -552,12 +596,12 @@ describe('Facilitator and scribe access', () => {
         expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
         expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
             storageKey: 'followalong:facilitator:red',
-            title: 'Red Team Facilitator guide'
+            title: 'Red Team Scribe guide'
         }));
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Red Team Facilitator',
+            'Red Team Scribe',
             'Read the live tracker',
             'Prepare move responses',
             'Ask White Cell with RFIs',
@@ -587,7 +631,7 @@ describe('Facilitator and scribe access', () => {
         expect(guide.steps[2].body).toContain('White Cell reviews them');
     });
 
-    it('groups quick-capture type radios with a semantic fieldset on every facilitator surface', () => {
+    it('groups quick-capture type radios with a semantic fieldset on every Scribe workspace surface', () => {
         [
             FACILITATOR_HTML_PATH,
             GREEN_FACILITATOR_HTML_PATH,
@@ -1216,7 +1260,7 @@ describe('Facilitator and scribe access', () => {
         expect(modal.close).toHaveBeenCalled();
     });
 
-    it('forwards Blue drafts to the Scribe without submitting them to White Cell', async () => {
+    it('forwards Blue drafts to the Facilitator without submitting them to White Cell', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
         const { actionsStore } = await import('../stores/actions.js');
@@ -1244,7 +1288,7 @@ describe('Facilitator and scribe access', () => {
             id: 'timeline-blue-forward-1',
             session_id: 'session-blue-forward',
             type: 'ACTION_FORWARDED_TO_SCRIBE',
-            content: 'Action forwarded to Scribe: Secure corridor access',
+            content: 'Action forwarded to Facilitator: Secure corridor access',
             team: 'blue',
             move: 2,
             phase: 3
@@ -1277,17 +1321,18 @@ describe('Facilitator and scribe access', () => {
         expect(submitActionRecord).not.toHaveBeenCalled();
         expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             type: 'ACTION_FORWARDED_TO_SCRIBE',
-            content: 'Action forwarded to Scribe: Secure corridor access',
+            content: 'Action forwarded to Facilitator: Secure corridor access',
             metadata: expect.objectContaining({
                 related_id: 'action-blue-draft-1',
-                next_step: 'scribe_submit_to_white_cell'
+                next_step: 'scribe_submit_to_white_cell',
+                semantic_next_step: 'facilitator_submit_to_white_cell'
             })
         }));
         expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', forwardedAction);
         expect(timelineStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
             id: 'timeline-blue-forward-1'
         }));
-        expect(showToast).toHaveBeenCalledWith({ message: 'Action forwarded to Scribe', type: 'success' });
+        expect(showToast).toHaveBeenCalledWith({ message: 'Action forwarded to Facilitator', type: 'success' });
     });
 
     it('collects legislative route selections when implementation is Legislative', async () => {
@@ -1601,7 +1646,7 @@ describe('Facilitator and scribe access', () => {
         expect(responsesList.innerHTML).toContain('WHITE CELL UPDATE');
         expect(responsesList.innerHTML).toContain('White Cell Communication');
         expect(responsesList.innerHTML).toContain('White Cell communication to Blue Team');
-        expect(responsesList.innerHTML).toContain('White Cell communication to Blue Team Scribe');
+        expect(responsesList.innerHTML).toContain('White Cell communication to Blue Team Facilitator');
         expect(responsesBadge.textContent).toBe('2');
         expect(responsesBadge.hidden).toBe(false);
         expect(journalList.innerHTML).toContain('WHITE CELL UPDATE');

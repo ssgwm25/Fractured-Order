@@ -24,7 +24,7 @@ export const SCRIBE_DECK_SECTIONS = Object.freeze([
     {
         id: 'actions',
         label: 'Actions',
-        description: 'Live facilitator decisions and White Cell deliberation updates for the scribe seat.',
+        description: 'Live scribe decisions and White Cell deliberation updates for the facilitator seat.',
         slideNumbers: Object.freeze([])
     },
     {
@@ -86,12 +86,12 @@ export const SCRIBE_DECK_SECTIONS = Object.freeze([
 export function parseScribeDeckHtml(html = '') {
     const slidesMatch = html.match(/const\s+SLIDES\s*=\s*(\[[\s\S]*?\]);\s*const\s+SECTIONS\s*=/);
     if (!slidesMatch?.[1]) {
-        throw new Error('Scribe deck payload is missing slide data.');
+        throw new Error('Facilitator deck payload is missing slide data.');
     }
 
     const slides = JSON.parse(slidesMatch[1]);
     if (!Array.isArray(slides) || !slides.length) {
-        throw new Error('Scribe deck payload did not contain any slides.');
+        throw new Error('Facilitator deck payload did not contain any slides.');
     }
 
     return slides;
@@ -111,7 +111,7 @@ export function normalizeScribeDeckPath(
     }
 
     if (/^[a-z]+:/i.test(rawPath) || rawPath.startsWith('//')) {
-        throw new Error('Scribe deck paths must stay inside this app.');
+        throw new Error('Facilitator deck paths must stay inside this app.');
     }
 
     const normalizedPath = rawPath
@@ -120,11 +120,11 @@ export function normalizeScribeDeckPath(
         .replace(/^\/+/, '');
 
     if (normalizedPath.includes('..')) {
-        throw new Error('Scribe deck paths cannot traverse outside the app bundle.');
+        throw new Error('Facilitator deck paths cannot traverse outside the app bundle.');
     }
 
     if (!/\.html(?:[?#].*)?$/i.test(normalizedPath)) {
-        throw new Error('Scribe deck paths must point to an HTML deck file.');
+        throw new Error('Facilitator deck paths must point to an HTML deck file.');
     }
 
     if (
@@ -139,7 +139,7 @@ export function normalizeScribeDeckPath(
     }
 
     if (!normalizedPath.startsWith(`decks/${resolvedTeamId}/`)) {
-        throw new Error(`Scribe deck paths must stay inside decks/${resolvedTeamId}/.`);
+        throw new Error(`Facilitator deck paths must stay inside decks/${resolvedTeamId}/.`);
     }
 
     return normalizedPath;

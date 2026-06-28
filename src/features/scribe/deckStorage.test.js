@@ -8,7 +8,7 @@ import {
 
 const originalIndexedDb = globalThis.indexedDB;
 
-describe('scribe deck storage', () => {
+describe('facilitator deck storage', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
@@ -25,10 +25,10 @@ describe('scribe deck storage', () => {
 
     it('rejects missing identifiers', () => {
         expect(() => buildUploadedScribeDeckStorageKey('', 'blue')).toThrow(
-            'Uploaded scribe decks require both a session ID and team ID.'
+            'Uploaded facilitator decks require both a session ID and team ID.'
         );
         expect(() => buildUploadedScribeDeckStorageKey('session-42', '')).toThrow(
-            'Uploaded scribe decks require both a session ID and team ID.'
+            'Uploaded facilitator decks require both a session ID and team ID.'
         );
     });
 
@@ -41,7 +41,7 @@ describe('scribe deck storage', () => {
 
         const lookupPromise = getUploadedScribeDeck('scribe-deck:session-42:blue');
         const rejectionAssertion = expect(lookupPromise).rejects.toThrow(
-            'Uploaded scribe deck browser storage timed out while opening storage.'
+            'Uploaded facilitator deck browser storage timed out while opening storage.'
         );
 
         await vi.advanceTimersByTimeAsync(SCRIBE_DECK_STORAGE_TIMEOUT_MS);
@@ -75,7 +75,7 @@ describe('scribe deck storage', () => {
         openRequest.onsuccess();
         await Promise.resolve();
         const rejectionAssertion = expect(lookupPromise).rejects.toThrow(
-            'Uploaded scribe deck browser storage timed out while reading or writing storage.'
+            'Uploaded facilitator deck browser storage timed out while reading or writing storage.'
         );
 
         await vi.advanceTimersByTimeAsync(SCRIBE_DECK_STORAGE_TIMEOUT_MS);

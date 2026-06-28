@@ -7,7 +7,7 @@
 #loader {
     position: fixed;
     inset: 0;
-    background: linear-gradient(180deg, #ffffff 0%, var(--color-surface-alt) 100%);
+    background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-alt) 100%);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -193,7 +193,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--loader-overlay-bg);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -210,7 +210,7 @@
 }
 
 .loader-overlay.loader-transparent {
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--loader-overlay-bg-transparent);
 }
 
 .loader-content {
@@ -388,6 +388,38 @@ body.loader-active {
     40% {
         transform: scale(1);
         opacity: 1;
+    }
+}
+
+/* ==================== REDUCED MOTION ====================
+   The global reset (reset.css) halts every animation for reduced-motion users,
+   which would freeze these loaders mid-cycle and read as "broken/stuck". Loading
+   and progress indicators are exempt from reduced-motion (WCAG 2.3.3), so the
+   essential ones keep animating; only the decorative ambient pulses (globe,
+   cypher) are left to rest. */
+@media (prefers-reduced-motion: reduce) {
+    .loader-ring {
+        animation: spin 1.4s linear infinite !important;
+    }
+
+    .loader-ring::before {
+        animation: spin 2s linear infinite reverse !important;
+    }
+
+    .skeleton {
+        animation: skeleton-shimmer 1.5s ease-in-out infinite !important;
+    }
+
+    .btn-loading::after {
+        animation: spin 0.75s linear infinite !important;
+    }
+
+    .progress-bar-indeterminate .progress-bar-fill {
+        animation: progress-indeterminate 1.5s ease-in-out infinite !important;
+    }
+
+    .pulse-dot {
+        animation: pulse-dot 1.4s ease-in-out infinite both !important;
     }
 }
 

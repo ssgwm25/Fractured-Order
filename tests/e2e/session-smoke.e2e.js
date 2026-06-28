@@ -18,7 +18,7 @@ import {
     submitActionFromScribe
 } from './support/liveDemoHarness.js';
 
-test('@smoke session creation, facilitator handoff, scribe action submit, and White Cell adjudication', async ({ browser }) => {
+test('@smoke session creation, Scribe handoff, Facilitator action submit, and White Cell adjudication', async ({ browser }) => {
     const context = await browser.newContext();
     await enableE2EMockBackend(context);
 
@@ -41,7 +41,7 @@ test('@smoke session creation, facilitator handoff, scribe action submit, and Wh
         });
     });
 
-    await test.step('join as facilitator and forward an action to the scribe', async () => {
+    await test.step('join as Scribe and forward an action to the Facilitator', async () => {
         await joinPublicParticipant(page, {
             sessionCode,
             displayName: 'Blue Lead',
@@ -56,13 +56,13 @@ test('@smoke session creation, facilitator handoff, scribe action submit, and Wh
         await forwardActionToScribe(page, actionGoal);
     });
 
-    await test.step('join as scribe and submit the action to White Cell', async () => {
+    await test.step('join as Facilitator and submit the action to White Cell', async () => {
         await logoutCurrentUser(page);
         await page.waitForURL(LANDING_URL_PATTERN);
 
         await joinPublicParticipant(page, {
             sessionCode,
-            displayName: 'Blue Scribe',
+            displayName: 'Blue Facilitator',
             team: 'blue',
             roleSurface: 'scribe'
         });

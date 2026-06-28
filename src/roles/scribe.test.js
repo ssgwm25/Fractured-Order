@@ -243,7 +243,7 @@ async function loadScribeModule() {
     return import('./scribe.js');
 }
 
-describe('scribe surface', () => {
+describe('legacy scribe route and corrected Facilitator support surface', () => {
     afterEach(() => {
         vi.clearAllMocks();
         vi.restoreAllMocks();
@@ -270,7 +270,7 @@ describe('scribe surface', () => {
         }]);
     });
 
-    it('routes only the dedicated scribe seat onto the scribe surface', async () => {
+    it('routes only the legacy scribe seat onto the Facilitator support surface', async () => {
         const { getScribeAccessState } = await loadScribeModule();
         const teamContext = {
             teamId: 'blue',
@@ -299,7 +299,7 @@ describe('scribe surface', () => {
         });
     });
 
-    it('mounts a persistent role guide for the active scribe team', async () => {
+    it('mounts a persistent role guide for the active Facilitator team', async () => {
         const { ScribeController } = await loadScribeModule();
         const controller = new ScribeController();
 
@@ -309,12 +309,12 @@ describe('scribe surface', () => {
         expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
         expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
             storageKey: 'followalong:scribe:blue',
-            title: 'Blue Team Scribe guide'
+            title: 'Blue Team Facilitator guide'
         }));
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Blue Team Scribe',
+            'Blue Team Facilitator',
             'Follow move, phase, and timer',
             'Navigate the support deck',
             'Watch activity',
@@ -466,7 +466,7 @@ describe('scribe surface', () => {
             src: 'data:image/png;base64,AAA='
         }]);
         expect(showToast).toHaveBeenCalledWith({
-            message: 'Assigned scribe deck unavailable. Loaded the default team deck instead.',
+            message: 'Assigned facilitator deck unavailable. Loaded the default team deck instead.',
             type: 'warning'
         });
     });
@@ -571,7 +571,7 @@ describe('scribe surface', () => {
         expect(controller.renderSections).toHaveBeenCalled();
         expect(controller.renderSlide).toHaveBeenCalled();
         expect(showToast).toHaveBeenCalledWith({
-            message: 'The scribe support deck could not be loaded. Showing live action slides only.',
+            message: 'The facilitator support deck could not be loaded. Showing live action slides only.',
             type: 'warning'
         });
     });
@@ -718,7 +718,7 @@ describe('scribe surface', () => {
                 slideKey: 'actions-placeholder',
                 slideType: 'action-placeholder',
                 sidebarOrdinal: '0',
-                title: 'Awaiting Blue Team facilitator decisions'
+                title: 'Awaiting Blue Team scribe decisions'
             }]
         }, {
             id: 'overview',
@@ -768,8 +768,8 @@ describe('scribe surface', () => {
             team: 'blue',
             move: 1,
             phase: 1,
-            goal: 'Facilitator-only draft',
-            expected_outcomes: 'This draft has not been handed to the scribe.',
+            goal: 'Scribe-only draft',
+            expected_outcomes: 'This draft has not been handed to the facilitator.',
             mechanism: 'Economic',
             sector: 'Semiconductors',
             exposure_type: 'Supply Chain',
@@ -778,7 +778,7 @@ describe('scribe surface', () => {
             status: 'draft',
             created_at: '2026-06-15T09:55:00.000Z',
             ally_contingencies: serializeBlueActionDetails({
-                objective: 'Hold this draft inside the facilitator surface.'
+                objective: 'Hold this draft inside the scribe workspace.'
             })
         }, {
             id: 'action-draft-1',
@@ -831,7 +831,7 @@ describe('scribe surface', () => {
             slideType: 'action',
             title: 'Coordinate allied export controls',
             sidebarOrdinal: '1',
-            sidebarKicker: 'Forwarded to Scribe | Blue Team | Move 1 | Action 1'
+            sidebarKicker: 'Forwarded to Facilitator | Blue Team | Move 1 | Action 1'
         });
         expect(liveSlides.slides[1]).toMatchObject({
             slideKey: 'action-action-1',
@@ -873,7 +873,7 @@ describe('scribe surface', () => {
             slideType: 'strategic-orientation',
             title: 'Strategic Orientation: Pressure',
             sidebarOrdinal: 'SO',
-            sidebarKicker: 'Forwarded to Scribe | Pre-Move 1 | Selection'
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Selection'
         });
     });
 
@@ -972,7 +972,7 @@ describe('scribe surface', () => {
         getByTeamSpy.mockRestore();
     });
 
-    it('renders forwarded draft actions as room-ready Scribe submission slides before White Cell submission', async () => {
+    it('renders forwarded draft actions as room-ready Facilitator submission slides before White Cell submission', async () => {
         const { ScribeController } = await loadScribeModule();
         global.document = createFakeDocument();
         global.document.body.dataset.team = 'blue';
@@ -1009,18 +1009,18 @@ describe('scribe surface', () => {
             slideKey: 'action-action-draft-preview',
             slideType: 'action',
             sidebarOrdinal: '1',
-            sidebarKicker: 'Forwarded to Scribe | Blue Team | Move 1 | Action 1',
+            sidebarKicker: 'Forwarded to Facilitator | Blue Team | Move 1 | Action 1',
             action
         });
 
-        expect(html).toContain('Facilitator Action for Scribe');
-        expect(html).toContain('What Blue Team is asking the Scribe to submit');
-        expect(html).toContain('Project this action for the room, complete the scribe coordination fields, then submit it to White Cell.');
+        expect(html).toContain('Scribe Action for Facilitator');
+        expect(html).toContain('What Blue Team is asking the Facilitator to submit');
+        expect(html).toContain('Project this action for the room, complete the facilitator coordination fields, then submit it to White Cell.');
         expect(html).toContain('Draft status');
         expect(html).toContain('Draft saved');
         expect(html).toContain('Not yet submitted to White Cell');
-        expect(html).toContain('Awaiting Scribe submission');
-        expect(html).toContain('Scribe finalization');
+        expect(html).toContain('Awaiting Facilitator submission');
+        expect(html).toContain('Facilitator finalization');
         expect(html).toContain('Project Action');
         expect(html).toContain('Coordinated');
         expect(html).toContain('Informed/Engaged');
@@ -1063,7 +1063,7 @@ describe('scribe surface', () => {
             slideKey: 'action-orientation-forecast-preview',
             slideType: 'strategic-orientation',
             sidebarOrdinal: 'SO',
-            sidebarKicker: 'Forwarded to Scribe | Pre-Move 1 | Forecast',
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Forecast',
             action
         });
 
@@ -1072,7 +1072,7 @@ describe('scribe surface', () => {
         expect(html).toContain('Forecasted Blue posture');
         expect(html).toContain('Orientation at a glance');
         expect(html).toContain('Friend-shoring agreements');
-        expect(html).toContain('Scribe-to-White Cell handoff');
+        expect(html).toContain('Facilitator-to-White Cell handoff');
         expect(html).toContain('Project orientation, then send to White Cell');
         expect(html).toContain('Project Forecast');
         expect(html).toContain('Submit to White Cell');
@@ -1105,7 +1105,7 @@ describe('scribe surface', () => {
         })).toBe(true);
     });
 
-    it('submits completed action details from the scribe to White Cell', async () => {
+    it('submits completed action details from the facilitator to White Cell', async () => {
         const { ScribeController } = await loadScribeModule();
         const { actionsStore } = await import('../stores/actions.js');
         const { timelineStore } = await import('../stores/timeline.js');
@@ -1117,7 +1117,7 @@ describe('scribe surface', () => {
             team: 'blue',
             move: 1,
             phase: 2,
-            goal: 'Submit through the scribe',
+            goal: 'Submit through the facilitator',
             expected_outcomes: 'White Cell receives only the completed action.',
             mechanism: 'Economic',
             sector: 'Biotechnology',
@@ -1126,7 +1126,7 @@ describe('scribe surface', () => {
             priority: 'NORMAL',
             status: 'draft',
             ally_contingencies: serializeBlueActionDetails({
-                objective: 'Keep the scribe in the action submission loop.',
+                objective: 'Keep the facilitator in the action submission loop.',
                 levers: ['Export Controls'],
                 sectors: ['Biotechnology'],
                 implementation: 'Legislative',
@@ -1150,7 +1150,7 @@ describe('scribe surface', () => {
             id: 'timeline-scribe-submit',
             session_id: action.session_id,
             type: 'ACTION_SUBMITTED',
-            content: 'Action submitted to White Cell by Scribe: Submit through the scribe',
+            content: 'Action submitted to White Cell by Facilitator: Submit through the facilitator',
             team: 'blue',
             move: 1,
             phase: 2
@@ -1179,9 +1179,10 @@ describe('scribe surface', () => {
         expect(mockSubmitAction).toHaveBeenCalledWith('action-scribe-submit');
         expect(mockCreateTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             type: 'ACTION_SUBMITTED',
-            content: 'Action submitted to White Cell by Scribe: Submit through the scribe',
+            content: 'Action submitted to White Cell by Facilitator: Submit through the facilitator',
             metadata: expect.objectContaining({
-                submitted_by: 'scribe',
+                submitted_by: 'facilitator',
+                legacy_submitted_by: 'scribe',
                 coordinated: {
                     decision: 'Yes',
                     legislative: true,
@@ -1201,7 +1202,7 @@ describe('scribe surface', () => {
         }));
     });
 
-    it('submits Strategic Orientation drafts from Scribe to White Cell without Blue coordination rewrites', async () => {
+    it('submits Strategic Orientation drafts from Facilitator to White Cell without Blue coordination rewrites', async () => {
         const { ScribeController } = await loadScribeModule();
         const { actionsStore } = await import('../stores/actions.js');
         const { timelineStore } = await import('../stores/timeline.js');
@@ -1238,7 +1239,7 @@ describe('scribe surface', () => {
             id: 'timeline-orientation-submit',
             session_id: action.session_id,
             type: 'STRATEGIC_ORIENTATION_SUBMITTED',
-            content: 'Strategic Orientation submitted to White Cell by Scribe: Red Forecast: Blue Pressure',
+            content: 'Strategic Orientation submitted to White Cell by Facilitator: Red Forecast: Blue Pressure',
             team: 'red',
             move: 1,
             phase: 1
@@ -1257,7 +1258,8 @@ describe('scribe surface', () => {
         expect(mockCreateTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             type: 'STRATEGIC_ORIENTATION_SUBMITTED',
             metadata: expect.objectContaining({
-                submitted_by: 'scribe',
+                submitted_by: 'facilitator',
+                legacy_submitted_by: 'scribe',
                 strategic_orientation: true,
                 artifact_type: 'forecast',
                 orientation: 'pressure'
@@ -1272,8 +1274,8 @@ describe('scribe surface', () => {
     it('ships a standalone blue scribe html shell with live session state ids and requested sidebar labels', () => {
         const html = readFileSync(BLUE_SCRIBE_HTML_PATH, 'utf8');
 
-        expect(html).toContain('<title>Statecraft Sim | Blue Team Scribe</title>');
-        expect(html).toContain('content="Statecraft Sim Blue Team scribe support deck."');
+        expect(html).toContain('<title>Statecraft Sim | Blue Team Facilitator</title>');
+        expect(html).toContain('content="Statecraft Sim Blue Team facilitator support deck."');
         expect(html).toContain('data-scribe-presentation="standard"');
         expect(html).toContain('../../styles/components/badges.css');
         expect(html).toContain('../../styles/components/modals.css');
@@ -1294,7 +1296,7 @@ describe('scribe surface', () => {
         expect(html).not.toContain('scribe-section-trigger-description');
     });
 
-    it('ships every team scribe alert surface as a real keyboard dialog', () => {
+    it('ships every team facilitator alert surface as a real keyboard dialog', () => {
         for (const path of [
             BLUE_SCRIBE_HTML_PATH,
             GREEN_SCRIBE_HTML_PATH,
@@ -1310,7 +1312,7 @@ describe('scribe surface', () => {
         }
     });
 
-    it('loads the shared modal styles on every team scribe shell for logout confirmation', () => {
+    it('loads the shared modal styles on every team facilitator shell for logout confirmation', () => {
         for (const path of [
             BLUE_SCRIBE_HTML_PATH,
             GREEN_SCRIBE_HTML_PATH,
@@ -1360,7 +1362,7 @@ describe('scribe surface', () => {
         expect(config).toContain("resolve(__dirname, 'decks/industry/fractured-order-facilitator-deck.html')");
     });
 
-    it('switches the scribe surface into presentation mode without leaving the sidebar open', async () => {
+    it('switches the Facilitator support surface into presentation mode without leaving the sidebar open', async () => {
         const { setScribePresentationMode } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const presentBtn = fakeDocument.register(createFakeElement('presentBtn'));

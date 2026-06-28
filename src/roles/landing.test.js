@@ -25,6 +25,16 @@ describe('landing public role visibility', () => {
         expect(html).toContain('operatorGameMasterBtn');
     });
 
+    it('labels the legacy facilitator and scribe join surfaces with corrected semantics', () => {
+        const html = readFileSync(LANDING_HTML_PATH, 'utf8');
+
+        expect(html).toContain('data-role-surface="facilitator"');
+        expect(html).toContain('aria-label="Scribe, one seat per team, records and forwards team decisions"');
+        expect(html).toContain('data-role-surface="scribe"');
+        expect(html).toContain('aria-label="Facilitator, one seat per team, opens the support slide deck"');
+        expect(html).toContain('Scribe and Facilitator are single-seat roles.');
+    });
+
     it('opens directly on the login page with no boot loading screen', () => {
         const html = readFileSync(LANDING_HTML_PATH, 'utf8');
 

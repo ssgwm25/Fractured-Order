@@ -309,7 +309,7 @@ describe('landing secure join flow', () => {
 
         expect(elements.roleSelectionGroup.attributes['aria-invalid']).toBe('true');
         expect(elements.roleSelectionError.hidden).toBe(false);
-        expect(elements.roleSelectionError.textContent).toBe('Choose Facilitator, Scribe, or Notetaker to join as a participant.');
+        expect(elements.roleSelectionError.textContent).toBe('Choose Scribe, Facilitator, or Notetaker to join as a participant.');
         expect(firstRoleButton.focus).toHaveBeenCalled();
         expect(mockDatabase.lookupJoinableSessionByCode).not.toHaveBeenCalled();
     });

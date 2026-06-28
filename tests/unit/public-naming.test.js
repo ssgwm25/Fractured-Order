@@ -68,23 +68,43 @@ describe('public naming', () => {
             },
             {
                 path: '../../teams/blue/facilitator.html',
-                title: 'Statecraft Sim | Blue Team Facilitator',
-                description: 'Statecraft Sim Blue Team facilitator interface.'
+                title: 'Statecraft Sim | Blue Team Scribe',
+                description: 'Statecraft Sim Blue Team scribe workspace.'
             },
             {
                 path: '../../teams/red/facilitator.html',
-                title: 'Statecraft Sim | Red Team Facilitator',
-                description: 'Statecraft Sim Red Team facilitator interface.'
+                title: 'Statecraft Sim | Red Team Scribe',
+                description: 'Statecraft Sim Red Team scribe workspace.'
             },
             {
                 path: '../../teams/green/facilitator.html',
-                title: 'Statecraft Sim | Green Team Facilitator',
-                description: 'Statecraft Sim Green Team facilitator interface.'
+                title: 'Statecraft Sim | Green Team Scribe',
+                description: 'Statecraft Sim Green Team scribe workspace.'
             },
             {
                 path: '../../teams/industry/facilitator.html',
+                title: 'Statecraft Sim | Industry Team Scribe',
+                description: 'Statecraft Sim Industry Team scribe workspace.'
+            },
+            {
+                path: '../../teams/blue/scribe.html',
+                title: 'Statecraft Sim | Blue Team Facilitator',
+                description: 'Statecraft Sim Blue Team facilitator support deck.'
+            },
+            {
+                path: '../../teams/red/scribe.html',
+                title: 'Statecraft Sim | Red Team Facilitator',
+                description: 'Statecraft Sim Red Team facilitator support deck.'
+            },
+            {
+                path: '../../teams/green/scribe.html',
+                title: 'Statecraft Sim | Green Team Facilitator',
+                description: 'Statecraft Sim Green Team facilitator support deck.'
+            },
+            {
+                path: '../../teams/industry/scribe.html',
                 title: 'Statecraft Sim | Industry Team Facilitator',
-                description: 'Statecraft Sim Industry Team facilitator interface.'
+                description: 'Statecraft Sim Industry Team facilitator support deck.'
             },
             {
                 path: '../../teams/blue/notetaker.html',

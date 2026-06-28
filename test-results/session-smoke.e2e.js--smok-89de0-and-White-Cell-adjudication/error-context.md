@@ -1,0 +1,102 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Scribe
+        - 'img "Connection status: Connected" [ref=e8]'
+      - generic [ref=e9]:
+        - 'generic "Current exercise state: Strategic Orientation, Pre-Move 1." [ref=e10]':
+          - generic [ref=e11]:
+            - generic [ref=e12]: State
+            - generic [ref=e13]: Strategic Orientation
+          - generic [ref=e14]:
+            - generic [ref=e15]: Period
+            - generic "Pre-Move 1" [ref=e16]
+        - generic [ref=e17]:
+          - generic [ref=e18]: 90:00
+          - generic [ref=e19]: Paused
+      - button "Logout" [ref=e22] [cursor=pointer]
+    - complementary [ref=e23]:
+      - button "Collapse sidebar" [expanded] [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+      - navigation [ref=e27]:
+        - list [ref=e28]:
+          - listitem [ref=e29]: Navigation
+          - listitem [ref=e30]:
+            - link "Actions 0" [ref=e31] [cursor=pointer]:
+              - /url: "#actions"
+              - img [ref=e33]
+              - generic [ref=e35]: Actions
+              - generic [ref=e36]: "0"
+          - listitem [ref=e37]:
+            - link "RFIs 0" [ref=e38] [cursor=pointer]:
+              - /url: "#requests"
+              - img [ref=e40]
+              - generic [ref=e42]: RFIs
+              - generic [ref=e43]: "0"
+          - listitem [ref=e44]:
+            - link "Responses" [ref=e45] [cursor=pointer]:
+              - /url: "#responses"
+              - img [ref=e47]
+              - generic [ref=e49]: Responses
+          - listitem [ref=e50]:
+            - link "Received Proposals" [ref=e51] [cursor=pointer]:
+              - /url: "#receivedProposals"
+              - img [ref=e53]
+              - generic [ref=e56]: Received Proposals
+          - listitem [ref=e57]:
+            - link "Tribe Street Journal" [ref=e58] [cursor=pointer]:
+              - /url: "#tribeStreetJournal"
+              - img [ref=e60]
+              - generic [ref=e63]: Tribe Street Journal
+          - listitem [ref=e64]:
+            - link "Verba AI Population Sentiments" [ref=e65] [cursor=pointer]:
+              - /url: "#verbaAi"
+              - img [ref=e67]
+              - generic [ref=e69]: Verba AI Population Sentiments
+          - listitem [ref=e70]:
+            - link "Timeline" [ref=e71] [cursor=pointer]:
+              - /url: "#timeline"
+              - img [ref=e73]
+              - generic [ref=e75]: Timeline
+          - listitem [ref=e76]
+          - listitem [ref=e77]:
+            - link "Quick Capture" [ref=e78] [cursor=pointer]:
+              - /url: "#capture"
+              - img [ref=e80]
+              - generic [ref=e82]: Quick Capture
+      - region "Blue Team Scribe guide tour" [ref=e83]:
+        - button "Blue Team Scribe guide 1 / 11" [expanded] [ref=e84] [cursor=pointer]:
+          - generic [ref=e85]: Blue Team Scribe guide
+          - generic [ref=e86]: 1 / 11
+          - img [ref=e88]
+        - generic [ref=e90]:
+          - heading "Blue Team Scribe" [level=4] [ref=e91]
+          - paragraph [ref=e92]: Use this workspace to record Blue Team decisions, prepare actions, ask White Cell for clarification, review incoming updates, capture observations, and track the session record.
+          - generic [ref=e105]:
+            - button "Collapse" [ref=e106] [cursor=pointer]
+            - button "Back" [disabled] [ref=e107]
+            - button "Next" [ref=e108] [cursor=pointer]
+      - generic [ref=e109]:
+        - generic [ref=e110]: Session
+        - generic [ref=e111]: Smoke Session Alpha
+    - main [ref=e112]:
+      - generic [ref=e114]:
+        - generic [ref=e115]:
+          - generic [ref=e116]:
+            - heading "Strategic Actions" [level=2] [ref=e117]
+            - paragraph [ref=e118]: Draft actions, forward them to the Facilitator, and track White Cell deliberation after facilitator submission.
+          - generic [ref=e119]:
+            - button "Strategic Orientation" [ref=e120] [cursor=pointer]
+            - button "Take Action" [active] [ref=e121] [cursor=pointer]
+        - generic [ref=e124]:
+          - img [ref=e126]
+          - heading "No Actions Yet" [level=3] [ref=e128]
+          - paragraph [ref=e129]: Create your first strategic action to start the scribe-to-facilitator review flow.
+  - region "Notifications"
+```

@@ -366,6 +366,122 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.timerStatus.textContent).toBe('Paused');
     });
 
+    it('renders registered plugin controls disabled by default', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(['pluginSettingsList', 'whiteCellPluginMounts']);
+        global.document = fakeDocument;
+
+        const controller = new WhiteCellController();
+        controller.renderPluginSettings();
+
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).toContain('Intercom');
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).toContain('Session Recorder');
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).toContain('data-plugin-id="intercom"');
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).toContain('data-plugin-id="session-recorder"');
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).toContain('Disabled');
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).not.toContain('checked');
+    });
+
+    it('persists plugin toggles through game state and updates the panel immediately', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { gameStateStore } = await import('../stores/gameState.js');
+        const fakeDocument = createFakeDocument(['pluginSettingsList', 'whiteCellPluginMounts']);
+        global.document = fakeDocument;
+
+        const setPluginEnabled = vi.spyOn(gameStateStore, 'setPluginEnabled').mockResolvedValue({
+            plugin_state: {
+                intercom: { enabled: true },
+                'session-recorder': { enabled: false }
+            }
+        });
+
+        const controller = new WhiteCellController();
+        await controller.handlePluginToggle({
+            checked: true,
+            dataset: {
+                pluginId: 'intercom'
+            }
+        });
+
+        expect(setPluginEnabled).toHaveBeenCalledWith('intercom', true);
+        expect(controller.pluginState.intercom.enabled).toBe(true);
+        expect(controller.pluginState['session-recorder'].enabled).toBe(false);
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).toContain('Enabled');
+        expect(fakeDocument.elements.pluginSettingsList.innerHTML).toContain('checked');
+        expect(showToast).toHaveBeenCalledWith({ message: 'Intercom enabled.', type: 'success' });
+    });
+
+    it('prompts before disabling Session Recorder when shared state reports active recording', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { gameStateStore } = await import('../stores/gameState.js');
+        const fakeDocument = createFakeDocument(['pluginSettingsList', 'whiteCellPluginMounts']);
+        global.document = fakeDocument;
+        const setPluginEnabled = vi.spyOn(gameStateStore, 'setPluginEnabled').mockResolvedValue(null);
+        confirmModal.mockResolvedValue(false);
+
+        const controller = new WhiteCellController();
+        controller.pluginState = {
+            intercom: { enabled: false },
+            'session-recorder': {
+                enabled: true,
+                recording_status: 'recording',
+                recording_id: 'recording-1',
+                recording_started_at_utc: '2026-06-03T10:04:00.000Z'
+            }
+        };
+        const toggle = {
+            checked: false,
+            dataset: {
+                pluginId: 'session-recorder'
+            }
+        };
+
+        await controller.handlePluginToggle(toggle);
+
+        expect(confirmModal).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Stop active recording?',
+            confirmLabel: 'Stop And Disable',
+            cancelLabel: 'Keep Recording'
+        }));
+        expect(toggle.checked).toBe(true);
+        expect(setPluginEnabled).not.toHaveBeenCalled();
+    });
+
+    it('mounts only enabled plugins from registered game-state visibility', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(['pluginSettingsList', 'whiteCellPluginMounts']);
+        global.document = fakeDocument;
+
+        const controller = new WhiteCellController();
+        controller.syncGameStateFromStore({
+            move: 1,
+            phase: 1,
+            timer_seconds: 5400,
+            timer_running: false,
+            plugin_state: {
+                intercom: { enabled: true },
+                'session-recorder': { enabled: false }
+            }
+        });
+
+        expect(controller.mountedPlugins.has('intercom')).toBe(true);
+        expect(controller.mountedPlugins.has('session-recorder')).toBe(false);
+
+        controller.syncGameStateFromStore({
+            move: 1,
+            phase: 1,
+            timer_seconds: 5400,
+            timer_running: false,
+            plugin_state: {
+                intercom: { enabled: false },
+                'session-recorder': { enabled: false }
+            }
+        });
+
+        expect(controller.mountedPlugins.has('intercom')).toBe(false);
+        expect(controller.mountedPlugins.has('session-recorder')).toBe(false);
+    });
+
     it('saves White Cell timer allocations as seconds for each game-state mark', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { gameStateStore } = await import('../stores/gameState.js');
@@ -666,11 +782,11 @@ describe('White Cell DOM contract', () => {
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
         expect(guide.steps[3].body).toContain('live sessions');
         expect(guide.steps[3].body).toContain('participant rosters');
-        expect(guide.steps[3].body).toContain('scribe deck assignments');
+        expect(guide.steps[3].body).toContain('facilitator deck assignments');
         expect(guide.steps[3].body).toContain('export controls');
     });
 
-    it('renders default scribe deck controls before live communication sync finishes', async () => {
+    it('renders default facilitator deck controls before live communication sync finishes', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');
         const { sessionStore } = await import('../stores/session.js');
@@ -693,9 +809,9 @@ describe('White Cell DOM contract', () => {
         });
         vi.spyOn(syncService, 'initialize').mockImplementation(async () => {
             expect(fakeDocument.elements.scribeDeckSettingsSummary.textContent).toBe(
-                "Set the slide deck each team's scribe presents."
+                "Set the slide deck each team's facilitator presents."
             );
-            expect(fakeDocument.elements.scribeDeckSettingsList.innerHTML).toContain('Blue Team Scribe');
+            expect(fakeDocument.elements.scribeDeckSettingsList.innerHTML).toContain('Blue Team Facilitator');
             expect(fakeDocument.elements.scribeDeckSettingsList.innerHTML).toContain('data-scribe-deck-action="load"');
         });
 
@@ -872,17 +988,17 @@ describe('White Cell DOM contract', () => {
             { value: 'red', label: 'Red Team' },
             { value: 'green', label: 'Green Team' },
             { value: 'industry', label: 'Industry Team' },
-            { value: 'blue_facilitator', label: 'Blue Team Facilitator' },
-            { value: 'blue_scribe', label: 'Blue Team Scribe' },
+            { value: 'blue_facilitator', label: 'Blue Team Scribe' },
+            { value: 'blue_scribe', label: 'Blue Team Facilitator' },
             { value: 'red_notetaker', label: 'Red Team Notetaker' },
-            { value: 'green_facilitator', label: 'Green Team Facilitator' },
-            { value: 'industry_facilitator', label: 'Industry Team Facilitator' },
-            { value: 'industry_scribe', label: 'Industry Team Scribe' },
+            { value: 'green_facilitator', label: 'Green Team Scribe' },
+            { value: 'industry_facilitator', label: 'Industry Team Scribe' },
+            { value: 'industry_scribe', label: 'Industry Team Facilitator' },
             { value: 'industry_notetaker', label: 'Industry Team Notetaker' }
         ]));
     });
 
-    it('loads a validated deck into the requested team scribe seat through shared communications', async () => {
+    it('loads a validated deck into the requested team facilitator seat through shared communications', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');
         const { sessionStore } = await import('../stores/session.js');
@@ -931,7 +1047,7 @@ describe('White Cell DOM contract', () => {
             from_role: 'white_cell',
             to_role: 'blue_scribe',
             type: 'GUIDANCE',
-            content: 'White Cell loaded "Blue Crisis Deck" into Blue Team Scribe (decks/blue/custom-scribe-deck.html).',
+            content: 'White Cell loaded "Blue Crisis Deck" into Blue Team Facilitator (decks/blue/custom-scribe-deck.html).',
             metadata: expect.objectContaining({
                 content_kind: 'SCRIBE_DECK_ASSIGNMENT',
                 deck_path: 'decks/blue/custom-scribe-deck.html',
@@ -948,7 +1064,7 @@ describe('White Cell DOM contract', () => {
         expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             session_id: 'session-42',
             type: 'GUIDANCE',
-            content: 'White Cell loaded Blue Crisis Deck into Blue Team Scribe',
+            content: 'White Cell loaded Blue Crisis Deck into Blue Team Facilitator',
             team: 'white_cell',
             move: 2,
             phase: 1,
@@ -961,10 +1077,10 @@ describe('White Cell DOM contract', () => {
             })
         }));
         expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-scribe-1' }));
-        expect(showToast).toHaveBeenCalledWith({ message: 'Blue Team scribe deck updated.', type: 'success' });
+        expect(showToast).toHaveBeenCalledWith({ message: 'Blue Team facilitator deck updated.', type: 'success' });
     });
 
-    it('fails closed and hides the loader when scribe deck validation stalls', async () => {
+    it('fails closed and hides the loader when facilitator deck validation stalls', async () => {
         vi.useFakeTimers();
 
         const {
@@ -990,7 +1106,7 @@ describe('White Cell DOM contract', () => {
         const assignmentPromise = controller.handleScribeDeckAssignmentSubmit('blue');
 
         expect(showLoader).toHaveBeenCalledWith({
-            message: 'Loading Blue Team scribe deck...'
+            message: 'Loading Blue Team facilitator deck...'
         });
 
         await vi.advanceTimersByTimeAsync(WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS);
@@ -998,13 +1114,13 @@ describe('White Cell DOM contract', () => {
 
         expect(createCommunication).not.toHaveBeenCalled();
         expect(showToast).toHaveBeenCalledWith({
-            message: 'Scribe deck validation timed out. Check the deck path and try again.',
+            message: 'Facilitator deck validation timed out. Check the deck path and try again.',
             type: 'error'
         });
         expect(hideLoader).toHaveBeenCalledTimes(1);
     });
 
-    it('uploads a browser-cached deck into the requested team scribe seat through shared communications', async () => {
+    it('uploads a browser-cached deck into the requested team facilitator seat through shared communications', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');
         const { sessionStore } = await import('../stores/session.js');
@@ -1061,7 +1177,7 @@ describe('White Cell DOM contract', () => {
             from_role: 'white_cell',
             to_role: 'blue_scribe',
             type: 'GUIDANCE',
-            content: 'White Cell uploaded "Uploaded Crisis Deck" to Blue Team Scribe (blue-upload.html).',
+            content: 'White Cell uploaded "Uploaded Crisis Deck" to Blue Team Facilitator (blue-upload.html).',
             metadata: expect.objectContaining({
                 content_kind: 'SCRIBE_DECK_ASSIGNMENT',
                 deck_source: 'browser_upload',
@@ -1080,7 +1196,7 @@ describe('White Cell DOM contract', () => {
         expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             session_id: 'session-42',
             type: 'GUIDANCE',
-            content: 'White Cell uploaded Uploaded Crisis Deck to Blue Team Scribe',
+            content: 'White Cell uploaded Uploaded Crisis Deck to Blue Team Facilitator',
             team: 'white_cell',
             move: 3,
             phase: 2,
@@ -1093,10 +1209,10 @@ describe('White Cell DOM contract', () => {
             })
         }));
         expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-scribe-upload-1' }));
-        expect(showToast).toHaveBeenCalledWith({ message: 'Blue Team scribe slides uploaded.', type: 'success' });
+        expect(showToast).toHaveBeenCalledWith({ message: 'Blue Team facilitator slides uploaded.', type: 'success' });
     });
 
-    it('keeps the latest scribe deck assignment for each team in White Cell settings', async () => {
+    it('keeps the latest facilitator deck assignment for each team in White Cell settings', async () => {
         const { buildWhiteCellScribeDeckAssignments } = await loadWhiteCellModule();
 
         const assignments = buildWhiteCellScribeDeckAssignments([
@@ -1216,8 +1332,8 @@ describe('White Cell DOM contract', () => {
         expect(teamOptions.map((option) => option.value)).not.toContain('white_cell');
         expect(roleOptions).toEqual(expect.arrayContaining([
             { value: '', label: 'All Roles' },
-            { value: 'facilitator', label: 'Facilitators' },
-            { value: 'scribe', label: 'Scribes' },
+            { value: 'facilitator', label: 'Scribes' },
+            { value: 'scribe', label: 'Facilitators' },
             { value: 'notetaker', label: 'Notetakers' }
         ]));
         expect(roleOptions.map((option) => option.value)).not.toContain('whitecell');
@@ -1311,7 +1427,7 @@ describe('White Cell DOM contract', () => {
         ]));
         expect(roleOptions).toEqual(expect.arrayContaining([
             { value: '', label: 'All Roles' },
-            { value: 'facilitator', label: 'Facilitators' },
+            { value: 'facilitator', label: 'Scribes' },
             { value: 'notetaker', label: 'Notetakers' },
             { value: 'whitecell', label: 'White Cell' }
         ]));

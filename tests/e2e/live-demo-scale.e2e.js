@@ -41,7 +41,7 @@ test('@live-demo larger exercise seeded records keep operator and team views usa
 
         await joinPublicParticipant(blueFacilitator, {
             sessionCode: SESSION_CODE,
-            displayName: 'Scale Blue Facilitator',
+            displayName: 'Scale Blue Scribe',
             team: 'blue',
             roleSurface: 'facilitator'
         });

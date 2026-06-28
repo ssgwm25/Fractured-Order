@@ -35,13 +35,13 @@ const WHITE_CELL_OPERATOR_ROLES = Object.freeze({
 const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
     {
         actorName: `${team.id}-facilitator-matrix`,
-        displayName: `${team.shortLabel} Facilitator Matrix`,
+        displayName: `${team.shortLabel} Scribe Matrix`,
         teamId: team.id,
         roleSurface: ROLE_SURFACES.FACILITATOR
     },
     {
         actorName: `${team.id}-scribe-matrix`,
-        displayName: `${team.shortLabel} Scribe Matrix`,
+        displayName: `${team.shortLabel} Facilitator Matrix`,
         teamId: team.id,
         roleSurface: ROLE_SURFACES.SCRIBE
     },
@@ -85,7 +85,7 @@ async function expectRoleSurface(page, roleCase) {
 
     if (roleCase.roleSurface === ROLE_SURFACES.FACILITATOR) {
         await expect(page).toHaveURL(new RegExp(`/teams/${roleCase.teamId}/facilitator\\.html(?:\\?.*)?$`));
-        await expect(page.locator('#sessionRoleLabel')).toHaveText('Facilitator');
+        await expect(page.locator('#sessionRoleLabel')).toHaveText('Scribe');
         await expect(page.locator('body')).toHaveAttribute('data-facilitator-mode', 'facilitator');
         await expect(page.locator('#newActionBtn')).toBeVisible();
         return;
@@ -93,7 +93,7 @@ async function expectRoleSurface(page, roleCase) {
 
     if (roleCase.roleSurface === ROLE_SURFACES.SCRIBE) {
         await expect(page).toHaveURL(new RegExp(`/teams/${roleCase.teamId}/scribe\\.html(?:\\?.*)?$`));
-        await expect(page.locator('#sessionRoleLabel')).toHaveText('Scribe');
+        await expect(page.locator('#sessionRoleLabel')).toHaveText('Facilitator');
         await expect(page.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
         await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready');
         await expect(page.locator('#scribeSectionList')).toContainText('Actions');

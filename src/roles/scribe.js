@@ -243,16 +243,16 @@ function buildActionPlaceholderSlide({
     return {
         slideKey: 'actions-placeholder',
         slideType: 'action-placeholder',
-        title: `Awaiting ${teamLabel} facilitator decisions`,
+        title: `Awaiting ${teamLabel} scribe decisions`,
         sidebarOrdinal: '0',
         sidebarKicker: 'No live action slides yet',
-        summary: 'Facilitator-forwarded drafts, scribe submissions, and White Cell updates will appear here as follow-along briefing slides for the team scribe.'
+        summary: 'Scribe-forwarded drafts, facilitator submissions, and White Cell updates will appear here as follow-along briefing slides for the team facilitator.'
     };
 }
 
 function getActionSlideLifecycleLabel(action = {}) {
     if (isDraftAction(action)) {
-        return 'Forwarded to Scribe';
+        return 'Forwarded to Facilitator';
     }
 
     if (isAdjudicatedAction(action)) {
@@ -328,7 +328,7 @@ function buildActionSection(actions = [], {
     return {
         id: ACTIONS_SECTION_ID,
         label: 'Actions',
-        description: 'Live facilitator-forwarded drafts, scribe submissions, and White Cell deliberation updates for the scribe seat.',
+        description: 'Live scribe-forwarded drafts, facilitator submissions, and White Cell deliberation updates for the facilitator seat.',
         slideCount: actionSlides.slideCount,
         slides: actionSlides.slides
     };
@@ -583,7 +583,7 @@ export class ScribeController {
     }
 
     async init() {
-        logger.info('Initializing scribe interface');
+        logger.info('Initializing Facilitator support deck');
 
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {
@@ -608,7 +608,7 @@ export class ScribeController {
         if (!accessState.allowed) {
             const message = accessState.reason === 'observer-team-mismatch'
                 ? 'Observer access is limited to the team selected when you joined the session.'
-                : `This page is only available to the ${this.teamLabel} Scribe role.`;
+                : `This page is only available to the ${this.teamContext.scribeLabel} role.`;
 
             showToast({
                 message,
@@ -628,7 +628,7 @@ export class ScribeController {
         this.syncActionsFromStore();
         this.mountFollowAlongOnboarding();
 
-        logger.info('Scribe interface initialized');
+        logger.info('Facilitator support deck initialized');
     }
 
     mountFollowAlongOnboarding() {
@@ -679,11 +679,11 @@ export class ScribeController {
         const headerTitle = document.querySelector('.header-title');
 
         if (roleLabel) {
-            roleLabel.textContent = 'Scribe';
+            roleLabel.textContent = 'Facilitator';
         }
 
         if (headerTitle) {
-            headerTitle.textContent = `Statecraft Sim | ${this.teamLabel} Scribe`;
+            headerTitle.textContent = `Statecraft Sim | ${this.teamLabel} Facilitator`;
         }
     }
 
@@ -748,7 +748,7 @@ export class ScribeController {
             const projectButton = event.target.closest('[data-scribe-action-project]');
             if (projectButton) {
                 this.projectScribeAction(projectButton.dataset.actionId || '').catch((error) => {
-                    logger.error('Failed to project scribe action:', error);
+                    logger.error('Failed to project facilitator action:', error);
                 });
                 return;
             }
@@ -757,7 +757,7 @@ export class ScribeController {
             if (submitButton) {
                 const panel = submitButton.closest('[data-scribe-action-submit-panel]');
                 this.confirmSubmitScribeAction(submitButton.dataset.actionId || '', panel).catch((error) => {
-                    logger.error('Failed to submit scribe action:', error);
+                    logger.error('Failed to submit facilitator action:', error);
                 });
             }
         });
@@ -1003,7 +1003,7 @@ export class ScribeController {
         } else if (isSubmittedAction(action)) {
             title = 'Action submitted to White Cell';
         } else if (isDraftAction(action)) {
-            title = isNewAction ? 'Action forwarded by Facilitator' : 'Facilitator action updated';
+            title = isNewAction ? 'Action forwarded by Scribe' : 'Scribe action updated';
         } else {
             title = 'Action updated';
         }
@@ -1056,7 +1056,7 @@ export class ScribeController {
             };
         }
 
-        // A White Cell communication addressed to this scribe (deck assignments excluded)
+        // A White Cell communication addressed to this facilitator surface (deck assignments excluded)
         if (
             isWhiteCellCommunicationVisibleToScribe(communication, this.teamContext)
             && !getScribeDeckAssignmentDetails(communication)
@@ -1322,8 +1322,8 @@ export class ScribeController {
         this.renderDeckState({
             title: `Loading ${deckLabel || 'support deck'}`,
             message: requestedDeckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                ? `Pulling ${deckLabel || 'the uploaded support deck'} from browser cache and live team decisions into the scribe surface.`
-                : `Pulling ${deckLabel || 'the assigned support deck'} and live team decisions into the scribe surface.`
+                ? `Pulling ${deckLabel || 'the uploaded support deck'} from browser cache and live team decisions into the facilitator surface.`
+                : `Pulling ${deckLabel || 'the assigned support deck'} and live team decisions into the facilitator surface.`
         });
 
         try {
@@ -1337,7 +1337,7 @@ export class ScribeController {
 
                     this.facilitatorDeckSlides = uploadedDeck.slides;
                 } catch (error) {
-                    logger.warn('Assigned uploaded scribe deck unavailable in this browser, falling back to the team default deck.', {
+                    logger.warn('Assigned uploaded facilitator deck unavailable in this browser, falling back to the team default deck.', {
                         deckStorageKey,
                         fallbackDeckPath: defaultDeckPath,
                         error
@@ -1358,13 +1358,13 @@ export class ScribeController {
                         throw error;
                     }
 
-                    logger.warn('Assigned scribe deck unavailable, falling back to the team default deck.', {
+                    logger.warn('Assigned facilitator deck unavailable, falling back to the team default deck.', {
                         requestedDeckPath,
                         fallbackDeckPath: defaultDeckPath,
                         error
                     });
                     showToast({
-                        message: 'Assigned scribe deck unavailable. Loaded the default team deck instead.',
+                        message: 'Assigned facilitator deck unavailable. Loaded the default team deck instead.',
                         type: 'warning'
                     });
                     this.facilitatorDeckSlides = await fetchScribeDeckSlides(defaultDeckPath);
@@ -1376,7 +1376,7 @@ export class ScribeController {
             this.renderSections();
             this.renderSlide();
         } catch (error) {
-            logger.error('Failed to load scribe deck:', error);
+            logger.error('Failed to load facilitator deck:', error);
             this.facilitatorDeckSlides = [];
             this.rebuildDeck({
                 preferActionsSection: true
@@ -1387,7 +1387,7 @@ export class ScribeController {
                 this.renderSections();
                 this.renderSlide();
                 showToast({
-                    message: 'The scribe support deck could not be loaded. Showing live action slides only.',
+                    message: 'The facilitator support deck could not be loaded. Showing live action slides only.',
                     type: 'warning'
                 });
                 return;
@@ -1399,7 +1399,7 @@ export class ScribeController {
                 message: error.message || 'The assigned support deck could not be loaded for this seat.'
             });
             showToast({
-                message: 'The scribe support deck could not be loaded.',
+                message: 'The facilitator support deck could not be loaded.',
                 type: 'error'
             });
         }
@@ -1621,7 +1621,7 @@ export class ScribeController {
         if (!slide) {
             this.renderDeckState({
                 title: 'No support slides found',
-                message: 'The scribe section mapping did not resolve any slides from the facilitator deck.'
+                message: 'The facilitator section mapping did not resolve any slides from the support deck.'
             });
             this.setDeckState('error');
             return;
@@ -1693,11 +1693,11 @@ export class ScribeController {
                 class="scribe-action-slide-submit-panel"
                 data-scribe-action-submit-panel
                 data-action-id="${escapeHtml(actionId)}"
-                aria-label="Scribe Strategic Orientation submission controls"
+                aria-label="Facilitator Strategic Orientation submission controls"
             >
                 <div class="scribe-action-slide-submit-head">
                     <div>
-                        <p class="scribe-action-slide-section-label">Scribe-to-White Cell handoff</p>
+                        <p class="scribe-action-slide-section-label">Facilitator-to-White Cell handoff</p>
                         <h3 class="scribe-action-slide-submit-title">Project orientation, then send to White Cell</h3>
                     </div>
                     <button
@@ -1758,11 +1758,11 @@ export class ScribeController {
                 class="scribe-action-slide-submit-panel"
                 data-scribe-action-submit-panel
                 data-action-id="${escapeHtml(actionId)}"
-                aria-label="Scribe action submission controls"
+                aria-label="Facilitator action submission controls"
             >
                 <div class="scribe-action-slide-submit-head">
                     <div>
-                        <p class="scribe-action-slide-section-label">Scribe finalization</p>
+                        <p class="scribe-action-slide-section-label">Facilitator finalization</p>
                         <h3 class="scribe-action-slide-submit-title">Project, coordinate, and submit</h3>
                     </div>
                     <button
@@ -1951,25 +1951,25 @@ export class ScribeController {
     async confirmSubmitScribeAction(actionId = '', panel = null) {
         const action = this.teamActions.find((candidate) => candidate?.id === actionId);
         if (!action) {
-            showToast({ message: 'Action not found. Refresh the scribe view and try again.', type: 'error' });
+            showToast({ message: 'Action not found. Refresh the facilitator view and try again.', type: 'error' });
             return;
         }
 
         if (!isDraftAction(action)) {
-            showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
+            showToast({ message: 'Only scribe-forwarded draft actions can be submitted by the facilitator.', type: 'error' });
             return;
         }
 
         if (isStrategicOrientationAction(action)) {
             if (!isStrategicOrientationForwardedToScribe(action)) {
-                showToast({ message: 'Only facilitator-forwarded Strategic Orientation drafts can be submitted by the scribe.', type: 'error' });
+                showToast({ message: 'Only scribe-forwarded Strategic Orientation drafts can be submitted by the facilitator.', type: 'error' });
                 return;
             }
 
             const viewModel = getStrategicOrientationViewModel(action);
             const confirmed = await confirmModal({
                 title: 'Submit Strategic Orientation to White Cell',
-                message: `Submit ${viewModel.title} to White Cell? The artifact will become read-only for facilitator and scribe seats.`,
+                message: `Submit ${viewModel.title} to White Cell? The artifact will become read-only for Scribe and Facilitator seats.`,
                 confirmLabel: 'Submit',
                 variant: 'primary'
             });
@@ -1983,7 +1983,7 @@ export class ScribeController {
         }
 
         if (!isBlueActionForwardedToScribe(action)) {
-            showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
+            showToast({ message: 'Only scribe-forwarded draft actions can be submitted by the facilitator.', type: 'error' });
             return;
         }
 
@@ -1995,7 +1995,7 @@ export class ScribeController {
 
         const confirmed = await confirmModal({
             title: 'Submit Action to White Cell',
-            message: 'Submit this completed action to White Cell? The action will become read-only for facilitator and scribe seats.',
+            message: 'Submit this completed action to White Cell? The action will become read-only for Scribe and Facilitator seats.',
             confirmLabel: 'Submit',
             variant: 'primary'
         });
@@ -2014,7 +2014,7 @@ export class ScribeController {
         }
 
         if (!isDraftAction(action) || !isBlueActionForwardedToScribe(action)) {
-            showToast({ message: 'Only facilitator-forwarded draft actions can be submitted by the scribe.', type: 'error' });
+            showToast({ message: 'Only scribe-forwarded draft actions can be submitted by the facilitator.', type: 'error' });
             return;
         }
 
@@ -2033,11 +2033,12 @@ export class ScribeController {
             const timelineEvent = await database.createTimelineEvent({
                 session_id: submittedAction.session_id || action.session_id,
                 type: 'ACTION_SUBMITTED',
-                content: `Action submitted to White Cell by Scribe: ${submittedAction.goal || action.goal || 'Untitled action'}`,
+                content: `Action submitted to White Cell by Facilitator: ${submittedAction.goal || action.goal || 'Untitled action'}`,
                 metadata: {
                     related_id: submittedAction.id || action.id,
                     role: this.role || this.teamContext.scribeRole,
-                    submitted_by: 'scribe',
+                    submitted_by: 'facilitator',
+                    legacy_submitted_by: 'scribe',
                     ...buildScribeSubmissionMetadata(selections)
                 },
                 team: this.teamId,
@@ -2048,8 +2049,8 @@ export class ScribeController {
 
             showToast({ message: 'Action submitted to White Cell', type: 'success' });
         } catch (error) {
-            logger.error('Failed to submit scribe action:', error);
-            showToast({ message: 'Failed to submit action. Refresh the scribe view and try again.', type: 'error' });
+            logger.error('Failed to submit facilitator action:', error);
+            showToast({ message: 'Failed to submit action. Refresh the facilitator view and try again.', type: 'error' });
         } finally {
             hideLoader();
         }
@@ -2057,7 +2058,7 @@ export class ScribeController {
 
     async submitScribeStrategicOrientation(action = {}) {
         if (!isDraftAction(action) || !isStrategicOrientationForwardedToScribe(action)) {
-            showToast({ message: 'Only facilitator-forwarded Strategic Orientation drafts can be submitted by the scribe.', type: 'error' });
+            showToast({ message: 'Only scribe-forwarded Strategic Orientation drafts can be submitted by the facilitator.', type: 'error' });
             return;
         }
 
@@ -2071,11 +2072,12 @@ export class ScribeController {
             const timelineEvent = await database.createTimelineEvent({
                 session_id: submittedAction.session_id || action.session_id,
                 type: 'STRATEGIC_ORIENTATION_SUBMITTED',
-                content: `Strategic Orientation submitted to White Cell by Scribe: ${submittedAction.goal || action.goal || viewModel.title}`,
+                content: `Strategic Orientation submitted to White Cell by Facilitator: ${submittedAction.goal || action.goal || viewModel.title}`,
                 metadata: {
                     related_id: submittedAction.id || action.id,
                     role: this.role || this.teamContext.scribeRole,
-                    submitted_by: 'scribe',
+                    submitted_by: 'facilitator',
+                    legacy_submitted_by: 'scribe',
                     strategic_orientation: true,
                     period: STRATEGIC_ORIENTATION_PERIOD,
                     artifact_type: viewModel.artifactType,
@@ -2090,7 +2092,7 @@ export class ScribeController {
             showToast({ message: 'Strategic Orientation submitted to White Cell', type: 'success' });
         } catch (error) {
             logger.error('Failed to submit Strategic Orientation:', error);
-            showToast({ message: 'Failed to submit Strategic Orientation. Refresh the scribe view and try again.', type: 'error' });
+            showToast({ message: 'Failed to submit Strategic Orientation. Refresh the facilitator view and try again.', type: 'error' });
         } finally {
             hideLoader();
         }
@@ -2118,8 +2120,8 @@ export class ScribeController {
             : `${viewModel.teamLabel} selected ${viewModel.orientationLabel}.`;
         const statusRows = isDraftPreview
             ? [
-                { label: 'Draft saved', value: draftSavedLabel || 'Saved in the facilitator workspace' },
-                { label: 'Submission', value: 'Awaiting Scribe submission' },
+                { label: 'Draft saved', value: draftSavedLabel || 'Saved in the scribe workspace' },
+                { label: 'Submission', value: 'Awaiting Facilitator submission' },
                 { label: 'White Cell status', value: 'Not yet submitted to White Cell' }
             ]
             : [
@@ -2233,7 +2235,7 @@ export class ScribeController {
         if (slide.slideType === 'action-placeholder') {
             return `
                 <article class="scribe-action-slide scribe-action-slide-placeholder">
-                    <p class="scribe-action-slide-eyebrow">Live Facilitator Feed</p>
+                    <p class="scribe-action-slide-eyebrow">Live Scribe Feed</p>
                     <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
                     <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
                 </article>
@@ -2280,7 +2282,7 @@ export class ScribeController {
         const isDraftPreview = isDraftAction(action);
         const decisionBrief = actionViewModel.objective
             || actionViewModel.expectedOutcomes
-            || 'Awaiting facilitator detail.';
+            || 'Awaiting scribe detail.';
         const expectedEffect = actionViewModel.expectedOutcomes || '';
         const showExpectedEffect = hasDistinctActionText(decisionBrief, expectedEffect);
         const supplyChainFocus = actionViewModel.supplyChainFocus || action.exposure_type || 'Not specified';
@@ -2306,13 +2308,13 @@ export class ScribeController {
             `
             : '';
         const slideEyebrow = isDraftPreview
-            ? 'Facilitator Action for Scribe'
-            : 'Facilitator Decision';
+            ? 'Scribe Action for Facilitator'
+            : 'Scribe Decision';
         const sectionLabel = isDraftPreview
-            ? `What ${this.teamLabel} is asking the Scribe to submit`
+            ? `What ${this.teamLabel} is asking the Facilitator to submit`
             : `What ${this.teamLabel} is doing`;
         const glanceCopy = isDraftPreview
-            ? 'Project this action for the room, complete the scribe coordination fields, then submit it to White Cell.'
+            ? 'Project this action for the room, complete the facilitator coordination fields, then submit it to White Cell.'
             : 'The core move, where it lands, and how it will be carried out.';
         const statusBlockTitle = isDraftPreview
             ? 'Draft status'
@@ -2325,11 +2327,11 @@ export class ScribeController {
                 },
                 {
                     label: 'Draft saved',
-                    value: draftSavedLabel || 'Saved in the facilitator workspace'
+                    value: draftSavedLabel || 'Saved in the scribe workspace'
                 },
                 {
                     label: 'Submission',
-                    value: 'Awaiting Scribe submission'
+                    value: 'Awaiting Facilitator submission'
                 },
                 {
                     label: 'White Cell status',

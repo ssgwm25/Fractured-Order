@@ -223,6 +223,97 @@ describe('GameMaster session administration', () => {
     });
 });
 
+describe('GameMaster plugin mounts', () => {
+    it('mounts and tears down the registered Intercom plugin from selected-session state', () => {
+        const previousDocument = global.document;
+        const host = {
+            ownerDocument: null,
+            children: [],
+            innerHTML: '',
+            querySelector: vi.fn(() => null),
+            appendChild: vi.fn((child) => {
+                child.parentNode = host;
+                host.children.push(child);
+                return child;
+            })
+        };
+        const fakeDocument = {
+            head: {
+                appendChild: vi.fn()
+            },
+            createElement: vi.fn(() => ({
+                id: '',
+                className: '',
+                dataset: {},
+                innerHTML: '',
+                textContent: '',
+                ownerDocument: null,
+                querySelector: vi.fn(() => null),
+                remove() {
+                    if (!this.parentNode?.children) {
+                        return;
+                    }
+                    this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+                }
+            })),
+            getElementById: vi.fn((id) => (id === 'gameMasterPluginMounts' ? host : null))
+        };
+        host.ownerDocument = fakeDocument;
+        fakeDocument.createElement.mockImplementation((tagName) => ({
+            tagName,
+            id: '',
+            className: '',
+            dataset: {},
+            innerHTML: '',
+            textContent: '',
+            ownerDocument: fakeDocument,
+            querySelector: vi.fn(() => null),
+            remove() {
+                if (!this.parentNode?.children) {
+                    return;
+                }
+                this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+            }
+        }));
+        global.document = fakeDocument;
+
+        try {
+            const controller = new GameMasterController();
+            controller.currentSessionId = 'session-1';
+
+            controller.reconcilePluginMounts({
+                session: { id: 'session-1' },
+                gameState: {
+                    plugin_state: {
+                        intercom: { enabled: true }
+                    }
+                }
+            });
+
+            expect(controller.pluginMountHosts.get('intercom')?.innerHTML).toContain('Intercom Announcement');
+            expect(controller.pluginInstances.has('intercom')).toBe(true);
+
+            controller.reconcilePluginMounts({
+                session: { id: 'session-1' },
+                gameState: {
+                    plugin_state: {
+                        intercom: { enabled: false }
+                    }
+                }
+            });
+
+            expect(host.children).toEqual([]);
+            expect(controller.pluginInstances.has('intercom')).toBe(false);
+        } finally {
+            if (previousDocument) {
+                global.document = previousDocument;
+            } else {
+                delete global.document;
+            }
+        }
+    });
+});
+
 describe('GameMaster operator access', () => {
     it('blocks access when operator auth is missing', () => {
         expect(getGameMasterAccessState({

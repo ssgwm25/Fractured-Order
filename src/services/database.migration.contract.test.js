@@ -41,6 +41,14 @@ const TIMER_ALLOCATIONS_GAME_STATE_PATH = new URL(
     '../../data/2026-06-25_timer_allocations_game_state.sql',
     import.meta.url
 );
+const WHITE_CELL_PLUGINS_GAME_STATE_PATH = new URL(
+    '../../data/2026-06-28_white_cell_plugins_game_state.sql',
+    import.meta.url
+);
+const INTERCOM_STORAGE_BUCKET_PATH = new URL(
+    '../../data/2026-06-28_intercom_storage_bucket.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -180,7 +188,7 @@ describe('database migration contracts', () => {
         expect(sql).toContain("WHEN forwarded.to_role IN ('blue', 'red', 'green', 'industry') THEN forwarded.to_role");
     });
 
-    it('allows same-team scribes to submit only facilitator-forwarded action rows', () => {
+    it('allows legacy same-team *_scribe seats to submit only forwarded action rows', () => {
         const sql = readFileSync(SCRIBE_ACTION_SUBMIT_POLICY_PATH, 'utf8');
 
         expect(sql).toContain('DROP POLICY IF EXISTS actions_live_demo_update ON public.actions;');
@@ -229,6 +237,38 @@ describe('database migration contracts', () => {
         expect(updateGameStateBody).toContain('public.normalize_game_state_timer_allocations(requested_timer_allocations)');
         expect(updateGameStateBody).toContain("public.live_demo_has_operator_grant('whitecell'");
         expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_update_game_state(UUID, INTEGER, INTEGER, INTEGER, BOOLEAN, TIMESTAMPTZ, JSONB) TO authenticated;');
+    });
+
+    it('adds protected game-state plugin state for White Cell plugin management', () => {
+        const sql = readFileSync(WHITE_CELL_PLUGINS_GAME_STATE_PATH, 'utf8');
+        const updateGameStateBody = extractFunctionBody(sql, 'operator_update_game_state');
+
+        expect(sql).toContain('ADD COLUMN IF NOT EXISTS plugin_state JSONB');
+        expect(sql).toContain('CREATE OR REPLACE FUNCTION public.normalize_game_state_plugin_state');
+        expect(sql).toContain('requested_plugin_state JSONB DEFAULT NULL');
+        expect(updateGameStateBody).toContain('public.normalize_game_state_plugin_state(requested_plugin_state)');
+        expect(updateGameStateBody).toContain("public.live_demo_has_operator_grant('whitecell'");
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_update_game_state(UUID, INTEGER, INTEGER, INTEGER, BOOLEAN, TIMESTAMPTZ, JSONB, JSONB) TO authenticated;');
+    });
+
+    it('adds private intercom announcement storage for oversized voice clips', () => {
+        const sql = readFileSync(INTERCOM_STORAGE_BUCKET_PATH, 'utf8');
+
+        expect(sql).toContain("INSERT INTO storage.buckets");
+        expect(sql).toContain("'intercom-announcements'");
+        expect(sql).toContain('public = EXCLUDED.public');
+        expect(sql).toContain("'audio/webm;codecs=opus'");
+        expect(sql).toContain("'audio/webm'");
+        expect(sql).toContain("'audio/ogg;codecs=opus'");
+        expect(sql).toContain("'audio/ogg'");
+        expect(sql).toContain("'audio/mp4'");
+        expect(sql).toContain('CREATE OR REPLACE FUNCTION public.intercom_storage_session_id');
+        expect(sql).toContain('CREATE POLICY intercom_announcements_session_read');
+        expect(sql).toContain('public.live_demo_can_read_session(public.intercom_storage_session_id(name))');
+        expect(sql).toContain('CREATE POLICY intercom_announcements_operator_insert');
+        expect(sql).toContain("public.live_demo_has_operator_grant('gamemaster')");
+        expect(sql).toContain("public.live_demo_has_operator_grant(\n                    'whitecell'");
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.intercom_storage_session_id(TEXT) TO authenticated;');
     });
 
     it('normalizes seat-claim role input before seat-limit evaluation', () => {

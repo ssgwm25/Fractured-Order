@@ -121,8 +121,8 @@ vi.mock('../core/teamContext.js', async (importOriginal) => {
             teamLabel: 'Blue Team',
             facilitatorRole: 'blue_facilitator',
             scribeRole: 'blue_scribe',
-            facilitatorLabel: 'Blue Facilitator',
-            scribeLabel: 'Blue Team Scribe',
+            facilitatorLabel: 'Blue Team Scribe',
+            scribeLabel: 'Blue Team Facilitator',
             observerLabel: 'Blue Observer'
         }))
     };

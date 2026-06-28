@@ -42,7 +42,7 @@
 
 /* Modal content */
 .modal {
-    background-color: white;
+    background-color: var(--color-surface);
     border-radius: var(--radius-2xl);
     box-shadow: var(--shadow-xl);
     max-height: calc(100vh - var(--space-8));
@@ -174,7 +174,7 @@ body.modal-open {
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    background-color: white;
+    background-color: var(--color-surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
     min-width: 300px;
@@ -290,7 +290,7 @@ body.modal-open {
 .loader-overlay {
     position: fixed;
     inset: 0;
-    background-color: rgba(255, 255, 255, 0.9);
+    background-color: var(--loader-overlay-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -304,7 +304,7 @@ body.modal-open {
 }
 
 .loader-overlay.loader-transparent {
-    background-color: rgba(255, 255, 255, 0.7);
+    background-color: var(--loader-overlay-bg-transparent);
 }
 
 .loader-content {
@@ -419,16 +419,48 @@ body.loader-active {
     }
 }
 
+/* ==================== REDUCED MOTION ====================
+   The global reset in reset.css collapses every animation/transition to ~0ms.
+   That is the right default for decorative motion, but it also FREEZES progress
+   indicators (the spinner stops mid-rotation, the skeleton shimmer halts) — and
+   loading indicators are exempt from reduced-motion (WCAG 2.3.3). Re-enable them
+   here, and give modals/toasts a gentle opacity-only entrance (no scale/lift or
+   slide) instead of a hard snap — the same approach the landing page uses. */
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation: spin 0.8s linear infinite !important;
+    }
+
+    .skeleton {
+        animation: skeleton-loading 1.5s infinite !important;
+    }
+
+    .modal,
+    .modal-hiding .modal {
+        transform: none !important;
+        transition: opacity 0.2s linear !important;
+    }
+
+    .toast,
+    .toast.toast-hiding {
+        transform: none !important;
+        transition: opacity 0.2s linear !important;
+    }
+}
+
 /* ==================== STRATEGIC ORIENTATION MODAL ==================== */
 
+/* Component tokens map onto the shared design system (variables.css) rather than
+   carrying a parallel palette — so this modal tracks the brand and any future
+   theme automatically. */
 .strategic-orientation-modal {
-    --so-ink: #18211d;
-    --so-muted: #60716b;
-    --so-line: #dce5df;
-    --so-surface: #ffffff;
-    --so-soft: #f3f7f4;
-    --so-green: #115740;
-    --so-gold: #c8a24a;
+    --so-ink: var(--color-text);
+    --so-muted: var(--color-text-secondary);
+    --so-line: var(--color-border);
+    --so-surface: var(--color-surface);
+    --so-soft: var(--color-surface-alt);
+    --so-green: var(--color-navy);
+    --so-gold: var(--color-gold);
     color: var(--so-ink);
     background: var(--so-surface);
 }
@@ -436,7 +468,7 @@ body.loader-active {
 .strategic-orientation-modal .modal-head {
     padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--so-line);
-    background: linear-gradient(180deg, #f9fbf8 0%, #ffffff 100%);
+    background: linear-gradient(180deg, var(--so-soft) 0%, var(--so-surface) 100%);
 }
 
 .strategic-orientation-modal .mh-top,
@@ -539,7 +571,7 @@ body.loader-active {
     padding: var(--space-4);
     border: 1px solid var(--so-line);
     border-radius: var(--radius-lg);
-    background: #ffffff;
+    background: var(--so-surface);
     color: inherit;
     text-align: left;
     cursor: pointer;
@@ -620,7 +652,7 @@ body.loader-active {
 .strategic-orientation-modal .footer {
     padding: var(--space-4) var(--space-6);
     border-top: 1px solid var(--so-line);
-    background: #ffffff;
+    background: var(--so-surface);
 }
 
 .strategic-orientation-modal .config-banner {
@@ -651,7 +683,7 @@ body.loader-active {
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--so-line);
     border-radius: var(--radius-full);
-    background: #ffffff;
+    background: var(--so-surface);
     color: var(--so-ink);
     font-weight: var(--font-semibold);
     cursor: pointer;

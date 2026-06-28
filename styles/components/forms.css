@@ -55,6 +55,12 @@
     color: var(--color-text-muted);
 }
 
+/* Code-style entry (session codes): uppercase with slightly opened tracking. */
+.input-code {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
 .form-input:hover:not(:disabled),
 .form-textarea:hover:not(:disabled),
 .form-select:hover:not(:disabled) {
@@ -82,7 +88,7 @@
 .form-input.is-invalid,
 .field-error {
     border-color: var(--color-error) !important;
-    background-color: #fff5f5 !important;
+    background-color: var(--color-error-soft) !important;
 }
 
 .form-input.is-valid,
@@ -410,7 +416,7 @@ select.move-selector {
 
 /* Priority badges for forms */
 .priority-normal {
-    background-color: #4a5568;
+    background-color: var(--color-priority-normal);
     color: white;
     padding: 2px 6px;
     border-radius: 3px;
@@ -418,7 +424,7 @@ select.move-selector {
 }
 
 .priority-high {
-    background-color: #ed8936;
+    background-color: var(--color-priority-high);
     color: white;
     padding: 2px 6px;
     border-radius: 3px;
@@ -426,7 +432,7 @@ select.move-selector {
 }
 
 .priority-urgent {
-    background-color: #e53e3e;
+    background-color: var(--color-priority-urgent);
     color: white;
     padding: 2px 6px;
     border-radius: 3px;

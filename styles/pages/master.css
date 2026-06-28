@@ -3,28 +3,7 @@
  * Extracted from master.html inline <style> block
  */
 
-/* ==================== SKIP LINK ==================== */
-
-.skip-link {
-    position: absolute;
-    left: -9999px;
-    top: auto;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    z-index: 1000;
-}
-
-.skip-link:focus {
-    left: 1rem;
-    top: 1rem;
-    width: auto;
-    height: auto;
-    padding: 0.75rem 1rem;
-    background: var(--color-gray-900);
-    color: #ffffff;
-    border-radius: var(--radius-md);
-}
+/* Skip link is defined centrally in styles/base/reset.css. */
 
 /* ==================== SIDEBAR POLISH ==================== */
 
@@ -52,7 +31,7 @@
 /* ==================== HEADER POLISH ==================== */
 
 .master-page .page-header {
-    background: rgba(255, 255, 255, 0.72);
+    background: var(--glass-header-bg);
     -webkit-backdrop-filter: saturate(180%) blur(var(--blur-md));
     backdrop-filter: saturate(180%) blur(var(--blur-md));
     border-bottom: 1px solid var(--color-border-light);
@@ -115,7 +94,7 @@
 }
 
 .master-page .card-header {
-    background: linear-gradient(to right, rgba(249, 250, 251, 0.5), transparent);
+    background: linear-gradient(to right, var(--color-surface-alt), transparent);
     border-bottom: 1px solid var(--color-border-light);
     padding: var(--space-4) var(--space-6);
 }
@@ -124,7 +103,7 @@
     font-size: var(--text-base);
     font-weight: var(--font-semibold);
     margin: 0;
-    color: var(--color-navy-deep);
+    color: var(--color-navy);
 }
 
 /* ==================== STAT CARDS ==================== */
@@ -148,5 +127,26 @@
     font-weight: var(--font-semibold);
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
+}
+
+/* ==================== PLUGINS SECTION ==================== */
+
+/* Stack mounted plugins with consistent spacing. */
+.master-page #gameMasterPluginMounts {
+    display: grid;
+    gap: var(--space-4);
+}
+
+/* Explain the empty state instead of leaving the panel blank. */
+.master-page #gameMasterPluginMounts:empty::before {
+    content: "No plugins are active for the selected session. Choose a session and enable plugins from the White Cell settings.";
+    display: block;
+    padding: var(--space-10) var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    background: var(--color-surface);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--card-radius);
 }
 

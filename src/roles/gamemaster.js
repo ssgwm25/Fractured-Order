@@ -39,8 +39,14 @@ import {
     applyHeaderGameStateDisplay,
     getHeaderGameStateDisplay
 } from '../utils/gameStateDisplay.js';
+import {
+    getPluginDefinition,
+    getRegisteredPlugins,
+    isPluginVisible
+} from '../features/plugins/registry.js';
 
 const logger = createLogger('GameMaster');
+const GAME_MASTER_PLUGIN_MOUNT_ID = 'gameMasterPluginMounts';
 
 function getTimestamp(value) {
     return value ? new Date(value).getTime() : 0;
@@ -276,6 +282,9 @@ export class GameMasterController {
         this.storeUnsubscribers = [];
         this.researchCaptureMode = 'research';
         this.researchBuildHash = null;
+        this.pluginInstances = new Map();
+        this.pluginInstanceKeys = new Map();
+        this.pluginMountHosts = new Map();
     }
 
     async init() {
@@ -496,6 +505,7 @@ export class GameMasterController {
             this.updateHeaderSessionState(null, null);
             this.renderParticipantsPanel(null);
             this.updateExportAvailability(null);
+            this.reconcilePluginMounts(null);
             return;
         }
 
@@ -568,6 +578,7 @@ export class GameMasterController {
         this.updateHeaderSessionState(liveBundle.session, liveBundle.gameState, liveBundle.actions);
         this.renderParticipantsPanel(liveBundle);
         this.updateExportAvailability(liveBundle);
+        this.reconcilePluginMounts(liveBundle);
 
         const sessionDetailSection = document.getElementById('sessionDetailSection');
         if (sessionDetailSection?.style.display !== 'none') {
@@ -592,6 +603,98 @@ export class GameMasterController {
         }
 
         applyHeaderGameStateDisplay(headerDisplay);
+    }
+
+    reconcilePluginMounts(liveBundle = null) {
+        const container = typeof document !== 'undefined'
+            ? document.getElementById(GAME_MASTER_PLUGIN_MOUNT_ID)
+            : null;
+
+        if (!container || !this.currentSessionId || !liveBundle?.session) {
+            [...this.pluginInstances.keys()].forEach((pluginId) => this.unmountPlugin(pluginId));
+            if (container) container.innerHTML = '';
+            return;
+        }
+
+        const gameState = {
+            ...(liveBundle.gameState || {}),
+            session_id: liveBundle.gameState?.session_id || liveBundle.session.id || this.currentSessionId
+        };
+        const context = {
+            gameState,
+            gameStateStore,
+            session: liveBundle.session,
+            sessionStore,
+            surface: 'gamemaster'
+        };
+        const visiblePluginIds = new Set();
+
+        getRegisteredPlugins().forEach((plugin) => {
+            const visible = isPluginVisible(plugin, gameState.plugin_state, context);
+
+            if (!visible) {
+                this.unmountPlugin(plugin.id);
+                return;
+            }
+
+            visiblePluginIds.add(plugin.id);
+            const instanceKey = `${plugin.id}:${gameState.session_id}`;
+            if (this.pluginInstanceKeys.get(plugin.id) === instanceKey && this.pluginInstances.has(plugin.id)) {
+                return;
+            }
+
+            this.unmountPlugin(plugin.id);
+            const host = this.getPluginMountHost(plugin.id, container);
+            const instance = plugin.mount({
+                ...context,
+                host,
+                plugin,
+                pluginState: gameState.plugin_state?.[plugin.id],
+                senderRole: 'gamemaster',
+                senderTeam: 'white_cell'
+            });
+            this.pluginInstances.set(plugin.id, instance);
+            this.pluginInstanceKeys.set(plugin.id, instanceKey);
+            this.pluginMountHosts.set(plugin.id, host);
+        });
+
+        [...this.pluginInstances.keys()].forEach((pluginId) => {
+            if (!visiblePluginIds.has(pluginId)) {
+                this.unmountPlugin(pluginId);
+            }
+        });
+    }
+
+    getPluginMountHost(pluginId, container) {
+        const existingHost = Array.from(container?.children || [])
+            .find((child) => child?.dataset?.pluginMount === pluginId);
+        if (existingHost) {
+            existingHost.innerHTML = '';
+            return existingHost;
+        }
+
+        const host = document.createElement('div');
+        host.className = 'plugin-mount';
+        host.dataset.pluginMount = pluginId;
+        container.appendChild(host);
+        return host;
+    }
+
+    unmountPlugin(pluginId) {
+        const instance = this.pluginInstances.get(pluginId);
+        if (!instance) {
+            this.pluginInstanceKeys.delete(pluginId);
+            this.pluginMountHosts.get(pluginId)?.remove?.();
+            this.pluginMountHosts.delete(pluginId);
+            return;
+        }
+
+        const plugin = getPluginDefinition(pluginId);
+        plugin?.unmount?.(instance);
+        this.pluginMountHosts.get(pluginId)?.remove?.();
+        this.pluginInstances.delete(pluginId);
+        this.pluginInstanceKeys.delete(pluginId);
+        this.pluginMountHosts.delete(pluginId);
     }
 
     renderSessionSelectors() {
@@ -1365,6 +1468,7 @@ export class GameMasterController {
     }
 
     destroy() {
+        [...this.pluginInstances.keys()].forEach((pluginId) => this.unmountPlugin(pluginId));
         this.storeUnsubscribers.forEach((unsubscribe) => unsubscribe?.());
         this.storeUnsubscribers = [];
     }

@@ -24,6 +24,7 @@ import {
     buildWhiteCellOperatorRole,
     getRoleDisplayName,
     getRoleRoute,
+    getRoleSurfaceDisplayLabel,
     parseTeamRole
 } from '../core/teamContext.js';
 
@@ -355,7 +356,7 @@ export class LandingController {
         }
 
         if (!isPublicRoleSurface(this.selectedRoleSurface)) {
-            this.setFieldError('roleSelection', 'Choose Facilitator, Scribe, or Notetaker to join as a participant.', { focus: true });
+            this.setFieldError('roleSelection', 'Choose Scribe, Facilitator, or Notetaker to join as a participant.', { focus: true });
             showToast({
                 message: 'White Cell and Game Master use the operator access flow.',
                 type: 'error'
@@ -377,9 +378,10 @@ export class LandingController {
         const participantTeam = parsedRole.teamId || this.selectedTeam;
         const teamConfig = TEAM_OPTIONS.find((option) => option.id === participantTeam);
         const teamLabel = teamConfig?.shortLabel || titleCase(participantTeam);
+        const roleLabel = getRoleSurfaceDisplayLabel(parsedRole.surface || this.selectedRoleSurface);
         const confirmation = this.showJoinConfirmation({
             displayName,
-            metaLabel: [teamLabel, titleCase(this.selectedRoleSurface)].filter(Boolean).join(' | '),
+            metaLabel: [teamLabel, roleLabel].filter(Boolean).join(' | '),
             accent: participantTeam ? `var(--color-team-${participantTeam})` : 'var(--color-gold)'
         });
 
@@ -450,7 +452,7 @@ export class LandingController {
      * The overlay is opaque and stays in the DOM through navigation.
      * @param {Object} options
      * @param {string} [options.displayName] - Name shown as the headline.
-     * @param {string} [options.metaLabel] - Seat summary, e.g. "Blue | Facilitator".
+     * @param {string} [options.metaLabel] - Seat summary, e.g. "Blue | Scribe".
      * @param {string} [options.accent] - CSS colour for the check/dot accent.
      * @returns {{ confirm: () => Promise<void>, dismiss: () => void }}
      */

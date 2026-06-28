@@ -80,6 +80,9 @@ export function applyHeaderGameStateDisplay(display, documentRef = globalThis.do
 
     if (headerPhase) {
         headerPhase.textContent = display.phaseValue;
+        // The phase value is truncated with an ellipsis in tight headers; keep a
+        // fresh title so the full label is always available on hover/focus.
+        headerPhase.setAttribute?.('title', display.phaseValue);
         setGameStateItemLabel(headerPhase, display.phaseLabel);
     }
 

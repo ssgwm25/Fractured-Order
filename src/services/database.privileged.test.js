@@ -132,6 +132,45 @@ describe('database privileged write contracts', () => {
         });
     });
 
+    it('routes plugin state changes through the protected White Cell RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                session_id: 'session-1',
+                move: 1,
+                phase: 1,
+                timer_seconds: 5400,
+                plugin_state: {
+                    intercom: { enabled: true },
+                    'session-recorder': { enabled: false }
+                },
+                timer_running: false
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.updateGameState('session-1', {
+            plugin_state: {
+                intercom: { enabled: true },
+                'session-recorder': { enabled: false },
+                unexpected: { enabled: true }
+            }
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('operator_update_game_state', {
+            requested_session_id: 'session-1',
+            requested_move: null,
+            requested_phase: null,
+            requested_timer_seconds: null,
+            requested_timer_running: null,
+            requested_timer_last_update: null,
+            requested_plugin_state: {
+                intercom: { enabled: true },
+                'session-recorder': { enabled: false }
+            }
+        });
+    });
+
     it('routes answered request updates through the protected White Cell RPC', async () => {
         mockSupabase.rpc.mockResolvedValue({
             data: {
