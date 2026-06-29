@@ -696,7 +696,6 @@ describe('White Cell DOM contract', () => {
             'currentPhase',
             'moveLabel',
             'phaseLabel',
-            'moveControlStatus',
             'moveProgressStrategicOrientation',
             'moveProgressMove1',
             'moveProgressMove2',
@@ -719,13 +718,11 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.currentMove.textContent).toBe('SO');
         expect(fakeDocument.elements.currentMove.attributes['aria-label']).toBe('Strategic Orientation');
         expect(fakeDocument.elements.moveLabel.textContent).toBe('Strategic Orientation (Pre-Move 1)');
-        expect(fakeDocument.elements.moveControlStatus.textContent).toContain(
-            'Strategic Orientation must be completed before Move 1 begins'
-        );
         expect(fakeDocument.elements.moveProgressStrategicOrientation.dataset.state).toBe('active');
         expect(fakeDocument.elements.moveProgressMove1.dataset.state).toBe('pending');
         expect(fakeDocument.elements.nextMoveBtn.disabled).toBe(true);
         expect(fakeDocument.elements.nextMoveBtn.textContent).toBe('Awaiting Orientation');
+        expect(fakeDocument.elements.nextMoveBtn.title).toBe('Strategic Orientation is still open.');
     });
 
     it('returns Move 1 to the active Move Control mark after Strategic Orientation completes', async () => {
@@ -736,7 +733,6 @@ describe('White Cell DOM contract', () => {
             'currentPhase',
             'moveLabel',
             'phaseLabel',
-            'moveControlStatus',
             'moveProgressStrategicOrientation',
             'moveProgressMove1',
             'moveProgressMove2',
@@ -761,9 +757,6 @@ describe('White Cell DOM contract', () => {
 
         expect(fakeDocument.elements.currentMove.textContent).toBe('1');
         expect(fakeDocument.elements.moveLabel.textContent).toBe('Epoch 1 (2027-2030)');
-        expect(fakeDocument.elements.moveControlStatus.textContent).toBe(
-            'Strategic Orientation complete. Move 1 is active.'
-        );
         expect(fakeDocument.elements.moveProgressStrategicOrientation.dataset.state).toBe('complete');
         expect(fakeDocument.elements.moveProgressMove1.dataset.state).toBe('active');
         expect(fakeDocument.elements.nextMoveBtn.disabled).toBe(false);

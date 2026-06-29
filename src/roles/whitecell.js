@@ -298,7 +298,6 @@ export const WHITE_CELL_DOM_IDS = [
     'moveProgressMove1',
     'moveProgressMove2',
     'moveProgressMove3',
-    'moveControlStatus',
     'currentPhase',
     'moveLabel',
     'phaseLabel',
@@ -2167,21 +2166,6 @@ export class WhiteCellController {
         });
     }
 
-    getMoveControlStatusMessage({
-        move = 1,
-        orientationGateActive = false
-    } = {}) {
-        if (orientationGateActive) {
-            return this.getStrategicOrientationGateMessage();
-        }
-
-        if (move === 1) {
-            return 'Strategic Orientation complete. Move 1 is active.';
-        }
-
-        return `Strategic Orientation complete. Move ${move} is active.`;
-    }
-
     updateGameStateDisplay(gameState = {}) {
         const move = gameState.move ?? 1;
         const phase = gameState.phase ?? 1;
@@ -2194,7 +2178,6 @@ export class WhiteCellController {
         const currentPhaseLabel = document.getElementById('phaseLabel');
         const headerDisplay = getHeaderGameStateDisplay(gameState, actionsStore.getAll());
         const orientationGateActive = headerDisplay.isStrategicOrientation;
-        const moveControlStatus = document.getElementById('moveControlStatus');
 
         if (currentMove) {
             currentMove.textContent = orientationGateActive ? 'SO' : move;
@@ -2213,13 +2196,6 @@ export class WhiteCellController {
         applyHeaderGameStateDisplay(headerDisplay);
 
         this.updateMoveControlProgress({ move, orientationGateActive });
-        if (moveControlStatus) {
-            moveControlStatus.textContent = this.getMoveControlStatusMessage({
-                move,
-                orientationGateActive
-            });
-        }
-
         this.updateGameControlAvailability(move, phase, {
             orientationGateActive,
             orientationMoveGateActive: this.shouldGateStrategicOrientation({
@@ -2288,9 +2264,7 @@ export class WhiteCellController {
             return;
         }
 
-        const gateMessage = (orientationGateActive || orientationMoveGateActive)
-            ? this.getStrategicOrientationGateMessage()
-            : '';
+        const orientationGateTitle = 'Strategic Orientation is still open.';
 
         if (prevMoveBtn) {
             prevMoveBtn.disabled = move <= 1;
@@ -2310,7 +2284,7 @@ export class WhiteCellController {
                 ? 'Awaiting Orientation'
                 : (move >= 3 ? 'Final Move' : `Advance to Move ${move + 1}`);
             nextMoveBtn.title = orientationMoveGateActive
-                ? gateMessage
+                ? orientationGateTitle
                 : (move >= 3 ? 'Already at the final move.' : `Advance to Move ${move + 1}.`);
         }
 
@@ -2324,7 +2298,7 @@ export class WhiteCellController {
             nextPhaseBtn.disabled = phase >= 5 || orientationGateActive;
             nextPhaseBtn.setAttribute?.('aria-disabled', nextPhaseBtn.disabled ? 'true' : 'false');
             nextPhaseBtn.title = orientationGateActive
-                ? gateMessage
+                ? orientationGateTitle
                 : (phase >= 5 ? 'Already at the final phase.' : `Advance to Phase ${phase + 1}.`);
         }
     }
