@@ -529,13 +529,42 @@
     align-items: center;
     gap: var(--space-2);
     width: 100%;
-    padding: 9px 12px;
+    min-height: 44px;
+    padding: 8px 12px;
     border: 0;
     background: var(--color-navy-soft);
     color: var(--color-navy);
     font: inherit;
     text-align: left;
     cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.follow-along-bar:hover {
+    background: var(--color-navy-strong);
+}
+
+.follow-along-bar:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: -2px;
+}
+
+/* Leading guide glyph in a tinted chip — signals "tour" without an emoji. */
+.follow-along-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-sm);
+    background: var(--color-navy);
+    color: #fff;
+}
+
+.follow-along-icon svg {
+    width: 14px;
+    height: 14px;
 }
 
 .follow-along-bar-title {
@@ -554,13 +583,16 @@
     font-size: var(--text-xs);
     font-weight: var(--font-medium);
     color: var(--color-navy-muted);
+    font-variant-numeric: tabular-nums;
 }
 
 .follow-along-chevron {
     display: inline-flex;
+    flex-shrink: 0;
     width: 16px;
     height: 16px;
-    transition: transform var(--transition-fast);
+    color: var(--color-navy-muted);
+    transition: transform var(--transition-normal);
 }
 
 .follow-along-chevron svg {
@@ -568,19 +600,70 @@
     height: 100%;
 }
 
-/* Minimized: only the bar shows; the chevron flips to an "expand" affordance. */
+/* Linear progress track sits under the bar and fills left→right per step. */
+.follow-along-track {
+    height: 3px;
+    background: var(--color-navy-soft);
+    overflow: hidden;
+    transition: height var(--transition-smooth);
+}
+
+.follow-along-track-fill {
+    display: block;
+    height: 100%;
+    background: var(--color-navy);
+    border-radius: 0 var(--radius-full) var(--radius-full) 0;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--transition-smooth);
+}
+
+/* Minimized: collapse the body and track; the chevron flips to "expand" and
+   the chip gently breathes to invite a first click. */
 .follow-along[data-minimized="true"] .follow-along-body {
-    display: none;
+    grid-template-rows: 0fr;
+}
+
+.follow-along[data-minimized="true"] .follow-along-track {
+    height: 0;
 }
 
 .follow-along[data-minimized="true"] .follow-along-chevron {
     transform: rotate(180deg);
 }
 
+.follow-along[data-minimized="true"] .follow-along-icon {
+    animation: followAlongInvite 2.4s ease-in-out infinite;
+}
+
+@keyframes followAlongInvite {
+    0%, 100% { box-shadow: 0 0 0 0 var(--color-navy-strong); }
+    50% { box-shadow: 0 0 0 4px var(--color-navy-soft); }
+}
+
+/* Grid-rows collapser so open/close animates height instead of snapping. */
 .follow-along-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows var(--transition-smooth);
+}
+
+.follow-along-body-inner {
     display: grid;
     gap: var(--space-2);
     padding: var(--space-3);
+    min-height: 0;
+    overflow: hidden;
+}
+
+.follow-along-body-inner.is-stepping .follow-along-step-title,
+.follow-along-body-inner.is-stepping .follow-along-step-text {
+    animation: followAlongStepIn var(--transition-normal) both;
+}
+
+@keyframes followAlongStepIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
 }
 
 .follow-along-step-title {
@@ -599,6 +682,7 @@
 
 .follow-along-dots {
     display: flex;
+    flex-wrap: wrap;
     gap: 5px;
     margin: 2px 0;
 }
@@ -617,7 +701,7 @@
 
 .follow-along-dot.is-active {
     background: var(--color-navy);
-    transform: scale(1.2);
+    transform: scale(1.25);
 }
 
 .follow-along-actions {
@@ -637,15 +721,25 @@
     font-weight: var(--font-medium);
     cursor: pointer;
     border-radius: var(--radius-md);
-    padding: 6px 12px;
-    transition: all var(--transition-fast);
+    padding: 7px 12px;
+    transition: background var(--transition-fast), border-color var(--transition-fast),
+        color var(--transition-fast), transform var(--transition-fast);
+}
+
+.follow-along-actions button:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 2px;
+}
+
+.follow-along-actions button:active:not(:disabled) {
+    transform: scale(0.97);
 }
 
 .follow-along-skip {
     border: 0;
     background: transparent;
     color: var(--color-text-muted);
-    padding: 6px 4px;
+    padding: 7px 6px;
 }
 
 .follow-along-skip:hover {
@@ -679,6 +773,13 @@
     border-color: var(--color-navy-deep);
 }
 
+/* Lift action targets to the touch floor on coarse pointers. */
+@media (pointer: coarse) {
+    .follow-along-actions button {
+        min-height: 44px;
+    }
+}
+
 /* The sidebar element the current step points at. Inset ring + tint so it can
    never be clipped by the rail's overflow, with a gentle pulse for attention. */
 .is-onboarding-target {
@@ -695,6 +796,18 @@
 
 @media (prefers-reduced-motion: reduce) {
     .is-onboarding-target {
+        animation: none;
+    }
+
+    .follow-along-body,
+    .follow-along-track,
+    .follow-along-track-fill {
+        transition: none;
+    }
+
+    .follow-along[data-minimized="true"] .follow-along-icon,
+    .follow-along-body-inner.is-stepping .follow-along-step-title,
+    .follow-along-body-inner.is-stepping .follow-along-step-text {
         animation: none;
     }
 }

@@ -154,13 +154,42 @@ body::before {
     align-items: center;
     gap: var(--space-2);
     width: 100%;
-    padding: 9px 12px;
+    min-height: 44px;
+    padding: 8px 12px;
     border: 0;
     background: var(--color-primary-100);
     color: var(--color-primary-700);
     font: inherit;
     text-align: left;
     cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.scribe-sidebar .follow-along-bar:hover {
+    background: var(--color-primary-200);
+}
+
+.scribe-sidebar .follow-along-bar:focus-visible {
+    outline: 2px solid var(--color-primary-600);
+    outline-offset: -2px;
+}
+
+/* Leading guide glyph in a tinted chip — signals "tour" without an emoji. */
+.scribe-sidebar .follow-along-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-600);
+    color: #fff;
+}
+
+.scribe-sidebar .follow-along-icon svg {
+    width: 14px;
+    height: 14px;
 }
 
 .scribe-sidebar .follow-along-bar-title {
@@ -179,13 +208,16 @@ body::before {
     font-size: var(--text-xs);
     font-weight: var(--font-medium);
     color: var(--color-primary-600);
+    font-variant-numeric: tabular-nums;
 }
 
 .scribe-sidebar .follow-along-chevron {
     display: inline-flex;
+    flex-shrink: 0;
     width: 16px;
     height: 16px;
-    transition: transform var(--transition-fast);
+    color: var(--color-primary-600);
+    transition: transform var(--transition-normal);
 }
 
 .scribe-sidebar .follow-along-chevron svg {
@@ -193,18 +225,67 @@ body::before {
     height: 100%;
 }
 
+/* Linear progress track sits under the bar and fills left→right per step. */
+.scribe-sidebar .follow-along-track {
+    height: 3px;
+    background: var(--color-primary-100);
+    overflow: hidden;
+    transition: height var(--transition-smooth);
+}
+
+.scribe-sidebar .follow-along-track-fill {
+    display: block;
+    height: 100%;
+    background: var(--color-primary-600);
+    border-radius: 0 var(--radius-full) var(--radius-full) 0;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--transition-smooth);
+}
+
 .scribe-sidebar .follow-along[data-minimized="true"] .follow-along-body {
-    display: none;
+    grid-template-rows: 0fr;
+}
+
+.scribe-sidebar .follow-along[data-minimized="true"] .follow-along-track {
+    height: 0;
 }
 
 .scribe-sidebar .follow-along[data-minimized="true"] .follow-along-chevron {
     transform: rotate(180deg);
 }
 
+.scribe-sidebar .follow-along[data-minimized="true"] .follow-along-icon {
+    animation: scribeFollowAlongInvite 2.4s ease-in-out infinite;
+}
+
+@keyframes scribeFollowAlongInvite {
+    0%, 100% { box-shadow: 0 0 0 0 var(--color-primary-200); }
+    50% { box-shadow: 0 0 0 4px var(--color-primary-100); }
+}
+
 .scribe-sidebar .follow-along-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows var(--transition-smooth);
+}
+
+.scribe-sidebar .follow-along-body-inner {
     display: grid;
     gap: var(--space-2);
     padding: var(--space-3);
+    min-height: 0;
+    overflow: hidden;
+}
+
+.scribe-sidebar .follow-along-body-inner.is-stepping .follow-along-step-title,
+.scribe-sidebar .follow-along-body-inner.is-stepping .follow-along-step-text {
+    animation: scribeFollowAlongStepIn var(--transition-normal) both;
+}
+
+@keyframes scribeFollowAlongStepIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
 }
 
 .scribe-sidebar .follow-along-step-title {
@@ -223,6 +304,7 @@ body::before {
 
 .scribe-sidebar .follow-along-dots {
     display: flex;
+    flex-wrap: wrap;
     gap: 5px;
     margin: 2px 0;
 }
@@ -241,7 +323,7 @@ body::before {
 
 .scribe-sidebar .follow-along-dot.is-active {
     background: var(--color-primary-600);
-    transform: scale(1.2);
+    transform: scale(1.25);
 }
 
 .scribe-sidebar .follow-along-actions {
@@ -261,15 +343,25 @@ body::before {
     font-weight: var(--font-medium);
     cursor: pointer;
     border-radius: var(--radius-md);
-    padding: 6px 12px;
-    transition: all var(--transition-fast);
+    padding: 7px 12px;
+    transition: background var(--transition-fast), border-color var(--transition-fast),
+        color var(--transition-fast), transform var(--transition-fast);
+}
+
+.scribe-sidebar .follow-along-actions button:focus-visible {
+    outline: 2px solid var(--color-primary-600);
+    outline-offset: 2px;
+}
+
+.scribe-sidebar .follow-along-actions button:active:not(:disabled) {
+    transform: scale(0.97);
 }
 
 .scribe-sidebar .follow-along-skip {
     border: 0;
     background: transparent;
     color: var(--color-text-muted);
-    padding: 6px 4px;
+    padding: 7px 6px;
 }
 
 .scribe-sidebar .follow-along-skip:hover {
@@ -303,6 +395,12 @@ body::before {
     border-color: var(--color-primary-700);
 }
 
+@media (pointer: coarse) {
+    .scribe-sidebar .follow-along-actions button {
+        min-height: 44px;
+    }
+}
+
 .scribe-sidebar .is-onboarding-target {
     border-radius: var(--radius-md);
     background: var(--color-primary-100);
@@ -317,6 +415,18 @@ body::before {
 
 @media (prefers-reduced-motion: reduce) {
     .scribe-sidebar .is-onboarding-target {
+        animation: none;
+    }
+
+    .scribe-sidebar .follow-along-body,
+    .scribe-sidebar .follow-along-track,
+    .scribe-sidebar .follow-along-track-fill {
+        transition: none;
+    }
+
+    .scribe-sidebar .follow-along[data-minimized="true"] .follow-along-icon,
+    .scribe-sidebar .follow-along-body-inner.is-stepping .follow-along-step-title,
+    .scribe-sidebar .follow-along-body-inner.is-stepping .follow-along-step-text {
         animation: none;
     }
 }
