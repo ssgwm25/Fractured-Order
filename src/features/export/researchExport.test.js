@@ -363,19 +363,20 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('content: counter(page);');
         expect(exportBundle.reportHtml).not.toContain('Page " counter(page) " of " counter(pages)');
         expect(exportBundle.reportHtml).not.toContain('Fractured Order on Plenum');
-        expect(exportBundle.reportHtml).toContain('report-print-footer');
-        expect(exportBundle.reportHtml).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);');
-        expect(exportBundle.reportHtml).toContain('align-items: center;');
-        expect(exportBundle.reportHtml).toContain('report-print-footer-session');
-        expect(exportBundle.reportHtml).not.toContain('report-print-footer-page');
-        expect(exportBundle.reportHtml).toContain('report-print-footer-wordmark');
-        expect(exportBundle.reportHtml).toContain('Plenum<span class="report-print-footer-dot">.</span>');
+        // Running footer now lives in CSS paged-media margin boxes (never overlaps
+        // content), not a position:fixed element inside the content area.
+        expect(exportBundle.reportHtml).not.toContain('report-print-footer');
+        expect(exportBundle.reportHtml).toContain('content: "Plenum.";');
+        expect(exportBundle.reportHtml).toContain('content: "Research Session Alpha";');
         expect(exportBundle.reportHtml).toContain('font-family: "Source Serif 4", ui-serif, Georgia, serif;');
         expect(exportBundle.reportHtml).toContain('font-weight: 500;');
-        expect(exportBundle.reportHtml).toContain('bottom: 4mm;');
         expect(exportBundle.reportHtml).toContain('padding-bottom: 4mm;');
         expect(exportBundle.reportHtml).toContain('vertical-align: bottom;');
-        expect(exportBundle.reportHtml).toContain('color: #bd5a39;');
+        // Wide-table sections are routed to landscape pages.
+        expect(exportBundle.reportHtml).toContain('@page landscape');
+        expect(exportBundle.reportHtml).toContain('size: A4 landscape;');
+        expect(exportBundle.reportHtml).toContain('page: landscape;');
+        expect(exportBundle.reportHtml).toContain('report-section report-landscape');
         expect(exportBundle.reportHtml).toContain('Session Snapshot');
         expect(exportBundle.reportHtml).toContain('Event Log Chronology');
         expect(exportBundle.reportHtml).toContain('Decision Lineage');
@@ -551,7 +552,7 @@ describe('research export builder', () => {
         expect(reportHtml).toContain('Note Summary');
         expect(reportHtml).toContain('window.print()');
         expect(reportHtml).toContain('report-logo--ssg');
-        expect(reportHtml).toContain('report-print-footer');
+        expect(reportHtml).toContain('content: "Plenum.";');
         expect(reportHtml).toContain('Report Pages');
         expect(reportHtml).not.toContain('aria-label="Plenum wordmark"');
         expect(reportHtml).not.toContain('report-wordmark');

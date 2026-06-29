@@ -4261,6 +4261,12 @@ export function buildResearchReportHtml(dataset, {
             detail: 'events'
         }));
     const sessionDisplayName = dataset.session?.name || dataset.session?.id || 'Session report';
+    // Session name baked into the running-footer margin box. Escaped for use inside
+    // a double-quoted CSS `content` string (backslash and quote are the only specials).
+    const footerSessionLabel = String(sessionDisplayName)
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/[\r\n]+/g, ' ');
     const EVENT_LOG_DISPLAY_LIMIT = 200;
     const totalEventLogRows = eventLogRows.length;
     const eventLogTruncated = totalEventLogRows > EVENT_LOG_DISPLAY_LIMIT;
@@ -4409,7 +4415,13 @@ export function buildResearchReportHtml(dataset, {
                 color: #97a0ac;
             }
             @bottom-left {
-                content: "";
+                content: "${footerSessionLabel}";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 7.5pt;
+                line-height: 1;
+                color: #97a0ac;
+                vertical-align: bottom;
+                padding-bottom: 4mm;
             }
             @bottom-center {
                 content: counter(page);
@@ -4421,13 +4433,77 @@ export function buildResearchReportHtml(dataset, {
                 padding-bottom: 4mm;
             }
             @bottom-right {
-                content: "";
+                content: "Plenum.";
+                font-family: "Source Serif 4", ui-serif, Georgia, serif;
+                font-size: 9pt;
+                font-weight: 500;
+                letter-spacing: -0.02em;
+                line-height: 1;
+                color: #1d1d1f;
+                vertical-align: bottom;
+                padding-bottom: 4mm;
+            }
+        }
+
+        /* Landscape page for wide tables so dense columns are not squished.
+           Margin boxes are redefined here because named page rules do not
+           reliably inherit the default @page margin boxes in Chromium. */
+        @page landscape {
+            size: A4 landscape;
+            margin: 16mm 16mm 16mm;
+            @top-left {
+                content: "Fractured Order";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: #97a0ac;
+            }
+            @top-right {
+                content: "Post-Game Analysis Report";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: #97a0ac;
+            }
+            @bottom-left {
+                content: "${footerSessionLabel}";
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 7.5pt;
+                line-height: 1;
+                color: #97a0ac;
+                vertical-align: bottom;
+                padding-bottom: 4mm;
+            }
+            @bottom-center {
+                content: counter(page);
+                font-family: "Inter", "Segoe UI", Arial, sans-serif;
+                font-size: 8pt;
+                line-height: 1;
+                color: #97a0ac;
+                vertical-align: bottom;
+                padding-bottom: 4mm;
+            }
+            @bottom-right {
+                content: "Plenum.";
+                font-family: "Source Serif 4", ui-serif, Georgia, serif;
+                font-size: 9pt;
+                font-weight: 500;
+                letter-spacing: -0.02em;
+                line-height: 1;
+                color: #1d1d1f;
+                vertical-align: bottom;
+                padding-bottom: 4mm;
             }
         }
 
         @page :first {
             @top-left { content: ""; }
             @top-right { content: ""; }
+            @bottom-left { content: ""; }
+            @bottom-center { content: ""; }
+            @bottom-right { content: ""; }
         }
 
         :root {
@@ -4905,12 +4981,6 @@ export function buildResearchReportHtml(dataset, {
         .report-total-pages::after {
             content: counter(pages);
         }
-        .report-print-footer {
-            display: none;
-        }
-        .report-print-footer-dot {
-            color: #bd5a39;
-        }
         .report-simulation {
             margin: 0 0 4px;
             font-size: 13px;
@@ -5198,42 +5268,10 @@ export function buildResearchReportHtml(dataset, {
                 display: none !important;
             }
 
-            .report-print-footer {
-                display: grid;
-                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-                align-items: center;
-                column-gap: 16px;
-                position: fixed;
-                left: 18mm;
-                right: 18mm;
-                bottom: 4mm;
-                z-index: 999;
-            }
-
-            .report-print-footer-session {
-                font-family: "Inter", "Segoe UI", Arial, sans-serif;
-                font-size: 8pt;
-                line-height: 1;
-                color: #97a0ac;
-            }
-
-            .report-print-footer-session {
-                justify-self: start;
-                min-width: 0;
-                max-width: 100%;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-
-            .report-print-footer-wordmark {
-                justify-self: end;
-                font-family: "Source Serif 4", ui-serif, Georgia, serif;
-                font-weight: 500;
-                font-size: 0.9375rem;
-                line-height: 1;
-                letter-spacing: -0.025em;
-                color: #1d1d1f;
+            /* Route wide-table sections onto landscape pages. The break-before
+               rule below still starts them on a fresh page, now rotated. */
+            .report-landscape {
+                page: landscape;
             }
 
             /* Start each major part on a fresh page */
@@ -5278,10 +5316,6 @@ export function buildResearchReportHtml(dataset, {
 </head>
 <body>
     <button type="button" class="no-print" onclick="window.print()">Print / Save as PDF</button>
-    <div class="report-print-footer" aria-hidden="true">
-        <span class="report-print-footer-session">${escapeHtml(sessionDisplayName)}</span>
-        <span class="report-print-footer-wordmark">Plenum<span class="report-print-footer-dot">.</span></span>
-    </div>
     <div class="report-root" id="report-source">
         <section class="report-cover">
             <div class="report-cover-logos">
@@ -5413,7 +5447,7 @@ export function buildResearchReportHtml(dataset, {
             ))}
         </section>
 
-        <section class="report-section">
+        <section class="report-section report-landscape">
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Participants And Seat Activity</h2>
@@ -5430,7 +5464,7 @@ export function buildResearchReportHtml(dataset, {
             ))}
         </section>
 
-        <section class="report-section">
+        <section class="report-section report-landscape">
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Event Log Chronology</h2>
@@ -5447,7 +5481,7 @@ export function buildResearchReportHtml(dataset, {
             ))}
         </section>
 
-        <section class="report-section">
+        <section class="report-section report-landscape">
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">State Transition Ledger</h2>
@@ -5460,7 +5494,7 @@ export function buildResearchReportHtml(dataset, {
             )}
         </section>
 
-        <section class="report-section">
+        <section class="report-section report-landscape">
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Decision Lineage</h2>
@@ -5473,7 +5507,7 @@ export function buildResearchReportHtml(dataset, {
             )}
         </section>
 
-        <section class="report-section">
+        <section class="report-section report-landscape">
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Research Utility Layers</h2>
@@ -5498,7 +5532,7 @@ export function buildResearchReportHtml(dataset, {
             ))}
         </section>
 
-        <section class="report-section">
+        <section class="report-section report-landscape">
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Draft And Submission History</h2>
