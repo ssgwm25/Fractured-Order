@@ -648,12 +648,18 @@
     transition: grid-template-rows var(--transition-smooth);
 }
 
+/* The collapsing grid item must stay padding/border/margin-free, otherwise its
+   own padding box can't shrink to 0 and a sliver of content leaks out when
+   minimized. Spacing lives on the nested pad instead. */
 .follow-along-body-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.follow-along-body-pad {
     display: grid;
     gap: var(--space-2);
     padding: var(--space-3);
-    min-height: 0;
-    overflow: hidden;
 }
 
 .follow-along-body-inner.is-stepping .follow-along-step-title,

@@ -90,14 +90,16 @@ export function mountFollowAlong({
         <div class="follow-along-track" aria-hidden="true"><span class="follow-along-track-fill"></span></div>
         <div class="follow-along-body" id="${bodyId}" aria-live="polite">
             <div class="follow-along-body-inner">
-                <h4 class="follow-along-step-title"></h4>
-                <p class="follow-along-step-text"></p>
-                <div class="follow-along-dots" aria-hidden="true"></div>
-                <div class="follow-along-actions">
-                    <button type="button" class="follow-along-skip">Collapse</button>
-                    <span class="follow-along-spacer"></span>
-                    <button type="button" class="follow-along-back">Back</button>
-                    <button type="button" class="follow-along-next">Next</button>
+                <div class="follow-along-body-pad">
+                    <h4 class="follow-along-step-title"></h4>
+                    <p class="follow-along-step-text"></p>
+                    <div class="follow-along-dots" aria-hidden="true"></div>
+                    <div class="follow-along-actions">
+                        <button type="button" class="follow-along-skip">Collapse</button>
+                        <span class="follow-along-spacer"></span>
+                        <button type="button" class="follow-along-back">Back</button>
+                        <button type="button" class="follow-along-next">Next</button>
+                    </div>
                 </div>
             </div>
         </div>
