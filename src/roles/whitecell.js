@@ -200,6 +200,12 @@ const PROPOSAL_REVIEW_DECISIONS = Object.freeze({
     REQUEST_CHANGES: 'request_changes',
     REJECT: 'reject'
 });
+const WHITE_CELL_MOVE_CONTROL_STEPS = Object.freeze([
+    { key: 'strategic_orientation', id: 'moveProgressStrategicOrientation', label: 'Strategic Orientation' },
+    { key: 'move_1', id: 'moveProgressMove1', label: 'Move 1', move: 1 },
+    { key: 'move_2', id: 'moveProgressMove2', label: 'Move 2', move: 2 },
+    { key: 'move_3', id: 'moveProgressMove3', label: 'Move 3', move: 3 }
+]);
 
 function isProposalTeamId(teamId) {
     return PROPOSAL_TEAM_IDS.has(teamId);
@@ -287,6 +293,12 @@ export const WHITE_CELL_DOM_IDS = [
     'prevMoveBtn',
     'nextMoveBtn',
     'currentMove',
+    'moveControlSequence',
+    'moveProgressStrategicOrientation',
+    'moveProgressMove1',
+    'moveProgressMove2',
+    'moveProgressMove3',
+    'moveControlStatus',
     'currentPhase',
     'moveLabel',
     'phaseLabel',
@@ -2120,6 +2132,56 @@ export class WhiteCellController {
         }
     }
 
+    updateMoveControlStep(element, state) {
+        if (!element) {
+            return;
+        }
+
+        element.classList?.remove?.(
+            'move-control-step-active',
+            'move-control-step-complete',
+            'move-control-step-pending'
+        );
+        element.classList?.add?.(`move-control-step-${state}`);
+        element.dataset.state = state;
+        element.setAttribute?.('aria-current', state === 'active' ? 'step' : 'false');
+    }
+
+    updateMoveControlProgress({
+        move = 1,
+        orientationGateActive = false
+    } = {}) {
+        WHITE_CELL_MOVE_CONTROL_STEPS.forEach((step) => {
+            const element = document.getElementById(step.id);
+            let state = 'pending';
+
+            if (step.key === 'strategic_orientation') {
+                state = orientationGateActive ? 'active' : 'complete';
+            } else if (!orientationGateActive && step.move === move) {
+                state = 'active';
+            } else if (!orientationGateActive && step.move < move) {
+                state = 'complete';
+            }
+
+            this.updateMoveControlStep(element, state);
+        });
+    }
+
+    getMoveControlStatusMessage({
+        move = 1,
+        orientationGateActive = false
+    } = {}) {
+        if (orientationGateActive) {
+            return this.getStrategicOrientationGateMessage();
+        }
+
+        if (move === 1) {
+            return 'Strategic Orientation complete. Move 1 is active.';
+        }
+
+        return `Strategic Orientation complete. Move ${move} is active.`;
+    }
+
     updateGameStateDisplay(gameState = {}) {
         const move = gameState.move ?? 1;
         const phase = gameState.phase ?? 1;
@@ -2131,14 +2193,41 @@ export class WhiteCellController {
         const currentMoveLabel = document.getElementById('moveLabel');
         const currentPhaseLabel = document.getElementById('phaseLabel');
         const headerDisplay = getHeaderGameStateDisplay(gameState, actionsStore.getAll());
+        const orientationGateActive = headerDisplay.isStrategicOrientation;
+        const moveControlStatus = document.getElementById('moveControlStatus');
 
-        if (currentMove) currentMove.textContent = move;
+        if (currentMove) {
+            currentMove.textContent = orientationGateActive ? 'SO' : move;
+            currentMove.setAttribute?.(
+                'aria-label',
+                orientationGateActive ? 'Strategic Orientation' : `Move ${move}`
+            );
+        }
         if (currentPhase) currentPhase.textContent = phase;
-        if (currentMoveLabel) currentMoveLabel.textContent = moveLabel;
+        if (currentMoveLabel) {
+            currentMoveLabel.textContent = orientationGateActive
+                ? 'Strategic Orientation (Pre-Move 1)'
+                : moveLabel;
+        }
         if (currentPhaseLabel) currentPhaseLabel.textContent = phaseLabel;
         applyHeaderGameStateDisplay(headerDisplay);
 
-        this.updateGameControlAvailability(move, phase);
+        this.updateMoveControlProgress({ move, orientationGateActive });
+        if (moveControlStatus) {
+            moveControlStatus.textContent = this.getMoveControlStatusMessage({
+                move,
+                orientationGateActive
+            });
+        }
+
+        this.updateGameControlAvailability(move, phase, {
+            orientationGateActive,
+            orientationMoveGateActive: this.shouldGateStrategicOrientation({
+                move,
+                phase,
+                phaseOneOnly: false
+            })
+        });
     }
 
     getStrategicOrientationGateState() {
@@ -2178,12 +2267,18 @@ export class WhiteCellController {
         return `Strategic Orientation must be completed before Move 1 begins. Missing: ${missingLabels || 'none'}.`;
     }
 
-    updateGameControlAvailability(move, phase) {
+    updateGameControlAvailability(move, phase, {
+        orientationGateActive = this.shouldGateStrategicOrientation({ move, phase }),
+        orientationMoveGateActive = this.shouldGateStrategicOrientation({
+            move,
+            phase,
+            phaseOneOnly: false
+        })
+    } = {}) {
         const prevMoveBtn = document.getElementById('prevMoveBtn');
         const nextMoveBtn = document.getElementById('nextMoveBtn');
         const prevPhaseBtn = document.getElementById('prevPhaseBtn');
         const nextPhaseBtn = document.getElementById('nextPhaseBtn');
-        const orientationGateActive = this.shouldGateStrategicOrientation({ move, phase });
 
         if (!this.isLeadOperator()) {
             if (prevMoveBtn) prevMoveBtn.disabled = true;
@@ -2193,10 +2288,45 @@ export class WhiteCellController {
             return;
         }
 
-        if (prevMoveBtn) prevMoveBtn.disabled = move <= 1;
-        if (nextMoveBtn) nextMoveBtn.disabled = move >= 3 || orientationGateActive;
-        if (prevPhaseBtn) prevPhaseBtn.disabled = phase <= 1;
-        if (nextPhaseBtn) nextPhaseBtn.disabled = phase >= 5 || orientationGateActive;
+        const gateMessage = (orientationGateActive || orientationMoveGateActive)
+            ? this.getStrategicOrientationGateMessage()
+            : '';
+
+        if (prevMoveBtn) {
+            prevMoveBtn.disabled = move <= 1;
+            prevMoveBtn.setAttribute?.('aria-disabled', prevMoveBtn.disabled ? 'true' : 'false');
+            prevMoveBtn.textContent = 'Previous Move';
+            prevMoveBtn.title = move <= 1
+                ? (orientationGateActive
+                    ? 'Strategic Orientation is the first control mark.'
+                    : 'Already at Move 1.')
+                : `Return to Move ${move - 1}.`;
+        }
+
+        if (nextMoveBtn) {
+            nextMoveBtn.disabled = move >= 3 || orientationMoveGateActive;
+            nextMoveBtn.setAttribute?.('aria-disabled', nextMoveBtn.disabled ? 'true' : 'false');
+            nextMoveBtn.textContent = orientationMoveGateActive
+                ? 'Awaiting Orientation'
+                : (move >= 3 ? 'Final Move' : `Advance to Move ${move + 1}`);
+            nextMoveBtn.title = orientationMoveGateActive
+                ? gateMessage
+                : (move >= 3 ? 'Already at the final move.' : `Advance to Move ${move + 1}.`);
+        }
+
+        if (prevPhaseBtn) {
+            prevPhaseBtn.disabled = phase <= 1;
+            prevPhaseBtn.setAttribute?.('aria-disabled', prevPhaseBtn.disabled ? 'true' : 'false');
+            prevPhaseBtn.title = phase <= 1 ? 'Already at the first phase.' : `Return to Phase ${phase - 1}.`;
+        }
+
+        if (nextPhaseBtn) {
+            nextPhaseBtn.disabled = phase >= 5 || orientationGateActive;
+            nextPhaseBtn.setAttribute?.('aria-disabled', nextPhaseBtn.disabled ? 'true' : 'false');
+            nextPhaseBtn.title = orientationGateActive
+                ? gateMessage
+                : (phase >= 5 ? 'Already at the final phase.' : `Advance to Phase ${phase + 1}.`);
+        }
     }
 
     async startTimer() {

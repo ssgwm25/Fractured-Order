@@ -85,6 +85,7 @@ Scribe:
 
 White Cell:
 
+- confirm the Move Control sequence shows Strategic Orientation before Move 1, marks it active while the gate is incomplete, and marks it complete when Move 1 becomes active
 - confirm Move 1 phase/move advance controls remain blocked until Blue selection plus Green, Red, and Industry forecasts arrive from the Facilitator
 - confirm the Strategic Orientation queue shows Blue selection plus Green, Red, and Industry forecasts after Facilitator submission
 - set Time Allocations for Strategic Orientation, Move 1, Move 2, and Move 3; confirm reset uses the active state mark allocation

@@ -173,6 +173,24 @@ function createFakeDocument(ids = []) {
     };
 }
 
+function buildStrategicOrientationAction(team, {
+    status = 'submitted',
+    artifactType = team === 'blue' ? 'selection' : 'forecast',
+    orientation = 'pressure'
+} = {}) {
+    return {
+        id: `strategic-orientation-${team}`,
+        team,
+        status,
+        mechanism: 'Strategic Orientation',
+        ally_contingencies: serializeStrategicOrientationDetails({
+            artifactType,
+            team,
+            orientation
+        })
+    };
+}
+
 async function loadWhiteCellModule() {
     globalThis.__ESG_DISABLE_AUTO_INIT__ = true;
     vi.resetModules();
@@ -668,6 +686,88 @@ describe('White Cell DOM contract', () => {
         ]);
 
         expect(controller.shouldGateStrategicOrientation()).toBe(false);
+    });
+
+    it('shows Strategic Orientation as the active Move Control mark while the gate is incomplete', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const fakeDocument = createFakeDocument([
+            'currentMove',
+            'currentPhase',
+            'moveLabel',
+            'phaseLabel',
+            'moveControlStatus',
+            'moveProgressStrategicOrientation',
+            'moveProgressMove1',
+            'moveProgressMove2',
+            'moveProgressMove3',
+            'prevMoveBtn',
+            'nextMoveBtn',
+            'prevPhaseBtn',
+            'nextPhaseBtn'
+        ]);
+        global.document = fakeDocument;
+
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            buildStrategicOrientationAction('blue')
+        ]);
+
+        const controller = new WhiteCellController();
+
+        controller.updateGameStateDisplay({ move: 1, phase: 1 });
+
+        expect(fakeDocument.elements.currentMove.textContent).toBe('SO');
+        expect(fakeDocument.elements.currentMove.attributes['aria-label']).toBe('Strategic Orientation');
+        expect(fakeDocument.elements.moveLabel.textContent).toBe('Strategic Orientation (Pre-Move 1)');
+        expect(fakeDocument.elements.moveControlStatus.textContent).toContain(
+            'Strategic Orientation must be completed before Move 1 begins'
+        );
+        expect(fakeDocument.elements.moveProgressStrategicOrientation.dataset.state).toBe('active');
+        expect(fakeDocument.elements.moveProgressMove1.dataset.state).toBe('pending');
+        expect(fakeDocument.elements.nextMoveBtn.disabled).toBe(true);
+        expect(fakeDocument.elements.nextMoveBtn.textContent).toBe('Awaiting Orientation');
+    });
+
+    it('returns Move 1 to the active Move Control mark after Strategic Orientation completes', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const fakeDocument = createFakeDocument([
+            'currentMove',
+            'currentPhase',
+            'moveLabel',
+            'phaseLabel',
+            'moveControlStatus',
+            'moveProgressStrategicOrientation',
+            'moveProgressMove1',
+            'moveProgressMove2',
+            'moveProgressMove3',
+            'prevMoveBtn',
+            'nextMoveBtn',
+            'prevPhaseBtn',
+            'nextPhaseBtn'
+        ]);
+        global.document = fakeDocument;
+
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+            buildStrategicOrientationAction('blue'),
+            buildStrategicOrientationAction('green'),
+            buildStrategicOrientationAction('red', { orientation: 'reframe' }),
+            buildStrategicOrientationAction('industry', { orientation: 'stabilization' })
+        ]);
+
+        const controller = new WhiteCellController();
+
+        controller.updateGameStateDisplay({ move: 1, phase: 1 });
+
+        expect(fakeDocument.elements.currentMove.textContent).toBe('1');
+        expect(fakeDocument.elements.moveLabel.textContent).toBe('Epoch 1 (2027-2030)');
+        expect(fakeDocument.elements.moveControlStatus.textContent).toBe(
+            'Strategic Orientation complete. Move 1 is active.'
+        );
+        expect(fakeDocument.elements.moveProgressStrategicOrientation.dataset.state).toBe('complete');
+        expect(fakeDocument.elements.moveProgressMove1.dataset.state).toBe('active');
+        expect(fakeDocument.elements.nextMoveBtn.disabled).toBe(false);
+        expect(fakeDocument.elements.nextMoveBtn.textContent).toBe('Advance to Move 2');
     });
 
     it('does not allow Blue Strategic Orientation selections to be shared to Red as normal actions', async () => {
