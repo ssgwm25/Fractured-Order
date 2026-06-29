@@ -3688,6 +3688,222 @@ function formatStateDelta(beforeState, afterState) {
     return afterLabel || beforeLabel || 'N/A';
 }
 
+/**
+ * Activity taxonomy for the graphic session timeline. Each entry maps a family
+ * of event types to a single legend colour. Colours are chosen to be distinct
+ * in hue, colour-blind distinguishable, and print-safe (mid-dark, saturated).
+ * Order matters: the first matching test wins during classification.
+ */
+const SESSION_TIMELINE_ACTIVITIES = [
+    { key: 'strategic_orientation', label: 'Strategic Orientation', color: '#7a4fa3', test: (type) => /STRATEGIC[_ ]?ORIENTATION/.test(type) },
+    { key: 'action', label: 'Scribe-Routed Actions', color: '#1f5f8b', test: (type) => /ACTION|MOVE[_ ]?RESPONSE/.test(type) },
+    { key: 'proposal', label: 'Proposals', color: '#2e8b57', test: (type) => /PROPOSAL/.test(type) },
+    { key: 'rfi', label: 'Requests For Information', color: '#c77d11', test: (type) => /RFI/.test(type) },
+    { key: 'meeting', label: 'Meetings & Briefings', color: '#b0413e', test: (type) => /GUIDANCE|INJECT|ANNOUNCEMENT|DIRECT|MEETING|BRIEF|WHITE[_ ]?CELL[_ ]?UPDATE/.test(type) }
+];
+
+/**
+ * Team swim-lanes for the timeline. The four player teams are always rendered,
+ * plus a White Cell / Control lane so operator-originated activity (adjudications,
+ * guidance, RFI answers) is never dropped.
+ */
+const SESSION_TIMELINE_TEAM_LANES = [
+    { key: 'blue', label: 'Blue Team' },
+    { key: 'red', label: 'Red Team' },
+    { key: 'green', label: 'Green Team' },
+    { key: 'industry', label: 'Industry Team' },
+    { key: 'whitecell', label: 'White Cell / Control' }
+];
+
+function classifySessionTimelineActivity(eventType) {
+    const normalized = String(eventType || '').toUpperCase();
+    if (!normalized) {
+        return null;
+    }
+    return SESSION_TIMELINE_ACTIVITIES.find((activity) => activity.test(normalized)) || null;
+}
+
+function resolveSessionTimelineLane(team) {
+    const normalized = String(team || '').trim().toLowerCase();
+    return ['blue', 'red', 'green', 'industry'].includes(normalized) ? normalized : 'whitecell';
+}
+
+function formatTimelineElapsed(seconds) {
+    const total = Math.max(0, Math.round(Number(seconds) || 0));
+    if (total < 60) {
+        return `+${total}s`;
+    }
+    const minutes = Math.floor(total / 60);
+    if (minutes < 60) {
+        return `+${minutes}m`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remMinutes = minutes % 60;
+    return remMinutes ? `+${hours}h ${remMinutes}m` : `+${hours}h`;
+}
+
+/**
+ * Builds a self-contained, print-safe SVG timeline of session activity.
+ * Color encodes activity type (see legend); each row groups activity by team;
+ * dots are positioned along a shared time axis. Pure HTML/CSS/inline SVG.
+ */
+function renderSessionActivityTimeline(dataset) {
+    const events = safeArray(dataset?.eventLog)
+        .map((event) => {
+            const activity = classifySessionTimelineActivity(event?.event_type);
+            if (!activity) {
+                return null;
+            }
+            const iso = asUtcIso(event?.event_ts_utc);
+            const ts = iso ? new Date(iso).getTime() : NaN;
+            if (!Number.isFinite(ts)) {
+                return null;
+            }
+            return {
+                ts,
+                iso,
+                activity,
+                laneKey: resolveSessionTimelineLane(event?.actor_team),
+                eventType: event.event_type,
+                move: event?.move_number ?? null
+            };
+        })
+        .filter(Boolean)
+        .sort((left, right) => left.ts - right.ts);
+
+    const activityCounts = new Map(SESSION_TIMELINE_ACTIVITIES.map((activity) => [activity.key, 0]));
+    events.forEach((event) => {
+        activityCounts.set(event.activity.key, (activityCounts.get(event.activity.key) || 0) + 1);
+    });
+
+    const legend = `
+        <ul class="report-timeline-legend">
+            ${SESSION_TIMELINE_ACTIVITIES.map((activity) => `
+                <li class="report-timeline-legend-item">
+                    <span class="tl-swatch" style="background:${activity.color};"></span>
+                    <span class="tl-legend-label">${escapeHtml(activity.label)}</span>
+                    <span class="tl-count">${activityCounts.get(activity.key) || 0}</span>
+                </li>
+            `).join('')}
+        </ul>
+    `;
+
+    if (!events.length) {
+        return `
+            <figure class="report-timeline">
+                ${legend}
+                <p class="report-empty">No team activity events were captured for this session, so the timeline has no points to plot. The activity legend above lists every tracked activity type.</p>
+            </figure>
+        `;
+    }
+
+    const minTs = events[0].ts;
+    const maxTs = events[events.length - 1].ts;
+    const span = Math.max(maxTs - minTs, 1);
+    const durationSeconds = (maxTs - minTs) / 1000;
+
+    // First timestamp at which each move number is observed (for boundary guides).
+    const moveFirstTs = new Map();
+    events.forEach((event) => {
+        const move = Number(event.move);
+        if (!Number.isFinite(move)) {
+            return;
+        }
+        if (!moveFirstTs.has(move) || event.ts < moveFirstTs.get(move)) {
+            moveFirstTs.set(move, event.ts);
+        }
+    });
+
+    // Geometry (viewBox units; the SVG scales to container width).
+    const W = 920;
+    const GUTTER = 116;
+    const RIGHT = 26;
+    const TOP = 30;
+    const LANE_H = 46;
+    const AXIS_H = 44;
+    const lanes = SESSION_TIMELINE_TEAM_LANES;
+    const plotLeft = GUTTER;
+    const plotRight = W - RIGHT;
+    const plotW = plotRight - plotLeft;
+    const axisBottom = TOP + lanes.length * LANE_H;
+    const H = axisBottom + AXIS_H;
+    const laneIndex = new Map(lanes.map((lane, index) => [lane.key, index]));
+    const laneLabelByKey = new Map(lanes.map((lane) => [lane.key, lane.label]));
+
+    const xFor = (ts) => (span <= 1 ? plotLeft + plotW / 2 : plotLeft + ((ts - minTs) / span) * plotW);
+    const laneCenter = (index) => TOP + index * LANE_H + LANE_H / 2;
+
+    const laneBands = lanes.map((lane, index) => {
+        const y = TOP + index * LANE_H;
+        const fill = index % 2 === 0 ? '#f6f8fa' : '#ffffff';
+        const centerY = laneCenter(index);
+        return `
+            <rect x="0" y="${y}" width="${W}" height="${LANE_H}" fill="${fill}"></rect>
+            <line x1="${plotLeft}" y1="${centerY}" x2="${plotRight}" y2="${centerY}" stroke="#e2e6ea" stroke-width="1"></line>
+            <text x="${GUTTER - 12}" y="${centerY + 3.5}" text-anchor="end" class="tl-lane-label">${escapeHtml(lane.label)}</text>
+        `;
+    }).join('');
+
+    const moveMarkers = [...moveFirstTs.entries()]
+        .sort((left, right) => left[0] - right[0])
+        .map(([move, ts]) => {
+            const x = xFor(ts);
+            if (x <= plotLeft + 6) {
+                return '';
+            }
+            const xLabel = x.toFixed(1);
+            return `
+                <line x1="${xLabel}" y1="${TOP}" x2="${xLabel}" y2="${axisBottom}" stroke="#c5ccd4" stroke-width="1" stroke-dasharray="3 3"></line>
+                <text x="${xLabel}" y="${TOP - 9}" text-anchor="middle" class="tl-move-label">Move ${escapeHtml(String(move))}</text>
+            `;
+        }).join('');
+
+    const TICKS = 5;
+    const ticks = Array.from({ length: TICKS + 1 }, (_, index) => {
+        const fraction = index / TICKS;
+        const x = plotLeft + fraction * plotW;
+        const xLabel = x.toFixed(1);
+        return `
+            <line x1="${xLabel}" y1="${axisBottom}" x2="${xLabel}" y2="${axisBottom + 5}" stroke="#9aa5b1" stroke-width="1"></line>
+            <text x="${xLabel}" y="${axisBottom + 18}" text-anchor="middle" class="tl-axis-label">${escapeHtml(formatTimelineElapsed(fraction * durationSeconds))}</text>
+        `;
+    }).join('');
+
+    const axisEnds = `
+        <text x="${plotLeft}" y="${axisBottom + 32}" text-anchor="start" class="tl-axis-bound">${escapeHtml(formatReportTimestamp(events[0].iso))}</text>
+        <text x="${plotRight}" y="${axisBottom + 32}" text-anchor="end" class="tl-axis-bound">${escapeHtml(formatReportTimestamp(events[events.length - 1].iso))}</text>
+    `;
+
+    const dots = events.map((event, index) => {
+        const laneIdx = laneIndex.has(event.laneKey) ? laneIndex.get(event.laneKey) : lanes.length - 1;
+        const jitter = ((index % 5) - 2) * (LANE_H * 0.13);
+        const cx = xFor(event.ts).toFixed(1);
+        const cy = (laneCenter(laneIdx) + jitter).toFixed(1);
+        const moveSuffix = (event.move === null || event.move === undefined) ? '' : ` · Move ${event.move}`;
+        const titleText = `${humanizeReportLabel(event.eventType)} · ${laneLabelByKey.get(event.laneKey)} · ${formatReportTimestamp(event.iso)}${moveSuffix}`;
+        return `<circle cx="${cx}" cy="${cy}" r="4.4" fill="${event.activity.color}" stroke="#ffffff" stroke-width="1.1" opacity="0.92"><title>${escapeHtml(titleText)}</title></circle>`;
+    }).join('');
+
+    const activeTeamCount = new Set(events.map((event) => event.laneKey)).size;
+    const caption = `This timeline plots ${events.length} captured ${events.length === 1 ? 'activity' : 'activities'} across ${activeTeamCount} active lane(s) over a ${formatReportDuration(durationSeconds, 'recorded')} span. Each dot is one activity positioned by time of occurrence; colour encodes the activity type and each row groups activity by team. Dashed vertical guides mark observed move boundaries.`;
+
+    return `
+        <figure class="report-timeline">
+            ${legend}
+            <div class="report-timeline-figure">
+                <svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Session activity timeline by team and activity type" class="report-timeline-svg">
+                    ${laneBands}
+                    ${moveMarkers}
+                    ${ticks}
+                    ${axisEnds}
+                    ${dots}
+                </svg>
+            </div>
+            <figcaption class="report-timeline-caption">${escapeHtml(caption)}</figcaption>
+        </figure>
+    `;
+}
+
 export function buildResearchReportHtml(dataset, {
     includeNotesAppendix = false
 } = {}) {
@@ -4095,6 +4311,10 @@ export function buildResearchReportHtml(dataset, {
         {
             title: 'Executive Summary',
             description: 'Narrative overview of session scale with headline indicators and per-team activity.'
+        },
+        {
+            title: 'Session Activity Timeline',
+            description: 'Graphic time axis of session activity, with colour-coded dots for each activity type grouped into per-team lanes.'
         },
         {
             title: 'Session Snapshot',
@@ -4881,6 +5101,82 @@ export function buildResearchReportHtml(dataset, {
             color: var(--report-muted);
         }
 
+        /* Session activity timeline (graphic) */
+        .report-timeline {
+            margin: 20px 0 0;
+            padding: 0;
+        }
+        .report-timeline-legend {
+            list-style: none;
+            margin: 0 0 14px;
+            padding: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 9px 18px;
+        }
+        .report-timeline-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11.5px;
+            line-height: 1;
+            color: var(--report-ink);
+        }
+        .report-timeline-legend .tl-swatch {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.10);
+            flex: 0 0 auto;
+        }
+        .report-timeline-legend .tl-count {
+            font-size: 10.5px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: var(--report-faint);
+        }
+        .report-timeline-figure {
+            border: 1px solid var(--report-rule);
+            border-radius: 10px;
+            padding: 10px 8px 6px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        .report-timeline-svg {
+            display: block;
+        }
+        .report-timeline-svg .tl-lane-label {
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            fill: var(--report-accent);
+        }
+        .report-timeline-svg .tl-move-label {
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            fill: var(--report-accent-soft);
+        }
+        .report-timeline-svg .tl-axis-label {
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            font-size: 9.5px;
+            font-weight: 500;
+            fill: var(--report-muted);
+        }
+        .report-timeline-svg .tl-axis-bound {
+            font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            font-size: 9px;
+            font-weight: 600;
+            fill: var(--report-faint);
+        }
+        .report-timeline-caption {
+            margin: 12px 0 0;
+            font-size: 11.5px;
+            line-height: 1.55;
+            color: var(--report-muted);
+        }
+
         /* ============================================================
            Print reset — declared last so it wins the cascade for A4
            ============================================================ */
@@ -4953,7 +5249,8 @@ export function buildResearchReportHtml(dataset, {
             .report-meta-item,
             .report-block,
             .report-entity-card,
-            .report-outline {
+            .report-outline,
+            .report-timeline-figure {
                 break-inside: avoid;
                 page-break-inside: avoid;
             }
@@ -5061,6 +5358,16 @@ export function buildResearchReportHtml(dataset, {
                 ['Team', 'Participants', 'Actions', 'Proposals', 'Responses', 'RFIs', 'Notes'],
                 teamActivityRows
             ))}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Session Activity Timeline</h2>
+                    <p class="report-section-intro">A graphic reconstruction of what happened during the session. Each dot is one captured activity placed along a shared time axis; colour encodes the activity type and each row groups activity by team, so density, sequencing, and per-team load can be read at a glance.</p>
+                </div>
+            </div>
+            ${renderSessionActivityTimeline(dataset)}
         </section>
 
         <section class="report-section">
