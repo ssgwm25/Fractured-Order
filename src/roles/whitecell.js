@@ -3221,9 +3221,15 @@ export class WhiteCellController {
                     value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
                     wide: true
                 },
-                { label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) },
-                { label: 'Accepted Costs', value: formatStrategicOrientationSelection(strategicOrientation.acceptedCosts) },
-                { label: 'Posture', value: strategicOrientation.posture || 'Not specified' },
+                ...(strategicOrientation.primaryLevers.length
+                    ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) }]
+                    : []),
+                ...(strategicOrientation.acceptedCosts.length
+                    ? [{ label: 'Accepted Costs', value: formatStrategicOrientationSelection(strategicOrientation.acceptedCosts) }]
+                    : []),
+                ...(strategicOrientation.posture
+                    ? [{ label: 'Posture', value: strategicOrientation.posture }]
+                    : []),
                 ...(strategicOrientation.rationale
                     ? [{ label: 'Team Rationale', value: strategicOrientation.rationale, wide: true }]
                     : [])
@@ -3521,9 +3527,15 @@ export class WhiteCellController {
             value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`,
             wide: true
         },
-        { label: 'Primary Levers', value: formatStrategicOrientationSelection(viewModel.primaryLevers) },
-        { label: 'Accepted Costs', value: formatStrategicOrientationSelection(viewModel.acceptedCosts) },
-        { label: 'Posture', value: viewModel.posture || 'Not specified' },
+        ...(viewModel.primaryLevers.length
+            ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(viewModel.primaryLevers) }]
+            : []),
+        ...(viewModel.acceptedCosts.length
+            ? [{ label: 'Accepted Costs', value: formatStrategicOrientationSelection(viewModel.acceptedCosts) }]
+            : []),
+        ...(viewModel.posture
+            ? [{ label: 'Posture', value: viewModel.posture }]
+            : []),
         ...(viewModel.rationale
             ? [{ label: 'Team Rationale', value: viewModel.rationale, wide: true }]
             : [])

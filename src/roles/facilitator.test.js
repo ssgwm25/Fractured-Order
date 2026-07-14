@@ -81,9 +81,6 @@ async function createStrategicOrientationAction(overrides = {}) {
             artifactType: 'selection',
             team: 'blue',
             orientation: 'pressure',
-            primaryLevers: ['Expanded financial sanctions'],
-            acceptedCosts: ['Sustained economic friction'],
-            posture: 'Calibrated \u2014 escalate deliberately',
             rationale: 'Set the pre-Move 1 posture.',
             scribeHandoff: 'Forwarded'
         }),
@@ -307,9 +304,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         const payload = controller.buildStrategicOrientationPayload({
             selected: 'pressure',
-            levers: ['Expanded financial sanctions'],
-            costs: ['Sustained economic friction'],
-            posture: 'Calibrated \u2014 escalate deliberately',
             rationale: 'Set the pre-Move 1 posture.'
         });
 
@@ -336,10 +330,27 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const removedOrientationInstruction = ['Each orientation', 'reflects a distinct posture toward strategic competition with the PRC.'].join(' ');
         const removedDescriptionClass = ['opt', 'desc'].join('-');
 
-        expect(html).toContain('Choose the posture that will frame the first move.');
+        expect(html).toContain('<fieldset class="form-group strategic-orientation-fieldset">');
+        expect(html).toContain('<legend class="form-label" id="strategicOrientationLegend">Orientation <span class="required-indicator">*</span></legend>');
         expect(html).not.toContain(removedScribeCopy);
         expect(html).not.toContain(removedOrientationInstruction);
         expect(html).not.toContain(removedDescriptionClass);
+        expect(html).toContain('Focus on affecting PRC GDP growth');
+        expect(html).toContain('Achieve normalization with partners and existing relationships');
+        expect(html).toContain('Develop new alliance and partnership structures');
+        expect(html).not.toContain('Primary levers');
+        expect(html).not.toContain('Accepted costs');
+        expect(html).not.toContain('Posture');
+        expect(html).not.toContain('Configure orientation');
+        expect(html).not.toContain('Step 1 of');
+        expect(html).not.toContain('Select the orientation that will frame the first move.');
+        expect(html).not.toContain('No orientation selected');
+        expect(html).toContain('class="form-input form-textarea"');
+        expect(html).toContain('class="form-hint" id="rationaleHelp"');
+        expect(html).toContain('label class="form-label" for="rationale"');
+        expect(html).toContain('aria-describedby="rationaleHelp"');
+        expect(html).toContain('role="radiogroup"');
+        expect(html).toContain('role="radio"');
     });
 
     it('swaps Strategic Orientation and action button priority after the team records one', async () => {

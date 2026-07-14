@@ -1051,9 +1051,6 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
                 artifactType: 'forecast',
                 team: 'green',
                 orientation: 'reframe',
-                primaryLevers: ['Friend-shoring agreements'],
-                acceptedCosts: ['Transitional inefficiencies'],
-                posture: 'Gradual \u2014 long-horizon reallocation',
                 rationale: 'Green expects Blue to pivot into alliance structure-building.',
                 scribeHandoff: 'Forwarded'
             })
@@ -1071,12 +1068,16 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('scribe-orientation-slide');
         expect(html).toContain('Forecasted Blue posture');
         expect(html).toContain('Orientation at a glance');
-        expect(html).toContain('Friend-shoring agreements');
+        expect(html).toContain('Develop new alliance and partnership structures');
+        expect(html).toContain('Green expects Blue to pivot into alliance structure-building.');
+        expect(html).toContain('Forecast logic');
         expect(html).toContain('Facilitator-to-White Cell handoff');
         expect(html).toContain('Project orientation, then send to White Cell');
         expect(html).toContain('Project Forecast');
         expect(html).toContain('Submit to White Cell');
         expect(html).not.toContain('Coordinated tick boxes');
+        expect(html).not.toContain('Friend-shoring agreements');
+        expect(html).not.toContain('Transitional inefficiencies');
     });
 
     it('requires scribe yes/no decisions and selected tick boxes before showing submit', async () => {

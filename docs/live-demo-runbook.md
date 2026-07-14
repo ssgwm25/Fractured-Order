@@ -73,7 +73,7 @@ White Cell Support should be able to monitor and communicate but not perform lea
 
 Scribe:
 
-- before Move 1, Blue completes Strategic Orientation and Green, Red, and Industry complete forecasts of Blue orientation; all four go to the Facilitator first
+- before Move 1, Blue completes Strategic Orientation and Green, Red, and Industry complete forecasts of Blue orientation; each artifact records only the orientation/forecast plus team rationale, and all four go to the Facilitator first
 - if a Green, Red, or Industry forecast insert returns a 403 on `actions` or the browser warns that `game_state` is missing, apply `data/2026-06-25_participant_role_resolver_normalization.sql`; pass condition is that the same-team Scribe can forward the Strategic Orientation forecast, cross-team writes still fail, and the live tracker loads from the backend
 - confirm the Strategic Orientation button disappears after the team records its selection or forecast; it is a one-time pre-Move-1 input
 - confirm the header live tracker reads Strategic Orientation / Pre-Move 1 until all required orientation artifacts reach White Cell, then returns to Move 1 / Internal Deliberation
@@ -107,7 +107,7 @@ Facilitator:
 - confirm default deck loads
 - confirm Scribe-forwarded Strategic Orientation artifacts appear as distinct orientation slides, separate from normal action slide treatment
 - confirm Scribe-forwarded actions and live communications appear as slides
-- project each Strategic Orientation selection/forecast for the team, then use the visible handoff control to submit it to White Cell
+- project each Strategic Orientation selection/forecast and its recorded team rationale for the team, then use the visible handoff control to submit it to White Cell
 - confirm Facilitator submission succeeds for Scribe-forwarded Strategic Orientation artifacts and normal forwarded actions after the legacy Scribe RLS policy patch is applied
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid

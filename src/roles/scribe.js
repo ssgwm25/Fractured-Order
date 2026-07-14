@@ -32,7 +32,6 @@ import {
 } from '../features/actions/blueActionDetails.js';
 import {
     STRATEGIC_ORIENTATION_PERIOD,
-    formatStrategicOrientationSelection,
     getStrategicOrientationViewModel,
     isStrategicOrientationAction,
     isStrategicOrientationForwardedToScribe
@@ -2167,7 +2166,7 @@ export class ScribeController {
                     <section class="scribe-action-slide-glance" aria-label="Strategic Orientation at a glance">
                         <div class="scribe-action-slide-section-header">
                             <h3 class="scribe-action-slide-section-title">Orientation at a glance</h3>
-                            <p class="scribe-action-slide-section-copy">Project these choices for the team before submitting to White Cell.</p>
+                            <p class="scribe-action-slide-section-copy">Project this selection for the team before submitting to White Cell.</p>
                         </div>
                         <div class="scribe-action-slide-glance-grid">
                             ${renderActionSlideGlanceCard({
@@ -2176,40 +2175,22 @@ export class ScribeController {
                 support: viewModel.orientationTag || 'Tag pending'
             })}
                             ${renderActionSlideGlanceCard({
-                label: 'Primary levers',
-                value: formatStrategicOrientationSelection(viewModel.primaryLevers),
-                support: 'Configured before Move 1'
+                label: 'Team rationale',
+                value: viewModel.rationale || 'No rationale provided.',
+                support: viewModel.isForecast ? 'Forecast logic' : 'Selection logic'
             })}
-                            ${renderActionSlideGlanceCard({
-                label: 'Accepted costs',
-                value: formatStrategicOrientationSelection(viewModel.acceptedCosts),
-                support: 'Recorded with the orientation'
-            })}
-                            ${renderActionSlideGlanceCard({
-                label: 'Posture',
-                value: viewModel.posture || 'Not specified',
-                support: viewModel.isForecast ? 'Forecast posture' : 'Selected posture'
-                            })}
                         </div>
                     </section>
 
                     ${scribeSubmissionControls}
 
                     <div class="scribe-action-slide-columns">
-                        <section class="scribe-action-slide-block" aria-label="Configuration snapshot">
-                            <h3 class="scribe-action-slide-block-title">Configuration snapshot</h3>
+                        <section class="scribe-action-slide-block" aria-label="Orientation record">
+                            <h3 class="scribe-action-slide-block-title">Orientation record</h3>
                             <dl class="scribe-action-slide-data-list">
                                 ${renderActionSlideDataRow({
-                label: 'Primary levers',
-                value: formatStrategicOrientationSelection(viewModel.primaryLevers)
-            })}
-                                ${renderActionSlideDataRow({
-                label: 'Accepted costs',
-                value: formatStrategicOrientationSelection(viewModel.acceptedCosts)
-            })}
-                                ${renderActionSlideDataRow({
-                label: 'Posture',
-                value: viewModel.posture || 'Not specified'
+                label: viewModel.isForecast ? 'Forecasted Blue orientation' : 'Selected orientation',
+                value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`
             })}
                                 ${renderActionSlideDataRow({
                 label: 'Team rationale',

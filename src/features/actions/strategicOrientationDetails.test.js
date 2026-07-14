@@ -71,6 +71,27 @@ describe('strategic orientation details helpers', () => {
         });
     });
 
+    it('supports streamlined Strategic Orientation records with only orientation and rationale', () => {
+        const serialized = serializeStrategicOrientationDetails({
+            artifactType: 'selection',
+            team: 'blue',
+            orientation: 'pressure',
+            rationale: 'Blue wants to focus pressure on PRC GDP growth.',
+            scribeHandoff: 'Forwarded'
+        });
+
+        expect(parseStrategicOrientationDetails(serialized)).toMatchObject({
+            orientation: 'pressure',
+            orientationLabel: 'Pressure',
+            orientationTag: STRATEGIC_ORIENTATION_OPTIONS.pressure.tag,
+            primaryLevers: [],
+            acceptedCosts: [],
+            posture: '',
+            rationale: 'Blue wants to focus pressure on PRC GDP growth.',
+            scribeHandoff: 'Forwarded'
+        });
+    });
+
     it('requires Blue, Green, Red, and Industry Strategic Orientation artifacts to be submitted before completion', () => {
         const actions = [
             {

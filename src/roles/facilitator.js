@@ -118,7 +118,6 @@ const RESPONSE_GROUP_RENDER_LIMIT = 30;
 export const FACILITATOR_VERBA_AI_RENDER_LIMIT = 40;
 export const FACILITATOR_TIMELINE_RENDER_LIMIT = 80;
 const BLUE_ACTION_WIZARD_PAGE_TOTAL = 3;
-const STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL = 2;
 
 function isProposalTeamId(teamId) {
     return PROPOSAL_TEAM_IDS.has(teamId);
@@ -2175,9 +2174,15 @@ export class FacilitatorController {
                     value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
                     wide: true
                 },
-                { label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) },
-                { label: 'Accepted Costs', value: formatStrategicOrientationSelection(strategicOrientation.acceptedCosts) },
-                { label: 'Posture', value: strategicOrientation.posture || 'Not specified' },
+                ...(strategicOrientation.primaryLevers.length
+                    ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) }]
+                    : []),
+                ...(strategicOrientation.acceptedCosts.length
+                    ? [{ label: 'Accepted Costs', value: formatStrategicOrientationSelection(strategicOrientation.acceptedCosts) }]
+                    : []),
+                ...(strategicOrientation.posture
+                    ? [{ label: 'Posture', value: strategicOrientation.posture }]
+                    : []),
                 ...(strategicOrientation.rationale
                     ? [{ label: 'Team Rationale', value: strategicOrientation.rationale, wide: true }]
                     : [])
@@ -2467,18 +2472,11 @@ export class FacilitatorController {
         const isBlue = this.teamId === 'blue';
         return {
             title: isBlue ? 'Strategic Orientation' : 'Forecast Blue Strategic Orientation',
-            eyebrow: 'Pre-Move 1 \u00b7 Team Selection',
-            stepOneTitle: isBlue ? 'Select one orientation' : 'Forecast Blue orientation',
-            stepOneInstruction: isBlue
-                ? ''
-                : 'Forecast the orientation Blue is most likely to choose before Move 1. Each option is mutually exclusive; choose one and configure the expected posture.',
             fieldLabel: isBlue ? 'Orientation' : 'Forecasted Blue orientation',
-            configureButton: isBlue ? 'Next: Configure' : 'Next: Forecast',
-            confirmButton: isBlue ? 'Confirm Orientation' : 'Confirm Forecast',
-            statusReady: isBlue ? 'Ready to confirm orientation.' : 'Ready to confirm forecast.',
+            submitButton: isBlue ? 'Record Orientation' : 'Record Forecast',
             rationalePlaceholder: isBlue
-                ? 'Briefly state why your team chose this orientation and configuration. Recorded for the White Cell and the after-action review.'
-                : 'Briefly state why your team forecasts Blue will choose this orientation and configuration. Recorded for the White Cell and the after-action review.'
+                ? 'Briefly state why your team chose this orientation. Recorded for the White Cell and the after-action review.'
+                : 'Briefly state why your team forecasts Blue will choose this orientation. Recorded for the White Cell and the after-action review.'
         };
     }
 
@@ -2526,118 +2524,39 @@ export class FacilitatorController {
         const selectedOrientation = viewModel.hasStrategicOrientationDetails
             ? viewModel.orientation
             : '';
-        const stepOneInstruction = copy.stepOneInstruction
-            ? `<p class="instruction">${this.escapeHtml(copy.stepOneInstruction)}</p>`
-            : '';
         const renderOrientationCard = (option) => {
             const isSelected = selectedOrientation === option.id;
             return `
-                <button class="opt${isSelected ? ' selected' : ''}" type="button" data-orientation="${this.escapeHtml(option.id)}" aria-pressed="${isSelected ? 'true' : 'false'}">
-                    <div class="opt-head">
-                        <div>
-                            <div class="opt-num">${this.escapeHtml(option.number)}</div>
-                            <div class="opt-name">${this.escapeHtml(option.name)}</div>
-                        </div>
-                        <div class="opt-check" aria-hidden="true">&check;</div>
-                    </div>
+                <button
+                    class="opt${isSelected ? ' selected' : ''}"
+                    type="button"
+                    data-orientation="${this.escapeHtml(option.id)}"
+                    role="radio"
+                    aria-checked="${isSelected ? 'true' : 'false'}"
+                >
+                    <div class="opt-name">${this.escapeHtml(option.name)}</div>
                     <div class="opt-tag">${this.escapeHtml(option.tag)}</div>
-                    <div class="opt-chars">
-                        ${option.characteristics.map((item) => `
-                            <div class="char">
-                                <div class="k">${this.escapeHtml(item.key)}</div>
-                                <div class="v">${this.escapeHtml(item.value)}</div>
-                            </div>
-                        `).join('')}
-                    </div>
                 </button>
             `;
         };
 
         content.innerHTML = `
             <section class="strategic-orientation-modal" data-strategic-orientation-modal>
-                <div class="modal-head">
-                    <div class="mh-top">
-                        <div>
-                            <div class="eyebrow">${this.escapeHtml(copy.eyebrow)}</div>
-                            <h1>${this.escapeHtml(copy.title)}</h1>
-                        </div>
-                        <div class="step-pill" id="stepPill">Step 1 of ${STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL}</div>
-                    </div>
-                    <p id="mhSub">Choose the posture that will frame the first move.</p>
-                </div>
-
-                <div class="view show" id="step1" data-orientation-step="1">
-                    <div class="content-pad">
-                        <h2>${this.escapeHtml(copy.stepOneTitle)}</h2>
-                        ${stepOneInstruction}
-
-                        <div class="field-label">${this.escapeHtml(copy.fieldLabel)} <span class="req">&middot; required</span></div>
-
-                        <div class="options" id="options">
+                <div class="content-pad">
+                    <fieldset class="form-group strategic-orientation-fieldset">
+                        <legend class="form-label" id="strategicOrientationLegend">${this.escapeHtml(copy.fieldLabel)} <span class="required-indicator">*</span></legend>
+                        <div class="options" id="options" role="radiogroup" aria-labelledby="strategicOrientationLegend">
                             ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map(renderOrientationCard).join('')}
                         </div>
+                    </fieldset>
+                    <div class="form-group">
+                        <label class="form-label" for="rationale">Team rationale</label>
+                        <textarea id="rationale" class="form-input form-textarea" aria-describedby="rationaleHelp" placeholder="${this.escapeHtml(copy.rationalePlaceholder)}">${this.escapeHtml(viewModel.rationale)}</textarea>
+                        <p class="form-hint" id="rationaleHelp">Record the team logic that supports this selection.</p>
                     </div>
-
-                    <div class="footer">
-                        <div class="foot-status" id="footPick">${selectedOrientation ? this.escapeHtml(`Selected: ${viewModel.orientationLabel}`) : 'No orientation selected'}</div>
-                        <div class="foot-actions">
-                            <button class="btn btn-ghost" type="button" data-orientation-nav="cancel">Cancel</button>
-                            <button class="btn btn-primary" id="nextBtn" type="button" data-orientation-nav="next" ${selectedOrientation ? '' : 'disabled'}>${this.escapeHtml(copy.configureButton)}</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="view" id="step2" data-orientation-step="2">
-                    <div class="content-pad">
-                        <h2>Configure orientation</h2>
-                        <div class="config-banner">
-                            <div class="cb-title" id="configTitle">Selected orientation</div>
-                            <div class="cb-sub" id="configSub">Select primary levers, accepted costs, and posture.</div>
-                        </div>
-
-                        <p class="instruction">Configuration choices make the orientation operational for the game record. Select at least one lever, one accepted cost, and one posture.</p>
-
-                        <div class="field-label">Primary levers <span class="req">&middot; select at least one</span></div>
-                        <div class="chips" id="leverChips"></div>
-
-                        <div class="field-label">Accepted costs <span class="req">&middot; select at least one</span></div>
-                        <div class="chips" id="costChips"></div>
-
-                        <div class="field-label">Posture <span class="req">&middot; select one</span></div>
-                        <div class="chips" id="postureChips"></div>
-
-                        <div class="field-label">Team rationale <span class="opt-note">(recorded with your selection)</span></div>
-                        <textarea id="rationale" placeholder="${this.escapeHtml(copy.rationalePlaceholder)}">${this.escapeHtml(viewModel.rationale)}</textarea>
-                        <div class="help">Optional but recommended. Your rationale travels with the selection and gives the White Cell context for how to read your moves.</div>
-                    </div>
-
-                    <div class="footer">
-                        <div class="foot-status" id="configStatus">Select required configuration choices.</div>
-                        <div class="foot-actions">
-                            <button class="btn btn-ghost" type="button" data-orientation-nav="back">Back</button>
-                            <button class="btn btn-primary" id="confirmBtn" type="button" data-orientation-nav="confirm" disabled>${this.escapeHtml(copy.confirmButton)}</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="view confirm-view" id="confirmView" data-orientation-step="confirm">
-                    <div class="content-pad">
-                        <div class="confirm-icon" aria-hidden="true">&check;</div>
-                        <h2>Strategic Orientation recorded</h2>
-                        <p class="instruction">This submission will be forwarded to the Facilitator for team projection before it goes to White Cell.</p>
-
-                        <div class="summary">
-                            <div class="s-k">Orientation</div>
-                            <div class="s-v" id="sumOrientation">-</div>
-                            <div class="s-k">Primary levers</div>
-                            <div class="s-v" id="sumLevers">-</div>
-                            <div class="s-k">Accepted costs</div>
-                            <div class="s-v" id="sumCosts">-</div>
-                            <div class="s-k">Posture</div>
-                            <div class="s-v" id="sumPosture">-</div>
-                            <div class="s-k">Team rationale</div>
-                            <div class="s-v" id="sumRationale">-</div>
-                        </div>
+                    <div class="form-actions strategic-orientation-actions">
+                        <button class="btn btn-ghost" type="button" data-orientation-nav="cancel">Cancel</button>
+                        <button class="btn btn-primary" id="confirmBtn" type="button" data-orientation-nav="confirm" ${selectedOrientation ? '' : 'disabled'}>${this.escapeHtml(copy.submitButton)}</button>
                     </div>
                 </div>
             </section>
@@ -2645,9 +2564,6 @@ export class FacilitatorController {
 
         content.__strategicOrientationInitialState = {
             selected: selectedOrientation,
-            levers: viewModel.primaryLevers || [],
-            costs: viewModel.acceptedCosts || [],
-            posture: viewModel.posture || '',
             rationale: viewModel.rationale || ''
         };
 
@@ -2657,160 +2573,44 @@ export class FacilitatorController {
     bindStrategicOrientationModal(content, modal, { actionId = null, isEdit = false } = {}) {
         const state = {
             selected: content.__strategicOrientationInitialState?.selected || null,
-            levers: [...(content.__strategicOrientationInitialState?.levers || [])],
-            costs: [...(content.__strategicOrientationInitialState?.costs || [])],
-            posture: content.__strategicOrientationInitialState?.posture || '',
             rationale: content.__strategicOrientationInitialState?.rationale || ''
         };
-        const stepPill = content.querySelector('#stepPill');
-        const step1 = content.querySelector('#step1');
-        const step2 = content.querySelector('#step2');
-        const confirmView = content.querySelector('#confirmView');
-        const footPick = content.querySelector('#footPick');
-        const nextBtn = content.querySelector('#nextBtn');
         const confirmBtn = content.querySelector('#confirmBtn');
-        const configStatus = content.querySelector('#configStatus');
         const rationaleEl = content.querySelector('#rationale');
-        const copy = this.getStrategicOrientationModalCopy();
-        const makeChip = (group, value, selected) => {
-            const safeValue = this.escapeHtml(value);
-            return `
-                <button class="chip" type="button" data-orientation-chip="${group}" data-chip-value="${safeValue}" aria-pressed="${selected ? 'true' : 'false'}">
-                    <span class="dot" aria-hidden="true">&check;</span>
-                    <span>${safeValue}</span>
-                </button>
-            `;
-        };
-        const setStep = (step) => {
-            step1?.classList.toggle('show', step === 1);
-            step2?.classList.toggle('show', step === 2);
-            confirmView?.classList.toggle('show', step === 'confirm');
-
-            if (stepPill) {
-                stepPill.textContent = step === 2
-                    ? `Step 2 of ${STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL}`
-                    : (step === 'confirm' ? 'Confirmed' : `Step 1 of ${STRATEGIC_ORIENTATION_MODAL_STEP_TOTAL}`);
-            }
-        };
-        const renderConfig = () => {
-            const option = STRATEGIC_ORIENTATION_OPTIONS[state.selected];
-            if (!option) return;
-
-            const configTitle = content.querySelector('#configTitle');
-            const configSub = content.querySelector('#configSub');
-            if (configTitle) configTitle.textContent = option.name;
-            if (configSub) configSub.textContent = option.tag;
-
-            const leverChips = content.querySelector('#leverChips');
-            const costChips = content.querySelector('#costChips');
-            const postureChips = content.querySelector('#postureChips');
-            if (leverChips) {
-                leverChips.innerHTML = option.levers
-                    .map((value) => makeChip('lever', value, state.levers.includes(value)))
-                    .join('');
-            }
-            if (costChips) {
-                costChips.innerHTML = option.costs
-                    .map((value) => makeChip('cost', value, state.costs.includes(value)))
-                    .join('');
-            }
-            if (postureChips) {
-                postureChips.innerHTML = option.posture
-                    .map((value) => makeChip('posture', value, state.posture === value))
-                    .join('');
-            }
-        };
-        const updateConfirmState = () => {
-            const isComplete = Boolean(state.levers.length && state.costs.length && state.posture);
-            if (configStatus) {
-                configStatus.textContent = isComplete ? copy.statusReady : 'Select required configuration choices.';
-            }
-            if (confirmBtn) {
-                confirmBtn.disabled = !isComplete;
-            }
-        };
-        const selectOrientation = (orientation) => {
-            const option = STRATEGIC_ORIENTATION_OPTIONS[orientation];
-            if (!option) return;
+        const orientationButtons = [...content.querySelectorAll('[data-orientation]')];
+        const selectOrientation = (orientation, { focus = false } = {}) => {
+            if (!STRATEGIC_ORIENTATION_OPTIONS[orientation]) return;
 
             state.selected = orientation;
-            state.levers = state.levers.filter((value) => option.levers.includes(value));
-            state.costs = state.costs.filter((value) => option.costs.includes(value));
-            state.posture = option.posture.includes(state.posture) ? state.posture : '';
 
-            content.querySelectorAll('[data-orientation]').forEach((button) => {
+            orientationButtons.forEach((button) => {
                 const selected = button.dataset.orientation === orientation;
                 button.classList.toggle('selected', selected);
-                button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                button.setAttribute('aria-checked', selected ? 'true' : 'false');
+                if (focus && selected) {
+                    button.focus();
+                }
             });
-
-            if (footPick) footPick.textContent = `Selected: ${option.name}`;
-            if (nextBtn) nextBtn.disabled = false;
-            renderConfig();
-            updateConfirmState();
-        };
-        const toggleChip = (button) => {
-            const group = button?.dataset?.orientationChip;
-            const value = button?.dataset?.chipValue;
-            if (!group || !value) return;
-
-            if (group === 'posture') {
-                state.posture = value;
-                content.querySelectorAll('[data-orientation-chip="posture"]').forEach((chip) => {
-                    const selected = chip.dataset.chipValue === value;
-                    chip.setAttribute('aria-pressed', selected ? 'true' : 'false');
-                });
-            } else {
-                const key = group === 'lever' ? 'levers' : 'costs';
-                const hasValue = state[key].includes(value);
-                state[key] = hasValue
-                    ? state[key].filter((item) => item !== value)
-                    : [...state[key], value];
-                button.setAttribute('aria-pressed', hasValue ? 'false' : 'true');
-            }
-
-            updateConfirmState();
-        };
-        const renderSummary = () => {
-            const option = STRATEGIC_ORIENTATION_OPTIONS[state.selected];
-            const setText = (selector, value) => {
-                const element = content.querySelector(selector);
-                if (element) element.textContent = value;
-            };
-
-            setText('#sumOrientation', option ? `${option.name} - ${option.tag}` : '-');
-            setText('#sumLevers', formatStrategicOrientationSelection(state.levers, '-'));
-            setText('#sumCosts', formatStrategicOrientationSelection(state.costs, '-'));
-            setText('#sumPosture', state.posture || '-');
-            setText('#sumRationale', state.rationale || 'No rationale provided.');
+            if (confirmBtn) confirmBtn.disabled = false;
         };
 
-        content.querySelectorAll('[data-orientation]').forEach((button) => {
+        orientationButtons.forEach((button, index) => {
             button.addEventListener('click', () => selectOrientation(button.dataset.orientation));
-        });
-        content.addEventListener('click', (event) => {
-            const chip = event.target.closest('[data-orientation-chip]');
-            if (chip && content.contains(chip)) {
-                toggleChip(chip);
-            }
+            button.addEventListener('keydown', (event) => {
+                if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) {
+                    return;
+                }
+                event.preventDefault();
+                const direction = (event.key === 'ArrowDown' || event.key === 'ArrowRight') ? 1 : -1;
+                const nextIndex = (index + direction + orientationButtons.length) % orientationButtons.length;
+                selectOrientation(orientationButtons[nextIndex].dataset.orientation, { focus: true });
+            });
         });
         rationaleEl?.addEventListener('input', () => {
             state.rationale = rationaleEl.value.trim();
         });
         content.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => {
             modal?.close();
-        });
-        content.querySelector('[data-orientation-nav="back"]')?.addEventListener('click', () => {
-            setStep(1);
-        });
-        content.querySelector('[data-orientation-nav="next"]')?.addEventListener('click', () => {
-            if (!state.selected) {
-                showToast({ message: 'Select one orientation before configuring it.', type: 'error' });
-                return;
-            }
-            renderConfig();
-            updateConfirmState();
-            setStep(2);
         });
         content.querySelector('[data-orientation-nav="confirm"]')?.addEventListener('click', () => {
             state.rationale = rationaleEl?.value?.trim() || '';
@@ -2819,8 +2619,6 @@ export class FacilitatorController {
                 showToast({ message: error, type: 'error' });
                 return;
             }
-            renderSummary();
-            setStep('confirm');
             this.submitStrategicOrientation(modal, state, { actionId, isEdit }).catch((err) => {
                 logger.error('Failed to forward Strategic Orientation:', err);
             });
@@ -2829,22 +2627,11 @@ export class FacilitatorController {
         if (state.selected) {
             selectOrientation(state.selected);
         }
-        renderConfig();
-        updateConfirmState();
     }
 
     validateStrategicOrientationData(data = {}) {
         if (!data.selected || !STRATEGIC_ORIENTATION_OPTIONS[data.selected]) {
             return 'Select one orientation.';
-        }
-        if (!data.levers?.length) {
-            return 'Select at least one primary lever.';
-        }
-        if (!data.costs?.length) {
-            return 'Select at least one accepted cost.';
-        }
-        if (!data.posture) {
-            return 'Select one posture.';
         }
         return null;
     }
@@ -2871,9 +2658,6 @@ export class FacilitatorController {
                 artifactType,
                 team: this.teamId,
                 orientation: option.id,
-                primaryLevers: data.levers,
-                acceptedCosts: data.costs,
-                posture: data.posture,
                 rationale: data.rationale,
                 forecastSummary,
                 scribeHandoff: STRATEGIC_ORIENTATION_SCRIBE_HANDOFF.FORWARDED
