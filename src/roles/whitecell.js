@@ -797,6 +797,10 @@ export function buildSharedActionCommunicationContent(action = {}) {
     const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
     const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
     const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
+    const supplyChainFocusLabel = formatBlueActionSelection(
+        blueAction.supplyChainFocuses,
+        blueAction.supplyChainFocus || 'Not specified'
+    );
     const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
     const expectedOutcomes = blueAction.expectedOutcomes || 'No expected outcomes recorded.';
     const contentParts = [
@@ -807,7 +811,7 @@ export function buildSharedActionCommunicationContent(action = {}) {
         `Phase: ${action.phase || 1}`,
         `${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}: ${targetLabel}`,
         `${blueAction.hasBlueActionDetails ? 'Sectors' : 'Sector'}: ${sectorLabel}`,
-        `${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}: ${blueAction.supplyChainFocus || 'Not specified'}`,
+        `${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}: ${supplyChainFocusLabel}`,
         `Expected Outcomes: ${expectedOutcomes}`
     ];
 
@@ -1270,6 +1274,7 @@ export class WhiteCellController {
 
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
+        const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         const operatorLabel = this.isLeadOperator()
             ? 'White Cell Lead'
             : 'White Cell Support';
@@ -1284,7 +1289,7 @@ export class WhiteCellController {
                 {
                     title: 'Watch the live tracker',
                     body: 'The header mirrors the current state every team sees: Strategic Orientation before Move 1, then move, phase, countdown timer, and paused or running state.',
-                    highlight: '.header-center'
+                    highlight: liveTrackerHighlights
                 },
                 {
                     title: 'Run game controls',
@@ -1312,8 +1317,8 @@ export class WhiteCellController {
                     highlight: navTarget('proposals')
                 },
                 {
-                    title: 'Review Red responses',
-                    body: 'Move Responses is the Red Team queue. Review responses before they affect the shared exercise record.',
+                    title: 'Review Red actions',
+                    body: 'Red actions are the Red Team queue. Review submitted actions before they affect the shared exercise record.',
                     highlight: navTarget('responses')
                 },
                 {
@@ -2759,7 +2764,7 @@ export class WhiteCellController {
             summaryParts.push(`${proposalCount} proposal${proposalCount === 1 ? '' : 's'}`);
         }
         if (responseCount > 0) {
-            summaryParts.push(`${responseCount} Red move response${responseCount === 1 ? '' : 's'}`);
+            summaryParts.push(`${responseCount} Red action${responseCount === 1 ? '' : 's'}`);
         }
 
         if (!this.notificationsMuted) {
@@ -3018,8 +3023,8 @@ export class WhiteCellController {
         this.renderReviewQueue(document.getElementById('responsesList'), this.redTeamResponses, {
             section: 'responses',
             newIds: this.newRedResponseIds,
-            ariaLabel: 'Red Team move response review',
-            emptyMessage: 'No Red Team move responses are awaiting White Cell review.'
+            ariaLabel: 'Red Team action review',
+            emptyMessage: 'No Red Team actions are awaiting White Cell review.'
         });
     }
 
@@ -3188,6 +3193,10 @@ export class WhiteCellController {
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
         const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
         const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
+        const supplyChainFocusLabel = formatBlueActionSelection(
+            blueAction.supplyChainFocuses,
+            blueAction.supplyChainFocus || 'Not specified'
+        );
         const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = isStrategicOrientationFlow
             ? 'Pre-Move 1 | Strategic Orientation'
@@ -3211,16 +3220,19 @@ export class WhiteCellController {
             : blueAction.hasBlueActionDetails && blueAction.enforcementTimeline
             ? createBadge({ text: blueAction.enforcementTimeline, variant: 'info', size: 'sm', rounded: true }).outerHTML
             : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
-        const statusAccent = isAdjudicatedAction(action)
-            ? 'deliberated'
-            : (canAdjudicateAction(action) ? 'submitted' : '');
-        const detailsMarkup = isStrategicOrientationFlow
-            ? this.renderDetailGrid([
-                {
-                    label: strategicOrientation.isForecast ? 'Forecasted Blue Orientation' : 'Selected Orientation',
-                    value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
-                    wide: true
-                },
+        const strategicOrientationDetails = isStrategicOrientationFlow
+            ? [
+                ...(strategicOrientation.isForecast
+                    ? strategicOrientation.forecastTargets.map((forecast) => ({
+                        label: `${forecast.label} Forecast`,
+                        value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
+                        wide: true
+                    }))
+                    : [{
+                        label: 'Selected Orientation',
+                        value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
+                        wide: true
+                    }]),
                 ...(strategicOrientation.primaryLevers.length
                     ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) }]
                     : []),
@@ -3233,7 +3245,13 @@ export class WhiteCellController {
                 ...(strategicOrientation.rationale
                     ? [{ label: 'Team Rationale', value: strategicOrientation.rationale, wide: true }]
                     : [])
-            ])
+            ]
+            : [];
+        const statusAccent = isAdjudicatedAction(action)
+            ? 'deliberated'
+            : (canAdjudicateAction(action) ? 'submitted' : '');
+        const detailsMarkup = isStrategicOrientationFlow
+            ? this.renderDetailGrid(strategicOrientationDetails)
             : proposalViewModel.hasProposalDetails
             ? this.renderProposalDetails(action)
             : this.renderDetailGrid(
@@ -3242,7 +3260,7 @@ export class WhiteCellController {
                         ...(blueAction.objective ? [{ label: 'Objective', value: blueAction.objective, wide: true }] : []),
                         { label: 'Levers', value: leverLabel },
                         { label: 'Implementation', value: blueAction.implementation || 'Not specified' },
-                        { label: 'Supply Chain Focus', value: blueAction.supplyChainFocus || 'Not specified' },
+                        { label: 'Supply Chain Focus', value: supplyChainFocusLabel },
                         { label: 'Focus Countries', value: targetLabel },
                         { label: 'Sectors', value: sectorLabel },
                         { label: 'Timeline', value: blueAction.enforcementTimeline || 'Not specified' },
@@ -3429,7 +3447,7 @@ export class WhiteCellController {
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                     <strong>${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.focusCountries))} |
                     <strong>${blueAction.hasBlueActionDetails ? 'Sectors' : 'Sector'}:</strong> ${this.escapeHtml(sectorLabel)} |
-                    <strong>${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}:</strong> ${this.escapeHtml(blueAction.supplyChainFocus || 'Not specified')}
+                    <strong>${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}:</strong> ${this.escapeHtml(supplyChainFocusLabel)}
                 </p>
                 ${action.submitted_at ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
@@ -3522,11 +3540,17 @@ export class WhiteCellController {
                     </p>
                 ` : ''}
                 ${this.renderDetailGrid([
-        {
-            label: viewModel.isForecast ? 'Forecasted Blue Orientation' : 'Selected Orientation',
-            value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`,
-            wide: true
-        },
+        ...(viewModel.isForecast
+            ? viewModel.forecastTargets.map((forecast) => ({
+                label: `${forecast.label} Forecast`,
+                value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
+                wide: true
+            }))
+            : [{
+                label: 'Selected Orientation',
+                value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`,
+                wide: true
+            }]),
         ...(viewModel.primaryLevers.length
             ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(viewModel.primaryLevers) }]
             : []),

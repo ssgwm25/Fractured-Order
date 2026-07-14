@@ -840,6 +840,13 @@ body::before {
     overflow: hidden;
 }
 
+.scribe-action-slide.is-collapsed {
+    width: min(100%, 44rem);
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+}
+
 .scribe-action-slide::before {
     content: '';
     position: absolute;
@@ -899,6 +906,89 @@ body::before {
     max-width: 44rem;
     place-items: center;
     text-align: center;
+}
+
+.scribe-action-card-toggle {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.scribe-action-slide.is-collapsed .scribe-action-card-toggle {
+    padding: var(--space-3);
+}
+
+.scribe-action-card-toggle:hover,
+.scribe-action-card-toggle:focus-visible {
+    border-color: var(--color-primary-200);
+    box-shadow: var(--shadow-glow);
+}
+
+.scribe-action-card-toggle-copy {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.scribe-action-card-toggle-label {
+    color: var(--color-team-blue);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
+.scribe-action-card-toggle-title {
+    color: var(--color-text-primary);
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    line-height: 1.2;
+}
+
+.scribe-action-slide.is-collapsed .scribe-action-card-toggle-title {
+    font-size: var(--text-base);
+}
+
+.scribe-action-card-toggle-objective {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.scribe-action-card-toggle-objective strong {
+    color: var(--color-text-primary);
+}
+
+.scribe-action-card-toggle-indicator {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
+.scribe-action-slide.is-collapsed .scribe-action-card-toggle-indicator {
+    align-self: center;
+}
+
+.scribe-action-slide-details {
+    display: grid;
+    gap: var(--space-5);
 }
 
 .scribe-action-slide-header {

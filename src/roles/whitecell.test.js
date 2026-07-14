@@ -91,6 +91,14 @@ function extractIdsFromHtml(html) {
     );
 }
 
+function flattenHighlights(steps) {
+    return steps.flatMap((step) => (
+        Array.isArray(step.highlight)
+            ? step.highlight
+            : (step.highlight ? [step.highlight] : [])
+    ));
+}
+
 function createFakeElement(id = null, tagName = 'div') {
     let textContent = '';
     let explicitInnerHtml = null;
@@ -847,7 +855,7 @@ describe('White Cell DOM contract', () => {
             'Review Strategic Orientation',
             'Review Blue actions',
             'Review proposals',
-            'Review Red responses',
+            'Review Red actions',
             'Read field intelligence',
             'Publish sentiment updates',
             'Answer RFIs',
@@ -856,8 +864,9 @@ describe('White Cell DOM contract', () => {
             'Control arrival noise',
             'Revisit this guide'
         ]);
-        expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
-            '.header-center',
+        expect(flattenHighlights(guide.steps)).toEqual([
+            '#header-game-state',
+            '#header-timer',
             '.sidebar-link[data-section="controls"]',
             '#settingsTabs .tab-list',
             '.sidebar-link[data-section="strategicOrientation"]',
@@ -1681,6 +1690,50 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.responsesBadge.hidden).toBe(false);
         expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Strategic Orientation: Pressure');
         expect(fakeDocument.elements.actionsBadge.textContent).not.toBe('3');
+    });
+
+    it('renders Red and Industry multi-target Strategic Orientation forecasts with Blue and Green forecast rows', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        const pendingItems = [{
+            id: 'orientation-multi-red-1',
+            team: 'red',
+            move: 1,
+            phase: 1,
+            goal: 'Red Team Forecasts',
+            mechanism: 'Strategic Orientation',
+            status: 'submitted',
+            created_at: '2026-04-08T08:50:00.000Z',
+            submitted_at: '2026-04-08T08:55:00.000Z',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'forecast',
+                team: 'red',
+                forecastTargets: [
+                    { key: 'blue', orientation: 'pressure' },
+                    { key: 'green_asian_pacific', orientation: 'reframe' },
+                    { key: 'green_europe', orientation: 'stabilization' }
+                ],
+                rationale: 'Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.',
+                scribeHandoff: 'Forwarded'
+            })
+        }];
+
+        vi.spyOn(actionsStore, 'getPending').mockReturnValue(pendingItems);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue(pendingItems);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        controller.syncActionsFromStore();
+
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red Team Forecasts');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Blue Forecast');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Green (Asian Pacific) Forecast');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Green (Europe) Forecast');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.');
     });
 
     it('raises a visible arrival cue when a new Blue action reaches the White Cell queue', async () => {

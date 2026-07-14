@@ -271,4 +271,44 @@ describe('mountFollowAlong', () => {
             minimized: true
         });
     });
+
+    it('highlights each selector in a multi-target step and clears them on advance', () => {
+        const { sidebar } = createSidebar();
+        const gameState = new FakeElement('div', { id: 'header-game-state' });
+        const timer = new FakeElement('div', { id: 'header-timer' });
+
+        global.document = {
+            createElement: (tagName) => new FakeElement(tagName),
+            getElementById: vi.fn(() => null),
+            querySelector: vi.fn((selector) => ({
+                '#header-game-state': gameState,
+                '#header-timer': timer
+            }[selector] || null))
+        };
+
+        mountFollowAlong({
+            storageKey: 'tour',
+            sidebar,
+            steps: [
+                {
+                    title: 'Tracker',
+                    body: 'Watch the header state.',
+                    highlight: ['#header-game-state', '#header-timer']
+                },
+                {
+                    title: 'Next',
+                    body: 'Move on.'
+                }
+            ]
+        });
+
+        const root = sidebar.querySelector('.follow-along');
+        expect(gameState.classList.contains('is-onboarding-target')).toBe(true);
+        expect(timer.classList.contains('is-onboarding-target')).toBe(true);
+
+        root.querySelector('.follow-along-next').click();
+
+        expect(gameState.classList.contains('is-onboarding-target')).toBe(false);
+        expect(timer.classList.contains('is-onboarding-target')).toBe(false);
+    });
 });

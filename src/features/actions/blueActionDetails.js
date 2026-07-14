@@ -1,10 +1,8 @@
 const BLUE_ACTION_DETAILS_PREFIX = 'Blue Team Action Details';
 
 export const BLUE_ACTION_INSTRUMENTS = Object.freeze([
-    'Diplomatic',
-    'Informational',
-    'Military',
-    'Economic'
+    'Economic',
+    'Other'
 ]);
 
 export const BLUE_ACTION_LEVERS = Object.freeze([
@@ -28,6 +26,7 @@ export const BLUE_ACTION_SUPPLY_CHAIN_FOCUS = Object.freeze([
     'Extraction',
     'Refinement',
     'Distribution',
+    'Diversification',
     'Advanced Manufacturing'
 ]);
 
@@ -51,7 +50,8 @@ export const BLUE_ACTION_COUNTRIES = Object.freeze([
     'BRICS+',
     'ROK',
     'ASEAN',
-    'Japan'
+    'Japan',
+    'Other'
 ]);
 
 export const BLUE_ACTION_ENFORCEMENT_TIMELINES = Object.freeze([
@@ -169,6 +169,11 @@ export function serializeBlueActionDetails(details = {}) {
             ? details.sectors
             : (details.sector ? [details.sector] : [])
     );
+    const supplyChainFocuses = normalizeStringList(
+        Array.isArray(details.supplyChainFocuses)
+            ? details.supplyChainFocuses
+            : (details.supplyChainFocus ? [details.supplyChainFocus] : [])
+    );
     const legislativeOptions = normalizeStringList(details.legislativeOptions);
     const coordinated = normalizeStringList(details.coordinated);
     const informed = normalizeStringList(details.informed);
@@ -184,6 +189,7 @@ export function serializeBlueActionDetails(details = {}) {
         `Objective: ${normalizeString(details.objective)}`,
         `Levers: ${serializeStringList(levers)}`,
         `Sectors: ${serializeStringList(sectors)}`,
+        `Supply Chain Focuses: ${serializeStringList(supplyChainFocuses)}`,
         `Implementation: ${normalizeString(details.implementation)}`,
         `Legislative Options: ${serializeStringList(legislativeOptions)}`,
         `Enforcement Timeline: ${normalizeString(details.enforcementTimeline)}`,
@@ -223,6 +229,7 @@ export function parseBlueActionDetails(value = '') {
         );
         const levers = parseStringList(parsed.Levers || parsed.Lever);
         const sectors = parseStringList(parsed.Sectors || parsed.Sector);
+        const supplyChainFocuses = parseStringList(parsed['Supply Chain Focuses'] || parsed['Supply Chain Focus']);
         const legislativeOptions = parseStringList(parsed['Legislative Options']);
         const coordinated = parseStringList(parsed.Coordinated);
         const informed = parseStringList(parsed.Informed);
@@ -238,6 +245,8 @@ export function parseBlueActionDetails(value = '') {
             levers,
             sector: sectors[0] || '',
             sectors,
+            supplyChainFocus: normalizeString(parsed['Supply Chain Focus']) || supplyChainFocuses[0] || '',
+            supplyChainFocuses,
             implementation: normalizeString(parsed.Implementation),
             legislativeOptions,
             enforcementTimeline: normalizeString(parsed['Enforcement Timeline']),
@@ -261,6 +270,13 @@ export function getBlueActionViewModel(action = {}) {
     const sectors = details?.sectors?.length
         ? details.sectors
         : normalizeStringList(sector ? [sector] : []);
+    const supplyChainFocuses = details?.supplyChainFocuses?.length
+        ? details.supplyChainFocuses
+        : normalizeStringList(
+            details?.supplyChainFocus
+                ? [details.supplyChainFocus]
+                : (action.exposure_type ? [action.exposure_type] : [])
+        );
 
     return {
         hasBlueActionDetails: Boolean(details),
@@ -271,7 +287,8 @@ export function getBlueActionViewModel(action = {}) {
         levers,
         sector,
         sectors,
-        supplyChainFocus: action.exposure_type || '',
+        supplyChainFocus: supplyChainFocuses[0] || action.exposure_type || '',
+        supplyChainFocuses,
         implementation: details?.implementation || '',
         legislativeOptions: details?.legislativeOptions || [],
         focusCountries: getActionTargets(action),

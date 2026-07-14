@@ -579,6 +579,7 @@ export class ScribeController {
         this.actionVisibleById = new Map();
         this.communicationsSeeded = false;
         this.actionsSeeded = false;
+        this.expandedStrategicActionIds = new Set();
     }
 
     async init() {
@@ -631,6 +632,7 @@ export class ScribeController {
     }
 
     mountFollowAlongOnboarding() {
+        const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:scribe:${this.teamId}`,
             title: `${this.teamContext.scribeLabel} guide`,
@@ -642,7 +644,7 @@ export class ScribeController {
                 {
                     title: 'Follow move, phase, and timer',
                     body: 'The header shows Strategic Orientation before Move 1, then the live move, phase, countdown timer, and paused or running state so the projected deck stays in sync with the room.',
-                    highlight: '.header-center'
+                    highlight: liveTrackerHighlights
                 },
                 {
                     title: 'Navigate the support deck',
@@ -744,6 +746,12 @@ export class ScribeController {
             }
         });
         actionFrame?.addEventListener('click', (event) => {
+            const toggleButton = event.target.closest('[data-scribe-action-toggle]');
+            if (toggleButton) {
+                this.toggleStrategicActionCard(toggleButton.dataset.actionId || '');
+                return;
+            }
+
             const projectButton = event.target.closest('[data-scribe-action-project]');
             if (projectButton) {
                 this.projectScribeAction(projectButton.dataset.actionId || '').catch((error) => {
@@ -1676,6 +1684,25 @@ export class ScribeController {
         this.renderSections();
     }
 
+    isStrategicActionCardExpanded(actionId = '') {
+        return this.expandedStrategicActionIds.has(String(actionId || ''));
+    }
+
+    toggleStrategicActionCard(actionId = '') {
+        const normalizedActionId = String(actionId || '');
+        if (!normalizedActionId) {
+            return;
+        }
+
+        if (this.expandedStrategicActionIds.has(normalizedActionId)) {
+            this.expandedStrategicActionIds.delete(normalizedActionId);
+        } else {
+            this.expandedStrategicActionIds.add(normalizedActionId);
+        }
+
+        this.renderSlide();
+    }
+
     renderScribeStrategicOrientationSubmissionControls(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
         if (!isDraftAction(action)) {
             return '';
@@ -2114,8 +2141,18 @@ export class ScribeController {
             ? formatDateTime(action.updated_at)
             : (action.created_at ? formatDateTime(action.created_at) : '');
         const isDraftPreview = isDraftAction(action);
+        const forecastRows = viewModel.isForecast
+            ? (viewModel.forecastTargets.length
+                ? viewModel.forecastTargets
+                : [{
+                    key: 'blue',
+                    label: 'Blue',
+                    orientationLabel: viewModel.orientationLabel,
+                    orientationTag: viewModel.orientationTag
+                }])
+            : [];
         const leadCopy = viewModel.isForecast
-            ? `${viewModel.teamLabel} forecasts Blue will choose ${viewModel.orientationLabel}.`
+            ? `${viewModel.teamLabel} forecasts ${forecastRows.map((forecast) => `${forecast.label} will choose ${forecast.orientationLabel}`).join('; ')}.`
             : `${viewModel.teamLabel} selected ${viewModel.orientationLabel}.`;
         const statusRows = isDraftPreview
             ? [
@@ -2158,9 +2195,9 @@ export class ScribeController {
                         <span>${escapeHtml(viewModel.isForecast ? 'Forecast' : 'Selection')}</span>
                     </div>
                     <section class="scribe-action-slide-lead" aria-label="Strategic Orientation brief">
-                        <p class="scribe-action-slide-section-label">${escapeHtml(viewModel.isForecast ? 'Forecasted Blue posture' : 'Selected strategic posture')}</p>
+                        <p class="scribe-action-slide-section-label">${escapeHtml(viewModel.isForecast ? (forecastRows.length > 1 ? 'Forecasted team postures' : 'Forecasted Blue posture') : 'Selected strategic posture')}</p>
                         <p class="scribe-action-slide-body">${escapeHtml(leadCopy)}</p>
-                        <p class="scribe-action-slide-lead-note"><strong>Orientation tag:</strong> ${escapeHtml(viewModel.orientationTag || 'Not specified')}</p>
+                        <p class="scribe-action-slide-lead-note"><strong>${escapeHtml(viewModel.isForecast && forecastRows.length > 1 ? 'Forecast summary' : 'Orientation tag')}:</strong> ${escapeHtml(viewModel.isForecast && forecastRows.length > 1 ? (viewModel.forecastSummary || 'Not specified') : (viewModel.orientationTag || 'Not specified'))}</p>
                     </section>
 
                     <section class="scribe-action-slide-glance" aria-label="Strategic Orientation at a glance">
@@ -2169,11 +2206,17 @@ export class ScribeController {
                             <p class="scribe-action-slide-section-copy">Project this selection for the team before submitting to White Cell.</p>
                         </div>
                         <div class="scribe-action-slide-glance-grid">
-                            ${renderActionSlideGlanceCard({
-                label: 'Orientation',
-                value: viewModel.orientationLabel,
-                support: viewModel.orientationTag || 'Tag pending'
-            })}
+                            ${viewModel.isForecast
+                ? forecastRows.map((forecast) => renderActionSlideGlanceCard({
+                    label: forecast.label,
+                    value: forecast.orientationLabel,
+                    support: forecast.orientationTag || 'Tag pending'
+                })).join('')
+                : renderActionSlideGlanceCard({
+                    label: 'Orientation',
+                    value: viewModel.orientationLabel,
+                    support: viewModel.orientationTag || 'Tag pending'
+                })}
                             ${renderActionSlideGlanceCard({
                 label: 'Team rationale',
                 value: viewModel.rationale || 'No rationale provided.',
@@ -2188,10 +2231,15 @@ export class ScribeController {
                         <section class="scribe-action-slide-block" aria-label="Orientation record">
                             <h3 class="scribe-action-slide-block-title">Orientation record</h3>
                             <dl class="scribe-action-slide-data-list">
-                                ${renderActionSlideDataRow({
-                label: viewModel.isForecast ? 'Forecasted Blue orientation' : 'Selected orientation',
-                value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`
-            })}
+                                ${viewModel.isForecast
+                ? forecastRows.map((forecast) => renderActionSlideDataRow({
+                    label: `${forecast.label} forecast`,
+                    value: `${forecast.orientationLabel}: ${forecast.orientationTag}`
+                })).join('')
+                : renderActionSlideDataRow({
+                    label: 'Selected orientation',
+                    value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`
+                })}
                                 ${renderActionSlideDataRow({
                 label: 'Team rationale',
                 value: viewModel.rationale || 'No rationale provided.'
@@ -2238,6 +2286,10 @@ export class ScribeController {
         const targets = formatBlueActionSelection(actionViewModel.focusCountries);
         const levers = formatBlueActionSelection(actionViewModel.levers, actionViewModel.lever || 'Not specified');
         const sectors = formatBlueActionSelection(actionViewModel.sectors, actionViewModel.sector || action.sector || 'Not specified');
+        const supplyChainFocus = formatBlueActionSelection(
+            actionViewModel.supplyChainFocuses,
+            actionViewModel.supplyChainFocus || action.exposure_type || 'Not specified'
+        );
         const legislativeOptions = formatBlueActionSelection(actionViewModel.legislativeOptions, 'None selected');
         const coordinated = formatBlueActionSelection(actionViewModel.coordinated, 'None selected');
         const informed = formatBlueActionSelection(actionViewModel.informed, 'None selected');
@@ -2266,7 +2318,6 @@ export class ScribeController {
             || 'Awaiting scribe detail.';
         const expectedEffect = actionViewModel.expectedOutcomes || '';
         const showExpectedEffect = hasDistinctActionText(decisionBrief, expectedEffect);
-        const supplyChainFocus = actionViewModel.supplyChainFocus || action.exposure_type || 'Not specified';
         const implementationLabel = actionViewModel.implementation || 'Not specified';
         const deliverySupport = [
             actionViewModel.implementation === 'Legislative'
@@ -2348,98 +2399,124 @@ export class ScribeController {
         const scribeSubmissionControls = isDraftPreview
             ? this.renderScribeActionSubmissionControls(action, actionViewModel)
             : '';
+        const actionId = String(action.id || '');
+        const detailsId = `scribe-action-details-${actionId.replace(/[^a-z0-9]+/gi, '-') || 'slide'}`;
+        const isExpanded = this.isStrategicActionCardExpanded(actionId);
+        const objectivePreview = actionViewModel.objective || 'Not specified';
 
         return `
-            <article class="scribe-action-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
-                <header class="scribe-action-slide-header">
-                    <div>
-                        <p class="scribe-action-slide-eyebrow">${escapeHtml(slideEyebrow)}</p>
-                        <h2 class="scribe-action-slide-title">${escapeHtml(actionViewModel.title)}</h2>
-                        <p class="scribe-action-slide-summary">${escapeHtml(sequenceLabel)}</p>
-                    </div>
-                    <div class="scribe-action-slide-badges">${badges}</div>
-                </header>
+            <article class="scribe-action-slide${isExpanded ? '' : ' is-collapsed'}" data-action-id="${escapeHtml(String(action.id || ''))}">
+                <button
+                    type="button"
+                    class="scribe-action-card-toggle${isExpanded ? ' is-expanded' : ''}"
+                    data-scribe-action-toggle
+                    data-action-id="${escapeHtml(actionId)}"
+                    aria-expanded="${isExpanded ? 'true' : 'false'}"
+                    aria-controls="${escapeHtml(detailsId)}"
+                >
+                    <span class="scribe-action-card-toggle-copy">
+                        <span class="scribe-action-card-toggle-label">Action details</span>
+                        <span class="scribe-action-card-toggle-title">${escapeHtml(actionViewModel.title)}</span>
+                        <span class="scribe-action-card-toggle-objective"><strong>Objective:</strong> ${escapeHtml(objectivePreview)}</span>
+                    </span>
+                    <span class="scribe-action-card-toggle-indicator" aria-hidden="true">${isExpanded ? 'Hide' : 'Show'}</span>
+                </button>
 
-                <section class="scribe-action-slide-panel">
-                    <div class="scribe-action-slide-meta">
-                        <span>${escapeHtml(timingLabel)}</span>
-                        <span>${escapeHtml(formatStatus(action.status || ENUMS.ACTION_STATUS.DRAFT))}</span>
-                        <span>${escapeHtml(timelineLabel)}</span>
-                    </div>
-                    <section class="scribe-action-slide-lead" aria-label="Decision brief">
-                        <p class="scribe-action-slide-section-label">${escapeHtml(sectionLabel)}</p>
-                        <p class="scribe-action-slide-body">${escapeHtml(decisionBrief)}</p>
-                        ${showExpectedEffect
-                ? `<p class="scribe-action-slide-lead-note"><strong>Expected effect:</strong> ${escapeHtml(expectedEffect)}</p>`
-                : ''}
-                    </section>
-
-                    <section class="scribe-action-slide-glance" aria-label="Action at a glance">
-                        <div class="scribe-action-slide-section-header">
-                            <h3 class="scribe-action-slide-section-title">Action at a glance</h3>
-                            <p class="scribe-action-slide-section-copy">${escapeHtml(glanceCopy)}</p>
+                <div
+                    id="${escapeHtml(detailsId)}"
+                    class="scribe-action-slide-details"
+                    ${isExpanded ? '' : 'hidden'}
+                >
+                    <header class="scribe-action-slide-header">
+                        <div>
+                            <p class="scribe-action-slide-eyebrow">${escapeHtml(slideEyebrow)}</p>
+                            <h2 class="scribe-action-slide-title">${escapeHtml(actionViewModel.title)}</h2>
+                            <p class="scribe-action-slide-summary">${escapeHtml(sequenceLabel)}</p>
                         </div>
-                        <div class="scribe-action-slide-glance-grid">
-                            ${renderActionSlideGlanceCard({
+                        <div class="scribe-action-slide-badges">${badges}</div>
+                    </header>
+
+                    <section class="scribe-action-slide-panel">
+                        <div class="scribe-action-slide-meta">
+                            <span>${escapeHtml(timingLabel)}</span>
+                            <span>${escapeHtml(formatStatus(action.status || ENUMS.ACTION_STATUS.DRAFT))}</span>
+                            <span>${escapeHtml(timelineLabel)}</span>
+                        </div>
+                        <section class="scribe-action-slide-lead" aria-label="Decision brief">
+                            <p class="scribe-action-slide-section-label">${escapeHtml(sectionLabel)}</p>
+                            <p class="scribe-action-slide-body">${escapeHtml(decisionBrief)}</p>
+                            ${showExpectedEffect
+                    ? `<p class="scribe-action-slide-lead-note"><strong>Expected effect:</strong> ${escapeHtml(expectedEffect)}</p>`
+                    : ''}
+                        </section>
+
+                        <section class="scribe-action-slide-glance" aria-label="Action at a glance">
+                            <div class="scribe-action-slide-section-header">
+                                <h3 class="scribe-action-slide-section-title">Action at a glance</h3>
+                                <p class="scribe-action-slide-section-copy">${escapeHtml(glanceCopy)}</p>
+                            </div>
+                            <div class="scribe-action-slide-glance-grid">
+                                ${renderActionSlideGlanceCard({
                 label: 'Primary move',
                 value: actionViewModel.instrumentOfPower || action.mechanism || 'Not specified',
                 support: levers !== 'Not specified' ? levers : 'Lever detail pending'
             })}
-                            ${renderActionSlideGlanceCard({
+                                ${renderActionSlideGlanceCard({
                 label: 'Focus countries',
                 value: targets,
                 support: focusSupport
             })}
-                            ${renderActionSlideGlanceCard({
+                                ${renderActionSlideGlanceCard({
                 label: 'Delivery path',
                 value: implementationLabel,
                 support: deliverySupport || 'Execution detail pending'
             })}
-                            ${renderActionSlideGlanceCard({
+                                ${renderActionSlideGlanceCard({
                 label: 'Coordination',
                 value: coordinated,
                 support: coordinationSupport
             })}
-                        </div>
-                    </section>
+                            </div>
+                        </section>
 
-                    <div class="scribe-action-slide-columns">
-                        <section class="scribe-action-slide-block" aria-label="Execution snapshot">
-                            <h3 class="scribe-action-slide-block-title">Execution snapshot</h3>
-                            <dl class="scribe-action-slide-data-list">
-                                ${renderActionSlideDataRow({
+                        <div class="scribe-action-slide-columns">
+                            <section class="scribe-action-slide-block" aria-label="Execution snapshot">
+                                <h3 class="scribe-action-slide-block-title">Execution snapshot</h3>
+                                <dl class="scribe-action-slide-data-list">
+                                    ${renderActionSlideDataRow({
                 label: 'Timeline',
                 value: timelineLabel
             })}
-                                ${renderActionSlideDataRow({
+                                    ${renderActionSlideDataRow({
                 label: 'Supply chain focus',
                 value: supplyChainFocus
             })}
-                                ${actionViewModel.implementation === 'Legislative'
-                ? renderActionSlideDataRow({
-                    label: 'Legislative route',
-                    value: legislativeOptions
-                })
-                : ''}
-                                ${renderActionSlideDataRow({
+                                    ${actionViewModel.implementation === 'Legislative'
+                        ? renderActionSlideDataRow({
+                            label: 'Legislative route',
+                            value: legislativeOptions
+                        })
+                        : ''}
+                                    ${renderActionSlideDataRow({
                 label: 'Sequence',
                 value: sequenceLabel
             })}
-                            </dl>
-                        </section>
+                                </dl>
+                            </section>
 
-                        <section class="scribe-action-slide-block" aria-label="${escapeHtml(statusBlockTitle)}">
-                            <h3 class="scribe-action-slide-block-title">${escapeHtml(statusBlockTitle)}</h3>
-                            <dl class="scribe-action-slide-data-list">
-                                ${statusRows.map((row) => renderActionSlideDataRow(row)).join('')}
-                            </dl>
-                            ${whiteCellNoteMarkup}
-                        </section>
-                    </div>
+                            <section class="scribe-action-slide-block" aria-label="${escapeHtml(statusBlockTitle)}">
+                                <h3 class="scribe-action-slide-block-title">${escapeHtml(statusBlockTitle)}</h3>
+                                <dl class="scribe-action-slide-data-list">
+                                    ${statusRows.map((row) => renderActionSlideDataRow(row)).join('')}
+                                </dl>
+                                ${whiteCellNoteMarkup}
+                            </section>
+                        </div>
 
-                    ${legacyNotes}
-                    ${scribeSubmissionControls}
-                </section>
+                        ${legacyNotes}
+                        ${scribeSubmissionControls}
+                    </section>
+                </div>
             </article>
         `;
     }

@@ -329,7 +329,6 @@ export async function createDraftAction(page, {
     goal,
     objective = goal,
     instrumentOfPower = DEFAULT_ACTION_PAYLOAD.instrumentOfPower,
-    lever = DEFAULT_ACTION_PAYLOAD.lever,
     sector = DEFAULT_ACTION_PAYLOAD.sector,
     supplyChainFocus = DEFAULT_ACTION_PAYLOAD.supplyChainFocus,
     implementation = DEFAULT_ACTION_PAYLOAD.implementation,
@@ -340,25 +339,31 @@ export async function createDraftAction(page, {
     coordinated = DEFAULT_ACTION_PAYLOAD.coordinated,
     informed = DEFAULT_ACTION_PAYLOAD.informed
 } = {}) {
+    const builtInInstruments = new Set(['Economic', 'Other']);
     const builtInTimelines = new Set(['3 months', '6 months', '12 months', 'Other']);
-    const levers = Array.isArray(lever) ? lever : [lever];
+    const builtInFocusCountries = new Set(['PRC', 'Russia', 'EU', 'France', 'UK', 'BRICS+', 'ROK', 'ASEAN', 'Japan', 'Other']);
     const sectors = Array.isArray(sector) ? sector : [sector];
+    const supplyChainFocuses = Array.isArray(supplyChainFocus) ? supplyChainFocus : [supplyChainFocus];
 
     await page.locator('#newActionBtn').click();
 
     const modal = page.locator('.modal-overlay');
     await modal.locator('#actionTitle').fill(goal);
     await modal.locator('#actionObjective').fill(objective);
-    await modal.locator('#actionInstrument').selectOption(instrumentOfPower);
-    for (const leverValue of levers) {
-        await modal.locator(`[data-blue-action-checkbox="lever"][value="${leverValue}"]`).check();
+    if (builtInInstruments.has(instrumentOfPower)) {
+        await modal.locator('#actionInstrument').selectOption(instrumentOfPower);
+    } else {
+        await modal.locator('#actionInstrument').selectOption('Other');
+        await modal.locator('#actionInstrumentOther').fill(instrumentOfPower);
     }
     await modal.getByRole('button', { name: 'Next' }).click();
 
     for (const sectorValue of sectors) {
         await modal.locator(`[data-blue-action-checkbox="sector"][value="${sectorValue}"]`).check();
     }
-    await modal.locator('#actionSupplyChainFocus').selectOption(supplyChainFocus);
+    for (const focusValue of supplyChainFocuses) {
+        await modal.locator(`[data-blue-action-checkbox="supply-chain-focus"][value="${focusValue}"]`).check();
+    }
     await modal.locator('#actionImplementation').selectOption(implementation);
     if (implementation === 'Legislative') {
         for (const legislativeOption of legislativeOptions) {
@@ -366,7 +371,12 @@ export async function createDraftAction(page, {
         }
     }
     for (const focusCountry of focusCountries) {
-        await modal.locator(`[data-blue-action-checkbox="country"][value="${focusCountry}"]`).check();
+        if (builtInFocusCountries.has(focusCountry)) {
+            await modal.locator(`[data-blue-action-checkbox="country"][value="${focusCountry}"]`).check();
+        } else {
+            await modal.locator('[data-blue-action-checkbox="country"][value="Other"]').check();
+            await modal.locator('#actionFocusCountryOtherInput').fill(focusCountry);
+        }
     }
     if (builtInTimelines.has(enforcementTimeline)) {
         await modal.locator('#actionEnforcementTimeline').selectOption(enforcementTimeline);

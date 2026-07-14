@@ -286,6 +286,7 @@ export class NotetakerController {
 
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
+        const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:notetaker:${this.teamId}`,
             title: `${this.teamContext.notetakerLabel} guide`,
@@ -297,7 +298,7 @@ export class NotetakerController {
                 {
                     title: 'Follow move, phase, and timer',
                     body: 'The header shows Strategic Orientation before Move 1, then the active move, phase, countdown timer, and running or paused state. Use it to timestamp notes against the current exercise window.',
-                    highlight: '.header-center'
+                    highlight: liveTrackerHighlights
                 },
                 {
                     title: 'Capture the record',

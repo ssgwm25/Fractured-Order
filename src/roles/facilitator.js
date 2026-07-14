@@ -23,14 +23,11 @@ import {
     createStatusBadge
 } from '../components/ui/Badge.js';
 import {
-    BLUE_ACTION_COORDINATED_OPTIONS,
     BLUE_ACTION_COUNTRIES,
     BLUE_ACTION_ENFORCEMENT_TIMELINES,
     BLUE_ACTION_IMPLEMENTATIONS,
-    BLUE_ACTION_INFORMED_OPTIONS,
     BLUE_ACTION_INSTRUMENTS,
     BLUE_ACTION_LEGISLATIVE_OPTIONS,
-    BLUE_ACTION_LEVERS,
     BLUE_ACTION_SCRIBE_HANDOFF,
     BLUE_ACTION_SECTORS,
     BLUE_ACTION_SUPPLY_CHAIN_FOCUS,
@@ -58,11 +55,14 @@ import {
 import {
     STRATEGIC_ORIENTATION_ACTION_MECHANISM,
     STRATEGIC_ORIENTATION_ARTIFACT_TYPES,
+    STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS,
     STRATEGIC_ORIENTATION_OPTIONS,
     STRATEGIC_ORIENTATION_PERIOD,
     STRATEGIC_ORIENTATION_SCRIBE_HANDOFF,
+    buildStrategicOrientationForecastSummary,
     formatStrategicOrientationSelection,
     getStrategicOrientationCompletion,
+    getStrategicOrientationForecastTargetsForTeam,
     getStrategicOrientationViewModel,
     isStrategicOrientationAction,
     serializeStrategicOrientationDetails
@@ -117,7 +117,7 @@ const RFI_RENDER_LIMIT = 50;
 const RESPONSE_GROUP_RENDER_LIMIT = 30;
 export const FACILITATOR_VERBA_AI_RENDER_LIMIT = 40;
 export const FACILITATOR_TIMELINE_RENDER_LIMIT = 80;
-const BLUE_ACTION_WIZARD_PAGE_TOTAL = 3;
+const BLUE_ACTION_WIZARD_PAGE_TOTAL = 2;
 
 function isProposalTeamId(teamId) {
     return PROPOSAL_TEAM_IDS.has(teamId);
@@ -252,6 +252,7 @@ export class FacilitatorController {
         this.rfis = [];
         this.responses = [];
         this.receivedProposals = [];
+        this.expandedActionCardIds = new Set();
         this.actionsActiveTab = 'draft';
         this.rfiActiveTab = getRfiCategoryKey(ENUMS.RFI_CATEGORIES[0]);
         this.responsesActiveTab = 'communication';
@@ -341,13 +342,16 @@ export class FacilitatorController {
 
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
+        const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         const actionNoun = this.isProposalTeam()
             ? 'proposals'
-            : (this.teamId === 'red' ? 'move responses' : 'actions');
+            : 'actions';
         const actionTitle = this.isProposalTeam()
             ? 'Build proposals'
-            : (this.teamId === 'red' ? 'Prepare move responses' : 'Draft actions');
-        const actionGuideBody = this.teamId === 'blue'
+            : 'Draft actions';
+        const actionGuideBody = this.teamId === 'red'
+            ? `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`
+            : this.isTeamActionWizardEnabled()
             ? `Create and revise your team's ${actionNoun} here. Forward completed actions to the Facilitator; the Facilitator projects and submits them to White Cell.`
             : `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`;
         this.onboarding = mountFollowAlong({
@@ -361,7 +365,7 @@ export class FacilitatorController {
                 {
                     title: 'Read the live tracker',
                     body: 'The header shows the current state, including Strategic Orientation before Move 1, the active move or phase, countdown timer, and whether the timer is running. White Cell controls these values; use them to pace deliberation and submissions.',
-                    highlight: '.header-center'
+                    highlight: liveTrackerHighlights
                 },
                 {
                     title: actionTitle,
@@ -483,19 +487,23 @@ export class FacilitatorController {
 
         if (actionsDescription) {
             const isGreenProposalFlow = this.isProposalTeam();
-            const isRedResponseFlow = this.teamId === 'red';
+            const isTeamActionFlow = this.isTeamActionWizardEnabled();
             if (this.isReadOnly) {
                 if (isGreenProposalFlow) {
                     actionsDescription.textContent = 'Passive observer view of team proposals. Drafts are visible but cannot be created, edited, sent, or deleted.';
-                } else if (isRedResponseFlow) {
-                    actionsDescription.textContent = 'Passive observer view of move responses. Entries are visible but cannot be created, edited, submitted, or deleted.';
+                } else if (this.teamId === 'red') {
+                    actionsDescription.textContent = 'Passive observer view of team actions. Entries are visible but cannot be created, edited, submitted, or deleted.';
+                } else if (isTeamActionFlow) {
+                    actionsDescription.textContent = 'Passive observer view of team actions. Drafts are visible but cannot be created, edited, submitted, or deleted.';
                 } else {
                     actionsDescription.textContent = 'Passive observer view of scribe actions. Drafts are visible but cannot be created, edited, submitted, or deleted.';
                 }
             } else if (isGreenProposalFlow) {
                 actionsDescription.textContent = 'Draft proposals and send them to the Blue or Red team.';
-            } else if (isRedResponseFlow) {
-                actionsDescription.textContent = 'Respond to Blue Team moves. White Cell reviews each response before it takes effect.';
+            } else if (this.teamId === 'red') {
+                actionsDescription.textContent = 'Draft actions, submit them to White Cell, and track deliberation after facilitator review.';
+            } else if (isTeamActionFlow) {
+                actionsDescription.textContent = 'Draft actions, forward them to the Facilitator, and track White Cell deliberation after facilitator submission.';
             } else {
                 actionsDescription.textContent = 'Draft actions, forward them to the Facilitator, and track White Cell deliberation after facilitator submission.';
             }
@@ -1811,21 +1819,21 @@ export class FacilitatorController {
         const actionsList = document.getElementById('actionsList');
         if (!actionsList) return;
         const isGreenProposalFlow = this.isProposalTeam();
-        const isRedResponseFlow = this.teamId === 'red';
+        const isRedTeamActionFlow = this.teamId === 'red';
         const emptyStateTitle = isGreenProposalFlow
             ? 'No Proposals Yet'
-            : (isRedResponseFlow ? 'No Responses Yet' : 'No Actions Yet');
+            : 'No Actions Yet';
         const emptyStateMessage = this.isReadOnly
             ? (isGreenProposalFlow
                 ? 'No team proposals have been created yet.'
-                : (isRedResponseFlow
-                    ? 'No move responses have been created yet.'
-                    : 'No scribe actions have been created yet.'))
+                : isRedTeamActionFlow
+                ? 'No team actions have been created yet.'
+                : 'No scribe actions have been created yet.')
             : (isGreenProposalFlow
                 ? 'Create your first proposal to start the White Cell review flow.'
-                : (isRedResponseFlow
-                    ? 'Create your first response to start the White Cell review flow.'
-                    : 'Create your first strategic action to start the scribe-to-facilitator review flow.'));
+                : isRedTeamActionFlow
+                ? 'Create your first action to start the White Cell review flow.'
+                : 'Create your first action to start the scribe-to-facilitator review flow.');
 
         if (this.actions.length === 0) {
             actionsList.innerHTML = `
@@ -1843,6 +1851,12 @@ export class FacilitatorController {
         }
 
         actionsList.innerHTML = this.renderGroupedActionList();
+
+        actionsList.querySelectorAll('.toggle-action-card-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.toggleActionCard(button.dataset.actionId || '');
+            });
+        });
 
         actionsList.querySelectorAll('.edit-action-btn').forEach((button) => {
             button.addEventListener('click', () => {
@@ -1902,35 +1916,6 @@ export class FacilitatorController {
             ];
         }
 
-        if (this.teamId === 'red') {
-            return [
-                {
-                    key: 'draft',
-                    tabLabel: 'Draft',
-                    title: 'Draft Move Responses',
-                    description: 'Editable move responses that have not yet been submitted to White Cell.'
-                },
-                {
-                    key: 'submitted',
-                    tabLabel: 'Submitted',
-                    title: 'Submitted to White Cell',
-                    description: 'Read-only move responses currently under White Cell deliberation.'
-                },
-                {
-                    key: 'reviewed',
-                    tabLabel: 'Deliberated',
-                    title: 'White Cell Reviewed',
-                    description: 'Move responses White Cell has already reviewed.'
-                },
-                {
-                    key: 'other',
-                    tabLabel: 'Other',
-                    title: 'Other Response Statuses',
-                    description: 'Move responses outside the standard draft and review flow.'
-                }
-            ];
-        }
-
         return [
             {
                 key: 'draft',
@@ -1980,7 +1965,7 @@ export class FacilitatorController {
     getEmptyActionGroupMessage(key) {
         const noun = this.isProposalTeam()
             ? 'proposals'
-            : (this.teamId === 'red' ? 'move responses' : 'actions');
+            : 'actions';
         switch (key) {
             case 'draft': return `No draft ${noun} yet.`;
             case 'submitted': return `No ${noun} are awaiting White Cell review.`;
@@ -2093,21 +2078,55 @@ export class FacilitatorController {
         return items ? `<div class="detail-grid">${items}</div>` : '';
     }
 
+    isCollapsibleStrategicActionCard({
+        isStrategicOrientationFlow = false,
+        isGreenProposalFlow = false,
+        isLegacyRedResponseFlow = false
+    } = {}) {
+        return !isStrategicOrientationFlow && !isGreenProposalFlow && !isLegacyRedResponseFlow;
+    }
+
+    isActionCardExpanded(actionId = '') {
+        return this.expandedActionCardIds.has(String(actionId || ''));
+    }
+
+    toggleActionCard(actionId = '') {
+        const normalizedActionId = String(actionId || '');
+        if (!normalizedActionId) {
+            return;
+        }
+
+        if (this.expandedActionCardIds.has(normalizedActionId)) {
+            this.expandedActionCardIds.delete(normalizedActionId);
+        } else {
+            this.expandedActionCardIds.add(normalizedActionId);
+        }
+
+        this.renderActionsList();
+    }
+
     renderActionCard(action) {
         const strategicOrientation = getStrategicOrientationViewModel(action);
         const isStrategicOrientationFlow = strategicOrientation.hasStrategicOrientationDetails;
         const blueAction = getBlueActionViewModel(action);
         const isGreenProposalFlow = this.isProposalTeam() && !isStrategicOrientationFlow;
-        const isRedResponseFlow = this.teamId === 'red' && !isStrategicOrientationFlow;
-        const moveResponse = isRedResponseFlow ? getMoveResponseViewModel(action) : null;
+        const moveResponse = this.teamId === 'red' && !isStrategicOrientationFlow
+            ? getMoveResponseViewModel(action)
+            : null;
+        const isLegacyRedResponseFlow = this.teamId === 'red'
+            && !isStrategicOrientationFlow
+            && !isGreenProposalFlow
+            && Boolean(moveResponse?.hasMoveResponseDetails)
+            && !blueAction.hasBlueActionDetails;
+        const isRedResponseFlow = isLegacyRedResponseFlow;
         const title = isStrategicOrientationFlow
             ? strategicOrientation.title
-            : (isRedResponseFlow ? moveResponse.title : blueAction.title);
+            : (isLegacyRedResponseFlow ? moveResponse.title : blueAction.title);
         const expectedOutcomes = isStrategicOrientationFlow
             ? (strategicOrientation.isForecast
                 ? (strategicOrientation.forecastSummary || `Forecast: Blue will choose ${strategicOrientation.orientationLabel}.`)
                 : (strategicOrientation.orientationTag || 'Strategic Orientation selected.'))
-            : isRedResponseFlow
+            : isLegacyRedResponseFlow
             ? (moveResponse.expectedEffect || 'No expected effect recorded')
             : (blueAction.expectedOutcomes || 'No expected outcomes');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
@@ -2116,7 +2135,7 @@ export class FacilitatorController {
         const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = isStrategicOrientationFlow
             ? 'Pre-Move 1 | Strategic Orientation'
-            : this.isBlueTeamActionWizardEnabled(action)
+            : this.isTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
@@ -2167,13 +2186,19 @@ export class FacilitatorController {
                 rounded: true
             }).outerHTML
             : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
-        const detailFields = isStrategicOrientationFlow
+        const strategicOrientationFields = isStrategicOrientationFlow
             ? [
-                {
-                    label: strategicOrientation.isForecast ? 'Forecasted Blue Orientation' : 'Selected Orientation',
-                    value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
-                    wide: true
-                },
+                ...(strategicOrientation.isForecast
+                    ? strategicOrientation.forecastTargets.map((forecast) => ({
+                        label: `${forecast.label} Forecast`,
+                        value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
+                        wide: true
+                    }))
+                    : [{
+                        label: 'Selected Orientation',
+                        value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
+                        wide: true
+                    }]),
                 ...(strategicOrientation.primaryLevers.length
                     ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) }]
                     : []),
@@ -2187,7 +2212,10 @@ export class FacilitatorController {
                     ? [{ label: 'Team Rationale', value: strategicOrientation.rationale, wide: true }]
                     : [])
             ]
-            : isRedResponseFlow
+            : [];
+        const detailFields = isStrategicOrientationFlow
+            ? strategicOrientationFields
+            : isLegacyRedResponseFlow
             ? [
                 { label: 'Strategic Assessment', value: moveResponse.strategicAssessment || 'Not specified', wide: true },
                 { label: 'Response Strategy', value: moveResponse.responseStrategy || 'Not specified', wide: true },
@@ -2200,7 +2228,13 @@ export class FacilitatorController {
                 ...(blueAction.objective ? [{ label: 'Objective', value: blueAction.objective, wide: true }] : []),
                 { label: 'Levers', value: leverLabel },
                 { label: 'Implementation', value: blueAction.implementation || 'Not specified' },
-                { label: 'Supply Chain Focus', value: blueAction.supplyChainFocus || 'Not specified' },
+                {
+                    label: 'Supply Chain Focus',
+                    value: formatBlueActionSelection(
+                        blueAction.supplyChainFocuses,
+                        blueAction.supplyChainFocus || 'Not specified'
+                    )
+                },
                 { label: 'Focus Countries', value: targetLabel },
                 { label: 'Sectors', value: sectorLabel },
                 { label: 'Timeline', value: blueAction.enforcementTimeline || 'Not specified' },
@@ -2219,6 +2253,15 @@ export class FacilitatorController {
         const detailsMarkup = this.renderDetailGrid(detailFields);
         const statusGroupKey = this.getActionStatusGroupKey(action);
         const statusAccent = statusGroupKey === 'reviewed' ? 'deliberated' : statusGroupKey;
+        const isCollapsibleCard = this.isCollapsibleStrategicActionCard({
+            isStrategicOrientationFlow,
+            isGreenProposalFlow,
+            isLegacyRedResponseFlow
+        });
+        const actionId = String(action.id || '');
+        const detailsId = `facilitator-action-details-${actionId.replace(/[^a-z0-9]+/gi, '-') || 'card'}`;
+        const isExpanded = !isCollapsibleCard || this.isActionCardExpanded(actionId);
+        const objectivePreview = blueAction.objective || 'Not specified';
 
         let lifecycleMessage = `
             <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
@@ -2226,8 +2269,8 @@ export class FacilitatorController {
                         ? 'Draft Strategic Orientation artifacts are projected by the Facilitator before White Cell submission.'
                         : isGreenProposalFlow
                     ? 'Draft proposals can be edited, sent to White Cell, or deleted by the active team-lead seat.'
-                    : (isRedResponseFlow
-                        ? 'Draft move responses can be edited, submitted, or deleted by the active team-lead seat.'
+                    : (isLegacyRedResponseFlow
+                        ? 'Draft actions can be edited, submitted, or deleted by the active team-lead seat.'
                         : 'Draft actions can be edited, forwarded to the Facilitator, or deleted by the active team-lead seat.')}
             </p>
         `;
@@ -2239,13 +2282,13 @@ export class FacilitatorController {
                         ? 'Submitted to White Cell'
                         : isGreenProposalFlow
                         ? 'Sent to White Cell'
-                        : (isRedResponseFlow ? 'Submitted to White Cell' : 'Submitted to White Cell')} ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
+                        : 'Submitted to White Cell'} ${action.submitted_at ? formatRelativeTime(action.submitted_at) : ''}.
                     ${isStrategicOrientationFlow
                         ? 'This pre-Move-1 artifact is now read-only for Scribe and Facilitator seats.'
                         : isGreenProposalFlow
                         ? 'This proposal is now read-only for Scribe and Facilitator seats until White Cell review.'
-                        : (isRedResponseFlow
-                            ? 'White Cell deliberation is underway. This move response is now read-only for Scribe and Facilitator seats.'
+                        : (isLegacyRedResponseFlow
+                            ? 'White Cell deliberation is underway. This action is now read-only for Scribe and Facilitator seats.'
                             : 'White Cell deliberation is underway. This action was submitted by the Facilitator and is now read-only for Scribe and Facilitator seats.')}
                 </p>
             `;
@@ -2258,7 +2301,7 @@ export class FacilitatorController {
                             ? 'reviewed this Strategic Orientation artifact'
                             : isGreenProposalFlow
                             ? 'reviewed this proposal'
-                            : (isRedResponseFlow ? 'reviewed this move response' : 'reviewed this action')} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
+                            : 'reviewed this action'} ${action.adjudicated_at ? formatRelativeTime(action.adjudicated_at) : ''}.
                     </p>
                 `;
         } else if (this.isReadOnly) {
@@ -2268,7 +2311,7 @@ export class FacilitatorController {
                         ? 'Observer mode is read-only. Strategic Orientation artifacts are visible but cannot be changed from this page.'
                         : isGreenProposalFlow
                         ? 'Observer mode is read-only. Draft proposals are visible but cannot be changed from this page.'
-                        : (isRedResponseFlow
+                        : (isLegacyRedResponseFlow
                             ? 'Observer mode is read-only. Move responses are visible but cannot be changed from this page.'
                             : 'Observer mode is read-only. Draft actions are visible but cannot be changed from this page.')}
                 </p>
@@ -2276,52 +2319,70 @@ export class FacilitatorController {
         }
 
         return `
-            <div class="entity-card entity-card--${statusAccent}" data-action-id="${action.id}">
-                <div class="entity-card__head">
-                    <div>
-                        <p class="entity-card__eyebrow">${this.escapeHtml(action.mechanism || 'No mechanism')} &middot; ${this.escapeHtml(sequenceLabel)}</p>
-                        <h3 class="entity-card__title">${this.escapeHtml(title)}</h3>
+            <div class="entity-card entity-card--${statusAccent}${isCollapsibleCard ? ' entity-card--collapsible' : ''}${isExpanded ? '' : ' is-collapsed'}" data-action-id="${action.id}">
+                ${isCollapsibleCard ? `
+                    <button
+                        type="button"
+                        class="entity-card__toggle toggle-action-card-btn${isExpanded ? ' is-expanded' : ''}"
+                        data-action-id="${this.escapeHtml(actionId)}"
+                        aria-expanded="${isExpanded ? 'true' : 'false'}"
+                        aria-controls="${this.escapeHtml(detailsId)}"
+                    >
+                        <span class="entity-card__toggle-copy">
+                            <span class="entity-card__toggle-label">Action details</span>
+                            <span class="entity-card__toggle-title">${this.escapeHtml(title)}</span>
+                            <span class="entity-card__toggle-objective"><strong>Objective:</strong> ${this.escapeHtml(objectivePreview)}</span>
+                        </span>
+                        <span class="entity-card__toggle-indicator" aria-hidden="true">${isExpanded ? 'Hide' : 'Show'}</span>
+                    </button>
+                ` : ''}
+                <div id="${this.escapeHtml(detailsId)}" class="entity-card__details${isCollapsibleCard ? '' : ' entity-card__details--plain'}"${isExpanded ? '' : ' hidden'}>
+                    <div class="entity-card__head">
+                        <div>
+                            <p class="entity-card__eyebrow">${this.escapeHtml(action.mechanism || 'No mechanism')} &middot; ${this.escapeHtml(sequenceLabel)}</p>
+                            <h3 class="entity-card__title">${this.escapeHtml(title)}</h3>
+                        </div>
+                        <div class="entity-card__badges">
+                            ${statusBadge}
+                            ${secondaryBadge}
+                            ${outcomeBadge}
+                        </div>
                     </div>
-                    <div class="entity-card__badges">
-                        ${statusBadge}
-                        ${secondaryBadge}
-                        ${outcomeBadge}
-                    </div>
-                </div>
 
-                <p class="card-summary">
-                    ${isRedResponseFlow
-                        ? `<strong>Expected Effect &amp; System Impact:</strong> ${this.escapeHtml(expectedOutcomes)}`
-                        : this.escapeHtml(expectedOutcomes)}
-                </p>
-                ${detailsMarkup}
-                ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
-                ${action.adjudication_notes && !shouldHideWhiteCellReviewDetails ? `
-                    <p class="entity-card__note">
-                        <strong>White Cell Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
+                    <p class="card-summary">
+                        ${isLegacyRedResponseFlow
+                            ? `<strong>Expected Effect &amp; System Impact:</strong> ${this.escapeHtml(expectedOutcomes)}`
+                            : this.escapeHtml(expectedOutcomes)}
                     </p>
-                ` : ''}
-                ${lifecycleMessage}
+                    ${detailsMarkup}
+                    ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
+                    ${action.adjudication_notes && !shouldHideWhiteCellReviewDetails ? `
+                        <p class="entity-card__note">
+                            <strong>White Cell Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
+                        </p>
+                    ` : ''}
+                    ${lifecycleMessage}
 
-                ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow) || canRemoveDraft) ? `
-                    <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
-                        ${canManageDraft ? `
-                            <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
-                                Edit Draft
-                            </button>
-                        ` : ''}
-                        ${canSubmitDraft && !isStrategicOrientationFlow ? `
-                            <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
-                                Forward to Facilitator
-                            </button>
-                        ` : ''}
-                        ${canRemoveDraft ? `
-                            <button class="btn btn-ghost btn-sm text-error delete-action-btn" data-action-id="${action.id}">
-                                Delete Draft
-                            </button>
-                        ` : ''}
-                    </div>
-                ` : ''}
+                    ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow) || canRemoveDraft) ? `
+                        <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
+                            ${canManageDraft ? `
+                                <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
+                                    Edit Draft
+                                </button>
+                            ` : ''}
+                            ${canSubmitDraft && !isStrategicOrientationFlow ? `
+                                <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
+                                    Forward to Facilitator
+                                </button>
+                            ` : ''}
+                            ${canRemoveDraft ? `
+                                <button class="btn btn-ghost btn-sm text-error delete-action-btn" data-action-id="${action.id}">
+                                    Delete Draft
+                                </button>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                </div>
             </div>
         `;
     }
@@ -2337,18 +2398,13 @@ export class FacilitatorController {
             return;
         }
 
-        if (this.isBlueTeamActionWizardEnabled()) {
+        if (this.isTeamActionWizardEnabled()) {
             this.showBlueActionWizard();
             return;
         }
 
         if (this.isGreenTeamProposalEnabled()) {
             this.showGreenProposalModal();
-            return;
-        }
-
-        if (this.isRedTeamResponseEnabled()) {
-            this.showRedResponseModal();
             return;
         }
 
@@ -2391,18 +2447,13 @@ export class FacilitatorController {
             return;
         }
 
-        if (this.isBlueTeamActionWizardEnabled(action)) {
+        if (this.isTeamActionWizardEnabled(action)) {
             this.showBlueActionWizard(action);
             return;
         }
 
         if (this.isGreenTeamProposalEnabled(action)) {
             this.showGreenProposalModal(action);
-            return;
-        }
-
-        if (this.isRedTeamResponseEnabled(action)) {
-            this.showRedResponseModal(action);
             return;
         }
 
@@ -2431,6 +2482,12 @@ export class FacilitatorController {
                 }
             ]
         });
+    }
+
+    isTeamActionWizardEnabled(action = null) {
+        return ['blue', 'red'].includes(this.teamId)
+            && (!action || !action.team || action.team === this.teamId)
+            && (!action || !isStrategicOrientationAction(action));
     }
 
     isBlueTeamActionWizardEnabled(action = null) {
@@ -2470,13 +2527,18 @@ export class FacilitatorController {
 
     getStrategicOrientationModalCopy() {
         const isBlue = this.teamId === 'blue';
+        const isMultiTargetForecast = STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
         return {
-            title: isBlue ? 'Strategic Orientation' : 'Forecast Blue Strategic Orientation',
-            fieldLabel: isBlue ? 'Orientation' : 'Forecasted Blue orientation',
-            submitButton: isBlue ? 'Record Orientation' : 'Record Forecast',
+            title: isBlue
+                ? 'Strategic Orientation'
+                : (isMultiTargetForecast ? 'Forecast Strategic Orientations' : 'Forecast Blue Strategic Orientation'),
+            fieldLabel: isBlue ? 'Orientation' : 'Forecasted orientation',
+            submitButton: isBlue ? 'Record Orientation' : (isMultiTargetForecast ? 'Record Forecasts' : 'Record Forecast'),
             rationalePlaceholder: isBlue
                 ? 'Briefly state why your team chose this orientation. Recorded for the White Cell and the after-action review.'
-                : 'Briefly state why your team forecasts Blue will choose this orientation. Recorded for the White Cell and the after-action review.'
+                : (isMultiTargetForecast
+                    ? 'Briefly state why your team forecasts these orientations for Blue and the Green delegations. Recorded for the White Cell and the after-action review.'
+                    : 'Briefly state why your team forecasts Blue will choose this orientation. Recorded for the White Cell and the after-action review.')
         };
     }
 
@@ -2521,9 +2583,16 @@ export class FacilitatorController {
         const content = document.createElement('div');
         const copy = this.getStrategicOrientationModalCopy();
         const viewModel = getStrategicOrientationViewModel(action);
+        const forecastTargets = getStrategicOrientationForecastTargetsForTeam(this.teamId);
+        const isMultiTargetForecast = STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
         const selectedOrientation = viewModel.hasStrategicOrientationDetails
             ? viewModel.orientation
             : '';
+        const selectedForecasts = forecastTargets.reduce((accumulator, target) => {
+            const matchedForecast = viewModel.forecastTargets.find((forecast) => forecast.key === target.key);
+            accumulator[target.key] = matchedForecast?.orientation || '';
+            return accumulator;
+        }, {});
         const renderOrientationCard = (option) => {
             const isSelected = selectedOrientation === option.id;
             return `
@@ -2539,16 +2608,46 @@ export class FacilitatorController {
                 </button>
             `;
         };
+        const renderForecastCard = (target, option) => {
+            const isSelected = selectedForecasts[target.key] === option.id;
+            return `
+                <button
+                    class="opt${isSelected ? ' selected' : ''}"
+                    type="button"
+                    data-orientation="${this.escapeHtml(option.id)}"
+                    data-orientation-target="${this.escapeHtml(target.key)}"
+                    role="radio"
+                    aria-checked="${isSelected ? 'true' : 'false'}"
+                >
+                    <div class="opt-name">${this.escapeHtml(option.name)}</div>
+                    <div class="opt-tag">${this.escapeHtml(option.tag)}</div>
+                </button>
+            `;
+        };
+        const multiTargetFieldsets = forecastTargets.map((target) => `
+            <fieldset class="form-group strategic-orientation-fieldset">
+                <legend class="form-label" id="strategicOrientationLegend-${this.escapeHtml(target.key)}">${this.escapeHtml(target.label)} <span class="required-indicator">*</span></legend>
+                <div class="options" id="options-${this.escapeHtml(target.key)}" role="radiogroup" aria-labelledby="strategicOrientationLegend-${this.escapeHtml(target.key)}">
+                    ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map((option) => renderForecastCard(target, option)).join('')}
+                </div>
+            </fieldset>
+        `).join('');
+        const singleTargetFieldset = `
+            <fieldset class="form-group strategic-orientation-fieldset">
+                <legend class="form-label" id="strategicOrientationLegend">${this.escapeHtml(copy.fieldLabel)} <span class="required-indicator">*</span></legend>
+                <div class="options" id="options" role="radiogroup" aria-labelledby="strategicOrientationLegend">
+                    ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map(renderOrientationCard).join('')}
+                </div>
+            </fieldset>
+        `;
+        const confirmEnabled = isMultiTargetForecast
+            ? forecastTargets.every((target) => Boolean(selectedForecasts[target.key]))
+            : Boolean(selectedOrientation);
 
         content.innerHTML = `
             <section class="strategic-orientation-modal" data-strategic-orientation-modal>
                 <div class="content-pad">
-                    <fieldset class="form-group strategic-orientation-fieldset">
-                        <legend class="form-label" id="strategicOrientationLegend">${this.escapeHtml(copy.fieldLabel)} <span class="required-indicator">*</span></legend>
-                        <div class="options" id="options" role="radiogroup" aria-labelledby="strategicOrientationLegend">
-                            ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map(renderOrientationCard).join('')}
-                        </div>
-                    </fieldset>
+                    ${isMultiTargetForecast ? multiTargetFieldsets : singleTargetFieldset}
                     <div class="form-group">
                         <label class="form-label" for="rationale">Team rationale</label>
                         <textarea id="rationale" class="form-input form-textarea" aria-describedby="rationaleHelp" placeholder="${this.escapeHtml(copy.rationalePlaceholder)}">${this.escapeHtml(viewModel.rationale)}</textarea>
@@ -2556,7 +2655,7 @@ export class FacilitatorController {
                     </div>
                     <div class="form-actions strategic-orientation-actions">
                         <button class="btn btn-ghost" type="button" data-orientation-nav="cancel">Cancel</button>
-                        <button class="btn btn-primary" id="confirmBtn" type="button" data-orientation-nav="confirm" ${selectedOrientation ? '' : 'disabled'}>${this.escapeHtml(copy.submitButton)}</button>
+                        <button class="btn btn-primary" id="confirmBtn" type="button" data-orientation-nav="confirm" ${confirmEnabled ? '' : 'disabled'}>${this.escapeHtml(copy.submitButton)}</button>
                     </div>
                 </div>
             </section>
@@ -2564,6 +2663,7 @@ export class FacilitatorController {
 
         content.__strategicOrientationInitialState = {
             selected: selectedOrientation,
+            forecasts: selectedForecasts,
             rationale: viewModel.rationale || ''
         };
 
@@ -2571,19 +2671,41 @@ export class FacilitatorController {
     }
 
     bindStrategicOrientationModal(content, modal, { actionId = null, isEdit = false } = {}) {
+        const forecastTargets = getStrategicOrientationForecastTargetsForTeam(this.teamId);
+        const isMultiTargetForecast = STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
         const state = {
             selected: content.__strategicOrientationInitialState?.selected || null,
+            forecasts: { ...(content.__strategicOrientationInitialState?.forecasts || {}) },
             rationale: content.__strategicOrientationInitialState?.rationale || ''
         };
         const confirmBtn = content.querySelector('#confirmBtn');
         const rationaleEl = content.querySelector('#rationale');
         const orientationButtons = [...content.querySelectorAll('[data-orientation]')];
-        const selectOrientation = (orientation, { focus = false } = {}) => {
+        const orientationButtonsByTarget = orientationButtons.reduce((accumulator, button) => {
+            const targetKey = button.dataset.orientationTarget || '__single__';
+            accumulator.set(targetKey, [...(accumulator.get(targetKey) || []), button]);
+            return accumulator;
+        }, new Map());
+        const updateConfirmState = () => {
+            if (!confirmBtn) {
+                return;
+            }
+
+            confirmBtn.disabled = isMultiTargetForecast
+                ? !forecastTargets.every((target) => Boolean(state.forecasts[target.key]))
+                : !state.selected;
+        };
+        const selectOrientation = (orientation, { focus = false, targetKey = null } = {}) => {
             if (!STRATEGIC_ORIENTATION_OPTIONS[orientation]) return;
 
-            state.selected = orientation;
+            const resolvedTargetKey = targetKey || '__single__';
+            if (isMultiTargetForecast && resolvedTargetKey !== '__single__') {
+                state.forecasts[resolvedTargetKey] = orientation;
+            } else {
+                state.selected = orientation;
+            }
 
-            orientationButtons.forEach((button) => {
+            (orientationButtonsByTarget.get(resolvedTargetKey) || orientationButtons).forEach((button) => {
                 const selected = button.dataset.orientation === orientation;
                 button.classList.toggle('selected', selected);
                 button.setAttribute('aria-checked', selected ? 'true' : 'false');
@@ -2591,19 +2713,22 @@ export class FacilitatorController {
                     button.focus();
                 }
             });
-            if (confirmBtn) confirmBtn.disabled = false;
+            updateConfirmState();
         };
 
-        orientationButtons.forEach((button, index) => {
-            button.addEventListener('click', () => selectOrientation(button.dataset.orientation));
+        orientationButtons.forEach((button) => {
+            const targetKey = button.dataset.orientationTarget || '__single__';
+            const groupButtons = orientationButtonsByTarget.get(targetKey) || orientationButtons;
+            const buttonIndex = groupButtons.indexOf(button);
+            button.addEventListener('click', () => selectOrientation(button.dataset.orientation, { targetKey }));
             button.addEventListener('keydown', (event) => {
                 if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) {
                     return;
                 }
                 event.preventDefault();
                 const direction = (event.key === 'ArrowDown' || event.key === 'ArrowRight') ? 1 : -1;
-                const nextIndex = (index + direction + orientationButtons.length) % orientationButtons.length;
-                selectOrientation(orientationButtons[nextIndex].dataset.orientation, { focus: true });
+                const nextIndex = (buttonIndex + direction + groupButtons.length) % groupButtons.length;
+                selectOrientation(groupButtons[nextIndex].dataset.orientation, { focus: true, targetKey });
             });
         });
         rationaleEl?.addEventListener('input', () => {
@@ -2624,12 +2749,30 @@ export class FacilitatorController {
             });
         });
 
-        if (state.selected) {
+        if (isMultiTargetForecast) {
+            forecastTargets.forEach((target) => {
+                if (state.forecasts[target.key]) {
+                    selectOrientation(state.forecasts[target.key], { targetKey: target.key });
+                }
+            });
+        } else if (state.selected) {
             selectOrientation(state.selected);
         }
+
+        updateConfirmState();
     }
 
     validateStrategicOrientationData(data = {}) {
+        if (STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId)) {
+            const forecastTargets = getStrategicOrientationForecastTargetsForTeam(this.teamId);
+            for (const target of forecastTargets) {
+                if (!STRATEGIC_ORIENTATION_OPTIONS[data?.forecasts?.[target.key]]) {
+                    return `Select one orientation for ${target.label}.`;
+                }
+            }
+            return null;
+        }
+
         if (!data.selected || !STRATEGIC_ORIENTATION_OPTIONS[data.selected]) {
             return 'Select one orientation.';
         }
@@ -2637,16 +2780,44 @@ export class FacilitatorController {
     }
 
     buildStrategicOrientationPayload(data = {}) {
-        const option = STRATEGIC_ORIENTATION_OPTIONS[data.selected];
         const artifactType = this.getStrategicOrientationArtifactType();
         const isForecast = artifactType === STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST;
+        const isMultiTargetForecast = isForecast
+            && STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
+        const forecastTargets = isForecast
+            ? getStrategicOrientationForecastTargetsForTeam(this.teamId)
+                .map((target) => {
+                    const orientation = isMultiTargetForecast
+                        ? data?.forecasts?.[target.key]
+                        : data.selected;
+                    const option = STRATEGIC_ORIENTATION_OPTIONS[orientation];
+                    if (!option) {
+                        return null;
+                    }
+
+                    return {
+                        key: target.key,
+                        label: target.label,
+                        orientation: option.id,
+                        orientationLabel: option.name,
+                        orientationTag: option.tag
+                    };
+                })
+                .filter(Boolean)
+            : [];
+        const primaryOrientation = isForecast
+            ? forecastTargets[0]?.orientation
+            : data.selected;
+        const option = STRATEGIC_ORIENTATION_OPTIONS[primaryOrientation];
         const forecastSummary = isForecast
-            ? `Forecast: Blue will choose ${option.name} - ${option.tag}.`
+            ? buildStrategicOrientationForecastSummary(forecastTargets)
             : '';
 
         return {
             goal: isForecast
-                ? `${this.teamLabel} Forecast: Blue ${option.name}`
+                ? (isMultiTargetForecast
+                    ? `${this.teamLabel} Forecasts`
+                    : `${this.teamLabel} Forecast: Blue ${option.name}`)
                 : `Strategic Orientation: ${option.name}`,
             mechanism: STRATEGIC_ORIENTATION_ACTION_MECHANISM,
             sector: '',
@@ -2660,6 +2831,7 @@ export class FacilitatorController {
                 orientation: option.id,
                 rationale: data.rationale,
                 forecastSummary,
+                forecastTargets,
                 scribeHandoff: STRATEGIC_ORIENTATION_SCRIBE_HANDOFF.FORWARDED
             })
         };
@@ -3420,7 +3592,7 @@ export class FacilitatorController {
         const modalRef = { current: null };
 
         modalRef.current = showModal({
-            title: isEdit ? 'Edit Blue Team Action' : 'Take Action',
+            title: isEdit ? 'Edit Action' : 'Take Action',
             content,
             size: 'xl'
         });
@@ -3434,18 +3606,37 @@ export class FacilitatorController {
     createBlueActionWizardContent(action = {}, { isEdit = false, sequenceContext = null } = {}) {
         const content = document.createElement('div');
         const blueAction = getBlueActionViewModel(action);
+        const isRedTeamActionWizard = this.teamId === 'red';
         const actionTitle = action.goal || action.title || '';
+        const builtInInstrumentValues = BLUE_ACTION_INSTRUMENTS.filter((value) => value !== 'Other');
+        const instrumentIsCustom = Boolean(blueAction.instrumentOfPower)
+            && !builtInInstrumentValues.includes(blueAction.instrumentOfPower);
+        const instrumentValue = instrumentIsCustom
+            ? 'Other'
+            : (blueAction.instrumentOfPower || '');
         const selectedLeverValues = blueAction.levers.length
             ? blueAction.levers
             : (blueAction.lever ? [blueAction.lever] : []);
         const blueActionSectors = blueAction.sectors.length
             ? blueAction.sectors
             : (blueAction.sector ? [blueAction.sector] : []);
+        const selectedSupplyChainFocusValues = blueAction.supplyChainFocuses.length
+            ? blueAction.supplyChainFocuses
+            : (blueAction.supplyChainFocus ? [blueAction.supplyChainFocus] : []);
         const builtInSectorValues = BLUE_ACTION_SECTORS.filter((value) => value !== 'Other');
         const customSectorValue = blueActionSectors.find((value) => value && !builtInSectorValues.includes(value) && value !== 'Other') || '';
         const selectedSectorValues = [
             ...blueActionSectors.filter((value) => builtInSectorValues.includes(value)),
             ...(customSectorValue || blueActionSectors.includes('Other') ? ['Other'] : [])
+        ];
+        const focusCountryOptions = isRedTeamActionWizard
+            ? BLUE_ACTION_COUNTRIES.filter((value) => value !== 'PRC')
+            : BLUE_ACTION_COUNTRIES;
+        const builtInCountryValues = focusCountryOptions.filter((value) => value !== 'Other');
+        const customCountryValue = blueAction.focusCountries.find((value) => value && !builtInCountryValues.includes(value) && value !== 'Other') || '';
+        const selectedFocusCountryValues = [
+            ...blueAction.focusCountries.filter((value) => builtInCountryValues.includes(value)),
+            ...(customCountryValue || blueAction.focusCountries.includes('Other') ? ['Other'] : [])
         ];
         const implementationIsCustom = Boolean(blueAction.implementation)
             && !BLUE_ACTION_IMPLEMENTATIONS.includes(blueAction.implementation);
@@ -3470,120 +3661,10 @@ export class FacilitatorController {
                 <option value="${value}" ${selectedValue === value ? 'selected' : ''}>${value}</option>
             `).join('')}
         `;
-
-        content.innerHTML = `
-            <form id="blueActionWizardForm" novalidate>
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
-                    <div>
-                        <p class="text-xs text-gray-500" id="blueActionWizardStepLabel">Page 1 of ${BLUE_ACTION_WIZARD_PAGE_TOTAL}</p>
-                        <h3 class="font-semibold" style="margin: 0;">Blue Team Action Builder</h3>
-                        <p class="text-sm text-gray-500" id="blueActionWizardSequenceLabel" style="margin: var(--space-2) 0 0;">${this.escapeHtml(sequenceLabel)}</p>
-                    </div>
-                    <div aria-hidden="true" style="display: flex; gap: var(--space-2);">
-                        ${Array.from({ length: BLUE_ACTION_WIZARD_PAGE_TOTAL }, (_, index) => `
-                            <span
-                                data-blue-action-step="${index}"
-                                style="width: 28px; height: 4px; border-radius: 999px; background: ${index === 0 ? 'var(--color-primary-500)' : 'var(--color-gray-200)'};"
-                            ></span>
-                        `).join('')}
-                    </div>
-                </div>
-
-                <section data-blue-action-page="0">
-                    <div class="section-grid section-grid-2">
-                        <div class="form-group">
-                            <label class="form-label" for="actionTitle">Action Title *</label>
-                            <input
-                                id="actionTitle"
-                                class="form-input"
-                                type="text"
-                                value="${this.escapeHtml(actionTitle)}"
-                                maxlength="200"
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="actionInstrument">Instrument of Power *</label>
-                            <select id="actionInstrument" class="form-select">
-                                ${renderOptions(BLUE_ACTION_INSTRUMENTS, action.mechanism || '', 'Select instrument')}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="actionObjective">Objective *</label>
-                        <textarea
-                            id="actionObjective"
-                            class="form-input form-textarea"
-                            rows="4"
-                            aria-describedby="actionObjectiveHint"
-                        >${this.escapeHtml(blueAction.objective)}</textarea>
-                        <p class="form-hint" id="actionObjectiveHint">What you intend this action to achieve.</p>
-                    </div>
-
-                    <div class="form-group">
-                        <span class="form-label" id="actionLeversLabel">Levers *</span>
-                        <div
-                            class="form-check-grid"
-                            role="group"
-                            aria-labelledby="actionLeversLabel"
-                            aria-describedby="actionLeversHint"
-                        >
-                            ${renderCheckboxOptions({
-                                values: BLUE_ACTION_LEVERS,
-                                selectedValues: selectedLeverValues,
-                                dataAttribute: 'data-blue-action-checkbox',
-                                group: 'lever',
-                                idPrefix: 'actionLever'
-                            })}
-                        </div>
-                        <p class="form-hint" id="actionLeversHint">Select one or more levers.</p>
-                    </div>
-                </section>
-
-                <section data-blue-action-page="1" hidden>
-                    <div class="form-group">
-                        <span class="form-label" id="actionSectorsLabel">Sectors *</span>
-                        <div
-                            class="form-check-grid"
-                            role="group"
-                            aria-labelledby="actionSectorsLabel"
-                            aria-describedby="actionSectorsHint"
-                        >
-                            ${renderCheckboxOptions({
-                                values: BLUE_ACTION_SECTORS,
-                                selectedValues: selectedSectorValues,
-                                dataAttribute: 'data-blue-action-checkbox',
-                                group: 'sector',
-                                idPrefix: 'actionBlueSector'
-                            })}
-                        </div>
-                        <p class="form-hint" id="actionSectorsHint">Select one or more sectors.</p>
-                    </div>
-
-                    <div class="section-grid section-grid-2">
-                        <div class="form-group">
-                            <label class="form-label" for="actionSupplyChainFocus">Supply Chain Focus *</label>
-                            <select id="actionSupplyChainFocus" class="form-select">
-                                ${renderOptions(BLUE_ACTION_SUPPLY_CHAIN_FOCUS, action.exposure_type || '', 'Select supply chain focus')}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div
-                        class="form-group"
-                        id="actionBlueSectorOtherGroup"
-                        ${selectedSectorValues.includes('Other') ? '' : 'hidden'}
-                    >
-                        <label class="form-label" for="actionBlueSectorOther">Other Sector *</label>
-                        <input
-                            id="actionBlueSectorOther"
-                            class="form-input"
-                            type="text"
-                            value="${this.escapeHtml(customSectorValue)}"
-                            maxlength="120"
-                        >
-                    </div>
-
+        const objectiveHintText = isRedTeamActionWizard
+            ? 'What you intend this action to achieve in 6 months.'
+            : 'What you intend this action to achieve.';
+        const implementationAndTimelineFieldsMarkup = isRedTeamActionWizard ? '' : `
                     <div class="section-grid section-grid-2">
                         <div class="form-group">
                             <label class="form-label" for="actionImplementation">Implementation *</label>
@@ -3592,7 +3673,7 @@ export class FacilitatorController {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="actionEnforcementTimeline">Enforcement Timeline *</label>
+                            <label class="form-label" for="actionEnforcementTimeline">Date of Effect *</label>
                             <select
                                 id="actionEnforcementTimeline"
                                 class="form-select"
@@ -3646,7 +3727,7 @@ export class FacilitatorController {
                         id="actionEnforcementTimelineOtherGroup"
                         ${enforcementTimelineValue === 'Other' ? '' : 'hidden'}
                     >
-                        <label class="form-label" for="actionEnforcementTimelineOther">Other Enforcement Timeline *</label>
+                        <label class="form-label" for="actionEnforcementTimelineOther">Other Date of Effect *</label>
                         <input
                             id="actionEnforcementTimelineOther"
                             class="form-input"
@@ -3655,6 +3736,132 @@ export class FacilitatorController {
                             maxlength="120"
                         >
                     </div>
+        `;
+
+        content.innerHTML = `
+            <form id="blueActionWizardForm" novalidate>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+                    <div>
+                        <p class="text-xs text-gray-500" id="blueActionWizardStepLabel">Page 1 of ${BLUE_ACTION_WIZARD_PAGE_TOTAL}</p>
+                        <h3 class="font-semibold" style="margin: 0;">${this.escapeHtml(this.teamLabel)} Action Builder</h3>
+                        <p class="text-sm text-gray-500" id="blueActionWizardSequenceLabel" style="margin: var(--space-2) 0 0;">${this.escapeHtml(sequenceLabel)}</p>
+                    </div>
+                    <div aria-hidden="true" style="display: flex; gap: var(--space-2);">
+                        ${Array.from({ length: BLUE_ACTION_WIZARD_PAGE_TOTAL }, (_, index) => `
+                            <span
+                                data-blue-action-step="${index}"
+                                style="width: 28px; height: 4px; border-radius: 999px; background: ${index === 0 ? 'var(--color-primary-500)' : 'var(--color-gray-200)'};"
+                            ></span>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <section data-blue-action-page="0">
+                    <div class="section-grid section-grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="actionTitle">Action Title *</label>
+                            <input
+                                id="actionTitle"
+                                class="form-input"
+                                type="text"
+                                value="${this.escapeHtml(actionTitle)}"
+                                maxlength="200"
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="actionInstrument">Instrument of Power *</label>
+                            <select
+                                id="actionInstrument"
+                                class="form-select"
+                                data-blue-action-other-target="actionInstrumentOther"
+                            >
+                                ${renderOptions(BLUE_ACTION_INSTRUMENTS, instrumentValue, 'Select instrument')}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div
+                        class="form-group"
+                        id="actionInstrumentOtherGroup"
+                        ${instrumentValue === 'Other' ? '' : 'hidden'}
+                    >
+                        <label class="form-label" for="actionInstrumentOther">Other Instrument of Power *</label>
+                        <input
+                            id="actionInstrumentOther"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(instrumentIsCustom ? blueAction.instrumentOfPower : '')}"
+                            maxlength="120"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="actionObjective">Objective *</label>
+                        <textarea
+                            id="actionObjective"
+                            class="form-input form-textarea"
+                            rows="4"
+                            aria-describedby="actionObjectiveHint"
+                        >${this.escapeHtml(blueAction.objective)}</textarea>
+                        <p class="form-hint" id="actionObjectiveHint">${this.escapeHtml(objectiveHintText)}</p>
+                    </div>
+                </section>
+
+                <section data-blue-action-page="1" hidden>
+                    <div class="form-group">
+                        <span class="form-label" id="actionSectorsLabel">Sectors *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="actionSectorsLabel"
+                            aria-describedby="actionSectorsHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_SECTORS,
+                                selectedValues: selectedSectorValues,
+                                dataAttribute: 'data-blue-action-checkbox',
+                                group: 'sector',
+                                idPrefix: 'actionBlueSector'
+                            })}
+                        </div>
+                        <p class="form-hint" id="actionSectorsHint">Select one or more sectors.</p>
+                    </div>
+
+                    <div
+                        class="form-group"
+                        id="actionBlueSectorOtherGroup"
+                        ${selectedSectorValues.includes('Other') ? '' : 'hidden'}
+                    >
+                        <label class="form-label" for="actionBlueSectorOtherInput">Other Sector *</label>
+                        <input
+                            id="actionBlueSectorOtherInput"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(customSectorValue)}"
+                            maxlength="120"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <span class="form-label" id="actionSupplyChainFocusLabel">Supply Chain Focus *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="actionSupplyChainFocusLabel"
+                            aria-describedby="actionSupplyChainFocusHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_SUPPLY_CHAIN_FOCUS,
+                                selectedValues: selectedSupplyChainFocusValues,
+                                dataAttribute: 'data-blue-action-checkbox',
+                                group: 'supply-chain-focus',
+                                idPrefix: 'actionSupplyChainFocus'
+                            })}
+                        </div>
+                        <p class="form-hint" id="actionSupplyChainFocusHint">Select one or more supply chain focus areas.</p>
+                    </div>
+
+                    ${implementationAndTimelineFieldsMarkup}
 
                     <div class="form-group">
                         <span class="form-label" id="actionFocusCountriesLabel">Focus Countries *</span>
@@ -3665,14 +3872,29 @@ export class FacilitatorController {
                             aria-describedby="actionFocusCountriesHint"
                         >
                             ${renderCheckboxOptions({
-                                values: BLUE_ACTION_COUNTRIES,
-                                selectedValues: blueAction.focusCountries,
+                                values: focusCountryOptions,
+                                selectedValues: selectedFocusCountryValues,
                                 dataAttribute: 'data-blue-action-checkbox',
                                 group: 'country',
                                 idPrefix: 'actionFocusCountry'
                             })}
                         </div>
                         <p class="form-hint" id="actionFocusCountriesHint">Select one or more countries.</p>
+                    </div>
+
+                    <div
+                        class="form-group"
+                        id="actionFocusCountryOtherGroup"
+                        ${selectedFocusCountryValues.includes('Other') ? '' : 'hidden'}
+                    >
+                        <label class="form-label" for="actionFocusCountryOtherInput">Other Focus Country *</label>
+                        <input
+                            id="actionFocusCountryOtherInput"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(customCountryValue)}"
+                            maxlength="120"
+                        >
                     </div>
 
                     <div class="form-group">
@@ -3684,40 +3906,6 @@ export class FacilitatorController {
                             aria-describedby="actionExpectedOutcomesHint"
                         >${this.escapeHtml(action.expected_outcomes || '')}</textarea>
                         <p class="form-hint" id="actionExpectedOutcomesHint">What you anticipate will actually happen as a result, including effects you don't control.</p>
-                    </div>
-                </section>
-
-                <section data-blue-action-page="2" hidden>
-                    <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-4);">
-                        <h4 class="font-semibold" style="margin: 0 0 var(--space-2);">Review</h4>
-                        <div id="blueActionSummary" class="text-sm text-gray-500"></div>
-                    </div>
-
-                    <div class="section-grid section-grid-2">
-                        <div class="card card-bordered" style="padding: var(--space-4);">
-                            <h4 class="font-semibold" style="margin: 0 0 var(--space-3);">Coordinated</h4>
-                            <div style="display: grid; gap: var(--space-3);">
-                                ${renderCheckboxOptions({
-                                    values: BLUE_ACTION_COORDINATED_OPTIONS,
-                                    selectedValues: blueAction.coordinated,
-                                    dataAttribute: 'data-blue-action-checkbox',
-                                    group: 'coordinated',
-                                    idPrefix: 'coordinated'
-                                })}
-                            </div>
-                        </div>
-                        <div class="card card-bordered" style="padding: var(--space-4);">
-                            <h4 class="font-semibold" style="margin: 0 0 var(--space-3);">Informed/Engaged</h4>
-                            <div style="display: grid; gap: var(--space-3);">
-                                ${renderCheckboxOptions({
-                                    values: BLUE_ACTION_INFORMED_OPTIONS,
-                                    selectedValues: blueAction.informed,
-                                    dataAttribute: 'data-blue-action-checkbox',
-                                    group: 'informed',
-                                    idPrefix: 'informed'
-                                })}
-                            </div>
-                        </div>
                     </div>
                 </section>
 
@@ -3737,6 +3925,13 @@ export class FacilitatorController {
             </form>
         `;
 
+        const form = content.querySelector('#blueActionWizardForm');
+        if (form) {
+            form.dataset.blueActionLevers = JSON.stringify(selectedLeverValues);
+            form.dataset.blueActionCoordinated = JSON.stringify(blueAction.coordinated || []);
+            form.dataset.blueActionInformed = JSON.stringify(blueAction.informed || []);
+        }
+
         return content;
     }
 
@@ -3751,7 +3946,6 @@ export class FacilitatorController {
         const saveDraftButton = content.querySelector('[data-blue-action-nav="saveDraft"]');
         const submitButton = content.querySelector('[data-blue-action-nav="submit"]');
         const saveChangesButton = content.querySelector('[data-blue-action-nav="saveChanges"]');
-        const summary = content.querySelector('#blueActionSummary');
         let currentPage = 0;
 
         const updateOtherField = (selectId, inputId, groupId) => {
@@ -3767,23 +3961,6 @@ export class FacilitatorController {
             if (input && !showOther) {
                 input.value = '';
             }
-        };
-
-        const updateSummary = () => {
-            const wizardData = this.getBlueActionWizardData(form);
-            summary.innerHTML = `
-                <p><strong>Sequence:</strong> ${this.escapeHtml(sequenceContext?.label || '')}</p>
-                <p><strong>Title:</strong> ${this.escapeHtml(wizardData.actionTitle || 'Not specified')}</p>
-                <p><strong>Objective:</strong> ${this.escapeHtml(wizardData.objective || 'Not specified')}</p>
-                <p><strong>Instrument:</strong> ${this.escapeHtml(wizardData.instrumentOfPower || 'Not specified')} | <strong>Levers:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.levers, 'Not specified'))}</p>
-                <p><strong>Sectors:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.sectors, 'Not specified'))} | <strong>Supply Chain Focus:</strong> ${this.escapeHtml(wizardData.supplyChainFocus || 'Not specified')}</p>
-                <p><strong>Implementation:</strong> ${this.escapeHtml(wizardData.implementation || 'Not specified')} | <strong>Timeline:</strong> ${this.escapeHtml(wizardData.enforcementTimeline || 'Not specified')}</p>
-                ${wizardData.implementationSelectValue === 'Legislative' ? `
-                    <p><strong>Legislative Route:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.legislativeOptions, 'None selected'))}</p>
-                ` : ''}
-                <p><strong>Focus Countries:</strong> ${this.escapeHtml(formatBlueActionSelection(wizardData.focusCountries))}</p>
-                <p><strong>Expected Outcomes:</strong> ${this.escapeHtml(wizardData.expectedOutcomes || 'Not specified')}</p>
-            `;
         };
 
         const focusCurrentPage = () => {
@@ -3830,17 +4007,27 @@ export class FacilitatorController {
                 saveChangesButton.hidden = false;
             }
 
-            if (currentPage === BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
-                updateSummary();
-            }
-
             focusCurrentPage();
         };
 
         const updateSectorOtherField = () => {
-            const input = form.querySelector('#actionBlueSectorOther');
+            const input = form.querySelector('#actionBlueSectorOtherInput');
             const group = form.querySelector('#actionBlueSectorOtherGroup');
-            const showOther = getCheckedValues(form, '[data-blue-action-checkbox="sector"]').includes('Other');
+            const showOther = Boolean(form.querySelector('#actionBlueSectorOther')?.checked);
+
+            if (group) {
+                group.hidden = !showOther;
+            }
+
+            if (input && !showOther) {
+                input.value = '';
+            }
+        };
+
+        const updateFocusCountryOtherField = () => {
+            const input = form.querySelector('#actionFocusCountryOtherInput');
+            const group = form.querySelector('#actionFocusCountryOtherGroup');
+            const showOther = Boolean(form.querySelector('#actionFocusCountryOther')?.checked);
 
             if (group) {
                 group.hidden = !showOther;
@@ -3870,6 +4057,12 @@ export class FacilitatorController {
 
         form.querySelectorAll('[data-blue-action-checkbox="sector"]').forEach((checkbox) => {
             checkbox.addEventListener('change', updateSectorOtherField);
+        });
+        form.querySelectorAll('[data-blue-action-checkbox="country"]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateFocusCountryOtherField);
+        });
+        form.querySelector('#actionInstrument')?.addEventListener('change', () => {
+            updateOtherField('actionInstrument', 'actionInstrumentOther', 'actionInstrumentOtherGroup');
         });
         form.querySelector('#actionImplementation')?.addEventListener('change', () => {
             updateImplementationDependentFields();
@@ -3901,19 +4094,19 @@ export class FacilitatorController {
 
         saveDraftButton?.addEventListener('click', () => {
             this.saveBlueActionDraft(modal, form, currentPage).catch((error) => {
-                logger.error('Failed to save Blue team draft action:', error);
+                logger.error('Failed to save team draft action:', error);
             });
         });
 
         submitButton?.addEventListener('click', () => {
             this.forwardBlueActionFromWizard(modal, form).catch((error) => {
-                logger.error('Failed to forward Blue team action from wizard:', error);
+                logger.error('Failed to forward team action from wizard:', error);
             });
         });
 
         saveChangesButton?.addEventListener('click', () => {
             this.saveBlueActionChanges(modal, form, actionId, currentPage).catch((error) => {
-                logger.error('Failed to update Blue team draft action:', error);
+                logger.error('Failed to update team draft action:', error);
             });
         });
 
@@ -3921,38 +4114,88 @@ export class FacilitatorController {
     }
 
     getBlueActionWizardData(form) {
-        const levers = getCheckedValues(form, '[data-blue-action-checkbox="lever"]');
+        const isRedTeamActionWizard = this.teamId === 'red';
+        let storedLevers = [];
+        let storedCoordinated = [];
+        let storedInformed = [];
+        try {
+            const parsedLevers = JSON.parse(form?.dataset?.blueActionLevers || '[]');
+            storedLevers = Array.isArray(parsedLevers) ? parsedLevers : [];
+        } catch (_error) {
+            storedLevers = [];
+        }
+        try {
+            const parsedCoordinated = JSON.parse(form?.dataset?.blueActionCoordinated || '[]');
+            storedCoordinated = Array.isArray(parsedCoordinated) ? parsedCoordinated : [];
+        } catch (_error) {
+            storedCoordinated = [];
+        }
+        try {
+            const parsedInformed = JSON.parse(form?.dataset?.blueActionInformed || '[]');
+            storedInformed = Array.isArray(parsedInformed) ? parsedInformed : [];
+        } catch (_error) {
+            storedInformed = [];
+        }
         const selectedSectorValues = getCheckedValues(form, '[data-blue-action-checkbox="sector"]');
+        const supplyChainFocuses = getCheckedValues(form, '[data-blue-action-checkbox="supply-chain-focus"]');
         const selectedLegislativeOptions = getCheckedValues(form, '[data-blue-action-checkbox="legislative"]');
-        const focusCountries = getCheckedValues(form, '[data-blue-action-checkbox="country"]');
-        const coordinated = getCheckedValues(form, '[data-blue-action-checkbox="coordinated"]');
-        const informed = getCheckedValues(form, '[data-blue-action-checkbox="informed"]');
+        const selectedFocusCountryValues = getCheckedValues(form, '[data-blue-action-checkbox="country"]');
+        const coordinatedControlsExist = Boolean(form?.querySelector?.('[data-blue-action-checkbox="coordinated"]'));
+        const informedControlsExist = Boolean(form?.querySelector?.('[data-blue-action-checkbox="informed"]'));
+        const coordinated = coordinatedControlsExist
+            ? getCheckedValues(form, '[data-blue-action-checkbox="coordinated"]')
+            : storedCoordinated;
+        const informed = informedControlsExist
+            ? getCheckedValues(form, '[data-blue-action-checkbox="informed"]')
+            : storedInformed;
 
-        const implementationSelectValue = form.querySelector('#actionImplementation')?.value || '';
-        const enforcementTimelineSelectValue = form.querySelector('#actionEnforcementTimeline')?.value || '';
-        const sectorOther = form.querySelector('#actionBlueSectorOther')?.value?.trim() || '';
-        const implementationOther = form.querySelector('#actionImplementationOther')?.value?.trim() || '';
-        const enforcementTimelineOther = form.querySelector('#actionEnforcementTimelineOther')?.value?.trim() || '';
+        const instrumentSelectValue = form.querySelector('#actionInstrument')?.value || '';
+        const instrumentOther = form.querySelector('#actionInstrumentOther')?.value?.trim() || '';
+        const implementationSelectValue = isRedTeamActionWizard
+            ? ''
+            : (form.querySelector('#actionImplementation')?.value || '');
+        const enforcementTimelineSelectValue = isRedTeamActionWizard
+            ? ''
+            : (form.querySelector('#actionEnforcementTimeline')?.value || '');
+        const sectorOther = form.querySelector('#actionBlueSectorOtherInput')?.value?.trim() || '';
+        const focusCountryOther = form.querySelector('#actionFocusCountryOtherInput')?.value?.trim() || '';
+        const implementationOther = isRedTeamActionWizard
+            ? ''
+            : (form.querySelector('#actionImplementationOther')?.value?.trim() || '');
+        const enforcementTimelineOther = isRedTeamActionWizard
+            ? ''
+            : (form.querySelector('#actionEnforcementTimelineOther')?.value?.trim() || '');
         const sectors = [
             ...selectedSectorValues.filter((value) => value !== 'Other'),
             ...(selectedSectorValues.includes('Other') && sectorOther ? [sectorOther] : [])
+        ];
+        const focusCountries = [
+            ...selectedFocusCountryValues.filter((value) => value !== 'Other'),
+            ...(selectedFocusCountryValues.includes('Other') && focusCountryOther ? [focusCountryOther] : [])
         ];
 
         return {
             actionTitle: form.querySelector('#actionTitle')?.value?.trim() || '',
             objective: form.querySelector('#actionObjective')?.value?.trim() || '',
-            instrumentOfPower: form.querySelector('#actionInstrument')?.value || '',
-            lever: levers[0] || '',
-            levers,
+            instrumentOfPower: instrumentSelectValue === 'Other' ? instrumentOther : instrumentSelectValue,
+            instrumentSelectValue,
+            instrumentOther,
+            lever: storedLevers[0] || '',
+            levers: storedLevers,
             sector: sectors[0] || '',
             sectors,
             selectedSectorValues,
             sectorOther,
-            supplyChainFocus: form.querySelector('#actionSupplyChainFocus')?.value || '',
+            selectedFocusCountryValues,
+            focusCountryOther,
+            supplyChainFocus: supplyChainFocuses[0] || '',
+            supplyChainFocuses,
             implementation: implementationSelectValue === 'Other' ? implementationOther : implementationSelectValue,
             implementationSelectValue,
             implementationOther,
-            legislativeOptions: implementationSelectValue === 'Legislative' ? selectedLegislativeOptions : [],
+            legislativeOptions: isRedTeamActionWizard
+                ? []
+                : (implementationSelectValue === 'Legislative' ? selectedLegislativeOptions : []),
             focusCountries,
             enforcementTimeline: enforcementTimelineSelectValue === 'Other'
                 ? enforcementTimelineOther
@@ -3970,10 +4213,12 @@ export class FacilitatorController {
             wizardData.actionTitle
             || wizardData.objective
             || wizardData.instrumentOfPower
-            || wizardData.levers.length
+            || wizardData.instrumentSelectValue
+            || wizardData.instrumentOther
             || wizardData.sectors.length
             || wizardData.sectorOther
-            || wizardData.supplyChainFocus
+            || wizardData.focusCountryOther
+            || wizardData.supplyChainFocuses.length
             || wizardData.implementation
             || wizardData.implementationOther
             || wizardData.legislativeOptions.length
@@ -3981,8 +4226,6 @@ export class FacilitatorController {
             || wizardData.enforcementTimeline
             || wizardData.enforcementTimelineOther
             || wizardData.expectedOutcomes
-            || wizardData.coordinated.length
-            || wizardData.informed.length
         );
     }
 
@@ -3991,12 +4234,17 @@ export class FacilitatorController {
             return 'Add at least one action detail before saving a draft.';
         }
 
-        if (currentPage <= 0) {
+        const normalizedCurrentPage = Math.max(
+            0,
+            Math.min(currentPage, BLUE_ACTION_WIZARD_PAGE_TOTAL - 1)
+        );
+
+        if (normalizedCurrentPage <= 0) {
             return null;
         }
 
         // Mid-wizard saves should only enforce pages the facilitator has already completed.
-        const lastCompletedPage = Math.min(currentPage - 1, BLUE_ACTION_WIZARD_PAGE_TOTAL - 2);
+        const lastCompletedPage = normalizedCurrentPage - 1;
 
         for (let pageIndex = 0; pageIndex <= lastCompletedPage; pageIndex += 1) {
             const error = this.validateBlueActionWizardPage(wizardData, pageIndex);
@@ -4009,11 +4257,14 @@ export class FacilitatorController {
     }
 
     validateBlueActionWizardPage(wizardData, pageIndex) {
+        const isRedTeamActionWizard = this.teamId === 'red';
         if (pageIndex === 0) {
             if (!wizardData.actionTitle) return 'Action Title is required.';
             if (!wizardData.objective) return 'Objective is required.';
-            if (!wizardData.instrumentOfPower) return 'Instrument of Power is required.';
-            if (!wizardData.levers.length) return 'Select at least one lever.';
+            if (!wizardData.instrumentSelectValue) return 'Instrument of Power is required.';
+            if (wizardData.instrumentSelectValue === 'Other' && !wizardData.instrumentOther) {
+                return 'Please enter the custom instrument of power.';
+            }
         }
 
         if (pageIndex === 1) {
@@ -4021,15 +4272,20 @@ export class FacilitatorController {
             if (wizardData.selectedSectorValues.includes('Other') && !wizardData.sectorOther) {
                 return 'Please enter the custom sector.';
             }
-            if (!wizardData.supplyChainFocus) return 'Supply Chain Focus is required.';
-            if (!wizardData.implementationSelectValue) return 'Implementation is required.';
-            if (wizardData.implementationSelectValue === 'Other' && !wizardData.implementationOther) {
-                return 'Please enter the custom implementation.';
+            if (!wizardData.supplyChainFocuses.length) return 'Select at least one supply chain focus.';
+            if (!wizardData.selectedFocusCountryValues.length) return 'Select at least one focus country.';
+            if (wizardData.selectedFocusCountryValues.includes('Other') && !wizardData.focusCountryOther) {
+                return 'Please enter the custom focus country.';
             }
-            if (!wizardData.focusCountries.length) return 'Select at least one focus country.';
-            if (!wizardData.enforcementTimelineSelectValue) return 'Enforcement Timeline is required.';
-            if (wizardData.enforcementTimelineSelectValue === 'Other' && !wizardData.enforcementTimelineOther) {
-                return 'Please enter the custom enforcement timeline.';
+            if (!isRedTeamActionWizard) {
+                if (!wizardData.implementationSelectValue) return 'Implementation is required.';
+                if (wizardData.implementationSelectValue === 'Other' && !wizardData.implementationOther) {
+                    return 'Please enter the custom implementation.';
+                }
+                if (!wizardData.enforcementTimelineSelectValue) return 'Date of Effect is required.';
+                if (wizardData.enforcementTimelineSelectValue === 'Other' && !wizardData.enforcementTimelineOther) {
+                    return 'Please enter the custom date of effect.';
+                }
             }
             if (!wizardData.expectedOutcomes) return 'Expected Outcomes is required.';
         }
@@ -4052,6 +4308,7 @@ export class FacilitatorController {
                 objective: wizardData.objective,
                 levers: wizardData.levers,
                 sectors: wizardData.sectors,
+                supplyChainFocuses: wizardData.supplyChainFocuses,
                 implementation: wizardData.implementation,
                 legislativeOptions: wizardData.legislativeOptions,
                 enforcementTimeline: wizardData.enforcementTimeline,
@@ -4134,7 +4391,7 @@ export class FacilitatorController {
             showToast({ message: 'Draft action saved', type: 'success' });
             modal?.close();
         } catch (err) {
-            logger.error('Failed to create Blue team draft action:', err);
+            logger.error('Failed to create team draft action:', err);
             showToast({
                 message: getUserMessage(err, {
                     fallback: 'Failed to save draft action. Check the form and try again.'
@@ -4173,7 +4430,7 @@ export class FacilitatorController {
             showToast({ message: 'Draft action updated', type: 'success' });
             modal?.close();
         } catch (err) {
-            logger.error('Failed to update Blue team draft action:', err);
+            logger.error('Failed to update team draft action:', err);
             showToast({
                 message: getUserMessage(err, {
                     fallback: 'Failed to update draft action. Refresh the draft and try again.'
@@ -4265,7 +4522,7 @@ export class FacilitatorController {
             showToast({ message: 'Action forwarded to Facilitator', type: 'success' });
             modal?.close();
         } catch (err) {
-            logger.error('Failed to forward Blue team action:', err);
+            logger.error('Failed to forward team action:', err);
             showToast({
                 message: getUserMessage(err, {
                     fallback: 'Failed to forward action. Refresh the draft and try again.'
@@ -4483,7 +4740,7 @@ export class FacilitatorController {
             return;
         }
 
-        const sequenceLabel = this.isBlueTeamActionWizardEnabled(action)
+        const sequenceLabel = this.isTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
             : 'this draft';
 

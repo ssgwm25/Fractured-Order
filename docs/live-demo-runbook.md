@@ -73,14 +73,17 @@ White Cell Support should be able to monitor and communicate but not perform lea
 
 Scribe:
 
-- before Move 1, Blue completes Strategic Orientation and Green, Red, and Industry complete forecasts of Blue orientation; each artifact records only the orientation/forecast plus team rationale, and all four go to the Facilitator first
+- before Move 1, Blue completes Strategic Orientation, Green completes a forecast of Blue orientation, and Red plus Industry each complete forecasts for Blue, Green (Asian Pacific), and Green (Europe) with one shared team rationale; all four artifacts go to the Facilitator first
 - if a Green, Red, or Industry forecast insert returns a 403 on `actions` or the browser warns that `game_state` is missing, apply `data/2026-06-25_participant_role_resolver_normalization.sql`; pass condition is that the same-team Scribe can forward the Strategic Orientation forecast, cross-team writes still fail, and the live tracker loads from the backend
 - confirm the Strategic Orientation button disappears after the team records its selection or forecast; it is a one-time pre-Move-1 input
 - confirm the header live tracker reads Strategic Orientation / Pre-Move 1 until all required orientation artifacts reach White Cell, then returns to Move 1 / Internal Deliberation
 - create a draft action/proposal/response
-- forward completed Strategic Orientation artifacts and actions to the Facilitator; normal proposals and move responses still enter White Cell review from their role-specific flows
+- in the Blue Team Action modal, confirm Instrument of Power only offers `Economic` and `Other`; choosing `Other` must reveal a required free-text input and persist the typed value on save/edit, confirm the modal no longer renders a levers field, confirm choosing sector `Other` reveals its required free-text input directly under Sectors and that it reappears after deselecting and reselecting `Other`, confirm Supply Chain Focus is a checkbox group that includes `Diversification` and supports multiple selections, confirm the field label reads `Date of Effect`, confirm Focus Countries includes `Other` with a required free-text input that also reappears after deselecting and reselecting `Other`, and confirm the modal no longer shows a review page or Coordinated/Informed controls because those remain on the Facilitator projection flow
+- in the Red Team Action modal, confirm the Objective hint reads `What you intend this action to achieve in 6 months.`, confirm the modal does not render Implementation, Legislative Route, or Date of Effect controls, confirm Focus Countries omits `PRC` while still offering `Other` with its required free-text input, and confirm the rest of the shared action flow still forwards through the Facilitator
+- forward completed Strategic Orientation artifacts and actions to the Facilitator; Red now provides actions through the same team action flow as Blue, while proposals still enter White Cell review from their role-specific flow
 - submit RFIs across multiple category tabs
 - confirm White Cell responses are separated by category tabs and forwarded proposals appear
+- in the Scribe strategic actions section, confirm each action card is collapsed by default to `Action details`, the action title, and `Objective:` only, and that the full action card expands only after it is clicked
 - confirm timeline and quick capture render
 
 White Cell:
@@ -96,7 +99,7 @@ White Cell:
 - start/pause/reset the Strategic Orientation timer as lead while the pre-Move-1 gate is still incomplete
 - advance/regress phase and move after the Strategic Orientation gate clears
 - confirm advancing or regressing moves pauses the timer and loads the target move allocation
-- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then actions/proposals/responses from their role-specific queues
+- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues
 - answer RFIs
 - send direct communications and section updates
 - review participant roster filters
@@ -105,6 +108,8 @@ White Cell:
 Facilitator:
 
 - confirm default deck loads
+- open the onboarding guide and confirm the live-tracker step highlights the Move/Phase cluster and timer as separate header elements without the timer visually sitting on top of one oversized highlight
+- in the Facilitator strategic actions section, confirm Blue action cards are collapsed by default to `Action details`, the action title, and `Objective:` only while keeping the standard card width, and that the full action entity card appears only after it is clicked
 - confirm Scribe-forwarded Strategic Orientation artifacts appear as distinct orientation slides, separate from normal action slide treatment
 - confirm Scribe-forwarded actions and live communications appear as slides
 - project each Strategic Orientation selection/forecast and its recorded team rationale for the team, then use the visible handoff control to submit it to White Cell
@@ -112,8 +117,8 @@ Facilitator:
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid
 
-Implementation note: Strategic Orientation artifacts and Red move responses share
-the `actions` table with normal Blue actions. They intentionally persist
+Implementation note: Strategic Orientation artifacts and Red Team actions share
+the `actions` table with Blue actions. They intentionally persist
 `sector` as an empty string when no sector applies, because the live table keeps
 that column non-null; role surfaces should render that as `Not specified`. White
 Cell renders Strategic Orientation in its own review queue even though the

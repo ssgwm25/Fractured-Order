@@ -324,6 +324,7 @@ export class GameMasterController {
 
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
+        const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         this.onboarding = mountFollowAlong({
             storageKey: 'followalong:gamemaster',
             title: 'Game Master guide',
@@ -335,7 +336,7 @@ export class GameMasterController {
                 {
                     title: 'Check session state',
                     body: 'The header mirrors the selected session state, including Strategic Orientation before Move 1. Use the dashboard and White Cell console for timer-driven run control.',
-                    highlight: '.header-center'
+                    highlight: liveTrackerHighlights
                 },
                 {
                     title: 'Session overview',

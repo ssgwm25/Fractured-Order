@@ -71,6 +71,67 @@ describe('strategic orientation details helpers', () => {
         });
     });
 
+    it('round-trips multi-target forecasts for Red and Industry records', () => {
+        const serialized = serializeStrategicOrientationDetails({
+            artifactType: 'forecast',
+            team: 'red',
+            forecastTargets: [
+                { key: 'blue', orientation: 'pressure' },
+                { key: 'green_asian_pacific', orientation: 'reframe' },
+                { key: 'green_europe', orientation: 'stabilization' }
+            ],
+            rationale: 'Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.',
+            forecastSummary: 'Forecasts: Blue -> Pressure; Green (Asian Pacific) -> Reframe; Green (Europe) -> Stabilization.',
+            scribeHandoff: 'Forwarded'
+        });
+
+        expect(parseStrategicOrientationDetails(serialized)).toMatchObject({
+            artifactType: 'forecast',
+            team: 'red',
+            orientation: 'pressure',
+            forecastTargets: [
+                {
+                    key: 'blue',
+                    label: 'Blue',
+                    orientation: 'pressure',
+                    orientationLabel: 'Pressure',
+                    orientationTag: STRATEGIC_ORIENTATION_OPTIONS.pressure.tag
+                },
+                {
+                    key: 'green_asian_pacific',
+                    label: 'Green (Asian Pacific)',
+                    orientation: 'reframe',
+                    orientationLabel: 'Reframe',
+                    orientationTag: STRATEGIC_ORIENTATION_OPTIONS.reframe.tag
+                },
+                {
+                    key: 'green_europe',
+                    label: 'Green (Europe)',
+                    orientation: 'stabilization',
+                    orientationLabel: 'Stabilization',
+                    orientationTag: STRATEGIC_ORIENTATION_OPTIONS.stabilization.tag
+                }
+            ],
+            rationale: 'Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.',
+            forecastSummary: 'Forecasts: Blue -> Pressure; Green (Asian Pacific) -> Reframe; Green (Europe) -> Stabilization.',
+            scribeHandoff: 'Forwarded'
+        });
+
+        expect(getStrategicOrientationViewModel({
+            team: 'red',
+            ally_contingencies: serialized
+        })).toMatchObject({
+            isForecast: true,
+            title: 'Red Forecasts',
+            hasMultipleForecastTargets: true,
+            forecastTargets: [
+                { key: 'blue', orientationLabel: 'Pressure' },
+                { key: 'green_asian_pacific', orientationLabel: 'Reframe' },
+                { key: 'green_europe', orientationLabel: 'Stabilization' }
+            ]
+        });
+    });
+
     it('supports streamlined Strategic Orientation records with only orientation and rationale', () => {
         const serialized = serializeStrategicOrientationDetails({
             artifactType: 'selection',

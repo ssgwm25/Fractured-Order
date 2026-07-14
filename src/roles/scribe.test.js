@@ -51,6 +51,14 @@ function sectionButtonMarkup(html = '', label = '') {
     return html.slice(start, end === -1 ? undefined : end);
 }
 
+function flattenHighlights(steps) {
+    return steps.flatMap((step) => (
+        Array.isArray(step.highlight)
+            ? step.highlight
+            : (step.highlight ? [step.highlight] : [])
+    ));
+}
+
 vi.mock('../components/ui/Toast.js', () => ({
     showToast: vi.fn()
 }));
@@ -321,8 +329,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             'Present to the room',
             'Revisit this guide'
         ]);
-        expect(guide.steps.map((step) => step.highlight).filter(Boolean)).toEqual([
-            '.header-center',
+        expect(flattenHighlights(guide.steps)).toEqual([
+            '#header-game-state',
+            '#header-timer',
             '#scribeSectionList',
             '#scribeAlertsBtn',
             '#presentBtn',
@@ -920,15 +929,29 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             action
         });
 
-        expect(html).toContain('What Blue Team is doing');
-        expect(html).toContain('Action at a glance');
-        expect(html).toContain('Execution snapshot');
-        expect(html).toContain('Status and White Cell');
-        expect(html).toContain('Focus countries');
-        expect(html).toContain('Delivery path');
-        expect(html).toContain('Expected effect:');
-        expect(html).toContain('White Cell note');
-        expect(html).toContain('Keep public messaging aligned with allied licensing language.');
+        expect(html).toContain('Action details');
+        expect(html).toContain('Objective:</strong> Restrict sensitive mineral processing inputs with allied backing.');
+        expect(html).toContain('data-scribe-action-toggle');
+        expect(html).toContain('scribe-action-slide is-collapsed');
+        expect(html).toContain('hidden');
+        controller.expandedStrategicActionIds.add('action-2');
+        const expandedHtml = controller.renderActionSlide({
+            slideKey: 'action-action-2',
+            slideType: 'action',
+            sidebarOrdinal: '1',
+            sidebarKicker: 'Blue Team | Move 2 | Action 1',
+            action
+        });
+
+        expect(expandedHtml).toContain('What Blue Team is doing');
+        expect(expandedHtml).toContain('Action at a glance');
+        expect(expandedHtml).toContain('Execution snapshot');
+        expect(expandedHtml).toContain('Status and White Cell');
+        expect(expandedHtml).toContain('Focus countries');
+        expect(expandedHtml).toContain('Delivery path');
+        expect(expandedHtml).toContain('Expected effect:');
+        expect(expandedHtml).toContain('White Cell note');
+        expect(expandedHtml).toContain('Keep public messaging aligned with allied licensing language.');
     });
 
     it('moves the projected scribe stage onto a newly forwarded team draft slide', async () => {
@@ -1013,21 +1036,35 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             action
         });
 
-        expect(html).toContain('Scribe Action for Facilitator');
-        expect(html).toContain('What Blue Team is asking the Facilitator to submit');
-        expect(html).toContain('Project this action for the room, complete the facilitator coordination fields, then submit it to White Cell.');
-        expect(html).toContain('Draft status');
-        expect(html).toContain('Draft saved');
-        expect(html).toContain('Not yet submitted to White Cell');
-        expect(html).toContain('Awaiting Facilitator submission');
-        expect(html).toContain('Facilitator finalization');
-        expect(html).toContain('Project Action');
-        expect(html).toContain('Coordinated');
-        expect(html).toContain('Informed/Engaged');
-        expect(html).toContain('value="Industry"');
-        expect(html).toContain('value="Allies"');
-        expect(html).toContain('data-scribe-action-submit');
-        expect(html).toContain('hidden disabled aria-hidden="true"');
+        expect(html).toContain('Action details');
+        expect(html).toContain('Pressure-test the export control package');
+        expect(html).toContain('Objective:</strong> Pressure-test the package before it goes to White Cell.');
+        expect(html).toContain('data-scribe-action-toggle');
+        expect(html).toContain('scribe-action-slide is-collapsed');
+        controller.expandedStrategicActionIds.add('action-draft-preview');
+        const expandedHtml = controller.renderActionSlide({
+            slideKey: 'action-action-draft-preview',
+            slideType: 'action',
+            sidebarOrdinal: '1',
+            sidebarKicker: 'Forwarded to Facilitator | Blue Team | Move 1 | Action 1',
+            action
+        });
+
+        expect(expandedHtml).toContain('Scribe Action for Facilitator');
+        expect(expandedHtml).toContain('What Blue Team is asking the Facilitator to submit');
+        expect(expandedHtml).toContain('Project this action for the room, complete the facilitator coordination fields, then submit it to White Cell.');
+        expect(expandedHtml).toContain('Draft status');
+        expect(expandedHtml).toContain('Draft saved');
+        expect(expandedHtml).toContain('Not yet submitted to White Cell');
+        expect(expandedHtml).toContain('Awaiting Facilitator submission');
+        expect(expandedHtml).toContain('Facilitator finalization');
+        expect(expandedHtml).toContain('Project Action');
+        expect(expandedHtml).toContain('Coordinated');
+        expect(expandedHtml).toContain('Informed/Engaged');
+        expect(expandedHtml).toContain('value="Industry"');
+        expect(expandedHtml).toContain('value="Allies"');
+        expect(expandedHtml).toContain('data-scribe-action-submit');
+        expect(expandedHtml).toContain('hidden disabled aria-hidden="true"');
     });
 
     it('renders forwarded Strategic Orientation drafts with project-then-submit controls', async () => {
@@ -1078,6 +1115,54 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).not.toContain('Coordinated tick boxes');
         expect(html).not.toContain('Friend-shoring agreements');
         expect(html).not.toContain('Transitional inefficiencies');
+    });
+
+    it('renders Red multi-target Strategic Orientation forecasts with Blue and Green forecast rows', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'red';
+        const controller = new ScribeController();
+        const action = {
+            id: 'orientation-forecast-red-multi',
+            team: 'red',
+            move: 1,
+            phase: 1,
+            goal: 'Red Team Forecasts',
+            mechanism: 'Strategic Orientation',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH',
+            status: 'draft',
+            created_at: '2026-06-15T09:55:00.000Z',
+            updated_at: '2026-06-15T10:05:00.000Z',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'forecast',
+                team: 'red',
+                forecastTargets: [
+                    { key: 'blue', orientation: 'pressure' },
+                    { key: 'green_asian_pacific', orientation: 'reframe' },
+                    { key: 'green_europe', orientation: 'stabilization' }
+                ],
+                rationale: 'Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const html = controller.renderActionSlide({
+            slideKey: 'action-orientation-forecast-red-multi',
+            slideType: 'strategic-orientation',
+            sidebarOrdinal: 'SO',
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Forecast',
+            action
+        });
+
+        expect(html).toContain('Forecasted team postures');
+        expect(html).toContain('Blue will choose Pressure');
+        expect(html).toContain('Green (Asian Pacific) will choose Reframe');
+        expect(html).toContain('Green (Europe) will choose Stabilization');
+        expect(html).toContain('Blue forecast');
+        expect(html).toContain('Green (Asian Pacific) forecast');
+        expect(html).toContain('Green (Europe) forecast');
+        expect(html).toContain('Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.');
     });
 
     it('requires scribe yes/no decisions and selected tick boxes before showing submit', async () => {

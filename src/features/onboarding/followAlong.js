@@ -48,7 +48,7 @@ let instanceCounter = 0;
  * Mount the follow-along onboarding into a sidebar.
  *
  * @param {Object} options
- * @param {Array<{title: string, body: string, highlight?: string}>} options.steps
+ * @param {Array<{title: string, body: string, highlight?: string | string[]}>} options.steps
  * @param {string} options.storageKey - localStorage key (scope per role/team).
  * @param {HTMLElement} [options.sidebar] - sidebar container (defaults to #sidebar).
  * @param {string} [options.anchor] - selector the card is inserted before.
@@ -128,25 +128,32 @@ export function mountFollowAlong({
     }
     const dots = dotsEl ? Array.from(dotsEl.querySelectorAll('.follow-along-dot')) : [];
 
-    let highlightedEl = null;
+    let highlightedEls = [];
+
+    function getHighlightSelectors(highlight) {
+        if (Array.isArray(highlight)) {
+            return highlight.filter((selector) => typeof selector === 'string' && selector.trim());
+        }
+        return typeof highlight === 'string' && highlight.trim()
+            ? [highlight]
+            : [];
+    }
 
     function clearHighlight() {
-        if (highlightedEl) {
-            highlightedEl.classList.remove(HIGHLIGHT_CLASS);
-            highlightedEl = null;
-        }
+        highlightedEls.forEach((element) => element.classList.remove(HIGHLIGHT_CLASS));
+        highlightedEls = [];
     }
 
     function applyHighlight() {
         clearHighlight();
         if (minimized) return;
-        const selector = steps[current]?.highlight;
-        if (!selector) return;
-        const target = document.querySelector(selector);
-        if (target) {
+        const selectors = getHighlightSelectors(steps[current]?.highlight);
+        selectors.forEach((selector) => {
+            const target = document.querySelector(selector);
+            if (!target || highlightedEls.includes(target)) return;
             target.classList.add(HIGHLIGHT_CLASS);
-            highlightedEl = target;
-        }
+            highlightedEls.push(target);
+        });
     }
 
     function persist(extra = {}) {

@@ -3,14 +3,21 @@
  *
  * Pre-Move 1 submissions use the same actions table as normal move records, but
  * are explicitly marked as Strategic Orientation artifacts. Blue records its
- * selected orientation; Green, Red, and Industry record forecasts of Blue's
- * orientation.
+ * selected orientation; Green records a forecast of Blue's orientation; Red and
+ * Industry record forecasts for Blue, Green (Asian Pacific), and Green
+ * (Europe).
  */
 
 export const STRATEGIC_ORIENTATION_DETAILS_PREFIX = 'Strategic Orientation Details';
 export const STRATEGIC_ORIENTATION_ACTION_MECHANISM = 'Strategic Orientation';
 export const STRATEGIC_ORIENTATION_PERIOD = 'pre_move_1';
 export const STRATEGIC_ORIENTATION_REQUIRED_TEAMS = Object.freeze(['blue', 'green', 'red', 'industry']);
+export const STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS = Object.freeze(['red', 'industry']);
+export const STRATEGIC_ORIENTATION_FORECAST_TARGETS = Object.freeze([
+    Object.freeze({ key: 'blue', label: 'Blue' }),
+    Object.freeze({ key: 'green_asian_pacific', label: 'Green (Asian Pacific)' }),
+    Object.freeze({ key: 'green_europe', label: 'Green (Europe)' })
+]);
 
 export const STRATEGIC_ORIENTATION_ARTIFACT_TYPES = Object.freeze({
     SELECTION: 'selection',
@@ -128,11 +135,36 @@ export const STRATEGIC_ORIENTATION_OPTIONS = Object.freeze({
 
 const STRATEGIC_ORIENTATION_EMPTY_LIST_LABEL = 'None selected';
 const SUBMITTED_TO_WHITE_CELL_STATUSES = new Set(['submitted', 'adjudicated']);
+const STRATEGIC_ORIENTATION_FORECAST_TARGETS_BY_KEY = Object.freeze(
+    Object.fromEntries(STRATEGIC_ORIENTATION_FORECAST_TARGETS.map((target) => [target.key, target]))
+);
+const STRATEGIC_ORIENTATION_DEFAULT_FORECAST_TARGET = STRATEGIC_ORIENTATION_FORECAST_TARGETS[0];
 
 function normalizeString(value) {
     return typeof value === 'string'
         ? value.replace(/\s+/g, ' ').trim()
         : '';
+}
+
+function normalizeForecastTargetKey(value = '') {
+    const normalizedValue = normalizeString(value)
+        .toLowerCase()
+        .replace(/[^a-z]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    if (
+        normalizedValue === 'green_ap'
+        || normalizedValue === 'green_asia_pacific'
+        || normalizedValue === 'green_asianpacific'
+    ) {
+        return 'green_asian_pacific';
+    }
+
+    if (normalizedValue === 'greeneurope') {
+        return 'green_europe';
+    }
+
+    return normalizedValue;
 }
 
 function normalizeStringList(values = []) {
@@ -199,14 +231,129 @@ function getTeamLabel(teamId = '') {
     return labels[normalizeString(teamId).toLowerCase()] || normalizeString(teamId) || 'Team';
 }
 
+export function getStrategicOrientationForecastTargetLabel(targetKey = '') {
+    const normalizedTargetKey = normalizeForecastTargetKey(targetKey);
+    return STRATEGIC_ORIENTATION_FORECAST_TARGETS_BY_KEY[normalizedTargetKey]?.label
+        || normalizeString(targetKey)
+        || 'Forecast';
+}
+
+export function getStrategicOrientationForecastTargetsForTeam(teamId = '') {
+    const normalizedTeamId = normalizeString(teamId).toLowerCase();
+    if (STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(normalizedTeamId)) {
+        return STRATEGIC_ORIENTATION_FORECAST_TARGETS.map((target) => ({ ...target }));
+    }
+
+    return [{ ...STRATEGIC_ORIENTATION_DEFAULT_FORECAST_TARGET }];
+}
+
 export function getStrategicOrientationOption(orientation = '') {
     return STRATEGIC_ORIENTATION_OPTIONS[normalizeString(orientation).toLowerCase()] || null;
+}
+
+function normalizeForecastTargets(targets = [], {
+    artifactType = STRATEGIC_ORIENTATION_ARTIFACT_TYPES.SELECTION,
+    orientation = '',
+    orientationLabel = '',
+    orientationTag = ''
+} = {}) {
+    const uniqueTargets = new Map();
+
+    if (Array.isArray(targets)) {
+        targets.forEach((target) => {
+            const key = normalizeForecastTargetKey(target?.key || target?.target || target?.label);
+            if (!STRATEGIC_ORIENTATION_FORECAST_TARGETS_BY_KEY[key] || uniqueTargets.has(key)) {
+                return;
+            }
+
+            const option = getStrategicOrientationOption(target?.orientation || target?.orientationKey);
+            if (!option) {
+                return;
+            }
+
+            uniqueTargets.set(key, {
+                key,
+                label: getStrategicOrientationForecastTargetLabel(key),
+                orientation: option.id,
+                orientationLabel: option.name,
+                orientationTag: option.tag
+            });
+        });
+    }
+
+    if (!uniqueTargets.size && artifactType === STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST) {
+        const option = getStrategicOrientationOption(orientation);
+        if (option) {
+            uniqueTargets.set(STRATEGIC_ORIENTATION_DEFAULT_FORECAST_TARGET.key, {
+                key: STRATEGIC_ORIENTATION_DEFAULT_FORECAST_TARGET.key,
+                label: STRATEGIC_ORIENTATION_DEFAULT_FORECAST_TARGET.label,
+                orientation: option.id,
+                orientationLabel: option.name || normalizeString(orientationLabel),
+                orientationTag: option.tag || normalizeString(orientationTag)
+            });
+        }
+    }
+
+    return STRATEGIC_ORIENTATION_FORECAST_TARGETS
+        .map((target) => uniqueTargets.get(target.key))
+        .filter(Boolean);
+}
+
+function serializeForecastTargets(targets = [], fallback = {}) {
+    const normalizedTargets = normalizeForecastTargets(targets, fallback);
+    return normalizedTargets.length
+        ? JSON.stringify(normalizedTargets)
+        : STRATEGIC_ORIENTATION_EMPTY_LIST_LABEL;
+}
+
+function parseForecastTargets(value = '', fallback = {}) {
+    const normalizedValue = normalizeString(value);
+    if (!normalizedValue || normalizedValue === STRATEGIC_ORIENTATION_EMPTY_LIST_LABEL) {
+        return normalizeForecastTargets([], fallback);
+    }
+
+    try {
+        const parsedValue = JSON.parse(normalizedValue);
+        if (Array.isArray(parsedValue)) {
+            return normalizeForecastTargets(parsedValue, fallback);
+        }
+    } catch (_error) {
+        // Fall through to the compatibility parser.
+    }
+
+    return normalizeForecastTargets([], fallback);
+}
+
+export function buildStrategicOrientationForecastSummary(forecastTargets = [], fallback = {}) {
+    const normalizedTargets = normalizeForecastTargets(forecastTargets, {
+        artifactType: STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST,
+        ...fallback
+    });
+
+    if (!normalizedTargets.length) {
+        return '';
+    }
+
+    if (normalizedTargets.length === 1) {
+        const [target] = normalizedTargets;
+        const tagSuffix = target.orientationTag ? ` - ${target.orientationTag}` : '';
+        return `Forecast: ${target.label} will choose ${target.orientationLabel}${tagSuffix}.`;
+    }
+
+    return `Forecasts: ${normalizedTargets.map((target) => `${target.label} -> ${target.orientationLabel}`).join('; ')}.`;
 }
 
 export function serializeStrategicOrientationDetails(details = {}) {
     const artifactType = normalizeArtifactType(details.artifactType);
     const orientationKey = normalizeString(details.orientation || details.orientationKey).toLowerCase();
-    const option = getStrategicOrientationOption(orientationKey);
+    const forecastTargets = normalizeForecastTargets(details.forecastTargets, {
+        artifactType,
+        orientation: orientationKey,
+        orientationLabel: details.orientationLabel,
+        orientationTag: details.orientationTag
+    });
+    const primaryForecast = forecastTargets[0] || null;
+    const option = getStrategicOrientationOption(primaryForecast?.orientation || orientationKey);
     const scribeHandoff = normalizeScribeHandoff(details.scribeHandoff)
         || STRATEGIC_ORIENTATION_SCRIBE_HANDOFF.DRAFT;
 
@@ -215,9 +362,15 @@ export function serializeStrategicOrientationDetails(details = {}) {
         `Period: ${STRATEGIC_ORIENTATION_PERIOD}`,
         `Artifact Type: ${artifactType}`,
         `Team: ${normalizeString(details.team)}`,
-        `Orientation: ${option?.id || orientationKey}`,
-        `Orientation Label: ${option?.name || normalizeString(details.orientationLabel)}`,
-        `Orientation Tag: ${option?.tag || normalizeString(details.orientationTag)}`,
+        `Orientation: ${primaryForecast?.orientation || option?.id || orientationKey}`,
+        `Orientation Label: ${primaryForecast?.orientationLabel || option?.name || normalizeString(details.orientationLabel)}`,
+        `Orientation Tag: ${primaryForecast?.orientationTag || option?.tag || normalizeString(details.orientationTag)}`,
+        `Forecast Targets: ${serializeForecastTargets(forecastTargets, {
+            artifactType,
+            orientation: orientationKey,
+            orientationLabel: details.orientationLabel,
+            orientationTag: details.orientationTag
+        })}`,
         `Primary Levers: ${serializeStringList(details.primaryLevers)}`,
         `Accepted Costs: ${serializeStringList(details.acceptedCosts)}`,
         `Posture: ${normalizeString(details.posture)}`,
@@ -254,15 +407,24 @@ export function parseStrategicOrientationDetails(value = '') {
                 .filter(Boolean)
         );
         const orientation = normalizeString(parsed.Orientation).toLowerCase();
+        const artifactType = normalizeArtifactType(parsed['Artifact Type']);
         const option = getStrategicOrientationOption(orientation);
+        const forecastTargets = parseForecastTargets(parsed['Forecast Targets'], {
+            artifactType,
+            orientation,
+            orientationLabel: option?.name || normalizeString(parsed['Orientation Label']),
+            orientationTag: option?.tag || normalizeString(parsed['Orientation Tag'])
+        });
+        const primaryForecast = forecastTargets[0] || null;
 
         return {
             period: normalizeString(parsed.Period),
-            artifactType: normalizeArtifactType(parsed['Artifact Type']),
+            artifactType,
             team: normalizeString(parsed.Team).toLowerCase(),
-            orientation,
-            orientationLabel: option?.name || normalizeString(parsed['Orientation Label']),
-            orientationTag: option?.tag || normalizeString(parsed['Orientation Tag']),
+            orientation: primaryForecast?.orientation || orientation,
+            orientationLabel: primaryForecast?.orientationLabel || option?.name || normalizeString(parsed['Orientation Label']),
+            orientationTag: primaryForecast?.orientationTag || option?.tag || normalizeString(parsed['Orientation Tag']),
+            forecastTargets,
             primaryLevers: parseStringList(parsed['Primary Levers']),
             acceptedCosts: parseStringList(parsed['Accepted Costs']),
             posture: normalizeString(parsed.Posture),
@@ -285,10 +447,21 @@ export function getStrategicOrientationViewModel(action = {}) {
     const teamId = details?.team || action.team || '';
     const teamLabel = getTeamLabel(teamId);
     const artifactType = details?.artifactType || STRATEGIC_ORIENTATION_ARTIFACT_TYPES.SELECTION;
-    const orientationLabel = details?.orientationLabel || option?.name || 'Strategic Orientation';
     const isForecast = artifactType === STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST;
+    const forecastTargets = details?.forecastTargets || normalizeForecastTargets([], {
+        artifactType,
+        orientation: details?.orientation,
+        orientationLabel: details?.orientationLabel,
+        orientationTag: details?.orientationTag
+    });
+    const primaryForecast = forecastTargets[0] || null;
+    const orientationLabel = primaryForecast?.orientationLabel || details?.orientationLabel || option?.name || 'Strategic Orientation';
+    const orientationTag = primaryForecast?.orientationTag || details?.orientationTag || option?.tag || '';
+    const hasMultipleForecastTargets = isForecast && forecastTargets.length > 1;
     const title = isForecast
-        ? `${teamLabel} Forecast: Blue ${orientationLabel}`
+        ? (hasMultipleForecastTargets
+            ? `${teamLabel} Forecasts`
+            : `${teamLabel} Forecast: Blue ${orientationLabel}`)
         : `Strategic Orientation: ${orientationLabel}`;
 
     return {
@@ -302,14 +475,21 @@ export function getStrategicOrientationViewModel(action = {}) {
         period: details?.period || STRATEGIC_ORIENTATION_PERIOD,
         orientation: details?.orientation || '',
         orientationLabel,
-        orientationTag: details?.orientationTag || option?.tag || '',
+        orientationTag,
         description: option?.description || '',
+        forecastTargets,
+        primaryForecast,
+        hasMultipleForecastTargets,
         characteristics: option?.characteristics || [],
         primaryLevers: details?.primaryLevers || [],
         acceptedCosts: details?.acceptedCosts || [],
         posture: details?.posture || '',
         rationale: details?.rationale || '',
-        forecastSummary: details?.forecastSummary || '',
+        forecastSummary: details?.forecastSummary || buildStrategicOrientationForecastSummary(forecastTargets, {
+            orientation: details?.orientation,
+            orientationLabel,
+            orientationTag
+        }),
         scribeHandoff: details?.scribeHandoff || '',
         submittedToWhiteCell: SUBMITTED_TO_WHITE_CELL_STATUSES.has(action?.status)
     };

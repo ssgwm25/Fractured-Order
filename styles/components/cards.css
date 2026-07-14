@@ -761,6 +761,10 @@
     transform: translateY(-1px);
 }
 
+.entity-card--collapsible.is-collapsed {
+    padding: var(--space-3);
+}
+
 /* Left status accent — at-a-glance lifecycle / state */
 .entity-card--draft       { border-left-color: var(--color-text-muted); }
 .entity-card--submitted   { border-left-color: var(--color-warning); }
@@ -805,6 +809,73 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     flex-shrink: 0;
+}
+
+.entity-card__toggle {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.entity-card__toggle:hover,
+.entity-card__toggle:focus-visible {
+    border-color: var(--color-primary-200);
+    box-shadow: var(--shadow-glow);
+}
+
+.entity-card__toggle-copy {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.entity-card__toggle-label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-text-muted);
+}
+
+.entity-card__toggle-title {
+    color: var(--color-text);
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    line-height: 1.2;
+}
+
+.entity-card__toggle-objective {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    display: -webkit-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.entity-card__toggle-objective strong {
+    color: var(--color-text);
+}
+
+.entity-card__toggle-indicator {
+    flex-shrink: 0;
+    align-self: center;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
 }
 
 /* Lead summary — the one-line "what is this" */
@@ -862,6 +933,16 @@
     color: var(--color-text-muted);
     line-height: var(--leading-snug);
     margin: var(--space-2) 0 0;
+}
+
+.entity-card__details {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.entity-card__details--plain {
+    margin-top: 0;
 }
 
 /* ==================== DATA TABLE ====================
