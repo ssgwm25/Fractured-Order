@@ -1633,7 +1633,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         }
     });
 
-    it('loads the shared modal styles on every team facilitator shell for logout confirmation', () => {
+    it('loads the shared modal, form, and grid styles on every team facilitator shell', () => {
         for (const path of [
             BLUE_SCRIBE_HTML_PATH,
             GREEN_SCRIBE_HTML_PATH,
@@ -1643,6 +1643,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             const html = readFileSync(path, 'utf8');
 
             expect(html).toContain('../../styles/components/modals.css');
+            expect(html).toContain('../../styles/components/forms.css');
+            expect(html).toContain('../../styles/layouts/grid.css');
             expect(html).toContain('id="logoutBtn"');
         }
     });

@@ -14,6 +14,7 @@ Original prompt: The loading screen must detail the name of the session being jo
 - TODO: Run `npm test -- src/roles/scribe.test.js`, `npm run build`, and the updated Facilitator deck/sidebar check in `docs/live-demo-runbook.md`.
 - 2026-07-15: Changed forwarded facilitator action reviews to render fully expanded by default and pinned Strategic Orientation reviews as full, non-minimized slides.
 - 2026-07-15: Added an accessible `Team Action Review` / `Deck` switch to every team facilitator shell; returning to Deck restores the last support-deck slide viewed without reintroducing deck details in the sidebar.
+- 2026-07-15: Restored the shared form and responsive grid styles on every team Facilitator shell so projected-draft Edit modals render with the established action-editor styling and focus states.
 - 2026-07-15: Added focused controller, markup, styling, and runbook coverage. Commands were not run under the repository execution boundary.
 - TODO: Run `npm test -- src/roles/scribe.test.js`, `npm run build`, and the updated Facilitator action-review/deck-switch checks in `docs/live-demo-runbook.md`.
 - 2026-07-15: Human verification confirmed the production build and `test:e2e:smoke` pass. The focused Scribe suite reported one stale onboarding-selector assertion; updated it to pin the new view switch and its deck-position restoration guidance.
