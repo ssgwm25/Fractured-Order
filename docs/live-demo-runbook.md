@@ -93,7 +93,7 @@ Scribe:
 
 White Cell:
 
-- confirm every submission card carries a visible source-team badge, including Strategic Orientation artifacts in the mixed-team queue and Green or Industry proposals
+- confirm every submission card carries a visible source-team badge, including Strategic Orientation artifacts in the mixed-team queue and Green or Industry proposals; Blue, Red, Green, and Industry badges must use their distinct restrained team tint while retaining the full team name, with no team-colored card border or shadow
 - confirm the Move Control sequence shows Strategic Orientation before Move 1, marks it active while the gate is incomplete, and marks it complete when Move 1 becomes active
 - confirm Move 1 phase/move advance controls remain blocked until Blue selection plus Green, Red, and Industry forecasts arrive from the Facilitator
 - confirm the Strategic Orientation queue shows Blue selection plus Green, Red, and Industry forecasts after Facilitator submission

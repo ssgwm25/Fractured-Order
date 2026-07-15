@@ -140,6 +140,9 @@ const WHITE_CELL_TIMELINE_RENDER_LIMIT = 50;
 const TEAM_LABELS = Object.freeze(
     Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, team.label]))
 );
+const SOURCE_TEAM_BADGE_CLASS_BY_ID = Object.freeze(
+    Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, `badge-source-team--${team.id}`]))
+);
 const PROPOSAL_TEAM_IDS = new Set(['green', 'industry']);
 const WHITE_CELL_FILTER_TEAM_ORDER = Object.freeze([
     ...TEAM_OPTIONS.map((team) => team.id),
@@ -3304,12 +3307,18 @@ export class WhiteCellController {
         const arrivalBadgeMarkup = isNew
             ? createBadge({ text: 'NEW', variant: 'warning', size: 'sm', rounded: true }).outerHTML
             : '';
+        const sourceTeamId = typeof action.team === 'string'
+            ? action.team.trim().toLowerCase()
+            : '';
         const sourceTeamBadgeMarkup = createBadge({
             text: this.formatTeamLabel(action.team),
             variant: 'primary',
             size: 'sm',
             rounded: true,
-            className: 'badge-source-team'
+            className: [
+                'badge-source-team',
+                SOURCE_TEAM_BADGE_CLASS_BY_ID[sourceTeamId]
+            ].filter(Boolean).join(' ')
         }).outerHTML;
         const actionButtons = [];
 

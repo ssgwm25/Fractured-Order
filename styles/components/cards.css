@@ -944,6 +944,29 @@
     content: none;
 }
 
+.badge.badge-source-team {
+    --source-team-color: var(--color-text-secondary);
+
+    background-color: color-mix(in srgb, var(--source-team-color) 6%, transparent);
+    color: var(--source-team-color);
+}
+
+.badge-source-team--blue {
+    --source-team-color: var(--color-team-blue);
+}
+
+.badge-source-team--red {
+    --source-team-color: var(--color-team-red);
+}
+
+.badge-source-team--green {
+    --source-team-color: var(--color-team-green);
+}
+
+.badge-source-team--industry {
+    --source-team-color: var(--color-team-industry);
+}
+
 /* Lead summary — the one-line "what is this" */
 .card-summary {
     font-size: var(--text-md);

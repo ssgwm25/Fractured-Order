@@ -5,6 +5,7 @@ import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
 import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
 const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
+const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
 const showToast = vi.fn();
 const showModal = vi.fn();
 const confirmModal = vi.fn();
@@ -2131,7 +2132,42 @@ describe('White Cell DOM contract', () => {
         const markup = controller.renderActionCard(buildStrategicOrientationAction('green'));
 
         expect(markup).toContain('<span class="badge-text">Green Team</span>');
+        expect(markup).toContain('badge-source-team--green');
         expect(markup).toContain('Strategic Orientation');
+    });
+
+    it('uses a distinct token-backed source badge for every submission team', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        global.document = createFakeDocument();
+        const controller = new WhiteCellController();
+
+        [
+            { id: 'blue', label: 'Blue Team' },
+            { id: 'red', label: 'Red Team' },
+            { id: 'green', label: 'Green Team' },
+            { id: 'industry', label: 'Industry Team' }
+        ].forEach(({ id, label }) => {
+            const markup = controller.renderActionCard({
+                id: `action-${id}`,
+                goal: `${label} submission`,
+                mechanism: 'Policy action',
+                team: id,
+                move: 1,
+                phase: 1,
+                status: 'submitted'
+            });
+
+            expect(markup).toContain(`badge-source-team--${id}`);
+            expect(markup).toContain(`<span class="badge-text">${label}</span>`);
+        });
+
+        const cardsCss = readFileSync(CARDS_CSS_PATH, 'utf8');
+        expect(cardsCss).toContain('.badge.badge-source-team {');
+        expect(cardsCss).toContain('background-color: color-mix(in srgb, var(--source-team-color) 6%, transparent);');
+        expect(cardsCss).toContain('--source-team-color: var(--color-team-blue);');
+        expect(cardsCss).toContain('--source-team-color: var(--color-team-red);');
+        expect(cardsCss).toContain('--source-team-color: var(--color-team-green);');
+        expect(cardsCss).toContain('--source-team-color: var(--color-team-industry);');
     });
 
     it('renders Blue Team action wizard details for White Cell review', async () => {

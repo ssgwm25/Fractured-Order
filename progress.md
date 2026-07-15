@@ -6,6 +6,7 @@ Original prompt: The loading screen must detail the name of the session being jo
 - TODO: Run `npm test -- src/roles/landing.join.test.js`, `npm run build`, and the Session Setup check in `docs/live-demo-runbook.md`.
 - 2026-07-15: Reworked the facilitator Actions/Proposals section into one exercise-order view: Strategic Orientation, then Move 1, Move 2, and later moves, with newest-first ordering inside each move.
 - 2026-07-15: Kept lifecycle status visible on collapsed action cards and added a compact source-team badge to every White Cell submission card.
+- 2026-07-15: Differentiated White Cell source-team badges with restrained token-backed Blue, Red, Green, and Industry tints while retaining full text labels and leaving card borders and shadows unchanged.
 - 2026-07-15: Added focused facilitator and White Cell tests plus operator runbook checks. Commands were not run under the repository execution boundary.
 - TODO: Run `npm test -- src/roles/facilitator.test.js src/roles/whitecell.test.js`, `npm run build`, and the updated Facilitator and White Cell checks in `docs/live-demo-runbook.md`.
 - 2026-07-15: Removed static support-deck sections, counts, and slide titles from the facilitator sidebar while preserving the assigned deck and stage Previous/Next navigation.
