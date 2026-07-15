@@ -2453,6 +2453,60 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(proposalsList.innerHTML).toContain('Joint Port Proposal');
     });
 
+    it('announces each new Tribe Street Journal page update without announcing loaded history', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const {
+            WHITE_CELL_UPDATE_KINDS,
+            buildWhiteCellRecipientMetadata
+        } = await import('../features/communications/targeting.js');
+
+        const responsesList = createFakeElement('responsesList');
+        const responsesBadge = createFakeElement('responsesBadge');
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+
+        global.document = {
+            createElement(tagName) {
+                return createFakeElement(null, tagName);
+            },
+            getElementById(id) {
+                return {
+                    responsesList,
+                    responsesBadge
+                }[id] || null;
+            }
+        };
+
+        getAll.mockReturnValue([]);
+        const controller = new FacilitatorController();
+        controller.syncResponsesFromStores();
+        controller.flushWhiteCellArrivalAnnouncement();
+
+        expect(showToast).not.toHaveBeenCalled();
+
+        getAll.mockReturnValue([{
+            id: 'comm-journal-page-update-1',
+            from_role: 'whitecell_lead',
+            to_role: 'blue',
+            type: 'GUIDANCE',
+            content: 'The port disruption headline has been updated.',
+            created_at: '2026-07-15T12:00:00.000Z',
+            metadata: buildWhiteCellRecipientMetadata('blue', {
+                content_kind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL
+            })
+        }]);
+
+        controller.syncResponsesFromStores({ announce: true });
+        controller.flushWhiteCellArrivalAnnouncement();
+
+        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Tribe Street Journal updated. Open Tribe Street Journal to view the latest page update.',
+            type: 'info',
+            duration: 10000
+        });
+    });
+
     it('locks a received proposal after the team has already responded', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { communicationsStore } = await import('../stores/communications.js');

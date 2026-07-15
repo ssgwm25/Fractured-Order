@@ -658,6 +658,48 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(alertsBadge.hidden).toBe(true);
     });
 
+    it('pops up each new Tribe Street Journal update for the Facilitator without replaying history', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { showToast } = await import('../components/ui/Toast.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const {
+            WHITE_CELL_UPDATE_KINDS,
+            buildWhiteCellRecipientMetadata
+        } = await import('../features/communications/targeting.js');
+
+        global.document = createFakeDocument();
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        const controller = new ScribeController();
+        controller.renderAlerts = vi.fn();
+
+        getAll.mockReturnValue([]);
+        controller.processCommunicationNotifications('initialized');
+        expect(showToast).not.toHaveBeenCalled();
+
+        getAll.mockReturnValue([{
+            id: 'comm-journal-facilitator-update-1',
+            from_role: 'whitecell_lead',
+            to_role: 'blue',
+            type: 'GUIDANCE',
+            content: 'The port disruption headline has been updated.',
+            created_at: '2026-07-15T12:00:00.000Z',
+            metadata: buildWhiteCellRecipientMetadata('blue', {
+                content_kind: WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL
+            })
+        }]);
+
+        controller.processCommunicationNotifications('created');
+
+        expect(controller.notifications).toHaveLength(1);
+        expect(controller.notifications[0].title).toBe('Tribe Street Journal update');
+        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Tribe Street Journal update: The port disruption headline has been updated.',
+            type: 'info',
+            duration: 5000
+        });
+    });
+
     it('keeps the requested sidebar sections while reserving Actions for live facilitator decisions', () => {
         const slides = Array.from({ length: 61 }, (_entry, index) => ({
             n: index + 1,

@@ -17,6 +17,8 @@ The current exercise topology ships with four actor teams and two operator surfa
 | Team Notetaker | Observations, team dynamics, alliance tracking, and move-scoped notes |
 | Team Facilitator | Team support deck, distinct Strategic Orientation slides, live action/communication slides, a persistent received-proposals section below Actions with Accept, Not Interested, and Negotiate responses, venue projection, and final Strategic Orientation/action submission to White Cell |
 
+The Tribe Street Journal live page fills the available journal section on White Cell and Team Scribe surfaces. New session-persisted Tribe Street Journal updates produce accessible in-app popup notifications for the addressed Team Scribe and Team Facilitator; previously loaded history is not re-announced when a role surface starts.
+
 Scribe action controls prioritize Strategic Orientation first: the orientation or forecast button is the primary green control until that team records its artifact, then the orientation control becomes secondary and the action/proposal/response control becomes primary.
 
 Compatibility note: the current route and storage keys remain `teams/<team>/facilitator.html` / `*_facilitator` for the Scribe workspace and `teams/<team>/scribe.html` / `*_scribe` for the Facilitator support deck. New display labels use the corrected role semantics while legacy identifiers remain stable for existing sessions and Supabase policies. When a schema migration introduces canonical role IDs, new persisted identifiers should use semantic role names rather than carrying the inversion forward.

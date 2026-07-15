@@ -1049,6 +1049,13 @@ export class FacilitatorController {
     flushWhiteCellArrivalAnnouncement() {
         const responseCount = this.pendingWhiteCellArrivalSummary.responses.size;
         const proposalCount = this.pendingWhiteCellArrivalSummary.proposals.size;
+        const journalUpdateCount = this.responses.filter((response) => (
+            this.pendingWhiteCellArrivalSummary.responses.has(response?.id)
+            && response?.kind === 'white_cell_update'
+            && response?.title === this.getWhiteCellUpdateResponseTitle(
+                WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL
+            )
+        )).length;
 
         if (responseCount === 0 && proposalCount === 0) {
             return;
@@ -1057,7 +1064,11 @@ export class FacilitatorController {
         let message = '';
         let type = 'info';
 
-        if (responseCount > 0 && proposalCount > 0) {
+        if (journalUpdateCount === responseCount && proposalCount === 0) {
+            message = journalUpdateCount === 1
+                ? 'Tribe Street Journal updated. Open Tribe Street Journal to view the latest page update.'
+                : `${journalUpdateCount} Tribe Street Journal updates arrived. Open Tribe Street Journal to view the latest page updates.`;
+        } else if (responseCount > 0 && proposalCount > 0) {
             message = `New White Cell items arrived: ${responseCount} response${responseCount === 1 ? '' : 's'} and ${proposalCount} forwarded proposal${proposalCount === 1 ? '' : 's'}.`;
             type = 'warning';
         } else if (proposalCount > 0) {
