@@ -285,6 +285,7 @@ export class GameMasterController {
         this.pluginInstances = new Map();
         this.pluginInstanceKeys = new Map();
         this.pluginMountHosts = new Map();
+        this.participantSelections = new Map();
     }
 
     async init() {
@@ -1050,7 +1051,8 @@ export class GameMasterController {
                         includeActions: true,
                         session,
                         sessionName: session.name,
-                        sessionCode
+                        sessionCode,
+                        selectedParticipantIds: this.getParticipantSelection(session.id)
                     })}
                 </div>
             </div>
@@ -1091,22 +1093,37 @@ export class GameMasterController {
         includeActions = false,
         session = null,
         sessionName = '',
-        sessionCode = ''
+        sessionCode = '',
+        selectedParticipantIds = new Set()
     } = {}) {
         if (!participants.length) {
             return '<p class="text-muted">No participants have joined this session yet.</p>';
         }
 
+        const selectedCount = participants.filter((participant) => selectedParticipantIds.has(String(participant.id))).length;
+
         return `
+            ${includeActions ? `
+                <div data-participant-bulk-controls style="display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap;">
+                    <span class="text-sm text-gray-500" data-selected-participant-count role="status" aria-live="polite">${selectedCount} selected</span>
+                    <button
+                        type="button"
+                        class="btn btn-danger btn-sm"
+                        data-remove-selected-session-participants
+                        ${selectedCount === 0 ? 'disabled' : ''}
+                    >Remove selected${selectedCount > 0 ? ` (${selectedCount})` : ''}</button>
+                </div>
+            ` : ''}
             <table class="table" style="width: 100%;">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Role</th>
-                        <th>Session</th>
-                        <th>Status</th>
-                        <th>Last Active</th>
-                        ${includeActions ? '<th>Actions</th>' : ''}
+                        ${includeActions ? '<th scope="col"><span class="sr-only">Select participant</span></th>' : ''}
+                        <th scope="col">Name</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Session</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Last Active</th>
+                        ${includeActions ? '<th scope="col">Actions</th>' : ''}
                     </tr>
                 </thead>
                 <tbody>
@@ -1126,6 +1143,17 @@ export class GameMasterController {
 
                         return `
                             <tr>
+                                ${includeActions ? `
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            class="form-checkbox"
+                                            data-select-session-participant-id="${this.escapeHtml(participant.id || '')}"
+                                            aria-label="Select ${this.escapeHtml(participant.display_name || 'participant')} for removal"
+                                            ${selectedParticipantIds.has(String(participant.id)) ? 'checked' : ''}
+                                        >
+                                    </td>
+                                ` : ''}
                                 <td>${this.escapeHtml(participant.display_name || 'Unknown')}</td>
                                 <td>${this.escapeHtml(participant.role || 'Unknown')}</td>
                                 <td>${this.escapeHtml(participantSessionLabel)}</td>
@@ -1188,7 +1216,8 @@ export class GameMasterController {
                     includeActions: true,
                     session: sessionBundle.session,
                     sessionName: sessionBundle.session.name,
-                    sessionCode
+                    sessionCode,
+                    selectedParticipantIds: this.getParticipantSelection(sessionBundle.session.id)
                 })}
             </div>
         `;
@@ -1278,6 +1307,46 @@ export class GameMasterController {
                 .filter((participant) => participant?.id)
                 .map((participant) => [String(participant.id), participant])
         );
+        const selection = this.getParticipantSelection(session.id);
+        const availableIds = new Set(participantsById.keys());
+        [...selection].forEach((participantId) => {
+            if (!availableIds.has(participantId)) {
+                selection.delete(participantId);
+            }
+        });
+
+        const updateSelectionControls = () => {
+            const selectedCount = [...selection].filter((participantId) => availableIds.has(participantId)).length;
+            const status = rootElement.querySelector('[data-selected-participant-count]');
+            const bulkButton = rootElement.querySelector('[data-remove-selected-session-participants]');
+            if (status) {
+                status.textContent = `${selectedCount} selected`;
+            }
+            if (bulkButton) {
+                bulkButton.disabled = selectedCount === 0;
+                bulkButton.textContent = `Remove selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`;
+            }
+        };
+
+        rootElement.querySelectorAll('[data-select-session-participant-id]').forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                const participantId = String(checkbox.dataset.selectSessionParticipantId || '');
+                if (checkbox.checked) {
+                    selection.add(participantId);
+                } else {
+                    selection.delete(participantId);
+                }
+                updateSelectionControls();
+            });
+        });
+
+        const bulkButton = rootElement.querySelector('[data-remove-selected-session-participants]');
+        bulkButton?.addEventListener('click', () => {
+            const selectedParticipants = [...selection]
+                .map((participantId) => participantsById.get(participantId))
+                .filter(Boolean);
+            void this.removeParticipantsFromSession(session, selectedParticipants);
+        });
 
         rootElement.querySelectorAll('[data-remove-session-participant-id]').forEach((button) => {
             button.addEventListener('click', () => {
@@ -1292,20 +1361,40 @@ export class GameMasterController {
                 void this.removeParticipantFromSession(session, participant);
             });
         });
+
+        updateSelectionControls();
+    }
+
+    getParticipantSelection(sessionId) {
+        const key = String(sessionId || '');
+        if (!this.participantSelections.has(key)) {
+            this.participantSelections.set(key, new Set());
+        }
+        return this.participantSelections.get(key);
     }
 
     async removeParticipantFromSession(session, participant) {
-        if (!session?.id || !participant?.id) {
+        return this.removeParticipantsFromSession(session, participant ? [participant] : []);
+    }
+
+    async removeParticipantsFromSession(session, participants = []) {
+        const selectedParticipants = (Array.isArray(participants) ? participants : [])
+            .filter((participant) => participant?.id);
+        if (!session?.id || selectedParticipants.length === 0) {
             showToast('Participant selection is invalid.', { type: 'error' });
             return;
         }
 
+        const isBulkRemoval = selectedParticipants.length > 1;
+        const participant = selectedParticipants[0];
         const participantName = participant.display_name || 'This participant';
         const participantRole = String(participant.role || 'unknown role').replace(/_/g, ' ');
         const confirmed = await confirmModal({
-            title: 'Remove Participant',
-            message: `Remove ${participantName} (${participantRole}) from ${session.name}? This clears the session seat immediately and requires a fresh join before the participant can return.`,
-            confirmLabel: 'Remove Participant',
+            title: isBulkRemoval ? 'Remove Participants' : 'Remove Participant',
+            message: isBulkRemoval
+                ? `Remove ${selectedParticipants.length} selected participants from ${session.name}? Their session seats will be cleared immediately and each participant must join again to return.`
+                : `Remove ${participantName} (${participantRole}) from ${session.name}? This clears the session seat immediately and requires a fresh join before the participant can return.`,
+            confirmLabel: isBulkRemoval ? `Remove ${selectedParticipants.length} Participants` : 'Remove Participant',
             variant: 'danger'
         });
 
@@ -1313,21 +1402,68 @@ export class GameMasterController {
             return;
         }
 
-        showLoader({ message: `Removing ${participantName}...` });
+        showLoader({
+            message: isBulkRemoval
+                ? `Removing ${selectedParticipants.length} participants...`
+                : `Removing ${participantName}...`
+        });
 
         try {
-            await database.removeSessionParticipant(session.id, participant.id);
-            this.sessionBundles.delete(session.id);
-            await this.loadSessions();
-            showToast(`${participantName} was removed from ${session.name}.`, { type: 'success' });
-        } catch (err) {
-            logger.error('Failed to remove participant:', err);
-            showToast(getUserMessage(err, {
-                fallback: 'Failed to remove participant. Refresh the roster and try again.'
-            }), { type: 'error' });
+            const outcomes = await Promise.all(selectedParticipants.map(async (selectedParticipant) => {
+                try {
+                    await database.removeSessionParticipant(session.id, selectedParticipant.id);
+                    this.applyParticipantRemoval(session.id, selectedParticipant.id);
+                    return { participant: selectedParticipant, removed: true };
+                } catch (error) {
+                    logger.error('Failed to remove participant:', error);
+                    return { participant: selectedParticipant, removed: false, error };
+                }
+            }));
+            const removed = outcomes.filter((outcome) => outcome.removed);
+            const failed = outcomes.filter((outcome) => !outcome.removed);
+            const selection = this.getParticipantSelection(session.id);
+            removed.forEach((outcome) => selection.delete(String(outcome.participant.id)));
+
+            if (failed.length === 0) {
+                showToast(
+                    isBulkRemoval
+                        ? `${removed.length} participants were removed from ${session.name}.`
+                        : `${participantName} was removed from ${session.name}.`,
+                    { type: 'success' }
+                );
+            } else if (removed.length > 0) {
+                showToast(
+                    `${removed.length} participant${removed.length === 1 ? '' : 's'} removed; ${failed.length} could not be removed and remain selected for retry.`,
+                    { type: 'warning' }
+                );
+            } else {
+                showToast(getUserMessage(failed[0]?.error, {
+                    fallback: 'Failed to remove participants. Refresh the roster and try again.'
+                }), { type: 'error' });
+            }
         } finally {
             hideLoader();
         }
+    }
+
+    applyParticipantRemoval(sessionId, participantId) {
+        const cachedBundle = this.sessionBundles.get(sessionId);
+        if (cachedBundle) {
+            this.sessionBundles.set(sessionId, {
+                ...cachedBundle,
+                participants: (cachedBundle.participants || []).filter((participant) => participant.id !== participantId)
+            });
+        }
+
+        if (this.currentSessionId === sessionId) {
+            participantsStore.updateFromServer?.('DELETE', { id: participantId, session_id: sessionId });
+            this.applySelectedLiveBundle();
+            return;
+        }
+
+        const bundles = [...this.sessionBundles.values()];
+        this.renderDashboardStats(buildDashboardModel(bundles));
+        this.renderActiveParticipants(buildConnectedParticipantsModel(bundles));
     }
 
     async deleteSession(sessionId) {

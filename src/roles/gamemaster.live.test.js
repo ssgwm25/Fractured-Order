@@ -85,7 +85,8 @@ const {
     },
     mockParticipantsStore: {
         subscribe: vi.fn(() => vi.fn()),
-        getAll: vi.fn(() => [{ id: 'participant-gm-1', display_name: 'Morgan', role: 'blue_facilitator' }])
+        getAll: vi.fn(() => [{ id: 'participant-gm-1', display_name: 'Morgan', role: 'blue_facilitator' }]),
+        updateFromServer: vi.fn()
     },
     mockShowToast: vi.fn(),
     mockShowLoader: vi.fn(() => ({})),
@@ -207,6 +208,15 @@ describe('GameMaster live session monitoring', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockDatabase.removeSessionParticipant.mockResolvedValue({
+            id: 'participant-gm-1',
+            session_id: 'session-gm-1',
+            role: 'blue_facilitator',
+            is_active: false
+        });
+        mockParticipantsStore.getAll.mockReturnValue([
+            { id: 'participant-gm-1', display_name: 'Morgan', role: 'blue_facilitator' }
+        ]);
         elements = Object.fromEntries([
             'createSessionBtn',
             'refreshDashboardBtn',
@@ -316,7 +326,10 @@ describe('GameMaster live session monitoring', () => {
             sessionName: 'Alpha Session'
         });
 
-        expect(tableHtml).toContain('<th>Actions</th>');
+        expect(tableHtml).toContain('<th scope="col">Actions</th>');
+        expect(tableHtml).toContain('data-select-session-participant-id="participant-gm-1"');
+        expect(tableHtml).toContain('data-remove-selected-session-participants');
+        expect(tableHtml).toContain('aria-label="Select Morgan for removal"');
         expect(tableHtml).toContain('data-remove-session-participant-id="participant-gm-1"');
         expect(tableHtml).toContain('Remove');
     });
@@ -326,7 +339,16 @@ describe('GameMaster live session monitoring', () => {
 
         const { GameMasterController } = await loadGameMasterModule();
         const controller = new GameMasterController();
-        controller.loadSessions = vi.fn(() => Promise.resolve());
+        controller.currentSessionId = 'session-gm-1';
+        controller.sessionBundles.set('session-gm-1', {
+            session: { id: 'session-gm-1', name: 'Alpha Session' },
+            gameState: { move: 1, phase: 1 },
+            participants: [{ id: 'participant-gm-1', display_name: 'Morgan', role: 'blue_facilitator' }],
+            actions: [],
+            requests: [],
+            timeline: []
+        });
+        mockParticipantsStore.getAll.mockReturnValue([]);
 
         await controller.removeParticipantFromSession(
             { id: 'session-gm-1', name: 'Alpha Session' },
@@ -339,10 +361,58 @@ describe('GameMaster live session monitoring', () => {
             variant: 'danger'
         }));
         expect(mockDatabase.removeSessionParticipant).toHaveBeenCalledWith('session-gm-1', 'participant-gm-1');
-        expect(controller.loadSessions).toHaveBeenCalledTimes(1);
+        expect(mockParticipantsStore.updateFromServer).toHaveBeenCalledWith('DELETE', {
+            id: 'participant-gm-1',
+            session_id: 'session-gm-1'
+        });
+        expect(controller.sessionBundles.get('session-gm-1').participants).toEqual([]);
         expect(mockShowLoader).toHaveBeenCalledWith({ message: 'Removing Morgan...' });
         expect(mockShowToast).toHaveBeenCalledWith('Morgan was removed from Alpha Session.', { type: 'success' });
         expect(mockHideLoader).toHaveBeenCalled();
+    });
+
+    it('removes multiple selected participants and clears the local roster immediately', async () => {
+        mockConfirmModal.mockResolvedValue(true);
+        mockParticipantsStore.getAll.mockReturnValue([]);
+
+        const { GameMasterController } = await loadGameMasterModule();
+        const controller = new GameMasterController();
+        const participants = [
+            { id: 'participant-gm-1', display_name: 'Morgan', role: 'blue_facilitator' },
+            { id: 'participant-gm-2', display_name: 'Taylor', role: 'red_scribe' }
+        ];
+        controller.currentSessionId = 'session-gm-1';
+        controller.sessionBundles.set('session-gm-1', {
+            session: { id: 'session-gm-1', name: 'Alpha Session' },
+            gameState: { move: 1, phase: 1 },
+            participants,
+            actions: [],
+            requests: [],
+            timeline: []
+        });
+        controller.getParticipantSelection('session-gm-1').add('participant-gm-1');
+        controller.getParticipantSelection('session-gm-1').add('participant-gm-2');
+
+        await controller.removeParticipantsFromSession(
+            { id: 'session-gm-1', name: 'Alpha Session' },
+            participants
+        );
+
+        expect(mockConfirmModal).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Remove Participants',
+            confirmLabel: 'Remove 2 Participants'
+        }));
+        expect(mockDatabase.removeSessionParticipant.mock.calls).toEqual([
+            ['session-gm-1', 'participant-gm-1'],
+            ['session-gm-1', 'participant-gm-2']
+        ]);
+        expect(mockParticipantsStore.updateFromServer).toHaveBeenCalledTimes(2);
+        expect(controller.sessionBundles.get('session-gm-1').participants).toEqual([]);
+        expect(controller.getParticipantSelection('session-gm-1').size).toBe(0);
+        expect(mockShowToast).toHaveBeenCalledWith(
+            '2 participants were removed from Alpha Session.',
+            { type: 'success' }
+        );
     });
 
     it('disables all exports until a session is selected regardless of the default research mode', async () => {

@@ -1079,6 +1079,52 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.participantsList.innerHTML).toContain(
             'Session: Alpha Session (ALPHA)'
         );
+        expect(fakeDocument.elements.participantsList.innerHTML).toContain(
+            'data-participant-select-seat-id="blue-facilitator"'
+        );
+        expect(fakeDocument.elements.participantsList.innerHTML).toContain(
+            'data-participant-action="remove-selected"'
+        );
+        expect(fakeDocument.elements.participantsList.innerHTML).toContain(
+            'aria-label="Select Alex for removal"'
+        );
+    });
+
+    it('removes multiple White Cell roster seats and updates the shared store immediately', async () => {
+        confirmModal.mockResolvedValue(true);
+
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { participantsStore } = await import('../stores/participants.js');
+        const removeSessionParticipant = vi.spyOn(database, 'removeSessionParticipant').mockResolvedValue({});
+        const updateFromServer = vi.spyOn(participantsStore, 'updateFromServer').mockImplementation(() => {});
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-alpha');
+
+        const controller = new WhiteCellController();
+        controller.participants = [
+            { id: 'seat-blue', display_name: 'Alex', role: 'blue_facilitator' },
+            { id: 'seat-red', display_name: 'Priya', role: 'red_scribe' }
+        ];
+        controller.selectedParticipantSeatIds.add('seat-blue');
+        controller.selectedParticipantSeatIds.add('seat-red');
+
+        await controller.handleRemoveParticipantSeats(['seat-blue', 'seat-red']);
+
+        expect(confirmModal).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Remove seats',
+            confirmLabel: 'Remove 2 seats'
+        }));
+        expect(removeSessionParticipant.mock.calls).toEqual([
+            ['session-alpha', 'seat-blue'],
+            ['session-alpha', 'seat-red']
+        ]);
+        expect(updateFromServer.mock.calls).toEqual([
+            ['DELETE', { id: 'seat-blue', session_id: 'session-alpha' }],
+            ['DELETE', { id: 'seat-red', session_id: 'session-alpha' }]
+        ]);
+        expect(controller.selectedParticipantSeatIds.size).toBe(0);
+        expect(showToast).toHaveBeenCalledWith({ message: '2 seats removed', type: 'success' });
     });
 
     it('builds cross-team White Cell communication recipients', async () => {

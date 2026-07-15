@@ -215,7 +215,7 @@ describe('GameMaster session administration', () => {
                 }
             });
 
-            expect(html).toContain('<th>Session</th>');
+            expect(html).toContain('<th scope="col">Session</th>');
             expect(html).toContain('Alpha Session (ALPHA)');
         } finally {
             restoreDocument();

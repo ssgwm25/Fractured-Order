@@ -49,7 +49,8 @@ Pass:
 4. Create an active session with a short uppercase join code.
 5. Join once as a participant and confirm the loading screen identifies the resolved session by name before entering the role surface.
 6. Keep the Game Master console open for participant monitoring and export.
-7. If Intercom or Session Recorder is enabled for the selected session, confirm the Game Master plugin mount shows the matching operator controls.
+7. In the Game Master participant roster, select at least two seats, remove them in one confirmation, and confirm each successful removal disappears immediately without a page refresh.
+8. If Intercom or Session Recorder is enabled for the selected session, confirm the Game Master plugin mount shows the matching operator controls.
 
 Recommended rehearsal session name:
 
@@ -107,7 +108,7 @@ White Cell:
 - deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues; confirm the Blue action modal includes its recorded supply-chain focus
 - answer RFIs
 - send direct communications and section updates
-- review participant roster filters
+- review participant roster filters; select multiple seats, remove them in one confirmation, and confirm each successful removal disappears immediately without a page refresh
 - verify facilitator deck assignment status
 
 Facilitator:

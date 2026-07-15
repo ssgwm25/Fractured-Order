@@ -36,6 +36,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
 
     const context = await browser.newContext();
     const sessionCode = 'TOPO2026';
+    const orientationRationale = 'Topology rehearsal orientation recorded before the normal move gate.';
     const orientationReviewNotes = 'Approved by White Cell lead during the topology rehearsal.';
 
     const gameMaster = await createIsolatedActorPage(context, 'game-master', { resetBackend: true });
@@ -135,15 +136,22 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
     });
 
     await test.step('verify the dedicated facilitator deck and complete the Scribe-to-Facilitator-to-White Cell workflow', async () => {
-        const orientationGoal = await recordStrategicOrientationFromScribe(facilitator);
+        const orientationGoal = await recordStrategicOrientationFromScribe(facilitator, {
+            rationale: orientationRationale
+        });
 
         await expect(scribe).toHaveURL(/\/teams\/blue\/scribe\.html(?:\?.*)?$/);
         await expect(scribe.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
         await expect(scribe.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready');
-        await expect(scribe.locator('#scribeSectionList')).toContainText('Communications');
+        await expect(scribe.locator('#scribeSectionList')).toContainText('Actions');
+        await expect(scribe.locator('#scribeSectionList')).not.toContainText('Communications');
         await expect(scribe.locator('#deckActionFrame')).toBeVisible();
         await expect(scribe.locator('#deckSlideImage')).toBeHidden();
-        await expect(scribe.locator('#main-content')).toContainText(orientationGoal);
+        const orientationSlide = scribe.locator('#deckActionFrame .scribe-orientation-slide');
+        await expect(orientationSlide).toBeVisible();
+        await expect(orientationSlide.locator('.scribe-action-slide-title')).toContainText('Strategic Orientation');
+        await expect(orientationSlide.getByText('Pressure', { exact: true })).toBeVisible();
+        await expect(orientationSlide).toContainText(orientationRationale);
         await expect(scribe.locator('#newActionBtn')).toHaveCount(0);
 
         const actionsSectionTrigger = scribe.locator('#scribeSectionList .scribe-section-trigger').first();
@@ -155,7 +163,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         await expect(actionSlideLink).toContainText(orientationGoal);
         await actionSlideLink.click();
         await expect(scribe.locator('#deckActionFrame')).toBeVisible();
-        await expect(scribe.locator('#main-content')).toContainText(orientationGoal);
+        await expect(orientationSlide).toContainText(orientationRationale);
 
         await submitStrategicOrientationFromScribe(scribe, orientationGoal);
 
@@ -167,8 +175,9 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         await expect(whiteCellLead.locator('#strategicOrientationList')).toContainText(orientationGoal);
 
         await expect(scribe.locator('#nextSlideBtn')).toBeVisible();
-        await expect(scribe.locator('#main-content')).toContainText(orientationGoal);
-        await expect(scribe.locator('#main-content')).toContainText(orientationReviewNotes);
+        await expect(actionSlideLink).toContainText('White Cell Reviewed');
+        await expect(orientationSlide).toContainText(orientationRationale);
+        await expect(orientationSlide).not.toContainText(orientationReviewNotes);
     });
 
     await test.step('record the active seat counts for the one-team topology', async () => {

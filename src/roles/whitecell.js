@@ -1160,6 +1160,7 @@ export class WhiteCellController {
         this.verbaAiUpdates = [];
         this.scribeDeckAssignments = buildWhiteCellScribeDeckAssignments();
         this.participants = [];
+        this.selectedParticipantSeatIds = new Set();
         this.timelineEvents = [];
         this.adminSessions = [];
         this.storeUnsubscribers = [];
@@ -1499,14 +1500,17 @@ export class WhiteCellController {
         });
         participantsSessionFilter?.addEventListener('change', (event) => {
             this.participantFilters.session = event.currentTarget.value || null;
+            this.selectedParticipantSeatIds.clear();
             this.renderParticipants();
         });
         participantsTeamFilter?.addEventListener('change', (event) => {
             this.participantFilters.team = event.currentTarget.value || null;
+            this.selectedParticipantSeatIds.clear();
             this.renderParticipants();
         });
         participantsRoleFilter?.addEventListener('change', (event) => {
             this.participantFilters.role = event.currentTarget.value || null;
+            this.selectedParticipantSeatIds.clear();
             this.renderParticipants();
         });
         timelineTeamFilter?.addEventListener('change', (event) => {
@@ -1560,13 +1564,31 @@ export class WhiteCellController {
 
         const participantsList = document.getElementById('participantsList');
         participantsList?.addEventListener('click', (event) => {
-            const button = event.target.closest('button[data-participant-action="remove"]');
+            const button = event.target.closest('button[data-participant-action]');
             if (!button) return;
+            if (button.dataset.participantAction === 'remove-selected') {
+                const selectedSeatIds = [...this.selectedParticipantSeatIds];
+                this.handleRemoveParticipantSeats(selectedSeatIds).catch((err) => {
+                    logger.error('Failed to handle participant removals:', err);
+                });
+                return;
+            }
             const seatId = button.dataset.participantSeatId;
             if (!seatId) return;
             this.handleRemoveParticipantSeat(seatId).catch((err) => {
                 logger.error('Failed to handle participant removal:', err);
             });
+        });
+        participantsList?.addEventListener('change', (event) => {
+            const checkbox = event.target.closest('input[data-participant-select-seat-id]');
+            if (!checkbox) return;
+            const seatId = String(checkbox.dataset.participantSelectSeatId || '');
+            if (checkbox.checked) {
+                this.selectedParticipantSeatIds.add(seatId);
+            } else {
+                this.selectedParticipantSeatIds.delete(seatId);
+            }
+            this.updateParticipantSelectionControls();
         });
 
         const sessionsList = document.getElementById('sessionsList');
@@ -4174,6 +4196,12 @@ export class WhiteCellController {
             ...this.participantFilters,
             activeSession
         });
+        const availableParticipantIds = new Set(this.participants.map((participant) => String(participant.id)));
+        [...this.selectedParticipantSeatIds].forEach((seatId) => {
+            if (!availableParticipantIds.has(seatId)) {
+                this.selectedParticipantSeatIds.delete(seatId);
+            }
+        });
         const hasActiveFilters = Boolean(
             this.participantFilters.session
             || this.participantFilters.team
@@ -4196,7 +4224,18 @@ export class WhiteCellController {
             return;
         }
 
-        container.innerHTML = filteredParticipants.map((participant) => {
+        const selectedCount = this.selectedParticipantSeatIds.size;
+        container.innerHTML = `
+            <div data-participant-bulk-controls style="display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap;">
+                <span class="text-sm text-gray-500" data-selected-participant-count role="status" aria-live="polite">${selectedCount} selected</span>
+                <button
+                    type="button"
+                    class="btn btn-danger btn-sm"
+                    data-participant-action="remove-selected"
+                    ${selectedCount === 0 ? 'disabled' : ''}
+                >Remove selected${selectedCount > 0 ? ` (${selectedCount})` : ''}</button>
+            </div>
+        ` + filteredParticipants.map((participant) => {
             const connectionBadge = createBadge({
                 text: isConnectedParticipant(participant) ? 'Connected' : 'Inactive',
                 variant: isConnectedParticipant(participant) ? 'success' : 'default',
@@ -4215,7 +4254,16 @@ export class WhiteCellController {
                 <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
                         <div>
-                            <p class="text-sm font-semibold">${this.escapeHtml(participant.display_name || 'Unknown')}</p>
+                            <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                                <input
+                                    type="checkbox"
+                                    class="form-checkbox"
+                                    data-participant-select-seat-id="${this.escapeHtml(participant.id || '')}"
+                                    aria-label="Select ${this.escapeHtml(participant.display_name || 'participant')} for removal"
+                                    ${this.selectedParticipantSeatIds.has(String(participant.id)) ? 'checked' : ''}
+                                >
+                                <span class="text-sm font-semibold">${this.escapeHtml(participant.display_name || 'Unknown')}</span>
+                            </label>
                             <p class="text-xs text-gray-500">${this.escapeHtml(roleLabel)}</p>
                             ${participantSessionLabel ? `<p class="text-xs text-gray-500" style="margin-top: 2px;">Session: ${this.escapeHtml(participantSessionLabel)}</p>` : ''}
                         </div>
@@ -4239,6 +4287,21 @@ export class WhiteCellController {
                 </div>
             `;
         }).join('');
+    }
+
+    updateParticipantSelectionControls() {
+        const container = document.getElementById('participantsList');
+        if (!container) return;
+        const selectedCount = this.selectedParticipantSeatIds.size;
+        const status = container.querySelector('[data-selected-participant-count]');
+        const button = container.querySelector('button[data-participant-action="remove-selected"]');
+        if (status) {
+            status.textContent = `${selectedCount} selected`;
+        }
+        if (button) {
+            button.disabled = selectedCount === 0;
+            button.textContent = `Remove selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`;
+        }
     }
 
     renderScribeDeckSettings() {
@@ -4535,14 +4598,23 @@ export class WhiteCellController {
     }
 
     async handleRemoveParticipantSeat(seatId) {
-        if (!seatId) return;
-        const participant = this.participants.find((entry) => entry.id === seatId);
-        const displayName = participant?.display_name || 'this participant';
+        return this.handleRemoveParticipantSeats(seatId ? [seatId] : []);
+    }
+
+    async handleRemoveParticipantSeats(seatIds = []) {
+        const selectedParticipants = (Array.isArray(seatIds) ? seatIds : [])
+            .map((seatId) => this.participants.find((entry) => entry.id === seatId))
+            .filter(Boolean);
+        if (selectedParticipants.length === 0) return;
+        const isBulkRemoval = selectedParticipants.length > 1;
+        const displayName = selectedParticipants[0]?.display_name || 'this participant';
 
         const confirmed = await confirmModal({
-            title: 'Remove seat',
-            message: `Remove ${displayName} from the session? Their seat will become available for another participant to claim.`,
-            confirmLabel: 'Remove',
+            title: isBulkRemoval ? 'Remove seats' : 'Remove seat',
+            message: isBulkRemoval
+                ? `Remove ${selectedParticipants.length} selected participants from the session? Their seats will become available for other participants to claim.`
+                : `Remove ${displayName} from the session? Their seat will become available for another participant to claim.`,
+            confirmLabel: isBulkRemoval ? `Remove ${selectedParticipants.length} seats` : 'Remove',
             variant: 'danger'
         });
         if (!confirmed) return;
@@ -4553,19 +4625,42 @@ export class WhiteCellController {
             return;
         }
 
-        const loader = showLoader({ message: 'Removing seat...' });
+        const loader = showLoader({
+            message: isBulkRemoval ? `Removing ${selectedParticipants.length} seats...` : 'Removing seat...'
+        });
         try {
-            await database.removeSessionParticipant(sessionId, seatId);
-            participantsStore.updateFromServer('DELETE', { id: seatId });
-            showToast({ message: 'Seat removed', type: 'success' });
-        } catch (err) {
-            logger.error('Failed to remove seat:', err);
-            showToast({
-                message: getUserMessage(err, {
-                    fallback: 'Failed to remove seat. Refresh the roster and try again.'
-                }),
-                type: 'error'
-            });
+            const outcomes = await Promise.all(selectedParticipants.map(async (participant) => {
+                try {
+                    await database.removeSessionParticipant(sessionId, participant.id);
+                    participantsStore.updateFromServer('DELETE', { id: participant.id, session_id: sessionId });
+                    return { participant, removed: true };
+                } catch (error) {
+                    logger.error('Failed to remove seat:', error);
+                    return { participant, removed: false, error };
+                }
+            }));
+            const removed = outcomes.filter((outcome) => outcome.removed);
+            const failed = outcomes.filter((outcome) => !outcome.removed);
+            removed.forEach((outcome) => this.selectedParticipantSeatIds.delete(String(outcome.participant.id)));
+
+            if (failed.length === 0) {
+                showToast({
+                    message: isBulkRemoval ? `${removed.length} seats removed` : 'Seat removed',
+                    type: 'success'
+                });
+            } else if (removed.length > 0) {
+                showToast({
+                    message: `${removed.length} seat${removed.length === 1 ? '' : 's'} removed; ${failed.length} could not be removed and remain selected for retry.`,
+                    type: 'warning'
+                });
+            } else {
+                showToast({
+                    message: getUserMessage(failed[0]?.error, {
+                        fallback: 'Failed to remove seats. Refresh the roster and try again.'
+                    }),
+                    type: 'error'
+                });
+            }
         } finally {
             hideLoader();
         }
