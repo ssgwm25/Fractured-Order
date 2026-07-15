@@ -255,9 +255,12 @@ class ActionsStore {
         logger.info('Updating action:', id);
 
         try {
+            const existingAction = this.actions.find((action) => action.id === id);
             const data = await database.updateAction(id, {
                 ...updates,
                 updated_at: new Date().toISOString()
+            }, {
+                expectedRowVersion: existingAction?.row_version
             });
 
             // Update local state

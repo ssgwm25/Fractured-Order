@@ -24,12 +24,13 @@ import {
 } from '../components/ui/Badge.js';
 import {
     BLUE_ACTION_COUNTRIES,
-    BLUE_ACTION_ENFORCEMENT_TIMELINES,
     BLUE_ACTION_IMPLEMENTATIONS,
     BLUE_ACTION_INSTRUMENTS,
     BLUE_ACTION_LEGISLATIVE_OPTIONS,
     BLUE_ACTION_SCRIBE_HANDOFF,
     BLUE_ACTION_SECTORS,
+    BLUE_ACTION_SUPPLY_CHAIN_ANGLES,
+    BLUE_ACTION_SUPPLY_CHAIN_AREAS,
     BLUE_ACTION_SUPPLY_CHAIN_FOCUS,
     formatActionSequenceLabel,
     formatBlueActionSelection,
@@ -117,7 +118,8 @@ const RFI_RENDER_LIMIT = 50;
 const RESPONSE_GROUP_RENDER_LIMIT = 30;
 export const FACILITATOR_VERBA_AI_RENDER_LIMIT = 40;
 export const FACILITATOR_TIMELINE_RENDER_LIMIT = 80;
-const BLUE_ACTION_WIZARD_PAGE_TOTAL = 2;
+const BLUE_ACTION_WIZARD_PAGE_TOTAL = 3;
+const RED_ACTION_WIZARD_PAGE_TOTAL = 2;
 
 function isProposalTeamId(teamId) {
     return PROPOSAL_TEAM_IDS.has(teamId);
@@ -253,7 +255,6 @@ export class FacilitatorController {
         this.responses = [];
         this.receivedProposals = [];
         this.expandedActionCardIds = new Set();
-        this.actionsActiveTab = 'draft';
         this.rfiActiveTab = getRfiCategoryKey(ENUMS.RFI_CATEGORIES[0]);
         this.responsesActiveTab = 'communication';
         this.proposalsActiveTab = 'unread';
@@ -562,13 +563,6 @@ export class FacilitatorController {
         const strategicOrientationBtn = document.getElementById('strategicOrientationBtn');
         const newRfiBtn = document.getElementById('newRfiBtn');
         const captureForm = document.getElementById('captureForm');
-
-        const actionsListEl = document.getElementById('actionsList');
-        actionsListEl?.addEventListener('click', (event) => {
-            const tabButton = event.target.closest('.tab-button[data-actions-tab]');
-            if (!tabButton || !actionsListEl.contains(tabButton)) return;
-            this.setActionsActiveTab(tabButton.dataset.actionsTab);
-        });
 
         const rfiListEl = document.getElementById('rfiList');
         rfiListEl?.addEventListener('click', (event) => {
@@ -1755,21 +1749,6 @@ export class FacilitatorController {
         this.renderTribeStreetJournalList();
     }
 
-    setActionsActiveTab(tab) {
-        if (!tab || tab === this.actionsActiveTab) return;
-        this.actionsActiveTab = tab;
-        const container = document.getElementById('actionsList');
-        if (!container || typeof container.querySelectorAll !== 'function') return;
-        container.querySelectorAll('.tab-button[data-actions-tab]').forEach((button) => {
-            const isActive = button.dataset.actionsTab === tab;
-            button.classList.toggle('tab-button-active', isActive);
-            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        });
-        container.querySelectorAll('.tab-panel[data-actions-panel]').forEach((panel) => {
-            panel.hidden = panel.dataset.actionsPanel !== tab;
-        });
-    }
-
     setRfiActiveTab(tab) {
         if (!tab || tab === this.rfiActiveTab) return;
         this.rfiActiveTab = tab;
@@ -1886,64 +1865,6 @@ export class FacilitatorController {
         });
     }
 
-    getActionStatusGroupDefinitions() {
-        if (this.isProposalTeam()) {
-            return [
-                {
-                    key: 'draft',
-                    tabLabel: 'Draft',
-                    title: 'Draft Proposals',
-                    description: 'Editable proposals that have not yet been sent to White Cell.'
-                },
-                {
-                    key: 'submitted',
-                    tabLabel: 'Submitted',
-                    title: 'Sent to White Cell',
-                    description: 'Read-only proposals currently awaiting White Cell review.'
-                },
-                {
-                    key: 'reviewed',
-                    tabLabel: 'Deliberated',
-                    title: 'White Cell Reviewed',
-                    description: 'Proposals White Cell has already reviewed.'
-                },
-                {
-                    key: 'other',
-                    tabLabel: 'Other',
-                    title: 'Other Proposal Statuses',
-                    description: 'Proposals outside the standard draft and review flow.'
-                }
-            ];
-        }
-
-        return [
-            {
-                key: 'draft',
-                tabLabel: 'Draft',
-                title: 'Draft Strategic Actions',
-                description: 'Editable actions that have not yet been forwarded to the Facilitator.'
-            },
-            {
-                key: 'submitted',
-                tabLabel: 'Submitted',
-                title: 'Submitted to White Cell',
-                description: 'Read-only actions submitted to White Cell by the Facilitator.'
-            },
-            {
-                key: 'reviewed',
-                tabLabel: 'Deliberated',
-                title: 'White Cell Reviewed',
-                description: 'Actions White Cell has already reviewed.'
-            },
-            {
-                key: 'other',
-                tabLabel: 'Other',
-                title: 'Other Action Statuses',
-                description: 'Actions outside the standard draft and review flow.'
-            }
-        ];
-    }
-
     getActionStatusGroupKey(action = {}) {
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
 
@@ -1962,107 +1883,89 @@ export class FacilitatorController {
         return 'other';
     }
 
-    getEmptyActionGroupMessage(key) {
-        const noun = this.isProposalTeam()
-            ? 'proposals'
-            : 'actions';
-        switch (key) {
-            case 'draft': return `No draft ${noun} yet.`;
-            case 'submitted': return `No ${noun} are awaiting White Cell review.`;
-            case 'reviewed': return `No ${noun} have been deliberated yet.`;
-            default: return `No ${noun} in this state.`;
-        }
+    getActionMoveNumber(action = {}) {
+        const move = Number.parseInt(action.move, 10);
+        return Number.isFinite(move) && move > 0 ? move : 1;
+    }
+
+    sortActionsByExerciseSequence(actions = []) {
+        return [...actions].sort((left, right) => {
+            const leftIsOrientation = isStrategicOrientationAction(left);
+            const rightIsOrientation = isStrategicOrientationAction(right);
+            if (leftIsOrientation !== rightIsOrientation) {
+                return leftIsOrientation ? -1 : 1;
+            }
+
+            const moveDifference = this.getActionMoveNumber(left) - this.getActionMoveNumber(right);
+            if (moveDifference !== 0) return moveDifference;
+
+            const leftCreatedAt = Date.parse(left.created_at || '') || 0;
+            const rightCreatedAt = Date.parse(right.created_at || '') || 0;
+            if (leftCreatedAt !== rightCreatedAt) return rightCreatedAt - leftCreatedAt;
+
+            return String(left.id || '').localeCompare(String(right.id || ''));
+        });
+    }
+
+    getActionSequenceGroups(actions = []) {
+        const itemNoun = this.isProposalTeam() ? 'Proposals' : 'Actions';
+        const groups = new Map();
+
+        this.sortActionsByExerciseSequence(actions).forEach((action) => {
+            const isOrientation = isStrategicOrientationAction(action);
+            const move = this.getActionMoveNumber(action);
+            const key = isOrientation ? 'strategic-orientation' : `move-${move}`;
+
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    key,
+                    title: isOrientation ? 'Strategic Orientation' : `Move ${move} ${itemNoun}`,
+                    context: isOrientation ? 'Pre-Move 1' : '',
+                    items: []
+                });
+            }
+
+            groups.get(key).items.push(action);
+        });
+
+        return [...groups.values()];
     }
 
     renderGroupedActionList() {
-        const groupDefinitions = this.getActionStatusGroupDefinitions();
-        const groupedActions = new Map(
-            groupDefinitions.map((group) => [group.key, []])
-        );
-
-        this.actions.forEach((action) => {
-            const groupKey = this.getActionStatusGroupKey(action);
-            if (!groupedActions.has(groupKey)) {
-                groupedActions.set(groupKey, []);
-            }
-            groupedActions.get(groupKey).push(action);
-        });
-
-        // Always surface the primary lifecycle tabs; only show "Other" when it holds items.
-        const visibleGroups = groupDefinitions.filter((group) =>
-            group.key !== 'other' || (groupedActions.get(group.key) || []).length > 0
-        );
-
-        const activeKey = visibleGroups.some((group) => group.key === this.actionsActiveTab)
-            ? this.actionsActiveTab
-            : visibleGroups[0]?.key;
-        this.actionsActiveTab = activeKey;
-
-        const tabList = visibleGroups.map((group) => {
-            const count = (groupedActions.get(group.key) || []).length;
-            const isActive = group.key === activeKey;
-            return `
-                <button
-                    type="button"
-                    class="tab-button${isActive ? ' tab-button-active' : ''}"
-                    data-actions-tab="${group.key}"
-                    role="tab"
-                    aria-selected="${isActive ? 'true' : 'false'}"
-                    aria-controls="actionsPanel-${group.key}"
-                >${this.escapeHtml(group.tabLabel)}<span class="tab-badge">${count}</span></button>
-            `;
-        }).join('');
-
-        const panels = visibleGroups.map((group) => {
-            const groupActions = groupedActions.get(group.key) || [];
-            const visibleGroupActions = groupActions.slice(0, ACTION_GROUP_RENDER_LIMIT);
-            const hiddenCount = Math.max(0, groupActions.length - visibleGroupActions.length);
-            const isActive = group.key === activeKey;
-            const body = groupActions.length
-                ? `<div class="card-list" aria-labelledby="actions-group-${group.key}">
-                        ${visibleGroupActions.map((action) => this.renderActionCard(action)).join('')}
-                   </div>`
-                : `<p class="text-sm text-gray-500" style="margin: 0;">${this.escapeHtml(this.getEmptyActionGroupMessage(group.key))}</p>`;
-            const overflowNote = hiddenCount
-                ? `<p class="text-xs text-gray-500" style="margin: var(--space-2) 0 0;">Showing the first ${ACTION_GROUP_RENDER_LIMIT} of ${groupActions.length} records in this status group.</p>`
-                : '';
-
-            return `
-                <div
-                    class="tab-panel"
-                    id="actionsPanel-${group.key}"
-                    data-actions-panel="${group.key}"
-                    role="tabpanel"
-                    ${isActive ? '' : 'hidden'}
-                >
-                    <section
-                        data-action-status-group="${group.key}"
-                        aria-labelledby="actions-group-${group.key}"
-                        style="display: grid; gap: var(--space-3);"
-                    >
-                        <div style="padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border-light);">
-                            <h3
-                                id="actions-group-${group.key}"
-                                class="font-semibold text-sm"
-                                style="margin: 0;"
-                            >${this.escapeHtml(`${group.title} (${groupActions.length})`)}</h3>
-                            <p class="text-xs text-gray-500" style="margin: var(--space-1) 0 0;">
-                                ${this.escapeHtml(group.description)}
-                            </p>
-                        </div>
-                        ${body}
-                        ${overflowNote}
-                    </section>
-                </div>
-            `;
-        }).join('');
+        const sortedActions = this.sortActionsByExerciseSequence(this.actions);
+        const hiddenCount = Math.max(0, sortedActions.length - ACTION_GROUP_RENDER_LIMIT);
+        let remainingRenderSlots = ACTION_GROUP_RENDER_LIMIT;
+        const sequenceGroups = this.getActionSequenceGroups(sortedActions)
+            .map((group) => {
+                const visibleItems = group.items.slice(0, remainingRenderSlots);
+                remainingRenderSlots = Math.max(0, remainingRenderSlots - visibleItems.length);
+                return { ...group, visibleItems };
+            })
+            .filter((group) => group.visibleItems.length > 0);
 
         return `
-            <div class="tabbed-section" data-actions-tabs>
-                <div class="tab-list" role="tablist" aria-label="Strategic action lifecycle">
-                    ${tabList}
-                </div>
-                ${panels}
+            <div class="action-sequence-list" aria-label="Submissions in exercise sequence">
+                ${sequenceGroups.map((group) => {
+                    const headingId = `action-sequence-${group.key}`;
+                    const itemLabel = group.items.length === 1 ? 'submission' : 'submissions';
+                    return `
+                        <section class="action-sequence-group" aria-labelledby="${headingId}">
+                            <div class="action-sequence-header">
+                                <div>
+                                    <h3 id="${headingId}" class="action-sequence-heading">${this.escapeHtml(group.title)}</h3>
+                                    ${group.context ? `<p class="action-sequence-context">${this.escapeHtml(group.context)}</p>` : ''}
+                                </div>
+                                <span class="action-sequence-count" aria-label="${group.items.length} ${itemLabel}">${group.items.length}</span>
+                            </div>
+                            <div class="card-list">
+                                ${group.visibleItems.map((action) => this.renderActionCard(action)).join('')}
+                            </div>
+                        </section>
+                    `;
+                }).join('')}
+                ${hiddenCount
+                    ? `<p class="action-sequence-overflow">Showing the first ${ACTION_GROUP_RENDER_LIMIT} of ${sortedActions.length} submissions in exercise order.</p>`
+                    : ''}
             </div>
         `;
     }
@@ -2333,7 +2236,10 @@ export class FacilitatorController {
                             <span class="entity-card__toggle-title">${this.escapeHtml(title)}</span>
                             <span class="entity-card__toggle-objective"><strong>Objective:</strong> ${this.escapeHtml(objectivePreview)}</span>
                         </span>
-                        <span class="entity-card__toggle-indicator" aria-hidden="true">${isExpanded ? 'Hide' : 'Show'}</span>
+                        <span class="entity-card__toggle-state">
+                            ${statusBadge}
+                            <span class="entity-card__toggle-indicator" aria-hidden="true">${isExpanded ? 'Hide' : 'Show'}</span>
+                        </span>
                     </button>
                 ` : ''}
                 <div id="${this.escapeHtml(detailsId)}" class="entity-card__details${isCollapsibleCard ? '' : ' entity-card__details--plain'}"${isExpanded ? '' : ' hidden'}>
@@ -2554,7 +2460,12 @@ export class FacilitatorController {
 
         const existingAction = this.getStrategicOrientationActionForTeam()
             || (action && isStrategicOrientationAction(action) ? action : null);
-        if (existingAction) {
+        const isEdit = Boolean(
+            action?.id
+            && existingAction?.id === action.id
+            && canEditAction(existingAction)
+        );
+        if (existingAction && !isEdit) {
             this.updateStrategicOrientationControlAvailability();
             showToast({
                 message: 'Strategic Orientation has already been recorded for this team.',
@@ -2563,19 +2474,19 @@ export class FacilitatorController {
             return;
         }
 
-        const content = this.createStrategicOrientationContent({});
+        const content = this.createStrategicOrientationContent(isEdit ? existingAction : {});
         const modalRef = { current: null };
         const copy = this.getStrategicOrientationModalCopy();
 
         modalRef.current = showModal({
-            title: copy.title,
+            title: isEdit ? `Edit ${copy.title}` : copy.title,
             content,
             size: 'xl'
         });
 
         this.bindStrategicOrientationModal(content, modalRef.current, {
-            actionId: null,
-            isEdit: false
+            actionId: isEdit ? existingAction.id : null,
+            isEdit
         });
     }
 
@@ -2860,7 +2771,8 @@ export class FacilitatorController {
             return;
         }
 
-        if (this.getStrategicOrientationActionForTeam()) {
+        const existingAction = this.getStrategicOrientationActionForTeam();
+        if (existingAction && (!isEdit || existingAction.id !== actionId)) {
             this.updateStrategicOrientationControlAvailability();
             showToast({
                 message: 'Strategic Orientation has already been recorded for this team.',
@@ -2869,13 +2781,17 @@ export class FacilitatorController {
             return;
         }
 
-        const option = STRATEGIC_ORIENTATION_OPTIONS[data.selected];
         const loader = showLoader({ message: 'Forwarding Strategic Orientation to Facilitator...' });
         this.strategicOrientationSubmissionInFlight = true;
         this.updateStrategicOrientationControlAvailability();
 
         try {
             const payload = this.buildStrategicOrientationPayload(data);
+            const payloadViewModel = getStrategicOrientationViewModel({
+                ...payload,
+                team: this.teamId
+            });
+            const option = STRATEGIC_ORIENTATION_OPTIONS[payloadViewModel.orientation];
             let action;
 
             if (isEdit && actionId) {
@@ -3603,17 +3519,30 @@ export class FacilitatorController {
         });
     }
 
+    getBlueActionWizardPageTotal() {
+        return this.teamId === 'red'
+            ? RED_ACTION_WIZARD_PAGE_TOTAL
+            : BLUE_ACTION_WIZARD_PAGE_TOTAL;
+    }
+
     createBlueActionWizardContent(action = {}, { isEdit = false, sequenceContext = null } = {}) {
         const content = document.createElement('div');
         const blueAction = getBlueActionViewModel(action);
         const isRedTeamActionWizard = this.teamId === 'red';
+        const wizardPageTotal = this.getBlueActionWizardPageTotal();
         const actionTitle = action.goal || action.title || '';
-        const builtInInstrumentValues = BLUE_ACTION_INSTRUMENTS.filter((value) => value !== 'Other');
-        const instrumentIsCustom = Boolean(blueAction.instrumentOfPower)
-            && !builtInInstrumentValues.includes(blueAction.instrumentOfPower);
-        const instrumentValue = instrumentIsCustom
-            ? 'Other'
-            : (blueAction.instrumentOfPower || '');
+        const instrumentOptions = BLUE_ACTION_INSTRUMENTS;
+        const builtInInstrumentValues = instrumentOptions.filter((value) => value !== 'Other');
+        const actionInstruments = blueAction.instruments.length
+            ? blueAction.instruments
+            : (blueAction.instrumentOfPower ? [blueAction.instrumentOfPower] : []);
+        const customInstrumentValue = actionInstruments.find(
+            (value) => value && !builtInInstrumentValues.includes(value) && value !== 'Other'
+        ) || '';
+        const selectedInstrumentValues = [
+            ...actionInstruments.filter((value) => builtInInstrumentValues.includes(value)),
+            ...(customInstrumentValue || actionInstruments.includes('Other') ? ['Other'] : [])
+        ];
         const selectedLeverValues = blueAction.levers.length
             ? blueAction.levers
             : (blueAction.lever ? [blueAction.lever] : []);
@@ -3623,15 +3552,19 @@ export class FacilitatorController {
         const selectedSupplyChainFocusValues = blueAction.supplyChainFocuses.length
             ? blueAction.supplyChainFocuses
             : (blueAction.supplyChainFocus ? [blueAction.supplyChainFocus] : []);
+        const selectedSupplyChainAreaValues = blueAction.supplyChainAreas.length
+            ? blueAction.supplyChainAreas
+            : selectedSupplyChainFocusValues.filter((value) => BLUE_ACTION_SUPPLY_CHAIN_AREAS.includes(value));
+        const selectedSupplyChainActionAngleValues = blueAction.supplyChainActionAngles || [];
+        const supplyChainFocusDecision = blueAction.supplyChainFocusDecision
+            || (selectedSupplyChainFocusValues.length ? 'Yes' : '');
         const builtInSectorValues = BLUE_ACTION_SECTORS.filter((value) => value !== 'Other');
         const customSectorValue = blueActionSectors.find((value) => value && !builtInSectorValues.includes(value) && value !== 'Other') || '';
         const selectedSectorValues = [
             ...blueActionSectors.filter((value) => builtInSectorValues.includes(value)),
             ...(customSectorValue || blueActionSectors.includes('Other') ? ['Other'] : [])
         ];
-        const focusCountryOptions = isRedTeamActionWizard
-            ? BLUE_ACTION_COUNTRIES.filter((value) => value !== 'PRC')
-            : BLUE_ACTION_COUNTRIES;
+        const focusCountryOptions = BLUE_ACTION_COUNTRIES;
         const builtInCountryValues = focusCountryOptions.filter((value) => value !== 'Other');
         const customCountryValue = blueAction.focusCountries.find((value) => value && !builtInCountryValues.includes(value) && value !== 'Other') || '';
         const selectedFocusCountryValues = [
@@ -3640,15 +3573,9 @@ export class FacilitatorController {
         ];
         const implementationIsCustom = Boolean(blueAction.implementation)
             && !BLUE_ACTION_IMPLEMENTATIONS.includes(blueAction.implementation);
-        const builtInTimelineValues = BLUE_ACTION_ENFORCEMENT_TIMELINES.filter((value) => value !== 'Other');
-        const enforcementTimelineIsCustom = Boolean(blueAction.enforcementTimeline)
-            && !builtInTimelineValues.includes(blueAction.enforcementTimeline);
         const implementationValue = implementationIsCustom
             ? 'Other'
             : (blueAction.implementation || '');
-        const enforcementTimelineValue = enforcementTimelineIsCustom
-            ? 'Other'
-            : (blueAction.enforcementTimeline || '');
         const sequenceLabel = sequenceContext?.label || formatActionSequenceLabel({
             teamLabel: this.teamLabel,
             move: action?.move || this.getCurrentGameState().move || 1,
@@ -3664,24 +3591,12 @@ export class FacilitatorController {
         const objectiveHintText = isRedTeamActionWizard
             ? 'What you intend this action to achieve in 6 months.'
             : 'What you intend this action to achieve.';
-        const implementationAndTimelineFieldsMarkup = isRedTeamActionWizard ? '' : `
-                    <div class="section-grid section-grid-2">
-                        <div class="form-group">
-                            <label class="form-label" for="actionImplementation">Implementation *</label>
-                            <select id="actionImplementation" class="form-select" data-blue-action-other-target="actionImplementationOther">
-                                ${renderOptions(BLUE_ACTION_IMPLEMENTATIONS, implementationValue, 'Select implementation')}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="actionEnforcementTimeline">Date of Effect *</label>
-                            <select
-                                id="actionEnforcementTimeline"
-                                class="form-select"
-                                data-blue-action-other-target="actionEnforcementTimelineOther"
-                            >
-                                ${renderOptions(BLUE_ACTION_ENFORCEMENT_TIMELINES, enforcementTimelineValue, 'Select timeline')}
-                            </select>
-                        </div>
+        const implementationFieldMarkup = isRedTeamActionWizard ? '' : `
+                    <div class="form-group">
+                        <label class="form-label" for="actionImplementation">Implementation *</label>
+                        <select id="actionImplementation" class="form-select" data-blue-action-other-target="actionImplementationOther">
+                            ${renderOptions(BLUE_ACTION_IMPLEMENTATIONS, implementationValue, 'Select implementation')}
+                        </select>
                     </div>
 
                     <div
@@ -3722,147 +3637,8 @@ export class FacilitatorController {
                         <p class="form-hint" id="actionLegislativeOptionsHint">Select all legislative routes that apply.</p>
                     </div>
 
-                    <div
-                        class="form-group"
-                        id="actionEnforcementTimelineOtherGroup"
-                        ${enforcementTimelineValue === 'Other' ? '' : 'hidden'}
-                    >
-                        <label class="form-label" for="actionEnforcementTimelineOther">Other Date of Effect *</label>
-                        <input
-                            id="actionEnforcementTimelineOther"
-                            class="form-input"
-                            type="text"
-                            value="${this.escapeHtml(enforcementTimelineIsCustom ? blueAction.enforcementTimeline : '')}"
-                            maxlength="120"
-                        >
-                    </div>
         `;
-
-        content.innerHTML = `
-            <form id="blueActionWizardForm" novalidate>
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
-                    <div>
-                        <p class="text-xs text-gray-500" id="blueActionWizardStepLabel">Page 1 of ${BLUE_ACTION_WIZARD_PAGE_TOTAL}</p>
-                        <h3 class="font-semibold" style="margin: 0;">${this.escapeHtml(this.teamLabel)} Action Builder</h3>
-                        <p class="text-sm text-gray-500" id="blueActionWizardSequenceLabel" style="margin: var(--space-2) 0 0;">${this.escapeHtml(sequenceLabel)}</p>
-                    </div>
-                    <div aria-hidden="true" style="display: flex; gap: var(--space-2);">
-                        ${Array.from({ length: BLUE_ACTION_WIZARD_PAGE_TOTAL }, (_, index) => `
-                            <span
-                                data-blue-action-step="${index}"
-                                style="width: 28px; height: 4px; border-radius: 999px; background: ${index === 0 ? 'var(--color-primary-500)' : 'var(--color-gray-200)'};"
-                            ></span>
-                        `).join('')}
-                    </div>
-                </div>
-
-                <section data-blue-action-page="0">
-                    <div class="section-grid section-grid-2">
-                        <div class="form-group">
-                            <label class="form-label" for="actionTitle">Action Title *</label>
-                            <input
-                                id="actionTitle"
-                                class="form-input"
-                                type="text"
-                                value="${this.escapeHtml(actionTitle)}"
-                                maxlength="200"
-                            >
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="actionInstrument">Instrument of Power *</label>
-                            <select
-                                id="actionInstrument"
-                                class="form-select"
-                                data-blue-action-other-target="actionInstrumentOther"
-                            >
-                                ${renderOptions(BLUE_ACTION_INSTRUMENTS, instrumentValue, 'Select instrument')}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div
-                        class="form-group"
-                        id="actionInstrumentOtherGroup"
-                        ${instrumentValue === 'Other' ? '' : 'hidden'}
-                    >
-                        <label class="form-label" for="actionInstrumentOther">Other Instrument of Power *</label>
-                        <input
-                            id="actionInstrumentOther"
-                            class="form-input"
-                            type="text"
-                            value="${this.escapeHtml(instrumentIsCustom ? blueAction.instrumentOfPower : '')}"
-                            maxlength="120"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="actionObjective">Objective *</label>
-                        <textarea
-                            id="actionObjective"
-                            class="form-input form-textarea"
-                            rows="4"
-                            aria-describedby="actionObjectiveHint"
-                        >${this.escapeHtml(blueAction.objective)}</textarea>
-                        <p class="form-hint" id="actionObjectiveHint">${this.escapeHtml(objectiveHintText)}</p>
-                    </div>
-                </section>
-
-                <section data-blue-action-page="1" hidden>
-                    <div class="form-group">
-                        <span class="form-label" id="actionSectorsLabel">Sectors *</span>
-                        <div
-                            class="form-check-grid"
-                            role="group"
-                            aria-labelledby="actionSectorsLabel"
-                            aria-describedby="actionSectorsHint"
-                        >
-                            ${renderCheckboxOptions({
-                                values: BLUE_ACTION_SECTORS,
-                                selectedValues: selectedSectorValues,
-                                dataAttribute: 'data-blue-action-checkbox',
-                                group: 'sector',
-                                idPrefix: 'actionBlueSector'
-                            })}
-                        </div>
-                        <p class="form-hint" id="actionSectorsHint">Select one or more sectors.</p>
-                    </div>
-
-                    <div
-                        class="form-group"
-                        id="actionBlueSectorOtherGroup"
-                        ${selectedSectorValues.includes('Other') ? '' : 'hidden'}
-                    >
-                        <label class="form-label" for="actionBlueSectorOtherInput">Other Sector *</label>
-                        <input
-                            id="actionBlueSectorOtherInput"
-                            class="form-input"
-                            type="text"
-                            value="${this.escapeHtml(customSectorValue)}"
-                            maxlength="120"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <span class="form-label" id="actionSupplyChainFocusLabel">Supply Chain Focus *</span>
-                        <div
-                            class="form-check-grid"
-                            role="group"
-                            aria-labelledby="actionSupplyChainFocusLabel"
-                            aria-describedby="actionSupplyChainFocusHint"
-                        >
-                            ${renderCheckboxOptions({
-                                values: BLUE_ACTION_SUPPLY_CHAIN_FOCUS,
-                                selectedValues: selectedSupplyChainFocusValues,
-                                dataAttribute: 'data-blue-action-checkbox',
-                                group: 'supply-chain-focus',
-                                idPrefix: 'actionSupplyChainFocus'
-                            })}
-                        </div>
-                        <p class="form-hint" id="actionSupplyChainFocusHint">Select one or more supply chain focus areas.</p>
-                    </div>
-
-                    ${implementationAndTimelineFieldsMarkup}
-
+        const focusCountriesAndOutcomesMarkup = `
                     <div class="form-group">
                         <span class="form-label" id="actionFocusCountriesLabel">Focus Countries *</span>
                         <div
@@ -3907,7 +3683,233 @@ export class FacilitatorController {
                         >${this.escapeHtml(action.expected_outcomes || '')}</textarea>
                         <p class="form-hint" id="actionExpectedOutcomesHint">What you anticipate will actually happen as a result, including effects you don't control.</p>
                     </div>
+        `;
+
+        content.innerHTML = `
+            <form id="blueActionWizardForm" novalidate>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+                    <div>
+                        <p class="text-xs text-gray-500" id="blueActionWizardStepLabel">Page 1 of ${wizardPageTotal}</p>
+                        <h3 class="font-semibold" style="margin: 0;">${this.escapeHtml(this.teamLabel)} Action Builder</h3>
+                        <p class="text-sm text-gray-500" id="blueActionWizardSequenceLabel" style="margin: var(--space-2) 0 0;">${this.escapeHtml(sequenceLabel)}</p>
+                    </div>
+                    <div aria-hidden="true" style="display: flex; gap: var(--space-2);">
+                        ${Array.from({ length: wizardPageTotal }, (_, index) => `
+                            <span
+                                data-blue-action-step="${index}"
+                                style="width: 28px; height: 4px; border-radius: 999px; background: ${index === 0 ? 'var(--color-primary-500)' : 'var(--color-gray-200)'};"
+                            ></span>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <section data-blue-action-page="0">
+                    <div class="action-builder-field-stack">
+                        <div class="form-group">
+                            <label class="form-label" for="actionTitle">Action Title *</label>
+                            <input
+                                id="actionTitle"
+                                class="form-input"
+                                type="text"
+                                value="${this.escapeHtml(actionTitle)}"
+                                maxlength="200"
+                            >
+                        </div>
+                        <div class="form-group">
+                            <span class="form-label" id="actionInstrumentsLabel">Instrument of Power *</span>
+                            <div
+                                class="form-check-grid"
+                                role="group"
+                                aria-labelledby="actionInstrumentsLabel"
+                                aria-describedby="actionInstrumentsHint"
+                            >
+                                ${renderCheckboxOptions({
+                                    values: instrumentOptions,
+                                    selectedValues: selectedInstrumentValues,
+                                    dataAttribute: 'data-blue-action-checkbox',
+                                    group: 'instrument',
+                                    idPrefix: 'actionBlueInstrument'
+                                })}
+                            </div>
+                            <p class="form-hint" id="actionInstrumentsHint">Select one or more instruments of power.</p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="form-group"
+                        id="actionInstrumentOtherGroup"
+                        ${selectedInstrumentValues.includes('Other') ? '' : 'hidden'}
+                    >
+                        <label class="form-label" for="actionInstrumentOther">Other Instrument of Power *</label>
+                        <input
+                            id="actionInstrumentOther"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(customInstrumentValue)}"
+                            maxlength="120"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="actionObjective">Objective *</label>
+                        <textarea
+                            id="actionObjective"
+                            class="form-input form-textarea"
+                            rows="4"
+                            aria-describedby="actionObjectiveHint"
+                        >${this.escapeHtml(blueAction.objective)}</textarea>
+                        <p class="form-hint" id="actionObjectiveHint">${this.escapeHtml(objectiveHintText)}</p>
+                    </div>
                 </section>
+
+                <section data-blue-action-page="1" hidden>
+                    ${isRedTeamActionWizard ? `
+                        <div class="form-group">
+                            <span class="form-label" id="actionSupplyChainFocusLabel">Supply Chain Focus *</span>
+                            <div
+                                class="form-check-grid"
+                                role="group"
+                                aria-labelledby="actionSupplyChainFocusLabel"
+                                aria-describedby="actionSupplyChainFocusHint"
+                            >
+                                ${renderCheckboxOptions({
+                                    values: BLUE_ACTION_SUPPLY_CHAIN_FOCUS,
+                                    selectedValues: selectedSupplyChainFocusValues,
+                                    dataAttribute: 'data-blue-action-checkbox',
+                                    group: 'supply-chain-focus',
+                                    idPrefix: 'actionSupplyChainFocus'
+                                })}
+                            </div>
+                            <p class="form-hint" id="actionSupplyChainFocusHint">Select one or more supply chain focus areas.</p>
+                        </div>
+                    ` : `
+                        <div class="form-group">
+                            <span class="form-label" id="actionHasSupplyChainFocusLabel">Does this action have a supply chain focus? *</span>
+                            <div
+                                class="form-check-grid"
+                                role="radiogroup"
+                                aria-labelledby="actionHasSupplyChainFocusLabel"
+                                aria-describedby="actionHasSupplyChainFocusHint"
+                                aria-required="true"
+                            >
+                                <label class="form-check form-check-card" for="actionHasSupplyChainFocusYes">
+                                    <input
+                                        id="actionHasSupplyChainFocusYes"
+                                        class="form-radio"
+                                        type="radio"
+                                        name="actionHasSupplyChainFocus"
+                                        value="Yes"
+                                        aria-controls="actionSupplyChainFocusDetails"
+                                        ${supplyChainFocusDecision === 'Yes' ? 'checked' : ''}
+                                    >
+                                    <span class="form-check-label">Yes</span>
+                                </label>
+                                <label class="form-check form-check-card" for="actionHasSupplyChainFocusNo">
+                                    <input
+                                        id="actionHasSupplyChainFocusNo"
+                                        class="form-radio"
+                                        type="radio"
+                                        name="actionHasSupplyChainFocus"
+                                        value="No"
+                                        aria-controls="actionSupplyChainFocusDetails"
+                                        ${supplyChainFocusDecision === 'No' ? 'checked' : ''}
+                                    >
+                                    <span class="form-check-label">No</span>
+                                </label>
+                            </div>
+                            <p class="form-hint" id="actionHasSupplyChainFocusHint">Select Yes or No.</p>
+                        </div>
+
+                        <div
+                            id="actionSupplyChainFocusDetails"
+                            aria-live="polite"
+                            ${supplyChainFocusDecision === 'Yes' ? '' : 'hidden'}
+                        >
+                            <div class="form-group">
+                                <span class="form-label" id="actionSupplyChainAngleLabel">Action Angle *</span>
+                                <div
+                                    class="form-check-grid"
+                                    role="group"
+                                    aria-labelledby="actionSupplyChainAngleLabel"
+                                    aria-describedby="actionSupplyChainAngleHint"
+                                    aria-required="true"
+                                >
+                                    ${renderCheckboxOptions({
+                                        values: BLUE_ACTION_SUPPLY_CHAIN_ANGLES,
+                                        selectedValues: selectedSupplyChainActionAngleValues,
+                                        dataAttribute: 'data-blue-action-checkbox',
+                                        group: 'supply-chain-angle',
+                                        idPrefix: 'actionSupplyChainAngle'
+                                    })}
+                                </div>
+                                <p class="form-hint" id="actionSupplyChainAngleHint">Select one or more action angles.</p>
+                            </div>
+
+                            <div class="form-group">
+                                <span class="form-label" id="actionSupplyChainAreaLabel">Supply Chain Area *</span>
+                                <div
+                                    class="form-check-grid"
+                                    role="group"
+                                    aria-labelledby="actionSupplyChainAreaLabel"
+                                    aria-describedby="actionSupplyChainAreaHint"
+                                    aria-required="true"
+                                >
+                                    ${renderCheckboxOptions({
+                                        values: BLUE_ACTION_SUPPLY_CHAIN_AREAS,
+                                        selectedValues: selectedSupplyChainAreaValues,
+                                        dataAttribute: 'data-blue-action-checkbox',
+                                        group: 'supply-chain-area',
+                                        idPrefix: 'actionSupplyChainArea'
+                                    })}
+                                </div>
+                                <p class="form-hint" id="actionSupplyChainAreaHint">Select one or more supply chain areas.</p>
+                            </div>
+                        </div>
+                    `}
+
+                    <div class="form-group">
+                        <span class="form-label" id="actionSectorsLabel">Sectors *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="actionSectorsLabel"
+                            aria-describedby="actionSectorsHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_SECTORS,
+                                selectedValues: selectedSectorValues,
+                                dataAttribute: 'data-blue-action-checkbox',
+                                group: 'sector',
+                                idPrefix: 'actionBlueSector'
+                            })}
+                        </div>
+                        <p class="form-hint" id="actionSectorsHint">Select one or more sectors.</p>
+                    </div>
+
+                    <div
+                        class="form-group"
+                        id="actionBlueSectorOtherGroup"
+                        ${selectedSectorValues.includes('Other') ? '' : 'hidden'}
+                    >
+                        <label class="form-label" for="actionBlueSectorOtherInput">Other Sector *</label>
+                        <input
+                            id="actionBlueSectorOtherInput"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(customSectorValue)}"
+                            maxlength="120"
+                        >
+                    </div>
+
+                    ${isRedTeamActionWizard ? focusCountriesAndOutcomesMarkup : ''}
+                </section>
+
+                ${isRedTeamActionWizard ? '' : `
+                    <section data-blue-action-page="2" hidden>
+                        ${implementationFieldMarkup}
+                        ${focusCountriesAndOutcomesMarkup}
+                    </section>
+                `}
 
                 <div style="display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
                     <button type="button" class="btn btn-secondary" data-blue-action-nav="cancel">Cancel</button>
@@ -3930,6 +3932,7 @@ export class FacilitatorController {
             form.dataset.blueActionLevers = JSON.stringify(selectedLeverValues);
             form.dataset.blueActionCoordinated = JSON.stringify(blueAction.coordinated || []);
             form.dataset.blueActionInformed = JSON.stringify(blueAction.informed || []);
+            form.dataset.blueActionEnforcementTimeline = blueAction.enforcementTimeline || '';
         }
 
         return content;
@@ -3938,6 +3941,7 @@ export class FacilitatorController {
     bindBlueActionWizard(content, modal, { actionId = null, sequenceContext = null } = {}) {
         const form = content.querySelector('#blueActionWizardForm');
         const pages = Array.from(content.querySelectorAll('[data-blue-action-page]'));
+        const wizardPageTotal = pages.length || this.getBlueActionWizardPageTotal();
         const stepLabel = content.querySelector('#blueActionWizardStepLabel');
         const sequenceLabel = content.querySelector('#blueActionWizardSequenceLabel');
         const progressSteps = Array.from(content.querySelectorAll('[data-blue-action-step]'));
@@ -3980,7 +3984,7 @@ export class FacilitatorController {
             });
 
             if (stepLabel) {
-                stepLabel.textContent = `Page ${currentPage + 1} of ${BLUE_ACTION_WIZARD_PAGE_TOTAL}`;
+                stepLabel.textContent = `Page ${currentPage + 1} of ${wizardPageTotal}`;
             }
 
             if (sequenceLabel && sequenceContext?.label) {
@@ -3992,7 +3996,7 @@ export class FacilitatorController {
             }
 
             if (nextButton) {
-                nextButton.hidden = currentPage === BLUE_ACTION_WIZARD_PAGE_TOTAL - 1;
+                nextButton.hidden = currentPage === wizardPageTotal - 1;
             }
 
             if (saveDraftButton) {
@@ -4000,7 +4004,7 @@ export class FacilitatorController {
             }
 
             if (submitButton) {
-                submitButton.hidden = currentPage !== BLUE_ACTION_WIZARD_PAGE_TOTAL - 1;
+                submitButton.hidden = currentPage !== wizardPageTotal - 1;
             }
 
             if (saveChangesButton) {
@@ -4038,6 +4042,41 @@ export class FacilitatorController {
             }
         };
 
+        const updateInstrumentOtherField = () => {
+            const input = form.querySelector('#actionInstrumentOther');
+            const group = form.querySelector('#actionInstrumentOtherGroup');
+            const showOther = Boolean(form.querySelector('#actionBlueInstrumentOther')?.checked);
+
+            if (group) {
+                group.hidden = !showOther;
+            }
+
+            if (input && !showOther) {
+                input.value = '';
+            }
+        };
+
+        const updateSupplyChainFocusDetails = () => {
+            const details = form.querySelector('#actionSupplyChainFocusDetails');
+            const hasSupplyChainFocus = form.querySelector('#actionHasSupplyChainFocusYes')?.checked === true;
+
+            if (details) {
+                details.hidden = !hasSupplyChainFocus;
+            }
+
+            form.querySelectorAll('[name="actionHasSupplyChainFocus"]').forEach((radio) => {
+                radio.setAttribute('aria-expanded', String(radio.value === 'Yes' && hasSupplyChainFocus));
+            });
+
+            if (!hasSupplyChainFocus) {
+                form.querySelectorAll(
+                    '[data-blue-action-checkbox="supply-chain-angle"], [data-blue-action-checkbox="supply-chain-area"]'
+                ).forEach((checkbox) => {
+                    checkbox.checked = false;
+                });
+            }
+        };
+
         const updateImplementationDependentFields = () => {
             updateOtherField('actionImplementation', 'actionImplementationOther', 'actionImplementationOtherGroup');
 
@@ -4061,16 +4100,15 @@ export class FacilitatorController {
         form.querySelectorAll('[data-blue-action-checkbox="country"]').forEach((checkbox) => {
             checkbox.addEventListener('change', updateFocusCountryOtherField);
         });
-        form.querySelector('#actionInstrument')?.addEventListener('change', () => {
-            updateOtherField('actionInstrument', 'actionInstrumentOther', 'actionInstrumentOtherGroup');
+        form.querySelectorAll('[data-blue-action-checkbox="instrument"]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateInstrumentOtherField);
+        });
+        form.querySelectorAll('[name="actionHasSupplyChainFocus"]').forEach((radio) => {
+            radio.addEventListener('change', updateSupplyChainFocusDetails);
         });
         form.querySelector('#actionImplementation')?.addEventListener('change', () => {
             updateImplementationDependentFields();
         });
-        form.querySelector('#actionEnforcementTimeline')?.addEventListener('change', () => {
-            updateOtherField('actionEnforcementTimeline', 'actionEnforcementTimelineOther', 'actionEnforcementTimelineOtherGroup');
-        });
-
         content.querySelector('[data-blue-action-nav="cancel"]')?.addEventListener('click', () => {
             modal?.close();
         });
@@ -4088,7 +4126,7 @@ export class FacilitatorController {
                 return;
             }
 
-            currentPage = Math.min(BLUE_ACTION_WIZARD_PAGE_TOTAL - 1, currentPage + 1);
+            currentPage = Math.min(wizardPageTotal - 1, currentPage + 1);
             renderPage();
         });
 
@@ -4110,6 +4148,7 @@ export class FacilitatorController {
             });
         });
 
+        updateSupplyChainFocusDetails();
         renderPage();
     }
 
@@ -4137,7 +4176,29 @@ export class FacilitatorController {
             storedInformed = [];
         }
         const selectedSectorValues = getCheckedValues(form, '[data-blue-action-checkbox="sector"]');
-        const supplyChainFocuses = getCheckedValues(form, '[data-blue-action-checkbox="supply-chain-focus"]');
+        let selectedInstrumentValues = getCheckedValues(form, '[data-blue-action-checkbox="instrument"]');
+        const legacySupplyChainFocuses = getCheckedValues(form, '[data-blue-action-checkbox="supply-chain-focus"]');
+        const selectedSupplyChainActionAngles = isRedTeamActionWizard
+            ? []
+            : getCheckedValues(form, '[data-blue-action-checkbox="supply-chain-angle"]');
+        const selectedSupplyChainAreas = isRedTeamActionWizard
+            ? legacySupplyChainFocuses
+            : getCheckedValues(form, '[data-blue-action-checkbox="supply-chain-area"]');
+        const selectedSupplyChainDecision = isRedTeamActionWizard
+            ? (legacySupplyChainFocuses.length ? 'Yes' : '')
+            : (
+                form.querySelector('[name="actionHasSupplyChainFocus"]:checked')?.value
+                || (selectedSupplyChainActionAngles.length || selectedSupplyChainAreas.length ? 'Yes' : '')
+            );
+        const supplyChainActionAngles = selectedSupplyChainDecision === 'Yes'
+            ? selectedSupplyChainActionAngles
+            : [];
+        const supplyChainAreas = selectedSupplyChainDecision === 'Yes'
+            ? selectedSupplyChainAreas
+            : [];
+        const supplyChainFocuses = isRedTeamActionWizard
+            ? legacySupplyChainFocuses
+            : supplyChainAreas;
         const selectedLegislativeOptions = getCheckedValues(form, '[data-blue-action-checkbox="legislative"]');
         const selectedFocusCountryValues = getCheckedValues(form, '[data-blue-action-checkbox="country"]');
         const coordinatedControlsExist = Boolean(form?.querySelector?.('[data-blue-action-checkbox="coordinated"]'));
@@ -4149,22 +4210,19 @@ export class FacilitatorController {
             ? getCheckedValues(form, '[data-blue-action-checkbox="informed"]')
             : storedInformed;
 
-        const instrumentSelectValue = form.querySelector('#actionInstrument')?.value || '';
+        const legacyInstrumentSelectValue = form.querySelector('#actionInstrument')?.value || '';
+        if (!selectedInstrumentValues.length && legacyInstrumentSelectValue) {
+            selectedInstrumentValues = [legacyInstrumentSelectValue];
+        }
         const instrumentOther = form.querySelector('#actionInstrumentOther')?.value?.trim() || '';
         const implementationSelectValue = isRedTeamActionWizard
             ? ''
             : (form.querySelector('#actionImplementation')?.value || '');
-        const enforcementTimelineSelectValue = isRedTeamActionWizard
-            ? ''
-            : (form.querySelector('#actionEnforcementTimeline')?.value || '');
         const sectorOther = form.querySelector('#actionBlueSectorOtherInput')?.value?.trim() || '';
         const focusCountryOther = form.querySelector('#actionFocusCountryOtherInput')?.value?.trim() || '';
         const implementationOther = isRedTeamActionWizard
             ? ''
             : (form.querySelector('#actionImplementationOther')?.value?.trim() || '');
-        const enforcementTimelineOther = isRedTeamActionWizard
-            ? ''
-            : (form.querySelector('#actionEnforcementTimelineOther')?.value?.trim() || '');
         const sectors = [
             ...selectedSectorValues.filter((value) => value !== 'Other'),
             ...(selectedSectorValues.includes('Other') && sectorOther ? [sectorOther] : [])
@@ -4173,12 +4231,18 @@ export class FacilitatorController {
             ...selectedFocusCountryValues.filter((value) => value !== 'Other'),
             ...(selectedFocusCountryValues.includes('Other') && focusCountryOther ? [focusCountryOther] : [])
         ];
+        const instruments = [
+            ...selectedInstrumentValues.filter((value) => value !== 'Other'),
+            ...(selectedInstrumentValues.includes('Other') && instrumentOther ? [instrumentOther] : [])
+        ];
 
         return {
             actionTitle: form.querySelector('#actionTitle')?.value?.trim() || '',
             objective: form.querySelector('#actionObjective')?.value?.trim() || '',
-            instrumentOfPower: instrumentSelectValue === 'Other' ? instrumentOther : instrumentSelectValue,
-            instrumentSelectValue,
+            instrumentOfPower: instruments[0] || '',
+            instruments,
+            selectedInstrumentValues,
+            instrumentSelectValue: selectedInstrumentValues[0] || '',
             instrumentOther,
             lever: storedLevers[0] || '',
             levers: storedLevers,
@@ -4188,6 +4252,10 @@ export class FacilitatorController {
             sectorOther,
             selectedFocusCountryValues,
             focusCountryOther,
+            supplyChainFocusDecision: selectedSupplyChainDecision,
+            supplyChainActionAngles,
+            supplyChainArea: supplyChainAreas[0] || '',
+            supplyChainAreas,
             supplyChainFocus: supplyChainFocuses[0] || '',
             supplyChainFocuses,
             implementation: implementationSelectValue === 'Other' ? implementationOther : implementationSelectValue,
@@ -4197,11 +4265,7 @@ export class FacilitatorController {
                 ? []
                 : (implementationSelectValue === 'Legislative' ? selectedLegislativeOptions : []),
             focusCountries,
-            enforcementTimeline: enforcementTimelineSelectValue === 'Other'
-                ? enforcementTimelineOther
-                : enforcementTimelineSelectValue,
-            enforcementTimelineSelectValue,
-            enforcementTimelineOther,
+            enforcementTimeline: form?.dataset?.blueActionEnforcementTimeline || '',
             expectedOutcomes: form.querySelector('#actionExpectedOutcomes')?.value?.trim() || '',
             coordinated,
             informed
@@ -4213,30 +4277,33 @@ export class FacilitatorController {
             wizardData.actionTitle
             || wizardData.objective
             || wizardData.instrumentOfPower
+            || wizardData.instruments?.length
+            || wizardData.selectedInstrumentValues?.length
             || wizardData.instrumentSelectValue
             || wizardData.instrumentOther
             || wizardData.sectors.length
             || wizardData.sectorOther
             || wizardData.focusCountryOther
+            || wizardData.supplyChainFocusDecision
+            || wizardData.supplyChainActionAngles?.length
+            || wizardData.supplyChainAreas?.length
             || wizardData.supplyChainFocuses.length
             || wizardData.implementation
             || wizardData.implementationOther
             || wizardData.legislativeOptions.length
             || wizardData.focusCountries.length
-            || wizardData.enforcementTimeline
-            || wizardData.enforcementTimelineOther
             || wizardData.expectedOutcomes
         );
     }
 
-    getBlueActionDraftSaveValidationError(wizardData, currentPage = BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
+    getBlueActionDraftSaveValidationError(wizardData, currentPage = this.getBlueActionWizardPageTotal() - 1) {
         if (!this.hasBlueActionDraftContent(wizardData)) {
             return 'Add at least one action detail before saving a draft.';
         }
 
         const normalizedCurrentPage = Math.max(
             0,
-            Math.min(currentPage, BLUE_ACTION_WIZARD_PAGE_TOTAL - 1)
+            Math.min(currentPage, this.getBlueActionWizardPageTotal() - 1)
         );
 
         if (normalizedCurrentPage <= 0) {
@@ -4261,18 +4328,34 @@ export class FacilitatorController {
         if (pageIndex === 0) {
             if (!wizardData.actionTitle) return 'Action Title is required.';
             if (!wizardData.objective) return 'Objective is required.';
-            if (!wizardData.instrumentSelectValue) return 'Instrument of Power is required.';
-            if (wizardData.instrumentSelectValue === 'Other' && !wizardData.instrumentOther) {
+            const selectedInstrumentValues = wizardData.selectedInstrumentValues?.length
+                ? wizardData.selectedInstrumentValues
+                : (wizardData.instrumentSelectValue ? [wizardData.instrumentSelectValue] : []);
+            if (!selectedInstrumentValues.length) return 'Select at least one instrument of power.';
+            if (selectedInstrumentValues.includes('Other') && !wizardData.instrumentOther) {
                 return 'Please enter the custom instrument of power.';
             }
         }
 
         if (pageIndex === 1) {
+            if (isRedTeamActionWizard) {
+                if (!wizardData.supplyChainFocuses.length) return 'Select at least one supply chain focus.';
+            } else {
+                if (!wizardData.supplyChainFocusDecision) {
+                    return 'Select Yes or No for the supply chain focus question.';
+                }
+                if (wizardData.supplyChainFocusDecision === 'Yes') {
+                    if (!wizardData.supplyChainActionAngles?.length) return 'Select at least one action angle.';
+                    if (!wizardData.supplyChainAreas?.length) return 'Select at least one supply chain area.';
+                }
+            }
             if (!wizardData.selectedSectorValues.length) return 'Select at least one sector.';
             if (wizardData.selectedSectorValues.includes('Other') && !wizardData.sectorOther) {
                 return 'Please enter the custom sector.';
             }
-            if (!wizardData.supplyChainFocuses.length) return 'Select at least one supply chain focus.';
+        }
+
+        if ((isRedTeamActionWizard && pageIndex === 1) || (!isRedTeamActionWizard && pageIndex === 2)) {
             if (!wizardData.selectedFocusCountryValues.length) return 'Select at least one focus country.';
             if (wizardData.selectedFocusCountryValues.includes('Other') && !wizardData.focusCountryOther) {
                 return 'Please enter the custom focus country.';
@@ -4281,10 +4364,6 @@ export class FacilitatorController {
                 if (!wizardData.implementationSelectValue) return 'Implementation is required.';
                 if (wizardData.implementationSelectValue === 'Other' && !wizardData.implementationOther) {
                     return 'Please enter the custom implementation.';
-                }
-                if (!wizardData.enforcementTimelineSelectValue) return 'Date of Effect is required.';
-                if (wizardData.enforcementTimelineSelectValue === 'Other' && !wizardData.enforcementTimelineOther) {
-                    return 'Please enter the custom date of effect.';
                 }
             }
             if (!wizardData.expectedOutcomes) return 'Expected Outcomes is required.';
@@ -4300,14 +4379,18 @@ export class FacilitatorController {
             goal: wizardData.actionTitle,
             mechanism: wizardData.instrumentOfPower,
             sector: wizardData.sector,
-            exposure_type: wizardData.supplyChainFocus,
+            exposure_type: wizardData.supplyChainArea || wizardData.supplyChainFocus || null,
             priority: 'NORMAL',
             targets: wizardData.focusCountries,
             expected_outcomes: wizardData.expectedOutcomes,
             ally_contingencies: serializeBlueActionDetails({
                 objective: wizardData.objective,
+                instruments: wizardData.instruments,
                 levers: wizardData.levers,
                 sectors: wizardData.sectors,
+                supplyChainFocusDecision: wizardData.supplyChainFocusDecision,
+                supplyChainActionAngles: wizardData.supplyChainActionAngles,
+                supplyChainAreas: wizardData.supplyChainAreas,
                 supplyChainFocuses: wizardData.supplyChainFocuses,
                 implementation: wizardData.implementation,
                 legislativeOptions: wizardData.legislativeOptions,
@@ -4328,8 +4411,13 @@ export class FacilitatorController {
         return {
             ally_contingencies: serializeBlueActionDetails({
                 objective: actionViewModel.objective,
+                instruments: actionViewModel.instruments,
                 levers: actionViewModel.levers,
                 sectors: actionViewModel.sectors,
+                supplyChainFocusDecision: actionViewModel.supplyChainFocusDecision,
+                supplyChainActionAngles: actionViewModel.supplyChainActionAngles,
+                supplyChainAreas: actionViewModel.supplyChainAreas,
+                supplyChainFocuses: actionViewModel.supplyChainFocuses,
                 implementation: actionViewModel.implementation,
                 legislativeOptions: actionViewModel.legislativeOptions,
                 enforcementTimeline: actionViewModel.enforcementTimeline,
@@ -4342,7 +4430,7 @@ export class FacilitatorController {
         };
     }
 
-    async saveBlueActionDraft(modal, form, currentPage = BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
+    async saveBlueActionDraft(modal, form, currentPage = this.getBlueActionWizardPageTotal() - 1) {
         if (!this.requireWriteAccess()) return;
 
         const wizardData = this.getBlueActionWizardData(form);
@@ -4403,7 +4491,7 @@ export class FacilitatorController {
         }
     }
 
-    async saveBlueActionChanges(modal, form, actionId, currentPage = BLUE_ACTION_WIZARD_PAGE_TOTAL - 1) {
+    async saveBlueActionChanges(modal, form, actionId, currentPage = this.getBlueActionWizardPageTotal() - 1) {
         if (!this.requireWriteAccess()) return;
 
         const wizardData = this.getBlueActionWizardData(form);
@@ -4446,13 +4534,15 @@ export class FacilitatorController {
         if (!this.requireWriteAccess()) return;
 
         const wizardData = this.getBlueActionWizardData(form);
-        const pageZeroError = this.validateBlueActionWizardPage(wizardData, 0);
-        const pageOneError = this.validateBlueActionWizardPage(wizardData, 1);
+        const validationError = Array.from(
+            { length: this.getBlueActionWizardPageTotal() },
+            (_, pageIndex) => this.validateBlueActionWizardPage(wizardData, pageIndex)
+        ).find(Boolean);
         const sessionId = sessionStore.getSessionId();
         const sequenceContext = this.getBlueActionSequenceContext();
 
-        if (pageZeroError || pageOneError) {
-            showToast({ message: pageZeroError || pageOneError, type: 'error' });
+        if (validationError) {
+            showToast({ message: validationError, type: 'error' });
             return;
         }
 
@@ -5503,6 +5593,7 @@ const facilitatorController = new FacilitatorController();
 
 const shouldAutoInitFacilitator = typeof document !== 'undefined' &&
     typeof window !== 'undefined' &&
+    document.body?.dataset?.roleSurface !== 'scribe' &&
     !globalThis.__ESG_DISABLE_AUTO_INIT__;
 
 if (shouldAutoInitFacilitator) {

@@ -878,6 +878,72 @@
     letter-spacing: var(--tracking-wide);
 }
 
+.entity-card__toggle-state {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    align-self: center;
+}
+
+/* Exercise-order grouping for the facilitator submission list. */
+.action-sequence-list {
+    display: grid;
+    gap: var(--space-6);
+}
+
+.action-sequence-group {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.action-sequence-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: var(--border-width) solid var(--color-border-light);
+}
+
+.action-sequence-heading {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
+}
+
+.action-sequence-context,
+.action-sequence-overflow {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+}
+
+.action-sequence-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--space-6);
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+}
+
+.action-sequence-group .entity-card {
+    margin-bottom: 0;
+}
+
+.badge:not(.badge-dot):not(.badge-count).badge-source-team::before {
+    content: none;
+}
+
 /* Lead summary — the one-line "what is this" */
 .card-summary {
     font-size: var(--text-md);

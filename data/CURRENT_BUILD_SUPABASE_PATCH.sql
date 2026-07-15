@@ -1,6 +1,8 @@
 -- ESG Simulation Platform
 -- Current Build Supabase Patch
--- Apply this after data/COMPLETE_SCHEMA.sql
+-- Apply only through the ordered hardening path in docs/supabase-setup.md.
+-- This compatibility patch is not a replacement for dated RLS, role,
+-- workflow-integrity, research, plugin, or storage migrations.
 --
 -- Purpose:
 -- 1) Align the schema with the currently shipped frontend build.

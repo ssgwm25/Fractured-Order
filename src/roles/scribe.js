@@ -4,16 +4,13 @@ import { timelineStore } from '../stores/timeline.js';
 import { communicationsStore } from '../stores/communications.js';
 import { database } from '../services/database.js';
 import { createLogger } from '../utils/logger.js';
-import { formatDateTime, formatRelativeTime, formatStatus } from '../utils/formatting.js';
+import { formatRelativeTime, formatStatus } from '../utils/formatting.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { confirmModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
-import { createOutcomeBadge, createPriorityBadge, createStatusBadge } from '../components/ui/Badge.js';
 import {
-    ENUMS,
-    getPhaseLabel,
     isAdjudicatedAction,
     isDraftAction,
     isSubmittedAction
@@ -341,18 +338,14 @@ function getLiveSlideTypeClass(slide = {}) {
     return slide.slideType !== 'image' ? ' is-action' : '';
 }
 
-function normalizeComparableText(value = '') {
-    return String(value || '')
+function hasDistinctActionText(primary = '', secondary = '') {
+    const normalizeText = (value) => String(value || '')
         .replace(/\s+/g, ' ')
         .trim()
         .toLowerCase();
-}
+    const normalizedSecondary = normalizeText(secondary);
 
-function hasDistinctActionText(primary = '', secondary = '') {
-    const normalizedPrimary = normalizeComparableText(primary);
-    const normalizedSecondary = normalizeComparableText(secondary);
-
-    return Boolean(normalizedSecondary) && normalizedPrimary !== normalizedSecondary;
+    return Boolean(normalizedSecondary) && normalizeText(primary) !== normalizedSecondary;
 }
 
 function renderActionSlideGlanceCard({
@@ -366,18 +359,6 @@ function renderActionSlideGlanceCard({
             <p class="scribe-action-slide-glance-value">${escapeHtml(value)}</p>
             ${support ? `<p class="scribe-action-slide-glance-support">${escapeHtml(support)}</p>` : ''}
         </article>
-    `;
-}
-
-function renderActionSlideDataRow({
-    label = '',
-    value = ''
-} = {}) {
-    return `
-        <div class="scribe-action-slide-data-row">
-            <dt>${escapeHtml(label)}</dt>
-            <dd>${escapeHtml(value)}</dd>
-        </div>
     `;
 }
 
@@ -468,6 +449,42 @@ function renderScribeActionCheckboxes({
             </label>
         `;
     }).join('');
+}
+
+function renderPresentationBinaryChoice({
+    actionId = '',
+    group = '',
+    label = '',
+    decision = '',
+    disabled = false
+} = {}) {
+    const normalizedDecision = normalizeScribeDecision(decision);
+    const groupLabelId = buildScribeControlId(actionId, `presentation-${group}`, 'label');
+
+    return `
+        <div class="scribe-presentation-toolbar-choice">
+            <span id="${escapeHtml(groupLabelId)}" class="scribe-presentation-toolbar-choice-label">${escapeHtml(label)}</span>
+            <div class="scribe-presentation-toolbar-binary" role="radiogroup" aria-labelledby="${escapeHtml(groupLabelId)}">
+                ${['yes', 'no'].map((value) => {
+        const optionId = buildScribeControlId(actionId, `presentation-${group}`, value);
+        return `
+                    <label for="${escapeHtml(optionId)}">
+                        <input
+                            id="${escapeHtml(optionId)}"
+                            type="radio"
+                            name="scribe-presentation-${escapeHtml(String(actionId || 'action'))}-${escapeHtml(group)}"
+                            value="${value}"
+                            data-scribe-presentation-radio="${escapeHtml(group)}"
+                            ${normalizedDecision === value ? 'checked' : ''}
+                            ${disabled ? 'disabled' : ''}
+                        >
+                        <span>${value === 'yes' ? 'Yes' : 'No'}</span>
+                    </label>
+                `;
+    }).join('')}
+            </div>
+        </div>
+    `;
 }
 
 function buildScribeSubmissionMetadata(selections = {}) {
@@ -567,6 +584,7 @@ export class ScribeController {
         this.activeDeckAssignmentId = null;
         this.currentSlideIndex = 0;
         this.activeSectionIndex = 0;
+        this.lastDeckSlideKey = '';
         this.storeUnsubscribers = [];
         // Navbar activity feed (visible even in presentation mode)
         this.notifications = [];
@@ -579,7 +597,7 @@ export class ScribeController {
         this.actionVisibleById = new Map();
         this.communicationsSeeded = false;
         this.actionsSeeded = false;
-        this.expandedStrategicActionIds = new Set();
+        this.collapsedStrategicActionIds = new Set();
     }
 
     async init() {
@@ -648,8 +666,8 @@ export class ScribeController {
                 },
                 {
                     title: 'Navigate the support deck',
-                    body: 'Use the section rail to jump between briefings, active decisions, and White Cell updates.',
-                    highlight: '#scribeSectionList'
+                    body: 'Switch between Team Action Review and Deck. Returning to Deck restores the support slide you last viewed.',
+                    highlight: '.scribe-view-switch'
                 },
                 {
                     title: 'Watch activity',
@@ -658,7 +676,7 @@ export class ScribeController {
                 },
                 {
                     title: 'Present to the room',
-                    body: 'Use Present when this screen is projected. It hides sidebar chrome and keeps the current slide centered.',
+                    body: 'Use Present when this screen is projected. It hides sidebar chrome, keeps the current slide centered, and adds the facilitator toolbar for editing, coordination, engagement, and White Cell forwarding.',
                     highlight: '#presentBtn'
                 },
                 {
@@ -695,6 +713,14 @@ export class ScribeController {
 
         document.getElementById('nextSlideBtn')?.addEventListener('click', () => {
             this.setSlideByIndex(this.currentSlideIndex + 1);
+        });
+
+        document.getElementById('teamActionReviewViewBtn')?.addEventListener('click', () => {
+            this.setFacilitatorView('actions');
+        });
+
+        document.getElementById('deckViewBtn')?.addEventListener('click', () => {
+            this.setFacilitatorView('deck');
         });
 
         document.getElementById('presentBtn')?.addEventListener('click', () => {
@@ -737,6 +763,12 @@ export class ScribeController {
 
         const actionFrame = document.getElementById('deckActionFrame');
         actionFrame?.addEventListener('change', (event) => {
+            if (event.target.closest('[data-scribe-presentation-radio]')) {
+                const toolbar = event.target.closest('[data-scribe-presentation-toolbar]');
+                this.updatePresentationActionToolbar(toolbar);
+                return;
+            }
+
             if (
                 event.target.closest('[data-scribe-action-radio]')
                 || event.target.closest('[data-scribe-action-checkbox]')
@@ -756,6 +788,14 @@ export class ScribeController {
             if (projectButton) {
                 this.projectScribeAction(projectButton.dataset.actionId || '').catch((error) => {
                     logger.error('Failed to project facilitator action:', error);
+                });
+                return;
+            }
+
+            const editButton = event.target.closest('[data-scribe-action-edit]');
+            if (editButton) {
+                this.editProjectedAction(editButton.dataset.actionId || '').catch((error) => {
+                    logger.error('Failed to open the projected action editor:', error);
                 });
                 return;
             }
@@ -1528,19 +1568,23 @@ export class ScribeController {
             this.activeSectionIndex = resolvedSectionIndex;
         }
 
-        const sectionGroups = {
-            actions: [],
-            deck: []
-        };
+        const sectionGroups = { actions: [] };
 
         this.sections.forEach((section, sectionIndex) => {
-            const sectionKind = section.id === ACTIONS_SECTION_ID ? 'actions' : 'deck';
+            // Keep the assigned support deck in the main viewer, but do not
+            // duplicate its section and slide details in the sidebar.
+            if (section.id !== ACTIONS_SECTION_ID) {
+                return;
+            }
+
+            const sectionKind = 'actions';
             const sectionKey = this.getSectionExpansionKey(section, sectionIndex);
             const isExpanded = this.expandedSectionIds.has(sectionKey);
             const containsCurrentSlide = section.slides.some((slide) => getSlideKey(slide) === currentSlideKey);
             const visibleSlideCount = Number.isFinite(section.slideCount)
                 ? section.slideCount
                 : section.slides.length;
+            const visibleDecisionLabel = visibleSlideCount === 1 ? 'live decision' : 'live decisions';
             const slideGroupId = `scribe-section-${sectionIndex}-slides`;
 
             const slideMarkup = section.slides.map((slide, slideIndex) => {
@@ -1578,7 +1622,7 @@ export class ScribeController {
                         data-section-label="${escapeHtml(section.label)}"
                         aria-controls="${slideGroupId}"
                         aria-expanded="${isExpanded ? 'true' : 'false'}"
-                        aria-label="${escapeHtml(section.label)}, ${visibleSlideCount} slides"
+                        aria-label="${escapeHtml(section.label)}, ${visibleSlideCount} ${visibleDecisionLabel}"
                     >
                         <span class="scribe-section-index" aria-hidden="true">${sectionIndex + 1}</span>
                         <span class="scribe-section-trigger-text">
@@ -1617,10 +1661,7 @@ export class ScribeController {
             `;
         };
 
-        sectionList.innerHTML = [
-            renderRegion('actions', 'Actions', 'Live team decisions'),
-            renderRegion('deck', 'Deck', 'Support slides')
-        ].join('');
+        sectionList.innerHTML = renderRegion('actions', 'Actions', 'Live team decisions');
     }
 
     renderSlide() {
@@ -1647,6 +1688,12 @@ export class ScribeController {
         );
 
         this.activeSectionIndex = activeSectionIndex;
+
+        const activeView = activeSection?.id === ACTIONS_SECTION_ID ? 'actions' : 'deck';
+        if (activeView === 'deck') {
+            this.lastDeckSlideKey = getSlideKey(slide);
+        }
+        this.updateFacilitatorViewSwitch(activeView);
 
         const slideImage = document.getElementById('deckSlideImage');
         const imageFrame = document.getElementById('deckImageFrame');
@@ -1685,7 +1732,7 @@ export class ScribeController {
     }
 
     isStrategicActionCardExpanded(actionId = '') {
-        return this.expandedStrategicActionIds.has(String(actionId || ''));
+        return !this.collapsedStrategicActionIds.has(String(actionId || ''));
     }
 
     toggleStrategicActionCard(actionId = '') {
@@ -1694,13 +1741,240 @@ export class ScribeController {
             return;
         }
 
-        if (this.expandedStrategicActionIds.has(normalizedActionId)) {
-            this.expandedStrategicActionIds.delete(normalizedActionId);
+        if (this.collapsedStrategicActionIds.has(normalizedActionId)) {
+            this.collapsedStrategicActionIds.delete(normalizedActionId);
         } else {
-            this.expandedStrategicActionIds.add(normalizedActionId);
+            this.collapsedStrategicActionIds.add(normalizedActionId);
         }
 
         this.renderSlide();
+    }
+
+    renderPresentationToolbar(action = {}, actionViewModel = getBlueActionViewModel(action)) {
+        const actionId = String(action.id || '');
+        const isOrientation = isStrategicOrientationAction(action);
+        const isEditableDraft = isDraftAction(action);
+        const actionControlsDisabled = isOrientation || !isEditableDraft;
+        const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
+        const informedEngagedDecision = normalizeScribeDecision(actionViewModel.informedEngagedDecision);
+        const coordinatedValues = actionViewModel.coordinated || [];
+        const informedValues = actionViewModel.informed || [];
+        const presentationSelections = {
+            coordinatedDecision,
+            coordinatedLegislativeDecision: coordinatedDecision === 'yes'
+                ? (isScribeOptionSelected('Legislative', coordinatedValues) ? 'yes' : 'no')
+                : (coordinatedDecision === 'no' ? 'no' : ''),
+            coordinatedExecutiveDecision: coordinatedDecision === 'yes'
+                ? (isScribeOptionSelected('Executive', coordinatedValues) ? 'yes' : 'no')
+                : (coordinatedDecision === 'no' ? 'no' : ''),
+            informedIndustryDecision: informedEngagedDecision
+                ? (isScribeOptionSelected('Industry', informedValues) ? 'yes' : 'no')
+                : '',
+            informedAlliesDecision: informedEngagedDecision
+                ? (isScribeOptionSelected('Allies', informedValues) ? 'yes' : 'no')
+                : ''
+        };
+        const isComplete = isOrientation || this.isPresentationActionSelectionsComplete(presentationSelections);
+        const statusId = buildScribeControlId(actionId, 'presentation-toolbar', 'status');
+        const toolbarStatus = !isEditableDraft
+            ? 'Submitted to White Cell.'
+            : (isOrientation
+                ? 'Coordination and engagement apply to action submissions only.'
+                : (isComplete ? 'Ready to forward.' : 'Complete every Yes/No choice to forward.'));
+
+        return `
+            <footer
+                class="scribe-presentation-toolbar"
+                data-scribe-presentation-toolbar
+                data-scribe-action-submit-panel
+                data-action-id="${escapeHtml(actionId)}"
+                aria-label="Facilitator presentation controls"
+            >
+                <div class="scribe-presentation-toolbar-primary">
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        data-scribe-action-edit
+                        data-action-id="${escapeHtml(actionId)}"
+                        ${isEditableDraft ? '' : 'disabled'}
+                    >Edit</button>
+                </div>
+
+                <fieldset class="scribe-presentation-toolbar-group" ${actionControlsDisabled ? 'disabled' : ''}>
+                    <legend>Coordinated</legend>
+                    <div class="scribe-presentation-toolbar-choices">
+                        ${renderPresentationBinaryChoice({
+                actionId,
+                group: 'coordinated',
+                label: 'Coordinated',
+                decision: presentationSelections.coordinatedDecision,
+                disabled: actionControlsDisabled
+            })}
+                        ${renderPresentationBinaryChoice({
+                actionId,
+                group: 'coordinated-legislative',
+                label: 'Legislative',
+                decision: presentationSelections.coordinatedLegislativeDecision,
+                disabled: actionControlsDisabled || coordinatedDecision !== 'yes'
+            })}
+                        ${renderPresentationBinaryChoice({
+                actionId,
+                group: 'coordinated-executive',
+                label: 'Executive',
+                decision: presentationSelections.coordinatedExecutiveDecision,
+                disabled: actionControlsDisabled || coordinatedDecision !== 'yes'
+            })}
+                    </div>
+                </fieldset>
+
+                <fieldset class="scribe-presentation-toolbar-group" ${actionControlsDisabled ? 'disabled' : ''}>
+                    <legend>Informed/Engaged</legend>
+                    <div class="scribe-presentation-toolbar-choices">
+                        ${renderPresentationBinaryChoice({
+                actionId,
+                group: 'informed-industry',
+                label: 'Industry',
+                decision: presentationSelections.informedIndustryDecision,
+                disabled: actionControlsDisabled
+            })}
+                        ${renderPresentationBinaryChoice({
+                actionId,
+                group: 'informed-allies',
+                label: 'Allies',
+                decision: presentationSelections.informedAlliesDecision,
+                disabled: actionControlsDisabled
+            })}
+                    </div>
+                </fieldset>
+
+                <div class="scribe-presentation-toolbar-submit">
+                    <p id="${escapeHtml(statusId)}" class="scribe-presentation-toolbar-status" role="status" aria-live="polite">
+                        ${toolbarStatus}
+                    </p>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-scribe-action-submit
+                        data-action-id="${escapeHtml(actionId)}"
+                        aria-describedby="${escapeHtml(statusId)}"
+                        ${isEditableDraft && isComplete ? '' : 'disabled'}
+                    >Forward to White Cell</button>
+                </div>
+            </footer>
+        `;
+    }
+
+    getPresentationActionSelections(toolbar) {
+        const getDecision = (group) => normalizeScribeDecision(
+            toolbar?.querySelector?.(`[data-scribe-presentation-radio="${group}"]:checked`)?.value
+        );
+        const coordinatedDecision = getDecision('coordinated');
+        const coordinatedLegislativeDecision = getDecision('coordinated-legislative');
+        const coordinatedExecutiveDecision = getDecision('coordinated-executive');
+        const informedIndustryDecision = getDecision('informed-industry');
+        const informedAlliesDecision = getDecision('informed-allies');
+        const informedDecisionsComplete = Boolean(informedIndustryDecision && informedAlliesDecision);
+
+        return {
+            coordinatedDecision,
+            coordinatedLegislativeDecision,
+            coordinatedExecutiveDecision,
+            informedIndustryDecision,
+            informedAlliesDecision,
+            coordinatedValues: coordinatedDecision === 'yes'
+                ? [
+                    ...(coordinatedLegislativeDecision === 'yes' ? ['Legislative'] : []),
+                    ...(coordinatedExecutiveDecision === 'yes' ? ['Executive'] : [])
+                ]
+                : [],
+            informedEngagedDecision: informedDecisionsComplete
+                ? (informedIndustryDecision === 'yes' || informedAlliesDecision === 'yes' ? 'yes' : 'no')
+                : '',
+            informedValues: informedDecisionsComplete
+                ? [
+                    ...(informedIndustryDecision === 'yes' ? ['Industry'] : []),
+                    ...(informedAlliesDecision === 'yes' ? ['Allies'] : [])
+                ]
+                : []
+        };
+    }
+
+    isPresentationActionSelectionsComplete(selections = {}) {
+        const coordinatedDecision = normalizeScribeDecision(selections.coordinatedDecision);
+        if (!coordinatedDecision) {
+            return false;
+        }
+
+        if (coordinatedDecision === 'yes' && (
+            !normalizeScribeDecision(selections.coordinatedLegislativeDecision)
+            || !normalizeScribeDecision(selections.coordinatedExecutiveDecision)
+            || (
+                normalizeScribeDecision(selections.coordinatedLegislativeDecision) !== 'yes'
+                && normalizeScribeDecision(selections.coordinatedExecutiveDecision) !== 'yes'
+            )
+        )) {
+            return false;
+        }
+
+        return Boolean(
+            normalizeScribeDecision(selections.informedIndustryDecision)
+            && normalizeScribeDecision(selections.informedAlliesDecision)
+        );
+    }
+
+    updatePresentationActionToolbar(toolbar) {
+        if (!toolbar) {
+            return;
+        }
+
+        const coordinatedDecision = normalizeScribeDecision(
+            toolbar.querySelector('[data-scribe-presentation-radio="coordinated"]:checked')?.value
+        );
+        const coordinatedChildRadios = Array.from(toolbar.querySelectorAll(
+            '[data-scribe-presentation-radio="coordinated-legislative"], [data-scribe-presentation-radio="coordinated-executive"]'
+        ));
+
+        coordinatedChildRadios.forEach((radio) => {
+            radio.disabled = coordinatedDecision !== 'yes';
+            if (coordinatedDecision === 'no') {
+                radio.checked = radio.value === 'no';
+            }
+        });
+
+        const selections = this.getPresentationActionSelections(toolbar);
+        const isComplete = this.isPresentationActionSelectionsComplete(selections);
+        const submitButton = toolbar.querySelector('[data-scribe-action-submit]');
+        const status = toolbar.querySelector('.scribe-presentation-toolbar-status');
+
+        if (submitButton) {
+            submitButton.disabled = !isComplete;
+        }
+        if (status) {
+            status.textContent = isComplete
+                ? 'Ready to forward.'
+                : 'Complete every Yes/No choice to forward.';
+        }
+    }
+
+    async editProjectedAction(actionId = '') {
+        const action = this.teamActions.find((candidate) => candidate?.id === actionId);
+        if (!action || !isDraftAction(action)) {
+            showToast({ message: 'Only forwarded draft actions can be edited.', type: 'error' });
+            return;
+        }
+
+        if (!this.actionEditorController) {
+            const { FacilitatorController } = await import('./facilitator.js');
+            this.actionEditorController = new FacilitatorController();
+        }
+
+        this.actionEditorController.actions = this.teamActions;
+        this.actionEditorController.role = this.role;
+        this.actionEditorController.teamContext = this.teamContext;
+        this.actionEditorController.teamId = this.teamId;
+        this.actionEditorController.teamLabel = this.teamLabel;
+        this.actionEditorController.isReadOnly = false;
+        this.actionEditorController.showEditActionModal(action);
     }
 
     renderScribeStrategicOrientationSubmissionControls(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
@@ -1902,6 +2176,10 @@ export class ScribeController {
     }
 
     getScribeActionSelections(panel) {
+        if (panel?.matches?.('[data-scribe-presentation-toolbar]')) {
+            return this.getPresentationActionSelections(panel);
+        }
+
         const coordinatedDecision = normalizeScribeDecision(
             panel?.querySelector?.('[data-scribe-action-radio="coordinated"]:checked')?.value
         );
@@ -1949,8 +2227,13 @@ export class ScribeController {
 
         return serializeBlueActionDetails({
             objective: actionViewModel.objective,
+            instruments: actionViewModel.instruments,
             levers: actionViewModel.levers,
             sectors: actionViewModel.sectors,
+            supplyChainFocusDecision: actionViewModel.supplyChainFocusDecision,
+            supplyChainActionAngles: actionViewModel.supplyChainActionAngles,
+            supplyChainAreas: actionViewModel.supplyChainAreas,
+            supplyChainFocuses: actionViewModel.supplyChainFocuses,
             implementation: actionViewModel.implementation,
             legislativeOptions: actionViewModel.legislativeOptions,
             enforcementTimeline: actionViewModel.enforcementTimeline,
@@ -2126,20 +2409,6 @@ export class ScribeController {
 
     renderStrategicOrientationSlide(slide, viewModel = getStrategicOrientationViewModel(slide.action || {})) {
         const action = slide.action || {};
-        const badges = [
-            createStatusBadge(action.status || ENUMS.ACTION_STATUS.DRAFT).outerHTML,
-            createPriorityBadge(action.priority || 'HIGH').outerHTML,
-            action.outcome ? createOutcomeBadge(action.outcome).outerHTML : ''
-        ].filter(Boolean).join('');
-        const submittedLabel = action.submitted_at
-            ? formatDateTime(action.submitted_at)
-            : '';
-        const adjudicatedLabel = action.adjudicated_at
-            ? formatDateTime(action.adjudicated_at)
-            : '';
-        const draftSavedLabel = action.updated_at
-            ? formatDateTime(action.updated_at)
-            : (action.created_at ? formatDateTime(action.created_at) : '');
         const isDraftPreview = isDraftAction(action);
         const forecastRows = viewModel.isForecast
             ? (viewModel.forecastTargets.length
@@ -2151,28 +2420,6 @@ export class ScribeController {
                     orientationTag: viewModel.orientationTag
                 }])
             : [];
-        const leadCopy = viewModel.isForecast
-            ? `${viewModel.teamLabel} forecasts ${forecastRows.map((forecast) => `${forecast.label} will choose ${forecast.orientationLabel}`).join('; ')}.`
-            : `${viewModel.teamLabel} selected ${viewModel.orientationLabel}.`;
-        const statusRows = isDraftPreview
-            ? [
-                { label: 'Draft saved', value: draftSavedLabel || 'Saved in the scribe workspace' },
-                { label: 'Submission', value: 'Awaiting Facilitator submission' },
-                { label: 'White Cell status', value: 'Not yet submitted to White Cell' }
-            ]
-            : [
-                { label: 'Submitted', value: submittedLabel || 'Awaiting submission' },
-                { label: 'Outcome', value: action.outcome ? formatStatus(action.outcome) : 'Awaiting White Cell outcome' },
-                { label: 'White Cell update', value: adjudicatedLabel || 'No White Cell update yet' }
-            ];
-        const whiteCellNoteMarkup = action.adjudication_notes
-            ? `
-                <section class="scribe-action-slide-note-card" aria-label="White Cell note">
-                    <p class="scribe-action-slide-note-label">White Cell note</p>
-                    <p class="scribe-action-slide-note-body">${escapeHtml(action.adjudication_notes)}</p>
-                </section>
-            `
-            : '';
         const scribeSubmissionControls = isDraftPreview
             ? this.renderScribeStrategicOrientationSubmissionControls(action, viewModel)
             : '';
@@ -2181,31 +2428,17 @@ export class ScribeController {
             <article class="scribe-action-slide scribe-orientation-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
-                        <p class="scribe-action-slide-eyebrow">${viewModel.isForecast ? 'Strategic Orientation Forecast' : 'Strategic Orientation Selection'}</p>
-                        <h2 class="scribe-action-slide-title">${escapeHtml(viewModel.title)}</h2>
-                        <p class="scribe-action-slide-summary">${escapeHtml(slide.sidebarKicker || 'Pre-Move 1 | Strategic Orientation')}</p>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(viewModel.teamLabel)}</p>
+                        <h2 class="scribe-action-slide-title">${viewModel.isForecast ? 'Strategic Orientation Forecast' : 'Strategic Orientation'}</h2>
                     </div>
-                    <div class="scribe-action-slide-badges">${badges}</div>
                 </header>
 
                 <section class="scribe-action-slide-panel">
-                    <div class="scribe-action-slide-meta">
-                        <span>Pre-Move 1</span>
-                        <span>${escapeHtml(formatStatus(action.status || ENUMS.ACTION_STATUS.DRAFT))}</span>
-                        <span>${escapeHtml(viewModel.isForecast ? 'Forecast' : 'Selection')}</span>
-                    </div>
-                    <section class="scribe-action-slide-lead" aria-label="Strategic Orientation brief">
-                        <p class="scribe-action-slide-section-label">${escapeHtml(viewModel.isForecast ? (forecastRows.length > 1 ? 'Forecasted team postures' : 'Forecasted Blue posture') : 'Selected strategic posture')}</p>
-                        <p class="scribe-action-slide-body">${escapeHtml(leadCopy)}</p>
-                        <p class="scribe-action-slide-lead-note"><strong>${escapeHtml(viewModel.isForecast && forecastRows.length > 1 ? 'Forecast summary' : 'Orientation tag')}:</strong> ${escapeHtml(viewModel.isForecast && forecastRows.length > 1 ? (viewModel.forecastSummary || 'Not specified') : (viewModel.orientationTag || 'Not specified'))}</p>
-                    </section>
-
-                    <section class="scribe-action-slide-glance" aria-label="Strategic Orientation at a glance">
+                    <section class="scribe-action-slide-glance" aria-label="Strategic Orientation">
                         <div class="scribe-action-slide-section-header">
-                            <h3 class="scribe-action-slide-section-title">Orientation at a glance</h3>
-                            <p class="scribe-action-slide-section-copy">Project this selection for the team before submitting to White Cell.</p>
+                            <h3 class="scribe-action-slide-section-title">${viewModel.isForecast ? (forecastRows.length > 1 ? 'Forecasted team postures' : 'Forecasted Blue posture') : 'Selected strategic posture'}</h3>
                         </div>
-                        <div class="scribe-action-slide-glance-grid">
+                        <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
                             ${viewModel.isForecast
                 ? forecastRows.map((forecast) => renderActionSlideGlanceCard({
                     label: forecast.label,
@@ -2217,45 +2450,36 @@ export class ScribeController {
                     value: viewModel.orientationLabel,
                     support: viewModel.orientationTag || 'Tag pending'
                 })}
-                            ${renderActionSlideGlanceCard({
-                label: 'Team rationale',
-                value: viewModel.rationale || 'No rationale provided.',
-                support: viewModel.isForecast ? 'Forecast logic' : 'Selection logic'
-            })}
+                            ${!viewModel.isForecast && viewModel.primaryLevers.length
+                ? renderActionSlideGlanceCard({
+                    label: 'Primary levers',
+                    value: formatBlueActionSelection(viewModel.primaryLevers)
+                })
+                : ''}
+                            ${!viewModel.isForecast && viewModel.acceptedCosts.length
+                ? renderActionSlideGlanceCard({
+                    label: 'Accepted costs',
+                    value: formatBlueActionSelection(viewModel.acceptedCosts)
+                })
+                : ''}
+                            ${!viewModel.isForecast && viewModel.posture
+                ? renderActionSlideGlanceCard({
+                    label: 'Posture',
+                    value: viewModel.posture
+                })
+                : ''}
                         </div>
                     </section>
 
+                    <section class="scribe-action-slide-lead" aria-label="Team rationale">
+                        <p class="scribe-action-slide-section-label">Team rationale</p>
+                        <p class="scribe-action-slide-body">${escapeHtml(viewModel.rationale || 'No rationale provided.')}</p>
+                    </section>
+
                     ${scribeSubmissionControls}
-
-                    <div class="scribe-action-slide-columns">
-                        <section class="scribe-action-slide-block" aria-label="Orientation record">
-                            <h3 class="scribe-action-slide-block-title">Orientation record</h3>
-                            <dl class="scribe-action-slide-data-list">
-                                ${viewModel.isForecast
-                ? forecastRows.map((forecast) => renderActionSlideDataRow({
-                    label: `${forecast.label} forecast`,
-                    value: `${forecast.orientationLabel}: ${forecast.orientationTag}`
-                })).join('')
-                : renderActionSlideDataRow({
-                    label: 'Selected orientation',
-                    value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`
-                })}
-                                ${renderActionSlideDataRow({
-                label: 'Team rationale',
-                value: viewModel.rationale || 'No rationale provided.'
-            })}
-                            </dl>
-                        </section>
-
-                        <section class="scribe-action-slide-block" aria-label="Status and White Cell">
-                            <h3 class="scribe-action-slide-block-title">Status and White Cell</h3>
-                            <dl class="scribe-action-slide-data-list">
-                                ${statusRows.map((row) => renderActionSlideDataRow(row)).join('')}
-                            </dl>
-                            ${whiteCellNoteMarkup}
-                        </section>
-                    </div>
                 </section>
+
+                ${this.renderPresentationToolbar(action)}
             </article>
         `;
     }
@@ -2278,116 +2502,24 @@ export class ScribeController {
         }
 
         const actionViewModel = slide.actionViewModel || getBlueActionViewModel(action);
-        const badges = [
-            createStatusBadge(action.status || ENUMS.ACTION_STATUS.DRAFT).outerHTML,
-            createPriorityBadge(action.priority || 'NORMAL').outerHTML,
-            action.outcome ? createOutcomeBadge(action.outcome).outerHTML : ''
-        ].filter(Boolean).join('');
         const targets = formatBlueActionSelection(actionViewModel.focusCountries);
+        const instruments = formatBlueActionSelection(
+            actionViewModel.instruments,
+            actionViewModel.instrumentOfPower || action.mechanism || 'Not specified'
+        );
         const levers = formatBlueActionSelection(actionViewModel.levers, actionViewModel.lever || 'Not specified');
         const sectors = formatBlueActionSelection(actionViewModel.sectors, actionViewModel.sector || action.sector || 'Not specified');
-        const supplyChainFocus = formatBlueActionSelection(
-            actionViewModel.supplyChainFocuses,
-            actionViewModel.supplyChainFocus || action.exposure_type || 'Not specified'
-        );
         const legislativeOptions = formatBlueActionSelection(actionViewModel.legislativeOptions, 'None selected');
-        const coordinated = formatBlueActionSelection(actionViewModel.coordinated, 'None selected');
-        const informed = formatBlueActionSelection(actionViewModel.informed, 'None selected');
-        const sequenceLabel = slide.sidebarKicker || formatActionSequenceLabel({
-            teamLabel: this.teamLabel,
-            move: action.move || 1,
-            actionNumber: Number(slide.sidebarOrdinal) || 1
-        });
-        const timingLabel = [
-            `Move ${action.move || 1}`,
-            getPhaseLabel(action.phase || 1)
-        ].join(' | ');
-        const timelineLabel = actionViewModel.enforcementTimeline || 'Timeline pending';
-        const submittedLabel = action.submitted_at
-            ? formatDateTime(action.submitted_at)
-            : '';
-        const adjudicatedLabel = action.adjudicated_at
-            ? formatDateTime(action.adjudicated_at)
-            : '';
-        const draftSavedLabel = action.updated_at
-            ? formatDateTime(action.updated_at)
-            : (action.created_at ? formatDateTime(action.created_at) : '');
         const isDraftPreview = isDraftAction(action);
-        const decisionBrief = actionViewModel.objective
-            || actionViewModel.expectedOutcomes
-            || 'Awaiting scribe detail.';
+        const decisionBrief = actionViewModel.objective || 'No objective provided.';
         const expectedEffect = actionViewModel.expectedOutcomes || '';
         const showExpectedEffect = hasDistinctActionText(decisionBrief, expectedEffect);
         const implementationLabel = actionViewModel.implementation || 'Not specified';
-        const deliverySupport = [
-            actionViewModel.implementation === 'Legislative'
-                ? `Legislative route: ${legislativeOptions}`
-                : '',
-            supplyChainFocus !== 'Not specified'
-                ? `Supply chain: ${supplyChainFocus}`
-                : ''
-        ].filter(Boolean).join(' | ');
-        const focusSupport = sectors !== 'Not specified'
-            ? `Sectors: ${sectors}`
-            : 'Sector detail pending';
-        const coordinationSupport = `Informed/Engaged: ${informed}`;
-        const whiteCellNoteMarkup = action.adjudication_notes
-            ? `
-                <section class="scribe-action-slide-note-card" aria-label="White Cell note">
-                    <p class="scribe-action-slide-note-label">White Cell note</p>
-                    <p class="scribe-action-slide-note-body">${escapeHtml(action.adjudication_notes)}</p>
-                </section>
-            `
-            : '';
-        const slideEyebrow = isDraftPreview
-            ? 'Scribe Action for Facilitator'
-            : 'Scribe Decision';
-        const sectionLabel = isDraftPreview
-            ? `What ${this.teamLabel} is asking the Facilitator to submit`
-            : `What ${this.teamLabel} is doing`;
-        const glanceCopy = isDraftPreview
-            ? 'Project this action for the room, complete the facilitator coordination fields, then submit it to White Cell.'
-            : 'The core move, where it lands, and how it will be carried out.';
-        const statusBlockTitle = isDraftPreview
-            ? 'Draft status'
-            : 'Status and White Cell';
-        const statusRows = isDraftPreview
-            ? [
-                {
-                    label: 'Priority',
-                    value: formatStatus(action.priority || 'NORMAL')
-                },
-                {
-                    label: 'Draft saved',
-                    value: draftSavedLabel || 'Saved in the scribe workspace'
-                },
-                {
-                    label: 'Submission',
-                    value: 'Awaiting Facilitator submission'
-                },
-                {
-                    label: 'White Cell status',
-                    value: 'Not yet submitted to White Cell'
-                }
-            ]
-            : [
-                {
-                    label: 'Priority',
-                    value: formatStatus(action.priority || 'NORMAL')
-                },
-                {
-                    label: 'Outcome',
-                    value: action.outcome ? formatStatus(action.outcome) : 'Awaiting White Cell outcome'
-                },
-                {
-                    label: 'Submitted',
-                    value: submittedLabel || 'Awaiting submission'
-                },
-                {
-                    label: 'White Cell update',
-                    value: adjudicatedLabel || 'No White Cell update yet'
-                }
-            ];
+        const supplyChainValue = actionViewModel.supplyChainFocusDecision
+            ? formatStatus(actionViewModel.supplyChainFocusDecision)
+            : (actionViewModel.supplyChainActionAngles.length || actionViewModel.supplyChainAreas.length ? 'Yes' : 'Not specified');
+        const supplyChainAngles = formatBlueActionSelection(actionViewModel.supplyChainActionAngles, 'Not specified');
+        const supplyChainAreas = formatBlueActionSelection(actionViewModel.supplyChainAreas, 'Not specified');
         const legacyNotes = actionViewModel.legacyNotes
             ? `
                 <section class="scribe-action-slide-note-card scribe-action-slide-note-card-secondary" aria-label="Supporting note">
@@ -2429,94 +2561,75 @@ export class ScribeController {
                 >
                     <header class="scribe-action-slide-header">
                         <div>
-                            <p class="scribe-action-slide-eyebrow">${escapeHtml(slideEyebrow)}</p>
+                            <p class="scribe-action-slide-eyebrow">${escapeHtml(this.teamLabel)} Action</p>
                             <h2 class="scribe-action-slide-title">${escapeHtml(actionViewModel.title)}</h2>
-                            <p class="scribe-action-slide-summary">${escapeHtml(sequenceLabel)}</p>
                         </div>
-                        <div class="scribe-action-slide-badges">${badges}</div>
                     </header>
 
                     <section class="scribe-action-slide-panel">
-                        <div class="scribe-action-slide-meta">
-                            <span>${escapeHtml(timingLabel)}</span>
-                            <span>${escapeHtml(formatStatus(action.status || ENUMS.ACTION_STATUS.DRAFT))}</span>
-                            <span>${escapeHtml(timelineLabel)}</span>
-                        </div>
-                        <section class="scribe-action-slide-lead" aria-label="Decision brief">
-                            <p class="scribe-action-slide-section-label">${escapeHtml(sectionLabel)}</p>
-                            <p class="scribe-action-slide-body">${escapeHtml(decisionBrief)}</p>
+                        <div class="scribe-action-slide-key-points${showExpectedEffect ? '' : ' scribe-action-slide-key-points--single'}">
+                            <section class="scribe-action-slide-lead" aria-label="Objective">
+                                <p class="scribe-action-slide-section-label">Objective</p>
+                                <p class="scribe-action-slide-body">${escapeHtml(decisionBrief)}</p>
+                            </section>
                             ${showExpectedEffect
-                    ? `<p class="scribe-action-slide-lead-note"><strong>Expected effect:</strong> ${escapeHtml(expectedEffect)}</p>`
+                    ? `<section class="scribe-action-slide-lead scribe-action-slide-lead--outcome" aria-label="Expected outcome">
+                            <p class="scribe-action-slide-section-label">Expected outcome</p>
+                            <p class="scribe-action-slide-body">${escapeHtml(expectedEffect)}</p>
+                        </section>`
                     : ''}
-                        </section>
+                        </div>
 
-                        <section class="scribe-action-slide-glance" aria-label="Action at a glance">
+                        <section class="scribe-action-slide-glance" aria-label="Selected action components">
                             <div class="scribe-action-slide-section-header">
-                                <h3 class="scribe-action-slide-section-title">Action at a glance</h3>
-                                <p class="scribe-action-slide-section-copy">${escapeHtml(glanceCopy)}</p>
+                                <h3 class="scribe-action-slide-section-title">Selected action components</h3>
                             </div>
-                            <div class="scribe-action-slide-glance-grid">
+                            <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components scribe-action-slide-glance-grid--action-components">
                                 ${renderActionSlideGlanceCard({
-                label: 'Primary move',
-                value: actionViewModel.instrumentOfPower || action.mechanism || 'Not specified',
-                support: levers !== 'Not specified' ? levers : 'Lever detail pending'
+                label: 'Instrument of power',
+                value: instruments,
+                support: levers !== 'Not specified' ? `Levers: ${levers}` : ''
             })}
                                 ${renderActionSlideGlanceCard({
                 label: 'Focus countries',
-                value: targets,
-                support: focusSupport
+                value: targets
             })}
                                 ${renderActionSlideGlanceCard({
-                label: 'Delivery path',
+                label: 'Sectors',
+                value: sectors
+            })}
+                                ${renderActionSlideGlanceCard({
+                label: 'Implementation',
                 value: implementationLabel,
-                support: deliverySupport || 'Execution detail pending'
+                support: actionViewModel.implementation === 'Legislative'
+                    ? `Legislative route: ${legislativeOptions}`
+                    : ''
             })}
-                                ${renderActionSlideGlanceCard({
-                label: 'Coordination',
-                value: coordinated,
-                support: coordinationSupport
-            })}
+                                <article class="scribe-action-slide-glance-card scribe-action-slide-glance-card--supply-chain">
+                                    <div class="scribe-action-slide-glance-card-lead">
+                                        <p class="scribe-action-slide-glance-label">Supply chain focus</p>
+                                        <p class="scribe-action-slide-glance-value">${escapeHtml(supplyChainValue)}</p>
+                                    </div>
+                                    <dl class="scribe-action-slide-component-details">
+                                        <div>
+                                            <dt>Action angle</dt>
+                                            <dd>${escapeHtml(supplyChainAngles)}</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Area</dt>
+                                            <dd>${escapeHtml(supplyChainAreas)}</dd>
+                                        </div>
+                                    </dl>
+                                </article>
                             </div>
                         </section>
-
-                        <div class="scribe-action-slide-columns">
-                            <section class="scribe-action-slide-block" aria-label="Execution snapshot">
-                                <h3 class="scribe-action-slide-block-title">Execution snapshot</h3>
-                                <dl class="scribe-action-slide-data-list">
-                                    ${renderActionSlideDataRow({
-                label: 'Timeline',
-                value: timelineLabel
-            })}
-                                    ${renderActionSlideDataRow({
-                label: 'Supply chain focus',
-                value: supplyChainFocus
-            })}
-                                    ${actionViewModel.implementation === 'Legislative'
-                        ? renderActionSlideDataRow({
-                            label: 'Legislative route',
-                            value: legislativeOptions
-                        })
-                        : ''}
-                                    ${renderActionSlideDataRow({
-                label: 'Sequence',
-                value: sequenceLabel
-            })}
-                                </dl>
-                            </section>
-
-                            <section class="scribe-action-slide-block" aria-label="${escapeHtml(statusBlockTitle)}">
-                                <h3 class="scribe-action-slide-block-title">${escapeHtml(statusBlockTitle)}</h3>
-                                <dl class="scribe-action-slide-data-list">
-                                    ${statusRows.map((row) => renderActionSlideDataRow(row)).join('')}
-                                </dl>
-                                ${whiteCellNoteMarkup}
-                            </section>
-                        </div>
 
                         ${legacyNotes}
                         ${scribeSubmissionControls}
                     </section>
                 </div>
+
+                ${this.renderPresentationToolbar(action, actionViewModel)}
             </article>
         `;
     }
@@ -2545,6 +2658,55 @@ export class ScribeController {
         this.currentSlideIndex = nextIndex;
         this.expandSectionForSlide(this.deckSlides[this.currentSlideIndex], { render: false });
         this.renderSlide();
+    }
+
+    updateFacilitatorViewSwitch(activeView = 'deck') {
+        const actionReviewButton = document.getElementById('teamActionReviewViewBtn');
+        const deckButton = document.getElementById('deckViewBtn');
+
+        [
+            [actionReviewButton, activeView === 'actions'],
+            [deckButton, activeView === 'deck']
+        ].forEach(([button, isActive]) => {
+            if (!button) {
+                return;
+            }
+
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+        });
+    }
+
+    setFacilitatorView(view = 'deck') {
+        const normalizedView = view === 'actions' ? 'actions' : 'deck';
+        const currentSlide = this.deckSlides[this.currentSlideIndex];
+        const currentSectionIndex = getSectionIndexForSlideKey(
+            this.sections,
+            getSlideKey(currentSlide)
+        );
+
+        if (this.sections[currentSectionIndex]?.id !== ACTIONS_SECTION_ID && currentSlide) {
+            this.lastDeckSlideKey = getSlideKey(currentSlide);
+        }
+
+        let targetSlide = null;
+        if (normalizedView === 'actions') {
+            targetSlide = this.sections.find((section) => section.id === ACTIONS_SECTION_ID)?.slides?.[0] || null;
+        } else {
+            targetSlide = this.deckSlides.find((slide) => (
+                getSlideKey(slide) === this.lastDeckSlideKey
+                && this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id !== ACTIONS_SECTION_ID
+            )) || this.deckSlides.find((slide) => (
+                this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id !== ACTIONS_SECTION_ID
+            )) || null;
+        }
+
+        if (!targetSlide) {
+            return;
+        }
+
+        this.setSlideByKey(getSlideKey(targetSlide));
+        this.closeMobileSidebar();
     }
 
     expandSectionForSlide(slide, { render = false } = {}) {

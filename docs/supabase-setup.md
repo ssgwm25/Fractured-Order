@@ -29,7 +29,7 @@ Use the current hardening path for live environments:
 
 1. Apply the complete/current schema baseline used for this repository.
 2. Apply dated hardening migrations in order.
-3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, and `data/2026-06-28_intercom_storage_bucket.sql` have been applied in that order.
+3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, and `data/2026-07-14_action_artifact_workflow_integrity.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence.
 4. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the current build requires it.
 5. Verify RPCs and RLS policies before a demo.
 
@@ -48,6 +48,62 @@ Apply `data/2026-06-28_intercom_storage_bucket.sql` after the plugin-state game-
 If the operator UI reports `Bucket not found` when sending to Scribes, the browser recorded a clip larger than the inline threshold and the Supabase project is missing `intercom-announcements`. Apply `data/2026-06-28_intercom_storage_bucket.sql` in the Supabase SQL editor, then retry.
 
 Do not treat legacy broad-policy files such as `data/updated_supabase_schema.sql` as final production state. They are historical/setup artifacts and must be followed by the hardening migrations.
+
+## Action Artifact And Workflow Integrity
+
+Apply `data/2026-07-14_action_artifact_workflow_integrity.sql` to make action, proposal, Strategic Orientation, forecast, and move-response meaning explicit in the database. The migration deterministically classifies existing rows from the current legacy prefixes, adds structured payload and workflow fields, makes lifecycle timestamps server-owned, rejects status regression and post-submission content changes, and logs every action mutation. Draft updates and submission now filter on the returned `row_version`; a stale browser receives a refresh-before-save error instead of overwriting a newer revision.
+
+The migration fails closed instead of guessing when it finds any of these conditions:
+
+- an active proposal without a Blue or Red recipient
+- an adjudicated action without an outcome or lifecycle timestamps
+- more than one active Strategic Orientation artifact for the same session and team
+- more than one `PROPOSAL_FORWARDED` communication for the same proposal
+
+Resolve the cited row IDs as an explicit data-repair operation, then reapply the migration. Do not delete or relabel a legitimate artifact merely to make the migration pass.
+
+White Cell proposal review now calls `operator_review_proposal`. The RPC adjudicates the proposal and writes its review timeline, forwarding communication, and forwarding timeline in one transaction. Repeating the same completed decision returns the committed records with `idempotent_replay = true`; a conflicting second decision fails.
+
+After applying the migration, verify the operational contract:
+
+```sql
+select column_name, data_type, is_nullable
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'actions'
+  and column_name in (
+    'artifact_type',
+    'workflow_state',
+    'artifact_payload',
+    'forecast_targets',
+    'proposal_recipient_team',
+    'idempotency_key',
+    'row_version'
+  )
+order by column_name;
+
+select indexname
+from pg_indexes
+where schemaname = 'public'
+  and indexname in (
+    'idx_actions_one_orientation_per_session_team',
+    'idx_actions_session_idempotency_key',
+    'idx_communications_one_forward_per_proposal'
+  )
+order by indexname;
+
+select trigger_name
+from information_schema.triggers
+where event_object_schema = 'public'
+  and event_object_table = 'actions'
+  and trigger_name in (
+    'normalize_action_workflow_write',
+    'audit_action_workflow_write'
+  )
+order by trigger_name;
+```
+
+Pass: seven action columns, three unique indexes, and two action triggers are returned. A proposal review performed through the UI produces one adjudicated proposal, at most one forwarded communication, the matching timeline rows, action-log revisions, and hash-chained research audit events.
 
 ## Session Recorder Artifact Metadata
 
@@ -77,6 +133,7 @@ and proname in (
   'list_active_session_participants',
   'operator_update_game_state',
   'operator_adjudicate_action',
+  'operator_review_proposal',
   'operator_answer_request',
   'operator_send_communication',
   'update_proposal_recipient_status',
@@ -111,6 +168,10 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - White Cell and Game Master actions require operator grants
 - stored participant roles are normalized before RLS derives write surface/team
 - same-team Facilitators, currently stored as legacy `*_scribe` seats, can submit Scribe-forwarded action and Strategic Orientation drafts to White Cell
+- action artifacts have a first-class type, workflow state, monotonic row version, structured snapshot, and server-owned transition timestamps
+- each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication
+- White Cell proposal review, adjudication, forwarding, and timeline records commit atomically through `operator_review_proposal`
+- every action creation, revision, handoff, submission, deletion, and adjudication is represented in action logs and the research audit chain
 - White Cell can persist timer allocations for Strategic Orientation and Moves 1-3 through `operator_update_game_state`
 - White Cell can persist Intercom and Session Recorder plugin enablement plus bounded Session Recorder runtime notice fields in `game_state.plugin_state` through `operator_update_game_state`
 - White Cell and Game Master Intercom can broadcast inline clips and can upload larger clips to `intercom-announcements`

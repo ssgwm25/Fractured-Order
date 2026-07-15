@@ -30,11 +30,11 @@ export const DEFAULT_ACTION_PAYLOAD = Object.freeze({
     instrumentOfPower: 'Economic',
     lever: 'Export Controls',
     sector: 'Biotechnology',
+    supplyChainActionAngle: 'Build resilience for Blue',
     supplyChainFocus: 'Advanced Manufacturing',
     implementation: 'Executive Order',
     legislativeOptions: [],
     focusCountries: ['PRC', 'Japan'],
-    enforcementTimeline: '6 months',
     expectedOutcomes: 'Reduce allied dependence and build leverage before the next move begins.',
     coordinated: ['Executive'],
     informed: ['Allies']
@@ -330,19 +330,20 @@ export async function createDraftAction(page, {
     objective = goal,
     instrumentOfPower = DEFAULT_ACTION_PAYLOAD.instrumentOfPower,
     sector = DEFAULT_ACTION_PAYLOAD.sector,
+    supplyChainActionAngle = DEFAULT_ACTION_PAYLOAD.supplyChainActionAngle,
     supplyChainFocus = DEFAULT_ACTION_PAYLOAD.supplyChainFocus,
     implementation = DEFAULT_ACTION_PAYLOAD.implementation,
     legislativeOptions = DEFAULT_ACTION_PAYLOAD.legislativeOptions,
     focusCountries = DEFAULT_ACTION_PAYLOAD.focusCountries,
-    enforcementTimeline = DEFAULT_ACTION_PAYLOAD.enforcementTimeline,
-    expectedOutcomes = DEFAULT_ACTION_PAYLOAD.expectedOutcomes,
-    coordinated = DEFAULT_ACTION_PAYLOAD.coordinated,
-    informed = DEFAULT_ACTION_PAYLOAD.informed
+    expectedOutcomes = DEFAULT_ACTION_PAYLOAD.expectedOutcomes
 } = {}) {
-    const builtInInstruments = new Set(['Economic', 'Other']);
-    const builtInTimelines = new Set(['3 months', '6 months', '12 months', 'Other']);
-    const builtInFocusCountries = new Set(['PRC', 'Russia', 'EU', 'France', 'UK', 'BRICS+', 'ROK', 'ASEAN', 'Japan', 'Other']);
+    const builtInInstruments = new Set(['Economic', 'Diplomacy', 'Information', 'Military', 'Other']);
+    const builtInFocusCountries = new Set(['U.S', 'PRC', 'Russia', 'EU', 'France', 'UK', 'BRICS+', 'ROK', 'ASEAN', 'Japan', 'Other']);
+    const instruments = Array.isArray(instrumentOfPower) ? instrumentOfPower : [instrumentOfPower];
     const sectors = Array.isArray(sector) ? sector : [sector];
+    const supplyChainActionAngles = Array.isArray(supplyChainActionAngle)
+        ? supplyChainActionAngle
+        : [supplyChainActionAngle];
     const supplyChainFocuses = Array.isArray(supplyChainFocus) ? supplyChainFocus : [supplyChainFocus];
 
     await page.locator('#newActionBtn').click();
@@ -350,7 +351,17 @@ export async function createDraftAction(page, {
     const modal = page.locator('.modal-overlay');
     await modal.locator('#actionTitle').fill(goal);
     await modal.locator('#actionObjective').fill(objective);
-    if (builtInInstruments.has(instrumentOfPower)) {
+    const instrumentCheckboxes = modal.locator('[data-blue-action-checkbox="instrument"]');
+    if (await instrumentCheckboxes.count()) {
+        for (const instrument of instruments) {
+            if (builtInInstruments.has(instrument)) {
+                await modal.locator(`[data-blue-action-checkbox="instrument"][value="${instrument}"]`).check();
+            } else {
+                await modal.locator('[data-blue-action-checkbox="instrument"][value="Other"]').check();
+                await modal.locator('#actionInstrumentOther').fill(instrument);
+            }
+        }
+    } else if (builtInInstruments.has(instrumentOfPower)) {
         await modal.locator('#actionInstrument').selectOption(instrumentOfPower);
     } else {
         await modal.locator('#actionInstrument').selectOption('Other');
@@ -358,11 +369,25 @@ export async function createDraftAction(page, {
     }
     await modal.getByRole('button', { name: 'Next' }).click();
 
+    const supplyChainDecision = modal.locator('#actionHasSupplyChainFocusYes');
+    if (await supplyChainDecision.count()) {
+        await supplyChainDecision.check();
+        for (const angleValue of supplyChainActionAngles) {
+            await modal.locator(`[data-blue-action-checkbox="supply-chain-angle"][value="${angleValue}"]`).check();
+        }
+        for (const focusValue of supplyChainFocuses) {
+            await modal.locator(`[data-blue-action-checkbox="supply-chain-area"][value="${focusValue}"]`).check();
+        }
+    } else {
+        for (const focusValue of supplyChainFocuses) {
+            await modal.locator(`[data-blue-action-checkbox="supply-chain-focus"][value="${focusValue}"]`).check();
+        }
+    }
     for (const sectorValue of sectors) {
         await modal.locator(`[data-blue-action-checkbox="sector"][value="${sectorValue}"]`).check();
     }
-    for (const focusValue of supplyChainFocuses) {
-        await modal.locator(`[data-blue-action-checkbox="supply-chain-focus"][value="${focusValue}"]`).check();
+    if (await modal.locator('[data-blue-action-page="2"]').count()) {
+        await modal.getByRole('button', { name: 'Next' }).click();
     }
     await modal.locator('#actionImplementation').selectOption(implementation);
     if (implementation === 'Legislative') {
@@ -378,62 +403,60 @@ export async function createDraftAction(page, {
             await modal.locator('#actionFocusCountryOtherInput').fill(focusCountry);
         }
     }
-    if (builtInTimelines.has(enforcementTimeline)) {
-        await modal.locator('#actionEnforcementTimeline').selectOption(enforcementTimeline);
-    } else {
-        await modal.locator('#actionEnforcementTimeline').selectOption('Other');
-        await modal.locator('#actionEnforcementTimelineOther').fill(enforcementTimeline);
-    }
     await modal.locator('#actionExpectedOutcomes').fill(expectedOutcomes);
-    await modal.getByRole('button', { name: 'Next' }).click();
-
-    for (const coordinatedValue of coordinated) {
-        await modal.locator(`[data-blue-action-checkbox="coordinated"][value="${coordinatedValue}"]`).check();
-    }
-
-    for (const informedValue of informed) {
-        await modal.locator(`[data-blue-action-checkbox="informed"][value="${informedValue}"]`).check();
-    }
-
     await modal.getByRole('button', { name: 'Save Draft' }).click();
 
     await expect(page.locator('#actionsList')).toContainText(goal);
 }
 
 export async function forwardActionToScribe(page, goal) {
-    const actionCard = page.locator('#actionsList > *').filter({ hasText: goal }).first();
-    await actionCard.getByRole('button', { name: 'Forward to Facilitator' }).click();
+    const actionCard = page.locator('#actionsList .entity-card').filter({ hasText: goal }).first();
+    await expect(actionCard).toBeVisible();
+
+    const detailsToggle = actionCard.locator('.toggle-action-card-btn');
+    if (await detailsToggle.getAttribute('aria-expanded') !== 'true') {
+        await detailsToggle.click();
+    }
+
+    const forwardButton = actionCard.getByRole('button', { name: 'Forward to Facilitator' });
+    await expect(forwardButton).toBeVisible();
+    await forwardButton.click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Forward' }).click();
     await expect(page.locator('#toast-container')).toContainText('Action forwarded to Facilitator');
 }
 
 export async function recordStrategicOrientationFromScribe(page, {
+    team = 'blue',
     orientation = 'pressure',
     rationale = 'Topology rehearsal orientation recorded before the normal move gate.'
 } = {}) {
-    const orientationTitles = {
-        pressure: 'Strategic Orientation: Pressure',
-        stabilization: 'Strategic Orientation: Stabilization',
-        reframe: 'Strategic Orientation: Reframe'
-    };
-    const goal = orientationTitles[orientation] || 'Strategic Orientation';
-
     await page.locator('#strategicOrientationBtn').click();
 
-    const modal = page.locator('.modal-overlay');
-    await modal.locator(`[data-orientation="${orientation}"]`).click();
-    await modal.getByRole('button', { name: /Next:/ }).click();
-    await modal.locator('[data-orientation-chip="lever"]').first().click();
-    await modal.locator('[data-orientation-chip="cost"]').first().click();
-    await modal.locator('[data-orientation-chip="posture"]').first().click();
+    const modal = page.locator('.modal-overlay').filter({
+        has: page.locator('[data-strategic-orientation-modal]')
+    });
+    await expect(modal).toBeVisible();
+
+    const orientationOptions = modal.locator(`[data-orientation="${orientation}"]`);
+    const orientationOptionCount = await orientationOptions.count();
+    expect(orientationOptionCount).toBeGreaterThan(0);
+    for (let index = 0; index < orientationOptionCount; index += 1) {
+        const orientationOption = orientationOptions.nth(index);
+        await orientationOption.click();
+        await expect(orientationOption).toHaveAttribute('aria-checked', 'true');
+    }
     await modal.locator('#rationale').fill(rationale);
 
-    const confirmButton = modal.getByRole('button', { name: /Confirm (Orientation|Forecast)/ });
+    const confirmButton = modal.locator('[data-orientation-nav="confirm"]');
     await expect(confirmButton).toBeEnabled();
     await confirmButton.click();
 
     await expect(page.locator('#toast-container')).toContainText('Strategic Orientation forwarded to Facilitator');
-    await expect(page.locator('#actionsList')).toContainText(goal);
+
+    const artifactLabel = team === 'blue' ? 'Strategic Orientation:' : 'Forecast';
+    const orientationCard = page.locator('#actionsList .entity-card').filter({ hasText: artifactLabel }).first();
+    await expect(orientationCard).toBeVisible();
+    const goal = (await orientationCard.locator('.entity-card__title').innerText()).trim();
 
     return goal;
 }
@@ -455,8 +478,16 @@ export async function submitActionFromScribe(page, goal, {
     await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
     await actionSlideLink.click();
 
+    const actionFrame = page.locator('#deckActionFrame');
+    const detailsToggle = actionFrame.locator('[data-scribe-action-toggle]');
+    await expect(detailsToggle).toBeVisible();
+    if (await detailsToggle.getAttribute('aria-expanded') !== 'true') {
+        await detailsToggle.click();
+    }
+
     const panel = page.locator('[data-scribe-action-submit-panel]').filter({ hasText: 'Facilitator finalization' }).first();
     await expect(page.locator('#main-content')).toContainText(goal);
+    await expect(panel).toBeVisible();
     await panel.locator('[data-scribe-action-radio="coordinated"][value="yes"]').check();
     for (const coordinatedValue of coordinated) {
         await panel.locator(`[data-scribe-action-checkbox="coordinated"][value="${coordinatedValue}"]`).check();
@@ -471,7 +502,9 @@ export async function submitActionFromScribe(page, goal, {
     await expect(submitButton).toBeVisible();
     await submitButton.click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
-    await expect(page.locator('#main-content')).toContainText('Submitted to White Cell');
+    await expect(panel).toHaveCount(0);
+    await expect(actionSlideLink).toContainText('Submitted to White Cell');
+    await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
 }
 
 export async function submitStrategicOrientationFromScribe(page, goal) {
@@ -488,12 +521,17 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
     await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
     await actionSlideLink.click();
 
+    const actionFrame = page.locator('#deckActionFrame');
+    const orientationSlide = actionFrame.locator('.scribe-orientation-slide');
     const panel = page.locator('[data-scribe-action-submit-panel]').filter({ hasText: 'Facilitator-to-White Cell handoff' }).first();
-    await expect(page.locator('#main-content')).toContainText(goal);
+    await expect(orientationSlide).toBeVisible();
+    await expect(orientationSlide.locator('.scribe-action-slide-title')).toContainText('Strategic Orientation');
     await expect(panel).toBeVisible();
     await panel.getByRole('button', { name: 'Submit to White Cell' }).click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
-    await expect(page.locator('#main-content')).toContainText('Submitted to White Cell');
+    await expect(panel).toHaveCount(0);
+    await expect(actionSlideLink).toContainText('Submitted to White Cell');
+    await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
 }
 
 export async function adjudicateAction(page, {

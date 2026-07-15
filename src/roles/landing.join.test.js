@@ -111,6 +111,29 @@ function createErrorElement() {
     };
 }
 
+function createDomElement() {
+    const attributes = {};
+    return {
+        attributes,
+        children: [],
+        className: '',
+        hidden: false,
+        style: { setProperty: vi.fn() },
+        textContent: '',
+        classList: createClassList(),
+        setAttribute(name, value) {
+            attributes[name] = value;
+        },
+        append(...children) {
+            this.children.push(...children);
+        },
+        appendChild(child) {
+            this.children.push(child);
+        },
+        remove: vi.fn()
+    };
+}
+
 async function loadLandingModule() {
     globalThis.__ESG_DISABLE_AUTO_INIT__ = true;
     vi.resetModules();
@@ -130,6 +153,7 @@ describe('landing secure join flow', () => {
         vi.resetModules();
         delete global.document;
         delete global.window;
+        delete global.requestAnimationFrame;
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
     });
 
@@ -166,6 +190,12 @@ describe('landing secure join flow', () => {
         controller.selectedRoleSurface = 'facilitator';
         controller.selectedRole = 'blue_facilitator';
         controller.redirectToRole = vi.fn();
+        const confirmation = {
+            confirm: vi.fn().mockResolvedValue(),
+            dismiss: vi.fn(),
+            setSessionName: vi.fn()
+        };
+        controller.showJoinConfirmation = vi.fn(() => confirmation);
 
         await controller.handleJoinSession({
             preventDefault() {}
@@ -175,6 +205,9 @@ describe('landing secure join flow', () => {
             clientId: 'client-landing-test'
         });
         expect(mockDatabase.lookupJoinableSessionByCode).toHaveBeenCalledWith('ALPHA2026');
+        expect(confirmation.setSessionName).toHaveBeenCalledWith('Alpha Session');
+        expect(confirmation.setSessionName.mock.invocationCallOrder[0])
+            .toBeLessThan(mockDatabase.claimParticipantSeat.mock.invocationCallOrder[0]);
         expect(mockDatabase.getActiveSessions).not.toHaveBeenCalled();
         expect(mockDatabase.getActiveParticipants).not.toHaveBeenCalled();
         expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('session-1', 'blue_facilitator', 'Morgan');
@@ -239,6 +272,35 @@ describe('landing secure join flow', () => {
         });
         expect(controller.redirectToRole).not.toHaveBeenCalled();
         expect(mockHideLoader).not.toHaveBeenCalled();
+    });
+
+    it('renders the resolved session name in the accessible join loading screen', async () => {
+        const body = createDomElement();
+        global.document = {
+            body,
+            createElement: vi.fn(() => createDomElement())
+        };
+        global.requestAnimationFrame = (callback) => callback();
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        const confirmation = controller.showJoinConfirmation({
+            displayName: 'Morgan',
+            metaLabel: 'Blue | Facilitator'
+        });
+        const overlay = body.children[0];
+        const card = overlay.children[0];
+        const sessionName = card.children.find((child) => child.className === 'jc-session');
+
+        expect(overlay.attributes.role).toBe('status');
+        expect(overlay.attributes['aria-live']).toBe('polite');
+        expect(overlay.attributes['aria-atomic']).toBe('true');
+        expect(sessionName.hidden).toBe(true);
+
+        confirmation.setSessionName('Alpha Session');
+
+        expect(sessionName.textContent).toBe('Session: Alpha Session');
+        expect(sessionName.hidden).toBe(false);
     });
 
     it('persists invalid session-code feedback inline and links it to the field', async () => {

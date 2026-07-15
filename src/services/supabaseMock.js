@@ -474,8 +474,14 @@ function normalizeInsertRow(tableName, payload, state) {
                 ...baseRow,
                 targets: [],
                 is_deleted: false,
-                updated_at: timestamp,
-                ...cloneValue(payload)
+                ...cloneValue(payload),
+                created_at: timestamp,
+                row_version: 1,
+                submitted_at: payload.status === 'submitted' ? timestamp : null,
+                workflow_state: payload.status === 'submitted'
+                    ? 'submitted_to_white_cell'
+                    : 'draft',
+                updated_at: timestamp
             };
         case 'requests':
             return {
@@ -1485,6 +1491,185 @@ function operatorAdjudicateAction(state, params) {
     };
 }
 
+function readLegacyActionDetail(details = '', label = '') {
+    if (typeof details !== 'string' || !details || !label) return null;
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = details.match(new RegExp(`^${escapedLabel}:\\s*(.*)$`, 'im'));
+    return match?.[1]?.trim() || null;
+}
+
+function operatorReviewProposal(state, params) {
+    const action = state.tables.actions.find((entry) => (
+        entry.id === params?.requested_action_id && entry.is_deleted !== true
+    ));
+    const decision = String(params?.requested_review_decision || '').trim().toLowerCase();
+    const persistedRecipient = String(
+        action?.proposal_recipient_team
+        || readLegacyActionDetail(action?.ally_contingencies, 'Recipient Team')
+        || ''
+    ).trim().toLowerCase();
+    const recipientTeam = String(params?.requested_recipient_team || persistedRecipient).trim().toLowerCase();
+
+    if (!action) {
+        return { data: null, error: { message: 'Proposal action not found.' } };
+    }
+
+    if (!['forward_to_recipient', 'request_changes', 'reject'].includes(decision)) {
+        return { data: null, error: { message: 'Unsupported proposal review decision.' } };
+    }
+
+    if (decision === 'forward_to_recipient' && !['blue', 'red'].includes(recipientTeam)) {
+        return { data: null, error: { message: 'Forwarded proposals require a Blue or Red recipient.' } };
+    }
+
+    if (action.status === 'adjudicated') {
+        if (action.adjudication?.proposal_review_decision !== decision) {
+            return { data: null, error: { message: 'This proposal already has a different final review decision.' } };
+        }
+
+        const existingCommunication = state.tables.communications.find((entry) => (
+            entry.type === 'PROPOSAL_FORWARDED'
+            && entry.metadata?.source_proposal_id === action.id
+        )) || null;
+        const existingTimelineEvents = state.tables.timeline.filter((entry) => (
+            entry.metadata?.related_id === action.id
+            && ['ACTION_ADJUDICATED', 'PROPOSAL_FORWARDED'].includes(entry.type)
+        ));
+
+        return {
+            data: {
+                action: cloneValue(action),
+                communication: cloneValue(existingCommunication),
+                timeline_events: cloneValue(existingTimelineEvents),
+                idempotent_replay: true
+            },
+            error: null
+        };
+    }
+
+    const outcome = {
+        forward_to_recipient: 'SUCCESS',
+        request_changes: 'PARTIAL_SUCCESS',
+        reject: 'FAIL'
+    }[decision];
+    const adjudicationResult = operatorAdjudicateAction(state, {
+        requested_action_id: action.id,
+        requested_outcome: outcome,
+        requested_adjudication_notes: params?.requested_adjudication_notes || null
+    });
+    if (adjudicationResult.error) return adjudicationResult;
+
+    const timestamp = getTimestamp();
+    const updatedAction = {
+        ...adjudicationResult.data,
+        artifact_type: 'proposal',
+        proposal_recipient_team: persistedRecipient || recipientTeam || null,
+        workflow_state: {
+            forward_to_recipient: 'forwarded_to_recipient',
+            request_changes: 'changes_requested',
+            reject: 'rejected'
+        }[decision],
+        adjudication: {
+            ...(adjudicationResult.data.adjudication || {}),
+            outcome,
+            proposal_review_decision: decision,
+            proposal_recipient_team: persistedRecipient || recipientTeam || null
+        },
+        updated_at: timestamp
+    };
+    state.tables.actions = state.tables.actions.map((entry) => (
+        entry.id === updatedAction.id ? updatedAction : entry
+    ));
+
+    const reviewLabel = {
+        forward_to_recipient: `Forwarded to ${recipientTeam.charAt(0).toUpperCase()}${recipientTeam.slice(1)} Team`,
+        request_changes: 'Changes requested',
+        reject: 'Rejected'
+    }[decision];
+    const reviewTimeline = normalizeInsertRow('timeline', {
+        session_id: updatedAction.session_id,
+        move: updatedAction.move,
+        phase: updatedAction.phase,
+        team: 'white_cell',
+        type: 'ACTION_ADJUDICATED',
+        content: `Proposal review recorded: ${reviewLabel}`,
+        metadata: {
+            related_id: updatedAction.id,
+            proposal_review_decision: decision,
+            proposal_recipient_team: persistedRecipient || recipientTeam || null,
+            proposal: true
+        }
+    }, state);
+    state.tables.timeline.push(reviewTimeline);
+
+    let communication = null;
+    const timelineEvents = [reviewTimeline];
+    if (decision === 'forward_to_recipient') {
+        const originators = readLegacyActionDetail(updatedAction.ally_contingencies, 'Originators');
+        const communicationResult = operatorSendCommunication(state, {
+            requested_session_id: updatedAction.session_id,
+            requested_to_role: recipientTeam,
+            requested_type: 'PROPOSAL_FORWARDED',
+            requested_title: updatedAction.goal || null,
+            requested_content: `Forwarded ${updatedAction.team} Team proposal after White Cell review: ${updatedAction.goal || 'Untitled proposal'}`,
+            requested_metadata: {
+                source_proposal_id: updatedAction.id,
+                source_team: updatedAction.team,
+                recipient_team: recipientTeam,
+                outcome,
+                review_decision: decision,
+                review_stage: 'forwarded_to_recipient',
+                proposal: {
+                    title: updatedAction.goal || null,
+                    originators: originators && originators !== 'None selected'
+                        ? originators.split(',').map((value) => value.trim()).filter(Boolean)
+                        : [],
+                    objective: readLegacyActionDetail(updatedAction.ally_contingencies, 'Objective'),
+                    category: readLegacyActionDetail(updatedAction.ally_contingencies, 'Category'),
+                    intendedPartners: readLegacyActionDetail(updatedAction.ally_contingencies, 'Intended Partners'),
+                    focusSector: updatedAction.sector || null,
+                    delivery: readLegacyActionDetail(updatedAction.ally_contingencies, 'Delivery'),
+                    timingAndConditions: readLegacyActionDetail(updatedAction.ally_contingencies, 'Timing And Conditions'),
+                    expectedOutcomes: updatedAction.expected_outcomes || null
+                },
+                proposal_recipient_state: { status: 'unread', updated_at: timestamp }
+            }
+        });
+        if (communicationResult.error) return communicationResult;
+        communication = communicationResult.data;
+
+        const forwardTimeline = normalizeInsertRow('timeline', {
+            session_id: updatedAction.session_id,
+            move: updatedAction.move,
+            phase: updatedAction.phase,
+            team: 'white_cell',
+            type: 'PROPOSAL_FORWARDED',
+            content: `${updatedAction.team} Team proposal forwarded to ${recipientTeam} Team after White Cell approval: ${updatedAction.goal || 'Untitled proposal'}`,
+            metadata: {
+                related_id: updatedAction.id,
+                source_team: updatedAction.team,
+                recipient_team: recipientTeam,
+                outcome,
+                review_decision: decision,
+                review_stage: 'forwarded_to_recipient',
+                proposal: true
+            }
+        }, state);
+        state.tables.timeline.push(forwardTimeline);
+        timelineEvents.push(forwardTimeline);
+    }
+
+    return {
+        data: {
+            action: cloneValue(updatedAction),
+            communication: cloneValue(communication),
+            timeline_events: cloneValue(timelineEvents),
+            idempotent_replay: false
+        },
+        error: null
+    };
+}
+
 function operatorAnswerRequest(state, params) {
     const authUserId = getCurrentAuthUserId();
     const grant = getOperatorGrant(state, authUserId, 'whitecell');
@@ -1779,6 +1964,14 @@ class MockQueryBuilder {
                     nextRow.last_updated = this.payload?.last_updated || timestamp;
                 }
 
+                if (this.tableName === 'actions') {
+                    nextRow.row_version = (Number.isInteger(row.row_version) ? row.row_version : 1) + 1;
+                    if (row.status === 'draft' && nextRow.status === 'submitted') {
+                        nextRow.submitted_at = timestamp;
+                        nextRow.workflow_state = 'submitted_to_white_cell';
+                    }
+                }
+
                 if (!canUpdateTableRow(state, this.tableName, row, nextRow, authUserId)) {
                     updateDenied = true;
                     return row;
@@ -2019,6 +2212,13 @@ export function createE2EMockSupabaseClient() {
             if (functionName === 'operator_adjudicate_action') {
                 const state = readMockState();
                 const result = operatorAdjudicateAction(state, params);
+                writeMockState(state);
+                return result;
+            }
+
+            if (functionName === 'operator_review_proposal') {
+                const state = readMockState();
+                const result = operatorReviewProposal(state, params);
                 writeMockState(state);
                 return result;
             }

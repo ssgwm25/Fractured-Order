@@ -40,7 +40,11 @@ const FIELD_ERROR_MAP = {
 
 // No-op join overlay controller used when there is no real DOM (unit tests)
 // or when an operator-auth method is called without an overlay.
-const NOOP_CONFIRMATION = { confirm: () => Promise.resolve(), dismiss: () => {} };
+const NOOP_CONFIRMATION = {
+    confirm: () => Promise.resolve(),
+    dismiss: () => {},
+    setSessionName: () => {}
+};
 
 /**
  * Landing Page Controller Class
@@ -389,6 +393,7 @@ export class LandingController {
             await this.prewarmBrowserIdentity({ interactive: true });
             const session = await this.findSessionByCode(sessionCode);
             const sessionCodeFromLookup = session.session_code || sessionCode;
+            confirmation.setSessionName(session.name);
 
             const participant = await database.claimParticipantSeat(session.id, requestedRole, displayName);
             this.selectedRole = requestedRole;
@@ -454,7 +459,7 @@ export class LandingController {
      * @param {string} [options.displayName] - Name shown as the headline.
      * @param {string} [options.metaLabel] - Seat summary, e.g. "Blue | Scribe".
      * @param {string} [options.accent] - CSS colour for the check/dot accent.
-     * @returns {{ confirm: () => Promise<void>, dismiss: () => void }}
+     * @returns {{ confirm: () => Promise<void>, dismiss: () => void, setSessionName: (sessionName: string) => void }}
      */
     showJoinConfirmation({
         displayName,
@@ -473,6 +478,8 @@ export class LandingController {
         overlay.className = 'join-confirm';
         overlay.setAttribute('role', 'status');
         overlay.setAttribute('aria-live', 'polite');
+        overlay.setAttribute('aria-atomic', 'true');
+        overlay.setAttribute('aria-busy', 'true');
 
         const card = document.createElement('div');
         card.className = 'jc-card';
@@ -488,6 +495,10 @@ export class LandingController {
         name.className = 'jc-name';
         name.textContent = displayName || '';
 
+        const sessionName = document.createElement('p');
+        sessionName.className = 'jc-session';
+        sessionName.hidden = true;
+
         const meta = document.createElement('p');
         meta.className = 'jc-meta';
         const dot = document.createElement('span');
@@ -501,7 +512,7 @@ export class LandingController {
         status.className = 'jc-status';
         status.textContent = 'Joining session...';
 
-        card.append(check, name, meta, status);
+        card.append(check, name, sessionName, meta, status);
         overlay.appendChild(card);
         document.body.appendChild(overlay);
 
@@ -516,6 +527,7 @@ export class LandingController {
                 if (settled) return Promise.resolve();
                 settled = true;
                 overlay.classList.add('is-confirmed');
+                overlay.setAttribute('aria-busy', 'false');
                 status.textContent = 'Entering session...';
                 return new Promise((resolve) => setTimeout(resolve, HOLD_MS));
             },
@@ -523,6 +535,13 @@ export class LandingController {
                 if (settled) return;
                 settled = true;
                 overlay.remove();
+            },
+            setSessionName: (resolvedSessionName) => {
+                const normalizedSessionName = String(resolvedSessionName || '').trim();
+                if (!normalizedSessionName) return;
+
+                sessionName.textContent = `Session: ${normalizedSessionName}`;
+                sessionName.hidden = false;
             }
         };
     }
@@ -624,6 +643,7 @@ export class LandingController {
         await this.prewarmBrowserIdentity({ interactive: true });
         const session = await this.findSessionByCode(sessionCode);
         const sessionCodeFromLookup = session.session_code || sessionCode;
+        confirmation.setSessionName(session.name);
         const whiteCellRole = buildWhiteCellOperatorRole(operatorRole);
         const grant = await database.authorizeOperatorAccess({
             surface: OPERATOR_SURFACES.WHITE_CELL,

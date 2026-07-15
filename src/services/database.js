@@ -225,6 +225,47 @@ function resolveActionWritePayload(actionData = {}, operation = 'actionWrite', {
     };
 }
 
+function resolveStructuredArtifactFields(actionData = {}) {
+    if (!Object.prototype.hasOwnProperty.call(actionData, 'ally_contingencies')) {
+        return {};
+    }
+
+    const proposalDetails = parseProposalDetails(actionData.ally_contingencies);
+    if (proposalDetails) {
+        return {
+            artifact_type: 'proposal',
+            proposal_recipient_team: proposalDetails.recipientTeam?.toLowerCase() || null,
+            artifact_payload: { proposal: proposalDetails },
+            forecast_targets: []
+        };
+    }
+
+    const moveResponseDetails = parseMoveResponseDetails(actionData.ally_contingencies);
+    if (moveResponseDetails) {
+        return {
+            artifact_type: 'move_response',
+            proposal_recipient_team: null,
+            artifact_payload: { move_response: moveResponseDetails },
+            forecast_targets: []
+        };
+    }
+
+    const strategicOrientationDetails = parseStrategicOrientationDetails(actionData.ally_contingencies);
+    if (strategicOrientationDetails) {
+        const artifactType = strategicOrientationDetails.artifactType === 'selection'
+            ? 'strategic_orientation_selection'
+            : 'strategic_orientation_forecast';
+        return {
+            artifact_type: artifactType,
+            proposal_recipient_team: null,
+            artifact_payload: { strategic_orientation: strategicOrientationDetails },
+            forecast_targets: strategicOrientationDetails.forecastTargets || []
+        };
+    }
+
+    return {};
+}
+
 function normalizeOperatorGrantRecord(record = null) {
     if (!record || typeof record !== 'object') {
         return record;
@@ -991,6 +1032,7 @@ export const database = {
             allowEmptyMechanism: status === ENUMS.ACTION_STATUS.DRAFT,
             requireSector: true
         });
+        const structuredArtifactFields = resolveStructuredArtifactFields(resolvedActionData);
         const submittedAt = status === ENUMS.ACTION_STATUS.SUBMITTED
             ? (resolvedActionData.submitted_at || new Date().toISOString())
             : (resolvedActionData.submitted_at || null);
@@ -1011,6 +1053,10 @@ export const database = {
                 expected_outcomes: resolvedActionData.expected_outcomes,
                 ally_contingencies: resolvedActionData.ally_contingencies,
                 priority: resolvedActionData.priority,
+                ...structuredArtifactFields,
+                ...(resolvedActionData.idempotency_key
+                    ? { idempotency_key: resolvedActionData.idempotency_key }
+                    : {}),
                 status,
                 submitted_at: submittedAt,
                 adjudicated_at: resolvedActionData.adjudicated_at || null
@@ -1095,7 +1141,8 @@ export const database = {
      * @returns {Promise<Object>} Updated action
      */
     async updateAction(actionId, updates, {
-        allowEmptyMechanism = false
+        allowEmptyMechanism = false,
+        expectedRowVersion = null
     } = {}) {
         await ensureAuthenticatedBrowser();
         if ('status' in updates && !isValidActionStatus(updates.status)) {
@@ -1104,18 +1151,32 @@ export const database = {
         const resolvedUpdates = resolveActionWritePayload(updates, 'updateAction', {
             allowEmptyMechanism
         });
+        const structuredArtifactFields = resolveStructuredArtifactFields(resolvedUpdates);
 
-        const { data, error } = await supabase
+        let updateQuery = supabase
             .from('actions')
             .update({
                 ...resolvedUpdates,
+                ...structuredArtifactFields,
                 updated_at: new Date().toISOString()
             })
-            .eq('id', actionId)
+            .eq('id', actionId);
+
+        if (Number.isInteger(expectedRowVersion)) {
+            updateQuery = updateQuery.eq('row_version', expectedRowVersion);
+        }
+
+        const { data, error } = await updateQuery
             .select()
             .single();
 
         if (error) {
+            if (error.code === 'PGRST116' && Number.isInteger(expectedRowVersion)) {
+                throw new DatabaseError(
+                    'This artifact changed in another session. Refresh before saving again.',
+                    'updateAction'
+                );
+            }
             throw fromSupabaseError(error, 'updateAction');
         }
 
@@ -1145,7 +1206,8 @@ export const database = {
         } = updates;
 
         return this.updateAction(actionId, draftUpdates, {
-            allowEmptyMechanism: true
+            allowEmptyMechanism: true,
+            expectedRowVersion: existingAction.row_version
         });
     },
 
@@ -1164,6 +1226,8 @@ export const database = {
         return this.updateAction(actionId, {
             status: ENUMS.ACTION_STATUS.SUBMITTED,
             submitted_at: new Date().toISOString()
+        }, {
+            expectedRowVersion: existingAction.row_version
         });
     },
 
@@ -1190,6 +1254,29 @@ export const database = {
 
         if (error) {
             throw fromSupabaseError(error, 'adjudicateAction');
+        }
+
+        return data;
+    },
+
+    /**
+     * Atomically review a proposal and, when approved, forward it to the
+     * persisted recipient team with its communication and timeline records.
+     * @param {string} actionId - Submitted proposal action ID
+     * @param {Object} review - Review decision and notes
+     * @returns {Promise<Object>} Action, optional communication, and timeline events
+     */
+    async reviewProposal(actionId, review = {}) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('operator_review_proposal', {
+            requested_action_id: actionId,
+            requested_review_decision: review.decision,
+            requested_recipient_team: review.recipient_team || null,
+            requested_adjudication_notes: review.adjudication_notes || null
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'reviewProposal');
         }
 
         return data;

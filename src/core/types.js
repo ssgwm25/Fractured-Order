@@ -60,6 +60,13 @@
  * @property {string} goal - Action goal description
  * @property {string} expected_outcomes - Expected outcomes description
  * @property {string} ally_contingencies - Ally contingency plans
+ * @property {'action'|'strategic_orientation_selection'|'strategic_orientation_forecast'|'proposal'|'move_response'} artifact_type - First-class artifact discriminator
+ * @property {'draft'|'forwarded_to_facilitator'|'submitted_to_white_cell'|'adjudicated'|'abandoned'|'changes_requested'|'rejected'|'forwarded_to_recipient'} workflow_state - Server-owned workflow state
+ * @property {Object} artifact_payload - Structured artifact snapshot
+ * @property {Object[]} forecast_targets - Structured forecast targets
+ * @property {'blue'|'red'|null} proposal_recipient_team - Persisted proposal recipient
+ * @property {string|null} idempotency_key - Optional session-scoped command key
+ * @property {number} row_version - Monotonic server-managed version
  * @property {string} status - Action status (draft, submitted, adjudicated, abandoned)
  * @property {Object|null} adjudication - Adjudication details
  * @property {string|null} submitted_at - ISO timestamp when submitted

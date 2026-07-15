@@ -20,6 +20,9 @@ npm run test:e2e:live-demo
 ```
 
 Pass: unit tests, production build, smoke, and live-demo role tests complete without failures.
+The smoke test completes the Blue and Green single-target orientation handoffs
+and the Red and Industry multi-target forecast handoffs before exercising the
+normal Scribe-to-Facilitator-to-White Cell action lifecycle.
 
 Note: the local E2E static server serves built files even when the build uses
 `VITE_PUBLIC_BASE_PATH="/Fractured-Order/"`, so these checks can run in the
@@ -44,8 +47,9 @@ Pass:
 2. Expand Operator Access.
 3. Authorize as Game Master.
 4. Create an active session with a short uppercase join code.
-5. Keep the Game Master console open for participant monitoring and export.
-6. If Intercom or Session Recorder is enabled for the selected session, confirm the Game Master plugin mount shows the matching operator controls.
+5. Join once as a participant and confirm the loading screen identifies the resolved session by name before entering the role surface.
+6. Keep the Game Master console open for participant monitoring and export.
+7. If Intercom or Session Recorder is enabled for the selected session, confirm the Game Master plugin mount shows the matching operator controls.
 
 Recommended rehearsal session name:
 
@@ -78,8 +82,8 @@ Scribe:
 - confirm the Strategic Orientation button disappears after the team records its selection or forecast; it is a one-time pre-Move-1 input
 - confirm the header live tracker reads Strategic Orientation / Pre-Move 1 until all required orientation artifacts reach White Cell, then returns to Move 1 / Internal Deliberation
 - create a draft action/proposal/response
-- in the Blue Team Action modal, confirm Instrument of Power only offers `Economic` and `Other`; choosing `Other` must reveal a required free-text input and persist the typed value on save/edit, confirm the modal no longer renders a levers field, confirm choosing sector `Other` reveals its required free-text input directly under Sectors and that it reappears after deselecting and reselecting `Other`, confirm Supply Chain Focus is a checkbox group that includes `Diversification` and supports multiple selections, confirm the field label reads `Date of Effect`, confirm Focus Countries includes `Other` with a required free-text input that also reappears after deselecting and reselecting `Other`, and confirm the modal no longer shows a review page or Coordinated/Informed controls because those remain on the Facilitator projection flow
-- in the Red Team Action modal, confirm the Objective hint reads `What you intend this action to achieve in 6 months.`, confirm the modal does not render Implementation, Legislative Route, or Date of Effect controls, confirm Focus Countries omits `PRC` while still offering `Other` with its required free-text input, and confirm the rest of the shared action flow still forwards through the Facilitator
+- in the Blue Team Action modal, confirm the wizard has three pages and page 3 contains Implementation, Focus Countries, and Expected Outcomes in that order; confirm Instrument of Power appears in a full-width section directly below Action Title, is a checkbox group offering `Economic`, `Diplomacy`, `Information`, `Military`, and `Other`, supports multiple selections, and preserves them on save/edit; choosing `Other` must reveal a required free-text input and persist the typed value on save/edit, confirm the modal no longer renders levers or Date of Effect fields while previously recorded dates remain preserved for historical review, confirm choosing sector `Other` reveals its required free-text input directly under Sectors and that it reappears after deselecting and reselecting `Other`; on page 2, confirm the user must answer Yes or No to `Does this action have a supply chain focus?`, that No keeps the dependent controls hidden, and that Yes reveals checkbox groups for Action Angle (`Build resilience for Blue`, `Disrupt Red`) and Supply Chain Area (`Extraction`, `Refinement`, `Distribution`, `Advanced Manufacturing`), with at least one choice required in each group; confirm Focus Countries includes `U.S` and `Other` with a required free-text input that also reappears after deselecting and reselecting `Other`, and confirm the modal no longer shows a review page or Coordinated/Informed controls because those remain on the Facilitator projection flow
+- in the Red Team Action modal, confirm the Objective hint reads `What you intend this action to achieve in 6 months.`, confirm Instrument of Power is a checkbox group offering `Economic`, `Diplomacy`, `Information`, `Military`, and `Other` and preserves multiple selections on save/edit, confirm the modal does not render Implementation, Legislative Route, or Date of Effect controls, confirm Focus Countries includes `U.S`, `PRC`, and `Other` with the required free-text input for `Other`, and confirm the rest of the shared action flow still forwards through the Facilitator
 - forward completed Strategic Orientation artifacts and actions to the Facilitator; Red now provides actions through the same team action flow as Blue, while proposals still enter White Cell review from their role-specific flow
 - submit RFIs across multiple category tabs
 - confirm White Cell responses are separated by category tabs and forwarded proposals appear
@@ -88,6 +92,7 @@ Scribe:
 
 White Cell:
 
+- confirm every submission card carries a visible source-team badge, including Strategic Orientation artifacts in the mixed-team queue and Green or Industry proposals
 - confirm the Move Control sequence shows Strategic Orientation before Move 1, marks it active while the gate is incomplete, and marks it complete when Move 1 becomes active
 - confirm Move 1 phase/move advance controls remain blocked until Blue selection plus Green, Red, and Industry forecasts arrive from the Facilitator
 - confirm the Strategic Orientation queue shows Blue selection plus Green, Red, and Industry forecasts after Facilitator submission
@@ -99,7 +104,7 @@ White Cell:
 - start/pause/reset the Strategic Orientation timer as lead while the pre-Move-1 gate is still incomplete
 - advance/regress phase and move after the Strategic Orientation gate clears
 - confirm advancing or regressing moves pauses the timer and loads the target move allocation
-- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues
+- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues; confirm the Blue action modal includes its recorded supply-chain focus
 - answer RFIs
 - send direct communications and section updates
 - review participant roster filters
@@ -107,12 +112,15 @@ White Cell:
 
 Facilitator:
 
-- confirm default deck loads
+- confirm the assigned or default deck remains available in the main viewer and Previous/Next navigation works, while the sidebar shows only live team decisions and no static deck section, slide-count, or slide-title details; use `Team Action Review` to jump to the first live decision, then `Deck` to return to the exact support slide last viewed
+- in the Actions or Proposals section, confirm Strategic Orientation is first, followed by Move 1, Move 2, and later move groups; within each move, the newest submission appears first and every collapsed action card retains a visible lifecycle status
 - open the onboarding guide and confirm the live-tracker step highlights the Move/Phase cluster and timer as separate header elements without the timer visually sitting on top of one oversized highlight
-- in the Facilitator strategic actions section, confirm Blue action cards are collapsed by default to `Action details`, the action title, and `Objective:` only while keeping the standard card width, and that the full action entity card appears only after it is clicked
-- confirm Scribe-forwarded Strategic Orientation artifacts appear as distinct orientation slides, separate from normal action slide treatment
+- in the Facilitator strategic actions section, confirm forwarded actions open with their full entity details visible by default; the facilitator may deliberately collapse and reopen an action with the `Action details` control
+- confirm Scribe-forwarded Strategic Orientation artifacts appear as distinct, fully visible orientation slides, separate from normal action slide treatment and without a minimized state
 - confirm Scribe-forwarded actions and live communications appear as slides
-- project each Strategic Orientation selection/forecast and its recorded team rationale for the team, then use the visible handoff control to submit it to White Cell
+- project each Strategic Orientation selection/forecast and its recorded team rationale for the team; presentation mode must use the full viewer width, show every selected orientation component once, hide lifecycle, sequence, priority/outcome, timestamps, and White Cell review details, and show the fixed facilitator toolbar at the bottom; orientation projections keep the action-only coordination controls visibly unavailable while Edit opens the Strategic Orientation editor and Forward to White Cell remains available for a forwarded draft
+- project a forwarded action and confirm the participant-facing slide shows its title, objective, expected outcome, and selected action components once; Objective and Expected Outcome must appear as balanced side-by-side panels, the component cards must form a balanced two-column grid, and Supply Chain Focus must span the final row with Action Angle and Area in separate matching fields; timeline, lifecycle, sequence, priority/outcome, timestamps, White Cell review details, and notes must not appear on the projected slide
+- in presentation mode, use the fixed bottom toolbar to open the established team action editor, record Coordinated Yes/No plus Legislative and Executive Yes/No, record Industry and Allies Yes/No under Informed/Engaged, and select Forward to White Cell; confirm forwarding stays disabled until every required Yes/No choice is complete and a Coordinated Yes includes at least one coordinated route, then confirm the committed toolbar reports `Submitted to White Cell.` while its controls remain read-only
 - confirm Facilitator submission succeeds for Scribe-forwarded Strategic Orientation artifacts and normal forwarded actions after the legacy Scribe RLS policy patch is applied
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
 - confirm deck failure states are visible if an upload/path is invalid

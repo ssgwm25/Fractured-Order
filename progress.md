@@ -1,0 +1,19 @@
+Original prompt: The loading screen must detail the name of the session being joined by the user as well to limit confusion.
+
+- 2026-07-15: Located the participant and White Cell join paths in `src/roles/landing.js` and the branded join interstitial in `styles/pages/landing.css`.
+- 2026-07-15: Added a visible, assistive-technology-announced session-name line populated from the secure session-code lookup before the seat claim proceeds.
+- 2026-07-15: Added focused unit coverage and a live-demo runbook check. Verification remains for the human to run under the repository execution boundary.
+- TODO: Run `npm test -- src/roles/landing.join.test.js`, `npm run build`, and the Session Setup check in `docs/live-demo-runbook.md`.
+- 2026-07-15: Reworked the facilitator Actions/Proposals section into one exercise-order view: Strategic Orientation, then Move 1, Move 2, and later moves, with newest-first ordering inside each move.
+- 2026-07-15: Kept lifecycle status visible on collapsed action cards and added a compact source-team badge to every White Cell submission card.
+- 2026-07-15: Added focused facilitator and White Cell tests plus operator runbook checks. Commands were not run under the repository execution boundary.
+- TODO: Run `npm test -- src/roles/facilitator.test.js src/roles/whitecell.test.js`, `npm run build`, and the updated Facilitator and White Cell checks in `docs/live-demo-runbook.md`.
+- 2026-07-15: Removed static support-deck sections, counts, and slide titles from the facilitator sidebar while preserving the assigned deck and stage Previous/Next navigation.
+- 2026-07-15: Kept only live team decisions in the sidebar, updated its accessible label across all four team shells, and added focused Scribe/facilitator tests plus a runbook check.
+- TODO: Run `npm test -- src/roles/scribe.test.js`, `npm run build`, and the updated Facilitator deck/sidebar check in `docs/live-demo-runbook.md`.
+- 2026-07-15: Changed forwarded facilitator action reviews to render fully expanded by default and pinned Strategic Orientation reviews as full, non-minimized slides.
+- 2026-07-15: Added an accessible `Team Action Review` / `Deck` switch to every team facilitator shell; returning to Deck restores the last support-deck slide viewed without reintroducing deck details in the sidebar.
+- 2026-07-15: Added focused controller, markup, styling, and runbook coverage. Commands were not run under the repository execution boundary.
+- TODO: Run `npm test -- src/roles/scribe.test.js`, `npm run build`, and the updated Facilitator action-review/deck-switch checks in `docs/live-demo-runbook.md`.
+- 2026-07-15: Human verification confirmed the production build and `test:e2e:smoke` pass. The focused Scribe suite reported one stale onboarding-selector assertion; updated it to pin the new view switch and its deck-position restoration guidance.
+- TODO: Re-run `npm test -- src/roles/scribe.test.js`; pass is 34 tests passing with no failed test files. The fallback-path warning/error logs remain expected test output.

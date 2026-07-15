@@ -49,6 +49,10 @@ const INTERCOM_STORAGE_BUCKET_PATH = new URL(
     '../../data/2026-06-28_intercom_storage_bucket.sql',
     import.meta.url
 );
+const ACTION_ARTIFACT_WORKFLOW_INTEGRITY_PATH = new URL(
+    '../../data/2026-07-14_action_artifact_workflow_integrity.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -327,6 +331,61 @@ describe('database migration contracts', () => {
         expect(recordResearchEventBody).toContain('extensions.digest');
         expect(recordResearchEventBody).toContain('previous_row.event_hash');
         expect(recordResearchEventBody).toContain('INSERT INTO public.research_audit_event_log');
+    });
+
+    it('adds first-class artifact and workflow contracts with fail-closed uniqueness', () => {
+        const sql = readFileSync(ACTION_ARTIFACT_WORKFLOW_INTEGRITY_PATH, 'utf8');
+
+        expect(sql).toContain('ADD COLUMN IF NOT EXISTS artifact_type TEXT');
+        expect(sql).toContain('ADD COLUMN IF NOT EXISTS workflow_state TEXT');
+        expect(sql).toContain("ADD COLUMN IF NOT EXISTS artifact_payload JSONB NOT NULL DEFAULT '{}'::jsonb");
+        expect(sql).toContain("ADD COLUMN IF NOT EXISTS forecast_targets JSONB NOT NULL DEFAULT '[]'::jsonb");
+        expect(sql).toContain('ADD COLUMN IF NOT EXISTS proposal_recipient_team TEXT');
+        expect(sql).toContain('ADD COLUMN IF NOT EXISTS idempotency_key TEXT');
+        expect(sql).toContain('ADD COLUMN IF NOT EXISTS row_version BIGINT NOT NULL DEFAULT 1');
+        expect(sql).toContain("'strategic_orientation_selection'");
+        expect(sql).toContain("'strategic_orientation_forecast'");
+        expect(sql).toContain("'proposal'");
+        expect(sql).toContain("'move_response'");
+        expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_one_orientation_per_session_team');
+        expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_session_idempotency_key');
+        expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_communications_one_forward_per_proposal');
+        expect(sql).toContain('Existing malformed rows are surfaced as blockers');
+    });
+
+    it('moves action lifecycle and audit truth into database triggers', () => {
+        const sql = readFileSync(ACTION_ARTIFACT_WORKFLOW_INTEGRITY_PATH, 'utf8');
+        const normalizeBody = extractFunctionBody(sql, 'normalize_action_workflow_write');
+        const auditBody = extractFunctionBody(sql, 'audit_action_workflow_write');
+
+        expect(normalizeBody).toContain('clock_timestamp()');
+        expect(normalizeBody).toContain('does not match current game state');
+        expect(normalizeBody).toContain('New artifacts must begin in draft or submitted state');
+        expect(normalizeBody).toContain('Invalid action status transition');
+        expect(normalizeBody).toContain('Submitted and adjudicated artifact content is immutable');
+        expect(normalizeBody).toContain('Only draft artifacts can be soft deleted');
+        expect(normalizeBody).toContain("OLD.status = 'draft' AND NEW.status = 'submitted'");
+        expect(normalizeBody).toContain('NEW.draft_duration_seconds');
+        expect(normalizeBody).toContain('NEW.submission_to_adjudication_seconds');
+        expect(auditBody).toContain('INSERT INTO public.action_logs');
+        expect(auditBody).toContain('pg_advisory_xact_lock');
+        expect(auditBody).toContain('public.record_research_event');
+        expect(sql).toContain('CREATE TRIGGER normalize_action_workflow_write');
+        expect(sql).toContain('CREATE TRIGGER audit_action_workflow_write');
+    });
+
+    it('ships one atomic and idempotent proposal review and forwarding RPC', () => {
+        const sql = readFileSync(ACTION_ARTIFACT_WORKFLOW_INTEGRITY_PATH, 'utf8');
+        const reviewProposalBody = extractFunctionBody(sql, 'operator_review_proposal');
+
+        expect(reviewProposalBody).toContain("normalized_decision NOT IN ('forward_to_recipient', 'request_changes', 'reject')");
+        expect(reviewProposalBody).toContain('public.operator_adjudicate_action');
+        expect(reviewProposalBody).toContain("'proposal_review_decision', normalized_decision");
+        expect(reviewProposalBody).toContain("'PROPOSAL_FORWARDED'");
+        expect(reviewProposalBody).toContain('INSERT INTO public.communications');
+        expect(reviewProposalBody).toContain('INSERT INTO public.timeline');
+        expect(reviewProposalBody).toContain("'idempotent_replay', true");
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_review_proposal(UUID, TEXT, TEXT, TEXT) TO authenticated;');
     });
 
     it('gates research-table reads through session access and keeps the identity map out of normal reads', () => {

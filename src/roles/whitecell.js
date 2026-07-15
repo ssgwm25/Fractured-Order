@@ -31,7 +31,6 @@ import {
     isStrategicOrientationAction
 } from '../features/actions/strategicOrientationDetails.js';
 import {
-    parseProposalDetails,
     getProposalViewModel,
     formatProposalSelection
 } from '../features/actions/proposalDetails.js';
@@ -3283,6 +3282,13 @@ export class WhiteCellController {
         const arrivalBadgeMarkup = isNew
             ? createBadge({ text: 'NEW', variant: 'warning', size: 'sm', rounded: true }).outerHTML
             : '';
+        const sourceTeamBadgeMarkup = createBadge({
+            text: this.formatTeamLabel(action.team),
+            variant: 'primary',
+            size: 'sm',
+            rounded: true,
+            className: 'badge-source-team'
+        }).outerHTML;
         const actionButtons = [];
 
         if (canShareActionToRedTeam(action)) {
@@ -3302,6 +3308,7 @@ export class WhiteCellController {
                     </div>
                     <div class="entity-card__badges">
                         ${arrivalBadgeMarkup}
+                        ${sourceTeamBadgeMarkup}
                         ${createStatusBadge(status).outerHTML}
                         ${secondaryBadge}
                     </div>
@@ -3438,6 +3445,10 @@ export class WhiteCellController {
         const blueAction = getBlueActionViewModel(action);
         const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
         const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
+        const supplyChainFocusLabel = formatBlueActionSelection(
+            blueAction.supplyChainFocuses,
+            blueAction.supplyChainFocus || 'Not specified'
+        );
         const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
         content.innerHTML = `
@@ -3726,132 +3737,6 @@ export class WhiteCellController {
         }
     }
 
-    /**
-     * After White Cell explicitly chooses to forward a proposal, send it to the
-     * intended recipient team. Surfaced as:
-     *   - a communication from White Cell to the recipient team (team-wide, so
-     *     both facilitator and scribe see it), and
-     *   - a PROPOSAL_FORWARDED timeline event tagged with the source proposal
-     *     id so the post-sim review can reconstruct the lineage.
-     */
-    async forwardProposalToRecipient(action, {
-        outcome = 'SUCCESS',
-        reviewDecision = PROPOSAL_REVIEW_DECISIONS.FORWARD_TO_RECIPIENT,
-        recipientTeam: explicitRecipientTeam = null,
-        sourceAction = null
-    } = {}) {
-        const resolvedAction = action || sourceAction;
-        if (!resolvedAction) return;
-
-        const actionWithProposalDetails = parseProposalDetails(action?.ally_contingencies)
-            ? action
-            : sourceAction;
-        const proposalDetails = parseProposalDetails(actionWithProposalDetails?.ally_contingencies);
-        const recipientTeam = ['blue', 'red'].includes(explicitRecipientTeam)
-            ? explicitRecipientTeam
-            : proposalDetails?.recipientTeam;
-        if (!recipientTeam || !['blue', 'red'].includes(recipientTeam)) {
-            logger.warn('Proposal review requested forwarding, but recipient_team is missing or invalid:', recipientTeam);
-            return;
-        }
-
-        const sessionId = sessionStore.getSessionId();
-        if (!sessionId) return;
-
-        const alreadyForwarded = communicationsStore.getAll().some((comm) => (
-            comm?.type === 'PROPOSAL_FORWARDED'
-            && comm?.metadata?.source_proposal_id === resolvedAction.id
-        ));
-        if (alreadyForwarded) {
-            logger.info('Proposal already forwarded; skipping duplicate forward.', {
-                proposalId: resolvedAction.id
-            });
-            return;
-        }
-
-        const viewModel = getProposalViewModel(actionWithProposalDetails || resolvedAction);
-        const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
-        const sourceTeam = resolvedAction.team || 'green';
-        const sourceLabel = this.formatProposalRecipientTeamLabel(sourceTeam);
-        const proposalTitle = viewModel.title || 'Untitled proposal';
-        const originators = formatProposalSelection(viewModel.originators, 'Not specified');
-        const gameState = this.getCurrentGameState();
-
-        const proposalSnapshot = {
-            title: proposalTitle,
-            originators: viewModel.originators,
-            objective: viewModel.objective,
-            category: viewModel.category,
-            intendedPartners: viewModel.intendedPartners,
-            focusSector: viewModel.focusSector,
-            delivery: viewModel.delivery,
-            timingAndConditions: viewModel.timingAndConditions,
-            expectedOutcomes: viewModel.expectedOutcomes
-        };
-
-        const commContent = [
-            `Forwarded ${sourceLabel} proposal (sent by White Cell after review).`,
-            `Title: ${proposalTitle}`,
-            `Category: ${viewModel.category || 'Not specified'}`,
-            `Originators: ${originators}`,
-            `Intended Partners: ${viewModel.intendedPartners || 'Not specified'}`,
-            `Focus Sector: ${viewModel.focusSector || 'Not specified'}`,
-            `Delivery: ${viewModel.delivery || 'Not specified'}`,
-            `Objective: ${viewModel.objective || 'Not specified'}`,
-            `Timing & Conditions: ${viewModel.timingAndConditions || 'Not specified'}`,
-            `Expected Outcomes: ${viewModel.expectedOutcomes || 'Not specified'}`,
-            `White Cell decision: Forwarded to ${recipientLabel}`,
-            `Recorded outcome: ${outcome}`
-        ].join('\n');
-
-        try {
-            const recipientMetadata = buildWhiteCellRecipientMetadata(recipientTeam, {
-                source_proposal_id: resolvedAction.id,
-                source_team: sourceTeam,
-                outcome,
-                review_decision: reviewDecision,
-                review_stage: 'forwarded_to_recipient',
-                proposal: proposalSnapshot
-            });
-            const communication = await database.createCommunication({
-                session_id: sessionId,
-                from_role: 'white_cell',
-                to_role: recipientTeam,
-                type: 'PROPOSAL_FORWARDED',
-                content: commContent,
-                metadata: recipientMetadata
-            });
-            communicationsStore.updateFromServer('INSERT', communication);
-
-            const timelineEvent = await database.createTimelineEvent({
-                session_id: sessionId,
-                type: 'PROPOSAL_FORWARDED',
-                content: `${sourceLabel} proposal forwarded to ${recipientLabel} after White Cell approval: ${proposalTitle}`,
-                metadata: {
-                    related_id: resolvedAction.id,
-                    role: this.getTimelineActorRole(),
-                    ...buildWhiteCellRecipientMetadata(recipientTeam, {
-                        source_team: sourceTeam,
-                        outcome,
-                        review_decision: reviewDecision,
-                        review_stage: 'forwarded_to_recipient',
-                        proposal: true
-                    })
-                },
-                team: 'white_cell',
-                move: resolvedAction.move ?? gameState.move ?? 1,
-                phase: resolvedAction.phase ?? gameState.phase ?? 1
-            });
-            timelineStore.updateFromServer('INSERT', timelineEvent);
-        } catch (err) {
-            logger.error('Failed to forward reviewed proposal:', err);
-            showToast({
-                message: `Proposal review saved, but forwarding to ${recipientLabel} failed. Retry from the proposal record.`,
-                type: 'warning'
-            });
-        }
-    }
-
     async handleProposalReview(modal, action) {
         const selectedDecision = document.querySelector('input[name="proposalReviewDecision"]:checked')?.value;
         const notes = document.getElementById('adjudicationNotes')?.value?.trim();
@@ -3880,38 +3765,25 @@ export class WhiteCellController {
         const loader = showLoader({ message: decision.loaderMessage });
 
         try {
-            const updatedAction = await database.adjudicateAction(action.id, {
-                outcome: decision.outcome,
-                adjudication_notes: notes || null,
-                adjudicated_at: new Date().toISOString()
+            const reviewResult = await database.reviewProposal(action.id, {
+                decision: selectedDecision,
+                recipient_team: reviewOptions.recipientTeam || null,
+                adjudication_notes: notes || null
             });
+            const updatedAction = reviewResult?.action;
+            if (!updatedAction) {
+                throw new Error('Proposal review did not return the updated proposal.');
+            }
             actionsStore.updateFromServer('UPDATE', updatedAction);
 
-            const gameState = this.getCurrentGameState();
-            const timelineEvent = await database.createTimelineEvent({
-                session_id: sessionStore.getSessionId(),
-                type: 'ACTION_ADJUDICATED',
-                content: `Proposal review recorded: ${decision.timelineLabel}`,
-                metadata: {
-                    related_id: action.id,
-                    role: this.getTimelineActorRole(),
-                    proposal_review_decision: selectedDecision,
-                    proposal_recipient_team: reviewOptions.recipientTeam || null,
-                    proposal: true
-                },
-                team: 'white_cell',
-                move: gameState.move ?? 1,
-                phase: gameState.phase ?? 1
-            });
-            timelineStore.updateFromServer('INSERT', timelineEvent);
+            if (reviewResult.communication) {
+                communicationsStore.updateFromServer('INSERT', reviewResult.communication);
+            }
 
-            if (selectedDecision === PROPOSAL_REVIEW_DECISIONS.FORWARD_TO_RECIPIENT) {
-                await this.forwardProposalToRecipient(updatedAction, {
-                    outcome: decision.outcome,
-                    reviewDecision: selectedDecision,
-                    recipientTeam: reviewOptions.recipientTeam,
-                    sourceAction: action
-                });
+            for (const timelineEvent of reviewResult.timeline_events || []) {
+                if (timelineEvent) {
+                    timelineStore.updateFromServer('INSERT', timelineEvent);
+                }
             }
 
             showToast({ message: decision.successToast, type: 'success' });

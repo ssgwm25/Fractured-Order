@@ -356,6 +356,70 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(payload.ally_contingencies).toContain('"key":"green_europe"');
     });
 
+    it('records a multi-target Red forecast using its primary forecast in timeline metadata', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-red-orientation');
+        vi.spyOn(sessionStore, 'getClientId').mockReturnValue('client-red-orientation');
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([]);
+        const actionsStoreSpy = vi.spyOn(actionsStore, 'updateFromServer');
+        const timelineStoreSpy = vi.spyOn(timelineStore, 'updateFromServer');
+
+        createAction.mockImplementation(async (payload) => ({
+            id: 'strategic-orientation-red-1',
+            ...payload
+        }));
+        createTimelineEvent
+            .mockResolvedValueOnce({
+                id: 'timeline-red-orientation-created',
+                type: 'ACTION_CREATED'
+            })
+            .mockResolvedValueOnce({
+                id: 'timeline-red-orientation-forwarded',
+                type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE'
+            });
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'red';
+        controller.teamLabel = 'Red Team';
+        controller.role = 'red_facilitator';
+        controller.isReadOnly = false;
+        const modal = { close: vi.fn() };
+
+        await controller.submitStrategicOrientation(modal, {
+            forecasts: {
+                blue: 'pressure',
+                green_asian_pacific: 'reframe',
+                green_europe: 'stabilization'
+            },
+            rationale: 'Red records all required forecast targets.'
+        });
+
+        expect(createAction).toHaveBeenCalledWith(expect.objectContaining({
+            goal: 'Red Team Forecasts',
+            team: 'red',
+            status: 'draft'
+        }));
+        expect(createTimelineEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
+            metadata: expect.objectContaining({
+                artifact_type: 'forecast',
+                orientation: 'pressure'
+            })
+        }));
+        expect(actionsStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'strategic-orientation-red-1'
+        }));
+        expect(timelineStoreSpy).toHaveBeenCalledTimes(2);
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Strategic Orientation forwarded to Facilitator',
+            type: 'success'
+        });
+        expect(modal.close).toHaveBeenCalled();
+    });
+
     it('renders the Strategic Orientation modal without the removed explanatory copy', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         global.document = createFakeDocument();
@@ -511,6 +575,70 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(strategicOrientationBtn.hidden).toBe(false);
         expect(strategicOrientationBtn.disabled).toBe(true);
         expect(strategicOrientationBtn.className).toContain('btn-secondary');
+    });
+
+    it('opens the recorded Strategic Orientation draft in edit mode when explicitly requested from projection', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const action = await createStrategicOrientationAction();
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([action]);
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.isReadOnly = false;
+
+        controller.showEditActionModal(action);
+
+        expect(showModal).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Edit Strategic Orientation',
+            size: 'xl'
+        }));
+        expect(showToast).not.toHaveBeenCalledWith(expect.objectContaining({
+            message: 'Strategic Orientation has already been recorded for this team.'
+        }));
+    });
+
+    it('updates the same recorded Strategic Orientation draft from projection edit mode', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const action = await createStrategicOrientationAction();
+        const updatedAction = {
+            ...action,
+            goal: 'Strategic Orientation: Reframe'
+        };
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue(action.session_id);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([action]);
+        const actionsStoreSpy = vi.spyOn(actionsStore, 'updateFromServer');
+        updateDraftAction.mockResolvedValue(updatedAction);
+        createTimelineEvent.mockResolvedValue({
+            id: 'orientation-edit-forwarded',
+            type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE'
+        });
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.isReadOnly = false;
+        const modal = { close: vi.fn() };
+
+        await controller.submitStrategicOrientation(modal, {
+            selected: 'reframe',
+            rationale: 'Update the projected orientation before forwarding.'
+        }, {
+            actionId: action.id,
+            isEdit: true
+        });
+
+        expect(updateDraftAction).toHaveBeenCalledWith(action.id, expect.objectContaining({
+            goal: 'Strategic Orientation: Reframe'
+        }));
+        expect(createAction).not.toHaveBeenCalled();
+        expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', updatedAction);
+        expect(modal.close).toHaveBeenCalled();
     });
 
     it('renders recorded Strategic Orientation artifacts without draft edit or delete controls', async () => {
@@ -947,7 +1075,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(markup).not.toContain('Send to Red Team');
     });
 
-    it('groups Blue strategic actions by lifecycle status in the action list', async () => {
+    it('sequences Strategic Orientation before move actions and shows newest actions first within a move', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const actionsList = createFakeElement('actionsList');
         global.document = {
@@ -965,43 +1093,78 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         controller.isReadOnly = false;
         controller.actions = [
             {
-                id: 'action-draft-1',
+                id: 'action-move-2',
                 team: 'blue',
                 status: 'draft',
-                goal: 'Draft action',
-                mechanism: 'Economic',
-                move: 2,
-                phase: 2
-            },
-            {
-                id: 'action-submitted-1',
-                team: 'blue',
-                status: 'submitted',
-                goal: 'Submitted action',
+                goal: 'Move 2 action',
                 mechanism: 'Economic',
                 move: 2,
                 phase: 2,
-                submitted_at: '2026-04-09T10:10:00.000Z'
+                created_at: '2026-04-09T10:00:00.000Z'
             },
             {
-                id: 'action-reviewed-1',
+                id: 'action-move-1-older',
+                team: 'blue',
+                status: 'draft',
+                goal: 'Older Move 1 action',
+                mechanism: 'Economic',
+                move: 1,
+                phase: 1,
+                created_at: '2026-04-09T08:00:00.000Z'
+            },
+            await createStrategicOrientationAction({ status: 'submitted' }),
+            {
+                id: 'action-move-3',
                 team: 'blue',
                 status: 'adjudicated',
-                goal: 'Reviewed action',
+                goal: 'Move 3 action',
                 mechanism: 'Economic',
-                move: 2,
+                move: 3,
                 phase: 2,
                 adjudicated_at: '2026-04-09T10:20:00.000Z'
+            },
+            {
+                id: 'action-move-1-newer',
+                team: 'blue',
+                status: 'draft',
+                goal: 'Newest Move 1 action',
+                mechanism: 'Economic',
+                move: 1,
+                phase: 1,
+                created_at: '2026-04-09T09:00:00.000Z'
             }
         ];
 
         controller.renderActionsList();
 
-        expect(actionsList.innerHTML).toContain('Draft Strategic Actions (1)');
-        expect(actionsList.innerHTML).toContain('Submitted to White Cell (1)');
-        expect(actionsList.innerHTML).toContain('White Cell Reviewed (1)');
-        expect(actionsList.innerHTML.indexOf('Draft action')).toBeLessThan(actionsList.innerHTML.indexOf('Submitted action'));
-        expect(actionsList.innerHTML.indexOf('Submitted action')).toBeLessThan(actionsList.innerHTML.indexOf('Reviewed action'));
+        expect(actionsList.innerHTML).not.toContain('data-actions-tabs');
+        expect(actionsList.innerHTML).toContain('aria-label="Submissions in exercise sequence"');
+        expect(actionsList.innerHTML.indexOf('Strategic Orientation')).toBeLessThan(actionsList.innerHTML.indexOf('Move 1 Actions'));
+        expect(actionsList.innerHTML.indexOf('Move 1 Actions')).toBeLessThan(actionsList.innerHTML.indexOf('Move 2 Actions'));
+        expect(actionsList.innerHTML.indexOf('Move 2 Actions')).toBeLessThan(actionsList.innerHTML.indexOf('Move 3 Actions'));
+        expect(actionsList.innerHTML.indexOf('Newest Move 1 action')).toBeLessThan(actionsList.innerHTML.indexOf('Older Move 1 action'));
+        expect(actionsList.innerHTML).toContain('entity-card__toggle-state');
+        expect(actionsList.innerHTML).toContain('Draft');
+        expect(actionsList.innerHTML).toContain('Deliberation Underway');
+    });
+
+    it('labels proposal-team move groups as proposals', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+
+        const groups = controller.getActionSequenceGroups([
+            { id: 'proposal-move-2', team: 'green', move: 2, mechanism: 'Proposal' },
+            await createStrategicOrientationAction({ id: 'strategic-orientation-green', team: 'green' }),
+            { id: 'proposal-move-1', team: 'green', move: 1, mechanism: 'Proposal' }
+        ]);
+
+        expect(groups.map((group) => group.title)).toEqual([
+            'Strategic Orientation',
+            'Move 1 Proposals',
+            'Move 2 Proposals'
+        ]);
     });
 
     it('renders Blue Team wizard fields on facilitator action cards', async () => {
@@ -1067,30 +1230,95 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         controller.teamLabel = 'Blue Team';
         const blueWizardMarkup = controller.createBlueActionWizardContent().innerHTML;
         const actionFormMarkup = controller.createActionFormContent().innerHTML;
+        const bluePageOneMarkup = blueWizardMarkup.slice(
+            blueWizardMarkup.indexOf('data-blue-action-page="0"'),
+            blueWizardMarkup.indexOf('data-blue-action-page="1"')
+        );
+        const bluePageTwoMarkup = blueWizardMarkup.slice(
+            blueWizardMarkup.indexOf('data-blue-action-page="1"'),
+            blueWizardMarkup.indexOf('data-blue-action-page="2"')
+        );
+        const bluePageThreeMarkup = blueWizardMarkup.slice(
+            blueWizardMarkup.indexOf('data-blue-action-page="2"')
+        );
+        const supplyChainDetailsOpeningTag = bluePageTwoMarkup.slice(
+            bluePageTwoMarkup.indexOf('id="actionSupplyChainFocusDetails"'),
+            bluePageTwoMarkup.indexOf('>', bluePageTwoMarkup.indexOf('id="actionSupplyChainFocusDetails"'))
+        );
 
         expect(blueWizardMarkup).toContain('What you intend this action to achieve.');
         expect(blueWizardMarkup).toContain("What you anticipate will actually happen as a result, including effects you don't control.");
         expect(blueWizardMarkup).not.toContain('data-blue-action-checkbox="lever"');
         expect(blueWizardMarkup).not.toContain('Select one or more levers.');
+        expect(blueWizardMarkup).toContain('data-blue-action-checkbox="instrument"');
+        expect(blueWizardMarkup).toContain('value="Diplomacy"');
+        expect(blueWizardMarkup).toContain('value="Information"');
+        expect(blueWizardMarkup).toContain('value="Military"');
+        expect(blueWizardMarkup).toContain('Select one or more instruments of power.');
+        expect(blueWizardMarkup).not.toContain('id="actionInstrument"');
+        expect(bluePageOneMarkup).toContain('class="action-builder-field-stack"');
+        expect(bluePageOneMarkup).not.toContain('class="section-grid section-grid-2"');
+        expect(bluePageOneMarkup.indexOf('id="actionTitle"')).toBeLessThan(
+            bluePageOneMarkup.indexOf('id="actionInstrumentsLabel"')
+        );
+        expect(bluePageOneMarkup.indexOf('id="actionInstrumentsLabel"')).toBeLessThan(
+            bluePageOneMarkup.indexOf('id="actionObjective"')
+        );
         expect(blueWizardMarkup).toContain('data-blue-action-checkbox="sector"');
         expect(blueWizardMarkup).toContain('Select one or more sectors.');
-        expect(blueWizardMarkup).toContain('data-blue-action-checkbox="supply-chain-focus"');
-        expect(blueWizardMarkup).toContain('Select one or more supply chain focus areas.');
+        expect(bluePageTwoMarkup).toContain('Does this action have a supply chain focus? *');
+        expect(bluePageTwoMarkup).toContain('type="radio"');
+        expect(bluePageTwoMarkup).toContain('value="Yes"');
+        expect(bluePageTwoMarkup).toContain('value="No"');
+        expect(bluePageTwoMarkup).toContain('aria-required="true"');
+        expect(bluePageTwoMarkup).toContain('id="actionSupplyChainFocusDetails"');
+        expect(supplyChainDetailsOpeningTag).toContain('hidden');
+        expect(bluePageTwoMarkup).toContain('id="actionSupplyChainAngleLabel"');
+        expect(bluePageTwoMarkup).toContain('data-blue-action-checkbox="supply-chain-angle"');
+        expect(bluePageTwoMarkup).toContain('value="Build resilience for Blue"');
+        expect(bluePageTwoMarkup).toContain('value="Disrupt Red"');
+        expect(bluePageTwoMarkup).toContain('id="actionSupplyChainAreaLabel"');
+        expect(bluePageTwoMarkup).toContain('data-blue-action-checkbox="supply-chain-area"');
+        expect(bluePageTwoMarkup).toContain('value="Extraction"');
+        expect(bluePageTwoMarkup).toContain('value="Refinement"');
+        expect(bluePageTwoMarkup).toContain('value="Distribution"');
+        expect(bluePageTwoMarkup).toContain('value="Advanced Manufacturing"');
+        expect(bluePageTwoMarkup).not.toContain('value="Diversification"');
+        expect(bluePageTwoMarkup.indexOf('id="actionHasSupplyChainFocusLabel"')).toBeLessThan(
+            bluePageTwoMarkup.indexOf('id="actionSectorsLabel"')
+        );
         expect(blueWizardMarkup).toContain('data-blue-action-checkbox="country"');
+        expect(blueWizardMarkup).toContain('value="U.S"');
         expect(blueWizardMarkup).toContain('value="BRICS+"');
         expect(blueWizardMarkup).toContain('value="Other"');
         expect(blueWizardMarkup).toContain('Select one or more countries.');
-        expect(blueWizardMarkup).toContain('value="Diversification"');
         expect(blueWizardMarkup).toContain('data-blue-action-checkbox="legislative"');
         expect(blueWizardMarkup).toContain('Select all legislative routes that apply.');
         expect(blueWizardMarkup).toContain('actionInstrumentOther');
         expect(blueWizardMarkup).toContain('actionFocusCountryOtherInput');
-        expect(blueWizardMarkup).toContain('actionEnforcementTimelineOther');
+        expect(blueWizardMarkup).not.toContain('Date of Effect');
+        expect(blueWizardMarkup).not.toContain('actionEnforcementTimeline');
         expect(blueWizardMarkup).not.toContain('id="blueActionSummary"');
         expect(blueWizardMarkup).not.toContain('data-blue-action-checkbox="coordinated"');
         expect(blueWizardMarkup).not.toContain('data-blue-action-checkbox="informed"');
-        expect(blueWizardMarkup).not.toContain('Page 1 of 3');
-        expect(blueWizardMarkup).toContain('Page 1 of 2');
+        expect(blueWizardMarkup).toContain('Page 1 of 3');
+        expect(blueWizardMarkup).not.toContain('Page 1 of 2');
+        expect(bluePageTwoMarkup).toContain('id="actionSectorsLabel"');
+        expect(bluePageTwoMarkup).toContain('id="actionHasSupplyChainFocusLabel"');
+        expect(bluePageTwoMarkup).not.toContain('for="actionImplementation"');
+        expect(bluePageTwoMarkup).not.toContain('id="actionFocusCountriesLabel"');
+        expect(bluePageTwoMarkup).not.toContain('for="actionExpectedOutcomes"');
+        expect(bluePageThreeMarkup).toContain('for="actionImplementation"');
+        expect(bluePageThreeMarkup).toContain('id="actionFocusCountriesLabel"');
+        expect(bluePageThreeMarkup).toContain('for="actionExpectedOutcomes"');
+        expect(bluePageThreeMarkup).toContain('Select one or more countries.');
+        expect(bluePageThreeMarkup).toContain("What you anticipate will actually happen as a result, including effects you don't control.");
+        expect(bluePageThreeMarkup.indexOf('for="actionImplementation"')).toBeLessThan(
+            bluePageThreeMarkup.indexOf('id="actionFocusCountriesLabel"')
+        );
+        expect(bluePageThreeMarkup.indexOf('id="actionFocusCountriesLabel"')).toBeLessThan(
+            bluePageThreeMarkup.indexOf('for="actionExpectedOutcomes"')
+        );
         expect(blueWizardMarkup).not.toContain('Hold Ctrl');
 
         expect(actionFormMarkup).toContain('data-action-checkbox="target"');
@@ -1105,7 +1333,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(rfiModalConfig?.content?.innerHTML).not.toContain('Hold Ctrl');
     });
 
-    it('renders the Red Team action wizard without implementation or date-of-effect controls', async () => {
+    it('renders the Red Team action wizard with DIME checkboxes, PRC focus, and no implementation controls', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         global.document = createFakeDocument();
 
@@ -1114,6 +1342,13 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         controller.teamLabel = 'Red Team';
 
         const redWizardMarkup = controller.createBlueActionWizardContent().innerHTML;
+        const redPageOneMarkup = redWizardMarkup.slice(
+            redWizardMarkup.indexOf('data-blue-action-page="0"'),
+            redWizardMarkup.indexOf('data-blue-action-page="1"')
+        );
+        const redPageTwoMarkup = redWizardMarkup.slice(
+            redWizardMarkup.indexOf('data-blue-action-page="1"')
+        );
 
         expect(redWizardMarkup).toContain('What you intend this action to achieve in 6 months.');
         expect(redWizardMarkup).not.toContain('What you intend this action to achieve.</p>');
@@ -1122,9 +1357,27 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(redWizardMarkup).not.toContain('id="actionImplementationOther"');
         expect(redWizardMarkup).not.toContain('id="actionEnforcementTimelineOther"');
         expect(redWizardMarkup).not.toContain('data-blue-action-checkbox="legislative"');
-        expect(redWizardMarkup).not.toContain('value="PRC"');
+        expect(redWizardMarkup).toContain('data-blue-action-checkbox="instrument"');
+        expect(redWizardMarkup).not.toContain('id="actionInstrument"');
+        expect(redPageOneMarkup).toContain('class="action-builder-field-stack"');
+        expect(redPageOneMarkup.indexOf('id="actionTitle"')).toBeLessThan(
+            redPageOneMarkup.indexOf('id="actionInstrumentsLabel"')
+        );
+        expect(redWizardMarkup).toContain('value="Economic"');
+        expect(redWizardMarkup).toContain('value="Diplomacy"');
+        expect(redWizardMarkup).toContain('value="Information"');
+        expect(redWizardMarkup).toContain('value="Military"');
+        expect(redWizardMarkup).toContain('value="PRC"');
+        expect(redWizardMarkup).toContain('value="U.S"');
         expect(redWizardMarkup).toContain('value="Russia"');
         expect(redWizardMarkup).toContain('value="Other"');
+        expect(redWizardMarkup).toContain('data-blue-action-checkbox="supply-chain-focus"');
+        expect(redWizardMarkup).toContain('value="Diversification"');
+        expect(redWizardMarkup).not.toContain('Does this action have a supply chain focus?');
+        expect(redWizardMarkup).toContain('Page 1 of 2');
+        expect(redWizardMarkup).not.toContain('data-blue-action-page="2"');
+        expect(redPageTwoMarkup).toContain('id="actionFocusCountriesLabel"');
+        expect(redPageTwoMarkup).toContain('for="actionExpectedOutcomes"');
     });
 
     it('reopens a custom Blue instrument as Other with the saved value preserved', async () => {
@@ -1137,7 +1390,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             mechanism: 'Technology Standards'
         }).innerHTML;
 
-        expect(blueWizardMarkup).toContain('<option value="Other" selected>Other</option>');
+        expect(blueWizardMarkup).toContain('id="actionBlueInstrumentOther"');
+        expect(blueWizardMarkup).toContain('value="Other"');
+        expect(blueWizardMarkup).toContain('checked');
         expect(blueWizardMarkup).toContain('id="actionInstrumentOther"');
         expect(blueWizardMarkup).toContain('value="Technology Standards"');
     });
@@ -1152,12 +1407,38 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             targets: ['Ghana']
         }).innerHTML;
 
-        expect(blueWizardMarkup.indexOf('id="actionBlueSectorOtherGroup"')).toBeLessThan(
-            blueWizardMarkup.indexOf('id="actionSupplyChainFocusLabel"')
+        expect(blueWizardMarkup.indexOf('id="actionHasSupplyChainFocusLabel"')).toBeLessThan(
+            blueWizardMarkup.indexOf('id="actionBlueSectorOtherGroup"')
         );
         expect(blueWizardMarkup).toContain('id="actionBlueSectorOtherInput"');
         expect(blueWizardMarkup).toContain('id="actionFocusCountryOtherInput"');
         expect(blueWizardMarkup).toContain('value="Ghana"');
+    });
+
+    it('reopens saved Blue supply-chain details when the answer is Yes', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        const blueWizardMarkup = controller.createBlueActionWizardContent({
+            ally_contingencies: serializeBlueActionDetails({
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Disrupt Red'],
+                supplyChainAreas: ['Refinement', 'Distribution']
+            })
+        }).innerHTML;
+        const detailsOpeningTag = blueWizardMarkup.slice(
+            blueWizardMarkup.indexOf('id="actionSupplyChainFocusDetails"'),
+            blueWizardMarkup.indexOf('>', blueWizardMarkup.indexOf('id="actionSupplyChainFocusDetails"'))
+        );
+
+        expect(blueWizardMarkup).toContain('id="actionHasSupplyChainFocusYes"');
+        expect(blueWizardMarkup).toMatch(/value="Disrupt Red"\s+checked/);
+        expect(blueWizardMarkup).toMatch(/value="Refinement"\s+checked/);
+        expect(blueWizardMarkup).toMatch(/value="Distribution"\s+checked/);
+        expect(detailsOpeningTag).not.toContain('hidden');
     });
 
     it('collects Blue wizard values while preserving stored levers from existing actions', async () => {
@@ -1170,11 +1451,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             '#actionInstrumentOther': '',
             '#actionObjective': 'Stabilize trade flows.',
             '#actionImplementation': 'Executive Order',
-            '#actionEnforcementTimeline': '6 months',
             '#actionExpectedOutcomes': 'Reduce dependency on vulnerable routes.',
             '#actionBlueSectorOtherInput': '',
             '#actionFocusCountryOtherInput': '',
-            '#actionImplementationOther': ''
+            '#actionImplementationOther': '',
+            '[name="actionHasSupplyChainFocus"]:checked': 'Yes'
         };
 
         const wizardData = controller.getBlueActionWizardData({
@@ -1191,12 +1472,20 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 return { value: blueWizardFieldValues[selector] };
             },
             querySelectorAll(selector) {
+                if (selector === '[data-blue-action-checkbox="instrument"]:checked') {
+                    return [{ value: 'Diplomacy' }, { value: 'Information' }, { value: 'Military' }];
+                }
+
                 if (selector === '[data-blue-action-checkbox="sector"]:checked') {
                     return [{ value: 'Biotechnology' }, { value: 'Agriculture' }];
                 }
 
-                if (selector === '[data-blue-action-checkbox="supply-chain-focus"]:checked') {
-                    return [{ value: 'Diversification' }, { value: 'Advanced Manufacturing' }];
+                if (selector === '[data-blue-action-checkbox="supply-chain-angle"]:checked') {
+                    return [{ value: 'Build resilience for Blue' }, { value: 'Disrupt Red' }];
+                }
+
+                if (selector === '[data-blue-action-checkbox="supply-chain-area"]:checked') {
+                    return [{ value: 'Extraction' }, { value: 'Advanced Manufacturing' }];
                 }
 
                 if (selector === '[data-blue-action-checkbox="country"]:checked') {
@@ -1208,13 +1497,33 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
 
         expect(wizardData.levers).toEqual(['Export Controls', 'Sanctions']);
+        expect(wizardData.instrumentOfPower).toBe('Diplomacy');
+        expect(wizardData.instruments).toEqual(['Diplomacy', 'Information', 'Military']);
+        expect(wizardData.selectedInstrumentValues).toEqual(['Diplomacy', 'Information', 'Military']);
         expect(wizardData.sectors).toEqual(['Biotechnology', 'Agriculture']);
-        expect(wizardData.supplyChainFocus).toBe('Diversification');
-        expect(wizardData.supplyChainFocuses).toEqual(['Diversification', 'Advanced Manufacturing']);
+        expect(wizardData.supplyChainFocusDecision).toBe('Yes');
+        expect(wizardData.supplyChainActionAngles).toEqual(['Build resilience for Blue', 'Disrupt Red']);
+        expect(wizardData.supplyChainArea).toBe('Extraction');
+        expect(wizardData.supplyChainAreas).toEqual(['Extraction', 'Advanced Manufacturing']);
+        expect(wizardData.supplyChainFocus).toBe('Extraction');
+        expect(wizardData.supplyChainFocuses).toEqual(['Extraction', 'Advanced Manufacturing']);
         expect(wizardData.focusCountries).toEqual(['Kenya', 'BRICS+']);
         expect(wizardData.selectedFocusCountryValues).toEqual(['Kenya', 'BRICS+']);
         expect(wizardData.coordinated).toEqual(['Executive']);
         expect(wizardData.informed).toEqual(['Allies']);
+
+        const payload = controller.buildBlueActionPayload(wizardData);
+        expect(payload.mechanism).toBe('Diplomacy');
+        expect(payload.ally_contingencies).toContain(
+            'Instruments: ["Diplomacy","Information","Military"]'
+        );
+        expect(payload.ally_contingencies).toContain('Supply Chain Focus Decision: Yes');
+        expect(payload.ally_contingencies).toContain(
+            'Supply Chain Action Angles: ["Build resilience for Blue","Disrupt Red"]'
+        );
+        expect(payload.ally_contingencies).toContain(
+            'Supply Chain Areas: ["Extraction","Advanced Manufacturing"]'
+        );
 
         global.document = {
             getElementById(id) {
@@ -1241,7 +1550,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(formData.targets).toEqual(['PRC', 'RUS']);
     });
 
-    it('captures and validates a custom date of effect in the Blue wizard', async () => {
+    it('omits Date of Effect while preserving a stored legacy value', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         controller.teamId = 'blue';
@@ -1255,15 +1564,16 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                     '#actionInstrumentOther': { value: '' },
                     '#actionObjective': { value: 'Stabilize trade flows.' },
                     '#actionImplementation': { value: 'Executive Order' },
-                    '#actionEnforcementTimeline': { value: 'Other' },
-                    '#actionEnforcementTimelineOther': { value: '18 months with quarterly checkpoints' },
                     '#actionExpectedOutcomes': { value: 'Reduce dependency on vulnerable routes.' },
                     '#actionBlueSectorOtherInput': { value: '' },
                     '#actionFocusCountryOtherInput': { value: '' },
-                    '#actionImplementationOther': { value: '' }
+                    '#actionImplementationOther': { value: '' },
+                    '[name="actionHasSupplyChainFocus"]:checked': { value: 'No' }
                 }[selector] || null;
             },
-            dataset: {},
+            dataset: {
+                blueActionEnforcementTimeline: '18 months with quarterly checkpoints'
+            },
             querySelectorAll(selector) {
                 if (selector === '[data-blue-action-checkbox="sector"]:checked') {
                     return [{ value: 'Biotechnology' }];
@@ -1282,17 +1592,14 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
 
         expect(wizardData.enforcementTimeline).toBe('18 months with quarterly checkpoints');
-        expect(wizardData.enforcementTimelineSelectValue).toBe('Other');
-        expect(wizardData.enforcementTimelineOther).toBe('18 months with quarterly checkpoints');
         expect(controller.validateBlueActionWizardPage(wizardData, 1)).toBeNull();
-        expect(controller.validateBlueActionWizardPage({
-            ...wizardData,
-            enforcementTimelineOther: '',
-            enforcementTimeline: ''
-        }, 1)).toBe('Please enter the custom date of effect.');
+        expect(controller.validateBlueActionWizardPage(wizardData, 2)).toBeNull();
+        expect(controller.buildBlueActionPayload(wizardData).ally_contingencies).toContain(
+            'Enforcement Timeline: 18 months with quarterly checkpoints'
+        );
     });
 
-    it('does not require implementation or date of effect in the Red wizard', async () => {
+    it('collects multiple Red instruments without requiring implementation or date of effect', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         controller.teamId = 'red';
@@ -1302,7 +1609,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             querySelector(selector) {
                 return {
                     '#actionTitle': { value: 'Counter port access squeeze' },
-                    '#actionInstrument': { value: 'Economic' },
                     '#actionInstrumentOther': { value: '' },
                     '#actionObjective': { value: 'Preserve freight leverage over the next 6 months.' },
                     '#actionExpectedOutcomes': { value: 'Maintain corridor access while White Cell reviews the move.' },
@@ -1312,6 +1618,15 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             },
             dataset: {},
             querySelectorAll(selector) {
+                if (selector === '[data-blue-action-checkbox="instrument"]:checked') {
+                    return [
+                        { value: 'Economic' },
+                        { value: 'Diplomacy' },
+                        { value: 'Information' },
+                        { value: 'Military' }
+                    ];
+                }
+
                 if (selector === '[data-blue-action-checkbox="sector"]:checked') {
                     return [{ value: 'Biotechnology' }];
                 }
@@ -1332,7 +1647,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(wizardData.implementationSelectValue).toBe('');
         expect(wizardData.legislativeOptions).toEqual([]);
         expect(wizardData.enforcementTimeline).toBe('');
-        expect(wizardData.enforcementTimelineSelectValue).toBe('');
+        expect(wizardData.instruments).toEqual(['Economic', 'Diplomacy', 'Information', 'Military']);
+        expect(wizardData.instrumentOfPower).toBe('Economic');
         expect(controller.validateBlueActionWizardPage(wizardData, 1)).toBeNull();
     });
 
@@ -1348,12 +1664,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                     '#actionInstrumentOther': { value: 'Technology Standards' },
                     '#actionObjective': { value: 'Stabilize trade flows.' },
                     '#actionImplementation': { value: 'Executive Order' },
-                    '#actionEnforcementTimeline': { value: '6 months' },
                     '#actionExpectedOutcomes': { value: 'Reduce dependency on vulnerable routes.' },
                     '#actionBlueSectorOtherInput': { value: '' },
                     '#actionFocusCountryOtherInput': { value: '' },
                     '#actionImplementationOther': { value: '' },
-                    '#actionEnforcementTimelineOther': { value: '' }
+                    '[name="actionHasSupplyChainFocus"]:checked': { value: 'No' },
                 }[selector] || null;
             },
             dataset: {},
@@ -1397,12 +1712,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                     '#actionInstrumentOther': { value: '' },
                     '#actionObjective': { value: 'Stabilize trade flows.' },
                     '#actionImplementation': { value: 'Executive Order' },
-                    '#actionEnforcementTimeline': { value: '6 months' },
                     '#actionExpectedOutcomes': { value: 'Reduce dependency on vulnerable routes.' },
                     '#actionBlueSectorOtherInput': { value: 'Critical Minerals' },
                     '#actionFocusCountryOtherInput': { value: '' },
                     '#actionImplementationOther': { value: '' },
-                    '#actionEnforcementTimelineOther': { value: '' }
+                    '[name="actionHasSupplyChainFocus"]:checked': { value: 'No' },
                 }[selector] || null;
             },
             dataset: {},
@@ -1446,12 +1760,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                     '#actionInstrumentOther': { value: '' },
                     '#actionObjective': { value: 'Stabilize trade flows.' },
                     '#actionImplementation': { value: 'Executive Order' },
-                    '#actionEnforcementTimeline': { value: '6 months' },
                     '#actionExpectedOutcomes': { value: 'Reduce dependency on vulnerable routes.' },
                     '#actionBlueSectorOtherInput': { value: '' },
                     '#actionFocusCountryOtherInput': { value: 'Ghana' },
                     '#actionImplementationOther': { value: '' },
-                    '#actionEnforcementTimelineOther': { value: '' }
+                    '[name="actionHasSupplyChainFocus"]:checked': { value: 'No' },
                 }[selector] || null;
             },
             dataset: {},
@@ -1475,15 +1788,15 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(wizardData.focusCountries).toEqual(['Ghana']);
         expect(wizardData.selectedFocusCountryValues).toEqual(['Other']);
         expect(wizardData.focusCountryOther).toBe('Ghana');
-        expect(controller.validateBlueActionWizardPage(wizardData, 1)).toBeNull();
+        expect(controller.validateBlueActionWizardPage(wizardData, 2)).toBeNull();
         expect(controller.validateBlueActionWizardPage({
             ...wizardData,
             focusCountryOther: '',
             focusCountries: []
-        }, 1)).toBe('Please enter the custom focus country.');
+        }, 2)).toBe('Please enter the custom focus country.');
     });
 
-    it('allows Blue drafts to be saved before the final summary page', async () => {
+    it('allows Blue drafts to be saved before the third page is completed', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         const pageZeroDraft = {
@@ -1498,6 +1811,10 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             sectorOther: '',
             selectedFocusCountryValues: [],
             focusCountryOther: '',
+            supplyChainFocusDecision: '',
+            supplyChainActionAngles: [],
+            supplyChainArea: '',
+            supplyChainAreas: [],
             supplyChainFocus: '',
             supplyChainFocuses: [],
             implementation: '',
@@ -1506,8 +1823,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             legislativeOptions: [],
             focusCountries: [],
             enforcementTimeline: '',
-            enforcementTimelineSelectValue: '',
-            enforcementTimelineOther: '',
             expectedOutcomes: '',
             coordinated: [],
             informed: []
@@ -1523,7 +1838,41 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         }, 0)).toBe('Add at least one action detail before saving a draft.');
         expect(controller.getBlueActionDraftSaveValidationError(pageZeroDraft, 0)).toBeNull();
         expect(controller.getBlueActionDraftSaveValidationError(pageZeroDraft, 1)).toBeNull();
-        expect(controller.getBlueActionDraftSaveValidationError(pageZeroDraft, 2)).toBeNull();
+        expect(controller.getBlueActionDraftSaveValidationError(pageZeroDraft, 2)).toBe(
+            'Select Yes or No for the supply chain focus question.'
+        );
+        const pageTwoDraft = {
+            ...pageZeroDraft,
+            sectors: ['Biotechnology'],
+            selectedSectorValues: ['Biotechnology'],
+            supplyChainFocusDecision: 'No'
+        };
+
+        expect(controller.validateBlueActionWizardPage(pageTwoDraft, 1)).toBeNull();
+        expect(controller.validateBlueActionWizardPage({
+            ...pageTwoDraft,
+            supplyChainFocusDecision: ''
+        }, 1)).toBe('Select Yes or No for the supply chain focus question.');
+        expect(controller.validateBlueActionWizardPage({
+            ...pageTwoDraft,
+            supplyChainFocusDecision: 'Yes'
+        }, 1)).toBe('Select at least one action angle.');
+        expect(controller.validateBlueActionWizardPage({
+            ...pageTwoDraft,
+            supplyChainFocusDecision: 'Yes',
+            supplyChainActionAngles: ['Build resilience for Blue']
+        }, 1)).toBe('Select at least one supply chain area.');
+        expect(controller.validateBlueActionWizardPage({
+            ...pageTwoDraft,
+            supplyChainFocusDecision: 'Yes',
+            supplyChainActionAngles: ['Build resilience for Blue'],
+            supplyChainArea: 'Extraction',
+            supplyChainAreas: ['Extraction'],
+            supplyChainFocus: 'Extraction',
+            supplyChainFocuses: ['Extraction']
+        }, 1)).toBeNull();
+        expect(controller.validateBlueActionWizardPage(pageTwoDraft, 2)).toBe('Select at least one focus country.');
+        expect(controller.getBlueActionDraftSaveValidationError(pageTwoDraft, 2)).toBeNull();
     });
 
     it('saves a Blue draft from the first wizard page without requiring later pages', async () => {
@@ -1577,12 +1926,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                     '#actionInstrumentOther': { value: '' },
                     '#actionObjective': { value: 'Stabilize trade flows.' },
                     '#actionImplementation': { value: '' },
-                    '#actionEnforcementTimeline': { value: '' },
                     '#actionExpectedOutcomes': { value: '' },
                     '#actionBlueSectorOtherInput': { value: '' },
                     '#actionFocusCountryOtherInput': { value: '' },
                     '#actionImplementationOther': { value: '' },
-                    '#actionEnforcementTimelineOther': { value: '' }
+                    '[name="actionHasSupplyChainFocus"]:checked': { value: 'No' },
                 }[selector] || null;
             },
             querySelectorAll() {
@@ -1627,8 +1975,12 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             status: 'draft',
             ally_contingencies: serializeBlueActionDetails({
                 objective: 'Secure corridor access.',
+                instruments: ['Economic', 'Diplomacy', 'Information', 'Military'],
                 levers: ['Export Controls'],
                 sectors: ['Biotechnology'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Disrupt Red'],
+                supplyChainAreas: ['Refinement'],
                 implementation: 'Legislative',
                 legislativeOptions: ['Existing legislation/policy'],
                 enforcementTimeline: '6 months',
@@ -1657,8 +2009,12 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             ...forwardedAction,
             ally_contingencies: serializeBlueActionDetails({
                 objective: 'Secure corridor access.',
+                instruments: ['Economic', 'Diplomacy', 'Information', 'Military'],
                 levers: ['Export Controls'],
                 sectors: ['Biotechnology'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Disrupt Red'],
+                supplyChainAreas: ['Refinement'],
                 implementation: 'Legislative',
                 legislativeOptions: ['Existing legislation/policy'],
                 enforcementTimeline: '6 months'
@@ -1670,6 +2026,15 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(updateDraftAction).toHaveBeenCalledWith('action-blue-draft-1', {
             ally_contingencies: expect.stringContaining('Scribe Handoff: Forwarded')
         });
+        expect(updateDraftAction.mock.calls[0][1].ally_contingencies).toContain(
+            'Instruments: ["Economic","Diplomacy","Information","Military"]'
+        );
+        expect(updateDraftAction.mock.calls[0][1].ally_contingencies).toContain(
+            'Supply Chain Action Angles: ["Disrupt Red"]'
+        );
+        expect(updateDraftAction.mock.calls[0][1].ally_contingencies).toContain(
+            'Supply Chain Areas: ["Refinement"]'
+        );
         expect(submitActionRecord).not.toHaveBeenCalled();
         expect(createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             type: 'ACTION_FORWARDED_TO_SCRIBE',
@@ -1701,12 +2066,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                     '#actionInstrumentOther': { value: '' },
                     '#actionObjective': { value: 'Stabilize trade flows.' },
                     '#actionImplementation': { value: 'Legislative' },
-                    '#actionEnforcementTimeline': { value: '6 months' },
                     '#actionExpectedOutcomes': { value: 'Reduce dependency on vulnerable routes.' },
                     '#actionBlueSectorOtherInput': { value: '' },
                     '#actionFocusCountryOtherInput': { value: '' },
                     '#actionImplementationOther': { value: '' },
-                    '#actionEnforcementTimelineOther': { value: '' }
+                    '[name="actionHasSupplyChainFocus"]:checked': { value: 'No' },
                 }[selector] || null;
             },
             querySelectorAll(selector) {

@@ -45,14 +45,16 @@ function mockUpdateChain(result = { id: 'action-updated' }) {
         error: null
     });
     const select = vi.fn(() => ({ single }));
-    const eq = vi.fn(() => ({ select }));
+    const updateBuilder = { select };
+    const eq = vi.fn(() => updateBuilder);
+    updateBuilder.eq = eq;
     const update = vi.fn(() => ({ eq }));
 
     mockSupabase.from.mockReturnValue({
         update
     });
 
-    return { update };
+    return { update, eq };
 }
 
 describe('database action write contracts', () => {
@@ -95,11 +97,21 @@ describe('database action write contracts', () => {
                 recipientTeam: 'blue'
             }),
             priority: 'NORMAL',
+            idempotency_key: 'proposal-command-1',
             status: 'submitted'
         });
 
         expect(insert).toHaveBeenCalledWith(expect.objectContaining({
-            mechanism: 'Proposal'
+            mechanism: 'Proposal',
+            idempotency_key: 'proposal-command-1',
+            artifact_type: 'proposal',
+            proposal_recipient_team: 'blue',
+            artifact_payload: {
+                proposal: expect.objectContaining({
+                    objective: 'Coordinate a joint line.',
+                    recipientTeam: 'blue'
+                })
+            }
         }));
     });
 
@@ -135,7 +147,14 @@ describe('database action write contracts', () => {
 
         expect(insert).toHaveBeenCalledWith(expect.objectContaining({
             mechanism: 'Strategic Orientation',
-            sector: ''
+            sector: '',
+            artifact_type: 'strategic_orientation_selection',
+            artifact_payload: {
+                strategic_orientation: expect.objectContaining({
+                    artifactType: 'selection',
+                    team: 'blue'
+                })
+            }
         }));
     });
 
@@ -172,6 +191,7 @@ describe('database action write contracts', () => {
 
         expect(insert).toHaveBeenCalledWith(expect.objectContaining({
             sector: '',
+            artifact_type: 'move_response',
             status: 'submitted',
             submitted_at: '2026-04-09T10:20:00.000Z'
         }));
@@ -194,7 +214,13 @@ describe('database action write contracts', () => {
         });
 
         expect(update).toHaveBeenCalledWith(expect.objectContaining({
-            mechanism: 'Move Response'
+            mechanism: 'Move Response',
+            artifact_type: 'move_response',
+            artifact_payload: {
+                move_response: expect.objectContaining({
+                    responseStrategy: 'Absorb pressure through alternate routing.'
+                })
+            }
         }));
     });
 
@@ -227,10 +253,11 @@ describe('database action write contracts', () => {
 
     it('allows draft-only updates to clear the mechanism while the wizard is still in progress', async () => {
         const { database } = await import('./database.js');
-        const { update } = mockUpdateChain();
+        const { update, eq } = mockUpdateChain();
         vi.spyOn(database, 'getAction').mockResolvedValue({
             id: 'action-draft-1',
-            status: 'draft'
+            status: 'draft',
+            row_version: 7
         });
 
         await database.updateDraftAction('action-draft-1', {
@@ -242,6 +269,8 @@ describe('database action write contracts', () => {
             mechanism: '',
             goal: 'Secure corridor access'
         }));
+        expect(eq).toHaveBeenNthCalledWith(1, 'id', 'action-draft-1');
+        expect(eq).toHaveBeenNthCalledWith(2, 'row_version', 7);
     });
 
     it('fails fast when a submitted non-special action write omits a mechanism', async () => {

@@ -332,12 +332,16 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(flattenHighlights(guide.steps)).toEqual([
             '#header-game-state',
             '#header-timer',
-            '#scribeSectionList',
+            '.scribe-view-switch',
             '#scribeAlertsBtn',
             '#presentBtn',
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
+        expect(guide.steps[2].body).toContain('Team Action Review and Deck');
+        expect(guide.steps[2].body).toContain('restores the support slide you last viewed');
+        expect(guide.steps[4].body).toContain('facilitator toolbar');
+        expect(guide.steps[4].body).toContain('White Cell forwarding');
     });
 
     it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {
@@ -673,7 +677,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         );
     });
 
-    it('lets scribe slide groups collapse independently without forcing another group open', async () => {
+    it('keeps the live decision group collapsible after deck details leave the sidebar', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
@@ -681,15 +685,19 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         const controller = new ScribeController();
         controller.sections = [{
+            id: 'actions',
+            label: 'Actions',
+            slideCount: 1,
+            slides: [{
+                slideKey: 'action-live-1',
+                slideType: 'action',
+                title: 'Live decision'
+            }]
+        }, {
             id: 'overview',
             label: 'Overview',
             slideCount: 1,
             slides: [{ n: 1, title: 'Overview slide', src: 'data:image/png;base64,one' }]
-        }, {
-            id: 'schedule',
-            label: 'Schedule',
-            slideCount: 1,
-            slides: [{ n: 2, title: 'Schedule slide', src: 'data:image/png;base64,two' }]
         }];
         controller.deckSlides = [
             controller.sections[0].slides[0],
@@ -697,22 +705,22 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         ];
         controller.currentSlideIndex = 0;
         controller.activeSectionIndex = 0;
-        controller.expandedSectionIds = new Set(['overview', 'schedule']);
+        controller.expandedSectionIds = new Set(['actions', 'overview']);
         controller.sectionExpansionInitialized = true;
 
         controller.renderSections();
-        expect(sectionButtonMarkup(sectionList.innerHTML, 'Overview')).toContain('aria-expanded="true"');
-        expect(sectionButtonMarkup(sectionList.innerHTML, 'Schedule')).toContain('aria-expanded="true"');
+        expect(sectionButtonMarkup(sectionList.innerHTML, 'Actions')).toContain('aria-expanded="true"');
+        expect(sectionList.innerHTML).not.toContain('Overview');
 
         controller.toggleSection(0);
 
-        expect(sectionButtonMarkup(sectionList.innerHTML, 'Overview')).toContain('aria-expanded="false"');
-        expect(sectionButtonMarkup(sectionList.innerHTML, 'Schedule')).toContain('aria-expanded="true"');
+        expect(sectionButtonMarkup(sectionList.innerHTML, 'Actions')).toContain('aria-expanded="false"');
+        expect(sectionList.innerHTML).not.toContain('Overview');
         expect(controller.activeSectionIndex).toBe(0);
-        expect(controller.getCurrentSlideKey()).toBe('deck-1');
+        expect(controller.getCurrentSlideKey()).toBe('action-live-1');
     });
 
-    it('separates live actions from support deck sections in the scribe sidebar', async () => {
+    it('keeps live actions in the sidebar without rendering support deck details', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
@@ -751,12 +759,56 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(sectionList.innerHTML).toContain('data-section-kind="actions"');
         expect(sectionList.innerHTML).toContain('scribe-section-card--actions');
         expect(sectionList.innerHTML).toContain('scribe-slide-link is-action');
-        expect(sectionList.innerHTML).toContain('scribe-section-region--deck');
-        expect(sectionList.innerHTML).toContain('Support slides');
-        expect(sectionList.innerHTML).toContain('data-section-kind="deck"');
-        expect(sectionList.innerHTML.indexOf('scribe-section-region--actions')).toBeLessThan(
-            sectionList.innerHTML.indexOf('scribe-section-region--deck')
-        );
+        expect(sectionList.innerHTML).toContain('aria-label="Actions, 1 live decision"');
+        expect(sectionList.innerHTML).not.toContain('scribe-section-region--deck');
+        expect(sectionList.innerHTML).not.toContain('Support slides');
+        expect(sectionList.innerHTML).not.toContain('data-section-kind="deck"');
+        expect(sectionList.innerHTML).not.toContain('Overview slide');
+        expect(controller.deckSlides).toContain(controller.sections[1].slides[0]);
+    });
+
+    it('switches between team action review and the last viewed deck slide', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const actionReviewButton = fakeDocument.register(createFakeElement('teamActionReviewViewBtn', '', 'button'));
+        const deckButton = fakeDocument.register(createFakeElement('deckViewBtn', '', 'button'));
+        global.document = fakeDocument;
+
+        const controller = new ScribeController();
+        const actionSlide = {
+            slideKey: 'action-live-1',
+            slideType: 'action',
+            title: 'Live decision'
+        };
+        const firstDeckSlide = { n: 1, title: 'Overview', src: 'data:image/png;base64,one' };
+        const lastViewedDeckSlide = { n: 2, title: 'Schedule', src: 'data:image/png;base64,two' };
+        controller.sections = [{
+            id: 'actions',
+            label: 'Actions',
+            slides: [actionSlide]
+        }, {
+            id: 'overview',
+            label: 'Overview',
+            slides: [firstDeckSlide, lastViewedDeckSlide]
+        }];
+        controller.deckSlides = [firstDeckSlide, lastViewedDeckSlide, actionSlide];
+        controller.currentSlideIndex = 1;
+        controller.setSlideByKey = vi.fn();
+        controller.closeMobileSidebar = vi.fn();
+
+        controller.updateFacilitatorViewSwitch('deck');
+        expect(actionReviewButton.getAttribute('aria-pressed')).toBe('false');
+        expect(deckButton.getAttribute('aria-pressed')).toBe('true');
+
+        controller.setFacilitatorView('actions');
+        expect(controller.lastDeckSlideKey).toBe('deck-2');
+        expect(controller.setSlideByKey).toHaveBeenCalledWith('action-live-1');
+
+        controller.currentSlideIndex = 2;
+        controller.setSlideByKey.mockClear();
+        controller.setFacilitatorView('deck');
+        expect(controller.setSlideByKey).toHaveBeenCalledWith('deck-2');
+        expect(controller.closeMobileSidebar).toHaveBeenCalledTimes(2);
     });
 
     it('builds live scribe action slides from forwarded drafts and submitted actions instead of deck images', async () => {
@@ -886,7 +938,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         });
     });
 
-    it('renders blue action slides as structured briefing panels that are easier for the team to follow', async () => {
+    it('renders blue action slides as concise participant briefs without adjudication metadata', async () => {
         const { ScribeController } = await loadScribeModule();
         global.document = createFakeDocument();
         global.document.body.dataset.team = 'blue';
@@ -898,7 +950,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             phase: 1,
             goal: 'Tighten critical-mineral export controls',
             description: 'Align allied licensing thresholds before the next market shock.',
-            expected_outcomes: 'Slow diversion routes while preserving allied supply assurance.',
+            expected_outcomes: 'Making things not so easy.',
             mechanism: 'Economic',
             sector: 'Biotechnology',
             exposure_type: 'Refinement',
@@ -913,6 +965,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
                 objective: 'Restrict sensitive mineral processing inputs with allied backing.',
                 levers: ['Export Controls', 'Industrial Policy'],
                 sectors: ['Biotechnology', 'Agriculture'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Disrupt Red'],
+                supplyChainAreas: ['Distribution'],
                 implementation: 'Legislative',
                 legislativeOptions: ['Existing legislation/policy'],
                 enforcementTimeline: '6 months',
@@ -932,26 +987,32 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Action details');
         expect(html).toContain('Objective:</strong> Restrict sensitive mineral processing inputs with allied backing.');
         expect(html).toContain('data-scribe-action-toggle');
-        expect(html).toContain('scribe-action-slide is-collapsed');
-        expect(html).toContain('hidden');
-        controller.expandedStrategicActionIds.add('action-2');
-        const expandedHtml = controller.renderActionSlide({
-            slideKey: 'action-action-2',
-            slideType: 'action',
-            sidebarOrdinal: '1',
-            sidebarKicker: 'Blue Team | Move 2 | Action 1',
-            action
-        });
-
-        expect(expandedHtml).toContain('What Blue Team is doing');
-        expect(expandedHtml).toContain('Action at a glance');
-        expect(expandedHtml).toContain('Execution snapshot');
-        expect(expandedHtml).toContain('Status and White Cell');
-        expect(expandedHtml).toContain('Focus countries');
-        expect(expandedHtml).toContain('Delivery path');
-        expect(expandedHtml).toContain('Expected effect:');
-        expect(expandedHtml).toContain('White Cell note');
-        expect(expandedHtml).toContain('Keep public messaging aligned with allied licensing language.');
+        expect(html).not.toContain('scribe-action-slide is-collapsed');
+        expect(html).toContain('aria-expanded="true"');
+        expect(html).toContain('Blue Team Action');
+        expect(html).toContain('Selected action components');
+        expect(html).toContain('Instrument of power');
+        expect(html).toContain('Focus countries');
+        expect(html).toContain('Sectors');
+        expect(html).toContain('Implementation');
+        expect(html).toContain('Supply chain focus');
+        expect(html).toContain('Legislative route: Existing legislation/policy');
+        expect(html).toContain('scribe-action-slide-key-points');
+        expect(html).toContain('scribe-action-slide-lead--outcome');
+        expect(html).toContain('aria-label="Expected outcome"');
+        expect(html).toContain('Making things not so easy.');
+        expect(html).toContain('scribe-action-slide-glance-card--supply-chain');
+        expect(html).toContain('<dt>Action angle</dt>');
+        expect(html).toContain('<dd>Disrupt Red</dd>');
+        expect(html).toContain('<dt>Area</dt>');
+        expect(html).toContain('<dd>Distribution</dd>');
+        expect(html).not.toContain('Action angle: Disrupt Red | Area: Distribution');
+        expect(html).not.toContain('Execution snapshot');
+        expect(html).not.toContain('Status and White Cell');
+        expect(html).not.toContain('White Cell note');
+        expect(html).not.toContain('Keep public messaging aligned with allied licensing language.');
+        expect(html).not.toContain('6 months');
+        expect(html).not.toContain('Blue Team | Move 2 | Action 1');
     });
 
     it('moves the projected scribe stage onto a newly forwarded team draft slide', async () => {
@@ -1040,31 +1101,39 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Pressure-test the export control package');
         expect(html).toContain('Objective:</strong> Pressure-test the package before it goes to White Cell.');
         expect(html).toContain('data-scribe-action-toggle');
-        expect(html).toContain('scribe-action-slide is-collapsed');
-        controller.expandedStrategicActionIds.add('action-draft-preview');
-        const expandedHtml = controller.renderActionSlide({
-            slideKey: 'action-action-draft-preview',
-            slideType: 'action',
-            sidebarOrdinal: '1',
-            sidebarKicker: 'Forwarded to Facilitator | Blue Team | Move 1 | Action 1',
-            action
-        });
-
-        expect(expandedHtml).toContain('Scribe Action for Facilitator');
-        expect(expandedHtml).toContain('What Blue Team is asking the Facilitator to submit');
-        expect(expandedHtml).toContain('Project this action for the room, complete the facilitator coordination fields, then submit it to White Cell.');
-        expect(expandedHtml).toContain('Draft status');
-        expect(expandedHtml).toContain('Draft saved');
-        expect(expandedHtml).toContain('Not yet submitted to White Cell');
-        expect(expandedHtml).toContain('Awaiting Facilitator submission');
-        expect(expandedHtml).toContain('Facilitator finalization');
-        expect(expandedHtml).toContain('Project Action');
-        expect(expandedHtml).toContain('Coordinated');
-        expect(expandedHtml).toContain('Informed/Engaged');
-        expect(expandedHtml).toContain('value="Industry"');
-        expect(expandedHtml).toContain('value="Allies"');
-        expect(expandedHtml).toContain('data-scribe-action-submit');
-        expect(expandedHtml).toContain('hidden disabled aria-hidden="true"');
+        expect(html).not.toContain('scribe-action-slide is-collapsed');
+        expect(html).toContain('aria-expanded="true"');
+        expect(html).toContain('Blue Team Action');
+        expect(html).toContain('Selected action components');
+        expect(html).toContain('aria-label="Expected outcome"');
+        expect(html).toContain('Align the room on the pre-submission package.');
+        expect(html).not.toContain('Scribe Action for Facilitator');
+        expect(html).not.toContain('Forwarded to Facilitator | Blue Team | Move 1 | Action 1');
+        expect(html).not.toContain('Draft status');
+        expect(html).not.toContain('Draft saved');
+        expect(html).not.toContain('Not yet submitted to White Cell');
+        expect(html).not.toContain('Awaiting Facilitator submission');
+        expect(html).not.toContain('Immediate');
+        expect(html).toContain('Facilitator finalization');
+        expect(html).toContain('Project Action');
+        expect(html).toContain('Coordinated');
+        expect(html).toContain('Informed/Engaged');
+        expect(html).toContain('value="Industry"');
+        expect(html).toContain('value="Allies"');
+        expect(html).toContain('data-scribe-action-submit');
+        expect(html).toContain('hidden disabled aria-hidden="true"');
+        expect(html).toContain('data-scribe-presentation-toolbar');
+        expect(html).toContain('aria-label="Facilitator presentation controls"');
+        expect(html).toContain('data-scribe-action-edit');
+        expect(html).toContain('>Edit</button>');
+        expect(html).toContain('<legend>Coordinated</legend>');
+        expect(html).toContain('>Legislative</span>');
+        expect(html).toContain('>Executive</span>');
+        expect(html).toContain('<legend>Informed/Engaged</legend>');
+        expect(html).toContain('>Industry</span>');
+        expect(html).toContain('>Allies</span>');
+        expect(html).toContain('>Forward to White Cell</button>');
+        expect(html).toContain('Complete every Yes/No choice to forward.');
     });
 
     it('renders forwarded Strategic Orientation drafts with project-then-submit controls', async () => {
@@ -1104,17 +1173,152 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Strategic Orientation Forecast');
         expect(html).toContain('scribe-orientation-slide');
         expect(html).toContain('Forecasted Blue posture');
-        expect(html).toContain('Orientation at a glance');
         expect(html).toContain('Develop new alliance and partnership structures');
         expect(html).toContain('Green expects Blue to pivot into alliance structure-building.');
-        expect(html).toContain('Forecast logic');
         expect(html).toContain('Facilitator-to-White Cell handoff');
         expect(html).toContain('Project orientation, then send to White Cell');
         expect(html).toContain('Project Forecast');
         expect(html).toContain('Submit to White Cell');
+        expect(html).not.toContain('scribe-action-slide is-collapsed');
+        expect(html).not.toContain('data-scribe-action-toggle');
         expect(html).not.toContain('Coordinated tick boxes');
+        expect(html).not.toContain('Forwarded to Facilitator | Pre-Move 1 | Forecast');
+        expect(html).not.toContain('Draft saved');
+        expect(html).not.toContain('White Cell status');
         expect(html).not.toContain('Friend-shoring agreements');
         expect(html).not.toContain('Transitional inefficiencies');
+        expect(html).toContain('data-scribe-presentation-toolbar');
+        expect(html).toContain('>Edit</button>');
+        expect(html).toContain('<fieldset class="scribe-presentation-toolbar-group" disabled>');
+        expect(html).toContain('Coordination and engagement apply to action submissions only.');
+        expect(html).toContain('>Forward to White Cell</button>');
+    });
+
+    it('renders a submitted presentation toolbar with an explicit read-only White Cell status', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        const action = {
+            id: 'action-submitted-preview',
+            status: 'submitted'
+        };
+
+        const html = controller.renderPresentationToolbar(action, {
+            coordinatedDecision: 'yes',
+            informedEngagedDecision: 'yes',
+            coordinated: ['Executive'],
+            informed: ['Allies']
+        });
+
+        expect(html).toContain('Submitted to White Cell.');
+        expect(html).not.toContain('This action has already been forwarded.');
+        expect(html).toMatch(/data-scribe-action-edit[\s\S]*?data-action-id="action-submitted-preview"[\s\S]*?disabled\s*>Edit<\/button>/);
+        expect(html).toMatch(/data-scribe-action-submit[\s\S]*?data-action-id="action-submitted-preview"[\s\S]*?disabled[\s\S]*?>Forward to White Cell<\/button>/);
+    });
+
+    it('maps every presentation-toolbar Yes/No choice into the existing action handoff contract', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        const decisions = {
+            coordinated: 'yes',
+            'coordinated-legislative': 'yes',
+            'coordinated-executive': 'no',
+            'informed-industry': 'no',
+            'informed-allies': 'yes'
+        };
+        const toolbar = {
+            matches: (selector) => selector === '[data-scribe-presentation-toolbar]',
+            querySelector: (selector) => {
+                const group = selector.match(/data-scribe-presentation-radio="([^"]+)"/)?.[1];
+                return group && decisions[group] ? { value: decisions[group] } : null;
+            }
+        };
+
+        const selections = controller.getScribeActionSelections(toolbar);
+
+        expect(selections).toEqual(expect.objectContaining({
+            coordinatedDecision: 'yes',
+            coordinatedValues: ['Legislative'],
+            informedEngagedDecision: 'yes',
+            informedValues: ['Allies']
+        }));
+        expect(controller.isPresentationActionSelectionsComplete(selections)).toBe(true);
+        expect(controller.isScribeActionSelectionsComplete(selections)).toBe(true);
+    });
+
+    it('opens the established action editor for a projected draft', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        const action = {
+            id: 'projected-action-edit',
+            team: 'blue',
+            status: 'draft',
+            goal: 'Edit the projected action'
+        };
+        const showEditActionModal = vi.fn();
+        controller.teamActions = [action];
+        controller.actionEditorController = { showEditActionModal };
+
+        await controller.editProjectedAction(action.id);
+
+        expect(showEditActionModal).toHaveBeenCalledWith(action);
+        expect(controller.actionEditorController.actions).toBe(controller.teamActions);
+        expect(controller.actionEditorController.isReadOnly).toBe(false);
+    });
+
+    it('shows each selected Strategic Orientation component once without lifecycle repetition', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'blue';
+        const controller = new ScribeController();
+        const action = {
+            id: 'orientation-selection-preview',
+            team: 'blue',
+            move: 1,
+            phase: 1,
+            goal: 'Strategic Orientation: Pressure',
+            mechanism: 'Strategic Orientation',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH',
+            status: 'draft',
+            updated_at: '2026-07-15T11:45:00.000Z',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'selection',
+                team: 'blue',
+                orientation: 'pressure',
+                primaryLevers: ['Expanded financial sanctions'],
+                acceptedCosts: ['Sustained economic friction'],
+                posture: 'Calibrated — escalate deliberately',
+                rationale: 'Blue accepts near-term friction to gain negotiating leverage.',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const html = controller.renderActionSlide({
+            slideKey: 'action-orientation-selection-preview',
+            slideType: 'strategic-orientation',
+            sidebarOrdinal: 'SO',
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Selection',
+            action
+        });
+
+        expect(html).toContain('Selected strategic posture');
+        expect(html).toContain('Primary levers');
+        expect(html).toContain('Expanded financial sanctions');
+        expect(html).toContain('Accepted costs');
+        expect(html).toContain('Sustained economic friction');
+        expect(html).toContain('Posture');
+        expect(html).toContain('Calibrated — escalate deliberately');
+        expect(html).toContain('Blue accepts near-term friction to gain negotiating leverage.');
+        expect(html.match(/Expanded financial sanctions/g)).toHaveLength(1);
+        expect(html.match(/Sustained economic friction/g)).toHaveLength(1);
+        expect(html.match(/Blue accepts near-term friction to gain negotiating leverage\./g)).toHaveLength(1);
+        expect(html).not.toContain('Orientation record');
+        expect(html).not.toContain('Status and White Cell');
+        expect(html).not.toContain('Forwarded to Facilitator | Pre-Move 1 | Selection');
+        expect(html).not.toContain('Jul 15, 2026');
     });
 
     it('renders Red multi-target Strategic Orientation forecasts with Blue and Green forecast rows', async () => {
@@ -1156,12 +1360,12 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         });
 
         expect(html).toContain('Forecasted team postures');
-        expect(html).toContain('Blue will choose Pressure');
-        expect(html).toContain('Green (Asian Pacific) will choose Reframe');
-        expect(html).toContain('Green (Europe) will choose Stabilization');
-        expect(html).toContain('Blue forecast');
-        expect(html).toContain('Green (Asian Pacific) forecast');
-        expect(html).toContain('Green (Europe) forecast');
+        expect(html).toContain('Blue');
+        expect(html).toContain('Pressure');
+        expect(html).toContain('Green (Asian Pacific)');
+        expect(html).toContain('Reframe');
+        expect(html).toContain('Green (Europe)');
+        expect(html).toContain('Stabilization');
         expect(html).toContain('Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.');
     });
 
@@ -1213,8 +1417,12 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             status: 'draft',
             ally_contingencies: serializeBlueActionDetails({
                 objective: 'Keep the facilitator in the action submission loop.',
+                instruments: ['Economic', 'Diplomacy', 'Information', 'Military'],
                 levers: ['Export Controls'],
                 sectors: ['Biotechnology'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Build resilience for Blue', 'Disrupt Red'],
+                supplyChainAreas: ['Refinement', 'Distribution'],
                 implementation: 'Legislative',
                 legislativeOptions: ['Existing legislation/policy'],
                 enforcementTimeline: '6 months',
@@ -1259,6 +1467,15 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             ally_contingencies: expect.stringContaining('Coordinated Decision: Yes')
         });
         expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Scribe Handoff: Forwarded');
+        expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain(
+            'Instruments: ["Economic","Diplomacy","Information","Military"]'
+        );
+        expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain(
+            'Supply Chain Action Angles: ["Build resilience for Blue","Disrupt Red"]'
+        );
+        expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain(
+            'Supply Chain Areas: ["Refinement","Distribution"]'
+        );
         expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Coordinated: ["Legislative"]');
         expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Informed/Engaged Decision: Yes');
         expect(mockUpdateDraftAction.mock.calls[0][1].ally_contingencies).toContain('Informed: ["Industry","Allies"]');
@@ -1372,6 +1589,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('id="headerPhase"');
         expect(html).toContain('id="timerDisplay"');
         expect(html).toContain('id="scribeSectionList"');
+        expect(html).toContain('<nav class="scribe-section-nav" aria-label="Facilitator decisions">');
         expect(html).toContain('id="deckSlideImage"');
         expect(html).toContain('id="deckActionFrame"');
         expect(html).toContain('id="slideAnnouncement"');
@@ -1380,6 +1598,23 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).not.toContain('scribe-stage-toolbar');
         expect(html).not.toContain('scribe-stage-footer');
         expect(html).not.toContain('scribe-section-trigger-description');
+    });
+
+    it('labels every facilitator sidebar as decisions rather than deck sections', () => {
+        for (const path of [
+            BLUE_SCRIBE_HTML_PATH,
+            GREEN_SCRIBE_HTML_PATH,
+            INDUSTRY_SCRIBE_HTML_PATH,
+            RED_SCRIBE_HTML_PATH
+        ]) {
+            const html = readFileSync(path, 'utf8');
+
+            expect(html).toContain('aria-label="Facilitator decisions"');
+            expect(html).toContain('class="scribe-view-switch" role="group" aria-label="Facilitator view"');
+            expect(html).toContain('id="teamActionReviewViewBtn" type="button" aria-pressed="false">Team Action Review</button>');
+            expect(html).toContain('id="deckViewBtn" type="button" aria-pressed="true">Deck</button>');
+            expect(html).not.toContain('aria-label="Facilitator deck sections"');
+        }
     });
 
     it('ships every team facilitator alert surface as a real keyboard dialog', () => {
@@ -1425,7 +1660,11 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
         expect(css).toContain('.scribe-section-region--actions {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
-        expect(css).toContain('.scribe-section-region--actions + .scribe-section-region--deck {\n    margin-top: var(--space-5);');
+        expect(css).toContain('.scribe-view-switch {');
+        expect(css).toContain('.scribe-view-switch-button:focus-visible {');
+        expect(css).toContain('.scribe-view-switch-button[aria-pressed="true"] {');
+        expect(css).toContain('#sidebar.sidebar-collapsed .scribe-view-switch');
+        expect(css).not.toContain('.scribe-section-region--actions + .scribe-section-region--deck');
         expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary');
         expect(css).toContain('.scribe-section-card {\n    border: 0;\n    border-radius: var(--radius-md);\n    background: transparent;');
         expect(css).toContain('.scribe-section-trigger {\n    width: 100%;\n    display: flex;\n    align-items: center;');
@@ -1495,11 +1734,25 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(css).toContain('.scribe-slide-link.is-orientation .scribe-slide-link-number');
         expect(css).toContain('.scribe-action-slide::before {');
         expect(css).toContain('.scribe-action-slide-glance-grid {');
+        expect(css).toContain('.scribe-action-slide-glance-grid--components {\n    grid-template-columns: repeat(3, minmax(0, 1fr));');
+        expect(css).toContain('.scribe-action-slide-key-points {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));');
+        expect(css).toContain('.scribe-action-slide-lead--outcome {');
+        expect(css).toContain('.scribe-action-slide-glance-grid--action-components {\n    grid-template-columns: repeat(2, minmax(0, 1fr));');
+        expect(css).toContain('.scribe-action-slide-glance-card--supply-chain {\n    grid-column: 1 / -1;');
+        expect(css).toContain('.scribe-action-slide-component-details {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));');
         expect(css).toContain('.scribe-action-slide-columns {');
         expect(css).toContain('.scribe-action-slide-note-card {');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-sidebar');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-stage-card');
-        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-orientation-slide .scribe-action-slide-submit-panel');
+        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-stage-action-shell {\n    place-items: stretch;');
+        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-action-slide {\n    width: 100%;\n    height: 100%;');
+        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-action-card-toggle {\n    display: none;');
+        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-action-slide-details[hidden] {\n    display: grid !important;');
+        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-action-slide-submit-panel {\n    display: none !important;');
+        expect(css).toContain('body[data-scribe-presentation="active"] .scribe-presentation-toolbar {\n    position: fixed;');
+        expect(css).toContain('grid-template-columns: auto minmax(0, 1.35fr) minmax(0, 1fr) auto;');
+        expect(css).toContain('.scribe-presentation-toolbar-binary input:focus-visible + span {');
+        expect(css).not.toContain('body[data-scribe-presentation="active"] .scribe-orientation-slide .scribe-action-slide-submit-panel');
         expect(css).toContain('body[data-scribe-presentation="active"] .scribe-stage-nav');
     });
 });

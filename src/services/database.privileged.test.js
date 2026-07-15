@@ -254,6 +254,33 @@ describe('database privileged write contracts', () => {
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });
 
+    it('routes proposal review and forwarding through one transactional RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                action: { id: 'action-1', status: 'adjudicated' },
+                communication: { id: 'comm-1', type: 'PROPOSAL_FORWARDED' },
+                timeline_events: [{ id: 'timeline-1' }],
+                idempotent_replay: false
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.reviewProposal('action-1', {
+            decision: 'forward_to_recipient',
+            recipient_team: 'blue',
+            adjudication_notes: 'Forward after review.'
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('operator_review_proposal', {
+            requested_action_id: 'action-1',
+            requested_review_decision: 'forward_to_recipient',
+            requested_recipient_team: 'blue',
+            requested_adjudication_notes: 'Forward after review.'
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+
     it('routes participant removals through the protected Game Master RPC', async () => {
         mockSupabase.rpc.mockResolvedValue({
             data: {

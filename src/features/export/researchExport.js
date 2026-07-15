@@ -1344,7 +1344,7 @@ function buildActionContent(bundle = {}, participantRegistry) {
                 action_type: formatBlueActionSelection(viewModel.levers, viewModel.lever || action?.mechanism || null),
                 intent_text: viewModel.objective || action?.goal || null,
                 targets: safeArray(action?.targets),
-                instruments: viewModel.instrumentOfPower ? [viewModel.instrumentOfPower] : [],
+                instruments: viewModel.instruments,
                 resources_committed: viewModel.coordinated || [],
                 full_content: {
                     goal: action?.goal || null,

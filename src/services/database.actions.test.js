@@ -12,7 +12,8 @@ describe('database action lifecycle transitions', () => {
     it('submits draft actions and stamps submitted_at', async () => {
         const draftAction = {
             id: 'action-1',
-            status: ENUMS.ACTION_STATUS.DRAFT
+            status: ENUMS.ACTION_STATUS.DRAFT,
+            row_version: 7
         };
 
         vi.spyOn(database, 'getAction').mockResolvedValue(draftAction);
@@ -29,7 +30,10 @@ describe('database action lifecycle transitions', () => {
             expect.objectContaining({
                 status: ENUMS.ACTION_STATUS.SUBMITTED,
                 submitted_at: expect.any(String)
-            })
+            }),
+            {
+                expectedRowVersion: 7
+            }
         );
         expect(updatedAction.status).toBe(ENUMS.ACTION_STATUS.SUBMITTED);
         expect(updatedAction.submitted_at).toEqual(expect.any(String));
