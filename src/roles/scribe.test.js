@@ -21,20 +21,26 @@ const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
 const {
     mockConfirmModal,
+    mockCreateCommunication,
     mockCreateTimelineEvent,
     mockHideLoader,
     mockMountFollowAlong,
+    mockShowModal,
     mockShowLoader,
     mockSubmitAction,
-    mockUpdateDraftAction
+    mockUpdateDraftAction,
+    mockUpdateProposalRecipientStatus
 } = vi.hoisted(() => ({
     mockConfirmModal: vi.fn(),
+    mockCreateCommunication: vi.fn(),
     mockCreateTimelineEvent: vi.fn(),
     mockHideLoader: vi.fn(),
     mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() })),
+    mockShowModal: vi.fn(),
     mockShowLoader: vi.fn(() => ({})),
     mockSubmitAction: vi.fn(),
-    mockUpdateDraftAction: vi.fn()
+    mockUpdateDraftAction: vi.fn(),
+    mockUpdateProposalRecipientStatus: vi.fn()
 }));
 
 function normalizeLineEndings(value) {
@@ -69,12 +75,15 @@ vi.mock('../components/ui/Loader.js', () => ({
 }));
 
 vi.mock('../components/ui/Modal.js', () => ({
-    confirmModal: mockConfirmModal
+    confirmModal: mockConfirmModal,
+    showModal: mockShowModal
 }));
 
 vi.mock('../services/database.js', () => ({
     database: {
+        createCommunication: mockCreateCommunication,
         updateDraftAction: mockUpdateDraftAction,
+        updateProposalRecipientStatus: mockUpdateProposalRecipientStatus,
         submitAction: mockSubmitAction,
         createTimelineEvent: mockCreateTimelineEvent
     }
@@ -325,6 +334,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             'Blue Team Facilitator',
             'Follow move, phase, and timer',
             'Navigate the support deck',
+            'Project and answer proposals',
             'Watch activity',
             'Present to the room',
             'Revisit this guide'
@@ -333,6 +343,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             '#header-game-state',
             '#header-timer',
             '.scribe-view-switch',
+            '.scribe-section-region--proposals',
             '#scribeAlertsBtn',
             '#presentBtn',
             '.sidebar-session'
@@ -340,8 +351,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
         expect(guide.steps[2].body).toContain('Team Action Review and Deck');
         expect(guide.steps[2].body).toContain('restores the support slide you last viewed');
-        expect(guide.steps[4].body).toContain('facilitator toolbar');
-        expect(guide.steps[4].body).toContain('White Cell forwarding');
+        expect(guide.steps[3].body).toContain('Accept, Not Interested, or Negotiate');
+        expect(guide.steps[5].body).toContain('facilitator toolbar');
+        expect(guide.steps[5].body).toContain('White Cell forwarding');
     });
 
     it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {
@@ -584,7 +596,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(controller.renderSections).toHaveBeenCalled();
         expect(controller.renderSlide).toHaveBeenCalled();
         expect(showToast).toHaveBeenCalledWith({
-            message: 'The facilitator support deck could not be loaded. Showing live action slides only.',
+            message: 'The facilitator support deck could not be loaded. Showing live decision slides only.',
             type: 'warning'
         });
     });
@@ -765,6 +777,304 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(sectionList.innerHTML).not.toContain('data-section-kind="deck"');
         expect(sectionList.innerHTML).not.toContain('Overview slide');
         expect(controller.deckSlides).toContain(controller.sections[1].slides[0]);
+    });
+
+    it('keeps received proposals in a persistent sidebar section immediately below Actions', async () => {
+        const { ScribeController, buildFacilitatorProposalSlides } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
+        global.document = fakeDocument;
+        const teamContext = {
+            teamId: 'blue',
+            scribeRole: 'blue_scribe'
+        };
+        const receivedProposal = {
+            id: 'proposal-communication-1',
+            type: 'PROPOSAL_FORWARDED',
+            from_role: 'white_cell',
+            to_role: 'blue',
+            created_at: '2026-07-15T12:00:00.000Z',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'blue',
+                source_team: 'green',
+                proposal: { title: 'Joint Port Resilience' },
+                proposal_recipient_state: { status: 'unread' }
+            }
+        };
+        const proposalSlides = buildFacilitatorProposalSlides([receivedProposal], { teamContext });
+        const emptyProposalSlides = buildFacilitatorProposalSlides([], { teamContext });
+        const controller = new ScribeController();
+        controller.sections = [{
+            id: 'actions',
+            label: 'Actions',
+            slideCount: 0,
+            slides: [{ slideKey: 'actions-placeholder', slideType: 'action-placeholder', title: 'No actions' }]
+        }, {
+            id: 'proposals',
+            label: 'Proposals',
+            slideCount: proposalSlides.slideCount,
+            slides: proposalSlides.slides
+        }];
+        controller.deckSlides = [...controller.sections[0].slides, ...proposalSlides.slides];
+        controller.currentSlideIndex = 1;
+        controller.expandedSectionIds = new Set(['actions', 'proposals']);
+        controller.sectionExpansionInitialized = true;
+
+        controller.renderSections();
+
+        expect(proposalSlides.slideCount).toBe(1);
+        expect(emptyProposalSlides).toMatchObject({
+            slideCount: 0,
+            slides: [{
+                slideKey: 'proposals-placeholder',
+                slideType: 'proposal-placeholder',
+                title: 'No proposals received yet'
+            }]
+        });
+        expect(proposalSlides.slides[0]).toMatchObject({
+            slideKey: 'proposal-proposal-communication-1',
+            slideType: 'proposal',
+            title: 'Joint Port Resilience'
+        });
+        expect(sectionList.innerHTML.indexOf('scribe-section-region--actions'))
+            .toBeLessThan(sectionList.innerHTML.indexOf('scribe-section-region--proposals'));
+        expect(sectionList.innerHTML).toContain('Received from other teams');
+        expect(sectionList.innerHTML).toContain('From Green Team | Unread');
+        expect(sectionButtonMarkup(sectionList.innerHTML, 'Proposals')).toContain('aria-label="Proposals, 1 proposal"');
+    });
+
+    it('renders every received proposal for projection with exactly the required response options', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamLabel = 'Blue Team';
+        const communication = {
+            id: 'proposal-projection-1',
+            type: 'PROPOSAL_FORWARDED',
+            from_role: 'white_cell',
+            to_role: 'blue',
+            metadata: {
+                source_team: 'industry',
+                proposal: {
+                    title: 'Critical Minerals Compact',
+                    objective: 'Coordinate a shared stockpile.',
+                    originators: ['Industry Coalition'],
+                    category: 'Supply chain',
+                    intendedPartners: 'Blue Team',
+                    focusSector: 'Critical minerals',
+                    delivery: 'Joint statement',
+                    timingAndConditions: 'Before Move 3',
+                    expectedOutcomes: 'Lower exposure to disruption.'
+                },
+                proposal_recipient_state: { status: 'unread' }
+            }
+        };
+
+        const html = controller.renderProposalSlide({
+            slideKey: 'proposal-projection-1',
+            slideType: 'proposal',
+            communication,
+            title: 'Critical Minerals Compact'
+        });
+
+        expect(html).toContain('Proposal from Industry Team');
+        expect(html).toContain('Critical Minerals Compact');
+        expect(html).toContain('Coordinate a shared stockpile.');
+        expect(html.match(/data-facilitator-proposal-decision=/g)).toHaveLength(3);
+        expect(html).toContain('data-facilitator-proposal-decision="accept"');
+        expect(html).toContain('>Accept</button>');
+        expect(html).toContain('data-facilitator-proposal-decision="not_interested"');
+        expect(html).toContain('>Not Interested</button>');
+        expect(html).toContain('data-facilitator-proposal-decision="negotiate"');
+        expect(html).toContain('>Negotiate</button>');
+        expect(html).not.toContain('>Acknowledge</button>');
+        expect(html).not.toContain('>Decline</button>');
+        expect(html).not.toContain('>Ignore</button>');
+
+        const committedHtml = controller.renderProposalSlide({
+            slideType: 'proposal',
+            communication: {
+                ...communication,
+                metadata: {
+                    ...communication.metadata,
+                    proposal_recipient_state: {
+                        status: 'responded',
+                        facilitator_decision: 'accept',
+                        response_content: 'Accepted'
+                    }
+                }
+            }
+        });
+        expect(committedHtml).toContain('Recorded: Accepted');
+        expect(committedHtml.match(/data-facilitator-proposal-decision="[^"]+"[^>]+disabled/g)).toHaveLength(3);
+    });
+
+    it('maps Accept, Not Interested, and Negotiate onto the established recipient-state contract', async () => {
+        const {
+            FACILITATOR_PROPOSAL_DECISIONS,
+            getFacilitatorProposalDecisionContract
+        } = await loadScribeModule();
+
+        expect(getFacilitatorProposalDecisionContract(
+            FACILITATOR_PROPOSAL_DECISIONS.ACCEPT
+        )).toEqual({
+            status: 'responded',
+            label: 'Accepted',
+            responseContent: 'Accepted',
+            timelineType: 'PROPOSAL_RESPONDED'
+        });
+        expect(getFacilitatorProposalDecisionContract(
+            FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
+        )).toEqual({
+            status: 'declined',
+            label: 'Not Interested',
+            responseContent: 'Not Interested',
+            timelineType: 'PROPOSAL_DECLINED'
+        });
+        expect(getFacilitatorProposalDecisionContract(
+            FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE,
+            '  Add a six-month review clause.  '
+        )).toEqual({
+            status: 'responded',
+            label: 'Negotiation Requested',
+            responseContent: 'Add a six-month review clause.',
+            timelineType: 'PROPOSAL_RESPONDED'
+        });
+        expect(getFacilitatorProposalDecisionContract('unsupported')).toBeNull();
+    });
+
+    it('confirms and submits the two direct facilitator proposal responses', async () => {
+        const {
+            FACILITATOR_PROPOSAL_DECISIONS,
+            ScribeController
+        } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const communication = {
+            id: 'proposal-direct-response-1',
+            metadata: {
+                proposal: { title: 'Direct Response Proposal' },
+                proposal_recipient_state: { status: 'unread' }
+            }
+        };
+        const controller = new ScribeController();
+        controller.receivedProposals = [communication];
+        controller.submitFacilitatorProposalDecision = vi.fn().mockResolvedValue(true);
+        mockConfirmModal.mockResolvedValue(true);
+
+        await controller.handleFacilitatorProposalDecision(
+            communication.id,
+            FACILITATOR_PROPOSAL_DECISIONS.ACCEPT
+        );
+        await controller.handleFacilitatorProposalDecision(
+            communication.id,
+            FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
+        );
+
+        expect(mockConfirmModal).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            title: 'Accept Proposal',
+            confirmLabel: 'Accept'
+        }));
+        expect(mockConfirmModal).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            title: 'Not Interested Proposal',
+            confirmLabel: 'Not Interested'
+        }));
+        expect(controller.submitFacilitatorProposalDecision).toHaveBeenNthCalledWith(
+            1,
+            communication,
+            'accept'
+        );
+        expect(controller.submitFacilitatorProposalDecision).toHaveBeenNthCalledWith(
+            2,
+            communication,
+            'not_interested'
+        );
+        mockConfirmModal.mockReset();
+    });
+
+    it('persists a facilitator negotiation through the shared proposal response contract', async () => {
+        const {
+            FACILITATOR_PROPOSAL_DECISIONS,
+            ScribeController
+        } = await loadScribeModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        global.document = createFakeDocument();
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-proposal-1');
+        const communication = {
+            id: 'proposal-negotiation-1',
+            session_id: 'session-proposal-1',
+            move: 2,
+            type: 'PROPOSAL_FORWARDED',
+            from_role: 'white_cell',
+            to_role: 'blue',
+            metadata: {
+                source_proposal_id: 'source-proposal-1',
+                source_team: 'green',
+                recipient_team: 'blue',
+                proposal: { title: 'Regional Logistics Compact' },
+                proposal_recipient_state: { status: 'unread' }
+            }
+        };
+        const responseCommunication = { id: 'proposal-response-1', type: 'PROPOSAL_RESPONSE' };
+        const updatedProposal = {
+            ...communication,
+            metadata: {
+                ...communication.metadata,
+                proposal_recipient_state: {
+                    status: 'responded',
+                    facilitator_decision: 'negotiate',
+                    response_content: 'Add a six-month review clause.'
+                }
+            }
+        };
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([communication]);
+        const communicationsUpdateSpy = vi.spyOn(communicationsStore, 'updateFromServer');
+        const timelineUpdateSpy = vi.spyOn(timelineStore, 'updateFromServer');
+        mockCreateCommunication.mockResolvedValue(responseCommunication);
+        mockUpdateProposalRecipientStatus.mockResolvedValue(updatedProposal);
+        mockCreateTimelineEvent.mockResolvedValue({ id: 'timeline-proposal-negotiation-1' });
+        const controller = new ScribeController();
+        controller.role = 'blue_scribe';
+        controller.teamId = 'blue';
+
+        const saved = await controller.submitFacilitatorProposalDecision(
+            communication,
+            FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE,
+            'Add a six-month review clause.'
+        );
+
+        expect(saved).toBe(true);
+        expect(mockCreateCommunication).toHaveBeenCalledWith(expect.objectContaining({
+            session_id: 'session-proposal-1',
+            from_role: 'blue_scribe',
+            to_role: 'white_cell',
+            type: 'PROPOSAL_RESPONSE',
+            content: 'Add a six-month review clause.',
+            metadata: expect.objectContaining({
+                source_proposal_id: 'source-proposal-1',
+                source_communication_id: 'proposal-negotiation-1',
+                facilitator_decision: 'negotiate'
+            })
+        }));
+        expect(mockUpdateProposalRecipientStatus).toHaveBeenCalledWith(
+            'proposal-negotiation-1',
+            'responded',
+            expect.objectContaining({
+                facilitator_decision: 'negotiate',
+                response_content: 'Add a six-month review clause.',
+                response_communication_id: 'proposal-response-1'
+            })
+        );
+        expect(mockCreateTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'PROPOSAL_RESPONDED',
+            content: 'Negotiation Requested proposal: Regional Logistics Compact',
+            metadata: expect.objectContaining({ facilitator_decision: 'negotiate' })
+        }));
+        expect(communicationsUpdateSpy).toHaveBeenCalledWith('INSERT', responseCommunication);
+        expect(communicationsUpdateSpy).toHaveBeenCalledWith('UPDATE', updatedProposal);
+        expect(timelineUpdateSpy).toHaveBeenCalledWith('INSERT', { id: 'timeline-proposal-negotiation-1' });
     });
 
     it('switches between team action review and the last viewed deck slide', async () => {
@@ -1661,13 +1971,16 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
     it('styles the scribe section nav as a minimalist facilitator-style sidebar', () => {
         const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
-        expect(css).toContain('.scribe-section-region--actions {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
+        expect(css).toContain('.scribe-section-region--actions,\n.scribe-section-region--proposals {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
         expect(css).toContain('.scribe-view-switch {');
         expect(css).toContain('.scribe-view-switch-button:focus-visible {');
         expect(css).toContain('.scribe-view-switch-button[aria-pressed="true"] {');
         expect(css).toContain('#sidebar.sidebar-collapsed .scribe-view-switch');
         expect(css).not.toContain('.scribe-section-region--actions + .scribe-section-region--deck');
-        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary');
+        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary,\n.scribe-section-region--proposals .scribe-section-region-title,\n.scribe-section-region--proposals .scribe-section-region-summary');
+        expect(css).toContain('.scribe-section-region--proposals {\n    margin-top: var(--space-5);');
+        expect(css).toContain('.scribe-slide-link.is-proposal {');
+        expect(css).toContain('.scribe-proposal-decision-actions {');
         expect(css).toContain('.scribe-section-card {\n    border: 0;\n    border-radius: var(--radius-md);\n    background: transparent;');
         expect(css).toContain('.scribe-section-trigger {\n    width: 100%;\n    display: flex;\n    align-items: center;');
         expect(css).toContain('padding: var(--space-3);');

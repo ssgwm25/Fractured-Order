@@ -15,7 +15,7 @@ The current exercise topology ships with four actor teams and two operator surfa
 | White Cell | Game controls with per-mark time allocations for Strategic Orientation and Moves 1-3, pre-Move 1 Strategic Orientation gating for move/phase advancement, dedicated Strategic Orientation review, action/proposal/response review, RFI answers, communications, timeline review, facilitator deck assignment, and session-scoped plugin management |
 | Team Scribe | One-time Blue Strategic Orientation selection plus team rationale and strategic action drafting with handoff to the Facilitator, one-time Green and Red Strategic Orientation forecasts plus team rationale, Green and Industry proposals, Red move responses, RFIs, received White Cell updates, timeline, and quick capture |
 | Team Notetaker | Observations, team dynamics, alliance tracking, and move-scoped notes |
-| Team Facilitator | Team support deck, distinct Strategic Orientation slides, live action/communication slides, venue projection, and final Strategic Orientation/action submission to White Cell |
+| Team Facilitator | Team support deck, distinct Strategic Orientation slides, live action/communication slides, a persistent received-proposals section below Actions with Accept, Not Interested, and Negotiate responses, venue projection, and final Strategic Orientation/action submission to White Cell |
 
 Scribe action controls prioritize Strategic Orientation first: the orientation or forecast button is the primary green control until that team records its artifact, then the orientation control becomes secondary and the action/proposal/response control becomes primary.
 

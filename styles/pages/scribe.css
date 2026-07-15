@@ -510,20 +510,28 @@ body::before {
     color: var(--color-text-muted);
 }
 
-.scribe-section-region--actions {
+.scribe-section-region--actions,
+.scribe-section-region--proposals {
     padding: 0;
     border: 0;
     border-radius: 0;
     background: transparent;
 }
 
-.scribe-section-region--actions .scribe-section-region-heading {
+.scribe-section-region--actions .scribe-section-region-heading,
+.scribe-section-region--proposals .scribe-section-region-heading {
     padding: 0 var(--space-3) var(--space-2);
 }
 
 .scribe-section-region--actions .scribe-section-region-title,
-.scribe-section-region--actions .scribe-section-region-summary {
+.scribe-section-region--actions .scribe-section-region-summary,
+.scribe-section-region--proposals .scribe-section-region-title,
+.scribe-section-region--proposals .scribe-section-region-summary {
     color: var(--color-text-muted);
+}
+
+.scribe-section-region--proposals {
+    margin-top: var(--space-5);
 }
 
 .scribe-section-card {
@@ -709,6 +717,24 @@ body::before {
     background: var(--color-navy-soft);
     color: var(--color-navy);
     box-shadow: none;
+}
+
+.scribe-slide-link.is-proposal {
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-proposal:hover,
+.scribe-slide-link.is-proposal:focus-visible {
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-proposal.is-active {
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
 }
 
 .scribe-slide-link-number {
@@ -952,6 +978,46 @@ body::before {
     max-width: 44rem;
     place-items: center;
     text-align: center;
+}
+
+.scribe-proposal-slide {
+    border-color: var(--color-border);
+    background: var(--color-surface);
+}
+
+.scribe-proposal-slide::before {
+    background: var(--color-success);
+}
+
+.scribe-proposal-slide .scribe-action-slide-eyebrow,
+.scribe-proposal-slide .scribe-action-slide-section-label {
+    color: var(--color-navy);
+}
+
+.scribe-proposal-decision-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface-alt);
+}
+
+.scribe-proposal-decision-status,
+.scribe-proposal-negotiation-terms {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+}
+
+.scribe-proposal-decision-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
 }
 
 .scribe-action-card-toggle {
@@ -1899,6 +1965,15 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
 
     .scribe-action-slide-glance-card--supply-chain {
         grid-column: auto;
+    }
+
+    .scribe-proposal-decision-panel {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .scribe-proposal-decision-actions {
+        justify-content: flex-start;
     }
 
     body[data-scribe-presentation="active"] .scribe-main {

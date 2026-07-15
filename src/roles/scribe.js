@@ -7,7 +7,7 @@ import { createLogger } from '../utils/logger.js';
 import { formatRelativeTime, formatStatus } from '../utils/formatting.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
-import { confirmModal } from '../components/ui/Modal.js';
+import { confirmModal, showModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import {
@@ -34,6 +34,13 @@ import {
     isStrategicOrientationForwardedToScribe
 } from '../features/actions/strategicOrientationDetails.js';
 import {
+    PROPOSAL_RECIPIENT_STATUSES,
+    formatProposalRecipientStatus,
+    getProposalRecipientEntry,
+    getProposalRecipientStatus,
+    isProposalRecipientFinal
+} from '../features/actions/proposalRecipientState.js';
+import {
     buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
     DEFAULT_SCRIBE_DECK_PATH,
@@ -50,6 +57,35 @@ import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 
 const logger = createLogger('Scribe');
 const ACTIONS_SECTION_ID = 'actions';
+const PROPOSALS_SECTION_ID = 'proposals';
+export const FACILITATOR_PROPOSAL_DECISIONS = Object.freeze({
+    ACCEPT: 'accept',
+    NOT_INTERESTED: 'not_interested',
+    NEGOTIATE: 'negotiate'
+});
+
+export function getFacilitatorProposalDecisionContract(decision = '', negotiationTerms = '') {
+    return {
+        [FACILITATOR_PROPOSAL_DECISIONS.ACCEPT]: {
+            status: PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
+            label: 'Accepted',
+            responseContent: 'Accepted',
+            timelineType: 'PROPOSAL_RESPONDED'
+        },
+        [FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED]: {
+            status: PROPOSAL_RECIPIENT_STATUSES.DECLINED,
+            label: 'Not Interested',
+            responseContent: 'Not Interested',
+            timelineType: 'PROPOSAL_DECLINED'
+        },
+        [FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE]: {
+            status: PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
+            label: 'Negotiation Requested',
+            responseContent: String(negotiationTerms || '').trim(),
+            timelineType: 'PROPOSAL_RESPONDED'
+        }
+    }[decision] || null;
+}
 const DIALOG_FOCUSABLE_SELECTOR = [
     'a[href]',
     'button:not([disabled])',
@@ -330,9 +366,103 @@ function buildActionSection(actions = [], {
     };
 }
 
+function getProposalSnapshot(communication = {}) {
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? communication.metadata
+        : {};
+    const proposal = metadata.proposal && typeof metadata.proposal === 'object'
+        ? metadata.proposal
+        : {};
+
+    return {
+        metadata,
+        proposal,
+        title: proposal.title || communication.title || 'Untitled proposal',
+        sourceTeam: metadata.source_team || 'unknown'
+    };
+}
+
+function normalizeProposalTimestamp(communication = {}) {
+    const timestamp = communication.created_at || '';
+    const parsed = new Date(timestamp).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function buildFacilitatorProposalSlides(communications = [], {
+    teamContext = resolveTeamContext()
+} = {}) {
+    const proposals = [...(communications || [])]
+        .filter((communication) => (
+            communication?.type === 'PROPOSAL_FORWARDED'
+            && isWhiteCellCommunicationVisibleToScribe(communication, teamContext)
+        ))
+        .sort((left, right) => (
+            normalizeProposalTimestamp(right) - normalizeProposalTimestamp(left)
+            || String(left?.id || '').localeCompare(String(right?.id || ''))
+        ));
+
+    if (!proposals.length) {
+        return {
+            slideCount: 0,
+            slides: [{
+                slideKey: 'proposals-placeholder',
+                slideType: 'proposal-placeholder',
+                title: 'No proposals received yet',
+                sidebarOrdinal: '0',
+                sidebarKicker: 'Awaiting proposals',
+                summary: 'Proposals forwarded by White Cell from other teams will remain available here for projection and response.'
+            }]
+        };
+    }
+
+    return {
+        slideCount: proposals.length,
+        slides: proposals.map((communication, index) => {
+            const snapshot = getProposalSnapshot(communication);
+            const status = getProposalRecipientStatus(communication);
+            return {
+                slideKey: `proposal-${communication.id}`,
+                slideType: 'proposal',
+                communication,
+                title: snapshot.title,
+                sidebarOrdinal: String(index + 1),
+                sidebarKicker: `From ${formatTeamLabel(snapshot.sourceTeam)} | ${formatProposalRecipientStatus(status)}`
+            };
+        })
+    };
+}
+
+function buildProposalSection(communications = [], {
+    teamContext = resolveTeamContext()
+} = {}) {
+    const proposalSlides = buildFacilitatorProposalSlides(communications, { teamContext });
+
+    return {
+        id: PROPOSALS_SECTION_ID,
+        label: 'Proposals',
+        description: 'White Cell-reviewed proposals received from other teams for facilitator projection and response.',
+        slideCount: proposalSlides.slideCount,
+        slides: proposalSlides.slides
+    };
+}
+
+function formatTeamLabel(team = '') {
+    switch (String(team || '').trim().toLowerCase()) {
+    case 'blue': return 'Blue Team';
+    case 'red': return 'Red Team';
+    case 'green': return 'Green Team';
+    case 'industry': return 'Industry Team';
+    default: return team || 'Another team';
+    }
+}
+
 function getLiveSlideTypeClass(slide = {}) {
     if (slide.slideType === 'strategic-orientation') {
         return ' is-action is-orientation';
+    }
+
+    if (slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder') {
+        return ' is-proposal';
     }
 
     return slide.slideType !== 'image' ? ' is-action' : '';
@@ -572,6 +702,7 @@ export class ScribeController {
         this.teamLabel = this.teamContext.teamLabel;
         this.facilitatorDeckSlides = [];
         this.teamActions = [];
+        this.receivedProposals = [];
         this.sections = [];
         this.deckSlides = [];
         this.expandedSectionIds = new Set();
@@ -642,6 +773,7 @@ export class ScribeController {
         this.subscribeToLiveData();
         this.primeNotifications();
         this.syncDeckAssignmentFromStore({ reload: false });
+        this.syncProposalsFromStore();
         await this.loadDeck();
         this.syncActionsFromStore();
         this.mountFollowAlongOnboarding();
@@ -666,8 +798,13 @@ export class ScribeController {
                 },
                 {
                     title: 'Navigate the support deck',
-                    body: 'Switch between Team Action Review and Deck. Returning to Deck restores the support slide you last viewed.',
+                    body: 'Switch between Team Action Review and Deck. Actions appear first in the sidebar, followed by a persistent Proposals section for received proposals. Returning to Deck restores the support slide you last viewed.',
                     highlight: '.scribe-view-switch'
+                },
+                {
+                    title: 'Project and answer proposals',
+                    body: 'Open Proposals below Actions to project proposals forwarded from other teams. Record one response for each proposal: Accept, Not Interested, or Negotiate.',
+                    highlight: '.scribe-section-region--proposals'
                 },
                 {
                     title: 'Watch activity',
@@ -778,6 +915,17 @@ export class ScribeController {
             }
         });
         actionFrame?.addEventListener('click', (event) => {
+            const proposalButton = event.target.closest('[data-facilitator-proposal-decision]');
+            if (proposalButton) {
+                this.handleFacilitatorProposalDecision(
+                    proposalButton.dataset.proposalCommunicationId || '',
+                    proposalButton.dataset.facilitatorProposalDecision || ''
+                ).catch((error) => {
+                    logger.error('Failed to record facilitator proposal decision:', error);
+                });
+                return;
+            }
+
             const toggleButton = event.target.closest('[data-scribe-action-toggle]');
             if (toggleButton) {
                 this.toggleStrategicActionCard(toggleButton.dataset.actionId || '');
@@ -924,11 +1072,12 @@ export class ScribeController {
             })
         );
         this.storeUnsubscribers.push(
-            communicationsStore.subscribe((event) => {
+            communicationsStore.subscribe((event, data) => {
                 this.processCommunicationNotifications(event);
                 this.syncDeckAssignmentFromStore({
                     reload: event === 'created' || event === 'updated' || event === 'initialized' || event === 'loaded'
                 });
+                this.syncProposalsFromStore({ event, data });
             })
         );
     }
@@ -940,7 +1089,7 @@ export class ScribeController {
         this.teamActions = actionsStore.getByTeam(this.teamId);
         this.processActionNotification({ event, data });
 
-        if (!this.facilitatorDeckSlides.length) {
+        if (!this.facilitatorDeckSlides.length && !this.sections.length) {
             return;
         }
 
@@ -992,6 +1141,42 @@ export class ScribeController {
         case 'green': return 'Green Team';
         case 'industry': return 'Industry Team';
         default: return team || 'Another team';
+        }
+    }
+
+    syncProposalsFromStore({
+        event = '',
+        data = null
+    } = {}) {
+        this.receivedProposals = communicationsStore.getAll()
+            .filter((communication) => (
+                communication?.type === 'PROPOSAL_FORWARDED'
+                && isWhiteCellCommunicationVisibleToScribe(communication, this.teamContext)
+            ));
+
+        if (!this.facilitatorDeckSlides.length && !this.sections.length) {
+            return;
+        }
+
+        const shouldFocusProposal = (
+            event === 'created'
+            && data?.type === 'PROPOSAL_FORWARDED'
+            && isWhiteCellCommunicationVisibleToScribe(data, this.teamContext)
+        );
+        const preferredSlideKey = shouldFocusProposal
+            ? `proposal-${data.id}`
+            : this.getCurrentSlideKey();
+        const activeSectionId = this.sections[this.activeSectionIndex]?.id;
+
+        this.rebuildDeck({
+            preferredSlideKey,
+            preferLiveSection: shouldFocusProposal || activeSectionId === PROPOSALS_SECTION_ID
+                ? PROPOSALS_SECTION_ID
+                : ''
+        });
+
+        if (this.deckSlides.length) {
+            this.renderSlide();
         }
     }
 
@@ -1099,6 +1284,7 @@ export class ScribeController {
                 tone: 'proposal',
                 title: `Proposal received from ${sourceLabel}`,
                 detail: proposalTitle || 'Forwarded by White Cell',
+                slideKey: communication.id ? `proposal-${communication.id}` : '',
                 at: communication.created_at || null
             };
         }
@@ -1425,22 +1611,26 @@ export class ScribeController {
         } catch (error) {
             logger.error('Failed to load facilitator deck:', error);
             this.facilitatorDeckSlides = [];
+            const hasReceivedProposals = this.receivedProposals.length > 0;
             this.rebuildDeck({
-                preferActionsSection: true
+                preferActionsSection: !hasReceivedProposals,
+                preferLiveSection: hasReceivedProposals ? PROPOSALS_SECTION_ID : ''
             });
             const actionSection = this.sections.find((section) => section.id === ACTIONS_SECTION_ID);
-            if ((actionSection?.slideCount || 0) > 0) {
+            const proposalSection = this.sections.find((section) => section.id === PROPOSALS_SECTION_ID);
+            if ((actionSection?.slideCount || 0) > 0 || (proposalSection?.slideCount || 0) > 0) {
                 this.setDeckState('ready');
                 this.renderSections();
                 this.renderSlide();
                 showToast({
-                    message: 'The facilitator support deck could not be loaded. Showing live action slides only.',
+                    message: 'The facilitator support deck could not be loaded. Showing live decision slides only.',
                     type: 'warning'
                 });
                 return;
             }
 
             this.setDeckState('error');
+            this.renderSections();
             this.renderDeckState({
                 title: 'Support deck unavailable',
                 message: error.message || 'The assigned support deck could not be loaded for this seat.'
@@ -1458,17 +1648,21 @@ export class ScribeController {
 
     rebuildDeck({
         preferredSlideKey = '',
-        preferActionsSection = false
+        preferActionsSection = false,
+        preferLiveSection = ''
     } = {}) {
         const actionSection = buildActionSection(this.teamActions, {
             teamLabel: this.teamLabel
         });
+        const proposalSection = buildProposalSection(this.receivedProposals, {
+            teamContext: this.teamContext
+        });
         const staticSections = expandScribeDeckSections(this.facilitatorDeckSlides)
-            .filter((section) => section.id !== ACTIONS_SECTION_ID);
+            .filter((section) => ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(section.id));
         const staticSlides = flattenScribeDeckSlides(staticSections);
 
-        this.sections = [actionSection, ...staticSections];
-        this.deckSlides = [...staticSlides, ...actionSection.slides];
+        this.sections = [actionSection, proposalSection, ...staticSections];
+        this.deckSlides = [...staticSlides, ...actionSection.slides, ...proposalSection.slides];
 
         if (!this.deckSlides.length) {
             this.currentSlideIndex = 0;
@@ -1479,9 +1673,12 @@ export class ScribeController {
         const preferredIndex = this.deckSlides.findIndex((slide) => getSlideKey(slide) === preferredSlideKey);
         if (preferredIndex >= 0) {
             this.currentSlideIndex = preferredIndex;
-        } else if (preferActionsSection && actionSection.slides.length) {
+        } else if ((preferLiveSection || preferActionsSection) && actionSection.slides.length) {
+            const preferredSection = preferLiveSection === PROPOSALS_SECTION_ID
+                ? proposalSection
+                : actionSection;
             this.currentSlideIndex = this.deckSlides.findIndex(
-                (slide) => getSlideKey(slide) === getSlideKey(actionSection.slides[0])
+                (slide) => getSlideKey(slide) === getSlideKey(preferredSection.slides[0])
             );
         } else {
             this.currentSlideIndex = Math.max(
@@ -1568,23 +1765,25 @@ export class ScribeController {
             this.activeSectionIndex = resolvedSectionIndex;
         }
 
-        const sectionGroups = { actions: [] };
+        const sectionGroups = { actions: [], proposals: [] };
 
         this.sections.forEach((section, sectionIndex) => {
             // Keep the assigned support deck in the main viewer, but do not
             // duplicate its section and slide details in the sidebar.
-            if (section.id !== ACTIONS_SECTION_ID) {
+            if (![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(section.id)) {
                 return;
             }
 
-            const sectionKind = 'actions';
+            const sectionKind = section.id === PROPOSALS_SECTION_ID ? 'proposals' : 'actions';
             const sectionKey = this.getSectionExpansionKey(section, sectionIndex);
             const isExpanded = this.expandedSectionIds.has(sectionKey);
             const containsCurrentSlide = section.slides.some((slide) => getSlideKey(slide) === currentSlideKey);
             const visibleSlideCount = Number.isFinite(section.slideCount)
                 ? section.slideCount
                 : section.slides.length;
-            const visibleDecisionLabel = visibleSlideCount === 1 ? 'live decision' : 'live decisions';
+            const visibleDecisionLabel = sectionKind === 'proposals'
+                ? (visibleSlideCount === 1 ? 'proposal' : 'proposals')
+                : (visibleSlideCount === 1 ? 'live decision' : 'live decisions');
             const slideGroupId = `scribe-section-${sectionIndex}-slides`;
 
             const slideMarkup = section.slides.map((slide, slideIndex) => {
@@ -1661,7 +1860,10 @@ export class ScribeController {
             `;
         };
 
-        sectionList.innerHTML = renderRegion('actions', 'Actions', 'Live team decisions');
+        sectionList.innerHTML = [
+            renderRegion('actions', 'Actions', 'Live team decisions'),
+            renderRegion('proposals', 'Proposals', 'Received from other teams')
+        ].join('');
     }
 
     renderSlide() {
@@ -1689,7 +1891,8 @@ export class ScribeController {
 
         this.activeSectionIndex = activeSectionIndex;
 
-        const activeView = activeSection?.id === ACTIONS_SECTION_ID ? 'actions' : 'deck';
+        const isLiveReviewSection = [ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(activeSection?.id);
+        const activeView = isLiveReviewSection ? 'actions' : 'deck';
         if (activeView === 'deck') {
             this.lastDeckSlideKey = getSlideKey(slide);
         }
@@ -1712,14 +1915,18 @@ export class ScribeController {
         if (actionFrame) {
             actionFrame.hidden = slide.slideType === 'image';
             if (slide.slideType !== 'image') {
-                actionFrame.innerHTML = this.renderActionSlide(slide);
+                actionFrame.innerHTML = slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder'
+                    ? this.renderProposalSlide(slide)
+                    : this.renderActionSlide(slide);
             }
         }
 
         if (announcement) {
             announcement.textContent = slide.slideType === 'image'
                 ? `${activeSection.label}. ${slide.title}. Slide ${this.currentSlideIndex + 1} of ${this.deckSlides.length}.`
-                : `${activeSection.label}. ${slide.title}. ${getActionSlideAnnouncementLabel(slide.action)} ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
+                : slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder'
+                    ? `${activeSection.label}. ${slide.title}. Proposal ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
+                    : `${activeSection.label}. ${slide.title}. ${getActionSlideAnnouncementLabel(slide.action)} ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
         }
 
         const prevSlideBtn = document.getElementById('prevSlideBtn');
@@ -2484,6 +2691,262 @@ export class ScribeController {
         `;
     }
 
+    renderProposalSlide(slide = {}) {
+        if (slide.slideType === 'proposal-placeholder') {
+            return `
+                <article class="scribe-action-slide scribe-action-slide-placeholder scribe-proposal-slide">
+                    <p class="scribe-action-slide-eyebrow">Received Proposals</p>
+                    <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
+                    <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
+                </article>
+            `;
+        }
+
+        const communication = slide.communication || {};
+        const { metadata, proposal, title, sourceTeam } = getProposalSnapshot(communication);
+        const recipientEntry = getProposalRecipientEntry(communication);
+        const status = getProposalRecipientStatus(communication);
+        const isFinal = isProposalRecipientFinal(communication);
+        const decision = recipientEntry?.facilitator_decision || '';
+        const decisionLabel = {
+            [FACILITATOR_PROPOSAL_DECISIONS.ACCEPT]: 'Accepted',
+            [FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED]: 'Not Interested',
+            [FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE]: 'Negotiation Requested'
+        }[decision] || formatProposalRecipientStatus(status);
+        const decisionStatusId = `proposal-decision-status-${String(communication.id || 'proposal').replace(/[^a-z0-9]+/gi, '-')}`;
+        const formatList = (value) => Array.isArray(value) && value.length
+            ? value.join(', ')
+            : (value || 'Not specified');
+
+        return `
+            <article class="scribe-action-slide scribe-proposal-slide" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}">
+                <header class="scribe-action-slide-header">
+                    <div>
+                        <p class="scribe-action-slide-eyebrow">Proposal from ${escapeHtml(formatTeamLabel(sourceTeam))}</p>
+                        <h2 class="scribe-action-slide-title">${escapeHtml(title)}</h2>
+                        <p class="scribe-action-slide-summary">Forwarded by White Cell for ${escapeHtml(this.teamLabel)} consideration.</p>
+                    </div>
+                </header>
+
+                <section class="scribe-action-slide-panel">
+                    <section class="scribe-action-slide-lead" aria-label="Proposal objective">
+                        <p class="scribe-action-slide-section-label">Objective</p>
+                        <p class="scribe-action-slide-body">${escapeHtml(proposal.objective || 'No objective provided.')}</p>
+                    </section>
+
+                    <section class="scribe-action-slide-glance" aria-label="Proposal details">
+                        <div class="scribe-action-slide-section-header">
+                            <h3 class="scribe-action-slide-section-title">Proposal details</h3>
+                        </div>
+                        <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
+                            ${renderActionSlideGlanceCard({ label: 'Originators', value: formatList(proposal.originators) })}
+                            ${renderActionSlideGlanceCard({ label: 'Category', value: proposal.category || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Intended partners', value: proposal.intendedPartners || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Focus sector', value: formatList(proposal.focusSector) })}
+                            ${renderActionSlideGlanceCard({ label: 'Delivery', value: proposal.delivery || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Timing and conditions', value: proposal.timingAndConditions || 'Not specified' })}
+                        </div>
+                    </section>
+
+                    ${proposal.expectedOutcomes ? `
+                        <section class="scribe-action-slide-lead scribe-action-slide-lead--outcome" aria-label="Expected outcomes">
+                            <p class="scribe-action-slide-section-label">Expected outcomes</p>
+                            <p class="scribe-action-slide-body">${escapeHtml(proposal.expectedOutcomes)}</p>
+                        </section>
+                    ` : ''}
+
+                    <section class="scribe-proposal-decision-panel" aria-labelledby="${escapeHtml(decisionStatusId)}">
+                        <div>
+                            <p class="scribe-action-slide-section-label">Facilitator response</p>
+                            <p id="${escapeHtml(decisionStatusId)}" class="scribe-proposal-decision-status" role="status" aria-live="polite">
+                                ${isFinal ? `Recorded: ${escapeHtml(decisionLabel)}` : 'Choose one response. The recorded response is shared with White Cell and the proposing team.'}
+                            </p>
+                            ${decision === FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE && recipientEntry?.response_content
+                ? `<p class="scribe-proposal-negotiation-terms"><strong>Negotiation terms:</strong> ${escapeHtml(recipientEntry.response_content)}</p>`
+                : ''}
+                        </div>
+                        <div class="scribe-proposal-decision-actions" role="group" aria-label="Proposal response options">
+                            <button type="button" class="btn btn-primary" data-facilitator-proposal-decision="accept" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isFinal ? 'disabled' : ''}>Accept</button>
+                            <button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="not_interested" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isFinal ? 'disabled' : ''}>Not Interested</button>
+                            <button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="negotiate" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isFinal ? 'disabled' : ''}>Negotiate</button>
+                        </div>
+                    </section>
+                </section>
+            </article>
+        `;
+    }
+
+    async handleFacilitatorProposalDecision(communicationId = '', decision = '') {
+        const communication = this.receivedProposals.find((entry) => entry?.id === communicationId);
+        if (!communication) {
+            showToast({ message: 'Proposal not found. Refresh the facilitator view and try again.', type: 'error' });
+            return;
+        }
+
+        if (isProposalRecipientFinal(communication)) {
+            showToast({ message: 'This proposal response is already recorded.', type: 'error' });
+            return;
+        }
+
+        if (decision === FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE) {
+            this.showProposalNegotiationModal(communication);
+            return;
+        }
+
+        const decisionLabel = decision === FACILITATOR_PROPOSAL_DECISIONS.ACCEPT
+            ? 'Accept'
+            : decision === FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
+                ? 'Not Interested'
+                : '';
+        if (!decisionLabel) {
+            showToast({ message: 'Choose a valid proposal response.', type: 'error' });
+            return;
+        }
+
+        const confirmed = await confirmModal({
+            title: `${decisionLabel} Proposal`,
+            message: `Record "${decisionLabel}" for ${getProposalSnapshot(communication).title}? This response is final and will be shared with White Cell and the proposing team.`,
+            confirmLabel: decisionLabel,
+            variant: decision === FACILITATOR_PROPOSAL_DECISIONS.ACCEPT ? 'primary' : 'secondary'
+        });
+
+        if (confirmed) {
+            await this.submitFacilitatorProposalDecision(communication, decision);
+        }
+    }
+
+    showProposalNegotiationModal(communication = {}) {
+        const proposalTitle = getProposalSnapshot(communication).title;
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <form id="facilitatorProposalNegotiationForm" novalidate>
+                <p class="form-help">Describe the terms or changes ${this.teamLabel} wants to negotiate for <strong>${escapeHtml(proposalTitle)}</strong>.</p>
+                <div class="form-group">
+                    <label class="form-label" for="facilitatorProposalNegotiationTerms">Negotiation terms *</label>
+                    <textarea id="facilitatorProposalNegotiationTerms" class="form-input form-textarea" rows="5" aria-describedby="facilitatorProposalNegotiationHelp" required></textarea>
+                    <p class="form-help" id="facilitatorProposalNegotiationHelp">This response is final and will be shared with White Cell and the proposing team.</p>
+                </div>
+            </form>
+        `;
+
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Negotiate Proposal',
+            content,
+            size: 'md',
+            buttons: [
+                { label: 'Cancel', variant: 'secondary', onClick: () => {} },
+                {
+                    label: 'Send Negotiation',
+                    variant: 'primary',
+                    onClick: () => {
+                        const terms = content.querySelector('#facilitatorProposalNegotiationTerms')?.value?.trim() || '';
+                        if (!terms) {
+                            showToast({ message: 'Negotiation terms are required.', type: 'error' });
+                            return false;
+                        }
+                        void this.submitFacilitatorProposalDecision(
+                            communication,
+                            FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE,
+                            terms
+                        ).then((saved) => {
+                            if (saved) {
+                                modalRef.current?.close();
+                            }
+                        });
+                        return false;
+                    }
+                }
+            ]
+        });
+        content.querySelector('#facilitatorProposalNegotiationTerms')?.focus?.();
+    }
+
+    async submitFacilitatorProposalDecision(communication = {}, decision = '', negotiationTerms = '') {
+        const sessionId = sessionStore.getSessionId();
+        const latestCommunication = communicationsStore.getAll()
+            .find((entry) => entry?.id === communication?.id) || communication;
+        if (!sessionId || !communication?.id) {
+            showToast({ message: 'No active proposal session was found.', type: 'error' });
+            return false;
+        }
+        if (isProposalRecipientFinal(latestCommunication)) {
+            showToast({ message: 'This proposal response is already recorded.', type: 'error' });
+            return false;
+        }
+
+        const decisionContract = getFacilitatorProposalDecisionContract(decision, negotiationTerms);
+
+        if (!decisionContract || (decision === FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE && !decisionContract.responseContent)) {
+            showToast({ message: 'A valid proposal response is required.', type: 'error' });
+            return false;
+        }
+
+        const loader = showLoader({ message: 'Recording proposal response...' });
+        try {
+            const proposalSnapshot = getProposalSnapshot(latestCommunication);
+            const responseSentAt = new Date().toISOString();
+            const responseCommunication = await database.createCommunication({
+                session_id: sessionId,
+                from_role: this.role || this.teamContext.scribeRole,
+                to_role: 'white_cell',
+                type: 'PROPOSAL_RESPONSE',
+                content: decisionContract.responseContent,
+                metadata: {
+                    source_proposal_id: proposalSnapshot.metadata.source_proposal_id || null,
+                    source_communication_id: latestCommunication.id,
+                    source_team: proposalSnapshot.sourceTeam,
+                    responder_team: this.teamId,
+                    facilitator_decision: decision
+                }
+            });
+            communicationsStore.updateFromServer('INSERT', responseCommunication);
+
+            const updatedProposal = await database.updateProposalRecipientStatus(
+                latestCommunication.id,
+                decisionContract.status,
+                {
+                    facilitator_decision: decision,
+                    response_communication_id: responseCommunication.id,
+                    responded_at: responseSentAt,
+                    response_sent_at: responseSentAt,
+                    response_content: decisionContract.responseContent,
+                    response_from_role: this.role || this.teamContext.scribeRole,
+                    response_from_team: this.teamId
+                }
+            );
+            communicationsStore.updateFromServer('UPDATE', updatedProposal);
+
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: sessionId,
+                type: decisionContract.timelineType,
+                content: `${decisionContract.label} proposal: ${proposalSnapshot.title}`,
+                metadata: {
+                    related_id: proposalSnapshot.metadata.source_proposal_id || null,
+                    role: this.role || this.teamContext.scribeRole,
+                    communication_id: latestCommunication.id,
+                    response_communication_id: responseCommunication.id,
+                    recipient_team: this.teamId,
+                    status: decisionContract.status,
+                    facilitator_decision: decision
+                },
+                team: this.teamId,
+                move: latestCommunication.move ?? 1,
+                phase: latestCommunication?.metadata?.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+
+            showToast({ message: `Proposal response recorded: ${decisionContract.label}`, type: 'success' });
+            return true;
+        } catch (error) {
+            logger.error('Failed to save facilitator proposal decision:', error);
+            showToast({ message: 'Failed to record the proposal response. Refresh proposals and try again.', type: 'error' });
+            return false;
+        } finally {
+            hideLoader(loader);
+        }
+    }
+
     renderActionSlide(slide) {
         if (slide.slideType === 'action-placeholder') {
             return `
@@ -2685,7 +3148,10 @@ export class ScribeController {
             getSlideKey(currentSlide)
         );
 
-        if (this.sections[currentSectionIndex]?.id !== ACTIONS_SECTION_ID && currentSlide) {
+        if (
+            ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(this.sections[currentSectionIndex]?.id)
+            && currentSlide
+        ) {
             this.lastDeckSlideKey = getSlideKey(currentSlide);
         }
 
@@ -2695,9 +3161,13 @@ export class ScribeController {
         } else {
             targetSlide = this.deckSlides.find((slide) => (
                 getSlideKey(slide) === this.lastDeckSlideKey
-                && this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id !== ACTIONS_SECTION_ID
+                && ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(
+                    this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id
+                )
             )) || this.deckSlides.find((slide) => (
-                this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id !== ACTIONS_SECTION_ID
+                ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(
+                    this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id
+                )
             )) || null;
         }
 
