@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { serializeBlueActionDetails } from '../actions/blueActionDetails.js';
 import { serializeMoveResponseDetails } from '../actions/moveResponseDetails.js';
 import { serializeProposalDetails } from '../actions/proposalDetails.js';
+import { serializeStrategicOrientationDetails } from '../actions/strategicOrientationDetails.js';
 import {
     RESEARCH_EXPORT_FORMAT_REVISION,
     RESEARCH_EXPORT_SCHEMA_VERSION,
@@ -80,10 +81,17 @@ function buildBundleFixture() {
                     instruments: ['Economic', 'Diplomacy', 'Information', 'Military'],
                     levers: ['Export Controls', 'Sanctions'],
                     sectors: ['Biotechnology', 'Agriculture'],
+                    supplyChainFocusDecision: 'Yes',
+                    supplyChainActionAngles: ['Build resilience for Blue'],
+                    supplyChainAreas: ['Advanced Manufacturing'],
                     implementation: 'Executive Order',
+                    legislativeOptions: ['Existing legislation/policy'],
                     enforcementTimeline: '6 months',
+                    scribeHandoff: 'Forwarded',
+                    coordinatedDecision: 'Yes',
                     coordinated: ['Executive'],
-                    informed: ['Allied']
+                    informedEngagedDecision: 'Yes',
+                    informed: ['Allies']
                 }),
                 status: 'adjudicated',
                 outcome: 'permitted_with_constraint',
@@ -508,6 +516,113 @@ describe('research export builder', () => {
             'legacy/session_metadata.json',
             'checksums.sha256'
         ]));
+    });
+
+    it('renders the full action and strategic-orientation decision scope', async () => {
+        const bundle = buildBundleFixture();
+        bundle.actions.push(
+            {
+                id: 'orientation-blue-1',
+                session_id: 'session-research-1',
+                client_id: 'client-blue-1',
+                team: 'blue',
+                move: 0,
+                phase: 0,
+                mechanism: 'Strategic Orientation',
+                goal: 'Blue selects Reframe',
+                expected_outcomes: 'Build long-term strategic autonomy.',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'selection',
+                    team: 'blue',
+                    orientation: 'reframe',
+                    primaryLevers: ['Friend-shoring agreements', 'Critical-input diversification'],
+                    acceptedCosts: ['Transitional inefficiencies', 'Near-term economic friction'],
+                    posture: 'Gradual - long-horizon reallocation',
+                    rationale: 'Resilience outweighs near-term efficiency.',
+                    scribeHandoff: 'Forwarded'
+                }),
+                status: 'submitted',
+                created_at: '2026-06-03T09:35:00.000Z',
+                submitted_at: '2026-06-03T09:45:00.000Z'
+            },
+            {
+                id: 'orientation-industry-1',
+                session_id: 'session-research-1',
+                team: 'industry',
+                move: 0,
+                phase: 0,
+                mechanism: 'Strategic Orientation',
+                goal: 'Industry forecasts counterpart orientations',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: 'forecast',
+                    team: 'industry',
+                    forecastTargets: [
+                        { key: 'blue', orientation: 'pressure' },
+                        { key: 'green_asian_pacific', orientation: 'stabilization' },
+                        { key: 'green_europe', orientation: 'reframe' }
+                    ],
+                    primaryLevers: ['Technology export controls'],
+                    acceptedCosts: ['Market volatility'],
+                    posture: 'Prepare for divergent partner choices.',
+                    rationale: 'Regional partners face different exposure profiles.',
+                    forecastSummary: 'Blue pressures while Green pathways diverge.',
+                    scribeHandoff: 'Forwarded'
+                }),
+                status: 'adjudicated',
+                outcome: 'accepted',
+                adjudication_notes: 'Forecast recorded for exercise analysis.',
+                created_at: '2026-06-03T09:36:00.000Z',
+                submitted_at: '2026-06-03T09:46:00.000Z',
+                adjudicated_at: '2026-06-03T09:50:00.000Z'
+            }
+        );
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z'
+        });
+        const orientationRows = exportBundle.actionContent.filter((action) => (
+            action.full_content?.artifact_kind === 'strategic_orientation'
+        ));
+
+        expect(orientationRows).toHaveLength(2);
+        expect(orientationRows[0]).toMatchObject({
+            action_type: 'Strategic Orientation Selection',
+            full_content: {
+                details: {
+                    artifactType: 'selection',
+                    orientationLabel: 'Reframe',
+                    primaryLevers: ['Friend-shoring agreements', 'Critical-input diversification'],
+                    acceptedCosts: ['Transitional inefficiencies', 'Near-term economic friction'],
+                    scribeHandoff: 'Forwarded'
+                }
+            }
+        });
+        expect(orientationRows[1].full_content.details.forecastTargets).toEqual([
+            expect.objectContaining({ label: 'Blue', orientationLabel: 'Pressure' }),
+            expect.objectContaining({ label: 'Green (Asian Pacific)', orientationLabel: 'Stabilization' }),
+            expect.objectContaining({ label: 'Green (Europe)', orientationLabel: 'Reframe' })
+        ]);
+        expect(exportBundle.draftRevisions).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                artifact_id: 'orientation-blue-1',
+                artifact_type: 'strategic_orientation'
+            })
+        ]));
+        expect(exportBundle.reportHtml).toContain('Strategic Orientation: Selections And Forecasts');
+        expect(exportBundle.reportHtml).toContain('Forecast Targets');
+        expect(exportBundle.reportHtml).toContain('Green (Asian Pacific)');
+        expect(exportBundle.reportHtml).toContain('Resilience outweighs near-term efficiency.');
+        expect(exportBundle.reportHtml).toContain('Transitional inefficiencies');
+        expect(exportBundle.reportHtml).toContain('Supply Chain Focus Decision');
+        expect(exportBundle.reportHtml).toContain('Build resilience for Blue');
+        expect(exportBundle.reportHtml).toContain('Information / Engagement Planned');
+        expect(exportBundle.reportHtml).toContain('Existing legislation/policy');
+        const strategicLeaderBrief = exportBundle.personaReports.find((file) => (
+            file.path === 'reports/strategic_leader_brief.html'
+        ));
+        expect(strategicLeaderBrief.content).toContain('Strategic Orientation Portfolio');
+        expect(strategicLeaderBrief.content).toContain('Green (Asian Pacific): Stabilization');
+        expect(strategicLeaderBrief.content).toContain('Near-term economic friction');
     });
 
     it('renders the report notes appendix as withheld unless the export explicitly enables it', () => {

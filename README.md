@@ -21,6 +21,8 @@ The Tribe Street Journal live page fills the available journal section on White 
 
 Scribe action controls prioritize Strategic Orientation first: the orientation or forecast button is the primary green control until that team records its artifact, then the orientation control becomes secondary and the action/proposal/response control becomes primary.
 
+The generated post-game research report and its policy and strategic-leader briefs keep the exercise's decision artifacts distinct. Strategic Orientation has a dedicated selections-and-forecasts section with target-level forecasts, posture, rationale, primary levers, accepted costs, handoff, and review state. Move actions retain their complete supply-chain, implementation, legislative, coordination, engagement, handoff, and adjudication fields; proposals retain authorship, partner intent, delivery conditions, routing, review rationale, and recipient outcome.
+
 Compatibility note: the current route and storage keys remain `teams/<team>/facilitator.html` / `*_facilitator` for the Scribe workspace and `teams/<team>/scribe.html` / `*_scribe` for the Facilitator support deck. New display labels use the corrected role semantics while legacy identifiers remain stable for existing sessions and Supabase policies. When a schema migration introduces canonical role IDs, new persisted identifiers should use semantic role names rather than carrying the inversion forward.
 
 The built-in teams are Blue, Red, Green, and Industry. Do not expand team geography or role topology during demo hardening unless the exercise design explicitly changes.

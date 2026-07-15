@@ -17,6 +17,10 @@ import {
     parseMoveResponseDetails
 } from '../actions/moveResponseDetails.js';
 import {
+    getStrategicOrientationViewModel,
+    isStrategicOrientationAction
+} from '../actions/strategicOrientationDetails.js';
+import {
     arrayToCsv,
     exportSessionActionsCsv,
     exportSessionParticipantsCsv,
@@ -1274,6 +1278,7 @@ function buildDraftRevisions(bundle = {}, participantRegistry) {
         .filter((action) => !isMoveResponseAction(action))
         .map((action) => {
             const isProposal = isProposalAction(action);
+            const isStrategicOrientation = isStrategicOrientationAction(action);
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
             const authorPseudonym = resolvePseudonym(participantRegistry, {
@@ -1291,13 +1296,17 @@ function buildDraftRevisions(bundle = {}, participantRegistry) {
                 author_role: authorRole,
                 author_team: authorTeam,
                 author_seat_index: null,
-                artifact_type: isProposal ? 'proposal' : 'action',
+                artifact_type: isProposal
+                    ? 'proposal'
+                    : (isStrategicOrientation ? 'strategic_orientation' : 'action'),
                 artifact_id: action?.id || null,
                 revision_number: 1,
                 revision_cycle_id: action?.id || null,
                 status: action?.status === 'draft' ? 'draft_saved' : 'submitted',
                 move_number: action?.move ?? null,
-                action_sequence: isProposal ? null : getActionSequenceNumber(bundle.actions, action),
+                action_sequence: isProposal || isStrategicOrientation
+                    ? null
+                    : getActionSequenceNumber(bundle.actions, action),
                 wizard_page_reached: blueView ? 3 : null,
                 content_snapshot: {
                     mechanism: action?.mechanism || null,
@@ -1325,9 +1334,47 @@ function buildActionContent(bundle = {}, participantRegistry) {
     return safeArray(bundle.actions)
         .filter((action) => !isProposalAction(action) && !isMoveResponseAction(action))
         .map((action) => {
+            const isStrategicOrientation = isStrategicOrientationAction(action);
+            const strategicOrientation = isStrategicOrientation
+                ? getStrategicOrientationViewModel(action)
+                : null;
             const viewModel = getBlueActionViewModel(action);
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
+
+            if (strategicOrientation) {
+                return {
+                    action_id: action?.id || null,
+                    session_id: bundle.session?.id || null,
+                    author_pseudonym: resolvePseudonym(participantRegistry, {
+                        clientId: action?.client_id,
+                        role: authorRole
+                    }) || `${authorTeam || 'team'}-lead`,
+                    author_role: authorRole,
+                    author_team: authorTeam,
+                    move_number: action?.move ?? null,
+                    action_sequence: null,
+                    title: strategicOrientation.title,
+                    action_type: strategicOrientation.isForecast
+                        ? 'Strategic Orientation Forecast'
+                        : 'Strategic Orientation Selection',
+                    intent_text: strategicOrientation.rationale
+                        || strategicOrientation.forecastSummary
+                        || strategicOrientation.orientationTag
+                        || null,
+                    targets: strategicOrientation.forecastTargets.map((target) => target.label),
+                    instruments: strategicOrientation.primaryLevers,
+                    resources_committed: [],
+                    full_content: {
+                        artifact_kind: 'strategic_orientation',
+                        goal: action?.goal || null,
+                        expected_outcomes: action?.expected_outcomes || null,
+                        details: strategicOrientation
+                    },
+                    submitted_utc: asUtcIso(action?.submitted_at),
+                    final_status: action?.status || null
+                };
+            }
 
             return {
                 action_id: action?.id || null,
@@ -1347,6 +1394,7 @@ function buildActionContent(bundle = {}, participantRegistry) {
                 instruments: viewModel.instruments,
                 resources_committed: viewModel.coordinated || [],
                 full_content: {
+                    artifact_kind: 'action',
                     goal: action?.goal || null,
                     sector: action?.sector || null,
                     exposure_type: action?.exposure_type || null,
@@ -3170,7 +3218,16 @@ function buildPersonaReports(dataset = {}) {
         row.current_state,
         row.evidence_summary
     ]);
-    const actionRows = safeArray(dataset.actionContent).map((action) => [
+    const actionContentRows = safeArray(dataset.actionContent);
+    const strategicOrientationContentRows = actionContentRows.filter((action) => {
+        const fullContent = safeObject(action.full_content);
+        const details = safeObject(fullContent.details);
+        return fullContent.artifact_kind === 'strategic_orientation'
+            || details.hasStrategicOrientationDetails === true
+            || /^strategic orientation/i.test(String(action.action_type || ''));
+    });
+    const moveActionContentRows = actionContentRows.filter((action) => !strategicOrientationContentRows.includes(action));
+    const actionRows = moveActionContentRows.map((action) => [
         action.move_number,
         action.author_team,
         action.action_type,
@@ -3178,6 +3235,23 @@ function buildPersonaReports(dataset = {}) {
         action.final_status,
         action.intent_text
     ]);
+    const strategicOrientationRows = strategicOrientationContentRows.map((orientation) => {
+        const details = safeObject(safeObject(orientation.full_content).details);
+        const forecastSummary = safeArray(details.forecastTargets)
+            .map((target) => `${target.label || target.key}: ${target.orientationLabel || target.orientation}`)
+            .join('; ');
+
+        return [
+            orientation.author_team,
+            details.isForecast ? 'Forecast' : 'Selection',
+            forecastSummary || details.orientationLabel,
+            details.posture,
+            formatReportValue(details.primaryLevers, ''),
+            formatReportValue(details.acceptedCosts, ''),
+            details.rationale || details.forecastSummary,
+            orientation.final_status
+        ];
+    });
     const proposalRows = safeArray(dataset.proposalContent).map((proposal) => [
         proposal.move_number,
         proposal.author_team,
@@ -3237,7 +3311,8 @@ function buildPersonaReports(dataset = {}) {
         { label: 'Events', value: sessionMetrics.total_events ?? 0 },
         { label: 'Participants', value: sessionMetrics.participants_active ?? 0 },
         { label: 'Moves', value: sessionMetrics.moves_count ?? 0 },
-        { label: 'Actions', value: sessionMetrics.actions_submitted ?? 0 },
+        { label: 'Orientations', value: strategicOrientationContentRows.length },
+        { label: 'Actions', value: moveActionContentRows.filter((action) => action.submitted_utc).length },
         { label: 'Proposals', value: sessionMetrics.proposals_submitted ?? 0 },
         { label: 'RFIs', value: sessionMetrics.rfis_raised ?? 0 }
     ]);
@@ -3252,6 +3327,7 @@ function buildPersonaReports(dataset = {}) {
                 sections: [
                     { title: 'Session Indicators', html: commonSummaryCards },
                     { title: 'Outcome Taxonomy Signals', html: renderReportTable(['Dimension', 'Signal', 'Entity Type', 'Entity ID', 'Team', 'Keyword Hits'], outcomeRows) },
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Orientation / Forecasts', 'Posture', 'Primary Levers', 'Accepted Costs', 'Rationale', 'Status'], strategicOrientationRows) },
                     { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
                     { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Intended Recipient', 'Review', 'Recipient State', 'Rationale'], proposalRows) },
                     { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
@@ -3267,6 +3343,7 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Executive Indicators', html: commonSummaryCards },
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Orientation / Forecasts', 'Posture', 'Primary Levers', 'Accepted Costs', 'Rationale', 'Status'], strategicOrientationRows) },
                     { title: 'Turning Points', html: renderReportTable(['Type', 'Move', 'Team', 'Evidence'], turningRows) },
                     { title: 'Decision Lineage Highlights', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
                     { title: 'Network Metrics', html: renderReportTable(['Metric', 'Source Team', 'Target Team', 'Value', 'Unit'], networkRows) },
@@ -4097,7 +4174,95 @@ export function buildResearchReportHtml(dataset, {
         row.team || '',
         row.evidence_summary || ''
     ]);
-    const actionCards = dataset.actionContent.map((action) => {
+    const allActionRows = safeArray(dataset.actionContent);
+    const strategicOrientationRows = allActionRows.filter((action) => {
+        const fullContent = safeObject(action.full_content);
+        const details = safeObject(fullContent.details);
+        return fullContent.artifact_kind === 'strategic_orientation'
+            || details.hasStrategicOrientationDetails === true
+            || /^strategic orientation/i.test(String(action.action_type || ''));
+    });
+    const moveActionRows = allActionRows.filter((action) => !strategicOrientationRows.includes(action));
+    const strategicOrientationCards = strategicOrientationRows.map((orientation) => {
+        const adjudication = adjudicationByTargetId.get(orientation.action_id);
+        const details = safeObject(safeObject(orientation.full_content).details);
+        const forecastRows = safeArray(details.forecastTargets).map((target) => [
+            target.label || target.key || '',
+            target.orientationLabel || target.orientation || '',
+            target.orientationTag || ''
+        ]);
+        const characteristicRows = safeArray(details.characteristics).map((characteristic) => [
+            characteristic.key || '',
+            characteristic.value || ''
+        ]);
+
+        return renderReportEntityCard({
+            eyebrow: `${humanizeReportLabel(details.period || 'pre_move_1')} - ${details.isForecast ? 'Forecast' : 'Selection'}`,
+            title: orientation.title || details.orientationLabel || 'Strategic orientation',
+            summary: details.rationale || details.forecastSummary || details.description || orientation.intent_text || '',
+            badges: [
+                { label: orientation.author_team || details.team || 'team', tone: 'accent' },
+                { label: details.isForecast ? 'forecast' : 'selection', tone: 'muted' },
+                { label: orientation.final_status || 'pending', tone: 'success' },
+                { label: details.scribeHandoff || 'handoff not recorded', tone: 'muted' }
+            ],
+            metadata: [
+                { label: 'Author', value: `${orientation.author_pseudonym || 'N/A'} / ${formatRoleForReport(orientation.author_role) || 'unknown'}` },
+                { label: 'Team', value: details.teamLabel || orientation.author_team },
+                { label: 'Exercise Period', value: humanizeReportLabel(details.period || 'pre_move_1') },
+                { label: 'Artifact Type', value: details.isForecast ? 'Forecast' : 'Selection' },
+                { label: 'Scribe Handoff', value: details.scribeHandoff },
+                { label: 'Submitted', value: formatReportTimestamp(orientation.submitted_utc) }
+            ],
+            sections: [
+                {
+                    title: details.isForecast ? 'Forecast Thesis' : 'Selected Orientation',
+                    html: renderReportMetaGrid([
+                        { label: 'Orientation', value: details.orientationLabel },
+                        { label: 'Strategic Tag', value: details.orientationTag },
+                        { label: 'Forecast Summary', value: details.forecastSummary },
+                        { label: 'Expected Outcomes', value: safeObject(orientation.full_content).expected_outcomes }
+                    ])
+                },
+                forecastRows.length
+                    ? {
+                        title: 'Forecast Targets',
+                        html: renderReportTable(['Target', 'Forecast Orientation', 'Strategic Tag'], forecastRows)
+                    }
+                    : null,
+                {
+                    title: details.isForecast ? 'Forecast Logic' : 'Strategic Logic',
+                    html: `
+                        ${renderReportMetaGrid([
+                            { label: details.isForecast ? 'Primary Forecast Description' : 'Orientation Description', value: details.description },
+                            { label: 'Posture', value: details.posture },
+                            { label: 'Rationale', value: details.rationale },
+                            { label: 'Primary Levers', value: details.primaryLevers },
+                            { label: 'Accepted Costs', value: details.acceptedCosts }
+                        ])}
+                        ${characteristicRows.length
+                            ? renderReportTable([
+                                'Dimension',
+                                details.isForecast ? 'Primary Forecast' : 'Selected Orientation'
+                            ], characteristicRows)
+                            : ''}
+                    `
+                },
+                adjudication
+                    ? {
+                        title: 'White Cell Review',
+                        html: renderReportMetaGrid([
+                            { label: 'Ruling', value: adjudication.ruling },
+                            { label: 'Reasoning', value: adjudication.reasoning },
+                            { label: 'Adjudicated UTC', value: formatReportTimestamp(adjudication.adjudicated_utc) },
+                            { label: 'Effects', value: adjudication.effects }
+                        ])
+                    }
+                    : null
+            ].filter(Boolean)
+        });
+    });
+    const actionCards = moveActionRows.map((action) => {
         const adjudication = adjudicationByTargetId.get(action.action_id);
         const details = safeObject(safeObject(action.full_content).details);
 
@@ -4127,11 +4292,17 @@ export function buildResearchReportHtml(dataset, {
                         { label: 'Expected Outcomes', value: safeObject(action.full_content).expected_outcomes },
                         { label: 'Levers', value: details.levers },
                         { label: 'Sectors', value: details.sectors },
+                        { label: 'Supply Chain Focus Decision', value: details.supplyChainFocusDecision },
+                        { label: 'Supply Chain Action Angles', value: details.supplyChainActionAngles },
+                        { label: 'Supply Chain Areas', value: details.supplyChainAreas },
                         { label: 'Implementation', value: details.implementation },
                         { label: 'Legislative Options', value: details.legislativeOptions },
                         { label: 'Focus Countries', value: details.focusCountries },
                         { label: 'Enforcement Timeline', value: details.enforcementTimeline },
+                        { label: 'Scribe Handoff', value: details.scribeHandoff },
+                        { label: 'Coordination Planned', value: details.coordinatedDecision },
                         { label: 'Coordinated With', value: details.coordinated },
+                        { label: 'Information / Engagement Planned', value: details.informedEngagedDecision },
                         { label: 'Informed Parties', value: details.informed }
                     ])
                 },
@@ -4273,6 +4444,9 @@ export function buildResearchReportHtml(dataset, {
     const displayedEventLogRows = eventLogTruncated
         ? eventLogRows.slice(0, EVENT_LOG_DISPLAY_LIMIT)
         : eventLogRows;
+    const strategicOrientationCount = strategicOrientationRows.length;
+    const submittedActionCount = moveActionRows.filter((action) => action.submitted_utc).length;
+    const adjudicatedActionCount = moveActionRows.filter((action) => action.final_status === 'adjudicated').length;
     const teamActivityOrder = ['blue', 'red', 'green', 'industry', 'whitecell', 'gamemaster'];
     const teamActivityMap = new Map();
     const ensureTeamActivity = (team) => {
@@ -4281,6 +4455,7 @@ export function buildResearchReportHtml(dataset, {
             teamActivityMap.set(key, {
                 team: key,
                 participants: 0,
+                orientations: 0,
                 actions: 0,
                 proposals: 0,
                 responses: 0,
@@ -4291,7 +4466,8 @@ export function buildResearchReportHtml(dataset, {
         return teamActivityMap.get(key);
     };
     safeArray(dataset.participants).forEach((participant) => { ensureTeamActivity(participant.team).participants += 1; });
-    safeArray(dataset.actionContent).forEach((action) => { ensureTeamActivity(action.author_team).actions += 1; });
+    strategicOrientationRows.forEach((orientation) => { ensureTeamActivity(orientation.author_team).orientations += 1; });
+    moveActionRows.forEach((action) => { ensureTeamActivity(action.author_team).actions += 1; });
     safeArray(dataset.proposalContent).forEach((proposal) => { ensureTeamActivity(proposal.author_team).proposals += 1; });
     safeArray(dataset.moveResponseContent).forEach((response) => { ensureTeamActivity(response.author_team).responses += 1; });
     safeArray(dataset.rfiContent).forEach((rfi) => { ensureTeamActivity(rfi.requester_team).rfis += 1; });
@@ -4306,13 +4482,14 @@ export function buildResearchReportHtml(dataset, {
         .map((row) => [
             humanizeReportLabel(row.team),
             String(row.participants),
+            String(row.orientations),
             String(row.actions),
             String(row.proposals),
             String(row.responses),
             String(row.rfis),
             String(row.notes)
         ]);
-    const executiveSummaryText = `This post-game analysis reconstructs ${sessionDisplayName}${manifest.capture_mode ? `, captured in ${humanizeReportLabel(manifest.capture_mode)} mode` : ''}. The session spans ${formatReportDuration(sessionMetrics.session_duration_s, 'an unrecorded duration')} across ${formatReportValue(sessionMetrics.moves_count ?? 0, '0')} move(s), with ${formatReportValue(sessionMetrics.participants_active ?? 0, '0')} active participant seat(s) generating ${formatReportValue(sessionMetrics.total_events ?? 0, '0')} logged events. Teams submitted ${formatReportValue(sessionMetrics.actions_submitted ?? 0, '0')} action(s) (${formatReportValue(sessionMetrics.actions_adjudicated ?? 0, '0')} adjudicated) and ${formatReportValue(sessionMetrics.proposals_submitted ?? 0, '0')} proposal(s) (${formatReportValue(sessionMetrics.proposals_forwarded ?? 0, '0')} forwarded), and raised ${formatReportValue(sessionMetrics.rfis_raised ?? 0, '0')} request(s) for information.`;
+    const executiveSummaryText = `This post-game analysis reconstructs ${sessionDisplayName}${manifest.capture_mode ? `, captured in ${humanizeReportLabel(manifest.capture_mode)} mode` : ''}. The session spans ${formatReportDuration(sessionMetrics.session_duration_s, 'an unrecorded duration')} across ${formatReportValue(sessionMetrics.moves_count ?? 0, '0')} move(s), with ${formatReportValue(sessionMetrics.participants_active ?? 0, '0')} active participant seat(s) generating ${formatReportValue(sessionMetrics.total_events ?? 0, '0')} logged events. Teams recorded ${formatReportValue(strategicOrientationCount, '0')} strategic-orientation artifact(s), submitted ${formatReportValue(submittedActionCount, '0')} move action(s) (${formatReportValue(adjudicatedActionCount, '0')} adjudicated) and ${formatReportValue(sessionMetrics.proposals_submitted ?? 0, '0')} proposal(s) (${formatReportValue(sessionMetrics.proposals_forwarded ?? 0, '0')} forwarded), and raised ${formatReportValue(sessionMetrics.rfis_raised ?? 0, '0')} request(s) for information.`;
     const contentsItems = [
         {
             title: 'Executive Summary',
@@ -4336,7 +4513,7 @@ export function buildResearchReportHtml(dataset, {
         },
         {
             title: 'State Transition Ledger',
-            description: 'Lifecycle transitions reconstructed for actions, proposals, responses, and RFIs.'
+            description: 'Lifecycle transitions reconstructed for strategic orientations, actions, proposals, responses, and RFIs.'
         },
         {
             title: 'Decision Lineage',
@@ -4351,8 +4528,12 @@ export function buildResearchReportHtml(dataset, {
             description: 'Draft revision path, wizard progress, and time-to-submit evidence.'
         },
         {
+            title: 'Strategic Orientation: Selections And Forecasts',
+            description: 'Pre-Move 1 selections and forecasts with target-level orientation, posture, rationale, levers, accepted costs, and handoff state.'
+        },
+        {
             title: 'Actions And Adjudications',
-            description: 'Detailed Blue-team action records paired with White Cell rulings and effects.'
+            description: 'Detailed move-action records, decision inputs, handoff state, and White Cell rulings and effects.'
         },
         {
             title: 'Proposals: Content And Review',
@@ -5348,7 +5529,8 @@ export function buildResearchReportHtml(dataset, {
                     { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0 },
                     { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s) },
                     { label: 'Mean Proposal Latency', value: formatReportDuration(sessionMetrics.mean_proposal_response_latency_s) },
-                    { label: 'Actions Submitted', value: sessionMetrics.actions_submitted ?? 0 },
+                    { label: 'Strategic Orientations', value: strategicOrientationCount },
+                    { label: 'Actions Submitted', value: submittedActionCount },
                     { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0 },
                     { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0 },
                     { label: 'Communications', value: sessionMetrics.communications_sent ?? 0 },
@@ -5382,14 +5564,15 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Active Participants', value: sessionMetrics.participants_active ?? 0, detail: 'seats engaged' },
                 { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
                 { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s), detail: 'event-log span' },
-                { label: 'Actions Submitted', value: sessionMetrics.actions_submitted ?? 0, detail: `${sessionMetrics.actions_adjudicated ?? 0} adjudicated` },
+                { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'selections and forecasts' },
+                { label: 'Actions Submitted', value: submittedActionCount, detail: `${adjudicatedActionCount} adjudicated` },
                 { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
                 { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
                 { label: 'Mean Proposal Latency', value: formatReportDuration(sessionMetrics.mean_proposal_response_latency_s), detail: 'review response time' },
                 { label: 'Session Recordings', value: sessionRecordingArtifactRows.length, detail: 'metadata references' }
             ])}
             ${renderReportSectionBlock('Activity By Team', renderReportTable(
-                ['Team', 'Participants', 'Actions', 'Proposals', 'Responses', 'RFIs', 'Notes'],
+                ['Team', 'Participants', 'Orientations', 'Actions', 'Proposals', 'Responses', 'RFIs', 'Notes'],
                 teamActivityRows
             ))}
         </section>
@@ -5427,7 +5610,8 @@ export function buildResearchReportHtml(dataset, {
             ])}
             ${renderReportSectionBlock('Archive Summary', renderReportSummaryCards([
                 { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
-                { label: 'Actions Submitted', value: sessionMetrics.actions_submitted ?? 0, detail: `${sessionMetrics.actions_adjudicated ?? 0} adjudicated` },
+                { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'selections and forecasts' },
+                { label: 'Actions Submitted', value: submittedActionCount, detail: `${adjudicatedActionCount} adjudicated` },
                 { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
                 { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
                 { label: 'Communications', value: sessionMetrics.communications_sent ?? 0, detail: 'interaction edges' },
@@ -5485,7 +5669,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">State Transition Ledger</h2>
-                    <p class="report-section-intro">Lifecycle transitions reconstructed from the export projections for actions, proposals, move responses, and RFIs.</p>
+                    <p class="report-section-intro">Lifecycle transitions reconstructed from the export projections for strategic orientations, actions, proposals, move responses, and RFIs.</p>
                 </div>
             </div>
             ${renderReportTable(
@@ -5548,11 +5732,21 @@ export function buildResearchReportHtml(dataset, {
         <section class="report-section">
             <div class="report-section-header">
                 <div>
-                    <h2 class="report-section-title">Actions And Adjudications</h2>
-                    <p class="report-section-intro">Detailed Blue-team strategic action records paired with White Cell rulings and adjudication effects.</p>
+                    <h2 class="report-section-title">Strategic Orientation: Selections And Forecasts</h2>
+                    <p class="report-section-intro">Pre-Move 1 strategic-orientation artifacts. Blue records its selected orientation; Green forecasts Blue; Red and Industry may forecast Blue, Green (Asian Pacific), and Green (Europe). Each record preserves the declared posture, rationale, levers, accepted costs, target-level forecast, Scribe handoff, and White Cell review state.</p>
                 </div>
             </div>
-            ${renderReportEntityCollection(actionCards, 'No Blue-team action records were captured for this export.')}
+            ${renderReportEntityCollection(strategicOrientationCards, 'No strategic-orientation records were captured for this export.')}
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-header">
+                <div>
+                    <h2 class="report-section-title">Actions And Adjudications</h2>
+                    <p class="report-section-intro">Move-action records covering objectives, instruments, levers, sector and supply-chain choices, implementation, legislative options, coordination and engagement decisions, Scribe handoff, and White Cell adjudication.</p>
+                </div>
+            </div>
+            ${renderReportEntityCollection(actionCards, 'No move-action records were captured for this export.')}
         </section>
 
         <section class="report-section">

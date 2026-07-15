@@ -202,6 +202,14 @@ Export reference test:
 
 Pass: the artifact rows include session ID, recording ID, UTC start/stop, duration, MIME type, file size, operator role/user, plugin ID, filename, storage reference, object URL lifecycle, requested constraints, selected MIME type, and requested/used bitrate. The report indicates that the audio file remains a local browser download and is not embedded in the ZIP.
 
+Research report decision-scope test:
+
+1. Before Move 1, submit a Blue Strategic Orientation selection, a Green forecast, and Red or Industry forecasts for Blue, Green (Asian Pacific), and Green (Europe).
+2. During a move, submit an action with supply-chain focus, implementation, legislative, coordination, engagement, and Scribe-handoff choices; submit and route a proposal through recipient response.
+3. Export the research archive from Game Master and open `report.html`.
+
+Pass: `Strategic Orientation: Selections And Forecasts` is separate from move actions and shows selection/forecast type, every forecast target, orientation and tag, posture, rationale, primary levers, accepted costs, Scribe handoff, and White Cell review. `Actions And Adjudications` shows all action decision fields and ruling effects. `Proposals: Content And Review` shows authored proposal content, intended and forwarded recipients, review reason, and final recipient state. Executive and team summaries count orientations separately from move actions.
+
 Failure handling:
 
 1. Deny microphone permission.
