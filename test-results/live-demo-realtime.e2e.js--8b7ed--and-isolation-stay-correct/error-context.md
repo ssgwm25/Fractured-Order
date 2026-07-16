@@ -52,7 +52,7 @@
             - button "Next" [ref=e77] [cursor=pointer]
       - generic [ref=e78]:
         - generic [ref=e79]: Session
-        - generic [ref=e80]: Realtime Isolation RT6123445B
+        - generic [ref=e80]: Realtime Isolation RT6125310B
     - banner [ref=e81]:
       - generic [ref=e83]:
         - generic [ref=e84]: Operator
@@ -81,11 +81,11 @@
               - generic [ref=e112]:
                 - generic [ref=e113]:
                   - generic [ref=e114]:
-                    - heading "Realtime Isolation RT6123445B" [level=3] [ref=e115]
+                    - heading "Realtime Isolation RT6125310B" [level=3] [ref=e115]
                     - generic [ref=e117]: Selected
                   - paragraph [ref=e118]:
                     - text: "Code:"
-                    - strong [ref=e119]: RT6123445B
+                    - strong [ref=e119]: RT6125310B
                 - generic [ref=e121]: active
               - generic [ref=e123]:
                 - generic [ref=e124]:
@@ -104,10 +104,10 @@
             - generic [ref=e137]:
               - generic [ref=e138]:
                 - generic [ref=e139]:
-                  - heading "Realtime Gate RT6123445A" [level=3] [ref=e141]
+                  - heading "Realtime Gate RT6125310A" [level=3] [ref=e141]
                   - paragraph [ref=e142]:
                     - text: "Code:"
-                    - strong [ref=e143]: RT6123445A
+                    - strong [ref=e143]: RT6125310A
                 - generic [ref=e145]: active
               - generic [ref=e147]:
                 - generic [ref=e148]:
@@ -126,10 +126,10 @@
             - generic [ref=e161]:
               - generic [ref=e162]:
                 - generic [ref=e163]:
-                  - heading "JS/J7 Playthrough Session" [level=3] [ref=e165]
+                  - heading "Realtime Isolation RT6123445B" [level=3] [ref=e165]
                   - paragraph [ref=e166]:
                     - text: "Code:"
-                    - strong [ref=e167]: JSJ72026
+                    - strong [ref=e167]: RT6123445B
                 - generic [ref=e169]: active
               - generic [ref=e171]:
                 - generic [ref=e172]:
@@ -137,10 +137,10 @@
                   - generic [ref=e174]: active
                 - generic [ref=e175]:
                   - generic [ref=e176]: Created
-                  - generic [ref=e177]: 1 day ago
+                  - generic [ref=e177]: 18 minutes ago
                 - generic [ref=e178]:
                   - generic [ref=e179]: Updated
-                  - generic [ref=e180]: 1 day ago
+                  - generic [ref=e180]: 18 minutes ago
               - generic [ref=e181]:
                 - button "Select" [ref=e182] [cursor=pointer]
                 - button "View Details" [ref=e183] [cursor=pointer]
@@ -148,10 +148,10 @@
             - generic [ref=e185]:
               - generic [ref=e186]:
                 - generic [ref=e187]:
-                  - heading "TRIA" [level=3] [ref=e189]
+                  - heading "Realtime Gate RT6123445A" [level=3] [ref=e189]
                   - paragraph [ref=e190]:
                     - text: "Code:"
-                    - strong [ref=e191]: TRIA2026
+                    - strong [ref=e191]: RT6123445A
                 - generic [ref=e193]: active
               - generic [ref=e195]:
                 - generic [ref=e196]:
@@ -159,10 +159,10 @@
                   - generic [ref=e198]: active
                 - generic [ref=e199]:
                   - generic [ref=e200]: Created
-                  - generic [ref=e201]: 1 day ago
+                  - generic [ref=e201]: 18 minutes ago
                 - generic [ref=e202]:
                   - generic [ref=e203]: Updated
-                  - generic [ref=e204]: 1 day ago
+                  - generic [ref=e204]: 18 minutes ago
               - generic [ref=e205]:
                 - button "Select" [ref=e206] [cursor=pointer]
                 - button "View Details" [ref=e207] [cursor=pointer]
@@ -170,10 +170,10 @@
             - generic [ref=e209]:
               - generic [ref=e210]:
                 - generic [ref=e211]:
-                  - heading "Admin Session" [level=3] [ref=e213]
+                  - heading "JS/J7 Playthrough Session" [level=3] [ref=e213]
                   - paragraph [ref=e214]:
                     - text: "Code:"
-                    - strong [ref=e215]: ADMIN2026
+                    - strong [ref=e215]: JSJ72026
                 - generic [ref=e217]: active
               - generic [ref=e219]:
                 - generic [ref=e220]:
@@ -181,10 +181,10 @@
                   - generic [ref=e222]: active
                 - generic [ref=e223]:
                   - generic [ref=e224]: Created
-                  - generic [ref=e225]: Jun 22, 2026
+                  - generic [ref=e225]: 1 day ago
                 - generic [ref=e226]:
                   - generic [ref=e227]: Updated
-                  - generic [ref=e228]: Jun 22, 2026
+                  - generic [ref=e228]: 1 day ago
               - generic [ref=e229]:
                 - button "Select" [ref=e230] [cursor=pointer]
                 - button "View Details" [ref=e231] [cursor=pointer]
@@ -192,10 +192,10 @@
             - generic [ref=e233]:
               - generic [ref=e234]:
                 - generic [ref=e235]:
-                  - heading "AidData Playtest Session" [level=3] [ref=e237]
+                  - heading "TRIA" [level=3] [ref=e237]
                   - paragraph [ref=e238]:
                     - text: "Code:"
-                    - strong [ref=e239]: PLAY2026
+                    - strong [ref=e239]: TRIA2026
                 - generic [ref=e241]: active
               - generic [ref=e243]:
                 - generic [ref=e244]:
@@ -203,14 +203,58 @@
                   - generic [ref=e246]: active
                 - generic [ref=e247]:
                   - generic [ref=e248]: Created
-                  - generic [ref=e249]: Jun 16, 2026
+                  - generic [ref=e249]: 1 day ago
                 - generic [ref=e250]:
                   - generic [ref=e251]: Updated
-                  - generic [ref=e252]: Jun 16, 2026
+                  - generic [ref=e252]: 1 day ago
               - generic [ref=e253]:
                 - button "Select" [ref=e254] [cursor=pointer]
                 - button "View Details" [ref=e255] [cursor=pointer]
                 - button "Delete" [ref=e256] [cursor=pointer]
+            - generic [ref=e257]:
+              - generic [ref=e258]:
+                - generic [ref=e259]:
+                  - heading "Admin Session" [level=3] [ref=e261]
+                  - paragraph [ref=e262]:
+                    - text: "Code:"
+                    - strong [ref=e263]: ADMIN2026
+                - generic [ref=e265]: active
+              - generic [ref=e267]:
+                - generic [ref=e268]:
+                  - generic [ref=e269]: Status
+                  - generic [ref=e270]: active
+                - generic [ref=e271]:
+                  - generic [ref=e272]: Created
+                  - generic [ref=e273]: Jun 22, 2026
+                - generic [ref=e274]:
+                  - generic [ref=e275]: Updated
+                  - generic [ref=e276]: Jun 22, 2026
+              - generic [ref=e277]:
+                - button "Select" [ref=e278] [cursor=pointer]
+                - button "View Details" [ref=e279] [cursor=pointer]
+                - button "Delete" [ref=e280] [cursor=pointer]
+            - generic [ref=e281]:
+              - generic [ref=e282]:
+                - generic [ref=e283]:
+                  - heading "AidData Playtest Session" [level=3] [ref=e285]
+                  - paragraph [ref=e286]:
+                    - text: "Code:"
+                    - strong [ref=e287]: PLAY2026
+                - generic [ref=e289]: active
+              - generic [ref=e291]:
+                - generic [ref=e292]:
+                  - generic [ref=e293]: Status
+                  - generic [ref=e294]: active
+                - generic [ref=e295]:
+                  - generic [ref=e296]: Created
+                  - generic [ref=e297]: Jun 16, 2026
+                - generic [ref=e298]:
+                  - generic [ref=e299]: Updated
+                  - generic [ref=e300]: Jun 16, 2026
+              - generic [ref=e301]:
+                - button "Select" [ref=e302] [cursor=pointer]
+                - button "View Details" [ref=e303] [cursor=pointer]
+                - button "Delete" [ref=e304] [cursor=pointer]
         - text: No plugins are active for the selected session. Choose a session and enable plugins from the White Cell settings.
   - region "Notifications"
 ```

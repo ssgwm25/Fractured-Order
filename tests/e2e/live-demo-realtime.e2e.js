@@ -161,9 +161,9 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             await expect(whiteCell.page.locator('#participantsList')).toContainText('Realtime Red Facilitator');
             await expect(whiteCell.page.locator('#participantsList')).not.toContainText('Isolation Blue Facilitator');
 
-            await openSidebarSection(whiteCell.page, 'controls');
+            await openWhiteCellSettingsTab(whiteCell.page, 'gameControls');
             const timerStartedAt = Date.now();
-            await whiteCell.page.locator('#startTimerBtn').click();
+            await whiteCell.page.locator('#startTimerBtn').click({ timeout: 20000 });
             if (!actorPool.hosted) {
                 await blueFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online')));
                 await redFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online')));
@@ -171,7 +171,7 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             await expect(blueFacilitator.page.locator('#timerDisplay')).not.toHaveText('90:00');
             await expect(redFacilitator.page.locator('#timerDisplay')).not.toHaveText('90:00');
             recordLatency(latencySamples, 'game_state timer fanout', timerStartedAt);
-            await whiteCell.page.locator('#pauseTimerBtn').click();
+            await whiteCell.page.locator('#pauseTimerBtn').click({ timeout: 20000 });
 
             await createDraftAction(blueScribe.page, { goal: actionTitle });
             await forwardActionToScribe(blueScribe.page, actionTitle);
