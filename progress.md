@@ -36,3 +36,11 @@ Original prompt: The loading screen must detail the name of the session being jo
 - TODO: Run `npm test -- src/roles/scribe.test.js`, `npm run build`, and the updated Facilitator action-review/deck-switch checks in `docs/live-demo-runbook.md`.
 - 2026-07-15: Human verification confirmed the production build and `test:e2e:smoke` pass. The focused Scribe suite reported one stale onboarding-selector assertion; updated it to pin the new view switch and its deck-position restoration guidance.
 - TODO: Re-run `npm test -- src/roles/scribe.test.js`; pass is 34 tests passing with no failed test files. The fallback-path warning/error logs remain expected test output.
+
+Original prompt: Place the categories for proposals in the scribe interface like the white cell's simulation settings section. It needs to be easy for the user to know what from each move of the simulation is noted.
+
+- 2026-07-16: Reworked the Green and Industry Scribe proposal record into a White Cell-style tab strip for Strategic Orientation and Moves 1-3, with per-category counts, explicit empty states, and concise guidance describing what was noted at each simulation mark.
+- 2026-07-16: Kept proposal lifecycle status and complete recorded fields inside each move category, added accessible tab semantics and arrow-key navigation, and aligned tab animation with reduced-motion preferences.
+- 2026-07-16: Human verification confirmed the production build passes. The focused Facilitator suite reached 71 passing tests and exposed one proposal-tab test-harness failure because badge rendering had no fake `document`; added the established fake document setup to that test without changing runtime behavior.
+- 2026-07-16: Follow-up visual feedback showed the proposal categories still stacking. Pinned the proposal tab list to a single non-wrapping horizontal flex row, forced tab controls to content width, and retained horizontal overflow for narrow screens.
+- TODO: Re-run `npm test -- src/roles/facilitator.test.js`; pass is 72 tests passing with no failed test files. Then complete the updated Green/Industry proposal-category check in `docs/live-demo-runbook.md`.

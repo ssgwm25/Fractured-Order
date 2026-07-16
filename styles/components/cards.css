@@ -892,6 +892,52 @@
     gap: var(--space-6);
 }
 
+.action-sequence-tabs .tab-list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: var(--space-2);
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.action-sequence-tabs .tab-list > .tab-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: auto;
+}
+
+.action-sequence-tabs__help {
+    margin: 0 0 var(--space-4);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+}
+
+.action-sequence-panel {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.action-sequence-panel[hidden] {
+    display: none;
+}
+
+.action-sequence-empty {
+    margin: 0;
+    padding: var(--space-4);
+    border: var(--border-width) dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+}
+
 .action-sequence-group {
     display: grid;
     gap: var(--space-3);
@@ -937,6 +983,10 @@
 }
 
 .action-sequence-group .entity-card {
+    margin-bottom: 0;
+}
+
+.action-sequence-panel .entity-card {
     margin-bottom: 0;
 }
 

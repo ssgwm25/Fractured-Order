@@ -257,6 +257,7 @@ export class FacilitatorController {
         this.responses = [];
         this.receivedProposals = [];
         this.expandedActionCardIds = new Set();
+        this.actionSequenceActiveTab = null;
         this.rfiActiveTab = getRfiCategoryKey(ENUMS.RFI_CATEGORIES[0]);
         this.responsesActiveTab = 'communication';
         this.proposalsActiveTab = 'unread';
@@ -358,7 +359,9 @@ export class FacilitatorController {
         const actionTitle = this.isProposalTeam()
             ? 'Build proposals'
             : 'Draft actions';
-        const actionGuideBody = this.teamId === 'red'
+        const actionGuideBody = this.isProposalTeam()
+            ? `Use the Strategic Orientation and move tabs to see exactly what was noted for each part of the simulation. Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`
+            : this.teamId === 'red'
             ? `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`
             : this.isTeamActionWizardEnabled()
             ? `Create and revise your team's ${actionNoun} here. Forward completed actions to the Facilitator; the Facilitator projects and submits them to White Cell.`
@@ -499,7 +502,7 @@ export class FacilitatorController {
             const isTeamActionFlow = this.isTeamActionWizardEnabled();
             if (this.isReadOnly) {
                 if (isGreenProposalFlow) {
-                    actionsDescription.textContent = 'Passive observer view of team proposals. Drafts are visible but cannot be created, edited, sent, or deleted.';
+                    actionsDescription.textContent = 'Use the Strategic Orientation and move tabs to review exactly what was noted for each part of the simulation. Observer mode cannot create, edit, send, or delete proposals.';
                 } else if (this.teamId === 'red') {
                     actionsDescription.textContent = 'Passive observer view of team actions. Entries are visible but cannot be created, edited, submitted, or deleted.';
                 } else if (isTeamActionFlow) {
@@ -508,7 +511,7 @@ export class FacilitatorController {
                     actionsDescription.textContent = 'Passive observer view of scribe actions. Drafts are visible but cannot be created, edited, submitted, or deleted.';
                 }
             } else if (isGreenProposalFlow) {
-                actionsDescription.textContent = 'Draft proposals and send them to the Blue or Red team.';
+                actionsDescription.textContent = 'Use the Strategic Orientation and move tabs to see exactly what was noted for each part of the simulation. Draft proposals here and send them to the Blue or Red team.';
             } else if (this.teamId === 'red') {
                 actionsDescription.textContent = 'Draft actions, submit them to White Cell, and track deliberation after facilitator review.';
             } else if (isTeamActionFlow) {
@@ -571,6 +574,16 @@ export class FacilitatorController {
         const strategicOrientationBtn = document.getElementById('strategicOrientationBtn');
         const newRfiBtn = document.getElementById('newRfiBtn');
         const captureForm = document.getElementById('captureForm');
+
+        const actionsListEl = document.getElementById('actionsList');
+        actionsListEl?.addEventListener('click', (event) => {
+            const tabButton = event.target.closest('.tab-button[data-action-sequence-tab]');
+            if (!tabButton || !actionsListEl.contains(tabButton)) return;
+            this.setActionSequenceActiveTab(tabButton.dataset.actionSequenceTab);
+        });
+        actionsListEl?.addEventListener('keydown', (event) => {
+            this.handleActionSequenceTabKeydown(event, actionsListEl);
+        });
 
         const rfiListEl = document.getElementById('rfiList');
         rfiListEl?.addEventListener('click', (event) => {
@@ -1981,7 +1994,7 @@ export class FacilitatorController {
                 ? 'Create your first action to start the White Cell review flow.'
                 : 'Create your first action to start the scribe-to-facilitator review flow.');
 
-        if (this.actions.length === 0) {
+        if (this.actions.length === 0 && !isGreenProposalFlow) {
             actionsList.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">
@@ -2098,12 +2111,91 @@ export class FacilitatorController {
         return [...groups.values()];
     }
 
+    getProposalSequenceCategories(actions = []) {
+        const populatedGroups = this.getActionSequenceGroups(actions);
+        const groupsByKey = new Map(populatedGroups.map((group) => [group.key, group]));
+        const fixedCategories = [
+            {
+                key: 'strategic-orientation',
+                title: 'Strategic Orientation',
+                tabLabel: 'Strategic Orientation',
+                context: 'Pre-Move 1',
+                items: []
+            },
+            ...[1, 2, 3].map((move) => ({
+                key: `move-${move}`,
+                title: `Move ${move} Proposals`,
+                tabLabel: `Move ${move}`,
+                context: '',
+                items: []
+            }))
+        ];
+        const fixedKeys = new Set(fixedCategories.map((group) => group.key));
+        const laterMoveCategories = populatedGroups
+            .filter((group) => !fixedKeys.has(group.key))
+            .map((group) => ({
+                ...group,
+                tabLabel: group.title.replace(/\s+Proposals$/u, '')
+            }));
+
+        return [...fixedCategories, ...laterMoveCategories].map((category) => ({
+            ...category,
+            ...(groupsByKey.get(category.key) || {}),
+            tabLabel: category.tabLabel
+        }));
+    }
+
+    setActionSequenceActiveTab(tab) {
+        const normalizedTab = String(tab || '');
+        const categories = this.getProposalSequenceCategories(this.actions);
+        if (!categories.some((category) => category.key === normalizedTab)) {
+            return;
+        }
+
+        this.actionSequenceActiveTab = normalizedTab;
+        const container = document.getElementById('actionsList');
+        if (!container || typeof container.querySelectorAll !== 'function') return;
+
+        container.querySelectorAll('.tab-button[data-action-sequence-tab]').forEach((button) => {
+            const isActive = button.dataset.actionSequenceTab === normalizedTab;
+            button.classList.toggle('tab-button-active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            button.setAttribute('tabindex', isActive ? '0' : '-1');
+        });
+        container.querySelectorAll('.tab-panel[data-action-sequence-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.actionSequencePanel !== normalizedTab;
+        });
+    }
+
+    handleActionSequenceTabKeydown(event, container = document.getElementById('actionsList')) {
+        const currentTab = event.target?.closest?.('.tab-button[data-action-sequence-tab]');
+        if (!currentTab || !container?.contains?.(currentTab)) return;
+
+        const tabs = [...container.querySelectorAll('.tab-button[data-action-sequence-tab]')];
+        const currentIndex = tabs.indexOf(currentTab);
+        if (currentIndex < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+        event.preventDefault();
+        const nextIndex = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+            ? tabs.length - 1
+            : event.key === 'ArrowLeft'
+            ? (currentIndex - 1 + tabs.length) % tabs.length
+            : (currentIndex + 1) % tabs.length;
+        const nextTab = tabs[nextIndex];
+        this.setActionSequenceActiveTab(nextTab?.dataset?.actionSequenceTab);
+        nextTab?.focus?.();
+    }
+
     renderGroupedActionList() {
         const sortedActions = this.sortActionsByExerciseSequence(this.actions);
+        if (this.isProposalTeam()) {
+            return this.renderTabbedProposalSequenceList(sortedActions);
+        }
+
         const hiddenCount = Math.max(0, sortedActions.length - ACTION_GROUP_RENDER_LIMIT);
-        const listAriaLabel = this.isProposalTeam()
-            ? 'Strategic Orientation and proposals in exercise sequence'
-            : 'Submissions in exercise sequence';
+        const listAriaLabel = 'Submissions in exercise sequence';
         let remainingRenderSlots = ACTION_GROUP_RENDER_LIMIT;
         const sequenceGroups = this.getActionSequenceGroups(sortedActions)
             .map((group) => {
@@ -2136,6 +2228,101 @@ export class FacilitatorController {
                         </section>
                     `;
                 }).join('')}
+                ${hiddenCount
+                    ? `<p class="action-sequence-overflow">Showing the first ${ACTION_GROUP_RENDER_LIMIT} of ${sortedActions.length} submissions in exercise order.</p>`
+                    : ''}
+            </div>
+        `;
+    }
+
+    renderTabbedProposalSequenceList(sortedActions = []) {
+        const hiddenCount = Math.max(0, sortedActions.length - ACTION_GROUP_RENDER_LIMIT);
+        let remainingRenderSlots = ACTION_GROUP_RENDER_LIMIT;
+        const categories = this.getProposalSequenceCategories(sortedActions).map((category) => {
+            const visibleItems = category.items.slice(0, remainingRenderSlots);
+            remainingRenderSlots = Math.max(0, remainingRenderSlots - visibleItems.length);
+            return { ...category, visibleItems };
+        });
+        const requestedCategory = categories.find((category) => category.key === this.actionSequenceActiveTab);
+        const activeCategory = requestedCategory
+            || categories.find((category) => category.items.length > 0)
+            || categories[0];
+        this.actionSequenceActiveTab = activeCategory?.key || null;
+
+        const tabs = categories.map((category) => {
+            const isActive = category.key === this.actionSequenceActiveTab;
+            const itemNoun = category.key === 'strategic-orientation'
+                ? 'Strategic Orientation record'
+                : 'proposal';
+            const itemLabel = `${itemNoun}${category.items.length === 1 ? '' : 's'}`;
+            return `
+                <button
+                    type="button"
+                    id="proposal-sequence-tab-${category.key}"
+                    class="tab-button${isActive ? ' tab-button-active' : ''}"
+                    data-action-sequence-tab="${category.key}"
+                    role="tab"
+                    aria-selected="${isActive ? 'true' : 'false'}"
+                    aria-controls="proposal-sequence-panel-${category.key}"
+                    aria-label="${this.escapeHtml(`${category.tabLabel}, ${category.items.length} ${itemLabel}`)}"
+                    tabindex="${isActive ? '0' : '-1'}"
+                >
+                    ${this.escapeHtml(category.tabLabel)}
+                    <span class="tab-badge" aria-hidden="true">${category.items.length}</span>
+                </button>
+            `;
+        }).join('');
+
+        const panels = categories.map((category) => {
+            const isActive = category.key === this.actionSequenceActiveTab;
+            const headingId = `proposal-sequence-${category.key}-heading`;
+            const itemNoun = category.key === 'strategic-orientation'
+                ? 'Strategic Orientation record'
+                : 'proposal';
+            const itemLabel = `${itemNoun}${category.items.length === 1 ? '' : 's'}`;
+            const emptyMessage = category.key === 'strategic-orientation'
+                ? 'No Strategic Orientation record has been noted yet.'
+                : `No proposals have been noted for ${category.tabLabel}.`;
+
+            return `
+                <section
+                    id="proposal-sequence-panel-${category.key}"
+                    class="tab-panel action-sequence-panel"
+                    data-action-sequence-panel="${category.key}"
+                    role="tabpanel"
+                    aria-labelledby="proposal-sequence-tab-${category.key}"
+                    ${isActive ? '' : 'hidden'}
+                >
+                    <div class="action-sequence-header">
+                        <div>
+                            <h3 id="${headingId}" class="action-sequence-heading">${this.escapeHtml(category.title)}</h3>
+                            ${category.context ? `<p class="action-sequence-context">${this.escapeHtml(category.context)}</p>` : ''}
+                        </div>
+                        <span class="action-sequence-count" aria-label="${category.items.length} ${itemLabel}">${category.items.length}</span>
+                    </div>
+                    ${category.visibleItems.length
+                        ? `<div class="card-list">${category.visibleItems.map((action) => this.renderActionCard(action)).join('')}</div>`
+                        : category.items.length
+                        ? `<p class="action-sequence-empty">This category has recorded items outside the first ${ACTION_GROUP_RENDER_LIMIT} submissions shown. Review the count above and use the research export for the complete record.</p>`
+                        : `<p class="action-sequence-empty">${this.escapeHtml(emptyMessage)}</p>`}
+                </section>
+            `;
+        }).join('');
+
+        return `
+            <div class="action-sequence-tabs tabbed-section" data-action-sequence-tabs>
+                <div
+                    class="tab-list"
+                    role="tablist"
+                    aria-label="Proposal records by simulation move"
+                    aria-describedby="proposalSequenceTabHelp"
+                >
+                    ${tabs}
+                </div>
+                <p class="action-sequence-tabs__help" id="proposalSequenceTabHelp">
+                    Choose Strategic Orientation or a move to see exactly what the Scribe noted for that part of the simulation.
+                </p>
+                ${panels}
                 ${hiddenCount
                     ? `<p class="action-sequence-overflow">Showing the first ${ACTION_GROUP_RENDER_LIMIT} of ${sortedActions.length} submissions in exercise order.</p>`
                     : ''}
