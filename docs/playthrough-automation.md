@@ -110,10 +110,11 @@ The hosted run creates an isolated BrowserContext for every actor and executes
 multi-actor joins and writes concurrently. This gives
 each actor an independent anonymous-auth session, browser storage, and Realtime
 subscription. The session name and join code include the run ID so evidence can
-be located after the run. Hosted navigation allows up to 60 seconds for the
-document to become interactive and does not wait for every non-critical asset
-to finish loading. A timeout before operator authorization is a deployment or
-network preflight failure, not concurrency evidence.
+be located after the run. Hosted navigation and operator authorization each
+allow up to 60 seconds; navigation does not wait for every non-critical asset
+to finish loading. A timeout before operator authorization completes is a
+deployment, network, or backend-auth preflight failure, not concurrency
+evidence.
 
 Pass:
 

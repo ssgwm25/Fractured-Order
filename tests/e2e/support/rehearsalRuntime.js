@@ -3,6 +3,7 @@ export const APP_NAVIGATION_OPTIONS = Object.freeze({
     waitUntil: 'domcontentloaded',
     timeout: 60000
 });
+export const OPERATOR_AUTH_TIMEOUT_MS = 60000;
 export const OPERATOR_AUTH_FAILURE_PATTERN = /invalid operator access code|failed to authorize operator access|authorization is required/i;
 
 export function isHostedRehearsal(baseUrl) {

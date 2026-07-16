@@ -5,10 +5,9 @@ import {
     buildAppUrl,
     classifyOperatorAuthorizationProgress,
     getHostedOperatorAccessCode,
-    isHostedRehearsal
+    isHostedRehearsal,
+    OPERATOR_AUTH_TIMEOUT_MS
 } from './rehearsalRuntime.js';
-
-const HOSTED_PREFLIGHT_TIMEOUT_MS = 15000;
 
 async function prepareLandingPage(page) {
     // The login page opens directly (no boot loader); make sure the landing is
@@ -36,8 +35,8 @@ async function openOperatorAccessSection(page) {
 }
 
 async function waitForHostedOperatorGrant(page, baseUrl) {
-    const deadline = Date.now() + HOSTED_PREFLIGHT_TIMEOUT_MS;
-    const successPattern = /master\.html(?:\?.*)?$/;
+    const deadline = Date.now() + OPERATOR_AUTH_TIMEOUT_MS;
+    const successPattern = /master\.html(?:[?#].*)?$/;
 
     while (Date.now() < deadline) {
         if (page.isClosed()) {
@@ -71,7 +70,7 @@ async function waitForHostedOperatorGrant(page, baseUrl) {
     }
 
     throw new Error(
-        `Hosted rehearsal preflight timed out after ${HOSTED_PREFLIGHT_TIMEOUT_MS}ms for ${baseUrl}. ` +
+        `Hosted rehearsal preflight timed out after ${OPERATOR_AUTH_TIMEOUT_MS}ms for ${baseUrl}. ` +
         `Current URL: ${page.url()}`
     );
 }

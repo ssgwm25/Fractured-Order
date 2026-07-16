@@ -6,6 +6,7 @@ import {
     buildAppUrl,
     classifyOperatorAuthorizationProgress,
     getHostedOperatorAccessCode,
+    OPERATOR_AUTH_TIMEOUT_MS,
     resolveOperatorAccessCode
 } from './rehearsalRuntime.js';
 
@@ -18,7 +19,6 @@ const BACKEND_RESET_KEY = '__esg_e2e_backend_reset__';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
-const OPERATOR_AUTH_TIMEOUT_MS = 20000;
 const HOSTED_OPERATOR_ACCESS_CODE = getHostedOperatorAccessCode();
 const JOIN_FAILURE_FALLBACK_MESSAGE = 'Could not claim that seat. Check whether the role is still available, then try again.';
 

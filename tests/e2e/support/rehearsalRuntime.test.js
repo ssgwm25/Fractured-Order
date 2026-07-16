@@ -7,6 +7,7 @@ import {
     getConfiguredAppBaseUrl,
     getHostedOperatorAccessCode,
     isHostedRehearsal,
+    OPERATOR_AUTH_TIMEOUT_MS,
     resolveOperatorAccessCode
 } from './rehearsalRuntime.js';
 
@@ -16,6 +17,7 @@ describe('rehearsal runtime helpers', () => {
             waitUntil: 'domcontentloaded',
             timeout: 60000
         });
+        expect(OPERATOR_AUTH_TIMEOUT_MS).toBe(60000);
     });
 
     it('detects hosted rehearsals from a configured base url', () => {
@@ -63,8 +65,8 @@ describe('rehearsal runtime helpers', () => {
 
     it('classifies successful operator authorization from the destination url', () => {
         expect(classifyOperatorAuthorizationProgress({
-            currentUrl: 'https://ssgwm25.github.io/Fractured-Order/master.html',
-            urlPattern: /master\.html(?:\?.*)?$/
+            currentUrl: 'https://ssgwm25.github.io/Fractured-Order/master.html#dashboard',
+            urlPattern: /master\.html(?:[?#].*)?$/
         })).toEqual(expect.objectContaining({
             status: 'success'
         }));
