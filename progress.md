@@ -1,5 +1,8 @@
 Original prompt: The loading screen must detail the name of the session being joined by the user as well to limit confusion.
 
+- 2026-07-15: Closed the communication snapshot-to-realtime startup gap that could make the Facilitator activity feed show only the second of two consecutive White Cell messages.
+- 2026-07-15: Added a merge-safe post-subscription reconciliation, focused store/sync/Facilitator regression coverage, and a two-message live-demo runbook check.
+- TODO: Run `npm test -- src/stores/communications.test.js src/services/sync.test.js src/roles/scribe.test.js`, `npm run build`, and the consecutive Facilitator communication check in `docs/live-demo-runbook.md`.
 - 2026-07-15: Located the participant and White Cell join paths in `src/roles/landing.js` and the branded join interstitial in `styles/pages/landing.css`.
 - 2026-07-15: Added a visible, assistive-technology-announced session-name line populated from the secure session-code lookup before the seat claim proceeds.
 - 2026-07-15: Added focused unit coverage and a live-demo runbook check. Verification remains for the human to run under the repository execution boundary.

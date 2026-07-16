@@ -1075,7 +1075,11 @@ export class ScribeController {
             communicationsStore.subscribe((event, data) => {
                 this.processCommunicationNotifications(event);
                 this.syncDeckAssignmentFromStore({
-                    reload: event === 'created' || event === 'updated' || event === 'initialized' || event === 'loaded'
+                    reload: event === 'created'
+                        || event === 'updated'
+                        || event === 'initialized'
+                        || event === 'loaded'
+                        || event === 'reconciled'
                 });
                 this.syncProposalsFromStore({ event, data });
             })

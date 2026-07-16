@@ -104,6 +104,11 @@ class SyncService {
             // Set up real-time handlers
             this.setupRealtimeHandlers();
 
+            // Close the snapshot-to-subscription gap. Communications committed
+            // while realtime was starting must still reach role notification
+            // feeds, while rows already received through realtime are retained.
+            await communicationsStore.reconcileCommunications();
+
             // Set up online/offline handlers
             this.setupConnectivityHandlers();
 

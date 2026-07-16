@@ -700,6 +700,55 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         });
     });
 
+    it('keeps two consecutive White Cell communications in the Facilitator activity feed', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { showToast } = await import('../components/ui/Toast.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { buildWhiteCellRecipientMetadata } = await import('../features/communications/targeting.js');
+
+        global.document = createFakeDocument();
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        const controller = new ScribeController();
+        controller.renderAlerts = vi.fn();
+
+        getAll.mockReturnValue([]);
+        controller.processCommunicationNotifications('loaded');
+
+        const firstCommunication = {
+            id: 'comm-facilitator-consecutive-1',
+            from_role: 'white_cell',
+            to_role: 'blue_scribe',
+            type: 'GUIDANCE',
+            content: 'First facilitator message.',
+            created_at: '2026-07-15T12:00:00.000Z',
+            metadata: buildWhiteCellRecipientMetadata('blue_scribe')
+        };
+        const secondCommunication = {
+            id: 'comm-facilitator-consecutive-2',
+            from_role: 'white_cell',
+            to_role: 'blue_scribe',
+            type: 'GUIDANCE',
+            content: 'Second facilitator message.',
+            created_at: '2026-07-15T12:00:01.000Z',
+            metadata: buildWhiteCellRecipientMetadata('blue_scribe')
+        };
+
+        // The first row was committed in the initial snapshot-to-realtime gap
+        // and recovered by reconciliation; the second arrived normally.
+        getAll.mockReturnValue([firstCommunication]);
+        controller.processCommunicationNotifications('reconciled');
+        getAll.mockReturnValue([secondCommunication, firstCommunication]);
+        controller.processCommunicationNotifications('created');
+
+        expect(controller.notifications).toHaveLength(2);
+        expect(controller.unreadNotifications).toBe(2);
+        expect(controller.notifications.map((entry) => entry.detail)).toEqual([
+            'Second facilitator message.',
+            'First facilitator message.'
+        ]);
+        expect(showToast).toHaveBeenCalledTimes(2);
+    });
+
     it('keeps the requested sidebar sections while reserving Actions for live facilitator decisions', () => {
         const slides = Array.from({ length: 61 }, (_entry, index) => ({
             n: index + 1,

@@ -60,6 +60,7 @@ const {
         mockCommunicationsStore: {
             initialize: vi.fn(),
             loadCommunications: vi.fn(),
+            reconcileCommunications: vi.fn(),
             updateFromServer: vi.fn(),
             reset: vi.fn()
         },
@@ -134,6 +135,7 @@ describe('syncService live bootstrap', () => {
         mockTimelineStore.initialize.mockResolvedValue();
         mockParticipantsStore.initialize.mockResolvedValue([]);
         mockCommunicationsStore.initialize.mockResolvedValue();
+        mockCommunicationsStore.reconcileCommunications.mockResolvedValue([]);
         global.window = {
             addEventListener: vi.fn(),
             removeEventListener: vi.fn()
@@ -159,6 +161,12 @@ describe('syncService live bootstrap', () => {
         expect(mockParticipantsStore.initialize).toHaveBeenCalledWith('session-live-1', 'seat-explicit-1');
         expect(mockCommunicationsStore.initialize).toHaveBeenCalledWith('session-live-1');
         expect(mockRealtimeService.initialize).toHaveBeenCalledWith('session-live-1');
+        expect(mockCommunicationsStore.reconcileCommunications).toHaveBeenCalledTimes(1);
+        expect(
+            mockRealtimeService.on.mock.invocationCallOrder.at(-1)
+        ).toBeLessThan(
+            mockCommunicationsStore.reconcileCommunications.mock.invocationCallOrder[0]
+        );
     });
 
     it('restores participant access before loading the remaining session stores', async () => {

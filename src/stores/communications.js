@@ -75,6 +75,66 @@ class CommunicationsStore {
     }
 
     /**
+     * Reconcile the initial snapshot after realtime subscriptions are active.
+     *
+     * A communication can be committed after the first snapshot query but
+     * before the realtime handler is ready. Merge instead of replacing so a
+     * realtime row received while this query is in flight cannot be lost.
+     * Subscribers receive a distinct event so newly discovered rows can be
+     * announced without replaying the initial history.
+     *
+     * @returns {Promise<Array<Object>>} Communications discovered by the reconciliation
+     */
+    async reconcileCommunications() {
+        if (!this.sessionId) {
+            return [];
+        }
+
+        try {
+            const communicationsAtQueryStart = new Map(
+                this.communications
+                    .filter((communication) => communication?.id)
+                    .map((communication) => [communication.id, communication])
+            );
+            const fetchedCommunications = await database.fetchCommunications(this.sessionId) || [];
+            const reconciledById = new Map(
+                fetchedCommunications
+                    .filter((communication) => communication?.id)
+                    .map((communication) => [communication.id, communication])
+            );
+
+            // Preserve rows inserted or replaced by realtime while the query
+            // was in flight; otherwise the fetched server row is authoritative.
+            this.communications.forEach((communication) => {
+                if (
+                    communication?.id
+                    && (
+                        !reconciledById.has(communication.id)
+                        || communicationsAtQueryStart.get(communication.id) !== communication
+                    )
+                ) {
+                    reconciledById.set(communication.id, communication);
+                }
+            });
+
+            const discovered = fetchedCommunications.filter(
+                (communication) => communication?.id && !communicationsAtQueryStart.has(communication.id)
+            );
+
+            this.communications = Array.from(reconciledById.values()).sort((left, right) => (
+                new Date(right.created_at) - new Date(left.created_at)
+                || String(left.id).localeCompare(String(right.id))
+            ));
+            this.notify('reconciled', discovered);
+
+            return discovered;
+        } catch (error) {
+            logger.error('Failed to reconcile communications after realtime subscription:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Get all communications
      * @returns {Array<Object>}
      */
