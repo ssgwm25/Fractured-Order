@@ -259,9 +259,27 @@ export async function createSessionFromMaster(page, {
     description = 'Automated live-demo rehearsal session.'
 } = {}) {
     await page.locator('.sidebar-link[data-section="sessions"]').click();
-    await page.locator('#createSessionBtn').click();
+    const createButton = page.locator('#createSessionBtn');
+    const createForm = page.locator('#createSessionForm');
 
-    const modal = page.locator('.modal-overlay');
+    // The operator route can become visible before the async server-side grant
+    // check finishes and GameMasterController binds its event listeners. Retry
+    // this hydration boundary so an early click is not silently lost.
+    await expect.poll(async () => {
+        if (await createForm.isVisible().catch(() => false)) {
+            return true;
+        }
+
+        await createButton.click();
+        return createForm.isVisible().catch(() => false);
+    }, {
+        timeout: OPERATOR_AUTH_TIMEOUT_MS,
+        intervals: [250, 500, 1000, 2000],
+        message: 'Game Master Create Session form did not open after operator authorization.'
+    }).toBe(true);
+
+    const modal = page.locator('.modal-overlay').filter({ has: createForm }).last();
+    await expect(modal).toBeVisible();
     await modal.locator('#newSessionName').fill(sessionName);
     await modal.locator('#newSessionCode').fill(sessionCode);
     await modal.locator('#newSessionDescription').fill(description);
@@ -271,7 +289,9 @@ export async function createSessionFromMaster(page, {
     await expect(page.locator('#sessionsList')).toContainText(sessionCode);
 
     const backendState = await dumpE2EMockBackend(page);
-    return backendState.tables.sessions.find((session) => normalizeSessionCode(session) === sessionCode) || null;
+    return backendState?.tables?.sessions?.find(
+        (session) => normalizeSessionCode(session) === sessionCode
+    ) || null;
 }
 
 export async function joinPublicParticipant(page, {

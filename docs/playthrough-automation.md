@@ -173,6 +173,12 @@ to finish loading. A timeout before operator authorization completes is a
 deployment, network, or backend-auth preflight failure, not concurrency
 evidence.
 
+The Game Master session helper also allows up to 60 seconds for the deployed
+controller to finish its server-side grant check and bind the Create Session
+control. It retries an early click at that hydration boundary; failure to mount
+the form within that window is reported as operator initialization failure,
+not as a Realtime result.
+
 Pass:
 
 - all eighteen role-seat claims succeed without manual repair
