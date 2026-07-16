@@ -58,6 +58,28 @@ import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 const logger = createLogger('Scribe');
 const ACTIONS_SECTION_ID = 'actions';
 const PROPOSALS_SECTION_ID = 'proposals';
+
+function serializeActionRenderState(value) {
+    if (Array.isArray(value)) {
+        return `[${value.map((entry) => serializeActionRenderState(entry)).join(',')}]`;
+    }
+
+    if (value && typeof value === 'object') {
+        return `{${Object.keys(value)
+            .sort()
+            .map((key) => `${JSON.stringify(key)}:${serializeActionRenderState(value[key])}`)
+            .join(',')}}`;
+    }
+
+    return JSON.stringify(value);
+}
+
+function serializeTeamActionRenderState(actions = []) {
+    return serializeActionRenderState([...actions].sort((left, right) => (
+        String(left?.id || '').localeCompare(String(right?.id || ''))
+    )));
+}
+
 export const FACILITATOR_PROPOSAL_DECISIONS = Object.freeze({
     ACCEPT: 'accept',
     NOT_INTERESTED: 'not_interested',
@@ -1090,10 +1112,21 @@ export class ScribeController {
         event = '',
         data = null
     } = {}) {
-        this.teamActions = actionsStore.getByTeam(this.teamId);
+        const previousRenderState = serializeTeamActionRenderState(this.teamActions);
+        const nextTeamActions = actionsStore.getByTeam(this.teamId);
+        const teamActionsChanged = previousRenderState !== serializeTeamActionRenderState(nextTeamActions);
+
+        this.teamActions = nextTeamActions;
         this.processActionNotification({ event, data });
 
         if (!this.facilitatorDeckSlides.length && !this.sections.length) {
+            return;
+        }
+
+        // Live reconciliation can emit unchanged action snapshots when another
+        // part of the session updates. Keep the active finalization form
+        // mounted so transient radio and checkbox choices are not discarded.
+        if (event && !teamActionsChanged) {
             return;
         }
 

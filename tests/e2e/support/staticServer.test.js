@@ -32,4 +32,18 @@ describe('static E2E server base-path routing', () => {
             rootDirectory
         })).toBe(resolve(rootDirectory, 'assets/main.js'));
     });
+
+    it('decodes built asset URLs without permitting encoded path traversal', () => {
+        const rootDirectory = resolve('dist');
+
+        expect(resolveFilePath('/assets/Gold%20No%20Background-build.png', {
+            rootDirectory
+        })).toBe(resolve(rootDirectory, 'assets/Gold No Background-build.png'));
+        expect(resolveFilePath('/assets/%2e%2e%2f%2e%2e%2fsecret.txt', {
+            rootDirectory
+        })).toBeNull();
+        expect(resolveFilePath('/assets/%E0%A4%A', {
+            rootDirectory
+        })).toBeNull();
+    });
 });

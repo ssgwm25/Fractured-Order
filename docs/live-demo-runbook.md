@@ -19,7 +19,10 @@ npm run test:e2e:smoke
 npm run test:e2e:live-demo
 ```
 
-Pass: unit tests, production build, smoke, and live-demo role tests complete without failures.
+Pass: unit tests, production build, smoke, the nineteen-actor professional
+playthrough, and live-demo role tests complete without failures. The focused
+playthrough command and hosted real-backend procedure are documented in
+`docs/playthrough-automation.md`.
 The smoke test completes the Blue and Green single-target orientation handoffs
 and the Red and Industry multi-target forecast handoffs before exercising the
 normal Scribe-to-Facilitator-to-White Cell action lifecycle.
@@ -128,7 +131,7 @@ Facilitator:
 - in presentation mode, use the fixed bottom toolbar to open the established team action editor, record Coordinated Yes/No plus Legislative and Executive Yes/No, record Industry and Allies Yes/No under Informed/Engaged, and select Forward to White Cell; confirm forwarding stays disabled until every required Yes/No choice is complete and a Coordinated Yes includes at least one coordinated route, then confirm the committed toolbar reports `Submitted to White Cell.` while its controls remain read-only
 - from the Facilitator Team Action Review, click Edit on a forwarded draft for each team; confirm the modal uses the shared styled labels, inputs, selects, checkbox/radio cards, focus rings, field spacing, and responsive two-column layout where applicable
 - confirm Facilitator submission succeeds for Scribe-forwarded Strategic Orientation artifacts and normal forwarded actions after the legacy Scribe RLS policy patch is applied
-- project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell
+- project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell; confirm unrelated live session refreshes do not clear or disable in-progress finalization choices
 - confirm deck failure states are visible if an upload/path is invalid
 
 Implementation note: Strategic Orientation artifacts and Red Team actions share

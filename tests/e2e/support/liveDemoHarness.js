@@ -62,6 +62,12 @@ function normalizeSessionCode(session = {}) {
         .toUpperCase();
 }
 
+function getVisibleReviewCard(page, containerSelector, title) {
+    return page.locator(`${containerSelector} .tab-panel:not([hidden]) .entity-card`).filter({
+        has: page.getByRole('heading', { name: title, exact: true })
+    });
+}
+
 function requireHostedOperatorAccessCode() {
     if (process.env.PLAYWRIGHT_BASE_URL && !HOSTED_OPERATOR_ACCESS_CODE) {
         throw new Error(
@@ -386,11 +392,15 @@ export async function createDraftAction(page, {
     for (const sectorValue of sectors) {
         await modal.locator(`[data-blue-action-checkbox="sector"][value="${sectorValue}"]`).check();
     }
-    if (await modal.locator('[data-blue-action-page="2"]').count()) {
-        await modal.getByRole('button', { name: 'Next' }).click();
+    const nextPageButton = modal.getByRole('button', { name: 'Next' });
+    if (await nextPageButton.isVisible()) {
+        await nextPageButton.click();
     }
-    await modal.locator('#actionImplementation').selectOption(implementation);
-    if (implementation === 'Legislative') {
+    const implementationSelect = modal.locator('#actionImplementation');
+    if (await implementationSelect.count()) {
+        await implementationSelect.selectOption(implementation);
+    }
+    if (implementation === 'Legislative' && await modal.locator('[data-blue-action-checkbox="legislative"]').count()) {
         for (const legislativeOption of legislativeOptions) {
             await modal.locator(`[data-blue-action-checkbox="legislative"][value="${legislativeOption}"]`).check();
         }
@@ -536,15 +546,25 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
 
 export async function adjudicateAction(page, {
     goal,
+    section = 'actions',
     outcome = 'SUCCESS',
     notes = 'Validated through the live-demo topology suite.'
 } = {}) {
-    await openSidebarSection(page, 'actions');
+    const queueSelector = {
+        actions: '#actionsList',
+        responses: '#responsesList'
+    }[section];
+    if (!queueSelector) {
+        throw new Error(`adjudicateAction received an unsupported White Cell section: ${section}`);
+    }
 
-    const actionsCard = page.locator('#actionsList > *').filter({ hasText: goal }).first();
-    const adjudicationCard = await actionsCard.count() > 0
-        ? actionsCard
-        : page.locator('#adjudicationQueue > *').filter({ hasText: goal }).first();
+    await openSidebarSection(page, section);
+
+    const adjudicationCard = page.locator(
+        `${queueSelector} .tab-panel:not([hidden]) .entity-card, #adjudicationQueue .entity-card`
+    ).filter({
+        has: page.getByRole('heading', { name: goal, exact: true })
+    }).first();
     await expect(adjudicationCard).toContainText(goal);
     await adjudicationCard.locator('.adjudicate-btn').click();
 
@@ -552,16 +572,30 @@ export async function adjudicateAction(page, {
     await modal.locator('#outcomeSelect').selectOption(outcome);
     await modal.locator('#adjudicationNotes').fill(notes);
     await modal.getByRole('button', { name: /^(Record Deliberation|Submit Adjudication)$/ }).click();
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#toast-container')).toContainText('Deliberation recorded');
 }
 
 export async function reviewStrategicOrientation(page, {
     goal,
+    team,
     outcome = 'SUCCESS',
     notes = 'Validated Strategic Orientation through the live-demo topology suite.'
 } = {}) {
     await openSidebarSection(page, 'strategicOrientation');
 
-    const orientationCard = page.locator('#strategicOrientationList > *').filter({ hasText: goal }).first();
+    const normalizedTeam = String(team || '').trim().toLowerCase();
+    if (normalizedTeam && !/^(blue|red|green|industry)$/.test(normalizedTeam)) {
+        throw new Error(`reviewStrategicOrientation received an unsupported team: ${team}`);
+    }
+
+    let orientationCards = getVisibleReviewCard(page, '#strategicOrientationList', goal);
+    if (normalizedTeam) {
+        orientationCards = orientationCards.filter({
+            has: page.locator(`.badge-source-team--${normalizedTeam}`)
+        });
+    }
+    const orientationCard = orientationCards.first();
     await expect(orientationCard).toContainText(goal);
     await orientationCard.locator('.adjudicate-btn').click();
 
@@ -569,7 +603,193 @@ export async function reviewStrategicOrientation(page, {
     await modal.locator('#outcomeSelect').selectOption(outcome);
     await modal.locator('#adjudicationNotes').fill(notes);
     await modal.getByRole('button', { name: 'Record Review' }).click();
+    await expect(modal).toBeHidden();
     await expect(page.locator('#toast-container')).toContainText('Deliberation recorded');
+}
+
+export async function createProposal(page, {
+    title,
+    recipientTeam = 'blue',
+    objective = 'Coordinate a shared economic initiative with measurable delivery milestones.',
+    intendedPartners = 'Selected regional partners',
+    timingAndConditions = 'Begin during the current move, subject to White Cell approval.',
+    expectedOutcomes = 'Produce a durable joint position and a documented recipient response.'
+} = {}) {
+    if (!title) {
+        throw new Error('createProposal requires a title.');
+    }
+
+    await page.locator('#newActionBtn').click();
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#proposalTitle') });
+    await expect(modal).toBeVisible();
+    await modal.locator('#proposalTitle').fill(title);
+    await modal.locator('[data-proposal-originator="true"]').first().check();
+    await modal.locator('#proposalObjective').fill(objective);
+    await modal.locator('#proposalCategory').selectOption({ index: 1 });
+    await modal.locator('#proposalIntendedPartners').fill(intendedPartners);
+    await modal.locator('#proposalFocusSector').selectOption({ index: 1 });
+    await modal.locator('#proposalDelivery').selectOption({ index: 1 });
+    await modal.locator('#proposalTimingConditions').fill(timingAndConditions);
+    await modal.locator('#proposalExpectedOutcomes').fill(expectedOutcomes);
+
+    const submitTarget = recipientTeam === 'red' ? 'sendRed' : 'sendBlue';
+    await modal.locator(`[data-proposal-nav="${submitTarget}"]`).click();
+    await expect(page.locator('#toast-container')).toContainText('Proposal submitted for White Cell review');
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#actionsList')).toContainText(title);
+}
+
+export async function reviewProposal(page, {
+    title,
+    decision = 'forward_to_recipient',
+    notes = 'Reviewed during the automated professional playthrough rehearsal.'
+} = {}) {
+    if (!title) {
+        throw new Error('reviewProposal requires a title.');
+    }
+
+    await openSidebarSection(page, 'proposals');
+    const proposalCard = getVisibleReviewCard(page, '#proposalsList', title).first();
+    await expect(proposalCard).toBeVisible();
+    await proposalCard.locator('.adjudicate-btn').click();
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#proposalReviewForm') });
+    await expect(modal).toBeVisible();
+    await modal.locator(`input[name="proposalReviewDecision"][value="${decision}"]`).check();
+    await modal.locator('#adjudicationNotes').fill(notes);
+    await modal.getByRole('button', { name: 'Submit Proposal Review' }).click();
+
+    const expectedToast = {
+        forward_to_recipient: /Proposal forwarded to/,
+        request_changes: 'Proposal review saved: changes requested',
+        reject: 'Proposal rejected'
+    }[decision];
+    await expect(page.locator('#toast-container')).toContainText(expectedToast);
+    await expect(modal).toBeHidden();
+}
+
+export async function respondToForwardedProposal(page, {
+    title,
+    decision = 'accept',
+    negotiationTerms = 'Add a six-month review clause and a shared implementation checkpoint.'
+} = {}) {
+    if (!title) {
+        throw new Error('respondToForwardedProposal requires a title.');
+    }
+
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+    const proposalsSectionTrigger = page.locator(
+        '#scribeSectionList .scribe-section-trigger[data-section-label="Proposals"]'
+    ).first();
+    await expect(proposalsSectionTrigger).toBeVisible({ timeout: 20000 });
+    if (await proposalsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+        await proposalsSectionTrigger.click();
+    }
+
+    const proposalSlideLink = page.locator(
+        '#scribeSectionList button[data-slide-key^="proposal-"]'
+    ).filter({ hasText: title }).first();
+    await expect(proposalSlideLink).toBeVisible({ timeout: 20000 });
+    await proposalSlideLink.click();
+
+    const proposalFrame = page.locator('#deckActionFrame');
+    await expect(proposalFrame).toContainText(title);
+    await proposalFrame.locator(`[data-facilitator-proposal-decision="${decision}"]`).click();
+
+    if (decision === 'negotiate') {
+        const modal = page.locator('.modal-overlay').filter({
+            has: page.locator('#facilitatorProposalNegotiationForm')
+        });
+        await expect(modal).toBeVisible();
+        await modal.locator('#facilitatorProposalNegotiationTerms').fill(negotiationTerms);
+        await modal.getByRole('button', { name: 'Send Negotiation' }).click();
+    } else {
+        const decisionLabel = decision === 'not_interested' ? 'Not Interested' : 'Accept';
+        const modal = page.locator('.modal-overlay');
+        await expect(modal).toBeVisible();
+        await modal.getByRole('button', { name: decisionLabel, exact: true }).click();
+    }
+
+    const expectedLabel = decision === 'negotiate'
+        ? 'Negotiation requested'
+        : (decision === 'not_interested' ? 'Not Interested' : 'Accepted');
+    await expect(page.locator('#toast-container')).toContainText(`Proposal response recorded: ${expectedLabel}`);
+    await expect(proposalFrame).toContainText(`Recorded response: ${expectedLabel}`);
+}
+
+export async function submitRfi(page, {
+    question,
+    context = 'Submitted during the automated professional playthrough rehearsal.',
+    priority = 'NORMAL'
+} = {}) {
+    if (!question) {
+        throw new Error('submitRfi requires a question.');
+    }
+
+    await openSidebarSection(page, 'requests');
+    await page.locator('#newRfiBtn').click();
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiForm') });
+    await expect(modal).toBeVisible();
+    await modal.locator('#rfiQuestion').fill(question);
+    await modal.locator('#rfiPriority').selectOption(priority);
+    await modal.locator('[data-rfi-checkbox="category"]').first().check();
+    await modal.locator('#rfiContext').fill(context);
+    await modal.getByRole('button', { name: 'Submit RFI' }).click();
+    await expect(page.locator('#toast-container')).toContainText('RFI submitted');
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#rfiList')).toContainText(question);
+}
+
+export async function answerRfi(page, {
+    question,
+    response
+} = {}) {
+    if (!question || !response) {
+        throw new Error('answerRfi requires both question and response.');
+    }
+
+    await openSidebarSection(page, 'requests');
+    const rfiCard = page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }).first();
+    await expect(rfiCard).toBeVisible();
+    await rfiCard.getByRole('button', { name: 'Respond' }).click();
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiResponseForm') });
+    await expect(modal).toBeVisible();
+    await modal.locator('#rfiResponse').fill(response);
+    await modal.getByRole('button', { name: 'Send Response' }).click();
+    await expect(page.locator('#toast-container')).toContainText('Response sent');
+    await expect(modal).toBeHidden();
+}
+
+export async function sendWhiteCellCommunication(page, {
+    recipient,
+    content,
+    type = 'GUIDANCE'
+} = {}) {
+    if (!recipient || !content) {
+        throw new Error('sendWhiteCellCommunication requires recipient and content.');
+    }
+
+    await openSidebarSection(page, 'communications');
+    await page.locator('#commRecipient').selectOption(recipient);
+    await page.locator('#commType').selectOption(type);
+    await page.locator('#commContent').fill(content);
+    await page.locator('#commForm').getByRole('button', { name: 'Send Communication' }).click();
+    await expect(page.locator('#commContent')).toHaveValue('');
+    await expect(page.locator('#toast-container')).toContainText('Communication sent');
+    await expect(page.locator('#commHistory')).toContainText(content);
+}
+
+export async function appendNotetakerObservation(page, content) {
+    await openSidebarSection(page, 'capture');
+    await page.locator('#captureContent').fill(content);
+    await page.locator('#captureForm').getByRole('button', { name: 'Save Observation' }).click();
+    await waitForToast(page, 'Observation saved');
+    await expect(page.locator('#recentCaptures')).toContainText(content);
 }
 
 export async function waitForToast(page, message) {

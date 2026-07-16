@@ -57,7 +57,12 @@ export function resolveFilePath(requestUrl = '/', {
     basePath = publicBasePath,
     rootDirectory = rootDir
 } = {}) {
-    const requestPath = new URL(requestUrl, 'http://127.0.0.1').pathname;
+    let requestPath;
+    try {
+        requestPath = decodeURIComponent(new URL(requestUrl, 'http://127.0.0.1').pathname);
+    } catch (_error) {
+        return null;
+    }
     const routedPath = stripBasePathFromRequestPath(requestPath, basePath);
     const normalizedPath = routedPath === '/' ? '/index.html' : routedPath;
     const resolvedRoot = resolve(rootDirectory);

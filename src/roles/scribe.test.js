@@ -1475,6 +1475,46 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         getByTeamSpy.mockRestore();
     });
 
+    it('keeps active Facilitator finalization controls mounted across unchanged live action refreshes', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { actionsStore } = await import('../stores/actions.js');
+        const controller = new ScribeController();
+        const draftAction = {
+            id: 'draft-live-stable-1',
+            team: controller.teamId,
+            move: 1,
+            phase: 1,
+            goal: 'Keep in-progress finalization choices stable',
+            status: 'draft',
+            updated_at: '2026-07-16T10:00:00.000Z',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Keep in-progress finalization choices stable.',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+        const getByTeamSpy = vi.spyOn(actionsStore, 'getByTeam').mockReturnValue([{
+            ...draftAction
+        }]);
+        controller.teamActions = [draftAction];
+        controller.facilitatorDeckSlides = [{
+            n: 1,
+            title: 'Overview',
+            src: 'data:image/png;base64,AAA='
+        }];
+        controller.rebuildDeck = vi.fn();
+        controller.renderSlide = vi.fn();
+
+        controller.syncActionsFromStore({
+            event: 'loaded',
+            data: [{ ...draftAction }]
+        });
+
+        expect(controller.rebuildDeck).not.toHaveBeenCalled();
+        expect(controller.renderSlide).not.toHaveBeenCalled();
+
+        getByTeamSpy.mockRestore();
+    });
+
     it('renders forwarded draft actions as room-ready Facilitator submission slides before White Cell submission', async () => {
         const { ScribeController } = await loadScribeModule();
         global.document = createFakeDocument();

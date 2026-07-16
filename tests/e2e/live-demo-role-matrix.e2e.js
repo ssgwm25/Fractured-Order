@@ -45,12 +45,12 @@ const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
         teamId: team.id,
         roleSurface: ROLE_SURFACES.SCRIBE
     },
-    {
-        actorName: `${team.id}-notetaker-matrix`,
-        displayName: `${team.shortLabel} Notetaker Matrix`,
+    ...[1, 2].map((seatNumber) => ({
+        actorName: `${team.id}-notetaker-${seatNumber}-matrix`,
+        displayName: `${team.shortLabel} Notetaker ${seatNumber} Matrix`,
         teamId: team.id,
         roleSurface: ROLE_SURFACES.NOTETAKER
-    }
+    }))
 ])).concat([
     {
         actorName: 'whitecell-lead-matrix',
@@ -73,7 +73,7 @@ function buildExpectedSeatCounts() {
         ...counts,
         [`${team.id}_facilitator`]: 1,
         [`${team.id}_scribe`]: 1,
-        [`${team.id}_notetaker`]: 1
+        [`${team.id}_notetaker`]: 2
     }), {
         whitecell_lead: 1,
         whitecell_support: 1

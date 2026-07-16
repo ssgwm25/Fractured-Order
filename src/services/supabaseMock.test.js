@@ -39,7 +39,8 @@ function installBrowserRuntime({
     hostname = '127.0.0.1',
     webdriver = false,
     enableMock = false,
-    operatorAccessCode = null
+    operatorAccessCode = null,
+    locks = undefined
 } = {}) {
     const localStorage = new MemoryStorage();
     const sessionStorage = new MemoryStorage();
@@ -58,7 +59,7 @@ function installBrowserRuntime({
     setGlobalProperty('localStorage', localStorage);
     setGlobalProperty('sessionStorage', sessionStorage);
     setGlobalProperty('location', { hostname });
-    setGlobalProperty('navigator', { webdriver });
+    setGlobalProperty('navigator', { webdriver, locks });
 
     return {
         localStorage,
@@ -143,5 +144,53 @@ describe('supabase mock bootstrap guardrails', () => {
 
         expect(validAuthorization.error).toBeNull();
         expect(validAuthorization.data.surface).toBe('gamemaster');
+    });
+
+    it('routes shared-state RPC and table writes through a browser-wide lock', async () => {
+        const requestedLocks = [];
+        installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code',
+            locks: {
+                async request(name, callback) {
+                    requestedLocks.push(name);
+                    return callback();
+                }
+            }
+        });
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'gamemaster',
+            requested_operator_code: 'playwright-test-code',
+            requested_operator_name: 'Mock GM'
+        });
+        const createdSession = await mockClient.rpc('create_live_demo_session', {
+            requested_name: 'Locked mock session',
+            requested_session_code: 'LOCK19',
+            requested_description: 'Mock write-lock contract'
+        });
+        const timelineInsert = await mockClient
+            .from('timeline')
+            .insert({
+                session_id: createdSession.data.id,
+                type: 'TEST_EVENT',
+                content: 'Write protected by the shared mock lock.'
+            })
+            .select()
+            .single();
+
+        expect(timelineInsert.error).toBeNull();
+        expect(requestedLocks).toEqual([
+            'esg-e2e-backend-state-write',
+            'esg-e2e-backend-state-write',
+            'esg-e2e-backend-state-write'
+        ]);
+
+        await mockClient.from('timeline').select('*');
+        expect(requestedLocks).toHaveLength(3);
     });
 });

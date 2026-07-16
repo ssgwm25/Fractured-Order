@@ -3,6 +3,7 @@ const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
 const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
+const E2E_MOCK_STATE_WRITE_LOCK = 'esg-e2e-backend-state-write';
 const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 const DEFAULT_TIMER_ALLOCATIONS = Object.freeze({
     strategic_orientation: 5400,
@@ -183,6 +184,31 @@ function writeMockState(state) {
     }
 
     storage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify(state));
+}
+
+let fallbackStateWriteQueue = Promise.resolve();
+
+function withMockStateWriteLock(callback) {
+    const lockManager = globalThis.navigator?.locks;
+    if (typeof lockManager?.request === 'function') {
+        return lockManager.request(E2E_MOCK_STATE_WRITE_LOCK, callback);
+    }
+
+    const pendingWrite = fallbackStateWriteQueue.then(callback, callback);
+    fallbackStateWriteQueue = pendingWrite.then(
+        () => undefined,
+        () => undefined
+    );
+    return pendingWrite;
+}
+
+function mutateMockState(callback) {
+    return withMockStateWriteLock(() => {
+        const state = readMockState();
+        const result = callback(state);
+        writeMockState(state);
+        return result;
+    });
 }
 
 function normalizeMockState(parsedState = null) {
@@ -1908,7 +1934,15 @@ class MockQueryBuilder {
         return this.execute().then(resolve, reject);
     }
 
-    async execute() {
+    execute() {
+        if (this.operation === 'insert' || this.operation === 'update') {
+            return withMockStateWriteLock(() => this.executeWithCurrentState());
+        }
+
+        return this.executeWithCurrentState();
+    }
+
+    async executeWithCurrentState() {
         const state = readMockState();
         const tableRows = state.tables[this.tableName];
         const authUserId = getCurrentAuthUserId();
@@ -2124,117 +2158,78 @@ export function createE2EMockSupabaseClient() {
             }
 
             if (functionName === 'authorize_demo_operator') {
-                const state = readMockState();
-                const result = authorizeDemoOperator(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => authorizeDemoOperator(state, params));
             }
 
             if (functionName === 'create_live_demo_session') {
-                const state = readMockState();
-                const result = createLiveDemoSession(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => createLiveDemoSession(state, params));
             }
 
             if (functionName === 'delete_live_demo_session') {
-                const state = readMockState();
-                const result = deleteLiveDemoSession(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => deleteLiveDemoSession(state, params));
             }
 
             if (functionName === 'claim_session_role_seat') {
-                const state = readMockState();
-                const result = claimSessionRoleSeat(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => claimSessionRoleSeat(state, params));
             }
 
             if (functionName === 'heartbeat_session_role_seat') {
-                const state = readMockState();
-                const result = heartbeatSessionRoleSeat(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => heartbeatSessionRoleSeat(state, params));
             }
 
             if (functionName === 'disconnect_session_role_seat') {
-                const state = readMockState();
-                const result = disconnectSessionRoleSeat(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => disconnectSessionRoleSeat(state, params));
             }
 
             if (functionName === 'operator_remove_session_participant') {
-                const state = readMockState();
-                const result = operatorRemoveSessionParticipant(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => operatorRemoveSessionParticipant(state, params));
             }
 
             if (functionName === 'release_stale_session_role_seats') {
-                const state = readMockState();
-                const authUserId = getCurrentAuthUserId();
+                return mutateMockState((state) => {
+                    const authUserId = getCurrentAuthUserId();
 
-                if (!canReleaseStaleSessionRoleSeats(state, authUserId, params?.requested_session_id)) {
+                    if (!canReleaseStaleSessionRoleSeats(state, authUserId, params?.requested_session_id)) {
+                        return {
+                            data: null,
+                            error: { message: 'Session access is required.' }
+                        };
+                    }
+
+                    const released = releaseStaleSessionRoleSeats(
+                        state,
+                        params?.requested_session_id,
+                        params?.requested_timeout_seconds ?? 90
+                    );
                     return {
-                        data: null,
-                        error: { message: 'Session access is required.' }
+                        data: released,
+                        error: null
                     };
-                }
-
-                const released = releaseStaleSessionRoleSeats(
-                    state,
-                    params?.requested_session_id,
-                    params?.requested_timeout_seconds ?? 90
-                );
-                writeMockState(state);
-                return {
-                    data: released,
-                    error: null
-                };
+                });
             }
 
             if (functionName === 'list_active_session_participants') {
-                const state = readMockState();
-                const result = listActiveSessionParticipants(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => listActiveSessionParticipants(state, params));
             }
 
             if (functionName === 'operator_update_game_state') {
-                const state = readMockState();
-                const result = operatorUpdateGameState(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => operatorUpdateGameState(state, params));
             }
 
             if (functionName === 'operator_adjudicate_action') {
-                const state = readMockState();
-                const result = operatorAdjudicateAction(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => operatorAdjudicateAction(state, params));
             }
 
             if (functionName === 'operator_review_proposal') {
-                const state = readMockState();
-                const result = operatorReviewProposal(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => operatorReviewProposal(state, params));
             }
 
             if (functionName === 'operator_answer_request') {
-                const state = readMockState();
-                const result = operatorAnswerRequest(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => operatorAnswerRequest(state, params));
             }
 
             if (functionName === 'operator_send_communication') {
-                const state = readMockState();
-                const result = operatorSendCommunication(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => operatorSendCommunication(state, params));
             }
 
             if (functionName === 'live_demo_research_capture_mode') {
@@ -2264,10 +2259,7 @@ export function createE2EMockSupabaseClient() {
             }
 
             if (functionName === 'update_proposal_recipient_status') {
-                const state = readMockState();
-                const result = updateProposalRecipientStatus(state, params);
-                writeMockState(state);
-                return result;
+                return mutateMockState((state) => updateProposalRecipientStatus(state, params));
             }
 
             return { data: null, error: null };
