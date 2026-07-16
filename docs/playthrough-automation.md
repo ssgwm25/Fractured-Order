@@ -216,6 +216,12 @@ video. The test also attaches `playthrough-diagnostics.json`, containing:
 Treat missing evidence, a partial export, or a stale historical session as a
 failed gate. Do not substitute a prior successful run.
 
+An `@import rule was ignored` browser warning means the hosted CSS is stale.
+Current app pages load the shared Google Fonts stylesheet explicitly from the
+document head, before local component CSS; the shared variables stylesheet
+contains no external `@import`. Rebuild and redeploy before accepting a hosted
+playthrough gate if that warning is still present.
+
 ## Workflow Contract Boundary
 
 The currently shipped Green and Industry proposal path submits from the visible
