@@ -1167,6 +1167,95 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         ]);
     });
 
+    it('renders Green and Industry proposal records as proposals instead of generic action cards', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        global.document = createFakeDocument();
+
+        for (const teamId of ['green', 'industry']) {
+            const controller = new FacilitatorController();
+            controller.teamId = teamId;
+            controller.teamLabel = teamId === 'green' ? 'Green Team' : 'Industry Team';
+            controller.isReadOnly = false;
+
+            const markup = controller.renderActionCard({
+                id: `proposal-${teamId}-1`,
+                team: teamId,
+                status: 'draft',
+                goal: 'Joint Port Proposal',
+                mechanism: 'Proposal',
+                sector: 'Biotechnology',
+                expected_outcomes: 'Reduce room for arbitrage.',
+                move: 2,
+                phase: 1,
+                ally_contingencies: serializeProposalDetails({
+                    originators: ['EU', 'Japan'],
+                    objective: 'Coordinate port investment standards.',
+                    category: 'Partnership',
+                    intendedPartners: 'Blue Team',
+                    delivery: 'Joint Statement',
+                    timingAndConditions: 'Before the next ministerial meeting.',
+                    recipientTeam: 'blue'
+                })
+            });
+
+            expect(markup).toContain('data-artifact-type="proposal"');
+            expect(markup).toContain('role="article"');
+            expect(markup).toContain('aria-label="Proposal: Joint Port Proposal"');
+            expect(markup).toContain('PROPOSAL');
+            expect(markup).toContain('Proposal Objective');
+            expect(markup).toContain('Coordinate port investment standards.');
+            expect(markup).toContain('Originators');
+            expect(markup).toContain('EU, Japan');
+            expect(markup).toContain('Category');
+            expect(markup).toContain('Intended Partners');
+            expect(markup).toContain('Focus Sector');
+            expect(markup).toContain('Delivery');
+            expect(markup).toContain('Timing &amp; Conditions');
+            expect(markup).toContain('<strong>Expected Outcomes:</strong> Reduce room for arbitrage.');
+            expect(markup).toContain('Edit Proposal');
+            expect(markup).toContain('Delete Proposal');
+            expect(markup).not.toContain('Ally Contingencies');
+            expect(markup).not.toContain('Exposure');
+            expect(markup).not.toContain('Edit Draft');
+            expect(markup).not.toContain('Delete Draft');
+            expect(markup).not.toContain('Forward to Facilitator');
+            expect(markup).not.toContain('Action details');
+        }
+    });
+
+    it('uses proposal language when deleting a Green or Industry draft proposal', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { confirmModal } = await import('../components/ui/Modal.js');
+        confirmModal.mockResolvedValue(true);
+
+        for (const teamId of ['green', 'industry']) {
+            const proposal = {
+                id: `proposal-${teamId}-delete`,
+                team: teamId,
+                status: 'draft',
+                mechanism: 'Proposal'
+            };
+            const controller = new FacilitatorController();
+            controller.teamId = teamId;
+            controller.isReadOnly = false;
+
+            await controller.confirmDeleteAction(proposal);
+
+            expect(confirmModal).toHaveBeenLastCalledWith({
+                title: 'Delete Draft Proposal',
+                message: 'Delete this draft proposal? This cannot be undone.',
+                confirmLabel: 'Delete',
+                variant: 'danger'
+            });
+            expect(deleteDraftAction).toHaveBeenLastCalledWith(proposal.id);
+            expect(showToast).toHaveBeenLastCalledWith({
+                message: 'Draft proposal deleted',
+                type: 'success'
+            });
+        }
+    });
+
     it('renders Blue Team wizard fields on facilitator action cards', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
@@ -2565,7 +2654,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         controller.flushProposalResponseArrivalAnnouncement();
 
         expect(showToast).toHaveBeenCalledWith({
-            message: 'Blue Team requested negotiation on "Joint Port Proposal". Open Actions to review the terms.',
+            message: 'Blue Team requested negotiation on "Joint Port Proposal". Open Proposals to review the terms.',
             type: 'info',
             duration: 10000
         });

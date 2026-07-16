@@ -45,6 +45,7 @@ import {
     PROPOSAL_CATEGORIES,
     PROPOSAL_SECTORS,
     PROPOSAL_DELIVERIES,
+    formatProposalSelection,
     serializeProposalDetails,
     getProposalViewModel
 } from '../features/actions/proposalDetails.js';
@@ -1158,18 +1159,18 @@ export class FacilitatorController {
             : `"${proposalTitle}"`;
 
         if (isProposalNegotiationRequest(communication)) {
-            return `${recipientLabel} requested negotiation on ${proposalReference}. Open Actions to review the terms.`;
+            return `${recipientLabel} requested negotiation on ${proposalReference}. Open Proposals to review the terms.`;
         }
 
         if (decision === 'accept') {
-            return `${recipientLabel} accepted ${proposalReference}. Open Actions to review the response.`;
+            return `${recipientLabel} accepted ${proposalReference}. Open Proposals to review the response.`;
         }
 
         if (decision === 'not_interested' || getProposalRecipientStatus(communication) === PROPOSAL_RECIPIENT_STATUSES.DECLINED) {
-            return `${recipientLabel} is not interested in ${proposalReference}. Open Actions to review the response.`;
+            return `${recipientLabel} is not interested in ${proposalReference}. Open Proposals to review the response.`;
         }
 
-        return `${recipientLabel} responded to ${proposalReference}. Open Actions to review the response.`;
+        return `${recipientLabel} responded to ${proposalReference}. Open Proposals to review the response.`;
     }
 
     flushProposalResponseArrivalAnnouncement() {
@@ -1181,7 +1182,7 @@ export class FacilitatorController {
         showToast({
             message: arrivals.length === 1
                 ? this.buildProposalResponseArrivalMessage(arrivals[0])
-                : `${arrivals.length} proposals received responses. Open Actions to review them.`,
+                : `${arrivals.length} proposals received responses. Open Proposals to review them.`,
             type: 'info',
             duration: 10000
         });
@@ -2100,6 +2101,9 @@ export class FacilitatorController {
     renderGroupedActionList() {
         const sortedActions = this.sortActionsByExerciseSequence(this.actions);
         const hiddenCount = Math.max(0, sortedActions.length - ACTION_GROUP_RENDER_LIMIT);
+        const listAriaLabel = this.isProposalTeam()
+            ? 'Strategic Orientation and proposals in exercise sequence'
+            : 'Submissions in exercise sequence';
         let remainingRenderSlots = ACTION_GROUP_RENDER_LIMIT;
         const sequenceGroups = this.getActionSequenceGroups(sortedActions)
             .map((group) => {
@@ -2110,10 +2114,13 @@ export class FacilitatorController {
             .filter((group) => group.visibleItems.length > 0);
 
         return `
-            <div class="action-sequence-list" aria-label="Submissions in exercise sequence">
+            <div class="action-sequence-list" aria-label="${listAriaLabel}">
                 ${sequenceGroups.map((group) => {
                     const headingId = `action-sequence-${group.key}`;
-                    const itemLabel = group.items.length === 1 ? 'submission' : 'submissions';
+                    const itemNoun = group.key === 'strategic-orientation'
+                        ? 'Strategic Orientation artifact'
+                        : (this.isProposalTeam() ? 'proposal' : 'action');
+                    const itemLabel = `${itemNoun}${group.items.length === 1 ? '' : 's'}`;
                     return `
                         <section class="action-sequence-group" aria-labelledby="${headingId}">
                             <div class="action-sequence-header">
@@ -2178,7 +2185,8 @@ export class FacilitatorController {
         const strategicOrientation = getStrategicOrientationViewModel(action);
         const isStrategicOrientationFlow = strategicOrientation.hasStrategicOrientationDetails;
         const blueAction = getBlueActionViewModel(action);
-        const isGreenProposalFlow = this.isProposalTeam() && !isStrategicOrientationFlow;
+        const isGreenProposalFlow = this.isGreenTeamProposalEnabled(action) && !isStrategicOrientationFlow;
+        const proposal = isGreenProposalFlow ? getProposalViewModel(action) : null;
         const moveResponse = this.teamId === 'red' && !isStrategicOrientationFlow
             ? getMoveResponseViewModel(action)
             : null;
@@ -2190,6 +2198,8 @@ export class FacilitatorController {
         const isRedResponseFlow = isLegacyRedResponseFlow;
         const title = isStrategicOrientationFlow
             ? strategicOrientation.title
+            : isGreenProposalFlow
+            ? proposal.title
             : (isLegacyRedResponseFlow ? moveResponse.title : blueAction.title);
         const expectedOutcomes = isStrategicOrientationFlow
             ? (strategicOrientation.isForecast
@@ -2197,6 +2207,8 @@ export class FacilitatorController {
                 : (strategicOrientation.orientationTag || 'Strategic Orientation selected.'))
             : isLegacyRedResponseFlow
             ? (moveResponse.expectedEffect || 'No expected effect recorded')
+            : isGreenProposalFlow
+            ? (proposal.expectedOutcomes || 'No expected outcomes recorded.')
             : (blueAction.expectedOutcomes || 'No expected outcomes');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
         const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
@@ -2204,6 +2216,8 @@ export class FacilitatorController {
         const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = isStrategicOrientationFlow
             ? 'Pre-Move 1 | Strategic Orientation'
+            : isGreenProposalFlow
+            ? `Move ${action.move || 1}`
             : this.isTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
@@ -2256,6 +2270,13 @@ export class FacilitatorController {
                 size: 'sm',
                 rounded: true
             }).outerHTML
+            : isGreenProposalFlow
+            ? createBadge({
+                text: 'PROPOSAL',
+                variant: 'info',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
             : blueAction.hasBlueActionDetails && blueAction.enforcementTimeline
             ? createBadge({
                 text: blueAction.enforcementTimeline,
@@ -2293,6 +2314,16 @@ export class FacilitatorController {
             : [];
         const detailFields = isStrategicOrientationFlow
             ? strategicOrientationFields
+            : isGreenProposalFlow
+            ? [
+                { label: 'Proposal Objective', value: proposal.objective || 'Not specified', wide: true },
+                { label: 'Originators', value: formatProposalSelection(proposal.originators) },
+                { label: 'Category', value: proposal.category || 'Not specified' },
+                { label: 'Intended Partners', value: proposal.intendedPartners || 'Not specified' },
+                { label: 'Focus Sector', value: proposal.focusSector || 'Not specified' },
+                { label: 'Delivery', value: proposal.delivery || 'Not specified' },
+                { label: 'Timing & Conditions', value: proposal.timingAndConditions || 'Not specified', wide: true }
+            ]
             : isLegacyRedResponseFlow
             ? [
                 { label: 'Strategic Assessment', value: moveResponse.strategicAssessment || 'Not specified', wide: true },
@@ -2339,7 +2370,9 @@ export class FacilitatorController {
         const actionId = String(action.id || '');
         const detailsId = `facilitator-action-details-${actionId.replace(/[^a-z0-9]+/gi, '-') || 'card'}`;
         const isExpanded = !isCollapsibleCard || this.isActionCardExpanded(actionId);
-        const objectivePreview = blueAction.objective || 'Not specified';
+        const objectivePreview = isGreenProposalFlow
+            ? (proposal.objective || 'Not specified')
+            : (blueAction.objective || 'Not specified');
 
         let lifecycleMessage = `
             <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
@@ -2397,7 +2430,7 @@ export class FacilitatorController {
         }
 
         return `
-            <div class="entity-card entity-card--${statusAccent}${isCollapsibleCard ? ' entity-card--collapsible' : ''}${isExpanded ? '' : ' is-collapsed'}" data-action-id="${action.id}">
+            <div class="entity-card entity-card--${statusAccent}${isGreenProposalFlow ? ' entity-card--proposal' : ''}${isCollapsibleCard ? ' entity-card--collapsible' : ''}${isExpanded ? '' : ' is-collapsed'}" data-action-id="${action.id}"${isGreenProposalFlow ? ` data-artifact-type="proposal" role="article" aria-label="Proposal: ${this.escapeHtml(title)}"` : ''}>
                 ${isCollapsibleCard ? `
                     <button
                         type="button"
@@ -2420,7 +2453,7 @@ export class FacilitatorController {
                 <div id="${this.escapeHtml(detailsId)}" class="entity-card__details${isCollapsibleCard ? '' : ' entity-card__details--plain'}"${isExpanded ? '' : ' hidden'}>
                     <div class="entity-card__head">
                         <div>
-                            <p class="entity-card__eyebrow">${this.escapeHtml(action.mechanism || 'No mechanism')} &middot; ${this.escapeHtml(sequenceLabel)}</p>
+                            <p class="entity-card__eyebrow">${this.escapeHtml(isGreenProposalFlow ? 'Proposal' : (action.mechanism || 'No mechanism'))} &middot; ${this.escapeHtml(sequenceLabel)}</p>
                             <h3 class="entity-card__title">${this.escapeHtml(title)}</h3>
                         </div>
                         <div class="entity-card__badges">
@@ -2434,6 +2467,8 @@ export class FacilitatorController {
                     <p class="card-summary">
                         ${isLegacyRedResponseFlow
                             ? `<strong>Expected Effect &amp; System Impact:</strong> ${this.escapeHtml(expectedOutcomes)}`
+                            : isGreenProposalFlow
+                            ? `<strong>Expected Outcomes:</strong> ${this.escapeHtml(expectedOutcomes)}`
                             : this.escapeHtml(expectedOutcomes)}
                     </p>
                     ${detailsMarkup}
@@ -2445,21 +2480,21 @@ export class FacilitatorController {
                     ` : ''}
                     ${lifecycleMessage}
 
-                    ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow) || canRemoveDraft) ? `
+                    ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow && !isGreenProposalFlow) || canRemoveDraft) ? `
                         <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
                             ${canManageDraft ? `
                                 <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
-                                    Edit Draft
+                                    ${isGreenProposalFlow ? 'Edit Proposal' : 'Edit Draft'}
                                 </button>
                             ` : ''}
-                            ${canSubmitDraft && !isStrategicOrientationFlow ? `
+                            ${canSubmitDraft && !isStrategicOrientationFlow && !isGreenProposalFlow ? `
                                 <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
                                     Forward to Facilitator
                                 </button>
                             ` : ''}
                             ${canRemoveDraft ? `
                                 <button class="btn btn-ghost btn-sm text-error delete-action-btn" data-action-id="${action.id}">
-                                    Delete Draft
+                                    ${isGreenProposalFlow ? 'Delete Proposal' : 'Delete Draft'}
                                 </button>
                             ` : ''}
                         </div>
@@ -2519,8 +2554,12 @@ export class FacilitatorController {
 
     showEditActionModal(action) {
         if (!this.requireWriteAccess()) return;
+        const isProposal = this.isGreenTeamProposalEnabled(action);
         if (!canEditAction(action)) {
-            showToast({ message: 'Only draft actions can be edited.', type: 'error' });
+            showToast({
+                message: isProposal ? 'Only draft proposals can be edited.' : 'Only draft actions can be edited.',
+                type: 'error'
+            });
             return;
         }
 
@@ -5066,35 +5105,44 @@ export class FacilitatorController {
 
     async confirmDeleteAction(action) {
         if (!this.requireWriteAccess()) return;
+        const isProposal = this.isGreenTeamProposalEnabled(action);
         if (!canDeleteAction(action)) {
-            showToast({ message: 'Only draft actions can be deleted.', type: 'error' });
+            showToast({
+                message: isProposal ? 'Only draft proposals can be deleted.' : 'Only draft actions can be deleted.',
+                type: 'error'
+            });
             return;
         }
 
         const confirmed = await confirmModal({
-            title: 'Delete Draft Action',
-            message: 'Delete this draft action? This cannot be undone.',
+            title: isProposal ? 'Delete Draft Proposal' : 'Delete Draft Action',
+            message: isProposal
+                ? 'Delete this draft proposal? This cannot be undone.'
+                : 'Delete this draft action? This cannot be undone.',
             confirmLabel: 'Delete',
             variant: 'danger'
         });
 
         if (!confirmed) return;
-        await this.deleteAction(action.id);
+        await this.deleteAction(action.id, { artifactLabel: isProposal ? 'proposal' : 'action' });
     }
 
-    async deleteAction(actionId) {
+    async deleteAction(actionId, { artifactLabel = 'action' } = {}) {
         if (!this.requireWriteAccess()) return;
         const loader = showLoader({ message: 'Deleting draft...' });
+        const isProposal = artifactLabel === 'proposal';
 
         try {
             await database.deleteDraftAction(actionId);
             actionsStore.updateFromServer('DELETE', { id: actionId });
-            showToast({ message: 'Draft action deleted', type: 'success' });
+            showToast({ message: `Draft ${artifactLabel} deleted`, type: 'success' });
         } catch (err) {
-            logger.error('Failed to delete action:', err);
+            logger.error(`Failed to delete ${artifactLabel}:`, err);
             showToast({
                 message: getUserMessage(err, {
-                    fallback: 'Failed to delete draft action. Refresh the action list and try again.'
+                    fallback: isProposal
+                        ? 'Failed to delete draft proposal. Refresh the proposal list and try again.'
+                        : 'Failed to delete draft action. Refresh the action list and try again.'
                 }),
                 type: 'error'
             });

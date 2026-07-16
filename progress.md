@@ -1,3 +1,9 @@
+Original prompt: In the green and industry facilitator interfaces, proposals are shown in terms of action cards instead of specifically being labeled and shown as proposals.
+
+- 2026-07-15: Reframed Green and Industry proposal records as explicitly labelled `PROPOSAL` cards with proposal-specific sequence, accessible naming, structured proposal fields, summaries, and draft controls while leaving Strategic Orientation and non-proposal team actions unchanged.
+- 2026-07-15: Updated proposing-Facilitator response notifications to direct users to Proposals instead of Actions, and added focused shared-renderer coverage plus a live-demo runbook check for both proposal teams.
+- TODO: Run `npm test -- src/roles/facilitator.test.js`, `npm run build`, and the updated Green/Industry proposal-card check in `docs/live-demo-runbook.md`.
+
 Original prompt: The copy for the negotiation response to a proposal is not directly categorised to show that a negotiation has been requested. Ensure the interface copy is clear and provides users with limited cognitive load.
 
 - 2026-07-15: Categorised persisted `negotiate` proposal responses as `Negotiation requested` across the responding facilitator, proposing-team, and White Cell surfaces, with the response body labelled `Negotiation terms`.
