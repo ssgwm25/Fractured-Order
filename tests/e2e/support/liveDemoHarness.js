@@ -3,6 +3,7 @@ import { expect } from '@playwright/test';
 import { dumpE2EMockBackend, E2E_MOCK_OPERATOR_ACCESS_CODE } from './mockBackend.js';
 import {
     APP_NAVIGATION_OPTIONS,
+    attemptOpenGameMasterCreateSession,
     buildAppUrl,
     classifyOperatorAuthorizationProgress,
     getHostedOperatorAccessCode,
@@ -258,24 +259,23 @@ export async function createSessionFromMaster(page, {
     sessionCode,
     description = 'Automated live-demo rehearsal session.'
 } = {}) {
-    await page.locator('.sidebar-link[data-section="sessions"]').click();
+    const sessionsLink = page.locator('.sidebar-link[data-section="sessions"]');
+    const sessionsSection = page.locator('#sessionsSection');
     const createButton = page.locator('#createSessionBtn');
     const createForm = page.locator('#createSessionForm');
 
-    // The operator route can become visible before the async server-side grant
-    // check finishes and GameMasterController binds its event listeners. Retry
-    // this hydration boundary so an early click is not silently lost.
-    await expect.poll(async () => {
-        if (await createForm.isVisible().catch(() => false)) {
-            return true;
-        }
-
-        await createButton.click();
-        return createForm.isVisible().catch(() => false);
-    }, {
+    // The operator route can become visible before the shared sidebar and
+    // GameMasterController bind their event listeners. Retry both interactions
+    // so neither an early navigation click nor an early modal click is lost.
+    await expect.poll(() => attemptOpenGameMasterCreateSession({
+        isCreateFormVisible: () => createForm.isVisible().catch(() => false),
+        isSessionsSectionVisible: () => sessionsSection.isVisible().catch(() => false),
+        clickSessions: () => sessionsLink.click({ timeout: 2000 }),
+        clickCreate: () => createButton.click({ timeout: 2000 })
+    }), {
         timeout: OPERATOR_AUTH_TIMEOUT_MS,
         intervals: [250, 500, 1000, 2000],
-        message: 'Game Master Create Session form did not open after operator authorization.'
+        message: 'Game Master Sessions section and Create Session form did not become interactive after operator authorization.'
     }).toBe(true);
 
     const modal = page.locator('.modal-overlay').filter({ has: createForm }).last();

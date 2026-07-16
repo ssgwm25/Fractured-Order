@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     APP_NAVIGATION_OPTIONS,
+    attemptOpenGameMasterCreateSession,
     buildAppUrl,
     classifyOperatorAuthorizationProgress,
     getConfiguredAppBaseUrl,
@@ -90,5 +91,44 @@ describe('rehearsal runtime helpers', () => {
         })).toEqual(expect.objectContaining({
             status: 'pending'
         }));
+    });
+
+    it('retries Game Master navigation before opening the create-session form', async () => {
+        let sessionsVisible = false;
+        let formVisible = false;
+        let navigationAttempts = 0;
+        let createAttempts = 0;
+        const attempt = () => attemptOpenGameMasterCreateSession({
+            isCreateFormVisible: async () => formVisible,
+            isSessionsSectionVisible: async () => sessionsVisible,
+            clickSessions: async () => {
+                navigationAttempts += 1;
+                sessionsVisible = navigationAttempts >= 2;
+            },
+            clickCreate: async () => {
+                createAttempts += 1;
+                formVisible = true;
+            }
+        });
+
+        await expect(attempt()).resolves.toBe(false);
+        expect(navigationAttempts).toBe(1);
+        expect(createAttempts).toBe(0);
+
+        await expect(attempt()).resolves.toBe(true);
+        expect(navigationAttempts).toBe(2);
+        expect(createAttempts).toBe(1);
+    });
+
+    it('does not repeat Game Master interactions when the form is already visible', async () => {
+        let interactions = 0;
+
+        await expect(attemptOpenGameMasterCreateSession({
+            isCreateFormVisible: async () => true,
+            isSessionsSectionVisible: async () => false,
+            clickSessions: async () => { interactions += 1; },
+            clickCreate: async () => { interactions += 1; }
+        })).resolves.toBe(true);
+        expect(interactions).toBe(0);
     });
 });

@@ -6,6 +6,37 @@ export const APP_NAVIGATION_OPTIONS = Object.freeze({
 export const OPERATOR_AUTH_TIMEOUT_MS = 60000;
 export const OPERATOR_AUTH_FAILURE_PATTERN = /invalid operator access code|failed to authorize operator access|authorization is required/i;
 
+export async function attemptOpenGameMasterCreateSession({
+    isCreateFormVisible,
+    isSessionsSectionVisible,
+    clickSessions,
+    clickCreate
+} = {}) {
+    if (await isCreateFormVisible()) {
+        return true;
+    }
+
+    if (!(await isSessionsSectionVisible())) {
+        try {
+            await clickSessions();
+        } catch {
+            return false;
+        }
+
+        if (!(await isSessionsSectionVisible())) {
+            return false;
+        }
+    }
+
+    try {
+        await clickCreate();
+    } catch {
+        return false;
+    }
+
+    return isCreateFormVisible();
+}
+
 export function isHostedRehearsal(baseUrl) {
     return Boolean(String(baseUrl || '').trim());
 }

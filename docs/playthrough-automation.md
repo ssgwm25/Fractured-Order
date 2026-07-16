@@ -176,10 +176,12 @@ deployment, network, or backend-auth preflight failure, not concurrency
 evidence.
 
 The Game Master session helper also allows up to 60 seconds for the deployed
-controller to finish its server-side grant check and bind the Create Session
-control. It retries an early click at that hydration boundary; failure to mount
-the form within that window is reported as operator initialization failure,
-not as a Realtime result.
+shared navigation and controller scripts to finish their server-side grant
+check and bind the Sessions and Create Session controls. It retries both an
+early Sessions navigation click and an early Create Session click at that
+hydration boundary. Failure to activate the section and mount the form within
+that window is reported as operator initialization failure, not as a Realtime
+result.
 
 Pass:
 
