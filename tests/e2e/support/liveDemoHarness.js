@@ -263,12 +263,18 @@ export async function createSessionFromMaster(page, {
     const sessionsSection = page.locator('#sessionsSection');
     const createButton = page.locator('#createSessionBtn');
     const createForm = page.locator('#createSessionForm');
+    const createModalOverlays = page.locator('.modal-overlay').filter({ has: createForm });
+    const activeCreateModal = page
+        .locator('.modal-overlay.modal-visible:not(.modal-hiding)')
+        .filter({ has: createForm });
 
     // The operator route can become visible before the shared sidebar and
-    // GameMasterController bind their event listeners. Retry both interactions
-    // so neither an early navigation click nor an early modal click is lost.
+    // GameMasterController bind their event listeners. A submitted modal also
+    // remains in the DOM during its exit transition, so only an active modal is
+    // ready for reuse. Retry both interactions so neither an early navigation
+    // click nor an early modal click is lost.
     await expect.poll(() => attemptOpenGameMasterCreateSession({
-        isCreateFormVisible: () => createForm.isVisible().catch(() => false),
+        isCreateFormReady: () => activeCreateModal.isVisible().catch(() => false),
         isSessionsSectionVisible: () => sessionsSection.isVisible().catch(() => false),
         clickSessions: () => sessionsLink.click({ timeout: 2000 }),
         clickCreate: () => createButton.click({ timeout: 2000 })
@@ -278,7 +284,7 @@ export async function createSessionFromMaster(page, {
         message: 'Game Master Sessions section and Create Session form did not become interactive after operator authorization.'
     }).toBe(true);
 
-    const modal = page.locator('.modal-overlay').filter({ has: createForm }).last();
+    const modal = activeCreateModal.last();
     await expect(modal).toBeVisible();
     await modal.locator('#newSessionName').fill(sessionName);
     await modal.locator('#newSessionCode').fill(sessionCode);
@@ -287,6 +293,7 @@ export async function createSessionFromMaster(page, {
 
     await expect(page.locator('#sessionsList')).toContainText(sessionName);
     await expect(page.locator('#sessionsList')).toContainText(sessionCode);
+    await expect(createModalOverlays).toHaveCount(0, { timeout: OPERATOR_AUTH_TIMEOUT_MS });
 
     const backendState = await dumpE2EMockBackend(page);
     return backendState?.tables?.sessions?.find(

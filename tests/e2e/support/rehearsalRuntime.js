@@ -7,12 +7,12 @@ export const OPERATOR_AUTH_TIMEOUT_MS = 60000;
 export const OPERATOR_AUTH_FAILURE_PATTERN = /invalid operator access code|failed to authorize operator access|authorization is required/i;
 
 export async function attemptOpenGameMasterCreateSession({
-    isCreateFormVisible,
+    isCreateFormReady,
     isSessionsSectionVisible,
     clickSessions,
     clickCreate
 } = {}) {
-    if (await isCreateFormVisible()) {
+    if (await isCreateFormReady()) {
         return true;
     }
 
@@ -34,7 +34,7 @@ export async function attemptOpenGameMasterCreateSession({
         return false;
     }
 
-    return isCreateFormVisible();
+    return isCreateFormReady();
 }
 
 export function isHostedRehearsal(baseUrl) {

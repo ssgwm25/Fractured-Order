@@ -99,7 +99,7 @@ describe('rehearsal runtime helpers', () => {
         let navigationAttempts = 0;
         let createAttempts = 0;
         const attempt = () => attemptOpenGameMasterCreateSession({
-            isCreateFormVisible: async () => formVisible,
+            isCreateFormReady: async () => formVisible,
             isSessionsSectionVisible: async () => sessionsVisible,
             clickSessions: async () => {
                 navigationAttempts += 1;
@@ -124,11 +124,32 @@ describe('rehearsal runtime helpers', () => {
         let interactions = 0;
 
         await expect(attemptOpenGameMasterCreateSession({
-            isCreateFormVisible: async () => true,
+            isCreateFormReady: async () => true,
             isSessionsSectionVisible: async () => false,
             clickSessions: async () => { interactions += 1; },
             clickCreate: async () => { interactions += 1; }
         })).resolves.toBe(true);
         expect(interactions).toBe(0);
+    });
+
+    it('opens a fresh Game Master form when the previous modal is still closing', async () => {
+        let closingFormAttached = true;
+        let activeFormReady = false;
+        let createAttempts = 0;
+
+        await expect(attemptOpenGameMasterCreateSession({
+            isCreateFormReady: async () => activeFormReady,
+            isSessionsSectionVisible: async () => true,
+            clickSessions: async () => {},
+            clickCreate: async () => {
+                createAttempts += 1;
+                closingFormAttached = false;
+                activeFormReady = true;
+            }
+        })).resolves.toBe(true);
+
+        expect(closingFormAttached).toBe(false);
+        expect(activeFormReady).toBe(true);
+        expect(createAttempts).toBe(1);
     });
 });

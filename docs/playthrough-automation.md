@@ -179,9 +179,11 @@ The Game Master session helper also allows up to 60 seconds for the deployed
 shared navigation and controller scripts to finish their server-side grant
 check and bind the Sessions and Create Session controls. It retries both an
 early Sessions navigation click and an early Create Session click at that
-hydration boundary. Failure to activate the section and mount the form within
-that window is reported as operator initialization failure, not as a Realtime
-result.
+hydration boundary. The helper treats a create-session modal as ready only
+while its active state is mounted, and waits for the submitted modal's exit
+transition to detach before creating another session. Failure to activate the
+section and mount the form within that window is reported as operator
+initialization failure, not as a Realtime result.
 
 Pass:
 
