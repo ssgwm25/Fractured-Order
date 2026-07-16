@@ -295,7 +295,7 @@ function buildBundleFixture() {
 }
 
 describe('research export builder', () => {
-    it('builds the full research archive dataset with the 1.4.0 file set', async () => {
+    it('builds the full research archive dataset with the 1.6.0 dual-renderer file set', async () => {
         const exportBundle = await buildResearchExportBundle(buildBundleFixture(), {
             generatedAtUtc: '2026-06-03T12:00:00.000Z',
             generatedByPseudonym: 'gm-1234abcd',
@@ -308,7 +308,8 @@ describe('research export builder', () => {
             export_format_revision: RESEARCH_EXPORT_FORMAT_REVISION,
             export_version: 4,
             generated_by_pseudonym: 'gm-1234abcd',
-            capture_mode: 'research'
+            capture_mode: 'research',
+            event_log_source: 'reconstructed_from_session_records'
         });
         expect(exportBundle.manifest.row_counts).toMatchObject({
             action_content: 1,
@@ -321,6 +322,13 @@ describe('research export builder', () => {
             data_quality_summary_ref: 'data_quality_summary.json',
             decision_lineage_ref: 'decision_lineage.csv',
             scenario_context_ref: 'scenario_context.json',
+            report_ref: 'report.html',
+            latex_report_ref: 'report.tex',
+            latex_engine: 'lualatex',
+            latex_build_config_ref: 'latexmkrc',
+            latex_build_readme_ref: 'LATEX_REPORT_README.md',
+            pdf_report_target_ref: 'report.pdf',
+            pdf_report_included: false,
             outcome_taxonomy_ref: 'outcome_taxonomy.csv',
             training_rubric_ref: 'training_rubric.csv',
             network_metrics_ref: 'network_metrics.csv',
@@ -363,6 +371,16 @@ describe('research export builder', () => {
             posture: 'Hold'
         });
         expect(exportBundle.reportHtml).toContain('Post-Game Analysis Report');
+        expect(exportBundle.reportLatex).toContain(String.raw`\documentclass[11pt,oneside]{article}`);
+        expect(exportBundle.reportLatex).toContain(String.raw`\usepackage{fontspec}`);
+        expect(exportBundle.reportLatex).toContain(String.raw`\setmainfont{TeX Gyre Pagella}`);
+        expect(exportBundle.reportLatex).toContain(String.raw`\section{Evidence and provenance statement}`);
+        expect(exportBundle.reportLatex).toContain(String.raw`\section{Actions and adjudications}`);
+        expect(exportBundle.reportLatex).toContain(String.raw`\section{Proposals: content and review}`);
+        expect(exportBundle.reportLatex).toContain('Reconstructed event rows are intentionally not printed as captured session evidence.');
+        expect(exportBundle.reportLatex).not.toContain(String.raw`ACTION\_SUBMITTED`);
+        expect(exportBundle.reportLatex).toContain('Research Session Alpha');
+        expect(exportBundle.reportLatex).toContain('White Cell clarification changed the pacing.');
         expect(exportBundle.reportHtml).toContain('Table Of Contents');
         expect(exportBundle.reportHtml).not.toContain('The report is organized into');
         expect(exportBundle.reportHtml).not.toContain('Each begins on a new page so findings can be referenced and printed independently.');
@@ -488,6 +506,9 @@ describe('research export builder', () => {
             'manifest.json',
             'codebook.json',
             'report.html',
+            'report.tex',
+            'latexmkrc',
+            'LATEX_REPORT_README.md',
             'reports/policy_brief.html',
             'reports/strategic_leader_brief.html',
             'reports/training_evaluator_report.html',
@@ -516,6 +537,11 @@ describe('research export builder', () => {
             'legacy/session_metadata.json',
             'checksums.sha256'
         ]));
+        const checksumsFile = exportBundle.files.find((file) => file.path === 'checksums.sha256');
+        expect(checksumsFile.content).toContain('  report.html');
+        expect(checksumsFile.content).toContain('  report.tex');
+        expect(checksumsFile.content).toContain('  latexmkrc');
+        expect(checksumsFile.content).toContain('  LATEX_REPORT_README.md');
     });
 
     it('renders the full action and strategic-orientation decision scope', async () => {
@@ -597,6 +623,8 @@ describe('research export builder', () => {
                 }
             }
         });
+        expect(orientationRows[0].full_content.details).not.toHaveProperty('description');
+        expect(orientationRows[0].full_content.details).not.toHaveProperty('characteristics');
         expect(orientationRows[1].full_content.details.forecastTargets).toEqual([
             expect.objectContaining({ label: 'Blue', orientationLabel: 'Pressure' }),
             expect.objectContaining({ label: 'Green (Asian Pacific)', orientationLabel: 'Stabilization' }),
@@ -617,12 +645,104 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Build resilience for Blue');
         expect(exportBundle.reportHtml).toContain('Information / Engagement Planned');
         expect(exportBundle.reportHtml).toContain('Existing legislation/policy');
+        expect(exportBundle.reportHtml).toContain('not captured audit events');
+        expect(exportBundle.reportHtml).not.toContain('The United States systematically reallocates economic exposure away from China');
+        expect(exportBundle.reportLatex).toContain(String.raw`\section{Strategic Orientation: selections and forecasts}`);
+        expect(exportBundle.reportLatex).toContain('Green (Asian Pacific)');
+        expect(exportBundle.reportLatex).toContain('Resilience outweighs near-term efficiency.');
+        expect(exportBundle.reportLatex).toContain('Build resilience for Blue');
+        expect(exportBundle.reportLatex).not.toContain('The United States systematically reallocates economic exposure away from China');
+        expect(exportBundle.eventLog).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                event_type: 'STRATEGIC_ORIENTATION_SUBMITTED',
+                entity_type: 'strategic_orientation',
+                entity_id: 'orientation-blue-1'
+            })
+        ]));
+        expect(exportBundle.eventLog).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                event_type: 'ACTION_SUBMITTED',
+                entity_id: 'move-response-red-1'
+            })
+        ]));
+        expect(exportBundle.derivedSessionMetrics[0]).toMatchObject({
+            actions_submitted: 1,
+            actions_adjudicated: 1
+        });
+        expect(exportBundle.decisionLineage).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                root_entity_type: 'strategic_orientation',
+                root_entity_id: 'orientation-blue-1'
+            })
+        ]));
+        expect(exportBundle.scenarioContext.observed_objectives).toMatchObject({
+            strategic_orientations: expect.arrayContaining([
+                expect.objectContaining({ orientation_id: 'orientation-blue-1' })
+            ]),
+            actions: [expect.objectContaining({ action_id: 'action-blue-1' })]
+        });
         const strategicLeaderBrief = exportBundle.personaReports.find((file) => (
             file.path === 'reports/strategic_leader_brief.html'
         ));
         expect(strategicLeaderBrief.content).toContain('Strategic Orientation Portfolio');
         expect(strategicLeaderBrief.content).toContain('Green (Asian Pacific): Stabilization');
         expect(strategicLeaderBrief.content).toContain('Near-term economic friction');
+        expect(exportBundle.personaReports.map((file) => file.content).join('\n')).not.toContain(
+            'The United States systematically reallocates economic exposure away from China'
+        );
+    });
+
+    it('labels a supplied research audit spine as captured evidence', async () => {
+        const bundle = buildBundleFixture();
+        bundle.researchAuditEventLog = [
+            {
+                event_uuid: 'audit-event-1',
+                session_id: 'session-research-1',
+                event_ts_utc: '2026-06-03T10:00:00.000Z',
+                server_received_utc: '2026-06-03T10:00:00.000Z',
+                actor_pseudonym: 'gm-operator',
+                actor_role: 'game_master',
+                actor_team: 'gamemaster',
+                event_type: 'SESSION_STARTED',
+                entity_type: 'session',
+                entity_id: 'session-research-1',
+                payload: {},
+                before_state: null,
+                after_state: { status: 'active' }
+            }
+        ];
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z'
+        });
+
+        expect(exportBundle.manifest.event_log_source).toBe('captured_audit_log');
+        expect(exportBundle.reportHtml).toContain('Captured audit-event chronology');
+        expect(exportBundle.reportHtml).toContain('Audit Events Captured');
+        expect(exportBundle.reportHtml).not.toContain('Event Provenance Unspecified');
+        expect(exportBundle.reportLatex).toContain('captured research audit log');
+        expect(exportBundle.reportLatex).toContain(String.raw`SESSION\_STARTED`);
+        expect(exportBundle.reportLatex).toContain('audit-event-1');
+    });
+
+    it('escapes session-authored values in the generated LaTeX source', async () => {
+        const bundle = buildBundleFixture();
+        bundle.session = {
+            ...bundle.session,
+            name: 'Research & Trade_50% Session',
+            metadata: {
+                ...bundle.session.metadata,
+                description: 'Evidence #1 costs $5 {provisional}.'
+            }
+        };
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z'
+        });
+
+        expect(exportBundle.reportLatex).toContain(String.raw`Research \& Trade\_50\% Session`);
+        expect(exportBundle.reportLatex).toContain(String.raw`Evidence \#1 costs \$5 \{provisional\}.`);
+        expect(exportBundle.reportLatex).not.toContain('Research & Trade_50% Session');
     });
 
     it('renders the report notes appendix as withheld unless the export explicitly enables it', () => {

@@ -17,8 +17,8 @@ import {
     parseMoveResponseDetails
 } from '../actions/moveResponseDetails.js';
 import {
-    getStrategicOrientationViewModel,
-    isStrategicOrientationAction
+    isStrategicOrientationAction,
+    parseStrategicOrientationDetails
 } from '../actions/strategicOrientationDetails.js';
 import {
     arrayToCsv,
@@ -32,8 +32,8 @@ import { SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
-export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.4.0';
-export const RESEARCH_EXPORT_FORMAT_REVISION = 5;
+export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.6.0';
+export const RESEARCH_EXPORT_FORMAT_REVISION = 7;
 
 const HASHED_EVENT_FIELDS = [
     'event_id',
@@ -772,7 +772,8 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
     safeArray(bundle.actions).forEach((action) => {
         const isProposal = isProposalAction(action);
         const isMoveResponse = isMoveResponseAction(action);
-        const actionSequence = !isProposal && !isMoveResponse
+        const isStrategicOrientation = isStrategicOrientationAction(action);
+        const actionSequence = !isProposal && !isMoveResponse && !isStrategicOrientation
             ? getActionSequenceNumber(bundle.actions, action)
             : null;
         const actorPseudonym = resolvePseudonym(participantRegistry, {
@@ -855,8 +856,8 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                 actor_role: actorRole,
                 actor_team: actorTeam,
                 actor_seat_index: null,
-                event_type: 'ACTION_DRAFT_SAVED',
-                entity_type: 'action',
+                event_type: isStrategicOrientation ? 'STRATEGIC_ORIENTATION_DRAFT_SAVED' : 'ACTION_DRAFT_SAVED',
+                entity_type: isStrategicOrientation ? 'strategic_orientation' : 'action',
                 entity_id: action?.id || null,
                 move_number: action?.move ?? null,
                 action_sequence: actionSequence,
@@ -875,7 +876,7 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
             });
         }
 
-        if (action?.submitted_at) {
+        if (action?.submitted_at && !isMoveResponse) {
             events.push({
                 event_uuid: nextSyntheticId('event', counterRef),
                 session_id: sessionId,
@@ -886,8 +887,12 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                 actor_role: actorRole,
                 actor_team: actorTeam,
                 actor_seat_index: null,
-                event_type: isProposal ? 'PROPOSAL_SUBMITTED' : 'ACTION_SUBMITTED',
-                entity_type: isProposal ? 'proposal' : 'action',
+                event_type: isProposal
+                    ? 'PROPOSAL_SUBMITTED'
+                    : (isStrategicOrientation ? 'STRATEGIC_ORIENTATION_SUBMITTED' : 'ACTION_SUBMITTED'),
+                entity_type: isProposal
+                    ? 'proposal'
+                    : (isStrategicOrientation ? 'strategic_orientation' : 'action'),
                 entity_id: action?.id || null,
                 move_number: action?.move ?? null,
                 action_sequence: actionSequence,
@@ -927,8 +932,18 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                                 ? 'PROPOSAL_CHANGES_REQUESTED'
                                 : 'PROPOSAL_REJECTED'
                     )
-                    : 'ACTION_ADJUDICATED',
-                entity_type: isProposal ? 'proposal' : 'action',
+                    : isMoveResponse
+                        ? 'MOVE_RESPONSE_ADJUDICATED'
+                        : isStrategicOrientation
+                            ? 'STRATEGIC_ORIENTATION_ADJUDICATED'
+                            : 'ACTION_ADJUDICATED',
+                entity_type: isProposal
+                    ? 'proposal'
+                    : isMoveResponse
+                        ? 'move_response'
+                        : isStrategicOrientation
+                            ? 'strategic_orientation'
+                            : 'action',
                 entity_id: action?.id || null,
                 move_number: action?.move ?? null,
                 action_sequence: actionSequence,
@@ -1122,6 +1137,14 @@ function isProposalAction(action = {}) {
 
 function isMoveResponseAction(action = {}) {
     return action?.mechanism === MOVE_RESPONSE_ACTION_MECHANISM || Boolean(parseMoveResponseDetails(action?.ally_contingencies));
+}
+
+function isStrategicOrientationContentRow(action = {}) {
+    const fullContent = safeObject(action.full_content);
+    const details = safeObject(fullContent.details);
+    return fullContent.artifact_kind === 'strategic_orientation'
+        || details.hasStrategicOrientationDetails === true
+        || /^strategic orientation/i.test(String(action.action_type || ''));
 }
 
 function findForwardedProposalCommunication(communications = [], proposalId) {
@@ -1335,14 +1358,39 @@ function buildActionContent(bundle = {}, participantRegistry) {
         .filter((action) => !isProposalAction(action) && !isMoveResponseAction(action))
         .map((action) => {
             const isStrategicOrientation = isStrategicOrientationAction(action);
-            const strategicOrientation = isStrategicOrientation
-                ? getStrategicOrientationViewModel(action)
+            const strategicDetails = isStrategicOrientation
+                ? parseStrategicOrientationDetails(action?.ally_contingencies)
                 : null;
             const viewModel = getBlueActionViewModel(action);
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
 
-            if (strategicOrientation) {
+            if (isStrategicOrientation) {
+                const isForecast = strategicDetails?.artifactType === 'forecast';
+                const forecastTargets = safeArray(strategicDetails?.forecastTargets);
+                const orientationLabel = strategicDetails?.orientationLabel || strategicDetails?.orientation || '';
+                const fallbackTitle = isForecast
+                    ? `${authorTeam || 'Team'} Strategic Orientation Forecast`
+                    : `Strategic Orientation${orientationLabel ? `: ${orientationLabel}` : ''}`;
+                const sessionDetails = {
+                    hasStrategicOrientationDetails: Boolean(strategicDetails),
+                    artifactType: strategicDetails?.artifactType || '',
+                    isForecast,
+                    isSelection: strategicDetails?.artifactType === 'selection',
+                    team: strategicDetails?.team || action?.team || '',
+                    period: strategicDetails?.period || '',
+                    orientation: strategicDetails?.orientation || '',
+                    orientationLabel,
+                    orientationTag: strategicDetails?.orientationTag || '',
+                    forecastTargets,
+                    primaryLevers: safeArray(strategicDetails?.primaryLevers),
+                    acceptedCosts: safeArray(strategicDetails?.acceptedCosts),
+                    posture: strategicDetails?.posture || '',
+                    rationale: strategicDetails?.rationale || '',
+                    forecastSummary: strategicDetails?.forecastSummary || '',
+                    scribeHandoff: strategicDetails?.scribeHandoff || ''
+                };
+
                 return {
                     action_id: action?.id || null,
                     session_id: bundle.session?.id || null,
@@ -1354,22 +1402,21 @@ function buildActionContent(bundle = {}, participantRegistry) {
                     author_team: authorTeam,
                     move_number: action?.move ?? null,
                     action_sequence: null,
-                    title: strategicOrientation.title,
-                    action_type: strategicOrientation.isForecast
+                    title: action?.goal || fallbackTitle,
+                    action_type: isForecast
                         ? 'Strategic Orientation Forecast'
                         : 'Strategic Orientation Selection',
-                    intent_text: strategicOrientation.rationale
-                        || strategicOrientation.forecastSummary
-                        || strategicOrientation.orientationTag
+                    intent_text: sessionDetails.rationale
+                        || sessionDetails.forecastSummary
                         || null,
-                    targets: strategicOrientation.forecastTargets.map((target) => target.label),
-                    instruments: strategicOrientation.primaryLevers,
+                    targets: forecastTargets.map((target) => target.label),
+                    instruments: sessionDetails.primaryLevers,
                     resources_committed: [],
                     full_content: {
                         artifact_kind: 'strategic_orientation',
                         goal: action?.goal || null,
                         expected_outcomes: action?.expected_outcomes || null,
-                        details: strategicOrientation
+                        details: sessionDetails
                     },
                     submitted_utc: asUtcIso(action?.submitted_at),
                     final_status: action?.status || null
@@ -1469,7 +1516,13 @@ function buildAdjudicationContent(bundle = {}) {
         .map((action) => ({
             adjudication_id: `${action.id}-adjudication`,
             session_id: bundle.session?.id || null,
-            target_entity_type: isMoveResponseAction(action) ? 'move_response' : 'action',
+            target_entity_type: isMoveResponseAction(action)
+                ? 'move_response'
+                : isStrategicOrientationAction(action)
+                    ? 'strategic_orientation'
+                    : isProposalAction(action)
+                        ? 'proposal'
+                        : 'action',
             target_entity_id: action?.id || null,
             adjudicator_pseudonym: 'whitecell-operator',
             adjudicator_role: 'whitecell_lead',
@@ -1559,11 +1612,12 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
     const transitions = [];
 
     actionContent.forEach((action) => {
+        const entityType = isStrategicOrientationContentRow(action) ? 'strategic_orientation' : 'action';
         const createdAt = safeArray(bundle.actions).find((candidate) => candidate?.id === action.action_id)?.created_at;
         transitions.push({
             transition_id: `${action.action_id}-draft`,
             session_id: action.session_id,
-            entity_type: 'action',
+            entity_type: entityType,
             entity_id: action.action_id,
             from_state: null,
             to_state: 'draft',
@@ -1580,7 +1634,7 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
             transitions.push({
                 transition_id: `${action.action_id}-submitted`,
                 session_id: action.session_id,
-                entity_type: 'action',
+                entity_type: entityType,
                 entity_id: action.action_id,
                 from_state: 'draft',
                 to_state: 'submitted',
@@ -1599,7 +1653,7 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
             transitions.push({
                 transition_id: `${action.action_id}-adjudicated`,
                 session_id: action.session_id,
-                entity_type: 'action',
+                entity_type: entityType,
                 entity_id: action.action_id,
                 from_state: 'submitted',
                 to_state: 'adjudicated',
@@ -2004,6 +2058,7 @@ function buildDerivedSessionMetrics({
     const proposalLatencies = interactionEdges
         .map((edge) => edge.latency_s)
         .filter((value) => value !== null && value !== undefined);
+    const moveActions = safeArray(actionContent).filter((row) => !isStrategicOrientationContentRow(row));
 
     return [
         {
@@ -2018,8 +2073,8 @@ function buildDerivedSessionMetrics({
             ),
             participants_active: participantRows.length,
             total_events: eventLog.length,
-            actions_submitted: actionContent.filter((row) => row.submitted_utc).length,
-            actions_adjudicated: actionContent.filter((row) => row.final_status === 'adjudicated').length,
+            actions_submitted: moveActions.filter((row) => row.submitted_utc).length,
+            actions_adjudicated: moveActions.filter((row) => row.final_status === 'adjudicated').length,
             proposals_submitted: proposalContent.filter((row) => row.submitted_utc).length,
             proposals_forwarded: proposalContent.filter((row) => row.review_decision === 'forwarded').length,
             rfis_raised: rfiContent.length,
@@ -2480,6 +2535,7 @@ function buildDecisionLineage({
     };
 
     safeArray(actionContent).forEach((action) => {
+        const isStrategicOrientation = isStrategicOrientationContentRow(action);
         const adjudication = adjudicationByTargetId.get(action.action_id);
         const relatedRfis = safeArray(rfiContent).filter((rfi) => (
             rfi.move_number === action.move_number
@@ -2487,7 +2543,7 @@ function buildDecisionLineage({
         ));
 
         addRow({
-            root_entity_type: 'action',
+            root_entity_type: isStrategicOrientation ? 'strategic_orientation' : 'action',
             root_entity_id: action.action_id,
             move_number: action.move_number,
             source_team: action.author_team,
@@ -2498,8 +2554,10 @@ function buildDecisionLineage({
             related_rfi_ids: idsForRows(relatedRfis, 'rfi_id'),
             related_event_ids: buildRelatedEventIds(eventLog, action.action_id),
             evidence_summary: [
-                action.title || 'Action',
-                action.action_type ? `instrument=${action.action_type}` : '',
+                action.title || (isStrategicOrientation ? 'Strategic orientation' : 'Action'),
+                action.action_type
+                    ? `${isStrategicOrientation ? 'artifact' : 'instrument'}=${action.action_type}`
+                    : '',
                 adjudication?.ruling ? `ruling=${adjudication.ruling}` : ''
             ].filter(Boolean).join('; ')
         });
@@ -2598,6 +2656,8 @@ function buildScenarioContext(bundle = {}, {
     interactionEdges
 }) {
     const communications = safeArray(bundle.communications);
+    const strategicOrientations = safeArray(actionContent).filter(isStrategicOrientationContentRow);
+    const moveActions = safeArray(actionContent).filter((row) => !isStrategicOrientationContentRow(row));
     const scenarioMessages = communications.filter((communication) => (
         ['INJECT', 'ANNOUNCEMENT', 'GUIDANCE', 'WHITE_CELL_UPDATE'].includes(String(communication?.type || '').toUpperCase())
     ));
@@ -2659,7 +2719,15 @@ function buildScenarioContext(bundle = {}, {
         })),
         deck_assignments: deckAssignments,
         observed_objectives: {
-            actions: actionContent.map((action) => ({
+            strategic_orientations: strategicOrientations.map((orientation) => ({
+                orientation_id: orientation.action_id,
+                team: orientation.author_team,
+                artifact_type: safeObject(safeObject(orientation.full_content).details).artifactType || null,
+                orientation: safeObject(safeObject(orientation.full_content).details).orientation || null,
+                rationale: safeObject(safeObject(orientation.full_content).details).rationale || null,
+                forecast_targets: safeArray(safeObject(safeObject(orientation.full_content).details).forecastTargets)
+            })),
+            actions: moveActions.map((action) => ({
                 action_id: action.action_id,
                 move_number: action.move_number,
                 team: action.author_team,
@@ -2706,6 +2774,32 @@ function normalizeTaxonomyEvidence(value) {
         .trim();
 }
 
+function buildTaxonomySessionEvidence(sourceArtifact = {}) {
+    if (!isStrategicOrientationContentRow(sourceArtifact)) {
+        return safeObject(sourceArtifact.full_content);
+    }
+
+    const fullContent = safeObject(sourceArtifact.full_content);
+    const details = safeObject(fullContent.details);
+    return {
+        goal: fullContent.goal || null,
+        expected_outcomes: fullContent.expected_outcomes || null,
+        details: {
+            artifactType: details.artifactType || null,
+            orientation: details.orientation || null,
+            orientationLabel: details.orientationLabel || null,
+            orientationTag: details.orientationTag || null,
+            forecastTargets: safeArray(details.forecastTargets),
+            primaryLevers: safeArray(details.primaryLevers),
+            acceptedCosts: safeArray(details.acceptedCosts),
+            posture: details.posture || null,
+            rationale: details.rationale || null,
+            forecastSummary: details.forecastSummary || null,
+            scribeHandoff: details.scribeHandoff || null
+        }
+    };
+}
+
 function buildOutcomeTaxonomy({
     sessionId,
     actionContent,
@@ -2730,7 +2824,7 @@ function buildOutcomeTaxonomy({
             sourceArtifact.intent_text,
             sourceArtifact.proposal_text,
             sourceArtifact.response_text,
-            formatReportValue(sourceArtifact.full_content, '')
+            formatReportValue(buildTaxonomySessionEvidence(sourceArtifact), '')
         ].filter(Boolean);
         const evidenceText = normalizeTaxonomyEvidence(evidenceParts.join(' '));
         let observedDimensions = 0;
@@ -3219,13 +3313,7 @@ function buildPersonaReports(dataset = {}) {
         row.evidence_summary
     ]);
     const actionContentRows = safeArray(dataset.actionContent);
-    const strategicOrientationContentRows = actionContentRows.filter((action) => {
-        const fullContent = safeObject(action.full_content);
-        const details = safeObject(fullContent.details);
-        return fullContent.artifact_kind === 'strategic_orientation'
-            || details.hasStrategicOrientationDetails === true
-            || /^strategic orientation/i.test(String(action.action_type || ''));
-    });
+    const strategicOrientationContentRows = actionContentRows.filter(isStrategicOrientationContentRow);
     const moveActionContentRows = actionContentRows.filter((action) => !strategicOrientationContentRows.includes(action));
     const actionRows = moveActionContentRows.map((action) => [
         action.move_number,
@@ -3825,6 +3913,7 @@ function formatTimelineElapsed(seconds) {
  * dots are positioned along a shared time axis. Pure HTML/CSS/inline SVG.
  */
 function renderSessionActivityTimeline(dataset) {
+    const eventLogSource = safeObject(dataset?.manifest).event_log_source || 'unspecified';
     const events = safeArray(dataset?.eventLog)
         .map((event) => {
             const activity = classifySessionTimelineActivity(event?.event_type);
@@ -3869,7 +3958,7 @@ function renderSessionActivityTimeline(dataset) {
         return `
             <figure class="report-timeline">
                 ${legend}
-                <p class="report-empty">No team activity events were captured for this session, so the timeline has no points to plot. The activity legend above lists every tracked activity type.</p>
+                <p class="report-empty">No session activity records were available, so the timeline has no points to plot. The activity legend above lists every tracked activity type.</p>
             </figure>
         `;
     }
@@ -3962,7 +4051,12 @@ function renderSessionActivityTimeline(dataset) {
     }).join('');
 
     const activeTeamCount = new Set(events.map((event) => event.laneKey)).size;
-    const caption = `This timeline plots ${events.length} captured ${events.length === 1 ? 'activity' : 'activities'} across ${activeTeamCount} active lane(s) over a ${formatReportDuration(durationSeconds, 'recorded')} span. Each dot is one activity positioned by time of occurrence; colour encodes the activity type and each row groups activity by team. Dashed vertical guides mark observed move boundaries.`;
+    const eventSourceLabel = eventLogSource === 'reconstructed_from_session_records'
+        ? 'reconstructed activity records derived from persisted session timestamps'
+        : eventLogSource === 'captured_audit_log'
+            ? 'captured audit events'
+            : 'event records with unspecified provenance';
+    const caption = `This timeline plots ${events.length} ${eventSourceLabel} across ${activeTeamCount} active lane(s) over a ${formatReportDuration(durationSeconds, 'recorded')} span. Each dot is one record positioned by time of occurrence; colour encodes the activity type and each row groups activity by team. Dashed vertical guides mark observed move boundaries.`;
 
     return `
         <figure class="report-timeline">
@@ -3986,6 +4080,28 @@ export function buildResearchReportHtml(dataset, {
 } = {}) {
     const sessionMetrics = dataset.derivedSessionMetrics[0] || {};
     const manifest = safeObject(dataset.manifest);
+    const eventLogIsReconstructed = manifest.event_log_source === 'reconstructed_from_session_records';
+    const eventLogIsCaptured = manifest.event_log_source === 'captured_audit_log';
+    const eventRecordLabel = eventLogIsReconstructed
+        ? 'reconstructed event records'
+        : eventLogIsCaptured
+            ? 'captured audit events'
+            : 'event records with unspecified provenance';
+    const eventSummaryLabel = eventLogIsReconstructed
+        ? 'Event Records Reconstructed'
+        : eventLogIsCaptured
+            ? 'Audit Events Captured'
+            : 'Event Provenance Unspecified';
+    const eventSummaryDetail = eventLogIsReconstructed
+        ? 'derived from persisted rows'
+        : eventLogIsCaptured
+            ? 'captured audit log'
+            : 'source not declared';
+    const eventChronologyDescription = eventLogIsReconstructed
+        ? 'Deterministic reconstruction from persisted session rows and timestamps. These rows are analytical projections, not a captured audit log.'
+        : eventLogIsCaptured
+            ? 'Captured audit-event chronology, including payload summaries and before/after state changes.'
+            : 'Event-record chronology with unspecified provenance. Treat these rows as unverified until the source is established.';
     const sessionConfigSnapshot = safeObject(manifest.session_config_snapshot);
     const gameState = safeObject(sessionConfigSnapshot.game_state);
     const sessionMetadata = safeObject(dataset.session?.metadata);
@@ -4175,13 +4291,7 @@ export function buildResearchReportHtml(dataset, {
         row.evidence_summary || ''
     ]);
     const allActionRows = safeArray(dataset.actionContent);
-    const strategicOrientationRows = allActionRows.filter((action) => {
-        const fullContent = safeObject(action.full_content);
-        const details = safeObject(fullContent.details);
-        return fullContent.artifact_kind === 'strategic_orientation'
-            || details.hasStrategicOrientationDetails === true
-            || /^strategic orientation/i.test(String(action.action_type || ''));
-    });
+    const strategicOrientationRows = allActionRows.filter(isStrategicOrientationContentRow);
     const moveActionRows = allActionRows.filter((action) => !strategicOrientationRows.includes(action));
     const strategicOrientationCards = strategicOrientationRows.map((orientation) => {
         const adjudication = adjudicationByTargetId.get(orientation.action_id);
@@ -4191,15 +4301,10 @@ export function buildResearchReportHtml(dataset, {
             target.orientationLabel || target.orientation || '',
             target.orientationTag || ''
         ]);
-        const characteristicRows = safeArray(details.characteristics).map((characteristic) => [
-            characteristic.key || '',
-            characteristic.value || ''
-        ]);
-
         return renderReportEntityCard({
             eyebrow: `${humanizeReportLabel(details.period || 'pre_move_1')} - ${details.isForecast ? 'Forecast' : 'Selection'}`,
             title: orientation.title || details.orientationLabel || 'Strategic orientation',
-            summary: details.rationale || details.forecastSummary || details.description || orientation.intent_text || '',
+            summary: details.rationale || details.forecastSummary || orientation.intent_text || '',
             badges: [
                 { label: orientation.author_team || details.team || 'team', tone: 'accent' },
                 { label: details.isForecast ? 'forecast' : 'selection', tone: 'muted' },
@@ -4232,21 +4337,12 @@ export function buildResearchReportHtml(dataset, {
                     : null,
                 {
                     title: details.isForecast ? 'Forecast Logic' : 'Strategic Logic',
-                    html: `
-                        ${renderReportMetaGrid([
-                            { label: details.isForecast ? 'Primary Forecast Description' : 'Orientation Description', value: details.description },
-                            { label: 'Posture', value: details.posture },
-                            { label: 'Rationale', value: details.rationale },
-                            { label: 'Primary Levers', value: details.primaryLevers },
-                            { label: 'Accepted Costs', value: details.acceptedCosts }
-                        ])}
-                        ${characteristicRows.length
-                            ? renderReportTable([
-                                'Dimension',
-                                details.isForecast ? 'Primary Forecast' : 'Selected Orientation'
-                            ], characteristicRows)
-                            : ''}
-                    `
+                    html: renderReportMetaGrid([
+                        { label: 'Posture', value: details.posture },
+                        { label: 'Rationale', value: details.rationale },
+                        { label: 'Primary Levers', value: details.primaryLevers },
+                        { label: 'Accepted Costs', value: details.acceptedCosts }
+                    ])
                 },
                 adjudication
                     ? {
@@ -4489,7 +4585,7 @@ export function buildResearchReportHtml(dataset, {
             String(row.rfis),
             String(row.notes)
         ]);
-    const executiveSummaryText = `This post-game analysis reconstructs ${sessionDisplayName}${manifest.capture_mode ? `, captured in ${humanizeReportLabel(manifest.capture_mode)} mode` : ''}. The session spans ${formatReportDuration(sessionMetrics.session_duration_s, 'an unrecorded duration')} across ${formatReportValue(sessionMetrics.moves_count ?? 0, '0')} move(s), with ${formatReportValue(sessionMetrics.participants_active ?? 0, '0')} active participant seat(s) generating ${formatReportValue(sessionMetrics.total_events ?? 0, '0')} logged events. Teams recorded ${formatReportValue(strategicOrientationCount, '0')} strategic-orientation artifact(s), submitted ${formatReportValue(submittedActionCount, '0')} move action(s) (${formatReportValue(adjudicatedActionCount, '0')} adjudicated) and ${formatReportValue(sessionMetrics.proposals_submitted ?? 0, '0')} proposal(s) (${formatReportValue(sessionMetrics.proposals_forwarded ?? 0, '0')} forwarded), and raised ${formatReportValue(sessionMetrics.rfis_raised ?? 0, '0')} request(s) for information.`;
+    const executiveSummaryText = `This post-game analysis reconstructs ${sessionDisplayName}${manifest.capture_mode ? `, captured in ${humanizeReportLabel(manifest.capture_mode)} mode` : ''}. The session spans ${formatReportDuration(sessionMetrics.session_duration_s, 'an unrecorded duration')} across ${formatReportValue(sessionMetrics.moves_count ?? 0, '0')} move(s), with ${formatReportValue(sessionMetrics.participants_active ?? 0, '0')} active participant seat(s) represented by ${formatReportValue(sessionMetrics.total_events ?? 0, '0')} ${eventRecordLabel}. Teams recorded ${formatReportValue(strategicOrientationCount, '0')} strategic-orientation artifact(s), submitted ${formatReportValue(submittedActionCount, '0')} move action(s) (${formatReportValue(adjudicatedActionCount, '0')} adjudicated) and ${formatReportValue(sessionMetrics.proposals_submitted ?? 0, '0')} proposal(s) (${formatReportValue(sessionMetrics.proposals_forwarded ?? 0, '0')} forwarded), and raised ${formatReportValue(sessionMetrics.rfis_raised ?? 0, '0')} request(s) for information.`;
     const contentsItems = [
         {
             title: 'Executive Summary',
@@ -4509,7 +4605,7 @@ export function buildResearchReportHtml(dataset, {
         },
         {
             title: 'Event Log Chronology',
-            description: 'Ordered event stream with actor, entity, move, state change, and payload summary.'
+            description: eventChronologyDescription
         },
         {
             title: 'State Transition Ledger',
@@ -5506,7 +5602,7 @@ export function buildResearchReportHtml(dataset, {
             <p class="report-simulation">${escapeHtml(SIMULATION_NAME)}</p>
             <p class="report-subtitle">Post-Game Analysis Report</p>
             <h1 class="report-title">${escapeHtml(sessionDisplayName)}</h1>
-            <p class="report-muted">A structured reconstruction of session activity, decisions, communications, and data-integrity evidence prepared for post-session review.</p>
+            <p class="report-muted">A session-evidence report. Captured records are presented separately from any explicitly labeled deterministic reconstructions.</p>
             <div style="margin-top: 18px;">
                 ${renderReportMetaGrid([
                     { label: 'Session ID', value: dataset.session?.id || '' },
@@ -5524,7 +5620,7 @@ export function buildResearchReportHtml(dataset, {
             <h2 class="report-outline-title" style="margin-top: 24px;">Document Summary</h2>
             <div style="margin-top: 10px;">
                 ${renderReportMetaGrid([
-                    { label: 'Events Captured', value: sessionMetrics.total_events ?? 0 },
+                    { label: eventSummaryLabel, value: sessionMetrics.total_events ?? 0 },
                     { label: 'Active Participants', value: sessionMetrics.participants_active ?? 0 },
                     { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0 },
                     { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s) },
@@ -5560,7 +5656,7 @@ export function buildResearchReportHtml(dataset, {
             </div>
             <p class="report-lede">${escapeHtml(executiveSummaryText)}</p>
             ${renderReportSummaryCards([
-                { label: 'Events Logged', value: sessionMetrics.total_events ?? 0, detail: 'captured in export' },
+                { label: eventSummaryLabel, value: sessionMetrics.total_events ?? 0, detail: eventSummaryDetail },
                 { label: 'Active Participants', value: sessionMetrics.participants_active ?? 0, detail: 'seats engaged' },
                 { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
                 { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s), detail: 'event-log span' },
@@ -5581,7 +5677,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Session Activity Timeline</h2>
-                    <p class="report-section-intro">A graphic reconstruction of what happened during the session. Each dot is one captured activity placed along a shared time axis; colour encodes the activity type and each row groups activity by team, so density, sequencing, and per-team load can be read at a glance.</p>
+                    <p class="report-section-intro">A graphic chronology of the available event evidence. ${eventLogIsReconstructed ? 'The plotted records were deterministically reconstructed from persisted session rows and timestamps; they are not captured audit events.' : eventLogIsCaptured ? 'Each dot is a captured audit event.' : 'Event provenance is unspecified; treat plotted records as unverified.'} Colour encodes activity type and rows group activity by team.</p>
                 </div>
             </div>
             ${renderSessionActivityTimeline(dataset)}
@@ -5652,12 +5748,12 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Event Log Chronology</h2>
-                    <p class="report-section-intro">Full event-level chronology of the session, including payload summaries and before/after state changes.</p>
+                    <p class="report-section-intro">${eventChronologyDescription}</p>
                 </div>
             </div>
             ${renderReportSectionBlock('Top Event Types', renderReportSummaryCards(topEventCards))}
             ${eventLogTruncated
-                ? `<p class="report-note">Showing the first ${EVENT_LOG_DISPLAY_LIMIT} of ${totalEventLogRows} logged events for print readability. The complete, ordered event stream is preserved in event_log.csv and event_log.jsonl.</p>`
+                ? `<p class="report-note">Showing the first ${EVENT_LOG_DISPLAY_LIMIT} of ${totalEventLogRows} ${eventRecordLabel} for print readability. The complete ordered record set is preserved in event_log.csv and event_log.jsonl.</p>`
                 : ''}
             ${renderReportSectionBlock('Event Log', renderReportTable(
                 ['Occurred UTC', 'Actor', 'Event Type', 'Entity', 'Move', 'State Change', 'Payload Summary'],
@@ -5858,6 +5954,7 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Software Build Hash', value: manifest.software_build_hash || 'unknown' },
                 { label: 'Generated At UTC', value: formatReportTimestamp(manifest.generated_at_utc) },
                 { label: 'Generated By Pseudonym', value: manifest.generated_by_pseudonym },
+                { label: 'Event Log Source', value: manifest.event_log_source || 'unspecified' },
                 { label: 'Session Checksum', value: safeObject(manifest.event_log_chain).session_checksum },
                 { label: 'First Event Hash', value: safeObject(manifest.event_log_chain).first_event_hash },
                 { label: 'Last Event Hash', value: safeObject(manifest.event_log_chain).last_event_hash },
@@ -5870,6 +5967,512 @@ export function buildResearchReportHtml(dataset, {
 </body>
 </html>
     `.trim();
+}
+
+const LATEXMKRC_CONTENT = String.raw`$pdf_mode = 4;
+$lualatex = 'lualatex -interaction=nonstopmode -halt-on-error -file-line-error %O %S';
+$max_repeat = 5;
+$cleanup_includes_cusdep_generated = 1;
+`;
+
+const LATEX_BUILD_README_CONTENT = `# Build the formal research PDF
+
+The archive's canonical evidence remains the CSV, JSON, and JSONL files. \`report.tex\`
+is a publication renderer generated from the same validated in-memory dataset as
+\`report.html\`; it is not an independent source of session facts.
+
+## Requirements
+
+- A current TeX Live, MacTeX, or MiKTeX installation
+- LuaLaTeX
+- latexmk
+- The standard packages referenced by \`report.tex\`
+
+## Compile
+
+From the extracted research-export directory:
+
+\`\`\`powershell
+latexmk -r latexmkrc report.tex
+\`\`\`
+
+Pass: the command exits successfully and creates \`report.pdf\` without missing
+references, missing glyphs, or overfull boxes that obscure content. Run the command
+again after any manual source edit. Use \`latexmk -C -r latexmkrc report.tex\` to
+remove generated LaTeX build files.
+
+## Research and accessibility checks
+
+- Confirm the session ID, schema version, event-log provenance, and checksum match
+  \`manifest.json\`.
+- Compare sampled decisions against the corresponding CSV/JSON projections.
+- Review the LaTeX log for overfull boxes and missing glyphs.
+- Validate the compiled PDF with the institution's PDF/A and PDF/UA tools before
+  treating it as an archival or accessible publication artifact.
+`;
+
+function escapeLatex(value = '') {
+    const replacements = {
+        '\\': String.raw`\textbackslash{}`,
+        '{': String.raw`\{`,
+        '}': String.raw`\}`,
+        '$': String.raw`\$`,
+        '&': String.raw`\&`,
+        '#': String.raw`\#`,
+        '%': String.raw`\%`,
+        '_': String.raw`\_`,
+        '~': String.raw`\textasciitilde{}`,
+        '^': String.raw`\textasciicircum{}`
+    };
+
+    return String(value ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split('')
+        .map((character) => replacements[character] || character)
+        .join('');
+}
+
+function formatLatexValue(value, fallback = 'Not recorded') {
+    if (value === null || value === undefined || value === '') {
+        return escapeLatex(fallback);
+    }
+    if (Array.isArray(value)) {
+        return value.length
+            ? value.map((entry) => formatLatexValue(entry, '')).filter(Boolean).join('; ')
+            : escapeLatex(fallback);
+    }
+    if (typeof value === 'object') {
+        return escapeLatex(JSON.stringify(value));
+    }
+    if (typeof value === 'boolean') {
+        return value ? 'Yes' : 'No';
+    }
+    return escapeLatex(value);
+}
+
+function getLatexColumnSpec(columnCount) {
+    const widthsByCount = {
+        2: [0.28, 0.66],
+        3: [0.20, 0.28, 0.46],
+        4: [0.15, 0.20, 0.26, 0.33],
+        5: [0.12, 0.15, 0.18, 0.22, 0.27],
+        6: [0.10, 0.12, 0.14, 0.16, 0.19, 0.23],
+        7: [0.08, 0.10, 0.12, 0.13, 0.15, 0.17, 0.19],
+        8: [0.07, 0.08, 0.10, 0.11, 0.12, 0.14, 0.15, 0.17]
+    };
+    const widths = widthsByCount[columnCount]
+        || Array.from({ length: columnCount }, () => Number((0.94 / Math.max(columnCount, 1)).toFixed(3)));
+    return widths.map((width) => `p{${width}\\textwidth}`).join('');
+}
+
+function renderLatexLongTable(headers = [], rows = [], columnSpec = null) {
+    if (!safeArray(rows).length) {
+        return String.raw`\emph{No records were captured for this section.}`;
+    }
+
+    const headerRow = headers.map((header) => `\\textbf{${escapeLatex(header)}}`).join(' & ');
+    const bodyRows = safeArray(rows)
+        .map((row) => safeArray(row).map((value) => formatLatexValue(value, '')).join(' & ') + String.raw` \\`)
+        .join('\n');
+    const resolvedColumnSpec = columnSpec || getLatexColumnSpec(headers.length);
+
+    return String.raw`\begingroup
+\footnotesize
+\begin{longtable}{@{}${resolvedColumnSpec}@{}}
+\toprule
+${headerRow} \\
+\midrule
+\endfirsthead
+\toprule
+${headerRow} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+${bodyRows}
+\end{longtable}
+\endgroup`;
+}
+
+function renderLatexDescription(items = []) {
+    const rows = safeArray(items)
+        .filter((item) => item?.label)
+        .map((item) => `\\item[${escapeLatex(item.label)}] ${formatLatexValue(item.value)}`)
+        .join('\n');
+    return String.raw`\begin{description}[style=nextline,leftmargin=0pt,labelindent=0pt]
+${rows}
+\end{description}`;
+}
+
+function renderLatexArtifactSections(rows = [], renderer) {
+    if (!safeArray(rows).length) {
+        return String.raw`\emph{No records were captured for this section.}`;
+    }
+    return safeArray(rows).map(renderer).join('\n\n');
+}
+
+export function buildResearchReportLatex(dataset, {
+    includeNotesAppendix = false
+} = {}) {
+    const manifest = safeObject(dataset.manifest);
+    const sessionMetrics = safeArray(dataset.derivedSessionMetrics)[0] || {};
+    const dataQualitySummary = safeObject(dataset.dataQualitySummary);
+    const readiness = safeObject(dataQualitySummary.quantitative_comparison_readiness);
+    const eventLogSource = manifest.event_log_source || 'unspecified';
+    const eventLogIsCaptured = eventLogSource === 'captured_audit_log';
+    const eventProvenanceText = eventLogIsCaptured
+        ? 'The event chronology is sourced from the captured research audit log.'
+        : eventLogSource === 'reconstructed_from_session_records'
+            ? 'No captured research audit spine was available. Event chronology files were deterministically reconstructed from persisted session rows and timestamps and must not be treated as captured audit events.'
+            : 'Event-log provenance is unspecified. Event rows must be treated as unverified.';
+    const allActions = safeArray(dataset.actionContent);
+    const strategicOrientations = allActions.filter(isStrategicOrientationContentRow);
+    const moveActions = allActions.filter((row) => !isStrategicOrientationContentRow(row));
+    const adjudicationByTargetId = new Map(
+        safeArray(dataset.adjudicationContent).map((entry) => [entry.target_entity_id, entry])
+    );
+    const sessionTitle = dataset.session?.name || dataset.session?.id || 'Research Session';
+    const sessionDescription = safeObject(dataset.session?.metadata).description || '';
+
+    const orientationSections = renderLatexArtifactSections(strategicOrientations, (orientation) => {
+        const details = safeObject(safeObject(orientation.full_content).details);
+        const forecastRows = safeArray(details.forecastTargets).map((target) => [
+            target.label || target.key,
+            target.orientationLabel || target.orientation,
+            target.orientationTag
+        ]);
+        const adjudication = adjudicationByTargetId.get(orientation.action_id);
+        return String.raw`\subsection{${escapeLatex(orientation.title || details.orientationLabel || 'Strategic orientation')}}
+${renderLatexDescription([
+        { label: 'Artifact ID', value: orientation.action_id },
+        { label: 'Team', value: orientation.author_team || details.team },
+        { label: 'Author pseudonym', value: orientation.author_pseudonym },
+        { label: 'Author role', value: orientation.author_role },
+        { label: 'Artifact type', value: details.isForecast ? 'Forecast' : 'Selection' },
+        { label: 'Period', value: details.period },
+        { label: 'Orientation', value: details.orientationLabel || details.orientation },
+        { label: 'Strategic tag', value: details.orientationTag },
+        { label: 'Posture', value: details.posture },
+        { label: 'Rationale', value: details.rationale },
+        { label: 'Primary levers', value: details.primaryLevers },
+        { label: 'Accepted costs', value: details.acceptedCosts },
+        { label: 'Forecast summary', value: details.forecastSummary },
+        { label: 'Expected outcomes', value: safeObject(orientation.full_content).expected_outcomes },
+        { label: 'Scribe handoff', value: details.scribeHandoff },
+        { label: 'Submitted UTC', value: orientation.submitted_utc },
+        { label: 'Status', value: orientation.final_status },
+        { label: 'White Cell ruling', value: adjudication?.ruling },
+        { label: 'White Cell reasoning', value: adjudication?.reasoning },
+        { label: 'White Cell effects', value: adjudication?.effects },
+        { label: 'Adjudicated UTC', value: adjudication?.adjudicated_utc }
+    ])}
+${forecastRows.length ? String.raw`\subsubsection{Forecast targets}
+${renderLatexLongTable(['Target', 'Forecast orientation', 'Strategic tag'], forecastRows)}` : ''}`;
+    });
+
+    const actionSections = renderLatexArtifactSections(moveActions, (action) => {
+        const details = safeObject(safeObject(action.full_content).details);
+        const adjudication = adjudicationByTargetId.get(action.action_id);
+        return String.raw`\subsection{${escapeLatex(action.title || 'Untitled action')}}
+${renderLatexDescription([
+        { label: 'Action ID', value: action.action_id },
+        { label: 'Move / sequence', value: [action.move_number, action.action_sequence].filter((value) => value !== null && value !== undefined).join(' / ') },
+        { label: 'Team', value: action.author_team },
+        { label: 'Author pseudonym', value: action.author_pseudonym },
+        { label: 'Author role', value: action.author_role },
+        { label: 'Action type', value: action.action_type },
+        { label: 'Objective', value: action.intent_text },
+        { label: 'Targets', value: action.targets },
+        { label: 'Instruments', value: action.instruments },
+        { label: 'Resources committed', value: action.resources_committed },
+        { label: 'Levers', value: details.levers },
+        { label: 'Sectors', value: details.sectors },
+        { label: 'Persisted sector', value: safeObject(action.full_content).sector },
+        { label: 'Persisted exposure type', value: safeObject(action.full_content).exposure_type },
+        { label: 'Supply-chain focus decision', value: details.supplyChainFocusDecision },
+        { label: 'Supply-chain action angles', value: details.supplyChainActionAngles },
+        { label: 'Supply-chain areas', value: details.supplyChainAreas },
+        { label: 'Implementation', value: details.implementation },
+        { label: 'Legislative options', value: details.legislativeOptions },
+        { label: 'Enforcement timeline', value: details.enforcementTimeline },
+        { label: 'Coordination planned', value: details.coordinatedDecision },
+        { label: 'Coordinated with', value: details.coordinated },
+        { label: 'Engagement planned', value: details.informedEngagedDecision },
+        { label: 'Informed parties', value: details.informed },
+        { label: 'Expected outcomes', value: safeObject(action.full_content).expected_outcomes },
+        { label: 'Legacy notes', value: details.legacyNotes },
+        { label: 'Scribe handoff', value: details.scribeHandoff },
+        { label: 'Submitted UTC', value: action.submitted_utc },
+        { label: 'Status', value: action.final_status },
+        { label: 'White Cell ruling', value: adjudication?.ruling },
+        { label: 'White Cell reasoning', value: adjudication?.reasoning },
+        { label: 'Adjudication effects', value: adjudication?.effects },
+        { label: 'Adjudicated UTC', value: adjudication?.adjudicated_utc }
+    ])}`;
+    });
+
+    const proposalSections = renderLatexArtifactSections(dataset.proposalContent, (proposal) => {
+        const details = safeObject(safeObject(proposal.full_content).proposal_details);
+        return String.raw`\subsection{${escapeLatex(proposal.title || 'Untitled proposal')}}
+${renderLatexDescription([
+        { label: 'Proposal ID', value: proposal.proposal_id },
+        { label: 'Move', value: proposal.move_number },
+        { label: 'Author team', value: proposal.author_team },
+        { label: 'Author pseudonym', value: proposal.author_pseudonym },
+        { label: 'Author role', value: proposal.author_role },
+        { label: 'Originators', value: details.originators },
+        { label: 'Objective', value: proposal.proposal_text },
+        { label: 'Category', value: details.category },
+        { label: 'Intended partners', value: details.intendedPartners },
+        { label: 'Focus sector', value: details.focusSector },
+        { label: 'Delivery', value: details.delivery },
+        { label: 'Timing and conditions', value: details.timingAndConditions || proposal.rationale },
+        { label: 'Requested action / expected outcomes', value: proposal.requested_action },
+        { label: 'Intended recipient', value: proposal.intended_recipient_team },
+        { label: 'Forwarded to', value: proposal.forwarded_to_team },
+        { label: 'Review decision', value: proposal.review_decision },
+        { label: 'Review reason', value: proposal.review_reason },
+        { label: 'Reviewer pseudonym', value: proposal.reviewer_pseudonym },
+        { label: 'Final recipient state', value: proposal.final_recipient_state },
+        { label: 'Submitted UTC', value: proposal.submitted_utc },
+        { label: 'Reviewed UTC', value: proposal.reviewed_utc }
+    ])}`;
+    });
+
+    const responseSections = renderLatexArtifactSections(dataset.moveResponseContent, (response) => {
+        const details = safeObject(safeObject(response.full_content).details);
+        return String.raw`\subsection{${escapeLatex(safeObject(response.full_content).goal || 'Move response')}}
+${renderLatexDescription([
+        { label: 'Move response ID', value: response.move_response_id },
+        { label: 'Move', value: response.move_number },
+        { label: 'Team', value: response.author_team },
+        { label: 'Author pseudonym', value: response.author_pseudonym },
+        { label: 'Author role', value: response.author_role },
+        { label: 'Responding to entity type', value: response.responding_to_entity_type },
+        { label: 'Responding to entity ID', value: response.responding_to_entity_id },
+        { label: 'Strategic assessment', value: response.rationale || details.strategicAssessment },
+        { label: 'Response strategy', value: response.posture || details.responseStrategy },
+        { label: 'Key actions', value: response.response_text || details.keyActions },
+        { label: 'Targets and pressure points', value: details.targetsAndPressurePoints },
+        { label: 'Delivery channel', value: details.deliveryChannel },
+        { label: 'Expected effect', value: safeObject(response.full_content).expected_outcomes },
+        { label: 'Submitted UTC', value: response.submitted_utc },
+        { label: 'Review state', value: response.review_state }
+    ])}`;
+    });
+
+    const rfiSections = renderLatexArtifactSections(dataset.rfiContent, (rfi) => String.raw`\subsection{${escapeLatex(rfi.question_text || 'Request for information')}}
+${renderLatexDescription([
+        { label: 'RFI ID', value: rfi.rfi_id },
+        { label: 'Move', value: rfi.move_number },
+        { label: 'Requester team', value: rfi.requester_team },
+        { label: 'Requester pseudonym', value: rfi.requester_pseudonym },
+        { label: 'Requester role', value: rfi.requester_role },
+        { label: 'Question', value: rfi.question_text },
+        { label: 'Raised UTC', value: rfi.raised_utc },
+        { label: 'Answer', value: rfi.answer_text },
+        { label: 'Answered by pseudonym', value: rfi.answered_by_pseudonym },
+        { label: 'Answered UTC', value: rfi.answered_utc },
+        { label: 'Status', value: rfi.status }
+    ])}`);
+    const lineageRows = safeArray(dataset.decisionLineage).map((row) => [
+        row.root_entity_type,
+        row.root_entity_id,
+        row.move_number,
+        row.source_team,
+        row.current_state,
+        row.evidence_summary
+    ]);
+    const capturedEventRows = eventLogIsCaptured
+        ? safeArray(dataset.eventLog).slice(0, 100).map((event) => [
+            event.event_ts_utc,
+            event.actor_team || event.actor_role,
+            event.event_type,
+            event.entity_type,
+            event.entity_id,
+            event.move_number,
+            event.event_id || event.event_uuid,
+            event.event_hash
+        ])
+        : [];
+    const limitationItems = safeArray(readiness.limitations).length
+        ? safeArray(readiness.limitations).map((limitation) => `\\item ${escapeLatex(limitation)}`).join('\n')
+        : String.raw`\item No export limitation was recorded.`;
+    const notesSection = includeNotesAppendix
+        ? renderLatexLongTable(
+            ['Author', 'Role', 'Team', 'Created UTC', 'Content'],
+            safeArray(dataset.notes).map((note) => [
+                note.author_pseudonym,
+                note.author_role,
+                note.author_team,
+                note.created_utc,
+                note.content_text
+            ])
+        )
+        : String.raw`\emph{Notes appendix withheld at export time. Refer to notes.csv and notes.json.}`;
+
+    return String.raw`\documentclass[11pt,oneside]{article}
+\usepackage[a4paper,margin=24mm,headheight=15pt]{geometry}
+\usepackage{fontspec}
+\setmainfont{TeX Gyre Pagella}
+\setsansfont{TeX Gyre Heros}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{pdflscape}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{lastpage}
+\definecolor{PlenumNavy}{HTML}{17324D}
+\definecolor{PlenumBlue}{HTML}{1F5F8B}
+\definecolor{PlenumMuted}{HTML}{52606D}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=PlenumBlue,
+  urlcolor=PlenumBlue,
+  pdftitle={${escapeLatex(sessionTitle)} -- Post-Game Analysis Report},
+  pdfauthor={Statecraft Simulations Group},
+  pdfsubject={Fractured Order research session evidence},
+  pdfkeywords={simulation, research, economic statecraft, post-game analysis}
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\sffamily\small Fractured Order}
+\fancyhead[R]{\sffamily\small ${escapeLatex(sessionTitle)}}
+\fancyfoot[L]{\sffamily\footnotesize Confidential -- authorized post-game review}
+\fancyfoot[R]{\sffamily\footnotesize Page \thepage\ of \pageref*{LastPage}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.65em}
+\setlength{\LTpre}{0.5em}
+\setlength{\LTpost}{1em}
+\setlength{\tabcolsep}{2pt}
+\setlist[itemize]{leftmargin=1.5em}
+\renewcommand{\arraystretch}{1.15}
+\begin{document}
+
+\begin{titlepage}
+\centering
+{\sffamily\Large Statecraft Simulations Group\par}
+\vspace{18mm}
+{\color{PlenumNavy}\sffamily\bfseries\Huge Fractured Order\par}
+\vspace{5mm}
+{\sffamily\Large Post-Game Analysis Report\par}
+\vspace{12mm}
+{\bfseries\LARGE ${escapeLatex(sessionTitle)}\par}
+\vfill
+${renderLatexDescription([
+        { label: 'Session ID', value: manifest.session_id },
+        { label: 'Session description', value: sessionDescription },
+        { label: 'Generated UTC', value: manifest.generated_at_utc },
+        { label: 'Schema version', value: manifest.schema_version },
+        { label: 'Export format revision', value: manifest.export_format_revision },
+        { label: 'Event-log source', value: eventLogSource },
+        { label: 'Session checksum', value: safeObject(manifest.event_log_chain).session_checksum }
+    ])}
+\vfill
+{\sffamily\small Confidential -- For Authorized Post-Game Review\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\section{Evidence and provenance statement}
+This document is a publication rendering of the same validated dataset used to
+generate \texttt{report.html}. The CSV, JSON, and JSONL files in the research
+archive remain the canonical machine-readable evidence.
+
+\textbf{Event-log provenance.} ${escapeLatex(eventProvenanceText)}
+
+No static Strategic Orientation catalogue narratives or characteristics are
+inserted into session evidence. Deterministic analysis is labeled as derived and
+must not be treated as participant-authored content or causal attribution.
+
+\section{Executive summary}
+${renderLatexDescription([
+        { label: 'Active participants', value: sessionMetrics.participants_active },
+        { label: 'Moves observed', value: sessionMetrics.moves_count },
+        { label: 'Strategic orientations', value: strategicOrientations.length },
+        { label: 'Move actions submitted', value: moveActions.filter((row) => row.submitted_utc).length },
+        { label: 'Move actions adjudicated', value: moveActions.filter((row) => row.final_status === 'adjudicated').length },
+        { label: 'Proposals submitted', value: sessionMetrics.proposals_submitted },
+        { label: 'Proposals forwarded', value: sessionMetrics.proposals_forwarded },
+        { label: 'RFIs raised', value: sessionMetrics.rfis_raised },
+        { label: 'Research readiness', value: readiness.status }
+    ])}
+
+\section{Strategic Orientation: selections and forecasts}
+${orientationSections}
+
+\section{Actions and adjudications}
+${actionSections}
+
+\section{Proposals: content and review}
+${proposalSections}
+
+\section{Move responses}
+${responseSections}
+
+\section{Requests for information}
+${rfiSections}
+
+\section{Event chronology}
+${escapeLatex(eventProvenanceText)}
+
+${eventLogIsCaptured
+        ? String.raw`\begin{landscape}
+${renderLatexLongTable(['Occurred UTC', 'Actor', 'Event type', 'Entity type', 'Entity ID', 'Move', 'Event ID', 'Event hash'], capturedEventRows)}
+\end{landscape}
+
+Only the first ${Math.min(100, safeArray(dataset.eventLog).length)} captured audit events are printed. The complete stream remains in \texttt{event\_log.csv} and \texttt{event\_log.jsonl}.`
+        : String.raw`Reconstructed event rows are intentionally not printed as captured session evidence. Refer to \texttt{event\_log.csv}, \texttt{event\_log.jsonl}, and \texttt{data\_quality\_summary.json} for the explicitly labeled reconstruction.`}
+
+\section{Derived decision lineage}
+This section is a deterministic navigation index over session records. It does
+not assert causality.
+
+${renderLatexLongTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence summary'], lineageRows)}
+
+\section{Data quality and limitations}
+${renderLatexDescription([
+        { label: 'Comparison readiness', value: readiness.status },
+        { label: 'Recommended uses', value: readiness.recommended_uses },
+        { label: 'Unsupported uses', value: readiness.unsupported_uses },
+        { label: 'Event-log source', value: eventLogSource },
+        { label: 'Software build hash', value: manifest.software_build_hash },
+        { label: 'Generated by pseudonym', value: manifest.generated_by_pseudonym }
+    ])}
+
+\subsection{Recorded limitations}
+\begin{itemize}
+${limitationItems}
+\end{itemize}
+
+\section{Notes appendix}
+${notesSection}
+
+\appendix
+\section{Archive references}
+${renderLatexDescription([
+        { label: 'HTML report', value: manifest.report_ref },
+        { label: 'LaTeX source', value: manifest.latex_report_ref },
+        { label: 'Compiled PDF target', value: manifest.pdf_report_target_ref },
+        { label: 'Compiled PDF included in archive', value: manifest.pdf_report_included },
+        { label: 'Codebook', value: manifest.codebook_ref },
+        { label: 'Scenario context', value: manifest.scenario_context_ref },
+        { label: 'Decision lineage', value: manifest.decision_lineage_ref },
+        { label: 'Data quality summary', value: manifest.data_quality_summary_ref },
+        { label: 'Session recording metadata', value: manifest.session_recording_artifacts_ref }
+    ])}
+
+\end{document}
+`;
 }
 
 function buildLegacyFiles(bundle = {}, generatedAtUtc) {
@@ -5937,6 +6540,7 @@ function buildFileDefinitions({
     manifest,
     codebook,
     reportHtml,
+    reportLatex,
     personaReports,
     dataQualitySummary,
     decisionLineage,
@@ -5978,6 +6582,21 @@ function buildFileDefinitions({
             path: 'report.html',
             content: reportHtml,
             mimeType: 'text/html'
+        },
+        {
+            path: 'report.tex',
+            content: reportLatex,
+            mimeType: 'application/x-tex'
+        },
+        {
+            path: 'latexmkrc',
+            content: LATEXMKRC_CONTENT,
+            mimeType: 'text/plain'
+        },
+        {
+            path: 'LATEX_REPORT_README.md',
+            content: LATEX_BUILD_README_CONTENT,
+            mimeType: 'text/markdown'
         },
         ...safeArray(personaReports),
         {
@@ -6225,7 +6844,8 @@ export async function buildResearchExportBundle(bundle = {}, {
             auth_uid_hash: await sha256Hex(participant.auth_uid_hash || `${participant.participant_pseudonym}:${participant.session_id || ''}`)
         }))
     );
-    const rawEventLog = safeArray(bundle.researchAuditEventLog).length
+    const hasCapturedAuditEventLog = safeArray(bundle.researchAuditEventLog).length > 0;
+    const rawEventLog = hasCapturedAuditEventLog
         ? safeArray(bundle.researchAuditEventLog).map((event) => ({
             ...event,
             event_ts_utc: asUtcIso(event.event_ts_utc),
@@ -6346,6 +6966,9 @@ export async function buildResearchExportBundle(bundle = {}, {
         timezone_declared: 'UTC',
         session_id: bundle.session?.id || null,
         capture_mode: normalizedCaptureMode,
+        event_log_source: hasCapturedAuditEventLog
+            ? 'captured_audit_log'
+            : 'reconstructed_from_session_records',
         session_config_snapshot: {
             session_name: bundle.session?.name || null,
             session_code: bundle.session?.metadata?.session_code || null,
@@ -6355,6 +6978,12 @@ export async function buildResearchExportBundle(bundle = {}, {
         event_log_chain: eventLogChain,
         codebook_ref: 'codebook.json',
         report_ref: 'report.html',
+        latex_report_ref: 'report.tex',
+        latex_engine: 'lualatex',
+        latex_build_config_ref: 'latexmkrc',
+        latex_build_readme_ref: 'LATEX_REPORT_README.md',
+        pdf_report_target_ref: 'report.pdf',
+        pdf_report_included: false,
         persona_report_refs: {
             policy_brief: 'reports/policy_brief.html',
             strategic_leader_brief: 'reports/strategic_leader_brief.html',
@@ -6447,12 +7076,16 @@ export async function buildResearchExportBundle(bundle = {}, {
     const reportHtml = buildResearchReportHtml(dataset, {
         includeNotesAppendix
     });
+    const reportLatex = buildResearchReportLatex(dataset, {
+        includeNotesAppendix
+    });
     const personaReports = buildPersonaReports(dataset);
     const legacyFiles = buildLegacyFiles(bundle, manifest.generated_at_utc);
     const fileDefinitions = buildFileDefinitions({
         manifest,
         codebook,
         reportHtml,
+        reportLatex,
         personaReports,
         dataQualitySummary,
         decisionLineage,
@@ -6485,6 +7118,7 @@ export async function buildResearchExportBundle(bundle = {}, {
     return {
         ...dataset,
         reportHtml,
+        reportLatex,
         personaReports,
         rootFolderName,
         files: [...fileDefinitions, checksumsFile]

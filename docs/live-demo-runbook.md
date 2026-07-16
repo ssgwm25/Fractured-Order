@@ -198,7 +198,7 @@ Export reference test:
 
 1. Stop a Session Recorder capture.
 2. Export the research archive from Game Master.
-3. Inspect `session_recording_artifacts.csv`, `session_recording_artifacts.json`, and `report.html`.
+3. Inspect `session_recording_artifacts.csv`, `session_recording_artifacts.json`, `report.html`, and `report.tex`.
 
 Pass: the artifact rows include session ID, recording ID, UTC start/stop, duration, MIME type, file size, operator role/user, plugin ID, filename, storage reference, object URL lifecycle, requested constraints, selected MIME type, and requested/used bitrate. The report indicates that the audio file remains a local browser download and is not embedded in the ZIP.
 
@@ -206,9 +206,23 @@ Research report decision-scope test:
 
 1. Before Move 1, submit a Blue Strategic Orientation selection, a Green forecast, and Red or Industry forecasts for Blue, Green (Asian Pacific), and Green (Europe).
 2. During a move, submit an action with supply-chain focus, implementation, legislative, coordination, engagement, and Scribe-handoff choices; submit and route a proposal through recipient response.
-3. Export the research archive from Game Master and open `report.html`.
+3. Export the research archive from Game Master and open `report.html`; inspect `report.tex` from the same archive.
 
-Pass: `Strategic Orientation: Selections And Forecasts` is separate from move actions and shows selection/forecast type, every forecast target, orientation and tag, posture, rationale, primary levers, accepted costs, Scribe handoff, and White Cell review. `Actions And Adjudications` shows all action decision fields and ruling effects. `Proposals: Content And Review` shows authored proposal content, intended and forwarded recipients, review reason, and final recipient state. Executive and team summaries count orientations separately from move actions.
+Pass: `Strategic Orientation: Selections And Forecasts` is separate from move actions and shows only persisted session fields: selection/forecast type, every forecast target, orientation and tag, posture, rationale, primary levers, accepted costs, Scribe handoff, and White Cell review. Static orientation catalogue descriptions and characteristics do not appear in either renderer. `Actions And Adjudications` shows all action decision fields and ruling effects. `Proposals: Content And Review` shows authored proposal content, intended and forwarded recipients, review reason, and final recipient state. Executive and team summaries count orientations separately from move actions. `manifest.json` identifies `event_log_source` as either `captured_audit_log` or `reconstructed_from_session_records` and identifies the HTML and LaTeX report files. When the chronology is reconstructed, the HTML report labels that provenance and the LaTeX report does not print reconstructed rows as captured audit events.
+
+Formal LaTeX PDF check:
+
+1. Extract the research archive and confirm `manifest.json` contains `latex_report_ref: report.tex`, `latex_engine: lualatex`, `latex_build_config_ref: latexmkrc`, `latex_build_readme_ref: LATEX_REPORT_README.md`, `pdf_report_target_ref: report.pdf`, and `pdf_report_included: false`.
+2. From the extracted archive directory, run:
+
+```powershell
+latexmk -r latexmkrc report.tex
+```
+
+3. Open `report.pdf`, compare its session ID, schema version, event-log source, and session checksum with `manifest.json`, and sample Strategic Orientation, action, proposal, response, and RFI entries against their CSV or JSON projections.
+4. Inspect the LaTeX log for missing references, missing glyphs, and overfull boxes that obscure content. Run the institution's PDF/A and PDF/UA validators before treating the result as an archival or accessible research publication.
+
+Pass: LuaLaTeX exits successfully, `report.pdf` is created, identifiers and sampled evidence agree with the canonical export files, reconstructed event rows are not represented as captured history, and no compilation issue obscures report content. The generated PDF is a derived publication artifact and is not a replacement for the checksummed archive evidence.
 
 Failure handling:
 
