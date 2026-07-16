@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    APP_NAVIGATION_OPTIONS,
     buildAppUrl,
     classifyOperatorAuthorizationProgress,
     getConfiguredAppBaseUrl,
@@ -10,6 +11,13 @@ import {
 } from './rehearsalRuntime.js';
 
 describe('rehearsal runtime helpers', () => {
+    it('uses a remote-tolerant navigation boundary without waiting for every asset', () => {
+        expect(APP_NAVIGATION_OPTIONS).toEqual({
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
+    });
+
     it('detects hosted rehearsals from a configured base url', () => {
         expect(isHostedRehearsal('https://ssgwm25.github.io/Fractured-Order/')).toBe(true);
         expect(isHostedRehearsal('   ')).toBe(false);

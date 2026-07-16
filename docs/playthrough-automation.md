@@ -96,11 +96,24 @@ $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 npm run test:e2e:playthrough
 ```
 
+Before a hosted run, confirm the deployment is reachable from the test machine:
+
+```powershell
+Invoke-WebRequest -Uri $env:PLAYWRIGHT_BASE_URL -UseBasicParsing -TimeoutSec 60 |
+    Select-Object StatusCode
+```
+
+Expected: `StatusCode` is `200`. A timeout or non-200 response blocks the
+concurrency gate until the deployment or network path is restored.
+
 The hosted run creates an isolated BrowserContext for every actor and executes
 multi-actor joins and writes concurrently. This gives
 each actor an independent anonymous-auth session, browser storage, and Realtime
 subscription. The session name and join code include the run ID so evidence can
-be located after the run.
+be located after the run. Hosted navigation allows up to 60 seconds for the
+document to become interactive and does not wait for every non-critical asset
+to finish loading. A timeout before operator authorization is a deployment or
+network preflight failure, not concurrency evidence.
 
 Pass:
 

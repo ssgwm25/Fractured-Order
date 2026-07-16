@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 
 import { dumpE2EMockBackend, E2E_MOCK_OPERATOR_ACCESS_CODE } from './mockBackend.js';
 import {
+    APP_NAVIGATION_OPTIONS,
     buildAppUrl,
     classifyOperatorAuthorizationProgress,
     getHostedOperatorAccessCode,
@@ -244,7 +245,7 @@ export async function authorizeGameMaster(page, {
     operatorAccessCode = OPERATOR_ACCESS_CODE
 } = {}) {
     requireHostedOperatorAccessCode();
-    await page.goto(buildAppUrl());
+    await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
     await page.locator('#displayName').fill(displayName);
     await openOperatorAccessSection(page);
     await page.locator('#operatorAccessCode').fill(operatorAccessCode);
@@ -279,7 +280,7 @@ export async function joinPublicParticipant(page, {
     team = 'blue',
     roleSurface = 'facilitator'
 } = {}) {
-    await page.goto(buildAppUrl());
+    await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
     await prepareLandingPage(page);
     await page.locator('#sessionCode').fill(sessionCode);
     await page.locator('#displayName').fill(displayName);
@@ -290,7 +291,7 @@ export async function joinPublicParticipant(page, {
 }
 
 export async function expectJoinFailure(page, joinOptions, expectedMessage) {
-    await page.goto(buildAppUrl());
+    await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
     await prepareLandingPage(page);
     await page.locator('#sessionCode').fill(joinOptions.sessionCode);
     await page.locator('#displayName').fill(joinOptions.displayName);
@@ -312,7 +313,7 @@ export async function authorizeWhiteCell(page, {
     operatorAccessCode = OPERATOR_ACCESS_CODE
 } = {}) {
     requireHostedOperatorAccessCode();
-    await page.goto(buildAppUrl());
+    await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
     await prepareLandingPage(page);
     await page.locator('#sessionCode').fill(sessionCode);
     await page.locator('#displayName').fill(displayName);

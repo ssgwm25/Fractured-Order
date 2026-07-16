@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test';
 
 import {
+    APP_NAVIGATION_OPTIONS,
     buildAppUrl,
     classifyOperatorAuthorizationProgress,
     getHostedOperatorAccessCode,
@@ -93,7 +94,15 @@ export default async function globalSetup(config) {
 
     try {
         const page = await browser.newPage();
-        await page.goto(buildAppUrl('', baseUrl));
+        try {
+            await page.goto(buildAppUrl('', baseUrl), APP_NAVIGATION_OPTIONS);
+        } catch (error) {
+            throw new Error(
+                `Hosted rehearsal could not load ${buildAppUrl('', baseUrl)} within ` +
+                `${APP_NAVIGATION_OPTIONS.timeout / 1000} seconds. Verify the deployment returns HTTP 200 ` +
+                `from this machine before retrying. Original navigation error: ${error.message}`
+            );
+        }
         await prepareLandingPage(page);
         await page.locator('#displayName').fill('Hosted Rehearsal Preflight');
         await openOperatorAccessSection(page);
