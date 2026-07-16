@@ -274,12 +274,16 @@ export class FacilitatorController {
         this.newResponseIds = new Set();
         this.seenReceivedProposalIds = new Set();
         this.newReceivedProposalIds = new Set();
+        this.seenAuthoredProposalResponseIds = new Set();
+        this.newProposalResponseActionIds = new Set();
+        this.pendingProposalResponseArrivals = new Map();
         this.pendingWhiteCellArrivalSummary = {
             responses: new Set(),
             proposals: new Set()
         };
         this.hasHydratedResponses = false;
         this.hasHydratedReceivedProposals = false;
+        this.hasHydratedAuthoredProposalResponses = false;
         this.strategicOrientationSubmissionInFlight = false;
         this.intercomReceiver = null;
     }
@@ -329,6 +333,8 @@ export class FacilitatorController {
         });
         this.configureAccessMode();
         this.bindEventListeners();
+        this.actions = actionsStore.getByTeam(this.teamId);
+        this.captureAuthoredProposalResponseArrivals();
         this.subscribeToLiveData();
         this.syncActionsFromStore();
         this.syncRfisFromStore();
@@ -627,6 +633,10 @@ export class FacilitatorController {
                 if (link.dataset.section === 'receivedProposals') {
                     this.clearNewReceivedProposalArrivals();
                 }
+
+                if (link.dataset.section === 'actions') {
+                    this.clearNewProposalResponseArrivals();
+                }
             });
         });
     }
@@ -729,6 +739,9 @@ export class FacilitatorController {
 
         this.storeUnsubscribers.push(
             communicationsStore.subscribe((event) => {
+                this.captureAuthoredProposalResponseArrivals({
+                    announce: event === 'created' || event === 'updated'
+                });
                 this.renderActionsList();
                 this.syncResponsesFromStores({
                     announce: event === 'created'
@@ -738,6 +751,7 @@ export class FacilitatorController {
                 });
                 this.syncWhiteCellUpdateSectionsFromStore();
                 this.flushWhiteCellArrivalAnnouncement();
+                this.flushProposalResponseArrivalAnnouncement();
             })
         );
 
@@ -1029,6 +1043,77 @@ export class FacilitatorController {
         });
     }
 
+    getAuthoredProposalResponseCommunications() {
+        const actionIds = new Set(
+            this.actions
+                .map((action) => action?.id)
+                .filter(Boolean)
+        );
+
+        return communicationsStore.getAll().filter((communication) => {
+            if (communication?.type !== 'PROPOSAL_FORWARDED' || !isProposalRecipientFinal(communication)) {
+                return false;
+            }
+
+            const metadata = communication.metadata && typeof communication.metadata === 'object'
+                ? communication.metadata
+                : {};
+            const sourceTeam = typeof metadata.source_team === 'string'
+                ? metadata.source_team.trim().toLowerCase()
+                : '';
+            const sourceProposalId = metadata.source_proposal_id || null;
+
+            return sourceTeam
+                ? sourceTeam === this.teamId
+                : Boolean(sourceProposalId && actionIds.has(sourceProposalId));
+        });
+    }
+
+    captureAuthoredProposalResponseArrivals({
+        announce = false
+    } = {}) {
+        const responses = this.getAuthoredProposalResponseCommunications();
+        const nextResponseIds = new Set(
+            responses
+                .map((communication) => communication?.id)
+                .filter(Boolean)
+        );
+        const nextActionIds = new Set(
+            responses
+                .map((communication) => communication?.metadata?.source_proposal_id)
+                .filter(Boolean)
+        );
+
+        if (!this.hasHydratedAuthoredProposalResponses) {
+            this.seenAuthoredProposalResponseIds = nextResponseIds;
+            this.newProposalResponseActionIds.clear();
+            this.pendingProposalResponseArrivals.clear();
+            this.hasHydratedAuthoredProposalResponses = true;
+            return;
+        }
+
+        responses.forEach((communication) => {
+            if (!communication?.id || this.seenAuthoredProposalResponseIds.has(communication.id)) {
+                return;
+            }
+
+            this.seenAuthoredProposalResponseIds.add(communication.id);
+            const sourceProposalId = communication?.metadata?.source_proposal_id || null;
+            if (sourceProposalId && !this.isReadOnly) {
+                this.newProposalResponseActionIds.add(sourceProposalId);
+            }
+            if (announce && !this.isReadOnly) {
+                this.pendingProposalResponseArrivals.set(communication.id, communication);
+            }
+        });
+
+        this.newProposalResponseActionIds.forEach((actionId) => {
+            if (!nextActionIds.has(actionId)) {
+                this.newProposalResponseActionIds.delete(actionId);
+            }
+        });
+    }
+
     clearNewResponseArrivals() {
         if (this.newResponseIds.size === 0) {
             return;
@@ -1045,6 +1130,63 @@ export class FacilitatorController {
 
         this.newReceivedProposalIds.clear();
         this.renderReceivedProposals();
+    }
+
+    clearNewProposalResponseArrivals() {
+        if (this.newProposalResponseActionIds.size === 0) {
+            return;
+        }
+
+        this.newProposalResponseActionIds.clear();
+        this.renderActionsList();
+    }
+
+    buildProposalResponseArrivalMessage(communication = {}) {
+        const metadata = communication.metadata && typeof communication.metadata === 'object'
+            ? communication.metadata
+            : {};
+        const recipientEntry = getProposalRecipientEntry(communication);
+        const decision = typeof recipientEntry?.facilitator_decision === 'string'
+            ? recipientEntry.facilitator_decision.trim().toLowerCase()
+            : '';
+        const recipientTeam = metadata.recipient_team || recipientEntry?.response_from_team || '';
+        const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
+        const sourceAction = this.actions.find((action) => action?.id === metadata.source_proposal_id);
+        const proposalTitle = metadata?.proposal?.title || sourceAction?.goal || 'your proposal';
+        const proposalReference = proposalTitle === 'your proposal'
+            ? proposalTitle
+            : `"${proposalTitle}"`;
+
+        if (isProposalNegotiationRequest(communication)) {
+            return `${recipientLabel} requested negotiation on ${proposalReference}. Open Actions to review the terms.`;
+        }
+
+        if (decision === 'accept') {
+            return `${recipientLabel} accepted ${proposalReference}. Open Actions to review the response.`;
+        }
+
+        if (decision === 'not_interested' || getProposalRecipientStatus(communication) === PROPOSAL_RECIPIENT_STATUSES.DECLINED) {
+            return `${recipientLabel} is not interested in ${proposalReference}. Open Actions to review the response.`;
+        }
+
+        return `${recipientLabel} responded to ${proposalReference}. Open Actions to review the response.`;
+    }
+
+    flushProposalResponseArrivalAnnouncement() {
+        const arrivals = Array.from(this.pendingProposalResponseArrivals.values());
+        if (arrivals.length === 0) {
+            return;
+        }
+
+        showToast({
+            message: arrivals.length === 1
+                ? this.buildProposalResponseArrivalMessage(arrivals[0])
+                : `${arrivals.length} proposals received responses. Open Actions to review them.`,
+            type: 'info',
+            duration: 10000
+        });
+
+        this.pendingProposalResponseArrivals.clear();
     }
 
     flushWhiteCellArrivalAnnouncement() {
@@ -2098,6 +2240,15 @@ export class FacilitatorController {
         const outcomeBadge = action.outcome
             ? createOutcomeBadge(action.outcome).outerHTML
             : '';
+        const proposalResponseArrivalBadge = isGreenProposalFlow
+            && this.newProposalResponseActionIds.has(action.id)
+            ? createBadge({
+                text: 'NEW RESPONSE',
+                variant: 'warning',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
+            : '';
         const secondaryBadge = isStrategicOrientationFlow
             ? createBadge({
                 text: strategicOrientation.isForecast ? 'Forecast' : 'Selection',
@@ -2273,6 +2424,7 @@ export class FacilitatorController {
                             <h3 class="entity-card__title">${this.escapeHtml(title)}</h3>
                         </div>
                         <div class="entity-card__badges">
+                            ${proposalResponseArrivalBadge}
                             ${statusBadge}
                             ${secondaryBadge}
                             ${outcomeBadge}

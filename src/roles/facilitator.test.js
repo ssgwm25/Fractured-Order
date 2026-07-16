@@ -2507,6 +2507,110 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
     });
 
+    it('notifies the proposing facilitator when a recipient requests negotiation', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        global.document = createFakeDocument();
+
+        const proposal = {
+            id: 'proposal-green-notification-1',
+            team: 'green',
+            status: 'adjudicated',
+            goal: 'Joint Port Proposal',
+            mechanism: 'Proposal',
+            expected_outcomes: 'Reduce room for arbitrage.',
+            move: 2,
+            phase: 1
+        };
+        const forwardedProposal = {
+            id: 'comm-forwarded-notification-1',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-04-09T10:06:00.000Z',
+            metadata: {
+                source_proposal_id: proposal.id,
+                source_team: 'green',
+                recipient_team: 'blue',
+                proposal: {
+                    title: proposal.goal
+                },
+                proposal_recipient_state: {
+                    status: 'unread'
+                }
+            }
+        };
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        getAll.mockReturnValue([forwardedProposal]);
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+        controller.actions = [proposal];
+        controller.captureAuthoredProposalResponseArrivals();
+
+        getAll.mockReturnValue([{
+            ...forwardedProposal,
+            metadata: {
+                ...forwardedProposal.metadata,
+                proposal_recipient_state: {
+                    status: 'responded',
+                    facilitator_decision: 'negotiate',
+                    response_content: 'Add a six-month review clause.',
+                    response_from_team: 'blue',
+                    response_sent_at: '2026-04-09T10:20:00.000Z'
+                }
+            }
+        }]);
+
+        controller.captureAuthoredProposalResponseArrivals({ announce: true });
+        controller.flushProposalResponseArrivalAnnouncement();
+
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Blue Team requested negotiation on "Joint Port Proposal". Open Actions to review the terms.',
+            type: 'info',
+            duration: 10000
+        });
+        expect(controller.renderActionCard(proposal)).toContain('NEW RESPONSE');
+
+        controller.captureAuthoredProposalResponseArrivals({ announce: true });
+        controller.flushProposalResponseArrivalAnnouncement();
+        expect(showToast).toHaveBeenCalledTimes(1);
+
+        const renderActionsList = vi.spyOn(controller, 'renderActionsList').mockImplementation(() => {});
+        controller.clearNewProposalResponseArrivals();
+        expect(controller.newProposalResponseActionIds.size).toBe(0);
+        expect(renderActionsList).toHaveBeenCalled();
+        expect(controller.renderActionCard(proposal)).not.toContain('NEW RESPONSE');
+    });
+
+    it('does not replay proposal-response notifications from loaded history', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        global.document = createFakeDocument();
+
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([{
+            id: 'comm-forwarded-history-response-1',
+            type: 'PROPOSAL_FORWARDED',
+            metadata: {
+                source_proposal_id: 'proposal-green-history-1',
+                source_team: 'green',
+                recipient_team: 'blue',
+                proposal_recipient_state: {
+                    status: 'responded',
+                    facilitator_decision: 'accept',
+                    response_from_team: 'blue'
+                }
+            }
+        }]);
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        controller.captureAuthoredProposalResponseArrivals({ announce: true });
+        controller.flushProposalResponseArrivalAnnouncement();
+
+        expect(showToast).not.toHaveBeenCalled();
+        expect(controller.newProposalResponseActionIds.size).toBe(0);
+    });
+
     it('labels a locked negotiation response as a negotiation request', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { communicationsStore } = await import('../stores/communications.js');
@@ -2739,6 +2843,10 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         const controller = new FacilitatorController();
         const renderActionsList = vi.spyOn(controller, 'renderActionsList').mockImplementation(() => {});
+        const captureProposalResponseArrivals = vi.spyOn(controller, 'captureAuthoredProposalResponseArrivals')
+            .mockImplementation(() => {});
+        const flushProposalResponseArrivalAnnouncement = vi.spyOn(controller, 'flushProposalResponseArrivalAnnouncement')
+            .mockImplementation(() => {});
         vi.spyOn(controller, 'syncResponsesFromStores').mockImplementation(() => {});
         vi.spyOn(controller, 'syncReceivedProposalsFromStore').mockImplementation(() => {});
         vi.spyOn(controller, 'syncWhiteCellUpdateSectionsFromStore').mockImplementation(() => {});
@@ -2750,6 +2858,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
 
         expect(renderActionsList).toHaveBeenCalled();
+        expect(captureProposalResponseArrivals).toHaveBeenCalledWith({ announce: true });
+        expect(flushProposalResponseArrivalAnnouncement).toHaveBeenCalled();
 
         controller.destroy();
     });

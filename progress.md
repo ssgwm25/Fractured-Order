@@ -2,6 +2,8 @@ Original prompt: The copy for the negotiation response to a proposal is not dire
 
 - 2026-07-15: Categorised persisted `negotiate` proposal responses as `Negotiation requested` across the responding facilitator, proposing-team, and White Cell surfaces, with the response body labelled `Negotiation terms`.
 - 2026-07-15: Kept the existing deterministic recipient status and persisted decision contract unchanged; added focused shared-state and role-renderer coverage plus a live-demo runbook check.
+- 2026-07-15: Added a deduplicated proposing-Facilitator notification for newly committed proposal responses, plus a persistent `NEW RESPONSE` badge on the originating proposal until Actions is opened. Loaded response history remains silent.
+- 2026-07-15: Added focused coverage for realtime update wiring, negotiation notification copy, persistent arrival state, deduplication, and startup-history suppression; extended the live-demo runbook check.
 - TODO: Run `npm test -- src/features/actions/proposalRecipientState.test.js src/roles/scribe.test.js src/roles/facilitator.test.js src/roles/whitecell.test.js`, `npm run build`, and the updated proposal-response check in `docs/live-demo-runbook.md`.
 
 Original prompt: The loading screen must detail the name of the session being joined by the user as well to limit confusion.
