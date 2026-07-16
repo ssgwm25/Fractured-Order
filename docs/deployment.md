@@ -77,6 +77,8 @@ Pass:
 
 ## Failure Handling
 
+Participants and facilitators see recovery-oriented copy only: check the connection, try again, or contact the exercise facilitator. The blocking notice must not display Supabase error text, environment variable names, project references, or setup instructions. Use browser/operator logs to identify the corresponding technical cause.
+
 - Missing `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY`: add repository secrets and rerun the workflow.
 - Placeholder Supabase values: replace placeholders with the real project URL and anon key.
 - Raw-source hosted HTML: verify the workflow uploaded `dist`, not the repository root.

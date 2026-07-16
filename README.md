@@ -134,7 +134,8 @@ Use [docs/supabase-setup.md](docs/supabase-setup.md) as the authoritative operat
 
 - Role surfaces include skip links, keyboard-reachable sidebar navigation, and persistent sync-degraded banners.
 - Landing validation renders inline errors as well as toast notifications.
-- Runtime backend misconfiguration blocks startup with an alert dialog and managed focus.
+- Error notifications use plain-language summaries and recovery guidance; raw service errors stay in logs.
+- Runtime service failures block startup with a user-facing alert dialog, managed focus, and a Try again action. Infrastructure details stay in operator logs and runbooks.
 - Facilitator alert panels use dialog semantics and focus containment.
 - Browser-facing source is tested for common mojibake markers.
 

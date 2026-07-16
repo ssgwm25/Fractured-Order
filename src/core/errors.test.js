@@ -4,8 +4,10 @@ import {
     AuthError,
     ConfigurationError,
     DatabaseError,
+    NetworkError,
     fromSupabaseError,
-    getUserMessage
+    getUserMessage,
+    normalizeUserFacingErrorMessage
 } from './errors.js';
 
 describe('getUserMessage', () => {
@@ -39,18 +41,36 @@ describe('getUserMessage', () => {
         expect(getUserMessage(error)).toContain('previous session seat');
     });
 
-    it('preserves safe auth and configuration messages', () => {
+    it('replaces infrastructure-oriented auth and configuration messages', () => {
         expect(getUserMessage(new AuthError('Unable to establish browser identity.'))).toBe(
-            'Unable to establish browser identity.'
+            'We couldn\'t verify access to this session. Try again. If the issue continues, tell your exercise facilitator.'
         );
         expect(getUserMessage(new ConfigurationError('Backend configuration is missing.'))).toBe(
-            'Backend configuration is missing.'
+            'This exercise isn\'t ready yet. Ask your exercise facilitator to check the session setup, then try again.'
         );
     });
 
     it('uses the provided fallback for unexpected errors', () => {
         expect(getUserMessage(new Error('internal stack detail'), {
             fallback: 'Failed to save action. Check the form and try again.'
-        })).toBe('Failed to save action. Check the form and try again.');
+        })).toBe('We couldn\'t save action. Check the form and try again.');
+    });
+
+    it('replaces generic and terse failure copy with a next step', () => {
+        expect(normalizeUserFacingErrorMessage('An unexpected error occurred')).toBe(
+            'Something went wrong. Try again.'
+        );
+        expect(normalizeUserFacingErrorMessage('No active session')).toContain(
+            'Return to the join page'
+        );
+        expect(normalizeUserFacingErrorMessage('Unable to verify browser identity.')).toBe(
+            'We couldn\'t verify browser identity.'
+        );
+    });
+
+    it('describes connection recovery without technical error terminology', () => {
+        expect(getUserMessage(new NetworkError())).toBe(
+            'We couldn\'t connect. Check your internet connection and try again.'
+        );
     });
 });

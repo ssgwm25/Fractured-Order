@@ -156,6 +156,72 @@ body.modal-open {
 
 /* ==================== TOAST ==================== */
 
+/* Blocking service notice: participant-facing recovery copy only. Technical
+   configuration detail remains in logs and operator documentation. */
+.runtime-config-notice {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-loader);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    background: var(--loader-overlay-bg);
+    -webkit-backdrop-filter: blur(var(--blur-sm));
+    backdrop-filter: blur(var(--blur-sm));
+}
+
+.runtime-config-notice[hidden] {
+    display: none !important;
+}
+
+.runtime-config-panel {
+    width: min(100%, var(--max-content-width));
+    padding: var(--space-6);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-xl);
+}
+
+.runtime-config-eyebrow {
+    margin: 0 0 var(--space-2);
+    color: var(--color-error-700);
+    font-size: var(--text-sm);
+    font-weight: var(--font-bold);
+    letter-spacing: var(--tracking-wider);
+    text-transform: uppercase;
+}
+
+.runtime-config-title {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-2xl);
+    line-height: var(--leading-tight);
+}
+
+.runtime-config-copy,
+.runtime-config-note {
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+.runtime-config-note {
+    margin-top: var(--space-3);
+    font-size: var(--text-base);
+}
+
+.runtime-config-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-5);
+}
+
+.runtime-config-reload:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--space-1);
+}
+
 /* Toast container */
 #toast-container {
     position: fixed;
@@ -171,7 +237,7 @@ body.modal-open {
 /* Individual toast */
 .toast {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     background-color: var(--color-surface);
@@ -203,13 +269,32 @@ body.modal-open {
     width: 20px;
     height: 20px;
     flex-shrink: 0;
+    margin-top: var(--space-1);
 }
 
-/* Toast message */
-.toast-message {
+.toast-content {
     flex: 1;
-    font-size: var(--text-sm);
+    min-width: 0;
+}
+
+.toast-title {
+    margin: 0 0 var(--space-1);
     color: var(--color-text);
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
+}
+
+.toast-message {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    color: var(--color-text-secondary);
+}
+
+.toast-dismiss:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--space-1);
 }
 
 /* Toast dismiss button */
@@ -269,6 +354,20 @@ body.modal-open {
 
 .toast-error .toast-icon {
     color: var(--color-error);
+}
+
+@media (max-width: 640px) {
+    #toast-container {
+        right: var(--space-3);
+        bottom: var(--space-3);
+        left: var(--space-3);
+    }
+
+    .toast {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
 }
 
 /* Screen reader only */

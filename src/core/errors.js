@@ -341,6 +341,42 @@ function getDatabaseUserMessage(error, fallback) {
     return fallback;
 }
 
+const GENERIC_ERROR_MESSAGES = new Map([
+    ['An unexpected error occurred', 'Something went wrong. Try again.'],
+    ['An unexpected error occurred.', 'Something went wrong. Try again.'],
+    ['An operation failed unexpectedly', 'We couldn\'t complete that action. Try again.'],
+    ['An operation failed unexpectedly.', 'We couldn\'t complete that action. Try again.'],
+    ['No session found', 'This page is not connected to a session. Return to the join page and enter your session code.'],
+    ['No active session', 'This page is not connected to a session. Return to the join page and enter your session code.'],
+    ['No active session selected.', 'Select a session, then try again.']
+]);
+
+/**
+ * Convert terse, system-oriented failure copy into calm, actionable language.
+ * Diagnostic detail belongs in logs; this function only receives text already
+ * selected for display to a participant or operator.
+ * @param {string} message
+ * @returns {string}
+ */
+export function normalizeUserFacingErrorMessage(message) {
+    const normalized = String(message ?? '').trim();
+    if (!normalized) {
+        return 'Something went wrong. Try again.';
+    }
+
+    if (GENERIC_ERROR_MESSAGES.has(normalized)) {
+        return GENERIC_ERROR_MESSAGES.get(normalized);
+    }
+
+    if (/^No (?:active )?session(?: found)?[.!]/i.test(normalized)) {
+        return 'This page is not connected to a session. Return to the join page and enter your session code.';
+    }
+
+    return normalized.replace(/^(?:Failed to|Could not|Unable to)\s+([A-Z])/i, (_match, firstLetter) => (
+        `We couldn't ${firstLetter.toLowerCase()}`
+    ));
+}
+
 /**
  * Determine if an error is a network-related error
  * @param {Error} error - The error to check
@@ -366,37 +402,42 @@ export function isNetworkError(error) {
 export function getUserMessage(error, options = {}) {
     const fallback = typeof options === 'string'
         ? options
-        : (options?.fallback || 'An unexpected error occurred. Please try again.');
+        : (options?.fallback || 'Something went wrong. Try again.');
 
     if (error instanceof DatabaseError || isErrorNamed(error, 'DatabaseError')) {
-        return getDatabaseUserMessage(error, fallback);
+        return normalizeUserFacingErrorMessage(getDatabaseUserMessage(error, fallback));
     }
 
     if (error instanceof ConfigurationError || isErrorNamed(error, 'ConfigurationError')) {
-        return error.message || fallback;
+        return 'This exercise isn\'t ready yet. Ask your exercise facilitator to check the session setup, then try again.';
     }
 
     if (error instanceof AuthError || isErrorNamed(error, 'AuthError')) {
-        return error.message || fallback;
+        if (/Supabase|browser identity/i.test(String(error.message || ''))) {
+            return 'We couldn\'t verify access to this session. Try again. If the issue continues, tell your exercise facilitator.';
+        }
+        return normalizeUserFacingErrorMessage(error.message || fallback);
     }
 
     if (error instanceof ValidationError || isErrorNamed(error, 'ValidationError')) {
-        return error.message || fallback;
+        return normalizeUserFacingErrorMessage(error.message || fallback);
     }
 
     if (error instanceof OfflineError || isErrorNamed(error, 'OfflineError')) {
-        return error.message || 'You are currently offline. Reconnect and try again.';
+        return normalizeUserFacingErrorMessage(
+            error.message || 'You are currently offline. Reconnect and try again.'
+        );
     }
 
     if (error instanceof NetworkError || isErrorNamed(error, 'NetworkError') || isNetworkError(error)) {
-        return 'Network error. Please check your connection and try again.';
+        return 'We couldn\'t connect. Check your internet connection and try again.';
     }
 
     if (error instanceof ESGError) {
-        return error.message;
+        return normalizeUserFacingErrorMessage(error.message);
     }
 
-    return fallback;
+    return normalizeUserFacingErrorMessage(fallback);
 }
 
 export default {
@@ -422,5 +463,6 @@ export default {
     ExportError,
     fromSupabaseError,
     isNetworkError,
+    normalizeUserFacingErrorMessage,
     getUserMessage
 };

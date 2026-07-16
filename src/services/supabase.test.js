@@ -4,6 +4,7 @@ import { ConfigurationError } from '../core/errors.js';
 import {
     classifySupabaseAuthFailure,
     createUnavailableSupabaseClient,
+    getRuntimeNoticeCopy,
     getSupabaseAuthStorageBackend
 } from './supabase.js';
 
@@ -56,6 +57,7 @@ describe('supabase unavailable adapter', () => {
         );
 
         expect(failure).toMatchObject({
+            code: 'BACKEND_UNREACHABLE',
             title: 'Supabase Backend Unavailable',
             eyebrow: 'Backend Unavailable'
         });
@@ -69,6 +71,7 @@ describe('supabase unavailable adapter', () => {
         });
 
         expect(failure).toMatchObject({
+            code: 'BROWSER_OFFLINE',
             title: 'Browser Offline',
             eyebrow: 'Connection Required'
         });
@@ -82,6 +85,7 @@ describe('supabase unavailable adapter', () => {
         });
 
         expect(failure).toMatchObject({
+            code: 'ANONYMOUS_AUTH_DISABLED',
             title: 'Supabase Auth Configuration Required',
             eyebrow: 'Configuration Required'
         });
@@ -100,5 +104,15 @@ describe('supabase unavailable adapter', () => {
             eyebrow: 'Configuration Required'
         });
         expect(failure.message).toContain('new-user signups are disabled');
+    });
+
+    it('keeps infrastructure details out of participant-facing startup copy', () => {
+        const copy = getRuntimeNoticeCopy('ANONYMOUS_AUTH_DISABLED');
+
+        expect(copy).toMatchObject({
+            userTitle: 'This exercise isn\'t ready yet',
+            userMessage: expect.stringContaining('exercise facilitator')
+        });
+        expect(JSON.stringify(copy)).not.toMatch(/Supabase|VITE_|anonymous sign-in/i);
     });
 });

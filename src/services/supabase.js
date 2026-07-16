@@ -16,7 +16,6 @@ import { createE2EMockSupabaseClient, isE2EMockEnabled } from './supabaseMock.js
 
 const logger = createLogger('Supabase');
 const RUNTIME_NOTICE_ID = 'runtimeConfigNotice';
-const RUNTIME_NOTICE_STYLE_ID = 'runtime-config-notice-style';
 const SUPABASE_AUTH_STORAGE_KEY = 'esg-simulation-auth';
 const UNREACHABLE_BACKEND_PATTERNS = [
     /ERR_NAME_NOT_RESOLVED/i,
@@ -47,6 +46,33 @@ let validation = validateConfig();
 let initializationError = null;
 let runtimeAvailabilityFailure = null;
 const e2eMockEnabled = isE2EMockEnabled();
+
+export function getRuntimeNoticeCopy(failureCode = 'BACKEND_CONFIG_REQUIRED') {
+    if (failureCode === 'BROWSER_OFFLINE') {
+        return {
+            userEyebrow: 'Connection issue',
+            userTitle: 'You\'re offline',
+            userMessage: 'Reconnect to the internet, then try again.',
+            userNote: 'This page cannot receive session updates while the device is offline.'
+        };
+    }
+
+    if (failureCode === 'BACKEND_UNREACHABLE') {
+        return {
+            userEyebrow: 'Connection issue',
+            userTitle: 'We can\'t reach the session service',
+            userMessage: 'Check your internet connection and try again. If the issue continues, tell your exercise facilitator.',
+            userNote: 'No changes can be sent until the connection is restored.'
+        };
+    }
+
+    return {
+        userEyebrow: 'Session unavailable',
+        userTitle: 'This exercise isn\'t ready yet',
+        userMessage: 'Ask your exercise facilitator to check the session setup, then try again.',
+        userNote: 'No changes have been made on this page.'
+    };
+}
 
 function readStorageHandle(candidate) {
     try {
@@ -109,6 +135,9 @@ function buildRuntimeStatus() {
         issues.push(runtimeAvailabilityFailure.issue);
     }
 
+    const failureCode = runtimeAvailabilityFailure?.code || 'BACKEND_CONFIG_REQUIRED';
+    const userCopy = getRuntimeNoticeCopy(failureCode);
+
     return {
         ready: !issues.length,
         runtimeMode: CONFIG.RUNTIME_MODE,
@@ -121,7 +150,8 @@ function buildRuntimeStatus() {
         eyebrow: runtimeAvailabilityFailure?.eyebrow || 'Configuration Required',
         note: runtimeAvailabilityFailure?.note
             || 'Create or update an untracked .env.local from .env.example, restart the dev server, and reload this page.',
-        code: runtimeAvailabilityFailure?.code || 'BACKEND_CONFIG_REQUIRED'
+        code: failureCode,
+        ...userCopy
     };
 }
 
@@ -194,6 +224,7 @@ export function classifySupabaseAuthFailure(
 ) {
     if (online === false) {
         return {
+            code: 'BROWSER_OFFLINE',
             issue: 'The browser is offline. Reconnect before joining or authorizing a session.',
             message: 'The browser is offline. Reconnect to the internet and reload this page.',
             title: 'Browser Offline',
@@ -206,6 +237,7 @@ export function classifySupabaseAuthFailure(
 
     if (UNREACHABLE_BACKEND_PATTERNS.some((pattern) => pattern.test(errorText))) {
         return {
+            code: 'BACKEND_UNREACHABLE',
             issue: 'The configured Supabase auth endpoint could not be reached.',
             message: 'The configured Supabase backend could not be reached. Verify the project URL, DNS, and network access, then reload this page.',
             title: 'Supabase Backend Unavailable',
@@ -216,6 +248,7 @@ export function classifySupabaseAuthFailure(
 
     if (ANONYMOUS_AUTH_DISABLED_CODES.has(error?.code) || ANONYMOUS_AUTH_DISABLED_CODES.has(error?.error_code)) {
         return {
+            code: 'ANONYMOUS_AUTH_DISABLED',
             issue: 'Supabase anonymous sign-ins or new-user signups are disabled for this project.',
             message: 'Supabase anonymous sign-ins or new-user signups are disabled for this project. Enable them before participants or operators join from the landing page.',
             title: 'Supabase Auth Configuration Required',
@@ -226,6 +259,7 @@ export function classifySupabaseAuthFailure(
 
     if (ANONYMOUS_AUTH_DISABLED_PATTERNS.some((pattern) => pattern.test(errorText))) {
         return {
+            code: 'ANONYMOUS_AUTH_DISABLED',
             issue: 'Supabase anonymous sign-ins or new-user signups are disabled for this project.',
             message: 'Supabase anonymous sign-ins or new-user signups are disabled for this project. Enable them before participants or operators join from the landing page.',
             title: 'Supabase Auth Configuration Required',
@@ -297,87 +331,6 @@ export function createUnavailableSupabaseClient() {
     });
 }
 
-function ensureRuntimeNoticeStyles() {
-    if (typeof document === 'undefined' || document.getElementById(RUNTIME_NOTICE_STYLE_ID)) {
-        return;
-    }
-
-    const style = document.createElement('style');
-    style.id = RUNTIME_NOTICE_STYLE_ID;
-    style.textContent = `
-        .runtime-config-notice {
-            position: fixed;
-            inset: 0;
-            z-index: 3000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1.5rem;
-            background: rgba(15, 23, 42, 0.78);
-            backdrop-filter: blur(6px);
-        }
-        .runtime-config-notice[hidden] {
-            display: none !important;
-        }
-        .runtime-config-panel {
-            max-width: 48rem;
-            width: min(100%, 48rem);
-            background: #ffffff;
-            color: #0f172a;
-            border-radius: 1rem;
-            box-shadow: 0 24px 80px rgba(15, 23, 42, 0.3);
-            padding: 1.5rem;
-            border: 1px solid rgba(148, 163, 184, 0.35);
-        }
-        .runtime-config-eyebrow {
-            margin: 0 0 0.5rem;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: #9f1239;
-        }
-        .runtime-config-title {
-            margin: 0 0 0.75rem;
-            font-size: 1.5rem;
-            line-height: 1.2;
-        }
-        .runtime-config-copy {
-            margin: 0 0 1rem;
-            color: #334155;
-        }
-        .runtime-config-list {
-            margin: 0 0 1rem;
-            padding-left: 1.25rem;
-            color: #334155;
-        }
-        .runtime-config-note {
-            margin: 0;
-            font-size: 0.95rem;
-            color: #475569;
-        }
-        .runtime-config-actions {
-            margin-top: 1.25rem;
-            display: flex;
-            justify-content: flex-end;
-        }
-        .runtime-config-reload {
-            border: 0;
-            border-radius: 0.5rem;
-            background: #115740;
-            color: #ffffff;
-            font-weight: 700;
-            padding: 0.625rem 1rem;
-            cursor: pointer;
-        }
-        .runtime-config-reload:focus-visible {
-            outline: 3px solid rgba(17, 87, 64, 0.35);
-            outline-offset: 2px;
-        }
-    `;
-    document.head.appendChild(style);
-}
-
 function escapeHtml(value) {
     const div = document.createElement('div');
     div.textContent = String(value ?? '');
@@ -446,8 +399,6 @@ export function renderMissingBackendNotice() {
         return;
     }
 
-    ensureRuntimeNoticeStyles();
-
     const container = getRuntimeNoticeContainer();
     if (!container) return;
 
@@ -455,15 +406,12 @@ export function renderMissingBackendNotice() {
     container.className = 'runtime-config-notice';
     container.innerHTML = `
         <div class="runtime-config-panel" role="alertdialog" aria-modal="true" aria-labelledby="runtime-config-title" aria-describedby="runtime-config-copy runtime-config-note" tabindex="-1">
-            <p class="runtime-config-eyebrow">${escapeHtml(status.eyebrow)}</p>
-            <h1 class="runtime-config-title" id="runtime-config-title">${escapeHtml(status.title)}</h1>
-            <p class="runtime-config-copy" id="runtime-config-copy">${escapeHtml(status.message)}</p>
-            <ul class="runtime-config-list">
-                ${status.issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('')}
-            </ul>
-            <p class="runtime-config-note" id="runtime-config-note">${escapeHtml(status.note)}</p>
+            <p class="runtime-config-eyebrow">${escapeHtml(status.userEyebrow)}</p>
+            <h1 class="runtime-config-title" id="runtime-config-title">${escapeHtml(status.userTitle)}</h1>
+            <p class="runtime-config-copy" id="runtime-config-copy">${escapeHtml(status.userMessage)}</p>
+            <p class="runtime-config-note" id="runtime-config-note">${escapeHtml(status.userNote)}</p>
             <div class="runtime-config-actions">
-                <button type="button" class="runtime-config-reload" id="runtimeConfigReload">Reload page</button>
+                <button type="button" class="btn btn-primary runtime-config-reload" id="runtimeConfigReload">Try again</button>
             </div>
         </div>
     `;
