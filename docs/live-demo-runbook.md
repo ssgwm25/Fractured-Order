@@ -20,7 +20,8 @@ npm run test:e2e:live-demo
 ```
 
 Pass: unit tests, production build, smoke, the nineteen-actor professional
-playthrough, and live-demo role tests complete without failures. The focused
+playthrough, focused Realtime recovery gate, and live-demo role tests complete
+without failures. The focused
 playthrough command and hosted real-backend procedure are documented in
 `docs/playthrough-automation.md`.
 The smoke test completes the Blue and Green single-target orientation handoffs

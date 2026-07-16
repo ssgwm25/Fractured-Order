@@ -114,7 +114,11 @@ class SyncService {
 
             this.initialized = true;
             this.lastSyncTime = Date.now();
-            this.setStatus(SYNC_STATUS.SYNCED);
+            this.setStatus(
+                realtimeService.getStatus().connected
+                    ? SYNC_STATUS.SYNCED
+                    : SYNC_STATUS.SYNCING
+            );
 
             logger.info('Sync service initialized');
         })().catch((err) => {
@@ -207,7 +211,17 @@ class SyncService {
         // Handle subscription status changes
         const unsubStatus = realtimeService.onAll((eventType, data) => {
             if (eventType === 'subscribed') {
-                this.setStatus(SYNC_STATUS.SYNCED);
+                if (!data?.reconnected && realtimeService.getStatus().connected) {
+                    this.setStatus(SYNC_STATUS.SYNCED);
+                }
+            } else if (eventType === 'reconnecting') {
+                this.setStatus(SYNC_STATUS.SYNCING);
+            } else if (eventType === 'reconnected') {
+                // A websocket subscription cannot replay rows committed while
+                // it was unavailable. Reconcile every store from the durable
+                // snapshot before declaring the client current again.
+                this.setStatus(SYNC_STATUS.SYNCING);
+                void this.resync();
             } else if (eventType === 'error' || eventType === 'reconnect_failed') {
                 this.setStatus(SYNC_STATUS.ERROR);
             }

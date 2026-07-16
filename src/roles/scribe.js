@@ -1289,7 +1289,7 @@ export class ScribeController {
 
     processCommunicationNotifications(event = '') {
         const all = communicationsStore.getAll();
-        if (!this.communicationsSeeded || event === 'initialized' || event === 'loaded') {
+        if (!this.communicationsSeeded || event === 'initialized') {
             this.knownCommunicationIds = new Set(all.map((communication) => communication?.id).filter(Boolean));
             this.communicationsSeeded = true;
             return;

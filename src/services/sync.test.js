@@ -143,6 +143,7 @@ describe('syncService live bootstrap', () => {
     });
 
     afterEach(() => {
+        vi.useRealTimers();
         vi.resetModules();
         delete global.window;
     });
@@ -202,6 +203,21 @@ describe('syncService live bootstrap', () => {
         expect(mockCommunicationsStore.initialize).toHaveBeenCalledWith('session-live-3');
     });
 
+    it('does not report synced until all realtime subscriptions are ready', async () => {
+        mockRealtimeService.getStatus.mockReturnValue({ connected: false });
+        const { syncService, SYNC_STATUS } = await loadSyncModule();
+
+        await syncService.initialize('session-awaiting-realtime');
+
+        expect(syncService.getStatus()).toBe(SYNC_STATUS.SYNCING);
+        mockRealtimeService.getStatus.mockReturnValue({ connected: true });
+        channelHandlers.get('all')('subscribed', {
+            channelType: 'communications',
+            reconnected: false
+        });
+        expect(syncService.getStatus()).toBe(SYNC_STATUS.SYNCED);
+    });
+
     it('forwards realtime payloads into the corresponding stores', async () => {
         const { syncService } = await loadSyncModule();
 
@@ -232,5 +248,33 @@ describe('syncService live bootstrap', () => {
         expect(mockTimelineStore.updateFromServer).toHaveBeenCalledWith('INSERT', { id: 'timeline-1' });
         expect(mockParticipantsStore.updateFromServer).toHaveBeenCalledWith('UPDATE', { id: 'participant-1' });
         expect(mockCommunicationsStore.updateFromServer).toHaveBeenCalledWith('INSERT', { id: 'communication-1' });
+    });
+
+    it('reconciles every durable store after a realtime channel reconnects', async () => {
+        vi.useFakeTimers();
+        mockGameStateStore.initialize.mockResolvedValue();
+        mockActionsStore.loadActions.mockResolvedValue([]);
+        mockRequestsStore.loadRequests.mockResolvedValue([]);
+        mockTimelineStore.loadEvents.mockResolvedValue([]);
+        mockParticipantsStore.loadParticipants.mockResolvedValue([]);
+        mockCommunicationsStore.loadCommunications.mockResolvedValue([]);
+
+        const { syncService, SYNC_STATUS } = await loadSyncModule();
+        await syncService.initialize('session-live-reconnect');
+
+        channelHandlers.get('all')('reconnected', {
+            channelType: 'communications'
+        });
+
+        expect(syncService.getStatus()).toBe(SYNC_STATUS.SYNCING);
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(mockGameStateStore.initialize).toHaveBeenLastCalledWith('session-live-reconnect');
+        expect(mockActionsStore.loadActions).toHaveBeenCalledTimes(1);
+        expect(mockRequestsStore.loadRequests).toHaveBeenCalledTimes(1);
+        expect(mockTimelineStore.loadEvents).toHaveBeenCalledTimes(1);
+        expect(mockParticipantsStore.loadParticipants).toHaveBeenCalledWith({ tolerateError: true });
+        expect(mockCommunicationsStore.loadCommunications).toHaveBeenCalledTimes(1);
+        expect(syncService.getStatus()).toBe(SYNC_STATUS.SYNCED);
     });
 });

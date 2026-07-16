@@ -40,6 +40,9 @@ playthrough. It covers:
 
 The supporting suites remain separate because they test different risks:
 
+- `live-demo-realtime.e2e.js`: all six session subscriptions, measured fanout,
+  offline/degraded UI, missed-event reconciliation, duplicate-free recovery,
+  team isolation, and cross-session isolation
 - `live-demo-topology.e2e.js`: seat contention, seat release, and concurrent
   Notetaker state behavior
 - `live-demo-role-matrix.e2e.js`: every shipped seat, including both Notetaker
@@ -74,6 +77,60 @@ Supabase Realtime fanout. Hosted mode keeps the pages live and requires Realtime
 convergence without that reload. The local run validates browser orchestration
 and workflow contracts, but it is not evidence of hosted Supabase capacity,
 write concurrency, or Realtime behavior.
+
+## Focused Realtime Gate
+
+Run the deterministic orchestration version locally:
+
+```powershell
+npm test -- --run src/services/realtime.test.js src/services/sync.test.js src/roles/scribe.test.js
+npm run test:e2e:realtime
+```
+
+The unit layer pins all six session-filtered subscriptions, per-channel retry
+state, readiness only after every channel reports `SUBSCRIBED`, reconnect timer
+cleanup, full-store reconciliation, and exactly-once recipient notification.
+The local browser layer dispatches offline/online transitions against the
+shared deterministic backend. It proves the recovery UI and reconciliation
+flow, but not Supabase WebSocket behavior.
+
+Run the authoritative Realtime gate against the dedicated rehearsal deployment:
+
+```powershell
+$env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
+$secureCode = Read-Host "Enter actual deployed operator access code" -AsSecureString
+$credential = New-Object System.Management.Automation.PSCredential ('operator', $secureCode)
+$env:PLAYWRIGHT_OPERATOR_ACCESS_CODE = $credential.GetNetworkCredential().Password
+$env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
+$env:PLAYWRIGHT_REALTIME_SLO_MS="15000"
+
+npm run test:e2e:realtime
+```
+
+Pass means:
+
+- participant, timer, action, request, timeline, and communication changes
+  converge on the intended live clients
+- every measured fanout sample is at or below the configured SLO (15 seconds
+  by default)
+- the disconnected client displays `Live updates paused`
+- a communication committed during the outage appears after reconnection
+  without a reload and produces exactly one recipient alert
+- neither another team in the same session nor the same role in another
+  session receives the direct communication
+- `realtime-diagnostics.json` identifies the hosted backend, both generated
+  session codes, the SLO, and each latency sample
+
+After the run, clear the shell values without producing errors when they are
+already absent:
+
+```powershell
+Remove-Item Env:PLAYWRIGHT_OPERATOR_ACCESS_CODE -ErrorAction SilentlyContinue
+Remove-Item Env:PLAYWRIGHT_BASE_URL -ErrorAction SilentlyContinue
+Remove-Item Env:PLAYWRIGHT_REHEARSAL_RUN_ID -ErrorAction SilentlyContinue
+Remove-Item Env:PLAYWRIGHT_REALTIME_SLO_MS -ErrorAction SilentlyContinue
+Remove-Variable secureCode, credential -ErrorAction SilentlyContinue
+```
 
 Pass:
 

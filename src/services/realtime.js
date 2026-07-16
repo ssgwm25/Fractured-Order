@@ -33,7 +33,7 @@ export const CHANNELS = {
  * Real-time Service Class
  * Manages all Supabase real-time subscriptions
  */
-class RealtimeService {
+export class RealtimeService {
     constructor() {
         /** @type {Map<string, Object>} */
         this.channels = new Map();
@@ -47,8 +47,23 @@ class RealtimeService {
         /** @type {boolean} */
         this.connected = false;
 
+        /** @type {Map<string, number>} */
+        this.reconnectAttempts = new Map();
+
+        /** @type {Map<string, ReturnType<typeof setTimeout>>} */
+        this.reconnectTimers = new Map();
+
+        /** @type {Map<string, string>} */
+        this.channelStatuses = new Map();
+
+        /** @type {Map<string, symbol>} */
+        this.channelTokens = new Map();
+
+        /** @type {Set<string>} */
+        this.reconnectingChannels = new Set();
+
         /** @type {number} */
-        this.reconnectAttempts = 0;
+        this.lifecycleGeneration = 0;
 
         /** @type {number} */
         this.maxReconnectAttempts = 5;
@@ -86,10 +101,8 @@ class RealtimeService {
             await this.subscribeToParticipants();
             await this.subscribeToCommunications();
 
-            this.connected = true;
-            this.reconnectAttempts = 0;
-
-            logger.info('Real-time service initialized');
+            this.updateConnectedState();
+            logger.info('Real-time service subscriptions requested');
         } catch (err) {
             logger.error('Failed to initialize real-time service:', err);
             throw err;
@@ -101,6 +114,9 @@ class RealtimeService {
      * @private
      */
     async subscribeToGameState() {
+        this.channelStatuses.set(CHANNELS.GAME_STATE, 'SUBSCRIBING');
+        const channelToken = Symbol(CHANNELS.GAME_STATE);
+        this.channelTokens.set(CHANNELS.GAME_STATE, channelToken);
         const channelName = `${CHANNELS.GAME_STATE}:${this.sessionId}`;
 
         const channel = supabase
@@ -116,7 +132,9 @@ class RealtimeService {
                 (payload) => this.handleChange(CHANNELS.GAME_STATE, payload)
             )
             .subscribe((status) => {
-                this.handleSubscriptionStatus(CHANNELS.GAME_STATE, status);
+                if (this.channelTokens.get(CHANNELS.GAME_STATE) === channelToken) {
+                    this.handleSubscriptionStatus(CHANNELS.GAME_STATE, status);
+                }
             });
 
         this.channels.set(CHANNELS.GAME_STATE, channel);
@@ -128,6 +146,9 @@ class RealtimeService {
      * @private
      */
     async subscribeToActions() {
+        this.channelStatuses.set(CHANNELS.ACTIONS, 'SUBSCRIBING');
+        const channelToken = Symbol(CHANNELS.ACTIONS);
+        this.channelTokens.set(CHANNELS.ACTIONS, channelToken);
         const channelName = `${CHANNELS.ACTIONS}:${this.sessionId}`;
 
         const channel = supabase
@@ -143,7 +164,9 @@ class RealtimeService {
                 (payload) => this.handleChange(CHANNELS.ACTIONS, payload)
             )
             .subscribe((status) => {
-                this.handleSubscriptionStatus(CHANNELS.ACTIONS, status);
+                if (this.channelTokens.get(CHANNELS.ACTIONS) === channelToken) {
+                    this.handleSubscriptionStatus(CHANNELS.ACTIONS, status);
+                }
             });
 
         this.channels.set(CHANNELS.ACTIONS, channel);
@@ -155,6 +178,9 @@ class RealtimeService {
      * @private
      */
     async subscribeToRequests() {
+        this.channelStatuses.set(CHANNELS.REQUESTS, 'SUBSCRIBING');
+        const channelToken = Symbol(CHANNELS.REQUESTS);
+        this.channelTokens.set(CHANNELS.REQUESTS, channelToken);
         const channelName = `${CHANNELS.REQUESTS}:${this.sessionId}`;
 
         const channel = supabase
@@ -170,7 +196,9 @@ class RealtimeService {
                 (payload) => this.handleChange(CHANNELS.REQUESTS, payload)
             )
             .subscribe((status) => {
-                this.handleSubscriptionStatus(CHANNELS.REQUESTS, status);
+                if (this.channelTokens.get(CHANNELS.REQUESTS) === channelToken) {
+                    this.handleSubscriptionStatus(CHANNELS.REQUESTS, status);
+                }
             });
 
         this.channels.set(CHANNELS.REQUESTS, channel);
@@ -182,6 +210,9 @@ class RealtimeService {
      * @private
      */
     async subscribeToTimeline() {
+        this.channelStatuses.set(CHANNELS.TIMELINE, 'SUBSCRIBING');
+        const channelToken = Symbol(CHANNELS.TIMELINE);
+        this.channelTokens.set(CHANNELS.TIMELINE, channelToken);
         const channelName = `${CHANNELS.TIMELINE}:${this.sessionId}`;
 
         const channel = supabase
@@ -197,7 +228,9 @@ class RealtimeService {
                 (payload) => this.handleChange(CHANNELS.TIMELINE, payload)
             )
             .subscribe((status) => {
-                this.handleSubscriptionStatus(CHANNELS.TIMELINE, status);
+                if (this.channelTokens.get(CHANNELS.TIMELINE) === channelToken) {
+                    this.handleSubscriptionStatus(CHANNELS.TIMELINE, status);
+                }
             });
 
         this.channels.set(CHANNELS.TIMELINE, channel);
@@ -209,6 +242,9 @@ class RealtimeService {
      * @private
      */
     async subscribeToParticipants() {
+        this.channelStatuses.set(CHANNELS.PARTICIPANTS, 'SUBSCRIBING');
+        const channelToken = Symbol(CHANNELS.PARTICIPANTS);
+        this.channelTokens.set(CHANNELS.PARTICIPANTS, channelToken);
         const channelName = `${CHANNELS.PARTICIPANTS}:${this.sessionId}`;
 
         const channel = supabase
@@ -224,7 +260,9 @@ class RealtimeService {
                 (payload) => this.handleChange(CHANNELS.PARTICIPANTS, payload)
             )
             .subscribe((status) => {
-                this.handleSubscriptionStatus(CHANNELS.PARTICIPANTS, status);
+                if (this.channelTokens.get(CHANNELS.PARTICIPANTS) === channelToken) {
+                    this.handleSubscriptionStatus(CHANNELS.PARTICIPANTS, status);
+                }
             });
 
         this.channels.set(CHANNELS.PARTICIPANTS, channel);
@@ -236,6 +274,9 @@ class RealtimeService {
      * @private
      */
     async subscribeToCommunications() {
+        this.channelStatuses.set(CHANNELS.COMMUNICATIONS, 'SUBSCRIBING');
+        const channelToken = Symbol(CHANNELS.COMMUNICATIONS);
+        this.channelTokens.set(CHANNELS.COMMUNICATIONS, channelToken);
         const channelName = `${CHANNELS.COMMUNICATIONS}:${this.sessionId}`;
 
         const channel = supabase
@@ -251,7 +292,9 @@ class RealtimeService {
                 (payload) => this.handleChange(CHANNELS.COMMUNICATIONS, payload)
             )
             .subscribe((status) => {
-                this.handleSubscriptionStatus(CHANNELS.COMMUNICATIONS, status);
+                if (this.channelTokens.get(CHANNELS.COMMUNICATIONS) === channelToken) {
+                    this.handleSubscriptionStatus(CHANNELS.COMMUNICATIONS, status);
+                }
             });
 
         this.channels.set(CHANNELS.COMMUNICATIONS, channel);
@@ -266,15 +309,28 @@ class RealtimeService {
      */
     handleSubscriptionStatus(channelType, status) {
         logger.debug(`Channel ${channelType} status:`, status);
+        this.channelStatuses.set(channelType, status);
+        this.updateConnectedState();
 
         if (status === 'SUBSCRIBED') {
-            this.notifyHandlers(channelType, 'subscribed', { channelType });
+            const wasReconnecting = this.reconnectingChannels.delete(channelType);
+            this.reconnectAttempts.set(channelType, 0);
+            this.clearReconnectTimer(channelType);
+            this.notifyHandlers(channelType, 'subscribed', {
+                channelType,
+                reconnected: wasReconnecting
+            });
+            if (wasReconnecting) {
+                logger.info(`Reconnected to ${channelType}`);
+                this.notifyHandlers(channelType, 'reconnected', { channelType });
+            }
         } else if (status === 'CHANNEL_ERROR') {
             logger.error(`Channel ${channelType} error`);
             this.notifyHandlers(channelType, 'error', { channelType });
             this.handleReconnect(channelType);
         } else if (status === 'TIMED_OUT') {
             logger.warn(`Channel ${channelType} timed out`);
+            this.notifyHandlers(channelType, 'error', { channelType });
             this.handleReconnect(channelType);
         } else if (status === 'CLOSED') {
             logger.info(`Channel ${channelType} closed`);
@@ -307,18 +363,36 @@ class RealtimeService {
      * @param {string} channelType - Channel type to reconnect
      */
     async handleReconnect(channelType) {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            logger.error('Max reconnection attempts reached');
+        if (!this.sessionId || this.reconnectTimers.has(channelType)) {
+            return;
+        }
+
+        const attempts = this.reconnectAttempts.get(channelType) || 0;
+        if (attempts >= this.maxReconnectAttempts) {
+            logger.error(`Max reconnection attempts reached for ${channelType}`);
             this.notifyHandlers(channelType, 'reconnect_failed', { channelType });
             return;
         }
 
-        this.reconnectAttempts++;
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+        const nextAttempt = attempts + 1;
+        this.reconnectAttempts.set(channelType, nextAttempt);
+        this.reconnectingChannels.add(channelType);
+        const delay = Math.min(1000 * Math.pow(2, nextAttempt), 30000);
+        const generation = this.lifecycleGeneration;
 
-        logger.info(`Reconnecting ${channelType} in ${delay}ms (attempt ${this.reconnectAttempts})`);
+        logger.info(`Reconnecting ${channelType} in ${delay}ms (attempt ${nextAttempt})`);
+        this.notifyHandlers(channelType, 'reconnecting', {
+            channelType,
+            attempt: nextAttempt,
+            delay
+        });
 
-        setTimeout(async () => {
+        const timer = setTimeout(async () => {
+            this.reconnectTimers.delete(channelType);
+            if (generation !== this.lifecycleGeneration || !this.sessionId) {
+                return;
+            }
+
             try {
                 // Unsubscribe from existing channel
                 const existingChannel = this.channels.get(channelType);
@@ -348,13 +422,26 @@ class RealtimeService {
                         break;
                 }
 
-                this.reconnectAttempts = 0;
-                logger.info(`Reconnected to ${channelType}`);
             } catch (err) {
                 logger.error(`Reconnection failed for ${channelType}:`, err);
                 this.handleReconnect(channelType);
             }
         }, delay);
+        this.reconnectTimers.set(channelType, timer);
+    }
+
+    clearReconnectTimer(channelType) {
+        const timer = this.reconnectTimers.get(channelType);
+        if (timer) {
+            clearTimeout(timer);
+            this.reconnectTimers.delete(channelType);
+        }
+    }
+
+    updateConnectedState() {
+        this.connected = Object.values(CHANNELS).every(
+            (channelType) => this.channelStatuses.get(channelType) === 'SUBSCRIBED'
+        );
     }
 
     /**
@@ -416,6 +503,12 @@ class RealtimeService {
      * @param {string} channelType - Channel type to unsubscribe from
      */
     async unsubscribe(channelType) {
+        this.clearReconnectTimer(channelType);
+        this.reconnectingChannels.delete(channelType);
+        this.reconnectAttempts.delete(channelType);
+        this.channelStatuses.delete(channelType);
+        this.channelTokens.delete(channelType);
+        this.updateConnectedState();
         const channel = this.channels.get(channelType);
         if (channel) {
             await supabase.removeChannel(channel);
@@ -430,6 +523,10 @@ class RealtimeService {
      */
     async unsubscribeAll() {
         logger.info('Unsubscribing from all channels');
+        this.lifecycleGeneration += 1;
+        for (const channelType of this.reconnectTimers.keys()) {
+            this.clearReconnectTimer(channelType);
+        }
 
         for (const [channelType, channel] of this.channels) {
             try {
@@ -441,6 +538,10 @@ class RealtimeService {
 
         this.channels.clear();
         this.handlers.clear();
+        this.channelStatuses.clear();
+        this.channelTokens.clear();
+        this.reconnectingChannels.clear();
+        this.reconnectAttempts.clear();
         this.connected = false;
     }
 
@@ -463,8 +564,10 @@ class RealtimeService {
             channels: {}
         };
 
-        for (const [type, channel] of this.channels) {
-            status.channels[type] = channel.state || 'unknown';
+        for (const type of Object.values(CHANNELS)) {
+            status.channels[type] = this.channelStatuses.get(type)
+                || this.channels.get(type)?.state
+                || 'unknown';
         }
 
         return status;
@@ -476,7 +579,6 @@ class RealtimeService {
     async reset() {
         await this.unsubscribeAll();
         this.sessionId = null;
-        this.reconnectAttempts = 0;
         logger.info('Real-time service reset');
     }
 
