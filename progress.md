@@ -1,3 +1,9 @@
+Original prompt: The copy for the negotiation response to a proposal is not directly categorised to show that a negotiation has been requested. Ensure the interface copy is clear and provides users with limited cognitive load.
+
+- 2026-07-15: Categorised persisted `negotiate` proposal responses as `Negotiation requested` across the responding facilitator, proposing-team, and White Cell surfaces, with the response body labelled `Negotiation terms`.
+- 2026-07-15: Kept the existing deterministic recipient status and persisted decision contract unchanged; added focused shared-state and role-renderer coverage plus a live-demo runbook check.
+- TODO: Run `npm test -- src/features/actions/proposalRecipientState.test.js src/roles/scribe.test.js src/roles/facilitator.test.js src/roles/whitecell.test.js`, `npm run build`, and the updated proposal-response check in `docs/live-demo-runbook.md`.
+
 Original prompt: The loading screen must detail the name of the session being joined by the user as well to limit confusion.
 
 - 2026-07-15: Closed the communication snapshot-to-realtime startup gap that could make the Facilitator activity feed show only the second of two consecutive White Cell messages.

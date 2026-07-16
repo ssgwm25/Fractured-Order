@@ -33,6 +33,17 @@ function getCommunicationMetadata(communication = null) {
         : {};
 }
 
+export function isProposalNegotiationRequest(communication = null) {
+    const metadata = getCommunicationMetadata(communication);
+    const recipientState = metadata.proposal_recipient_state
+        && typeof metadata.proposal_recipient_state === 'object'
+        ? metadata.proposal_recipient_state
+        : {};
+    const decision = metadata.facilitator_decision || recipientState.facilitator_decision || '';
+
+    return typeof decision === 'string' && decision.trim().toLowerCase() === 'negotiate';
+}
+
 function normalizeProposalRecipientEntry(entry = null) {
     if (!entry || typeof entry !== 'object') {
         return null;

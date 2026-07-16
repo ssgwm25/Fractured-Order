@@ -997,8 +997,26 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
                 }
             }
         });
-        expect(committedHtml).toContain('Recorded: Accepted');
+        expect(committedHtml).toContain('Recorded response: Accepted');
         expect(committedHtml.match(/data-facilitator-proposal-decision="[^"]+"[^>]+disabled/g)).toHaveLength(3);
+
+        const negotiationHtml = controller.renderProposalSlide({
+            slideType: 'proposal',
+            communication: {
+                ...communication,
+                metadata: {
+                    ...communication.metadata,
+                    proposal_recipient_state: {
+                        status: 'responded',
+                        facilitator_decision: 'negotiate',
+                        response_content: 'Add a six-month review clause.'
+                    }
+                }
+            }
+        });
+        expect(negotiationHtml).toContain('Recorded response: Negotiation requested');
+        expect(negotiationHtml).toContain('<strong>Negotiation terms:</strong> Add a six-month review clause.');
+        expect(negotiationHtml).not.toContain('Recorded response: Responded');
     });
 
     it('maps Accept, Not Interested, and Negotiate onto the established recipient-state contract', async () => {
@@ -1028,7 +1046,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             '  Add a six-month review clause.  '
         )).toEqual({
             status: 'responded',
-            label: 'Negotiation Requested',
+            label: 'Negotiation requested',
             responseContent: 'Add a six-month review clause.',
             timelineType: 'PROPOSAL_RESPONDED'
         });
@@ -1160,7 +1178,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         );
         expect(mockCreateTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
             type: 'PROPOSAL_RESPONDED',
-            content: 'Negotiation Requested proposal: Regional Logistics Compact',
+            content: 'Negotiation requested proposal: Regional Logistics Compact',
             metadata: expect.objectContaining({ facilitator_decision: 'negotiate' })
         }));
         expect(communicationsUpdateSpy).toHaveBeenCalledWith('INSERT', responseCommunication);

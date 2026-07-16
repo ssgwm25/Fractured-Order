@@ -80,7 +80,7 @@ export function getFacilitatorProposalDecisionContract(decision = '', negotiatio
         },
         [FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE]: {
             status: PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
-            label: 'Negotiation Requested',
+            label: 'Negotiation requested',
             responseContent: String(negotiationTerms || '').trim(),
             timelineType: 'PROPOSAL_RESPONDED'
         }
@@ -2715,7 +2715,7 @@ export class ScribeController {
         const decisionLabel = {
             [FACILITATOR_PROPOSAL_DECISIONS.ACCEPT]: 'Accepted',
             [FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED]: 'Not Interested',
-            [FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE]: 'Negotiation Requested'
+            [FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE]: 'Negotiation requested'
         }[decision] || formatProposalRecipientStatus(status);
         const decisionStatusId = `proposal-decision-status-${String(communication.id || 'proposal').replace(/[^a-z0-9]+/gi, '-')}`;
         const formatList = (value) => Array.isArray(value) && value.length
@@ -2763,7 +2763,7 @@ export class ScribeController {
                         <div>
                             <p class="scribe-action-slide-section-label">Facilitator response</p>
                             <p id="${escapeHtml(decisionStatusId)}" class="scribe-proposal-decision-status" role="status" aria-live="polite">
-                                ${isFinal ? `Recorded: ${escapeHtml(decisionLabel)}` : 'Choose one response. The recorded response is shared with White Cell and the proposing team.'}
+                                ${isFinal ? `Recorded response: ${escapeHtml(decisionLabel)}` : 'Choose one response. It will be shared with White Cell and the proposing team.'}
                             </p>
                             ${decision === FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE && recipientEntry?.response_content
                 ? `<p class="scribe-proposal-negotiation-terms"><strong>Negotiation terms:</strong> ${escapeHtml(recipientEntry.response_content)}</p>`

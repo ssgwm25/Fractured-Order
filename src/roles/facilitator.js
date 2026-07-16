@@ -75,6 +75,7 @@ import {
     getProposalResponseEntry,
     formatProposalRecipientStatus,
     getProposalRecipientStatus,
+    isProposalNegotiationRequest,
     isProposalRecipientFinal
 } from '../features/actions/proposalRecipientState.js';
 import {
@@ -1278,7 +1279,10 @@ export class FacilitatorController {
             || '';
         const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
         const status = getProposalRecipientStatus(forwardedCommunication);
-        const statusLabel = formatProposalRecipientStatus(status);
+        const isNegotiationRequest = isProposalNegotiationRequest(forwardedCommunication);
+        const statusLabel = isNegotiationRequest
+            ? 'Negotiation requested'
+            : formatProposalRecipientStatus(status);
         const actionedAt = recipientEntry?.actioned_at || null;
         const responseEntry = getProposalResponseEntry(forwardedCommunication);
         const responseAudienceLabel = this.getProposalResponseAudienceLabel(responseEntry, recipientTeam);
@@ -1287,7 +1291,9 @@ export class FacilitatorController {
         const statusMessage = {
             [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: `Awaiting response from ${recipientLabel}`,
             [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: `${recipientLabel} opened this proposal and is reviewing it.`,
-            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: `Response received from ${responseAudienceLabel}`,
+            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: isNegotiationRequest
+                ? `${responseAudienceLabel} requested negotiation.`
+                : `Response received from ${responseAudienceLabel}`,
             [PROPOSAL_RECIPIENT_STATUSES.DECLINED]: `${recipientLabel} declined this proposal.`,
             [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: `${recipientLabel} marked this proposal as ignored.`
         }[status] || `Awaiting response from ${recipientLabel}`;
@@ -1303,7 +1309,7 @@ export class FacilitatorController {
                 style="margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);"
             >
                 <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
-                    <strong>${this.escapeHtml(responseAudienceLabel)} Response</strong>
+                    <strong>${isNegotiationRequest ? 'Negotiation terms' : `${this.escapeHtml(responseAudienceLabel)} Response`}</strong>
                 </p>
                 <p class="text-sm" style="margin: 0;">${this.escapeHtml(responseEntry.responseContent)}</p>
             </div>
@@ -1432,7 +1438,10 @@ export class FacilitatorController {
             const outcome = metadata.outcome || 'APPROVED';
             const receivedAt = communication.created_at;
             const status = getProposalRecipientStatus(communication);
-            const statusLabel = formatProposalRecipientStatus(status);
+            const isNegotiationRequest = isProposalNegotiationRequest(communication);
+            const statusLabel = isNegotiationRequest
+                ? 'Negotiation requested'
+                : formatProposalRecipientStatus(status);
             const isNewArrival = this.newReceivedProposalIds.has(communication.id);
             const cardId = escape(communication.id);
             const responseEntry = getProposalResponseEntry(communication);
@@ -1443,15 +1452,19 @@ export class FacilitatorController {
             const actionSummaryMarkup = responseEntry?.responseContent ? `
                 <div style="margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface-alt);">
                     <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
-                        <strong>Response sent to White Cell</strong>${responseEntry.responseSentAt ? ` | ${escape(formatRelativeTime(responseEntry.responseSentAt))}` : ''}
+                        <strong>${isNegotiationRequest ? 'Negotiation requested' : 'Response sent to White Cell'}</strong>${responseEntry.responseSentAt ? ` | ${escape(formatRelativeTime(responseEntry.responseSentAt))}` : ''}
                     </p>
+                    ${isNegotiationRequest ? '<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">Negotiation terms</p>' : ''}
                     <p class="text-sm" style="margin: 0;">${escape(responseEntry.responseContent)}</p>
                 </div>
             ` : '';
+            const readOnlyResponseMessage = isNegotiationRequest
+                ? `This negotiation request is locked and is now being shown to ${escape(sourceLabel)}.`
+                : `This proposal response is locked and is now being shown back to ${escape(sourceLabel)}.`;
             const readOnlyStateMarkup = status === PROPOSAL_RECIPIENT_STATUSES.RESPONDED
                 ? `
                     <p class="text-xs text-gray-500" style="margin: 0;">
-                        This proposal response is locked and is now being shown back to ${escape(sourceLabel)}.
+                        ${readOnlyResponseMessage}
                     </p>
                 `
                 : status === PROPOSAL_RECIPIENT_STATUSES.DECLINED

@@ -39,7 +39,8 @@ import {
     formatProposalRecipientStatus,
     getProposalRecipientEntry,
     getProposalRecipientStatus,
-    getProposalResponseEntry
+    getProposalResponseEntry,
+    isProposalNegotiationRequest
 } from '../features/actions/proposalRecipientState.js';
 import {
     buildJsonExportPayload,
@@ -2913,7 +2914,10 @@ export class WhiteCellController {
             || '';
         const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
         const status = getProposalRecipientStatus(forwardedCommunication);
-        const statusLabel = formatProposalRecipientStatus(status);
+        const isNegotiationRequest = isProposalNegotiationRequest(forwardedCommunication);
+        const statusLabel = isNegotiationRequest
+            ? 'Negotiation requested'
+            : formatProposalRecipientStatus(status);
         const actionedAt = recipientEntry?.actioned_at || null;
         const responseEntry = getProposalResponseEntry(forwardedCommunication);
         const responseAudienceLabel = this.getProposalResponseAudienceLabel(responseEntry, recipientTeam);
@@ -2922,7 +2926,9 @@ export class WhiteCellController {
         const statusMessage = {
             [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: `Awaiting recipient confirmation from ${recipientLabel}.`,
             [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: `${recipientLabel} opened this proposal and is reviewing it.`,
-            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: `Response received from ${responseAudienceLabel}.`,
+            [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: isNegotiationRequest
+                ? `${responseAudienceLabel} requested negotiation.`
+                : `Response received from ${responseAudienceLabel}.`,
             [PROPOSAL_RECIPIENT_STATUSES.DECLINED]: `${recipientLabel} declined this proposal.`,
             [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: `${recipientLabel} marked this proposal as ignored.`
         }[status] || `Awaiting recipient confirmation from ${recipientLabel}.`;
@@ -2938,7 +2944,7 @@ export class WhiteCellController {
                 style="margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);"
             >
                 <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
-                    <strong>${this.escapeHtml(responseAudienceLabel)} Response</strong>
+                    <strong>${isNegotiationRequest ? 'Negotiation terms' : `${this.escapeHtml(responseAudienceLabel)} Response`}</strong>
                 </p>
                 <p class="text-sm" style="margin: 0;">${this.escapeHtml(responseEntry.responseContent)}</p>
             </div>
@@ -5171,6 +5177,7 @@ export class WhiteCellController {
             ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_COMMUNICATION_RENDER_LIMIT} of ${this.communications.length} communications.</p>` : ''}
             ${visibleCommunications.map((communication) => {
             const isOutbound = communication.from_role === 'white_cell';
+            const isNegotiationRequest = isProposalNegotiationRequest(communication);
             const counterpartLabel = isOutbound
                 ? `To ${this.formatCommunicationRecipient(communication.to_role)}`
                 : `From ${this.formatCommunicationRecipient(communication.from_role)}`;
@@ -5182,8 +5189,9 @@ export class WhiteCellController {
                             <p class="text-sm font-semibold">${this.escapeHtml(counterpartLabel)}</p>
                             <p class="text-xs text-gray-500">${formatRelativeTime(communication.created_at)}</p>
                         </div>
-                        ${createBadge({ text: communication.type || 'MESSAGE', size: 'sm' }).outerHTML}
+                        ${createBadge({ text: isNegotiationRequest ? 'NEGOTIATION REQUESTED' : (communication.type || 'MESSAGE'), size: 'sm' }).outerHTML}
                     </div>
+                    ${isNegotiationRequest ? '<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">Negotiation terms</p>' : ''}
                     <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
                 </div>
             `;

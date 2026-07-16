@@ -2507,7 +2507,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
     });
 
-    it('locks a received proposal after the team has already responded', async () => {
+    it('labels a locked negotiation response as a negotiation request', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { communicationsStore } = await import('../stores/communications.js');
         const { buildWhiteCellRecipientMetadata } = await import('../features/communications/targeting.js');
@@ -2540,6 +2540,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 },
                 proposal_recipient_state: {
                     status: 'responded',
+                    facilitator_decision: 'negotiate',
                     response_content: 'Blue Team can support this with customs coordination.',
                     response_from_team: 'blue',
                     response_sent_at: '2026-04-09T10:20:00.000Z'
@@ -2550,8 +2551,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const controller = new FacilitatorController();
         controller.syncReceivedProposalsFromStore();
 
-        expect(proposalsList.innerHTML).toContain('Response sent to White Cell');
+        expect(proposalsList.innerHTML).toContain('Negotiation requested');
+        expect(proposalsList.innerHTML).toContain('Negotiation terms');
         expect(proposalsList.innerHTML).toContain('Blue Team can support this with customs coordination.');
+        expect(proposalsList.innerHTML).toContain('This negotiation request is locked');
+        expect(proposalsList.innerHTML).not.toContain('Response sent to White Cell');
         expect(proposalsList.innerHTML).toContain('locked');
         expect(proposalsList.innerHTML).not.toContain('data-proposal-action="respond"');
         expect(proposalsList.innerHTML).not.toContain('data-proposal-action="decline"');
@@ -2637,7 +2641,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(markup).not.toContain('Adjudication Notes:</strong>');
     });
 
-    it('renders a Green proposal response summary when the recipient team has responded', async () => {
+    it('renders a Green proposal negotiation request with directly categorised copy', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { communicationsStore } = await import('../stores/communications.js');
         global.document = createFakeDocument();
@@ -2651,6 +2655,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 recipient_team: 'blue',
                 proposal_recipient_state: {
                     status: 'responded',
+                    facilitator_decision: 'negotiate',
                     actioned_at: '2026-04-09T10:20:00.000Z',
                     response_content: 'Blue Team can support this with customs coordination.',
                     response_from_team: 'blue',
@@ -2677,9 +2682,12 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             phase: 1
         });
 
-        expect(markup).toContain('Response received from Blue Team');
-        expect(markup).toContain('Blue Team Response');
+        expect(markup).toContain('Blue Team requested negotiation.');
+        expect(markup).toContain('Recipient Status:</strong> Negotiation requested');
+        expect(markup).toContain('Negotiation terms');
         expect(markup).toContain('Blue Team can support this with customs coordination.');
+        expect(markup).not.toContain('Response received from Blue Team');
+        expect(markup).not.toContain('Blue Team Response');
         expect(markup).not.toContain('White Cell reviewed this proposal');
         expect(markup).not.toContain('Adjudication Notes:</strong>');
     });

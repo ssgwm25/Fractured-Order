@@ -1983,7 +1983,7 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(true);
     });
 
-    it('shows recipient-state updates for forwarded proposals in the White Cell proposals queue', async () => {
+    it('categorises negotiation requests in the White Cell proposals queue', async () => {
         const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');
         const { communicationsStore } = await import('../stores/communications.js');
@@ -2026,6 +2026,7 @@ describe('White Cell DOM contract', () => {
                 recipient_team: 'blue',
                 proposal_recipient_state: {
                     status: 'responded',
+                    facilitator_decision: 'negotiate',
                     response_content: 'Blue Team can support this with customs coordination.',
                     response_from_team: 'blue',
                     response_sent_at: '2026-04-08T09:25:00.000Z'
@@ -2038,9 +2039,38 @@ describe('White Cell DOM contract', () => {
         controller.syncActionsFromStore();
 
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Recipient Team:</strong> Blue Team');
-        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Recipient Status:</strong> Responded');
-        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Blue Team Response');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Blue Team requested negotiation.');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Recipient Status:</strong> Negotiation requested');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Negotiation terms');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Blue Team can support this with customs coordination.');
+        expect(fakeDocument.elements.proposalsList.innerHTML).not.toContain('Response received from Blue Team.');
+        expect(fakeDocument.elements.proposalsList.innerHTML).not.toContain('Blue Team Response');
+    });
+
+    it('categorises proposal negotiation communications in White Cell history', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        const controller = new WhiteCellController();
+        controller.communications = [{
+            id: 'proposal-negotiation-response-1',
+            from_role: 'blue_scribe',
+            to_role: 'white_cell',
+            type: 'PROPOSAL_RESPONSE',
+            content: 'Add a six-month review clause.',
+            created_at: '2026-04-08T09:25:00.000Z',
+            metadata: {
+                facilitator_decision: 'negotiate'
+            }
+        }];
+
+        controller.renderCommunicationHistory();
+
+        expect(fakeDocument.elements.commHistory.innerHTML).toContain('NEGOTIATION REQUESTED');
+        expect(fakeDocument.elements.commHistory.innerHTML).toContain('Negotiation terms');
+        expect(fakeDocument.elements.commHistory.innerHTML).toContain('Add a six-month review clause.');
+        expect(fakeDocument.elements.commHistory.innerHTML).not.toContain('PROPOSAL_RESPONSE');
     });
 
     it('rerenders White Cell queues when proposal communications change', async () => {
