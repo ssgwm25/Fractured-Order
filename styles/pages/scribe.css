@@ -673,6 +673,34 @@ body::before {
     margin-top: 2px;
 }
 
+/* Actions are peer decisions, so expose them as one left-to-right tab rail.
+   Proposal entries retain the vertical reading order defined above. */
+.scribe-section-card--actions .scribe-slide-list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    padding-bottom: var(--space-2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline proximity;
+}
+
+.scribe-section-card--actions .scribe-slide-list > li {
+    flex: 0 0 calc(var(--space-8) * 5);
+    max-width: calc(100% - var(--space-4));
+    scroll-snap-align: start;
+}
+
+.scribe-section-card--actions .scribe-slide-list > li + li {
+    margin-top: 0;
+}
+
+.scribe-section-card--actions .scribe-slide-link {
+    height: 100%;
+}
+
 .scribe-slide-link {
     width: 100%;
     display: grid;

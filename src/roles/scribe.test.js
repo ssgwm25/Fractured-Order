@@ -2166,6 +2166,10 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(css).toContain('.scribe-section-trigger {\n    width: 100%;\n    display: flex;\n    align-items: center;');
         expect(css).toContain('padding: var(--space-3);');
         expect(css).toContain('.scribe-section-card.is-current .scribe-section-trigger::before');
+        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list {\n    display: flex;\n    flex-direction: row;\n    flex-wrap: nowrap;');
+        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list > li {\n    flex: 0 0 calc(var(--space-8) * 5);');
+        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list > li + li {\n    margin-top: 0;');
+        expect(css).toContain('.scribe-section-card--actions .scribe-slide-link {\n    height: 100%;');
         expect(css).toContain('.scribe-slide-link {\n    width: 100%;\n    display: grid;');
         expect(css).toContain('.scribe-slide-link.is-action {\n    background: transparent;\n    color: inherit;\n    box-shadow: none;');
         expect(css).toContain('.scribe-slide-link.is-action.is-active {\n    background: var(--color-navy-soft);');

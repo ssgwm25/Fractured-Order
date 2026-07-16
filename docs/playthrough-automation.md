@@ -247,5 +247,7 @@ intuitive. The rehearsal lead must still assess:
 - actual venue Wi-Fi contention
 - whether notifications attract attention without disrupting deliberation
 - whether navigation feels consistent across roles
+- whether each Scribe Actions section presents its decision tabs left-to-right
+  in one horizontal scroll rail while Proposal entries remain vertically grouped
 
 Record these observations separately from the automated gate result.
