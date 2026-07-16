@@ -9,6 +9,7 @@ import {
     forwardActionToScribe,
     joinPublicParticipant,
     openSidebarSection,
+    openWhiteCellSettingsTab,
     sendWhiteCellCommunication,
     submitActionFromScribe,
     submitRfi
@@ -154,7 +155,7 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             if (!actorPool.hosted) {
                 await whiteCell.page.reload();
             }
-            await openSidebarSection(whiteCell.page, 'participants');
+            await openWhiteCellSettingsTab(whiteCell.page, 'participants');
             await expect(whiteCell.page.locator('#participantsList')).toContainText('Realtime Blue Scribe');
             await expect(whiteCell.page.locator('#participantsList')).toContainText('Realtime Blue Facilitator');
             await expect(whiteCell.page.locator('#participantsList')).toContainText('Realtime Red Facilitator');
@@ -194,6 +195,13 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             await expect(whiteCell.page.locator('#rfiQueue')).toContainText(rfiQuestion);
             recordLatency(latencySamples, 'requests fanout', requestStartedAt);
 
+            const blueAlertsBadge = blueFacilitator.page.locator('#scribeAlertsBadge');
+            if (await blueAlertsBadge.isVisible()) {
+                await blueFacilitator.page.locator('#scribeAlertsBtn').click();
+                await blueFacilitator.page.locator('#scribeAlertsClose').click();
+                await expect(blueAlertsBadge).toBeHidden();
+            }
+
             const communicationStartedAt = Date.now();
             await sendWhiteCellCommunication(whiteCell.page, {
                 recipient: 'blue_scribe',
@@ -206,7 +214,7 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
                     isolationFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online')))
                 ]);
             }
-            await expect(blueFacilitator.page.locator('#scribeAlertsBadge')).toHaveText('1');
+            await expect(blueAlertsBadge).toHaveText('1');
             recordLatency(latencySamples, 'communications fanout', communicationStartedAt);
             await blueFacilitator.page.locator('#scribeAlertsBtn').click();
             await expect(

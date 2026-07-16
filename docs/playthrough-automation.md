@@ -111,6 +111,8 @@ Pass means:
 
 - participant, timer, action, request, timeline, and communication changes
   converge on the intended live clients
+- the White Cell participant assertion uses the Participants tab inside
+  Simulation Settings, matching the shipped navigation hierarchy
 - every measured fanout sample is at or below the configured SLO (15 seconds
   by default)
 - the disconnected client displays `Live updates paused`

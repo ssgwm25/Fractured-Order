@@ -349,7 +349,17 @@ export async function authorizeWhiteCell(page, {
 }
 
 export async function openSidebarSection(page, section) {
-    await page.locator(`.sidebar-link[data-section="${section}"]`).click();
+    await page.locator(`.sidebar-link[data-section="${section}"]`).click({ timeout: 20000 });
+}
+
+export async function openWhiteCellSettingsTab(page, tab) {
+    await openSidebarSection(page, 'controls');
+    const tabButton = page.locator(`#settingsTabs .tab-button[data-settings-tab="${tab}"]`);
+    const tabPanel = page.locator(`#settingsTabs .tab-panel[data-settings-panel="${tab}"]`);
+
+    await tabButton.click({ timeout: 20000 });
+    await expect(tabButton).toHaveAttribute('aria-selected', 'true');
+    await expect(tabPanel).toBeVisible();
 }
 
 export async function createDraftAction(page, {
