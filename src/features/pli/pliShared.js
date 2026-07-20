@@ -2,6 +2,8 @@
  * Shared helpers for PLI White Cell SME review panels.
  */
 
+import { getBlueActionViewModel } from '../actions/blueActionDetails.js';
+
 export const SEATS = Object.freeze({
     MACRO: 'macro',
     DIPLOMACY_INFORMATION: 'diplomacy_information',
@@ -197,16 +199,136 @@ export function emptyState(message, detail) {
     `;
 }
 
+const EMPTY_DETAIL_MARKERS = new Set([
+    '',
+    'none',
+    'n/a',
+    'na',
+    '—',
+    '-',
+    'none selected',
+    'not selected',
+    'not specified'
+]);
+
+function isEmptyDetailValue(value) {
+    if (value == null) return true;
+    if (Array.isArray(value)) return value.length === 0;
+    const text = String(value).trim();
+    if (!text) return true;
+    return EMPTY_DETAIL_MARKERS.has(text.toLowerCase());
+}
+
+function formatDetailValue(value) {
+    if (Array.isArray(value)) return value.join(', ');
+    return String(value).trim();
+}
+
+function pushDetail(details, label, value) {
+    if (isEmptyDetailValue(value)) return;
+    details.push({ label, value: formatDetailValue(value) });
+}
+
+function decisionListDetail(decision, list) {
+    if (decision === 'No') return 'No';
+    if (!isEmptyDetailValue(list)) return list;
+    if (decision === 'Yes') return 'Yes';
+    return null;
+}
+
+/**
+ * Split Blue action dumps into prose Objective + compact structured fields.
+ * Non-structured actions keep a single narrative fallback.
+ */
+export function buildSourceActionPresentation(action = null, record = {}) {
+    const view = action ? getBlueActionViewModel(action) : null;
+    const details = [];
+
+    if (view?.hasBlueActionDetails) {
+        pushDetail(details, 'Instruments', view.instruments);
+        pushDetail(details, 'Levers', view.levers);
+        pushDetail(details, 'Sectors', view.sectors);
+
+        const supplyAngles = view.supplyChainActionAngles;
+        const supplyAreas = view.supplyChainAreas;
+        if (view.supplyChainFocusDecision === 'No') {
+            pushDetail(details, 'Supply chain focus', 'No');
+        } else {
+            pushDetail(details, 'Supply chain angles', supplyAngles);
+            pushDetail(details, 'Supply chain areas', supplyAreas);
+            if (
+                isEmptyDetailValue(supplyAngles)
+                && isEmptyDetailValue(supplyAreas)
+                && view.supplyChainFocusDecision === 'Yes'
+            ) {
+                pushDetail(details, 'Supply chain focus', 'Yes');
+            }
+        }
+
+        pushDetail(details, 'Implementation', view.implementation);
+        pushDetail(details, 'Legislative options', view.legislativeOptions);
+        pushDetail(details, 'Enforcement timeline', view.enforcementTimeline);
+        pushDetail(
+            details,
+            'Coordinated with',
+            decisionListDetail(view.coordinatedDecision, view.coordinated)
+        );
+        pushDetail(
+            details,
+            'Informed / engaged',
+            decisionListDetail(view.informedEngagedDecision, view.informed)
+        );
+
+        const narrative = (
+            view.objective
+            || action?.description
+            || action?.expected_outcomes
+            || record.action?.expected_outcomes
+            || ''
+        ).trim();
+
+        return {
+            narrative: narrative || 'No objective narrative on record.',
+            details,
+            structured: true
+        };
+    }
+
+    const narrative = (
+        action?.description
+        || action?.ally_contingencies
+        || action?.expected_outcomes
+        || record.action?.expected_outcomes
+        || ''
+    ).trim();
+
+    return {
+        narrative: narrative || 'No narrative on record.',
+        details: [],
+        structured: false
+    };
+}
+
+function renderSourceDetails(details) {
+    if (!details.length) return '';
+    return `
+        <dl class="pli-detail-meta">
+            ${details.map((entry) => `
+                <div>
+                    <dt>${escapeHtml(entry.label)}</dt>
+                    <dd>${escapeHtml(entry.value)}</dd>
+                </div>
+            `).join('')}
+        </dl>
+    `;
+}
+
 export function sourceActionColumn(action, row, record) {
     const title = getActionTitle(action, row);
     const orientation = record.declared_orientation
         || record.tracks?.orientation
         || '—';
-    const narrative = action?.description
-        || action?.ally_contingencies
-        || action?.expected_outcomes
-        || record.action?.expected_outcomes
-        || 'No narrative on record.';
+    const presentation = buildSourceActionPresentation(action, record);
     const completed = action?.submitted_at || action?.updated_at || action?.created_at || '';
     return `
         <aside class="pli-col pli-col-source">
@@ -220,8 +342,13 @@ export function sourceActionColumn(action, row, record) {
             </dl>
             <div class="pli-narrative">
                 <div class="pli-label">Action narrative</div>
-                <div class="pli-narrative-body">${escapeHtml(String(narrative))}</div>
+                <div class="pli-narrative-body">${escapeHtml(presentation.narrative)}</div>
             </div>
+            ${presentation.details.length ? `
+                <div class="pli-source-details">
+                    <div class="pli-label">Action details</div>
+                    ${renderSourceDetails(presentation.details)}
+                </div>` : ''}
             <p class="pli-source-footer text-sm">
                 <span class="badge badge-success">White Cell: action complete</span>
                 ${completed ? `<span class="text-gray-500"> · ${escapeHtml(String(completed))}</span>` : ''}

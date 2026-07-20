@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { serializeBlueActionDetails } from '../actions/blueActionDetails.js';
 import {
     SEATS,
     getSeatReview,
     seatNeedsReview,
     getMacroBlock,
     getActionTitle,
-    escapeHtml
+    escapeHtml,
+    buildSourceActionPresentation,
+    sourceActionColumn
 } from './pliShared.js';
 
 describe('pliShared', () => {
@@ -43,5 +46,53 @@ describe('pliShared', () => {
     it('prefers action goal for titles and escapes HTML', () => {
         expect(getActionTitle({ goal: 'Sanctions package' }, { action_id: 'abc' })).toBe('Sanctions package');
         expect(escapeHtml('<script>')).toBe('&lt;script&gt;');
+    });
+
+    it('splits Blue action dumps into objective prose and compact details', () => {
+        const action = {
+            goal: 'Expand Secondary Sanctions on PRC Advanced Semiconductor Ecosystem',
+            team: 'blue',
+            move: 1,
+            mechanism: 'Economic',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Blue expands secondary financial sanctions on foreign firms.',
+                instruments: ['Economic'],
+                levers: [],
+                sectors: ['Semiconductors / advanced microelectronics'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Disrupt Red'],
+                supplyChainAreas: ['Advanced Manufacturing'],
+                implementation: 'Executive Order',
+                legislativeOptions: [],
+                enforcementTimeline: '',
+                coordinatedDecision: 'Yes',
+                coordinated: ['Executive'],
+                informedEngagedDecision: 'Yes',
+                informed: ['Industry', 'Allies'],
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const presentation = buildSourceActionPresentation(action, {});
+        expect(presentation.structured).toBe(true);
+        expect(presentation.narrative).toBe('Blue expands secondary financial sanctions on foreign firms.');
+        expect(presentation.details.map((d) => d.label)).toEqual([
+            'Instruments',
+            'Sectors',
+            'Supply chain angles',
+            'Supply chain areas',
+            'Implementation',
+            'Coordinated with',
+            'Informed / engaged'
+        ]);
+        expect(presentation.details.find((d) => d.label === 'Informed / engaged').value)
+            .toBe('Industry, Allies');
+
+        const markup = sourceActionColumn(action, { action_id: 'a1' }, { declared_orientation: 'reframing' });
+        expect(markup).toContain('Blue expands secondary financial sanctions on foreign firms.');
+        expect(markup).toContain('Action details');
+        expect(markup).not.toContain('None selected');
+        expect(markup).not.toContain('Scribe Handoff');
+        expect(markup).not.toContain('Blue Team Action Details');
     });
 });
