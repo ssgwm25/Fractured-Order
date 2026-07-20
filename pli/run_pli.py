@@ -34,9 +34,19 @@ import adjudicate
 import adjudicate_router
 import engine
 from submission_timing import derive_submission_month
-from tracks.router import build_routing_record
+from tracks.router import build_routing_record, normalize_instrument_of_power
 
 STRATEGIC_ORIENTATION_MECHANISM = "Strategic Orientation"
+# Non-DIME artifact mechanisms that must not enter the PLI router.
+SKIP_MECHANISMS = {
+    "strategic orientation",
+    "proposal",
+}
+SKIP_ARTIFACT_TYPES = {
+    "proposal",
+    "strategic_orientation_selection",
+    "strategic_orientation_forecast",
+}
 DEFAULT_MOVE_YEARS = {"1": 2027, "2": 2030, "3": 2032}
 
 SEAT_MACRO = "macro"
@@ -82,6 +92,17 @@ class SupabaseRest:
         return data[0] if isinstance(data, list) else data
 
 
+def is_pli_candidate(action: dict[str, Any]) -> bool:
+    """True when the row is a DIME-routable team action (not proposal/SO)."""
+    artifact = str(action.get("artifact_type") or "").strip().lower()
+    if artifact in SKIP_ARTIFACT_TYPES:
+        return False
+    mechanism = str(action.get("mechanism") or "").strip()
+    if mechanism.lower() in SKIP_MECHANISMS:
+        return False
+    return normalize_instrument_of_power(mechanism) is not None
+
+
 def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict[str, Any]]:
     params = {
         "select": "*",
@@ -96,7 +117,18 @@ def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict
 
     existing = db.select("pli_adjudications", {"select": "action_id"})
     adjudicated_ids = {row["action_id"] for row in existing}
-    return [action for action in actions if action["id"] not in adjudicated_ids]
+    pending: list[dict[str, Any]] = []
+    ineligible = 0
+    for action in actions:
+        if action["id"] in adjudicated_ids:
+            continue
+        if is_pli_candidate(action):
+            pending.append(action)
+        else:
+            ineligible += 1
+    if ineligible:
+        print(f"Skipping {ineligible} submitted non-DIME row(s) (proposals / SO / unroutable)")
+    return pending
 
 
 def fetch_session_actions(db: SupabaseRest, session_id: str) -> list[dict[str, Any]]:
