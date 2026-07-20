@@ -45,11 +45,12 @@ export function createDiplomacyInfoReview(options = {}) {
     const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
 
     const wrapper = createSeatPanelShell({
-        title: isLeadReadonly ? 'Diplomacy & Information (finalized)' : 'Diplomacy & Information',
+        title: 'Diplomacy & Information',
         description: isLeadReadonly
-            ? 'Read-only Diplomacy / Information outputs finalized by the Diplomacy & Information SME.'
+            ? 'Read-only Diplomacy / Information outputs finalized by Dip & Info.'
             : 'Paired Diplomacy Index + Information brief — both tracks clear together under one SME seat. Unlocks after Macro is finalized or skipped.',
-        seatId: SEAT
+        seatId: SEAT,
+        viewMode
     });
     container.appendChild(wrapper);
 
@@ -102,16 +103,21 @@ export function createDiplomacyInfoReview(options = {}) {
             const locked = !isLeadReadonly
                 ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)) && !isRowUnlocked(r)).length
                 : 0;
+            const awaitingFinal = isLeadReadonly
+                ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT))).length
+                : 0;
             list.innerHTML = emptyState(
                 isLeadReadonly
-                    ? 'No finalized Diplomacy / Information outputs yet'
+                    ? (awaitingFinal > 0 ? 'Awaiting Dip & Info' : 'No finalized Diplomacy / Information outputs yet')
                     : (locked > 0
                         ? 'Awaiting Macro finalize'
                         : (showReviewed ? 'No Diplomacy / Information adjudications' : 'No Diplomacy / Information items awaiting review')),
                 isLeadReadonly
-                    ? 'Finalized reviews appear here after the Diplomacy & Information SME approves or overrides.'
+                    ? (awaitingFinal > 0
+                        ? `${awaitingFinal} item(s) awaiting Dip & Info finalize.`
+                        : 'Finalized reviews appear here after Dip & Info approves or overrides.')
                     : (locked > 0
-                        ? `${locked} item(s) waiting for Econ SME Macro finalize (or Macro skip on non-economic actions).`
+                        ? `${locked} item(s) waiting for Econ Macro finalize (or Macro skip on non-economic actions).`
                         : 'Diplomatic and Informational actions (and secondary facets) appear here after the PLI multi-track run.')
             );
             return;

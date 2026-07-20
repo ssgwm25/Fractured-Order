@@ -58,11 +58,24 @@ const SME_SEAT_WRITE_MAP = Object.freeze({
     [SME_ROLES.DIPLOMACY_INFORMATION]: PLI_SEATS.DIPLOMACY_INFORMATION
 });
 
-function assertPliSeatReviewerAllowed(seatId, existingRow = null) {
-    const role = sessionStore.getRole?.()
+const SME_HANDOFF_SEAT_MAP = Object.freeze({
+    [SME_ROLES.TSJ]: 'tsj',
+    [SME_ROLES.VERBA]: 'verba'
+});
+
+function resolveOperatorRole() {
+    return sessionStore.getRole?.()
         || sessionStore.getSessionData?.()?.role
         || sessionStore.getOperatorAuth?.()?.role
         || null;
+}
+
+/**
+ * PLI seat writes are SME-console only (matching seat). White Cell is read-only.
+ * Exported for unit tests.
+ */
+export function assertPliSeatReviewerAllowed(seatId, existingRow = null, { nextStatus = null } = {}) {
+    const role = resolveOperatorRole();
     const parsed = parseTeamRole(role);
 
     if (parsed.surface === 'whitecell') {
@@ -72,20 +85,25 @@ function assertPliSeatReviewerAllowed(seatId, existingRow = null) {
         );
     }
 
-    if (parsed.surface === OPERATOR_SURFACES.SME) {
-        const allowedSeat = SME_SEAT_WRITE_MAP[parsed.smeRole];
-        if (!allowedSeat) {
-            throw new DatabaseError(
-                'This SME role cannot review PLI seats.',
-                'reviewPliSeat'
-            );
-        }
-        if (allowedSeat !== seatId) {
-            throw new DatabaseError(
-                `SME role ${role} cannot review seat ${seatId}.`,
-                'reviewPliSeat'
-            );
-        }
+    if (parsed.surface !== OPERATOR_SURFACES.SME) {
+        throw new DatabaseError(
+            'Only the matching SME console can Approve or Override PLI seats.',
+            'reviewPliSeat'
+        );
+    }
+
+    const allowedSeat = SME_SEAT_WRITE_MAP[parsed.smeRole];
+    if (!allowedSeat) {
+        throw new DatabaseError(
+            'This SME role cannot review PLI seats.',
+            'reviewPliSeat'
+        );
+    }
+    if (allowedSeat !== seatId) {
+        throw new DatabaseError(
+            `SME role ${role} cannot review seat ${seatId}.`,
+            'reviewPliSeat'
+        );
     }
 
     if (
@@ -99,6 +117,64 @@ function assertPliSeatReviewerAllowed(seatId, existingRow = null) {
             'reviewPliSeat'
         );
     }
+
+    const priorStatus = existingRow?.seat_reviews?.[seatId]?.status
+        || (seatId === PLI_SEATS.MACRO ? existingRow?.status : null)
+        || null;
+    if (
+        (priorStatus === 'approved' || priorStatus === 'overridden')
+        && nextStatus
+        && nextStatus !== 'needs_human'
+    ) {
+        throw new DatabaseError(
+            'This PLI seat is already finalized. Send back (needs_human) before re-reviewing.',
+            'reviewPliSeat'
+        );
+    }
+}
+
+/**
+ * TSJ / Verba mark-done is seat-scoped to the matching SME role.
+ * Exported for unit tests.
+ */
+export function assertSmeHandoffAcknowledgerAllowed(handoffSeat) {
+    const role = resolveOperatorRole();
+    const parsed = parseTeamRole(role);
+
+    if (parsed.surface !== OPERATOR_SURFACES.SME) {
+        throw new DatabaseError(
+            'Only the matching SME console can mark handoffs done.',
+            'acknowledgeSmeHandoff'
+        );
+    }
+
+    const allowedSeat = SME_HANDOFF_SEAT_MAP[parsed.smeRole];
+    if (!allowedSeat || allowedSeat !== handoffSeat) {
+        throw new DatabaseError(
+            `SME role ${role} cannot acknowledge ${handoffSeat} handoffs.`,
+            'acknowledgeSmeHandoff'
+        );
+    }
+}
+
+/**
+ * Stage to apply after NI/Escalation SME finalize (override wins, else track stage_after).
+ * Exported for unit tests. Live PLI rehydrates from seat_reviews on the next run.
+ */
+export function resolveNiGlaslStageAfter(row, review = {}) {
+    const override = review?.override_value
+        ?? row?.seat_reviews?.[PLI_SEATS.NATIONAL_INTEREST_ESCALATION]?.override_value
+        ?? null;
+    if (override && typeof override === 'object' && override.stage_after != null) {
+        const staged = Number(override.stage_after);
+        if (Number.isFinite(staged)) {
+            return Math.max(1, Math.min(9, staged));
+        }
+    }
+    const stageAfter = row?.record?.tracks?.glasl?.stage_after;
+    if (stageAfter == null) return null;
+    const staged = Number(stageAfter);
+    return Number.isFinite(staged) ? Math.max(1, Math.min(9, staged)) : null;
 }
 let latestAuthenticatedSession = null;
 
@@ -334,6 +410,8 @@ function normalizeOperatorGrantRecord(record = null) {
         grantId: record.grantId ?? record.id ?? null,
         operatorName: record.operatorName ?? record.operator_name ?? null,
         sessionId: record.sessionId ?? record.session_id ?? null,
+        sessionCode: record.sessionCode ?? record.session_code ?? null,
+        sessionName: record.sessionName ?? record.session_name ?? null,
         teamId: record.teamId ?? record.team_id ?? null,
         grantedAt: record.grantedAt ?? record.granted_at ?? null,
         verifiedAt: new Date().toISOString()
@@ -2015,7 +2093,7 @@ export const database = {
             throw fromSupabaseError(fetchError, 'reviewPliSeat');
         }
 
-        assertPliSeatReviewerAllowed(seatId, existing);
+        assertPliSeatReviewerAllowed(seatId, existing, { nextStatus: status });
 
         const seatReviews = { ...(existing.seat_reviews || {}) };
         const priorSeat = seatReviews[seatId] || {};
@@ -2061,6 +2139,22 @@ export const database = {
 
         if (error) {
             throw fromSupabaseError(error, 'reviewPliSeat');
+        }
+
+        // Glasl session stage advances only after NI/Escalation SME finalize.
+        // Live runners rehydrate stage from finalized seat_reviews (see run_pli.sync_live_glasl_stage).
+        if (
+            seatId === PLI_SEATS.NATIONAL_INTEREST_ESCALATION
+            && (status === 'approved' || status === 'overridden')
+        ) {
+            const stageAfter = resolveNiGlaslStageAfter(data, review);
+            if (stageAfter != null) {
+                logger.info('PLI Glasl stage ready for next run:', {
+                    adjudicationId,
+                    sessionId: data.session_id,
+                    stageAfter
+                });
+            }
         }
 
         logger.info('PLI seat reviewed:', { adjudicationId, seatId, status });
@@ -2190,6 +2284,18 @@ export const database = {
         }
 
         await ensureAuthenticatedBrowser();
+
+        const { data: existing, error: fetchError } = await supabase
+            .from('sme_handoffs')
+            .select('*')
+            .eq('id', handoffId)
+            .single();
+
+        if (fetchError) {
+            throw fromSupabaseError(fetchError, 'acknowledgeSmeHandoff');
+        }
+
+        assertSmeHandoffAcknowledgerAllowed(existing.seat);
 
         const reviewedAt = new Date().toISOString();
         const { data, error } = await supabase

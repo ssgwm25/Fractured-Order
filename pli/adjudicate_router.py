@@ -81,6 +81,9 @@ def adjudicate_multitrack(
 
     Offline Glasl stage defaults to ``adjudications/_session_state.json``.
     Live Plenum passes ``session_id`` so escalation state is scoped per session.
+    Proposed ``stage_after`` is queued in ``pending_glasl_by_action``; call
+    ``finalize_glasl_stage`` (or live ``sync_live_glasl_stage`` after NI SME
+    finalize) before the next action sees the advanced stage.
     """
     # Ensure mechanism is present for router
     if not action.get("mechanism") and action.get("instrument_of_power"):
@@ -281,9 +284,11 @@ def adjudicate_multitrack(
         "status": overall,
     }
 
-    # Advance session Glasl stage when not needs_human
-    if glasl_record.get("status") == "pending" and glasl_record.get("stage_after"):
-        state["glasl_stage"] = glasl_record["stage_after"]
+    # Queue proposed Glasl stage; do not advance session stage until the
+    # NI/Escalation SME seat is approved or overridden (see finalize_glasl_stage).
+    if glasl_record.get("stage_after") is not None:
+        pending = state.setdefault("pending_glasl_by_action", {})
+        pending[str(action_id)] = int(glasl_record["stage_after"])
     if action_id not in state["actions"]:
         state["actions"].append(action_id)
 
@@ -291,10 +296,74 @@ def adjudicate_multitrack(
         save_session_state(state, scoped_session)
         save_adjudication(record, ADJ_DIR / f"{action_id}.json")
     elif scoped_session:
-        # Live path: keep Glasl stage advancing even when offline JSON is not written.
+        # Live path: persist pending stage proposals without advancing glasl_stage.
         save_session_state(state, scoped_session)
 
     return record
+
+
+def finalize_glasl_stage(
+    session_id: str | None,
+    *,
+    action_id: str | None = None,
+    stage_after: int | None = None,
+) -> dict[str, Any]:
+    """Apply Glasl stage after NI/Escalation SME finalize.
+
+    Prefer an explicit ``stage_after``. Otherwise consume the pending proposal
+    for ``action_id`` written during multi-track adjudication.
+    """
+    state = load_session_state(session_id)
+    pending = state.setdefault("pending_glasl_by_action", {})
+    resolved: int | None = None
+    if stage_after is not None:
+        resolved = int(stage_after)
+    elif action_id is not None and str(action_id) in pending:
+        resolved = int(pending[str(action_id)])
+
+    if resolved is None:
+        return state
+
+    resolved = max(1, min(9, resolved))
+    state["glasl_stage"] = resolved
+    if action_id is not None:
+        pending.pop(str(action_id), None)
+    save_session_state(state, session_id)
+    return state
+
+
+NI_ESCALATION_SEAT = "national_interest_escalation"
+
+
+def extract_applied_glasl_stage(
+    seat_reviews: dict[str, Any] | None,
+    record: dict[str, Any] | None,
+) -> int | None:
+    """Return stage_after only when the NI/Escalation seat is finalized."""
+    seat = (seat_reviews or {}).get(NI_ESCALATION_SEAT) or {}
+    if seat.get("status") not in ("approved", "overridden"):
+        return None
+    override = seat.get("override_value")
+    if isinstance(override, dict) and override.get("stage_after") is not None:
+        return max(1, min(9, int(override["stage_after"])))
+    glasl = ((record or {}).get("tracks") or {}).get("glasl") or {}
+    if glasl.get("stage_after") is not None:
+        return max(1, min(9, int(glasl["stage_after"])))
+    return None
+
+
+def resolve_applied_glasl_stage_from_rows(
+    rows: list[dict[str, Any]],
+) -> int | None:
+    """Newest-first scan of adjudications for an applied Glasl stage."""
+    for row in rows:
+        stage = extract_applied_glasl_stage(
+            row.get("seat_reviews"),
+            row.get("record"),
+        )
+        if stage is not None:
+            return stage
+    return None
 
 
 def instrument_from_pilot_entry(entry: dict[str, Any]) -> str:

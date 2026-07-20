@@ -47,11 +47,12 @@ export function createPliMacroReview(options = {}) {
     const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
 
     const wrapper = createSeatPanelShell({
-        title: isLeadReadonly ? 'PLI Macro (finalized)' : 'PLI Macro',
+        title: isLeadReadonly ? 'PLI Macro' : 'PLI Macro',
         description: isLeadReadonly
-            ? 'Read-only Macro outputs finalized by the Econ SME. Pending items remain in the Econ SME console.'
+            ? 'Read-only Macro outputs finalized by Econ. Pending items remain in the Econ console.'
             : 'Petrihos Lever Index macroeconomic chain — classify, score, chart, then approve or override.',
-        seatId: SEAT
+        seatId: SEAT,
+        viewMode
     });
     container.appendChild(wrapper);
 
@@ -102,12 +103,12 @@ export function createPliMacroReview(options = {}) {
             const awaiting = records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT))).length;
             list.innerHTML = emptyState(
                 isLeadReadonly
-                    ? (awaiting > 0 ? 'Awaiting Econ SME' : 'No finalized Macro outputs yet')
+                    ? (awaiting > 0 ? 'Awaiting Econ' : 'No finalized Macro outputs yet')
                     : (showReviewed ? 'No PLI macro adjudications' : 'No PLI macro adjudications awaiting review'),
                 isLeadReadonly
                     ? (awaiting > 0
-                        ? `${awaiting} Macro item(s) awaiting Econ SME finalize.`
-                        : 'Finalized Macro reviews appear here after the Econ SME approves or overrides.')
+                        ? `${awaiting} Macro item(s) awaiting Econ finalize.`
+                        : 'Finalized Macro reviews appear here after Econ approves or overrides.')
                     : 'The PLI pipeline writes multi-track records after each run. Trigger Actions → PLI Adjudication or wait for the schedule.'
             );
             return;

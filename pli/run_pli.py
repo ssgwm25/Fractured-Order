@@ -10,7 +10,8 @@ Runs inside the GitHub Actions workflow (or locally by White Cell):
    (and Diplomacy / Information when routed), then assemble tracks via
    ``adjudicate_router``.
 4. Write one ``pli_adjudications`` row per action with the multi-track record,
-   ``seat_reviews``, and aggregate ``status`` for SME review in White Cell.
+   ``seat_reviews``, and aggregate ``status`` for SME consoles (White Cell Lead
+   is read-only).
 
 Environment:
     SUPABASE_URL                Supabase project URL
@@ -224,6 +225,30 @@ def fetch_session_adjudications(
     )
 
 
+def sync_live_glasl_stage(db: SupabaseRest, session_id: str) -> int:
+    """Hydrate ephemeral session Glasl stage from finalized NI/Escalation seats.
+
+    GitHub Actions runners do not keep ``_session_state_*.json`` across runs.
+    Applied stage therefore comes from the newest adjudication whose
+    national_interest_escalation seat is approved or overridden.
+    """
+    rows = db.select(
+        "pli_adjudications",
+        {
+            "select": "seat_reviews,record,created_at",
+            "session_id": f"eq.{session_id}",
+            "order": "created_at.desc",
+        },
+    )
+    state = adjudicate_router.load_session_state(session_id)
+    applied = adjudicate_router.resolve_applied_glasl_stage_from_rows(rows)
+    if applied is not None:
+        state["glasl_stage"] = applied
+        adjudicate_router.save_session_state(state, session_id)
+        return applied
+    return int(state.get("glasl_stage") or 4)
+
+
 # Plenum UI ids (reframe) vs PLI codebook tokens (reframing).
 ORIENTATION_ALIASES = {
     "pressure": "pressure",
@@ -401,6 +426,8 @@ def build_record(
     session_id = action["session_id"]
 
     if orientation is None:
+        routing = build_routing_record(action)
+        routed = routing.get("tracks") or {}
         record = {
             "needs_human_reason": (
                 f"No declared Strategic Orientation on record for team "
@@ -411,13 +438,16 @@ def build_record(
             "submission_month": submission_month,
             "submission_timing": timing,
             "codebook_version": engine.CODEBOOK["version"],
-            "tracks": {"routing": build_routing_record(action)},
+            "tracks": {"routing": routing},
             "track_statuses": {},
             "status": "needs_human",
         }
+        # Routing-aware seats: Dip stays skipped when not routed so NI unlock
+        # is not blocked by a phantom Dip seat after Macro finalize.
+        dip_routed = bool(routed.get("diplomacy") or routed.get("information"))
         seat_reviews = {
-            SEAT_MACRO: _seat_entry("needs_human"),
-            SEAT_DIP_INFO: _seat_entry("needs_human"),
+            SEAT_MACRO: _seat_entry("needs_human" if routed.get("macro") else "skipped"),
+            SEAT_DIP_INFO: _seat_entry("needs_human" if dip_routed else "skipped"),
             SEAT_NI_ESC: _seat_entry("needs_human"),
         }
         return {
@@ -654,6 +684,7 @@ def main() -> int:
 
     orientation_cache: dict[tuple[str, str], str | None] = {}
     peers_cache: dict[str, list[dict[str, Any]]] = {}
+    glasl_synced: set[str] = set()
     failures = 0
     rows: list[dict[str, Any]] = []
 
@@ -669,6 +700,16 @@ def main() -> int:
                 peers_cache[sid] = [
                     a for a in actions if a.get("session_id") == sid
                 ]
+        if sid not in glasl_synced:
+            try:
+                stage = sync_live_glasl_stage(db, sid)
+                print(f"Session {sid}: Glasl stage_before={stage} (from finalized NI seats)")
+            except Exception as err:
+                print(
+                    f"  WARN: Glasl stage sync failed for {sid}: {err}",
+                    file=sys.stderr,
+                )
+            glasl_synced.add(sid)
 
         title = action.get("goal") or action.get("id")
         print(f"Adjudicating: [{action.get('team')}] {title}")

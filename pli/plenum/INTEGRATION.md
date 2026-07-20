@@ -1,95 +1,71 @@
 # PLI × Plenum integration guide
 
-This document describes how to connect the Petrihos Lever Index pipeline to a **Fractured Order on Plenum** deployment (Supabase backend + GitHub Pages frontend).
+This document describes how the Petrihos Lever Index pipeline connects to a **Fractured Order on Plenum** deployment (Supabase backend + GitHub Pages frontend).
 
 ## Architecture
 
 ```
-Team Scribe submits action (status = submitted)
+White Cell marks Blue action complete
+        │
+        ├─► sme_handoffs (TSJ + Verba queues)     ← app-side; never gates PLI
         │
         ▼
-GitHub Actions: PLI Adjudication workflow
+GitHub Actions: PLI Adjudication workflow (run_pli.py)
         │
-        ├─ adjudicate.py  → agent worksheet (JSON)
-        └─ engine.py      → scores + quarterly deltas (FO 2.0 stacking)
-        │
-        ▼
-Supabase: pli_adjudications (status = pending | needs_human)
+        ├─ agents → macro / Glasl / NI (+ Dip / Info when routed)
+        └─ adjudicate_router → multi-track record + seat_reviews
         │
         ▼
-White Cell: PLI Adjudication panel (PliReview.js)
-        Approve / Override (rationale required)
+Supabase: pli_adjudications
         │
-        ▼
-Teams read approved/overridden adjudication of record
+        ├─► sme.html — Econ → NI/Escalation + Dip & Info (after Macro finalize/skip)
+        └─► whitecell.html — Lead read-only view of finalized seats
 ```
 
-Writes to `pli_adjudications` use the **service-role key** in GitHub Actions only. Browser clients can **read** (scoped by RLS) and **review** (White Cell / Game Master); they cannot insert adjudication rows.
+Writes to `pli_adjudications` use the **service-role key** in GitHub Actions only. Browser clients can **read** (RLS) and SME consoles can **UPDATE** matching seats; White Cell cannot UPDATE PLI rows.
 
-## Step 1 — Database migration
+## Step 1 — Database migrations
 
-Apply in the Supabase SQL editor (or your migration runner), in order:
-
-```
-plenum/migrations/2026-07-02_pli_adjudications.sql
-```
-
-Optional legacy columns from `2026-07-14_action_timer_stamps.sql` are **not** required for FO 2.0 timing (cadence is orchestrator-side). Keep the migration only if other tooling still reads those columns.
-
-**Prerequisite:** `2026-04-08_live_demo_rls_hardening.sql` helper functions must already exist (`live_demo_can_read_session`, `live_demo_can_write_session_surface`, `live_demo_has_operator_grant`).
-
-Verify:
-
-```sql
-SELECT count(*) FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'pli_adjudications';
-```
-
-## Step 2 — White Cell UI
-
-Copy the review panel into the Plenum app:
+Apply in order (repo `data/` copies):
 
 ```
-plenum/ui/PliReview.js  →  src/features/pli/PliReview.js
+data/2026-07-17_pli_adjudications.sql          # multi-track record + seat_reviews
+data/2026-07-20_sme_handoffs.sql               # handoffs + SME surface authorize
+data/2026-07-20_sme_pli_write_hardening.sql    # deny whitecell PLI UPDATE; tighten handoff UPDATE
 ```
 
-### whitecell.html
+**Prerequisite:** live-demo RLS helpers (`live_demo_can_read_session`, `live_demo_can_write_session_surface`, `live_demo_has_operator_grant`).
 
-Add a sidebar link and section (see `blpetrihos-hub/fractured-order` `pli-integration` branch or the reference patch below):
+## Step 2 — Frontend surfaces
 
-- Sidebar item: `data-section="pliAdjudication"` — label **PLI Adjudication**
-- Section: `#pliAdjudicationSection` with container `#pliAdjudicationPanel`
-- Optional pending badge: `#pliBadge`
+### SME console (`sme.html` + `src/roles/sme.js`)
 
-### whitecell.js
+Landing **SME ACCESS** roles: Econ, NI/Escalation, Dip & Info, TSJ, Verba (shared operator code).
 
-```javascript
-import { createPliReview } from '../features/pli/PliReview.js';
+| SME role | UI |
+|----------|-----|
+| `sme_econ` | Macro seat Approve / Override |
+| `sme_ni_escalation` | NI + Glasl seat (unlocks after Macro `approved`/`overridden`/`skipped`) |
+| `sme_diplomacy_information` | Diplomacy + Information seat (same unlock) |
+| `sme_tsj` / `sme_verba` | Handoff queues only (non-blocking) |
 
-// After session mount:
-this.pliReview = createPliReview({
-    container: document.getElementById('pliAdjudicationPanel'),
-    getSessionId: () => this.sessionId,
-    getReviewerName: () => this.operatorName
-});
-this.pliReview.refresh();
+### White Cell Lead (`whitecell.html`)
 
-// On sidebar navigation to pliAdjudication:
-this.pliReview?.refresh();
-```
+Three PLI panels mount with `PLI_VIEW_MODES.LEAD_READONLY` and `canReview === false`:
+
+- `#pliAdjudicationPanel` — Macro
+- `#pliDiplomacyInfoPanel` — Dip & Info
+- `#pliNiEscalationPanel` — NI/Escalation
 
 ### database.js
 
-Ensure these methods exist (copy from Fractured-Order `pli-integration` if missing):
-
 - `fetchPliAdjudications(sessionId, filters?)`
-- `reviewPliAdjudication(adjudicationId, review)`
+- `reviewPliSeat(adjudicationId, seatId, review)` — SME seat allowlist + re-finalize guard
+- `ensureSmeHandoffs` / `acknowledgeSmeHandoff` — TSJ/Verba only for ack
 
 ## Step 3 — GitHub Actions
 
-### Option A — Standalone PLI repo (this repository)
-
-Use `.github/workflows/pli-adjudicate.yml` as committed here. Secrets on **this** repo:
+Use `.github/workflows/pli-adjudicate.yml`. Secrets:
 
 | Secret | Value |
 |--------|-------|
@@ -99,57 +75,38 @@ Use `.github/workflows/pli-adjudicate.yml` as committed here. Secrets on **this*
 
 Trigger manually (**Actions → PLI Adjudication → Run workflow**) or rely on the weekday schedule.
 
-### Option B — Submodule inside Fractured-Order
+## Step 4 — Routing, seats, and Glasl
 
-1. Add this repo as `pli/` (submodule or subtree).
-2. Copy `.github/workflows/pli-adjudicate.yml` to Fractured-Order `.github/workflows/`.
-3. Set `working-directory: pli` on the run step.
+`run_pli.py` looks up each team's declared **Strategic Orientation** before scoring Fit. Missing orientation still writes a stub row with **routing-aware** `seat_reviews` (Dip `skipped` when not routed; Macro `needs_human` only when routed; NI always `needs_human`).
 
-## Step 4 — Strategic Orientation dependency
+| Concept | Meaning |
+|---------|---------|
+| Track `skipped_ne` | Router did not open that track for this IOP |
+| Seat `skipped` | No work for that SME seat (e.g. neither Dip nor Info routed) |
+| Macro finalize / skip | Unlocks NI and Dip SME seats in the app |
 
-`run_pli.py` looks up each team's declared **Strategic Orientation** artifact before adjudicating actions. Ensure the `actions` table rows include `team`, `move`, `session_id`, and `status='submitted'`, and that orientation artifacts are stored per the live-demo schema.
+**Glasl:** `stage_after` is recorded on write but session stage does **not** advance until NI/Escalation is finalized. Offline uses `finalize_glasl_stage`; live `run_pli.sync_live_glasl_stage` rehydrates from the newest approved/overridden NI seat (GHA filesystem session JSON is ephemeral).
 
 ### FO 2.0 submission month (6-month cadence)
 
-Game-director design: actions are **not** grounded by the Plenum wall-clock timer. `run_pli.py` derives `submission_month` via `submission_timing.py` before the agent/engine run:
-
-1. Explicit `action.submission_month` / `game_month` if present (preferred stamp)
-2. Otherwise **six-month cadence**: sort the session’s actions by `created_at`, assign `2027-01 + index × 6 months` (`source: six_month_cadence`)
-
-The orchestrator overwrites worksheet `submission_month` so the agent cannot invent timing. Trace metadata is stored on the adjudication record as `submission_timing`. White Cell shows `clamped_to_horizon` / `onset_beyond_horizon` when applicable.
-
-**Horizon:** the live macro grid runs through **2034Q4**. Beyond-horizon months still clamp; onset past the last quarter flags `needs_human`.
-
-**Live stacking:** `run_pli.py` attaches an uncapped `session_stack` to each new record; `PliReview.js` also recomputes a cumulative path across visible adjudications so SMEs can see higher-order multi-action effects.
+1. Explicit `action.submission_month` / `game_month` if present
+2. Otherwise **six-month cadence**: sort session actions by `created_at`, assign `2027-01 + index × 6 months`
 
 ### SME staffing (game director)
 
 | SME seat | Tracks |
 |----------|--------|
-| National Interest & Escalation SME | National Interest + Glasl (same person) |
-| Diplomacy Index & Information SME | Diplomacy indexing + Information brief (same person) |
-| Macro / White Cell SME | Macroeconomic approve/override |
-
-Machine-readable pairing: `codebook/adjudication_data.json` → `sme_role_pairing`.
-
-### Fractured-Order live wiring (integrated)
-
-When this package is vendored at `Fractured-Order/pli/`:
-
-1. Apply `data/2026-07-17_pli_adjudications.sql` (multi-track `record` + `seat_reviews`).
-2. White Cell mounts three SME panels from `src/features/pli/` (macro, Diplomacy+Information, NI+Escalation).
-3. GitHub Action `.github/workflows/pli-adjudicate.yml` runs with `working-directory: pli`.
-4. `run_pli.py` writes multi-track rows; Glasl session state is scoped per `session_id`.
-5. Smoke-test one submitted action: PLI timing source should be `six_month_cadence` (or an explicit stamped month).
+| Econ | Macro |
+| National Interest & Escalation | National Interest + Glasl |
+| Diplomacy Index & Information | Diplomacy + Information |
+| TSJ / Verba | Narrative handoffs only (do not gate PLI) |
 
 ## Step 5 — Smoke test
 
 ```bash
-# Engine self-check (no secrets)
 pip install -r requirements.txt
-python -m pytest test_engine.py -q
+python -m pytest test_engine.py test_tracks.py test_run_pli_seats.py -q
 
-# Dry-run against live Supabase (secrets required)
 export SUPABASE_URL=...
 export SUPABASE_SERVICE_ROLE_KEY=...
 export CURSOR_API_KEY=...
@@ -158,34 +115,16 @@ export PLI_SESSION_ID=<uuid>   # optional
 python run_pli.py
 ```
 
-Then open White Cell → **PLI Adjudication** and confirm `pending` rows appear with trend charts.
-
-## Multi-track status (this phase)
-
-`adjudicate_router.py` + `tracks/` implement National Interest, Glasl, Diplomacy indexing, and Information briefs **offline**. Live Supabase writes and White Cell panels for those tracks are **not wired yet** — `run_pli.py` remains macro-only against `pli_adjudications`. Offline Glasl stage lives in `adjudications/_session_state.json` (global local file); live Plenum will scope escalation state per `session_id`.
-
-Offline multi-track replay:
-
-```bash
-python pilot/run_multitrack_pilot.py
-python reports/regenerate_all.py
-```
-
-## FO 1.0 pilot replay (offline)
-
-No Supabase required:
-
-```bash
-python pilot/run_pilot.py
-python generate_sample_output.py   # HTML sample with charts
-python generate_fo10_report_charts.py  # FO 1.0 report chart deliverables
-```
+Then: Econ SME → approve Macro → NI/Dip unlock → finalize → White Cell Lead sees read-only outputs. Confirm TSJ/Verba queues can stay pending without blocking PLI.
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---------|----------------|
-| Workflow skips immediately | Secrets not configured (by design — see workflow notice) |
+| Workflow skips immediately | Secrets not configured |
 | White Cell panel empty / error | Migration not applied or RLS blocks read |
+| NI/Dip locked after Macro | Macro seat not yet `approved`/`overridden`/`skipped` |
+| Dip seat stuck `needs_human` with no Dip tracks | Stale stub before routing-aware missing-orientation fix — re-run PLI or patch seat |
 | All actions `needs_human` | Agent worksheet validation failed twice — SME adjudicates manually |
+| Glasl stage resets between GHA runs | Expected until NI seat finalized; then `sync_live_glasl_stage` applies |
 | Windows local agent fails | Run `win_bridge_patch.apply()` before Cursor SDK (see `adjudicate.py`) |
