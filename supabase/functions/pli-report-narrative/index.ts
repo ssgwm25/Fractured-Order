@@ -151,7 +151,9 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "factPack is too large" }, 413, origin);
   }
 
-  const apiKey = Deno.env.get("CURSOR_API_KEY");
+  const apiKey = Deno.env.get("CURSOR_API_KEY")
+    || Deno.env.get("Cursor_API_KEY")
+    || Deno.env.get("cursor_api_key");
   if (!apiKey) {
     return jsonResponse({
       error: "CURSOR_API_KEY is not configured on the server",
