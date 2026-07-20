@@ -1,0 +1,8 @@
+cursor-sdk
+jsonschema>=4.0
+requests>=2.31
+pytest>=8.0
+matplotlib>=3.8
+numpy>=1.26
+pillow>=10.0
+fpdf2>=2.7.0

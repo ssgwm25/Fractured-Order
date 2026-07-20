@@ -1,0 +1,286 @@
+/**
+ * PLI SME review panels — mockup structure with FO design tokens
+ */
+
+.pli-sme-panel {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.pli-sme-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.pli-sme-toolbar-left,
+.pli-sme-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.pli-sme-desc {
+    margin: 0;
+}
+
+.pli-sme-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.pli-sme-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.pli-sme-card-title {
+    margin: 0 0 var(--space-1) 0;
+    font-size: 1.125rem;
+}
+
+.pli-sme-columns {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.4fr) minmax(220px, 1fr);
+    gap: var(--space-4);
+}
+
+@media (max-width: 1100px) {
+    .pli-sme-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pli-col-title {
+    margin: 0 0 var(--space-3) 0;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.pli-action-title {
+    margin: 0 0 var(--space-3) 0;
+    font-size: 1rem;
+}
+
+.pli-meta {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3) 0;
+}
+
+.pli-meta > div {
+    display: grid;
+    gap: 2px;
+}
+
+.pli-meta dt {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-muted);
+}
+
+.pli-meta dd {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.pli-narrative {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-3);
+    background: var(--color-surface-alt);
+}
+
+.pli-narrative-body {
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.pli-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-2);
+}
+
+.pli-block {
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    background: var(--color-bg);
+}
+
+.pli-field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.pli-field {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-2);
+}
+
+.pli-k {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+.pli-v {
+    font-weight: 600;
+}
+
+.pli-cite {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-secondary);
+}
+
+.pli-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin: var(--space-2) 0;
+}
+
+.pli-table th,
+.pli-table td {
+    border-bottom: 1px solid var(--color-border-light);
+    padding: 0.35rem 0.4rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.pli-notice {
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-3);
+    margin: var(--space-2) 0;
+    font-size: 0.875rem;
+}
+
+.pli-notice-danger {
+    background: rgba(176, 74, 74, 0.08);
+    border-left: 3px solid #b04a4a;
+}
+
+.pli-notice-gold {
+    background: rgba(185, 151, 91, 0.12);
+    border: 1px solid var(--color-gold);
+}
+
+.pli-trend-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-2);
+}
+
+.pli-chart-card {
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-2);
+}
+
+.pli-sme-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.pli-footer-note {
+    margin-left: auto;
+}
+
+.pli-transcript {
+    margin-top: var(--space-3);
+}
+
+.pli-pre {
+    max-height: 240px;
+    overflow: auto;
+    font-size: 0.75rem;
+    background: var(--color-surface-alt);
+    padding: var(--space-2);
+    border-radius: var(--radius-md, 8px);
+}
+
+.pli-ni-grid {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.pli-ni-domain {
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-2) var(--space-3);
+}
+
+.pli-ni-domain-head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.pli-ni-delta {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-navy);
+}
+
+.pli-glasl-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.pli-glasl-step {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    background: var(--color-surface-alt);
+}
+
+.pli-glasl-step.is-prior {
+    background: rgba(31, 59, 110, 0.15);
+    border-color: #1f3b6e;
+}
+
+.pli-glasl-step.is-proposed {
+    background: rgba(185, 151, 91, 0.35);
+    border-color: var(--color-gold);
+    font-weight: 700;
+}
+
+.pli-source-footer {
+    margin-top: var(--space-3);
+}

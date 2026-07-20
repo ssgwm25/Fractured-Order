@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="./styles/layouts/header.css">
     <link rel="stylesheet" href="./styles/layouts/sidebar.css">
     <link rel="stylesheet" href="./styles/layouts/grid.css">
+    <link rel="stylesheet" href="./styles/components/pli-sme.css">
     <style>
         /* Skip link is defined centrally in styles/base/reset.css. */
         .scribe-deck-card {
@@ -291,6 +292,40 @@
                             </span>
                             <span class="sidebar-label">Red Actions</span>
                             <span class="sidebar-badge" id="responsesBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-divider"></li>
+                    <li class="sidebar-menu-item">
+                        <a href="#pliAdjudication" class="sidebar-link" data-section="pliAdjudication">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">PLI Adjudication</span>
+                            <span class="sidebar-badge" id="pliMacroBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#pliDiplomacyInfo" class="sidebar-link" data-section="pliDiplomacyInfo">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Diplomacy &amp; Information</span>
+                            <span class="sidebar-badge" id="pliDipInfoBadge" hidden>0</span>
+                        </a>
+                    </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#pliNiEscalation" class="sidebar-link" data-section="pliNiEscalation">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">NI &amp; Escalation</span>
+                            <span class="sidebar-badge" id="pliNiEscBadge" hidden>0</span>
                         </a>
                     </li>
                     <li class="sidebar-divider"></li>
@@ -648,6 +683,45 @@
                         <div id="adjudicationQueue" aria-live="polite">
                             <!-- Pending White Cell deliberation items will appear here -->
                         </div>
+                    </div>
+                </section>
+
+                <!-- PLI Macro SME Review -->
+                <section id="pliAdjudicationSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">PLI Adjudication</h2>
+                            <p class="section-description">Petrihos Lever Index macroeconomic adjudications — full trace, approve or override</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div id="pliAdjudicationPanel"></div>
+                    </div>
+                </section>
+
+                <!-- Diplomacy & Information SME Review -->
+                <section id="pliDiplomacyInfoSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">Diplomacy &amp; Information</h2>
+                            <p class="section-description">Paired Diplomacy Index and Information brief — both tracks clear together</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div id="pliDiplomacyInfoPanel"></div>
+                    </div>
+                </section>
+
+                <!-- NI & Escalation SME Review -->
+                <section id="pliNiEscalationSection" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <div class="section-title-wrapper">
+                            <h2 class="section-title">NI &amp; Escalation</h2>
+                            <p class="section-description">National Interest domain deltas and Glasl escalation — paired SME seat</p>
+                        </div>
+                    </div>
+                    <div class="section-body">
+                        <div id="pliNiEscalationPanel"></div>
                     </div>
                 </section>
 

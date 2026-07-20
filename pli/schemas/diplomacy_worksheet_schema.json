@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Diplomacy index worksheet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["top_layer", "category", "band", "policy_style", "rationale", "needs_human"],
+  "properties": {
+    "needs_human": {"type": "boolean"},
+    "needs_human_reason": {"type": ["string", "null"]},
+    "top_layer": {"type": "string", "minLength": 1},
+    "category": {"type": "string", "minLength": 3},
+    "band": {
+      "type": "string",
+      "enum": ["Pressure", "Positioning", "Relationship-Building"]
+    },
+    "policy_style": {"type": "string", "minLength": 3},
+    "code_string": {"type": "string"},
+    "rationale": {"type": "string", "minLength": 12}
+  }
+}

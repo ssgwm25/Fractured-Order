@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Glasl agent worksheet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["delta", "rationale", "needs_human"],
+  "properties": {
+    "needs_human": {"type": "boolean"},
+    "needs_human_reason": {"type": ["string", "null"]},
+    "stage_before": {"type": "integer", "minimum": 1, "maximum": 9},
+    "delta": {"type": "integer"},
+    "stage_after": {"type": "integer", "minimum": 1, "maximum": 9},
+    "rationale": {"type": "string", "minLength": 12}
+  }
+}

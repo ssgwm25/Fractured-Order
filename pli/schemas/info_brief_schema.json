@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Information SME brief",
+  "type": "object",
+  "required": [
+    "summary",
+    "audiences",
+    "narratives",
+    "second_order_effects",
+    "sme_questions",
+    "suggested_sme_edits",
+    "needs_human"
+  ],
+  "properties": {
+    "needs_human": {"type": "boolean"},
+    "needs_human_reason": {"type": ["string", "null"]},
+    "summary": {"type": "string", "minLength": 8},
+    "audiences": {"type": "string", "minLength": 8},
+    "narratives": {"type": "string", "minLength": 8},
+    "second_order_effects": {"type": "string", "minLength": 8},
+    "sme_questions": {"type": "string", "minLength": 8},
+    "suggested_sme_edits": {"type": "string", "minLength": 8},
+    "evidence_notes": {"type": ["string", "null"]}
+  }
+}

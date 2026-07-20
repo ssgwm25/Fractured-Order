@@ -1,0 +1,3294 @@
+{
+  "codebook_version": "trial-2026-07-02",
+  "orientation": "reframing",
+  "mode": "live-agent (Cursor SDK)",
+  "n_actions": 11,
+  "n_divergences": 3,
+  "divergences": [
+    {
+      "action": "M1-A5",
+      "implementation": {
+        "pipeline": 1,
+        "provisional": 2
+      },
+      "fit": {
+        "pipeline": 3,
+        "provisional": 3
+      },
+      "lever": "L4",
+      "tier": 4
+    },
+    {
+      "action": "M1-A6",
+      "implementation": {
+        "pipeline": 9,
+        "provisional": 8
+      },
+      "fit": {
+        "pipeline": 8,
+        "provisional": 8
+      },
+      "lever": "L8",
+      "tier": 1
+    },
+    {
+      "action": "M2-A1",
+      "implementation": {
+        "pipeline": 3,
+        "provisional": 4
+      },
+      "fit": {
+        "pipeline": 7,
+        "provisional": 7
+      },
+      "lever": "L6",
+      "tier": 3
+    }
+  ],
+  "results": [
+    {
+      "action_id": "M1-A1",
+      "title": "Wedges and Incentive",
+      "elapsed_seconds": 66.5,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "NE",
+          "instrument": null,
+          "secondary_instrument": null,
+          "direction": "coercive",
+          "rule_citation": "NE special code: covert operations \u2014 Layer 1 NE definition ('Covert operations, pure diplomacy, military'); mechanism is Covert Action Program with hack-and-leak, not an economic lever instrument"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "50 U.S.C. \u00a7 3093 (Covert Action authorities, National Security Act of 1947)",
+            "Executive Order 12333 (United States Intelligence Activities)",
+            "Presidential Finding / Title 50 covert-action notification framework"
+          ],
+          "rationale": "Standing covert-action authority exists and has been exercised historically, but a cyber-enabled hack-and-leak against PRC BRICS+ intent is an untested application requiring a new Presidential Finding and operational rulemaking rather than a routine, proven instrument deployment."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {},
+        "fit": {
+          "band": "3-4",
+          "score": 3,
+          "orientation": "reframing",
+          "rationale": "Covert hack-and-leak to discredit PRC telecommunications contests the adversary coercively rather than building alternative capacity, institutions, standards, or coalitions \u2014 partial contradiction with declared Reframing per Fit anchor band 3-4."
+        }
+      },
+      "provisional": {
+        "implementation": null,
+        "fit": null
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "NE",
+          "instrument": null,
+          "secondary_instrument": null,
+          "direction": "coercive",
+          "rule_citation": "NE special code: covert operations \u2014 Layer 1 NE definition ('Covert operations, pure diplomacy, military'); mechanism is Covert Action Program with hack-and-leak, not an economic lever instrument"
+        },
+        "precedent": null,
+        "implementation": null,
+        "fit": null,
+        "trend": {
+          "lever": "NE",
+          "no_effect": true,
+          "no_effect_reason": "non-economic action: no lever vector",
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "neutral"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "neutral"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "verdict": "neutral"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2026,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": null,
+          "provisional": null,
+          "match": true
+        },
+        "fit": {
+          "pipeline": null,
+          "provisional": null,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M1-A2",
+      "title": "No BRICS+ in America Act",
+      "elapsed_seconds": 135.9,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L2",
+          "instrument": "I2.04",
+          "secondary_instrument": null,
+          "direction": "coercive",
+          "rule_citation": "Tie-break rule 2: export license / entity list / technology-system exclusion \u2192 L2; I2.04 market exclusion of foreign-affiliated technology systems (telecommunications sector, PRC-associated BRICS+ systems)"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "National Defense Authorization Act for Fiscal Year 2019, Section 889 (prohibition on certain telecommunications equipment)",
+            "Executive Order 13873, Securing the Information and Communications Technology and Services Supply Chain (2019)",
+            "Secure and Trusted Communications Networks Act of 2019 (Pub. L. 116-124)",
+            "Secure Equipment Act of 2021 (FCC Covered List authority)"
+          ],
+          "rationale": "Statutory and executive ICTS exclusion authorities for PRC-affiliated telecom equipment are enacted and have been exercised (Huawei/ZTE bans, FCC Covered List), but a blanket legislative exclusion of BRICS+-associated technology at this scope has not been used\u2014existing authority class, untested target and breadth; new act requires enactment and implementing rulemaking."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {
+          "timeline_mismatch": "Submission expects market restriction as outcome via a new legislative act but provides no sequencing; L2 matrix onset is 1 year and novel statutory definitions require congressional passage plus agency rulemaking before enforcement."
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 4,
+          "orientation": "reframing",
+          "rationale": "Primary mechanism is coercive market exclusion of adversary-affiliated telecom systems\u2014imposing access costs rather than building alternative capacity, institutions, or standards\u2014partial contradiction of declared Reframing orientation per Fit anchor 3-4."
+        }
+      },
+      "provisional": {
+        "implementation": 5,
+        "fit": 4
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L2",
+          "instrument": "I2.04",
+          "secondary_instrument": null,
+          "direction": "coercive",
+          "rule_citation": "Tie-break rule 2: export license / entity list / technology-system exclusion \u2192 L2; I2.04 market exclusion of foreign-affiliated technology systems (telecommunications sector, PRC-associated BRICS+ systems)"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "National Defense Authorization Act for Fiscal Year 2019, Section 889 (prohibition on certain telecommunications equipment)",
+            "Executive Order 13873, Securing the Information and Communications Technology and Services Supply Chain (2019)",
+            "Secure and Trusted Communications Networks Act of 2019 (Pub. L. 116-124)",
+            "Secure Equipment Act of 2021 (FCC Covered List authority)"
+          ],
+          "rationale": "Statutory and executive ICTS exclusion authorities for PRC-affiliated telecom equipment are enacted and have been exercised (Huawei/ZTE bans, FCC Covered List), but a blanket legislative exclusion of BRICS+-associated technology at this scope has not been used\u2014existing authority class, untested target and breadth; new act requires enactment and implementing rulemaking."
+        },
+        "implementation": {
+          "tier": 2,
+          "tier_label": "Existing but untested authority",
+          "midpoint": 6.5,
+          "modifiers_applied": {
+            "timeline_mismatch": -1
+          },
+          "raw": 5.5,
+          "score": 5
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 4,
+          "orientation": "reframing",
+          "anchor": "Partial contradiction - primary mechanism cuts against the declared orientation"
+        },
+        "trend": {
+          "lever": "L2",
+          "direction": "coercive",
+          "direction_flip_applied": false,
+          "implementation_band": "5-6",
+          "fit_band": "3-4",
+          "exec_year": 2026,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "tr",
+              "effective_class": "0",
+              "delta_value": -0.0,
+              "onset_years": 2,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 2,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "neutral"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 2,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "neutral"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "s",
+              "delta_value": -0.2,
+              "onset_years": 2,
+              "start_year": 2028,
+              "effect_window_years": 1,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                -0.2,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.2,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "verdict": "unfavorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": -0.1,
+              "onset_years": 2,
+              "start_year": 2028,
+              "effect_window_years": 1,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                -0.1,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.0,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "verdict": "unfavorable"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2026,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 5,
+          "provisional": 5,
+          "match": true
+        },
+        "fit": {
+          "pipeline": 4,
+          "provisional": 4,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M1-A3",
+      "title": "Minerals for All Act",
+      "elapsed_seconds": 31.0,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.02",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy / deregulation / procurement -> L7; L7 boundary: domestic-only capacity (foreign deployment -> L6); instrument I7.02 deregulation for capacity expansion"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "FAST-41, 42 U.S.C. 4370m (permitting acceleration, exercised since 2015)",
+            "Energy Act of 2020, critical minerals provisions",
+            "Fiscal Responsibility Act of 2023, NEPA streamlining amendments"
+          ],
+          "rationale": "Permitting-reform and mining deregulation authority is enacted and repeatedly exercised; Minerals for All extends a proven I7.02 instrument class rather than inventing a new one"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "timeline_mismatch": "Domestic mine permitting and litigation cycles exceed L7 matrix onset (1-2 years); production gains cannot arrive within the move horizon",
+          "multi_authority_coordination": "Mining deregulation requires synchronized rulemaking across Interior, EPA, USDA Forest Service, and Army Corps of Engineers"
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Domestic mining and processing deregulation builds alternative mineral capacity independent of PRC supply chains\u2014a direct Reframing mechanism with only secondary environmental-friction costs"
+        }
+      },
+      "provisional": {
+        "implementation": 7,
+        "fit": 8
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.02",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy / deregulation / procurement -> L7; L7 boundary: domestic-only capacity (foreign deployment -> L6); instrument I7.02 deregulation for capacity expansion"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "FAST-41, 42 U.S.C. 4370m (permitting acceleration, exercised since 2015)",
+            "Energy Act of 2020, critical minerals provisions",
+            "Fiscal Responsibility Act of 2023, NEPA streamlining amendments"
+          ],
+          "rationale": "Permitting-reform and mining deregulation authority is enacted and repeatedly exercised; Minerals for All extends a proven I7.02 instrument class rather than inventing a new one"
+        },
+        "implementation": {
+          "tier": 1,
+          "tier_label": "Proven authority",
+          "midpoint": 9,
+          "modifiers_applied": {
+            "timeline_mismatch": -1,
+            "multi_authority_coordination": -1
+          },
+          "raw": 7,
+          "score": 7
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "anchor": "Advance with friction - advances the orientation; secondary elements neutral or slightly mixed"
+        },
+        "trend": {
+          "lever": "L7",
+          "direction": "inducement",
+          "direction_flip_applied": false,
+          "implementation_band": "7-8",
+          "fit_band": "7-8",
+          "exec_year": 2026,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "M",
+              "delta_value": 0.5,
+              "onset_years": 3,
+              "start_year": 2029,
+              "effect_window_years": 3,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                2.4,
+                2.3,
+                2.3
+              ],
+              "verdict": "favorable"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": 0.2,
+              "onset_years": 2,
+              "start_year": 2028,
+              "effect_window_years": 2,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.2,
+                0.2,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.2,
+                2.2,
+                2.0,
+                2.0
+              ],
+              "verdict": "unfavorable"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": -0.2,
+              "onset_years": 3,
+              "start_year": 2029,
+              "effect_window_years": 3,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                -0.2,
+                -0.2,
+                -0.2
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.7,
+                3.7,
+                3.7
+              ],
+              "verdict": "favorable"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": -0.2,
+              "onset_years": 3,
+              "start_year": 2029,
+              "effect_window_years": 3,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                -0.2,
+                -0.2,
+                -0.2
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.4,
+                1.2,
+                1.5,
+                1.3
+              ],
+              "verdict": "unfavorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "S",
+              "effective_class": "S",
+              "delta_value": 0.8,
+              "onset_years": 2,
+              "start_year": 2028,
+              "effect_window_years": 4,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.8,
+                0.8,
+                0.8,
+                0.8
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.9,
+                2.6,
+                2.6,
+                2.6
+              ],
+              "verdict": "favorable"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2026,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 7,
+          "provisional": 7,
+          "match": true
+        },
+        "fit": {
+          "pipeline": 8,
+          "provisional": 8,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M1-A4",
+      "title": "Trade Investigations",
+      "elapsed_seconds": 12.5,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L1",
+          "instrument": "I1.03",
+          "secondary_instrument": "I2.03",
+          "direction": "coercive",
+          "rule_citation": "Tie-break rule 5: tariff / quota / trade remedy \u2192 L1; titled Section 301/232 semiconductor trade investigations are primary I1.03; bundled ICTS tech restriction is secondary I2.03 per L1/L2 boundary (dual-use denial \u2192 L2)"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "Section 301, Trade Act of 1974, 19 U.S.C. \u00a7 2411 (repeatedly exercised against the PRC, 2018\u20132025)",
+            "Section 232, Trade Expansion Act of 1962, 19 U.S.C. \u00a7 1862",
+            "USTR Section 301 China Technology Transfer investigation (2017\u20132018)",
+            "Executive Order 13873 (2019) and 10 U.S.C. \u00a7 889 (ICTS prohibition authority, secondary)"
+          ],
+          "rationale": "Tier 1 \u2014 proven authority: Section 301/232 trade-remedy investigations have deep, repeatedly exercised precedent against the same target; administrative machinery at USTR and Commerce is standing and funded."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "5-6",
+          "score": 6,
+          "orientation": "reframing",
+          "rationale": "Coercive trade-pressure mechanism (Section 301/232 investigations and ICTS restrictions) imposes costs on the adversary without building alternative capacity, institutions, or standards \u2014 orientation-agnostic under declared Reframing."
+        }
+      },
+      "provisional": {
+        "implementation": 9,
+        "fit": 6
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L1",
+          "instrument": "I1.03",
+          "secondary_instrument": "I2.03",
+          "direction": "coercive",
+          "rule_citation": "Tie-break rule 5: tariff / quota / trade remedy \u2192 L1; titled Section 301/232 semiconductor trade investigations are primary I1.03; bundled ICTS tech restriction is secondary I2.03 per L1/L2 boundary (dual-use denial \u2192 L2)"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "Section 301, Trade Act of 1974, 19 U.S.C. \u00a7 2411 (repeatedly exercised against the PRC, 2018\u20132025)",
+            "Section 232, Trade Expansion Act of 1962, 19 U.S.C. \u00a7 1862",
+            "USTR Section 301 China Technology Transfer investigation (2017\u20132018)",
+            "Executive Order 13873 (2019) and 10 U.S.C. \u00a7 889 (ICTS prohibition authority, secondary)"
+          ],
+          "rationale": "Tier 1 \u2014 proven authority: Section 301/232 trade-remedy investigations have deep, repeatedly exercised precedent against the same target; administrative machinery at USTR and Commerce is standing and funded."
+        },
+        "implementation": {
+          "tier": 1,
+          "tier_label": "Proven authority",
+          "midpoint": 9,
+          "modifiers_applied": {},
+          "raw": 9,
+          "score": 9
+        },
+        "fit": {
+          "band": "5-6",
+          "score": 6,
+          "orientation": "reframing",
+          "anchor": "Neutral / mixed - orientation-agnostic, or advancing and contradicting elements roughly balance"
+        },
+        "trend": {
+          "lever": "L1",
+          "direction": "coercive",
+          "direction_flip_applied": false,
+          "implementation_band": "9-10",
+          "fit_band": "5-6",
+          "exec_year": 2026,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": -0.2,
+              "onset_years": 1,
+              "start_year": 2027,
+              "effect_window_years": 2,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                -0.2,
+                -0.2,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.0,
+                1.9,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "unfavorable"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "M",
+              "delta_value": 0.5,
+              "onset_years": 1,
+              "start_year": 2027,
+              "effect_window_years": 2,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.5,
+                2.5,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "unfavorable"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "tr",
+              "effective_class": "tr",
+              "delta_value": 0.1,
+              "onset_years": 1,
+              "start_year": 2027,
+              "effect_window_years": 2,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.1,
+                0.1,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.3,
+                4.1,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "unfavorable"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "S",
+              "effective_class": "S",
+              "delta_value": -0.8,
+              "onset_years": 0,
+              "start_year": 2026,
+              "effect_window_years": 2,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                -0.8,
+                -0.8,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                0.2,
+                2.8,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "verdict": "unfavorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": -0.2,
+              "onset_years": 1,
+              "start_year": 2027,
+              "effect_window_years": 2,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                -0.2,
+                -0.2,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.0,
+                3.1,
+                1.9,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "verdict": "unfavorable"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2026,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 9,
+          "provisional": 9,
+          "match": true
+        },
+        "fit": {
+          "pipeline": 6,
+          "provisional": 6,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M1-A5",
+      "title": "IP Enforced Remuneration",
+      "elapsed_seconds": 8.4,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L4",
+          "instrument": "I4.06",
+          "secondary_instrument": "I3.04",
+          "direction": "coercive",
+          "rule_citation": "Tie-break rule 1: asset seizure / retroactive compensation / payment denial -> L4; Master Codebook L4/I4.06 legal-economic asset remedies (IP seizure, eminent domain, retroactive compensation, sovereign-fund confiscation)"
+        },
+        "precedent": {
+          "tier": 4,
+          "citations": [
+            "Fifth Amendment eminent domain (U.S. Const. amend. V) \u2014 general takings authority, not retroactive foreign-IP remuneration",
+            "Internal Revenue Code Section 338 \u2014 corporate stock-purchase tax election; no IP-seizure or adversary-compensation precedent",
+            "Foreign Investment Risk Review Modernization Act of 2018 (FIRRMA) \u2014 inbound investment screening precedent for secondary I3.04 element only"
+          ],
+          "rationale": "Primary instrument I4.06 requires retroactive IP seizure/compensation via eminent domain and sovereign-fund confiscation against PRC targets; trial codebook Tier 4 explicitly cites retroactive intellectual-property seizure with no legal basis, and no enacted authority supports this use of Section 338 or allied sovereign-fund takings."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "multi_authority_coordination": "Action bundles eminent domain/Section 338 executive-legislative takings, sovereign-fund operations, allied coordination, and country-specific investment bans requiring Congress, U.S. executive agencies, and allied governments acting together."
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 3,
+          "orientation": "reframing",
+          "rationale": "Primary mechanism is coercive legal-economic punishment and adversary investment denial (L4/I4.06, I3.04), imposing retrospective costs on PRC rather than building alternative capacity, institutions, or coalitions \u2014 partial contradiction of Reframing per FO 1.0 corpus anchor."
+        }
+      },
+      "provisional": {
+        "implementation": 2,
+        "fit": 3
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L4",
+          "instrument": "I4.06",
+          "secondary_instrument": "I3.04",
+          "direction": "coercive",
+          "rule_citation": "Tie-break rule 1: asset seizure / retroactive compensation / payment denial -> L4; Master Codebook L4/I4.06 legal-economic asset remedies (IP seizure, eminent domain, retroactive compensation, sovereign-fund confiscation)"
+        },
+        "precedent": {
+          "tier": 4,
+          "citations": [
+            "Fifth Amendment eminent domain (U.S. Const. amend. V) \u2014 general takings authority, not retroactive foreign-IP remuneration",
+            "Internal Revenue Code Section 338 \u2014 corporate stock-purchase tax election; no IP-seizure or adversary-compensation precedent",
+            "Foreign Investment Risk Review Modernization Act of 2018 (FIRRMA) \u2014 inbound investment screening precedent for secondary I3.04 element only"
+          ],
+          "rationale": "Primary instrument I4.06 requires retroactive IP seizure/compensation via eminent domain and sovereign-fund confiscation against PRC targets; trial codebook Tier 4 explicitly cites retroactive intellectual-property seizure with no legal basis, and no enacted authority supports this use of Section 338 or allied sovereign-fund takings."
+        },
+        "implementation": {
+          "tier": 4,
+          "tier_label": "No plausible pathway",
+          "midpoint": 1.5,
+          "modifiers_applied": {
+            "multi_authority_coordination": -1
+          },
+          "raw": 0.5,
+          "score": 1
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 3,
+          "orientation": "reframing",
+          "anchor": "Partial contradiction - primary mechanism cuts against the declared orientation"
+        },
+        "trend": {
+          "lever": "L4",
+          "no_effect": true,
+          "no_effect_reason": "Implementation band 1-2: action fails to execute",
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "neutral"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "neutral"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "verdict": "neutral"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "delta_value": 0.0,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02",
+          "implementation_band": "1-2",
+          "fit_band": "3-4"
+        },
+        "exec_year": 2026,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 1,
+          "provisional": 2,
+          "match": false
+        },
+        "fit": {
+          "pipeline": 3,
+          "provisional": 3,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M1-A6",
+      "title": "Stockpiling (Critical Minerals & Medicines)",
+      "elapsed_seconds": 22.1,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L8",
+          "instrument": "I8.01",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 6: stockpiling / reserves \u2192 L8"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "Strategic and Critical Materials Stock Piling Act, 50 U.S.C. \u00a7 98 et seq. (National Defense Stockpile)",
+            "Public Health Service Act, 42 U.S.C. \u00a7 247d-6b (Strategic National Stockpile)",
+            "Defense Production Act Title III, 50 U.S.C. \u00a7 4531",
+            "National Defense Stockpile Transaction Fund, FY2024\u2013FY2026 NDAA appropriations"
+          ],
+          "rationale": "Standing statutory stockpile authorities for both critical minerals and medical materiel have been exercised continuously since 1939 (NDS) and 1999 (SNS); administrative machinery and recurring appropriations cycles are in place for I8.01 stockpile expansion."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Domestic strategic stockpile build reduces PRC supply-chain dependence through resilience capacity rather than adversary coercion\u2014core Reframing mechanism, with minor friction from appropriations-dependent execution."
+        }
+      },
+      "provisional": {
+        "implementation": 8,
+        "fit": 8
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L8",
+          "instrument": "I8.01",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 6: stockpiling / reserves \u2192 L8"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "Strategic and Critical Materials Stock Piling Act, 50 U.S.C. \u00a7 98 et seq. (National Defense Stockpile)",
+            "Public Health Service Act, 42 U.S.C. \u00a7 247d-6b (Strategic National Stockpile)",
+            "Defense Production Act Title III, 50 U.S.C. \u00a7 4531",
+            "National Defense Stockpile Transaction Fund, FY2024\u2013FY2026 NDAA appropriations"
+          ],
+          "rationale": "Standing statutory stockpile authorities for both critical minerals and medical materiel have been exercised continuously since 1939 (NDS) and 1999 (SNS); administrative machinery and recurring appropriations cycles are in place for I8.01 stockpile expansion."
+        },
+        "implementation": {
+          "tier": 1,
+          "tier_label": "Proven authority",
+          "midpoint": 9,
+          "modifiers_applied": {},
+          "raw": 9,
+          "score": 9
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "anchor": "Advance with friction - advances the orientation; secondary elements neutral or slightly mixed"
+        },
+        "trend": {
+          "lever": "L8",
+          "direction": "inducement",
+          "direction_flip_applied": false,
+          "implementation_band": "9-10",
+          "fit_band": "7-8",
+          "exec_year": 2026,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 1,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": -0.2,
+              "onset_years": 1,
+              "start_year": 2027,
+              "effect_window_years": 5,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                -0.2,
+                -0.2,
+                -0.2,
+                -0.2,
+                -0.2
+              ],
+              "post_action": [
+                2.8,
+                1.8,
+                1.8,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "verdict": "favorable"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 1,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "neutral"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": 0.2,
+              "onset_years": 1,
+              "start_year": 2027,
+              "effect_window_years": 5,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.2,
+                0.2,
+                0.2,
+                0.2,
+                0.2
+              ],
+              "post_action": [
+                1.0,
+                3.8,
+                1.6,
+                1.6,
+                1.9,
+                1.7
+              ],
+              "verdict": "favorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "s",
+              "delta_value": 0.2,
+              "onset_years": 1,
+              "start_year": 2027,
+              "effect_window_years": 5,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.2,
+                0.2,
+                0.2,
+                0.2,
+                0.2
+              ],
+              "post_action": [
+                4.0,
+                3.5,
+                2.3,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "favorable"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2026,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 9,
+          "provisional": 8,
+          "match": false
+        },
+        "fit": {
+          "pipeline": 8,
+          "provisional": 8,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M1-A7",
+      "title": "Probiotic Act of 2027",
+      "elapsed_seconds": 23.0,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.01",
+          "secondary_instrument": "I7.02",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy / deregulation / procurement routes to L7; manufacturer funding is I7.01 with bundled domestic deregulation as I7.02"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "CHIPS and Science Act of 2022, Pub. L. 117-167 (sectoral domestic manufacturing subsidy authority class)",
+            "Executive Order 14081 (2022), Advancing Biotechnology and Biomanufacturing Innovation",
+            "Public Health Service Act, 42 U.S.C. 247d-7e (BARDA advanced medical countermeasure development authority)"
+          ],
+          "rationale": "Industrial subsidy and biotech policy authorities of this class exist and have been exercised in adjacent sectors, but biotech-specific appropriations and deregulatory legislation of this shape require new enactment\u2014existing but untested for this instrument application"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Domestic deregulation and manufacturer subsidies build alternative biotech supply capacity rather than imposing adversary costs\u2014a core Reframing mechanism; allied sourcing with ROK and EU is supportive"
+        }
+      },
+      "provisional": {
+        "implementation": 6,
+        "fit": 8
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.01",
+          "secondary_instrument": "I7.02",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy / deregulation / procurement routes to L7; manufacturer funding is I7.01 with bundled domestic deregulation as I7.02"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "CHIPS and Science Act of 2022, Pub. L. 117-167 (sectoral domestic manufacturing subsidy authority class)",
+            "Executive Order 14081 (2022), Advancing Biotechnology and Biomanufacturing Innovation",
+            "Public Health Service Act, 42 U.S.C. 247d-7e (BARDA advanced medical countermeasure development authority)"
+          ],
+          "rationale": "Industrial subsidy and biotech policy authorities of this class exist and have been exercised in adjacent sectors, but biotech-specific appropriations and deregulatory legislation of this shape require new enactment\u2014existing but untested for this instrument application"
+        },
+        "implementation": {
+          "tier": 2,
+          "tier_label": "Existing but untested authority",
+          "midpoint": 6.5,
+          "modifiers_applied": {},
+          "raw": 6.5,
+          "score": 6
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "anchor": "Advance with friction - advances the orientation; secondary elements neutral or slightly mixed"
+        },
+        "trend": {
+          "lever": "L7",
+          "direction": "inducement",
+          "direction_flip_applied": false,
+          "implementation_band": "5-6",
+          "fit_band": "7-8",
+          "exec_year": 2026,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "s",
+              "delta_value": 0.2,
+              "onset_years": 3,
+              "start_year": 2029,
+              "effect_window_years": 3,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.2,
+                0.2,
+                0.2
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                2.1,
+                2.0,
+                2.0
+              ],
+              "verdict": "favorable"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": 0.1,
+              "onset_years": 2,
+              "start_year": 2028,
+              "effect_window_years": 2,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.1,
+                0.1,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.1,
+                2.1,
+                2.0,
+                2.0
+              ],
+              "verdict": "unfavorable"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": -0.1,
+              "onset_years": 3,
+              "start_year": 2029,
+              "effect_window_years": 3,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                -0.1,
+                -0.1,
+                -0.1
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.8,
+                3.8,
+                3.8
+              ],
+              "verdict": "favorable"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": -0.1,
+              "onset_years": 3,
+              "start_year": 2029,
+              "effect_window_years": 3,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                -0.1,
+                -0.1,
+                -0.1
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.4,
+                1.3,
+                1.6,
+                1.4
+              ],
+              "verdict": "unfavorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "S",
+              "effective_class": "M",
+              "delta_value": 0.5,
+              "onset_years": 2,
+              "start_year": 2028,
+              "effect_window_years": 4,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.5,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.6,
+                2.3,
+                2.3,
+                2.3
+              ],
+              "verdict": "favorable"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2026,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 6,
+          "provisional": 6,
+          "match": true
+        },
+        "fit": {
+          "pipeline": 8,
+          "provisional": 8,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M2-A1",
+      "title": "EU Critical Minerals System (withdrawn)",
+      "elapsed_seconds": 21.2,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L6",
+          "instrument": "I6.05",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 7: overseas allied finance / joint purchasing facility -> L6; primary instrument I6.05 per Layer 2 L6 table (bundled stockpile and harmonization elements secondary)"
+        },
+        "precedent": {
+          "tier": 3,
+          "citations": [
+            "Critical Raw Materials Act, Regulation (EU) 2024/1252",
+            "Minerals Security Partnership (2022)",
+            "Defense Production Act Title III, 50 U.S.C. \u00a7 4533"
+          ],
+          "rationale": "Partial EU and plurilateral coordination precedents exist, but a unified joint-purchasing facility with shared stockpiles requires a new negotiated framework and appropriations not yet established; withdrawn before adjudication with no verified allied commitment"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "multi_authority_coordination": "Unified EU joint purchasing, shared stockpiles, and mutual permit recognition require simultaneous action by the European Commission, multiple member states, and prospective US-EU coordination"
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 7,
+          "orientation": "reframing",
+          "rationale": "Allied joint-purchasing and pooled-reserve framework builds alternative critical-minerals supply institutions outside PRC-dominated channels, advancing Reframing; withdrawal and unverified EU commitment add friction"
+        }
+      },
+      "provisional": {
+        "implementation": 4,
+        "fit": 7
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L6",
+          "instrument": "I6.05",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 7: overseas allied finance / joint purchasing facility -> L6; primary instrument I6.05 per Layer 2 L6 table (bundled stockpile and harmonization elements secondary)"
+        },
+        "precedent": {
+          "tier": 3,
+          "citations": [
+            "Critical Raw Materials Act, Regulation (EU) 2024/1252",
+            "Minerals Security Partnership (2022)",
+            "Defense Production Act Title III, 50 U.S.C. \u00a7 4533"
+          ],
+          "rationale": "Partial EU and plurilateral coordination precedents exist, but a unified joint-purchasing facility with shared stockpiles requires a new negotiated framework and appropriations not yet established; withdrawn before adjudication with no verified allied commitment"
+        },
+        "implementation": {
+          "tier": 3,
+          "tier_label": "New authority required",
+          "midpoint": 4,
+          "modifiers_applied": {
+            "multi_authority_coordination": -1
+          },
+          "raw": 3,
+          "score": 3
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 7,
+          "orientation": "reframing",
+          "anchor": "Advance with friction - advances the orientation; secondary elements neutral or slightly mixed"
+        },
+        "trend": {
+          "lever": "L6",
+          "direction": "inducement",
+          "direction_flip_applied": false,
+          "implementation_band": "3-4",
+          "fit_band": "7-8",
+          "exec_year": 2027,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "tr",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "neutral"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "neutral"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "tr",
+              "delta_value": 0.1,
+              "onset_years": 4,
+              "start_year": 2031,
+              "effect_window_years": 1,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.1
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.6
+              ],
+              "verdict": "favorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2027,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 3,
+          "provisional": 4,
+          "match": false
+        },
+        "fit": {
+          "pipeline": 7,
+          "provisional": 7,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M2-A2",
+      "title": "Global Telecom Initiative",
+      "elapsed_seconds": 14.4,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L6",
+          "instrument": "I6.04",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 7: overseas infrastructure / development finance \u2192 L6; L7 boundary: foreign deployment \u2192 L6"
+        },
+        "precedent": {
+          "tier": 3,
+          "citations": [
+            "BUILD Act of 2018, 22 U.S.C. \u00a7 9611 et seq. (U.S. International Development Finance Corporation overseas project finance authority)",
+            "Digital Connectivity and Cybersecurity Partnership (U.S. Department of State / USAID connectivity financing programs)",
+            "Export-Import Bank of the United States, 12 U.S.C. \u00a7 635 (telecommunications export credit authority)"
+          ],
+          "rationale": "Standing overseas connectivity-finance authorities exist and are exercised, but this initiative assumes non-existent IP-enforcement revenue (M1-A5 Tier 4) and new EU/allied appropriations not yet committed; execution requires new funding and international agreements at unstated scale."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "multi_authority_coordination": "Plan requires simultaneous U.S. financing, EU co-funding, and allied deployment across Africa, Latin America, Central America, and the South Pacific."
+        },
+        "fit": {
+          "band": "9-10",
+          "score": 9,
+          "orientation": "reframing",
+          "rationale": "Expanding allied telecom and satellite connectivity in third countries as an alternative to BRICS infrastructure directly reframes competition structure; mechanism is capacity-building with no contradicting coercive element."
+        }
+      },
+      "provisional": {
+        "implementation": 3,
+        "fit": 9
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L6",
+          "instrument": "I6.04",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 7: overseas infrastructure / development finance \u2192 L6; L7 boundary: foreign deployment \u2192 L6"
+        },
+        "precedent": {
+          "tier": 3,
+          "citations": [
+            "BUILD Act of 2018, 22 U.S.C. \u00a7 9611 et seq. (U.S. International Development Finance Corporation overseas project finance authority)",
+            "Digital Connectivity and Cybersecurity Partnership (U.S. Department of State / USAID connectivity financing programs)",
+            "Export-Import Bank of the United States, 12 U.S.C. \u00a7 635 (telecommunications export credit authority)"
+          ],
+          "rationale": "Standing overseas connectivity-finance authorities exist and are exercised, but this initiative assumes non-existent IP-enforcement revenue (M1-A5 Tier 4) and new EU/allied appropriations not yet committed; execution requires new funding and international agreements at unstated scale."
+        },
+        "implementation": {
+          "tier": 3,
+          "tier_label": "New authority required",
+          "midpoint": 4,
+          "modifiers_applied": {
+            "multi_authority_coordination": -1
+          },
+          "raw": 3,
+          "score": 3
+        },
+        "fit": {
+          "band": "9-10",
+          "score": 9,
+          "orientation": "reframing",
+          "anchor": "Direct advance - primary mechanism directly advances the declared orientation; no contradicting element"
+        },
+        "trend": {
+          "lever": "L6",
+          "direction": "inducement",
+          "direction_flip_applied": false,
+          "implementation_band": "3-4",
+          "fit_band": "9-10",
+          "exec_year": 2027,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "tr",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "neutral"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "neutral"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "tr",
+              "delta_value": 0.1,
+              "onset_years": 4,
+              "start_year": 2031,
+              "effect_window_years": 1,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.1
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.6
+              ],
+              "verdict": "favorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 4,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2027,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 3,
+          "provisional": 3,
+          "match": true
+        },
+        "fit": {
+          "pipeline": 9,
+          "provisional": 9,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M2-A3",
+      "title": "Global Strategic Futures Initiative",
+      "elapsed_seconds": 11.0,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.04",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy / deregulation / procurement -> L7; L7 boundary \u2014 domestic-only capacity (foreign deployment -> L6)"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "CHIPS and Science Act of 2022, Pub. L. 117-167",
+            "National Quantum Initiative Act, Pub. L. 115-368",
+            "America COMPETES Act of 2007, Pub. L. 110-69"
+          ],
+          "rationale": "Standing domestic R&D and industrial-funding authorities exist and have been exercised (CHIPS-class semiconductor programs, National Quantum Initiative), but a new cross-sector 'Global Strategic Futures' program bundling quantum, biotech, and leapfrog tech would require new appropriations and agency rulemaking before use."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {},
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Primary mechanism\u2014domestic R&D funding and incentives for quantum, biotech, and leapfrog technology\u2014directly builds alternative US technological capacity under Reframing; rhetorical Great Firewall language is secondary and does not alter the inducement instrument."
+        }
+      },
+      "provisional": {
+        "implementation": 6,
+        "fit": 8
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.04",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy / deregulation / procurement -> L7; L7 boundary \u2014 domestic-only capacity (foreign deployment -> L6)"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "CHIPS and Science Act of 2022, Pub. L. 117-167",
+            "National Quantum Initiative Act, Pub. L. 115-368",
+            "America COMPETES Act of 2007, Pub. L. 110-69"
+          ],
+          "rationale": "Standing domestic R&D and industrial-funding authorities exist and have been exercised (CHIPS-class semiconductor programs, National Quantum Initiative), but a new cross-sector 'Global Strategic Futures' program bundling quantum, biotech, and leapfrog tech would require new appropriations and agency rulemaking before use."
+        },
+        "implementation": {
+          "tier": 2,
+          "tier_label": "Existing but untested authority",
+          "midpoint": 6.5,
+          "modifiers_applied": {},
+          "raw": 6.5,
+          "score": 6
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "anchor": "Advance with friction - advances the orientation; secondary elements neutral or slightly mixed"
+        },
+        "trend": {
+          "lever": "L7",
+          "direction": "inducement",
+          "direction_flip_applied": false,
+          "implementation_band": "5-6",
+          "fit_band": "7-8",
+          "exec_year": 2027,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "s",
+              "delta_value": 0.2,
+              "onset_years": 3,
+              "start_year": 2030,
+              "effect_window_years": 2,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.2,
+                0.2
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                2.0,
+                2.0
+              ],
+              "verdict": "favorable"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": 0.1,
+              "onset_years": 2,
+              "start_year": 2029,
+              "effect_window_years": 2,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.1,
+                0.1,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.0,
+                2.1,
+                2.1,
+                2.0
+              ],
+              "verdict": "unfavorable"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": -0.1,
+              "onset_years": 3,
+              "start_year": 2030,
+              "effect_window_years": 2,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -0.1,
+                -0.1
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.8,
+                3.8
+              ],
+              "verdict": "favorable"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": -0.1,
+              "onset_years": 3,
+              "start_year": 2030,
+              "effect_window_years": 2,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                -0.1,
+                -0.1
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.6,
+                1.4
+              ],
+              "verdict": "unfavorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "S",
+              "effective_class": "M",
+              "delta_value": 0.5,
+              "onset_years": 2,
+              "start_year": 2029,
+              "effect_window_years": 3,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.5,
+                0.5,
+                0.5
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.1,
+                2.3,
+                2.3,
+                2.3
+              ],
+              "verdict": "favorable"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2027,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 6,
+          "provisional": 6,
+          "match": true
+        },
+        "fit": {
+          "pipeline": 8,
+          "provisional": 8,
+          "match": true
+        }
+      }
+    },
+    {
+      "action_id": "M2-A4",
+      "title": "Sanctions & Critical Mineral Thresholds",
+      "elapsed_seconds": 30.7,
+      "agent": {
+        "model": "composer-2.5",
+        "attempts": [
+          {
+            "attempt": 1,
+            "ok": true
+          }
+        ]
+      },
+      "needs_human": false,
+      "needs_human_reason": null,
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L4",
+          "instrument": "I4.02",
+          "secondary_instrument": "I4.01",
+          "direction": "coercive",
+          "rule_citation": "L4 definition: targeted/secondary sanctions and financial-market coercion; Direction facet (Coercive) over L1 trade-remedy framing for bundled sanctions package"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "International Emergency Economic Powers Act (IEEPA), 50 U.S.C. \u00a7\u00a7 1701-1706",
+            "Countering America's Adversaries Through Sanctions Act (CAATSA), 22 U.S.C. \u00a7 9525 (secondary-sanctions authority exercised vs. Russia/Iran, not commodity-threshold mineral trade with PRC)"
+          ],
+          "rationale": "Secondary-sanctions and blocking authority exist and are routinely exercised under IEEPA/CAATSA, but a 10% critical-mineral import/export threshold trigger against PRC-linked third-party trade is untested and would require new rulemaking/executive designation scope."
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 4,
+          "orientation": "reframing",
+          "rationale": "Primary mechanism imposes broad coercive costs on PRC and third parties via secondary sanctions\u2014Pressure escalation\u2014not alternative capacity, institutions, or coalition reframing."
+        }
+      },
+      "provisional": {
+        "implementation": 6,
+        "fit": 4
+      },
+      "status": "pending",
+      "adjudication": {
+        "classification": {
+          "lever": "L4",
+          "instrument": "I4.02",
+          "secondary_instrument": "I4.01",
+          "direction": "coercive",
+          "rule_citation": "L4 definition: targeted/secondary sanctions and financial-market coercion; Direction facet (Coercive) over L1 trade-remedy framing for bundled sanctions package"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "International Emergency Economic Powers Act (IEEPA), 50 U.S.C. \u00a7\u00a7 1701-1706",
+            "Countering America's Adversaries Through Sanctions Act (CAATSA), 22 U.S.C. \u00a7 9525 (secondary-sanctions authority exercised vs. Russia/Iran, not commodity-threshold mineral trade with PRC)"
+          ],
+          "rationale": "Secondary-sanctions and blocking authority exist and are routinely exercised under IEEPA/CAATSA, but a 10% critical-mineral import/export threshold trigger against PRC-linked third-party trade is untested and would require new rulemaking/executive designation scope."
+        },
+        "implementation": {
+          "tier": 2,
+          "tier_label": "Existing but untested authority",
+          "midpoint": 6.5,
+          "modifiers_applied": {},
+          "raw": 6.5,
+          "score": 6
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 4,
+          "orientation": "reframing",
+          "anchor": "Partial contradiction - primary mechanism cuts against the declared orientation"
+        },
+        "trend": {
+          "lever": "L4",
+          "direction": "coercive",
+          "direction_flip_applied": false,
+          "implementation_band": "5-6",
+          "fit_band": "3-4",
+          "exec_year": 2027,
+          "years": [
+            2026,
+            2027,
+            2028,
+            2029,
+            2030,
+            2031
+          ],
+          "indicators": {
+            "real_gdp_growth": {
+              "label": "Real GDP growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "tr",
+              "effective_class": "0",
+              "delta_value": -0.0,
+              "onset_years": 2,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.5,
+                2.2,
+                2.1,
+                1.9,
+                1.8,
+                1.8
+              ],
+              "verdict": "neutral"
+            },
+            "pce_inflation": {
+              "label": "PCE inflation (Q4/Q4, %)",
+              "matrix_sign": 1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": 0.1,
+              "onset_years": 1,
+              "start_year": 2028,
+              "effect_window_years": 1,
+              "baseline": [
+                2.8,
+                2.0,
+                2.0,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.1,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                2.8,
+                2.0,
+                2.1,
+                2.0,
+                2.0,
+                2.0
+              ],
+              "verdict": "unfavorable"
+            },
+            "unemployment_rate": {
+              "label": "Unemployment rate (%)",
+              "matrix_sign": 0,
+              "sign_flipped": false,
+              "matrix_class": "0",
+              "effective_class": "0",
+              "delta_value": 0.0,
+              "onset_years": 1,
+              "start_year": null,
+              "effect_window_years": 0,
+              "baseline": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.3,
+                4.2,
+                4.0,
+                3.9,
+                3.9,
+                3.9
+              ],
+              "verdict": "neutral"
+            },
+            "trade_volume_growth": {
+              "label": "Trade volume growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "M",
+              "effective_class": "s",
+              "delta_value": -0.2,
+              "onset_years": 1,
+              "start_year": 2028,
+              "effect_window_years": 1,
+              "baseline": [
+                1.0,
+                3.6,
+                1.4,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                -0.2,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                1.0,
+                3.6,
+                1.2,
+                1.4,
+                1.7,
+                1.5
+              ],
+              "verdict": "unfavorable"
+            },
+            "fixed_investment_growth": {
+              "label": "Fixed investment growth (%)",
+              "matrix_sign": -1,
+              "sign_flipped": false,
+              "matrix_class": "s",
+              "effective_class": "tr",
+              "delta_value": -0.1,
+              "onset_years": 2,
+              "start_year": 2029,
+              "effect_window_years": 1,
+              "baseline": [
+                4.0,
+                3.3,
+                2.1,
+                1.8,
+                1.8,
+                1.8
+              ],
+              "deltas": [
+                0.0,
+                0.0,
+                0.0,
+                -0.1,
+                0.0,
+                0.0
+              ],
+              "post_action": [
+                4.0,
+                3.3,
+                2.1,
+                1.7,
+                1.8,
+                1.8
+              ],
+              "verdict": "unfavorable"
+            }
+          },
+          "flags": [],
+          "codebook_version": "trial-2026-07-02"
+        },
+        "exec_year": 2027,
+        "codebook_version": "trial-2026-07-02"
+      },
+      "comparison": {
+        "implementation": {
+          "pipeline": 6,
+          "provisional": 6,
+          "match": true
+        },
+        "fit": {
+          "pipeline": 4,
+          "provisional": 4,
+          "match": true
+        }
+      }
+    }
+  ]
+}

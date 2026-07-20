@@ -1,0 +1,562 @@
+{
+  "description": "Pilot worksheets for the eleven FO 1.0 Blue actions, produced by the PLI classification agent strictly executing the trial codebook. Blue's declared Strategic Orientation in FO 1.0: Reframing. Move 1 executes 2026; Move 2 executes 2027. Enriched 2026-07-11 with instrument_of_power and ne_facets for multi-track schema compatibility. Quarterly FO demo: submission_month uses notional 3-month spacing on the locked Blue chronology (demo of quarterly engine for FO 1.0 pack).",
+  "orientation": "reframing",
+  "actions": [
+    {
+      "action_id": "M1-A1",
+      "title": "Wedges and Incentive",
+      "exec_year": 2026,
+      "provisional": {
+        "implementation": null,
+        "fit": null
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "NE",
+          "instrument": null,
+          "secondary_instrument": null,
+          "direction": "coercive",
+          "rule_citation": "Step 1 economic gate: primary mechanism is diplomatic/informational wedge-driving, not an economic instrument - routes to NE"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [],
+          "rationale": "Not applicable - non-economic action routed out of macroeconomic adjudication at the Step 1 gate"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "5-6",
+          "score": 5,
+          "orientation": "reframing",
+          "rationale": "Not applicable - non-economic action; Glasl and National Interest tracks adjudicate separately"
+        },
+        "instrument_of_power": "Informational",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": true
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2027-01"
+      },
+      "instrument_of_power": "Informational",
+      "submission_month": "2027-01"
+    },
+    {
+      "action_id": "M1-A2",
+      "title": "No BRICS+ in America Act",
+      "exec_year": 2026,
+      "provisional": {
+        "implementation": 5,
+        "fit": 4
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L2",
+          "instrument": "I2.04",
+          "secondary_instrument": null,
+          "direction": "coercive",
+          "rule_citation": "L2 boundary: technology exclusion from the domestic market by origin is an export-control/entity-exclusion instrument (I2.04), not a trade tariff (L1)"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "Export Control Reform Act of 2018, 50 U.S.C. 4801 et seq.",
+            "Executive Order 13873 (Securing the ICT and Services Supply Chain, 2019)",
+            "Secure and Trusted Communications Networks Act of 2019 (rip-and-replace)"
+          ],
+          "rationale": "Exclusion authorities of this class exist (ICTS, covered-list regimes) but a blanket statutory exclusion of BRICS+ technology has never been exercised at this scope - existing but untested authority"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {
+          "timeline_mismatch": "Vague statutory definitions require rulemaking before enforcement; effect lags the move horizon"
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 4,
+          "orientation": "reframing",
+          "rationale": "Coercive market exclusion imposes costs rather than building alternatives - partial contradiction of Reframing"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2028-10"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2028-10"
+    },
+    {
+      "action_id": "M1-A3",
+      "title": "Minerals for All Act",
+      "exec_year": 2026,
+      "provisional": {
+        "implementation": 7,
+        "fit": 8
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.02",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy / deregulation / procurement routes to L7; permitting deregulation is I7.02"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "FAST-41, 42 U.S.C. 4370m (permitting acceleration, proven since 2015)",
+            "Energy Act of 2020, critical minerals provisions",
+            "Fiscal Responsibility Act of 2023, NEPA amendments"
+          ],
+          "rationale": "Permitting-reform authority is proven and repeatedly exercised; this action extends a demonstrated instrument class"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "timeline_mismatch": "Mine permitting and litigation cycles run longer than the move horizon even after reform",
+          "multi_authority_coordination": "Requires synchronized action by Interior, EPA, USDA Forest Service, and the Army Corps"
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Domestic capacity-building for critical minerals is a direct Reframing mechanism; environmental friction is secondary"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2027-10"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2027-10"
+    },
+    {
+      "action_id": "M1-A4",
+      "title": "Trade Investigations",
+      "exec_year": 2026,
+      "provisional": {
+        "implementation": 9,
+        "fit": 6
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L1",
+          "instrument": "I1.03",
+          "secondary_instrument": "I2.03",
+          "direction": "coercive",
+          "rule_citation": "L1 definition: trade-remedy investigation (Section 301/232 class) is I1.03; ICTS review rides as secondary I2.03 per the split-at-intake note"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "Section 301, Trade Act of 1974, 19 U.S.C. 2411 (exercised against the PRC 2018-2025)",
+            "Section 232, Trade Expansion Act of 1962, 19 U.S.C. 1862",
+            "USTR Section 301 China Technology Transfer investigation (2017-2018)"
+          ],
+          "rationale": "Deep, repeatedly exercised trade-remedy precedent against the same target; proven authority in the strongest sense"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "5-6",
+          "score": 6,
+          "orientation": "reframing",
+          "rationale": "Executable coercive tool but orientation-agnostic: investigations impose pressure, neither building nor undermining Reframing alternatives"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2027-04"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2027-04"
+    },
+    {
+      "action_id": "M1-A5",
+      "title": "Intellectual-Property Enforced Remuneration",
+      "exec_year": 2026,
+      "provisional": {
+        "implementation": 2,
+        "fit": 3
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L4",
+          "instrument": "I4.06",
+          "secondary_instrument": "I3.04",
+          "direction": "coercive",
+          "rule_citation": "L4 boundary: punitive financial extraction (forced remuneration/asset action) is a financial-coercion instrument I4.06, not a trade remedy"
+        },
+        "precedent": {
+          "tier": 4,
+          "citations": [
+            "No authority exists to compel retroactive IP remuneration from foreign sovereigns; IEEPA (50 U.S.C. 1701) permits blocking, not forced payment",
+            "Takings and due-process constraints (U.S. Const. amend. V) bar the proposed seizure mechanism"
+          ],
+          "rationale": "No plausible legal pathway: neither sanctions authority nor court process can compel the remuneration scheme as designed"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": true,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {
+          "partners_committed": "Plurilateral coalition declared in the submission commits partner enforcement, the only executable fragment"
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 3,
+          "orientation": "reframing",
+          "rationale": "Coercive extraction directly cuts against Reframing's build-alternatives logic"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2027-07"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2027-07"
+    },
+    {
+      "action_id": "M1-A6",
+      "title": "Stockpiling (Critical Minerals & Medicines)",
+      "exec_year": 2026,
+      "provisional": {
+        "implementation": 8,
+        "fit": 8
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L8",
+          "instrument": "I8.01",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "L8 definition: physical reserve acquisition and stockpile expansion is I8.01"
+        },
+        "precedent": {
+          "tier": 1,
+          "citations": [
+            "Strategic and Critical Materials Stock Piling Act, 50 U.S.C. 98 et seq.",
+            "Defense Production Act Title III, 50 U.S.C. 4531 (used for minerals and pharma inputs)",
+            "National Defense Stockpile Transaction Fund appropriations, FY2024-FY2026 NDAA"
+          ],
+          "rationale": "Standing reserve authority exercised continuously since 1939; direct precedent for both minerals and medical stockpiling"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {
+          "timeline_mismatch": "Acquisition at stockpile scale runs on multi-year procurement and budget cycles"
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Resilience-building reduces dependence without coercion - advances Reframing with only budgetary friction"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2028-04"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2028-04"
+    },
+    {
+      "action_id": "M1-A7",
+      "title": "Probiotic Act of 2027",
+      "exec_year": 2026,
+      "provisional": {
+        "implementation": 6,
+        "fit": 8
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.01",
+          "secondary_instrument": "I9.02",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic subsidy routes to L7 (I7.01); partner regulatory synchronization rides as secondary I9.02"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "CHIPS and Science Act of 2022, Pub. L. 117-167 (sectoral subsidy authority class)",
+            "Bioeconomy EO 14081 (2022) - biomanufacturing initiative without dedicated appropriations"
+          ],
+          "rationale": "The subsidy authority class exists and has been exercised for other sectors, but biotech-specific appropriations of this shape are new - existing but untested for this instrument application"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Sectoral capacity-building subsidy is a core Reframing mechanism; bilateral regulatory sync is supportive"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2028-07"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2028-07"
+    },
+    {
+      "action_id": "M2-A1",
+      "title": "European Union Critical Minerals System (withdrawn)",
+      "exec_year": 2027,
+      "provisional": {
+        "implementation": 4,
+        "fit": 7
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L6",
+          "instrument": "I6.05",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "L6 definition: joint purchasing / pooled procurement facility with partners is I6.05"
+        },
+        "precedent": {
+          "tier": 3,
+          "citations": [
+            "Minerals Security Partnership (2022) - coordination forum, no pooled purchasing authority",
+            "No existing US-EU joint procurement facility for minerals; new instrument and appropriations required"
+          ],
+          "rationale": "A plurilateral purchasing facility requires new authority and a negotiated framework that does not exist; allied coordination was never verified before withdrawal"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 7,
+          "orientation": "reframing",
+          "rationale": "Coalition-building around alternative supply advances Reframing; unverified partner commitment adds friction"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2029-01"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2029-01"
+    },
+    {
+      "action_id": "M2-A2",
+      "title": "Global Telecommunications Initiative",
+      "exec_year": 2027,
+      "provisional": {
+        "implementation": 3,
+        "fit": 9
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L6",
+          "instrument": "I6.04",
+          "secondary_instrument": null,
+          "direction": "inducement",
+          "rule_citation": "L6 definition: third-country infrastructure finance for telecom buildout is I6.04"
+        },
+        "precedent": {
+          "tier": 3,
+          "citations": [
+            "BUILD Act of 2018 (DFC) - existing agency but lending capacity far below the initiative's scale",
+            "The submission assumes IP-enforcement revenue as the funding source, which does not exist (see M1-A5 Tier 4 finding)"
+          ],
+          "rationale": "The delivery agency exists but the funding mechanism assumed by the plan does not; new appropriations or authority are required to execute at stated scale"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {
+          "timeline_mismatch": "Infrastructure disbursement and buildout run well past the move horizon; assumed EU co-funding not established"
+        },
+        "fit": {
+          "band": "9-10",
+          "score": 9,
+          "orientation": "reframing",
+          "rationale": "Building third-country alternatives to PRC telecom infrastructure is textbook Reframing - no contradicting element"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2029-04"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2029-04"
+    },
+    {
+      "action_id": "M2-A3",
+      "title": "Global Strategic Futures Initiative",
+      "exec_year": 2027,
+      "provisional": {
+        "implementation": 6,
+        "fit": 8
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L7",
+          "instrument": "I7.04",
+          "secondary_instrument": "I9.02",
+          "direction": "inducement",
+          "rule_citation": "Tie-break rule 8: domestic R&D funding routes to L7 (I7.04); standards alignment rides as secondary I9.02"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "CHIPS and Science Act of 2022, Title I (NSF/DOE research authorizations)",
+            "National Quantum Initiative Act of 2018 (research-program authority class)"
+          ],
+          "rationale": "Research-funding authority of this class exists and is exercised; the bundled multi-domain program at this scope is untested and its Great Firewall ambitions dilute instrument clarity"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "7-8",
+          "score": 8,
+          "orientation": "reframing",
+          "rationale": "Research capacity-building advances Reframing; bundled information-control ambitions are neutral-to-mixed secondaries"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2029-07"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2029-07"
+    },
+    {
+      "action_id": "M2-A4",
+      "title": "Sanctions & Critical Mineral Thresholds",
+      "exec_year": 2027,
+      "provisional": {
+        "implementation": 6,
+        "fit": 4
+      },
+      "worksheet": {
+        "needs_human": false,
+        "needs_human_reason": null,
+        "classification": {
+          "lever": "L4",
+          "instrument": "I4.02",
+          "secondary_instrument": "I1.04",
+          "direction": "coercive",
+          "rule_citation": "L4 boundary: secondary sanctions on third-party transactions are I4.02; mineral import thresholds ride as secondary I1.04"
+        },
+        "precedent": {
+          "tier": 2,
+          "citations": [
+            "IEEPA, 50 U.S.C. 1701 (blocking authority, repeatedly exercised)",
+            "CAATSA (2017) secondary-sanctions framework - exercised against Russia/Iran, never at commodity-threshold scope against PRC minerals"
+          ],
+          "rationale": "Secondary-sanctions authority exists and is exercised, but the commodity-threshold trigger at this scope is untested against this target"
+        },
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": false,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": false
+        },
+        "fit": {
+          "band": "3-4",
+          "score": 4,
+          "orientation": "reframing",
+          "rationale": "Broad coercive escalation under a declared Reframing orientation - primary mechanism cuts against building alternatives"
+        },
+        "instrument_of_power": "Economic",
+        "ne_facets": {
+          "diplomacy": false,
+          "information": false
+        },
+        "secondary_facet_citation": null,
+        "submission_month": "2029-10"
+      },
+      "instrument_of_power": "Economic",
+      "submission_month": "2029-10"
+    }
+  ]
+}
