@@ -1879,7 +1879,164 @@ export const database = {
         }
 
         return data || [];
+    },
+
+    /**
+     * Fetch PLI multi-track adjudications for a session (White Cell SME queues).
+     * @param {string} sessionId
+     * @param {Object} [filters]
+     * @returns {Promise<Object[]>}
+     */
+    async fetchPliAdjudications(sessionId, filters = {}) {
+        let query = supabase
+            .from('pli_adjudications')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: false });
+
+        if (filters.status) {
+            query = query.eq('status', filters.status);
+        }
+
+        if (Array.isArray(filters.statuses) && filters.statuses.length > 0) {
+            query = query.in('status', filters.statuses);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            throw fromSupabaseError(error, 'fetchPliAdjudications');
+        }
+
+        return data || [];
+    },
+
+    /**
+     * Review one SME seat on a PLI adjudication row.
+     * Seats: macro | diplomacy_information | national_interest_escalation
+     * @param {string} adjudicationId
+     * @param {string} seatId
+     * @param {Object} review
+     * @returns {Promise<Object>}
+     */
+    async reviewPliSeat(adjudicationId, seatId, review = {}) {
+        const allowedSeats = new Set([
+            'macro',
+            'diplomacy_information',
+            'national_interest_escalation'
+        ]);
+        if (!allowedSeats.has(seatId)) {
+            throw new DatabaseError(`Invalid PLI SME seat: ${seatId}`, 'reviewPliSeat');
+        }
+
+        const status = String(review.status || '').trim();
+        const allowed = new Set(['approved', 'overridden', 'needs_human']);
+        if (!allowed.has(status)) {
+            throw new DatabaseError(`Invalid PLI seat review status: ${status}`, 'reviewPliSeat');
+        }
+
+        if (status === 'overridden') {
+            const rationale = String(review.override_rationale || '').trim();
+            if (!rationale) {
+                throw new DatabaseError('Override rationale is required', 'reviewPliSeat');
+            }
+            if (review.override_value == null) {
+                throw new DatabaseError('Override value is required when status is overridden', 'reviewPliSeat');
+            }
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const { data: existing, error: fetchError } = await supabase
+            .from('pli_adjudications')
+            .select('*')
+            .eq('id', adjudicationId)
+            .single();
+
+        if (fetchError) {
+            throw fromSupabaseError(fetchError, 'reviewPliSeat');
+        }
+
+        const seatReviews = { ...(existing.seat_reviews || {}) };
+        const priorSeat = seatReviews[seatId] || {};
+        const reviewedAt = new Date().toISOString();
+        seatReviews[seatId] = {
+            ...priorSeat,
+            status,
+            sme_reviewer: review.sme_reviewer || priorSeat.sme_reviewer || null,
+            reviewed_at: reviewedAt,
+            override_value: status === 'overridden' ? review.override_value : (priorSeat.override_value || null),
+            override_rationale: review.override_rationale || priorSeat.override_rationale || null
+        };
+
+        const aggregateStatus = computePliAggregateStatus(seatReviews, existing.status);
+
+        const updates = {
+            seat_reviews: seatReviews,
+            status: aggregateStatus,
+            updated_at: reviewedAt,
+            sme_reviewer: review.sme_reviewer || existing.sme_reviewer || null,
+            reviewed_at: reviewedAt
+        };
+
+        // Keep legacy top-level override columns in sync for the macro seat.
+        if (seatId === 'macro') {
+            if (status === 'overridden') {
+                updates.override_value = review.override_value;
+                updates.override_rationale = review.override_rationale;
+            } else if (status === 'approved') {
+                updates.override_value = null;
+                updates.override_rationale = null;
+            } else if (status === 'needs_human') {
+                updates.override_rationale = review.override_rationale || null;
+            }
+        }
+
+        const { data, error } = await supabase
+            .from('pli_adjudications')
+            .update(updates)
+            .eq('id', adjudicationId)
+            .select()
+            .single();
+
+        if (error) {
+            throw fromSupabaseError(error, 'reviewPliSeat');
+        }
+
+        logger.info('PLI seat reviewed:', { adjudicationId, seatId, status });
+        return data;
+    },
+
+    /**
+     * Legacy helper — approves/overrides the macro seat (and aggregate status).
+     * Prefer reviewPliSeat for multi-track UIs.
+     */
+    async reviewPliAdjudication(adjudicationId, review = {}) {
+        return this.reviewPliSeat(adjudicationId, 'macro', review);
     }
 };
+
+/**
+ * Roll per-seat reviews into row-level status for RLS / team visibility.
+ * @param {Object} seatReviews
+ * @param {string} fallback
+ * @returns {string}
+ */
+function computePliAggregateStatus(seatReviews = {}, fallback = 'pending') {
+    const active = Object.values(seatReviews)
+        .map((seat) => seat?.status || 'pending')
+        .filter((status) => status !== 'skipped');
+
+    if (!active.length) {
+        return fallback || 'pending';
+    }
+    if (active.some((status) => status === 'needs_human')) {
+        return 'needs_human';
+    }
+    if (active.every((status) => status === 'approved' || status === 'overridden')) {
+        return active.some((status) => status === 'overridden') ? 'overridden' : 'approved';
+    }
+    return 'pending';
+}
 
 export default database;

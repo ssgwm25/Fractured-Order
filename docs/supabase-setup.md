@@ -31,7 +31,8 @@ Use the current hardening path for live environments:
 2. Apply dated hardening migrations in order.
 3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, and `data/2026-07-14_action_artifact_workflow_integrity.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence.
 4. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the current build requires it.
-5. Verify RPCs and RLS policies before a demo.
+5. For PLI (Petrihos Lever Index) White Cell SME review, apply `data/2026-07-17_pli_adjudications.sql` after the live-demo RLS helpers exist (`data/2026-04-08_live_demo_rls_hardening.sql`). This creates `pli_adjudications` with multi-track `record` JSON and per-seat `seat_reviews`.
+6. Verify RPCs and RLS policies before a demo.
 
 ## Intercom Storage
 

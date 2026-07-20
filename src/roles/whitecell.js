@@ -88,6 +88,10 @@ import {
     getWhiteCellCommunicationUpdateKind,
     isTeamCaptureTimelineEvent
 } from '../features/communications/targeting.js';
+import { createPliMacroReview } from '../features/pli/PliMacroReview.js';
+import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.js';
+import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js';
+import { SEATS as PLI_SEATS, seatNeedsReview, getSeatReview } from '../features/pli/pliShared.js';
 import {
     buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
@@ -1208,6 +1212,9 @@ export class WhiteCellController {
         this.hasHydratedBlueActionQueue = false;
         this.hasHydratedGreenProposalQueue = false;
         this.hasHydratedRedResponseQueue = false;
+        this.pliMacroReview = null;
+        this.pliDiplomacyInfoReview = null;
+        this.pliNiEscalationReview = null;
     }
 
     async init() {
@@ -1272,8 +1279,83 @@ export class WhiteCellController {
         });
 
         this.mountFollowAlongOnboarding();
+        this.mountPliSmePanels();
 
         logger.info('White Cell interface initialized');
+    }
+
+    mountPliSmePanels() {
+        const sessionId = () => sessionStore.getSessionId?.() || sessionStore.getSessionData?.()?.id || null;
+        const reviewerName = () => {
+            const auth = sessionStore.getOperatorAuth?.() || {};
+            return auth.displayName || auth.role || this.operatorRole || 'White Cell';
+        };
+        const canReview = () => this.isLeadOperator();
+
+        const macroHost = document.getElementById('pliAdjudicationPanel');
+        const dipHost = document.getElementById('pliDiplomacyInfoPanel');
+        const niHost = document.getElementById('pliNiEscalationPanel');
+
+        if (macroHost && !this.pliMacroReview) {
+            this.pliMacroReview = createPliMacroReview({
+                container: macroHost,
+                getSessionId: sessionId,
+                getReviewerName: reviewerName,
+                canReview
+            });
+        }
+        if (dipHost && !this.pliDiplomacyInfoReview) {
+            this.pliDiplomacyInfoReview = createDiplomacyInfoReview({
+                container: dipHost,
+                getSessionId: sessionId,
+                getReviewerName: reviewerName,
+                canReview
+            });
+        }
+        if (niHost && !this.pliNiEscalationReview) {
+            this.pliNiEscalationReview = createNiEscalationReview({
+                container: niHost,
+                getSessionId: sessionId,
+                getReviewerName: reviewerName,
+                canReview
+            });
+        }
+
+        this.refreshPliSmePanels();
+    }
+
+    refreshPliSmePanels() {
+        this.pliMacroReview?.refresh?.();
+        this.pliDiplomacyInfoReview?.refresh?.();
+        this.pliNiEscalationReview?.refresh?.();
+        this.syncPliBadges().catch((err) => {
+            logger.warn('Failed to sync PLI badges', err);
+        });
+    }
+
+    async syncPliBadges() {
+        const sessionId = sessionStore.getSessionId?.() || sessionStore.getSessionData?.()?.id;
+        if (!sessionId) return;
+
+        let rows = [];
+        try {
+            rows = await database.fetchPliAdjudications(sessionId);
+        } catch (err) {
+            logger.warn('PLI badge fetch skipped (migration may be pending)', err);
+            return;
+        }
+
+        const countSeat = (seatId) => rows.filter((row) => seatNeedsReview(getSeatReview(row, seatId))).length;
+        const setBadge = (elementId, count) => {
+            const badge = document.getElementById(elementId);
+            if (!badge) return;
+            badge.textContent = String(count);
+            badge.hidden = count <= 0;
+        };
+
+        setBadge('pliMacroBadge', countSeat(PLI_SEATS.MACRO));
+        setBadge('pliDipInfoBadge', countSeat(PLI_SEATS.DIPLOMACY_INFORMATION));
+        setBadge('pliNiEscBadge', countSeat(PLI_SEATS.NATIONAL_INTEREST_ESCALATION));
     }
 
     mountFollowAlongOnboarding() {
@@ -1697,6 +1779,19 @@ export class WhiteCellController {
 
                 if (link.dataset.section === 'responses') {
                     this.clearQueueArrivalHighlights('responses');
+                }
+
+                if (link.dataset.section === 'pliAdjudication') {
+                    this.pliMacroReview?.refresh?.();
+                    this.syncPliBadges().catch(() => {});
+                }
+                if (link.dataset.section === 'pliDiplomacyInfo') {
+                    this.pliDiplomacyInfoReview?.refresh?.();
+                    this.syncPliBadges().catch(() => {});
+                }
+                if (link.dataset.section === 'pliNiEscalation') {
+                    this.pliNiEscalationReview?.refresh?.();
+                    this.syncPliBadges().catch(() => {});
                 }
             });
         });

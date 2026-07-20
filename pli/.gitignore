@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.tmp.driveupload/
+.env
+.env.local
+*.egg-info/
+.venv/
+venv/
+reports/out/
+adjudications/*.json
+adjudications/_session_state*.json
+!adjudications/.gitkeep

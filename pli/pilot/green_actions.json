@@ -1,0 +1,626 @@
+{
+  "description": "FO 1.0 Green Cell corpus (22 actions) in Appendix B chronological order. Diplomacy bands/styles drawn from Green_Cell_Diplomatic_Hierarchy_Assessment_Moves_1_2; Instrument of Power assigned so the full PLI track set (Macro, Diplomacy, Information, NI, Glasl) is exercised. Notional submission_month spacing mirrors the Blue FO quarterly demo.",
+  "source_order": "Fractured Order Interim Report V4.10.2 Appendix B — Move 1 Actions in Sequence, then Move 2 Actions in Sequence",
+  "actions": [
+    {
+      "action_id": "G-M1-A01",
+      "move": 1,
+      "seq": 1,
+      "actor": "EU",
+      "title": "Consultations on supply-chain security partnership",
+      "orientation": "stabilization",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2027-01",
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Consultative / Exploratory",
+        "rationale": "EU used consultations to clarify alignment options on supply-chain security before committing to harder pressure."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-3": 1, "NI-2": 1}
+    },
+    {
+      "action_id": "G-M1-A02",
+      "move": 1,
+      "seq": 2,
+      "actor": "France",
+      "title": "Meeting with U.S., EU, Japan, and ROK",
+      "orientation": "stabilization",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2027-03",
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Targeted Strategic Coordination",
+        "rationale": "France convened partners on supply-chain coordination while preserving French/EU agency rather than organizing coercive pressure."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-3": 1}
+    },
+    {
+      "action_id": "G-M1-A03",
+      "move": 1,
+      "seq": 3,
+      "actor": "ROK",
+      "title": "Support for EU critical-minerals summit",
+      "orientation": "reframing",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2027-05",
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Structured Alignment",
+        "rationale": "ROK backed allied critical-minerals coordination without direct coercion of the PRC."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1, "NI-3": 1}
+    },
+    {
+      "action_id": "G-M1-A04",
+      "move": 1,
+      "seq": 4,
+      "actor": "ROK",
+      "title": "Critical-mineral supply compact",
+      "orientation": "reframing",
+      "instrument_of_power": "Economic",
+      "submission_month": "2027-07",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Structured Alignment",
+        "rationale": "Compact builds a resource-security framework and aligns partners around resilience; economic delivery rides on bilateral diplomacy."
+      },
+      "macro": {
+        "lever": "L6",
+        "instrument": "I6.05",
+        "direction": "inducement",
+        "rule_citation": "Tie-break: allied joint purchasing / finance facility for critical minerals is L6 I6.05 (partner-support finance), not domestic L7 capacity",
+        "precedent_tier": 2,
+        "citations": [
+          "Minerals Security Partnership (MSP) joint offtake and financing model",
+          "Korea-Australia critical minerals MoUs (2021-2024)",
+          "EU Critical Raw Materials Act external partnership instruments"
+        ],
+        "precedent_rationale": "Partner mineral-security compacts exist and have been used, but a Korea-centered multi-party offtake facility at this scope remains only partially proven",
+        "modifiers": {
+          "funding_available": true,
+          "partners_committed": true,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "funding_available": "Compact text commits financing envelopes for offtake and processing",
+          "partners_committed": "Named partner governments join the compact",
+          "timeline_mismatch": "Mine and processing lead times exceed a single move horizon",
+          "multi_authority_coordination": "Requires trade, finance, and industry ministries across partners"
+        },
+        "fit_band": "7-8",
+        "fit_score": 8,
+        "fit_rationale": "Diversifying mineral supply is a core Reframing mechanism for ROK economic security"
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1, "NI-5": 1}
+    },
+    {
+      "action_id": "G-M1-A05",
+      "move": 1,
+      "seq": 5,
+      "actor": "Japan",
+      "title": "Building up new economic order (multilateral dialogue)",
+      "orientation": "reframing",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2027-09",
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Agenda-Shaping / Norm-Setting",
+        "rationale": "Japan used dialogue to frame supply-chain security and economic-order questions without coercive exclusion."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-5": 1, "NI-2": 1}
+    },
+    {
+      "action_id": "G-M1-A06",
+      "move": 1,
+      "seq": 6,
+      "actor": "ASEAN",
+      "title": "Critical-mineral capacity diversification summit",
+      "orientation": "reframing",
+      "instrument_of_power": "Economic",
+      "submission_month": "2027-11",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Facilitative / Capacity-Building",
+        "rationale": "ASEAN convened capacity diversification while preserving openness and avoiding binary bloc choice."
+      },
+      "macro": {
+        "lever": "L6",
+        "instrument": "I6.04",
+        "direction": "inducement",
+        "rule_citation": "Overseas connectivity / processing capacity financing for minerals diversification is L6 I6.04, not domestic L7",
+        "precedent_tier": 2,
+        "citations": [
+          "ASEAN Minerals Cooperation Action Plan instruments",
+          "Japan-ASEAN Connectivity initiatives",
+          "World Bank / ADB critical minerals project finance precedents"
+        ],
+        "precedent_rationale": "Regional minerals-capacity finance has precedents, but ASEAN-wide diversification packages at FO scale are only partially exercised",
+        "modifiers": {
+          "funding_available": true,
+          "partners_committed": true,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "funding_available": "Summit commits development-finance envelopes",
+          "partners_committed": "ASEAN members and dialogue partners join the initiative",
+          "timeline_mismatch": "Processing capacity build exceeds move horizon",
+          "multi_authority_coordination": "Requires ASEAN secretariat plus national mining/finance ministries"
+        },
+        "fit_band": "7-8",
+        "fit_score": 7,
+        "fit_rationale": "Diversification and autonomy align with Asia-Pacific Reframing without forcing confrontation"
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1, "NI-4": 1}
+    },
+    {
+      "action_id": "G-M1-A07",
+      "move": 1,
+      "seq": 7,
+      "actor": "EU",
+      "title": "Extraordinary EU summit in Brussels",
+      "orientation": "stabilization",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2028-01",
+      "diplomacy": {
+        "top_layer": "D",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Internal Coordination",
+        "rationale": "Extraordinary summit established an internal European position before external coordination with Blue or pressure on Red."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-3": 1, "NI-6": 1}
+    },
+    {
+      "action_id": "G-M1-A08",
+      "move": 1,
+      "seq": 8,
+      "actor": "ROK",
+      "title": "U.S.-ROK tech / energy / defense industry treaty",
+      "orientation": "reframing",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2028-03",
+      "diplomacy": {
+        "top_layer": "D/E/M",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Structured Alignment",
+        "rationale": "Treaty deepened bilateral strategic-economic alignment across tech, energy, and defense industry without direct sanctions."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-3": 1, "NI-2": 1, "NI-4": 1}
+    },
+    {
+      "action_id": "G-M1-A09",
+      "move": 1,
+      "seq": 9,
+      "actor": "ROK",
+      "title": "Korea-India API cooperative proposal",
+      "orientation": "reframing",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2028-05",
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Facilitative / Capacity-Building",
+        "rationale": "Built biotech and pharmaceutical resilience through bilateral cooperation rather than coercive exclusion."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1}
+    },
+    {
+      "action_id": "G-M1-A10",
+      "move": 1,
+      "seq": 10,
+      "actor": "ROK",
+      "title": "Korea-France/EU defense and energy cooperation",
+      "orientation": "reframing",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2028-07",
+      "diplomacy": {
+        "top_layer": "D/E/M",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Structured Alignment",
+        "rationale": "ROK advanced defense/energy cooperation with France/EU as structured alignment, not public pressure signaling."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-3": 1, "NI-2": 1}
+    },
+    {
+      "action_id": "G-M1-A11",
+      "move": 1,
+      "seq": 11,
+      "actor": "France",
+      "title": "Reinforce Global South partnerships",
+      "orientation": "stabilization",
+      "instrument_of_power": "Informational",
+      "submission_month": "2028-09",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/I",
+        "category": "Public Diplomacy → Outreach / Audience Engagement",
+        "band": "Relationship-Building",
+        "policy_style": "Agenda-Shaping / Norm-Setting",
+        "rationale": "France sought influence through Global South outreach and alternative offerings rather than adversary-facing pressure."
+      },
+      "info": {
+        "summary": "France launches a Global South partnership outreach campaign framing Europe as a rules-based alternative for technology, development, and climate cooperation.",
+        "audiences": "Global South elites and publics; EU domestic audiences; PRC narrative organs watching for neo-colonial framing.",
+        "narratives": "Blue/Green: partnership and autonomy. Red: Western competition for influence. Local: opportunity vs. pressure to choose.",
+        "second_order_effects": "May raise expectations for financing that outrun delivery; can dilute Blue pressure coalitions if framed as non-alignment.",
+        "sme_questions": "Which Global South capitals are priority, and does White Cell treat this as competing with or complementing Blue inducements?",
+        "suggested_sme_edits": "Name priority countries and concrete offer packages; clarify attribution and media channels."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-5": 1, "NI-3": 1}
+    },
+    {
+      "action_id": "G-M1-A12",
+      "move": 1,
+      "seq": 12,
+      "actor": "EU",
+      "title": "EU-UK global tech summit + communications line",
+      "orientation": "stabilization",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2028-11",
+      "diplomacy": {
+        "top_layer": "D/I",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Agenda-Shaping / Norm-Setting",
+        "rationale": "Positioned Europe/UK as a rules-based technology actor via public-facing convening and a standing communications channel."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1, "NI-5": 1}
+    },
+    {
+      "action_id": "G-M2-A01",
+      "move": 2,
+      "seq": 1,
+      "actor": "EU",
+      "title": "Transatlantic defense industrial base",
+      "orientation": "stabilization",
+      "instrument_of_power": "Economic",
+      "submission_month": "2029-01",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/E/M",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Structured Alignment",
+        "rationale": "Built allied industrial capacity through structured transatlantic alignment rather than public adversary signaling."
+      },
+      "macro": {
+        "lever": "L7",
+        "instrument": "I7.01",
+        "direction": "inducement",
+        "rule_citation": "Domestic/allied industrial subsidy and co-production incentives for defense base are L7 I7.01 (industrial policy), with foreign deployment facets secondary",
+        "precedent_tier": 2,
+        "citations": [
+          "EU European Defence Fund / ASAP instruments",
+          "U.S.-EU Trade and Technology Council defense-industrial workstreams",
+          "NATO DIANA / defence innovation cooperative finance"
+        ],
+        "precedent_rationale": "Transatlantic defense-industrial finance tools exist but a fully integrated base package at this scope is only partially proven",
+        "modifiers": {
+          "funding_available": true,
+          "partners_committed": true,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "funding_available": "Industrial base package includes budgeted co-investment",
+          "partners_committed": "EU and U.S. industrial partners named",
+          "timeline_mismatch": "Defense industrial ramp spans multiple years",
+          "multi_authority_coordination": "Requires defense, competition, and finance authorities on both sides"
+        },
+        "fit_band": "5-6",
+        "fit_score": 6,
+        "fit_rationale": "Supports Stabilization via capacity and alliance management; only partially a Reframing play"
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-3": 1, "NI-1": 1}
+    },
+    {
+      "action_id": "G-M2-A02",
+      "move": 2,
+      "seq": 2,
+      "actor": "ASEAN",
+      "title": "SEAMEO regional center of excellence (biotech)",
+      "orientation": "reframing",
+      "instrument_of_power": "Informational",
+      "submission_month": "2029-03",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/I",
+        "category": "Public Diplomacy → Platform-Based Engagement",
+        "band": "Relationship-Building",
+        "policy_style": "Facilitative / Capacity-Building",
+        "rationale": "Built long-term regional capacity and influence through an institutional education/S&T platform."
+      },
+      "info": {
+        "summary": "ASEAN stands up a SEAMEO biotech center of excellence to build regional scientific capacity and soft-power networks over a multi-year horizon.",
+        "audiences": "Southeast Asian students and researchers; national education ministries; industry R&D communities; competing PRC education diplomacy channels.",
+        "narratives": "Green: inclusive regional capacity. Blue: complementary Indo-Pacific knowledge networks. Red: Western-aligned soft power.",
+        "second_order_effects": "Low coerciveness but slow payoff; may shape talent pipelines and standards communities without moving Glasl stage.",
+        "sme_questions": "Does White Cell credit near-term sentiment effects, or only long-horizon human-capital effects?",
+        "suggested_sme_edits": "Specify host country, funding share, and curriculum focus areas."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1, "NI-5": 1}
+    },
+    {
+      "action_id": "G-M2-A03",
+      "move": 2,
+      "seq": 3,
+      "actor": "France",
+      "title": "Strategic signaling (joint exercise / ops)",
+      "orientation": "stabilization",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2029-05",
+      "diplomacy": {
+        "top_layer": "D/M",
+        "category": "Signaling / Strategic Communication",
+        "band": "Pressure",
+        "policy_style": "Targeted Strategic Coordination",
+        "rationale": "Used joint-exercise signaling to communicate resolve and coordinate pressure with partners."
+      },
+      "glasl_delta": 1,
+      "ni_focus": {"NI-4": 1, "NI-3": 1},
+      "ni_neg": {"NI-6": -1}
+    },
+    {
+      "action_id": "G-M2-A04",
+      "move": 2,
+      "seq": 4,
+      "actor": "ROK",
+      "title": "Sea-lane and semiconductor initiative (FR/JP/ROK)",
+      "orientation": "reframing",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2029-07",
+      "diplomacy": {
+        "top_layer": "D/E/M",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Structured Alignment",
+        "rationale": "Protected maritime and semiconductor flows through partner coordination among FR/JP/ROK."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-4": 1, "NI-2": 1}
+    },
+    {
+      "action_id": "G-M2-A05",
+      "move": 2,
+      "seq": 5,
+      "actor": "ROK",
+      "title": "SWAP arrangements to stabilize the won",
+      "orientation": "reframing",
+      "instrument_of_power": "Economic",
+      "submission_month": "2029-09",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Consultative / Exploratory",
+        "rationale": "Used bilateral financial diplomacy to manage market shock via swap-line consultation."
+      },
+      "macro": {
+        "lever": "L6",
+        "instrument": "I6.06",
+        "direction": "inducement",
+        "rule_citation": "Bilateral partner-support currency swap / central-bank liquidity line is L6 I6.06 (rule 4), not domestic FX intervention L5",
+        "precedent_tier": 1,
+        "citations": [
+          "Bank of Korea-Federal Reserve dollar liquidity swap line (activated 2020)",
+          "Chiang Mai Initiative Multilateralisation (CMIM)",
+          "BOK bilateral swap network with ASEAN+3 partners"
+        ],
+        "precedent_rationale": "ROK has repeatedly exercised bilateral and plurilateral swap authorities for won/dollar liquidity support",
+        "modifiers": {
+          "funding_available": true,
+          "partners_committed": true,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "funding_available": "Swap line size is authorized and drawable",
+          "partners_committed": "Counterparty central bank agrees to the arrangement",
+          "multi_authority_coordination": "Requires MOF and central bank coordination with partner authorities"
+        },
+        "fit_band": "7-8",
+        "fit_score": 7,
+        "fit_rationale": "Stabilizing financial conditions preserves room for Reframing industrial strategy under stress"
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1, "NI-6": 1}
+    },
+    {
+      "action_id": "G-M2-A06",
+      "move": 2,
+      "seq": 6,
+      "actor": "Japan",
+      "title": "Applying pressure on China",
+      "orientation": "reframing",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2029-11",
+      "diplomacy": {
+        "top_layer": "D",
+        "category": "Coalition-Building / Partner Alignment",
+        "band": "Pressure",
+        "policy_style": "Agenda-Shaping / Norm-Setting",
+        "rationale": "Japan organized partner alignment explicitly around pressure on China rather than exploratory consultation."
+      },
+      "glasl_delta": 1,
+      "ni_focus": {"NI-4": 1, "NI-5": 1},
+      "ni_neg": {"NI-3": -1}
+    },
+    {
+      "action_id": "G-M2-A07",
+      "move": 2,
+      "seq": 7,
+      "actor": "EU",
+      "title": "Ukraine EU accession / Turkey talks resume",
+      "orientation": "stabilization",
+      "instrument_of_power": "Diplomatic",
+      "submission_month": "2030-01",
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Multilateral / Institutional Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Structured Alignment",
+        "rationale": "Expanded institutional access to minerals, markets, and production capacity through accession and resumed Turkey talks."
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-3": 1, "NI-1": 1}
+    },
+    {
+      "action_id": "G-M2-A08",
+      "move": 2,
+      "seq": 8,
+      "actor": "ASEAN",
+      "title": "Asia-Pacific telecom export expo 2030",
+      "orientation": "reframing",
+      "instrument_of_power": "Economic",
+      "submission_month": "2030-03",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Bilateral Diplomacy",
+        "band": "Positioning",
+        "policy_style": "Targeted Strategic Coordination",
+        "rationale": "Promoted non-PRC telecom alternatives through regional commercial-diplomatic alignment."
+      },
+      "macro": {
+        "lever": "L1",
+        "instrument": "I1.05",
+        "direction": "inducement",
+        "rule_citation": "Preferential market access / export promotion for trusted telecom vendors is L1 I1.05 (preferential trade access), not L2 entity listing",
+        "precedent_tier": 2,
+        "citations": [
+          "Trusted vendor / clean network preferential procurement programs",
+          "CPTPP digital and telecom market-access schedules",
+          "Japan-ASEAN digital economy partnership instruments"
+        ],
+        "precedent_rationale": "Preferential trusted-vendor trade promotion exists, but a region-wide 2030 expo package at FO scope is only partially proven",
+        "modifiers": {
+          "funding_available": true,
+          "partners_committed": true,
+          "timeline_mismatch": true,
+          "multi_authority_coordination": false
+        },
+        "modifier_rationales": {
+          "funding_available": "Expo and export-credit support are budgeted",
+          "partners_committed": "ASEAN hosts and vendor governments participate",
+          "timeline_mismatch": "Vendor displacement and network rip-and-replace lag the move"
+        },
+        "fit_band": "7-8",
+        "fit_score": 8,
+        "fit_rationale": "Building alternative telecom supply is a direct Reframing mechanism"
+      },
+      "glasl_delta": 0,
+      "ni_focus": {"NI-2": 1, "NI-5": 1}
+    },
+    {
+      "action_id": "G-M2-A09",
+      "move": 2,
+      "seq": 9,
+      "actor": "ROK",
+      "title": "Public statement warning North Korea",
+      "orientation": "reframing",
+      "instrument_of_power": "Informational",
+      "submission_month": "2030-05",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/I",
+        "category": "Signaling / Strategic Communication",
+        "band": "Pressure",
+        "policy_style": "Agenda-Shaping / Norm-Setting",
+        "rationale": "Public messaging used to contain spillover risk and shape perceptions around North Korea escalation."
+      },
+      "info": {
+        "summary": "ROK issues a public warning statement on North Korea risk, aiming to deter spillover and shape allied and domestic perceptions during heightened regional tension.",
+        "audiences": "ROK domestic public; DPRK leadership; U.S./Japan allies; PRC observers; regional markets.",
+        "narratives": "ROK: responsible deterrence and crisis management. DPRK: hostile encirclement. PRC: regional instability driven by U.S. allies.",
+        "second_order_effects": "Can raise Glasl stage via public prestige contest; may reassure or alarm markets depending on tone and allied echo.",
+        "sme_questions": "Is the statement coordinated with Blue/Japan, and does White Cell treat DPRK and PRC audiences as joint or separate?",
+        "suggested_sme_edits": "Capture exact wording, channel (presidential vs MOFAT), and allied co-signing."
+      },
+      "glasl_delta": 1,
+      "ni_focus": {"NI-4": 1, "NI-1": 1},
+      "ni_neg": {"NI-6": -1}
+    },
+    {
+      "action_id": "G-M2-A10",
+      "move": 2,
+      "seq": 10,
+      "actor": "France",
+      "title": "Reducing dependencies (sanctions, stop investment)",
+      "orientation": "stabilization",
+      "instrument_of_power": "Economic",
+      "submission_month": "2030-07",
+      "secondary_diplomacy": true,
+      "diplomacy": {
+        "top_layer": "D/E",
+        "category": "Signaling / Strategic Communication",
+        "band": "Pressure",
+        "policy_style": "Directive / Exclusionary",
+        "rationale": "Shifted toward harder dependency-reduction via sanctions and investment stoppage communicated as strategic pressure."
+      },
+      "macro": {
+        "lever": "L4",
+        "instrument": "I4.01",
+        "secondary_instrument": "I3.02",
+        "direction": "coercive",
+        "rule_citation": "Country-specific punitive sanctions are L4 I4.01; outbound investment stoppage rides as secondary I3.02 per split-at-intake practice",
+        "precedent_tier": 1,
+        "citations": [
+          "EU restrictive measures framework (CFSP sanctions regulations)",
+          "France implementation of EU Russia sanctions packages (2022-2025)",
+          "EU outbound investment monitoring / screening initiatives"
+        ],
+        "precedent_rationale": "France/EU have repeatedly exercised targeted sanctions and investment restrictions against strategic rivals",
+        "modifiers": {
+          "funding_available": false,
+          "partners_committed": true,
+          "timeline_mismatch": false,
+          "multi_authority_coordination": true
+        },
+        "modifier_rationales": {
+          "partners_committed": "EU-level restrictive measures imply partner coordination",
+          "multi_authority_coordination": "Requires foreign ministry, finance, and investment-screening authorities"
+        },
+        "fit_band": "3-4",
+        "fit_score": 4,
+        "fit_rationale": "Hard coercive dependency cuts conflict with Stabilization's preference for consultation-first coalition management"
+      },
+      "glasl_delta": 1,
+      "ni_focus": {"NI-5": 1, "NI-2": 1},
+      "ni_neg": {"NI-3": -1}
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NI agent worksheet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["orientation", "domain_deltas", "needs_human"],
+  "properties": {
+    "needs_human": {"type": "boolean"},
+    "needs_human_reason": {"type": ["string", "null"]},
+    "orientation": {
+      "type": "string",
+      "enum": ["pressure", "stabilization", "reframing"]
+    },
+    "domain_deltas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["NI-1", "NI-2", "NI-3", "NI-4", "NI-5", "NI-6"],
+      "properties": {
+        "NI-1": {"$ref": "#/definitions/domainEntry"},
+        "NI-2": {"$ref": "#/definitions/domainEntry"},
+        "NI-3": {"$ref": "#/definitions/domainEntry"},
+        "NI-4": {"$ref": "#/definitions/domainEntry"},
+        "NI-5": {"$ref": "#/definitions/domainEntry"},
+        "NI-6": {"$ref": "#/definitions/domainEntry"}
+      }
+    },
+    "threat_cross_check": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "capability": {"type": "string"},
+        "will": {"type": "string"},
+        "vulnerability": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "definitions": {
+    "domainEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["delta", "rationale"],
+      "properties": {
+        "delta": {"type": "integer", "enum": [-2, -1, 0, 1, 2]},
+        "rationale": {"type": "string", "minLength": 8},
+        "vital_justification": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

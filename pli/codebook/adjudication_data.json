@@ -1,0 +1,152 @@
+{
+  "version": "adjudication-2026-07-17",
+  "instruments_of_power": ["Diplomatic", "Informational", "Military", "Economic"],
+  "sme_role_pairing": {
+    "notes": "Game-director staffing: two multi-track SMEs cover the non-macro tracks. Macroeconomic approve/override remains White Cell / Macro SME.",
+    "roles": [
+      {
+        "id": "ni_escalation",
+        "label": "National Interest & Escalation SME",
+        "tracks": ["national_interest", "glasl"]
+      },
+      {
+        "id": "diplomacy_information",
+        "label": "Diplomacy Index & Information SME",
+        "tracks": ["diplomacy", "information"]
+      },
+      {
+        "id": "macro",
+        "label": "Macroeconomic SME (White Cell)",
+        "tracks": ["macro"]
+      }
+    ]
+  },
+  "routing": {
+    "Economic": {
+      "macro": true,
+      "diplomacy": false,
+      "information": false,
+      "national_interest": true,
+      "glasl": true,
+      "default_lever": null
+    },
+    "Diplomatic": {
+      "macro": false,
+      "diplomacy": true,
+      "information": false,
+      "national_interest": true,
+      "glasl": true,
+      "default_lever": "NE"
+    },
+    "Informational": {
+      "macro": false,
+      "diplomacy": false,
+      "information": true,
+      "national_interest": true,
+      "glasl": true,
+      "default_lever": "NE"
+    },
+    "Military": {
+      "macro": false,
+      "diplomacy": false,
+      "information": false,
+      "national_interest": true,
+      "glasl": true,
+      "default_lever": "NE"
+    }
+  },
+  "ui_lever_priors": {
+    "Sanctions": "L4",
+    "Export Controls": "L2",
+    "Investment Screening": "L3",
+    "Trade Measures": "L1",
+    "Financial Restrictions": "L4",
+    "Industrial Policy": "L7",
+    "Infrastructure Access": "L6"
+  },
+  "national_interest": {
+    "domains": {
+      "NI-1": "Homeland & Strategic Access",
+      "NI-2": "Economic Prosperity & Tech Leadership",
+      "NI-3": "Alliance / Partner Credibility",
+      "NI-4": "Indo-Pacific Stability & Deterrence",
+      "NI-5": "Rules / Market Integrity / Reciprocity",
+      "NI-6": "Domestic Political Sustainability"
+    },
+    "allowed_deltas": [-2, -1, 0, 1, 2],
+    "orientation_priors": {
+      "pressure": ["NI-4", "NI-3", "NI-5"],
+      "stabilization": ["NI-3", "NI-1", "NI-6"],
+      "reframing": ["NI-2", "NI-5", "NI-4"]
+    },
+    "cross_domain_alert": {
+      "min_glasl_stage": 6,
+      "ni3_max": -1,
+      "ni2_min": 1
+    }
+  },
+  "glasl": {
+    "stages": {
+      "1": "Hardening",
+      "2": "Debate & polemics",
+      "3": "Actions, not words",
+      "4": "Images & coalitions",
+      "5": "Loss of face",
+      "6": "Strategies of power & ultimata",
+      "7": "Limited destructive blows",
+      "8": "Fragmentation",
+      "9": "Together into the abyss"
+    },
+    "default_start_stage": 4,
+    "fo_operating_range": [4, 5, 6, 7],
+    "max_abs_delta_without_human": 2
+  },
+  "diplomacy": {
+    "bands": {
+      "Pressure": [
+        "Signaling / Strategic Communication",
+        "Consular / Societal Diplomacy",
+        "Coalition-Building / Partner Alignment"
+      ],
+      "Positioning": [
+        "Multilateral / Institutional Diplomacy",
+        "Bilateral Diplomacy",
+        "Digital Diplomacy"
+      ],
+      "Relationship-Building": [
+        "Public Diplomacy → Information / Media / Narrative Engagement",
+        "Public Diplomacy → Outreach / Audience Engagement",
+        "Public Diplomacy → Platform-Based Engagement",
+        "Public Diplomacy → Exchanges"
+      ]
+    },
+    "policy_styles": [
+      "Directive / Exclusionary",
+      "Structured Alignment",
+      "Targeted Strategic Coordination",
+      "Agenda-Shaping / Norm-Setting",
+      "Internal Coordination",
+      "Consultative / Exploratory",
+      "Facilitative / Capacity-Building"
+    ],
+    "top_layers": ["D", "D/E", "D/I", "D/M", "D/E/I", "D/I/M", "D/E/M"]
+  },
+  "information": {
+    "required_sections": [
+      "summary",
+      "audiences",
+      "narratives",
+      "second_order_effects",
+      "sme_questions",
+      "suggested_sme_edits"
+    ],
+    "forbidden_score_keys": [
+      "score",
+      "band",
+      "delta",
+      "effectiveness",
+      "rating",
+      "likert"
+    ]
+  }
+}

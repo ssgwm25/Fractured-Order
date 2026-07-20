@@ -34,6 +34,7 @@ The built-in teams are Blue, Red, Green, and Industry. Do not expand team geogra
 |-- index.html                 Landing and join flow
 |-- master.html                Game Master operator console
 |-- whitecell.html             White Cell operator interface
+|-- pli/                       Petrihos Lever Index (multi-track adjudication + CI)
 |-- teams/
 |   |-- blue/
 |   |-- green/
@@ -45,12 +46,16 @@ The built-in teams are Blue, Red, Green, and Industry. Do not expand team geogra
 |   |-- services/              Supabase, realtime, sync, timer, heartbeat, mock backend
 |   |-- stores/                Session, game state, actions, RFIs, timeline, participants, communications
 |   |-- roles/                 Role-surface controllers
-|   `-- features/              Actions, RFIs, export, timeline, onboarding, plugin registry, and deck helpers
+|   `-- features/              Actions, RFIs, export, timeline, onboarding, plugin registry, PLI SME panels, and deck helpers
 |-- styles/                    Shared CSS tokens, layouts, components, and page styles
 |-- data/                      Supabase schema and migration SQL
 |-- docs/                      Deployment, Supabase setup, and live-demo runbook
 `-- tests/                     Vitest unit tests and Playwright e2e rehearsal tests
 ```
+
+## PLI (Petrihos Lever Index)
+
+Multi-track adjudication for Fractured Order lives under `pli/` (vendored from [ssgwm25/petrihos-lever-index](https://github.com/ssgwm25/petrihos-lever-index)). After White Cell marks actions submitted, the GitHub Action **PLI Adjudication** writes `pli_adjudications` rows. White Cell Lead reviews three SME seats: **PLI Adjudication** (macro), **Diplomacy & Information**, and **NI & Escalation**. Apply `data/2026-07-17_pli_adjudications.sql` and see `pli/plenum/INTEGRATION.md`.
 
 ## Local Development
 
