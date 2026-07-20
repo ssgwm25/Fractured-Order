@@ -128,10 +128,17 @@
                             hidden
                         >
                         <div class="lf-field">
+                            <label for="operatorSessionCode">Session Code</label>
+                            <input type="text" id="operatorSessionCode" class="form-input"
+                                autocomplete="off" placeholder="e.g. ADMIN2026"
+                                aria-describedby="operatorSessionCodeError operatorAccessHelp">
+                            <p class="form-error" id="operatorSessionCodeError" role="alert" hidden></p>
+                        </div>
+                        <div class="lf-field">
                             <label for="operatorAccessCode">Access Code</label>
                             <input type="password" id="operatorAccessCode" class="form-input"
                                 autocomplete="current-password" placeholder="Operator code"
-                                aria-describedby="operatorAccessCodeError operatorAccessHelp">
+                                aria-describedby="operatorAccessCodeError">
                             <p class="form-error" id="operatorAccessCodeError" role="alert" hidden></p>
                         </div>
                         <div class="op-actions">
@@ -142,7 +149,7 @@
                                 title="Adjudicates actions and answers RFIs"
                                 aria-label="Authorize White Cell Lead access to adjudicate actions and answer RFIs">WC Lead</button>
                         </div>
-                        <p class="op-help" id="operatorAccessHelp">Enter the access code, then click your role. Joins the current active session automatically.</p>
+                        <p class="op-help" id="operatorAccessHelp">WC Lead needs session code + access code. Game Master needs only the access code.</p>
                     </form>
                 </details>
 
@@ -150,10 +157,17 @@
                     <summary class="op-summary">SME Access</summary>
                     <form class="op-body" id="smeAccessForm" novalidate>
                         <div class="lf-field">
+                            <label for="smeSessionCode">Session Code</label>
+                            <input type="text" id="smeSessionCode" class="form-input"
+                                autocomplete="off" placeholder="e.g. ADMIN2026"
+                                aria-describedby="smeSessionCodeError smeAccessHelp">
+                            <p class="form-error" id="smeSessionCodeError" role="alert" hidden></p>
+                        </div>
+                        <div class="lf-field">
                             <label for="smeAccessCode">Access Code</label>
                             <input type="password" id="smeAccessCode" class="form-input"
                                 autocomplete="current-password" placeholder="Operator code"
-                                aria-describedby="smeAccessCodeError smeAccessHelp">
+                                aria-describedby="smeAccessCodeError">
                             <p class="form-error" id="smeAccessCodeError" role="alert" hidden></p>
                         </div>
                         <div class="op-actions op-actions--sme">
@@ -173,7 +187,7 @@
                                 title="Verba AI external handoff queue"
                                 aria-label="Authorize Verba AI SME access">Verba AI</button>
                         </div>
-                        <p class="op-help" id="smeAccessHelp">Enter the access code, then click your SME role. Same code as Operator Access. No session code needed.</p>
+                        <p class="op-help" id="smeAccessHelp">Session code + access code, then click your SME role. Same access code as Operator Access.</p>
                     </form>
                 </details>
                 </div><!-- /.form-main -->
