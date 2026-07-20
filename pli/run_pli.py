@@ -6,8 +6,9 @@ Runs inside the GitHub Actions workflow (or locally by White Cell):
    PLI adjudication record yet.
 2. Look up the acting team's declared Strategic Orientation artifact.
 3. Ground ``submission_month`` on a fixed 6-month action cadence
-   (``submission_timing.py``), run the Cursor agent for the macro worksheet
-   (``adjudicate.py``), then assemble all tracks via ``adjudicate_router``.
+   (``submission_timing.py``), run Cursor agents for macro + Glasl + NI
+   (and Diplomacy / Information when routed), then assemble tracks via
+   ``adjudicate_router``.
 4. Write one ``pli_adjudications`` row per action with the multi-track record,
    ``seat_reviews``, and aggregate ``status`` for SME review in White Cell.
 
@@ -52,6 +53,48 @@ DEFAULT_MOVE_YEARS = {"1": 2027, "2": 2030, "3": 2032}
 SEAT_MACRO = "macro"
 SEAT_DIP_INFO = "diplomacy_information"
 SEAT_NI_ESC = "national_interest_escalation"
+
+# needs_human stubs that should be re-scored when the pipeline gains new agents
+# or orientation parsing fixes — not every SME-flagged needs_human forever.
+RESCORE_REASON_MARKERS = (
+    "Missing NI agent worksheet",
+    "Missing Glasl agent worksheet",
+    "Missing Diplomacy agent worksheet",
+    "Missing Information brief",
+    "No declared Strategic Orientation",
+    "Macro agent worksheet missing",
+    "Placeholder; replace with agent worksheet",
+    "Placeholder neutral delta",
+)
+
+
+def _collect_needs_human_reasons(row: dict[str, Any]) -> list[str]:
+    record = row.get("record") or {}
+    reasons = [str(record.get("needs_human_reason") or "")]
+    tracks = record.get("tracks") or {}
+    for key in ("macro", "national_interest", "glasl", "diplomacy", "information"):
+        block = tracks.get(key) or {}
+        reasons.append(str(block.get("needs_human_reason") or ""))
+        worksheet = block.get("worksheet") or {}
+        if isinstance(worksheet, dict):
+            reasons.append(str(worksheet.get("needs_human_reason") or ""))
+            for entry in (worksheet.get("domain_deltas") or {}).values():
+                if isinstance(entry, dict):
+                    reasons.append(str(entry.get("rationale") or ""))
+        reasons.append(str(block.get("rationale") or ""))
+    return reasons
+
+
+def _should_skip_existing_adjudication(row: dict[str, Any]) -> bool:
+    status = row.get("status")
+    if status not in (None, "needs_human"):
+        return True
+    if status != "needs_human":
+        return False
+    reasons = _collect_needs_human_reasons(row)
+    return not any(
+        marker in reason for reason in reasons for marker in RESCORE_REASON_MARKERS
+    )
 
 
 def _env(name: str) -> str:
@@ -133,14 +176,12 @@ def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict
         params["session_id"] = f"eq.{session_id}"
     actions = db.select("actions", params)
 
-    # Skip rows that already have a finished PLI write. Re-score needs_human
-    # stubs (e.g. after orientation alias fixes) so operators do not need a
-    # manual delete before re-running the workflow.
-    existing = db.select("pli_adjudications", {"select": "action_id,status"})
+    # Skip finished rows. Re-score only stubbed needs_human rows (missing
+    # worksheets / missing orientation) so agent-flagged SME work does not
+    # burn another full multi-agent run on every schedule tick.
+    existing = db.select("pli_adjudications", {"select": "action_id,status,record"})
     skip_ids = {
-        row["action_id"]
-        for row in existing
-        if row.get("status") not in (None, "needs_human")
+        row["action_id"] for row in existing if _should_skip_existing_adjudication(row)
     }
     pending: list[dict[str, Any]] = []
     ineligible = 0
@@ -388,6 +429,9 @@ def build_record(
             "seat_reviews": seat_reviews,
         }
 
+    routing_preview = build_routing_record(action)
+    tracks_needed = routing_preview.get("tracks") or {}
+
     agent_result = adjudicate.adjudicate_action(
         action,
         orientation,
@@ -402,12 +446,15 @@ def build_record(
     facets = (worksheet or {}).get("ne_facets") or {}
     secondary_diplomacy = bool(facets.get("diplomacy"))
     secondary_information = bool(facets.get("information"))
+    if secondary_diplomacy:
+        tracks_needed = {**tracks_needed, "diplomacy": True}
+    if secondary_information:
+        tracks_needed = {**tracks_needed, "information": True}
 
     # Economic filings require a macro worksheet; if the agent failed twice,
     # supply a needs_human stub so NI/Glasl (always-on) still persist.
-    routing_preview = build_routing_record(action)
     macro_for_router = worksheet
-    if routing_preview.get("tracks", {}).get("macro") and macro_for_router is None:
+    if tracks_needed.get("macro") and macro_for_router is None:
         macro_for_router = {
             "needs_human": True,
             "needs_human_reason": agent_result.get("needs_human_reason")
@@ -439,9 +486,58 @@ def build_record(
             "submission_month": submission_month,
         }
 
+    session_state = adjudicate_router.load_session_state(session_id)
+    stage_before = int(session_state.get("glasl_stage") or 4)
+
+    glasl_result = adjudicate.adjudicate_glasl(
+        action, orientation, stage_before=stage_before
+    )
+    glasl_worksheet = glasl_result.get("worksheet")
+    glasl_stage_after = stage_before
+    if glasl_worksheet is not None:
+        glasl_stage_after = int(
+            glasl_worksheet.get("stage_after")
+            or (stage_before + int(glasl_worksheet.get("delta") or 0))
+        )
+        glasl_stage_after = max(1, min(9, glasl_stage_after))
+
+    macro_summary = ""
+    if worksheet is not None:
+        classification = worksheet.get("classification") or {}
+        fit = worksheet.get("fit") or {}
+        macro_summary = (
+            f"lever={classification.get('lever')} "
+            f"instrument={classification.get('instrument')} "
+            f"fit={fit.get('band')}/{fit.get('score')}"
+        )
+
+    ni_result = adjudicate.adjudicate_ni(
+        action,
+        orientation,
+        glasl_stage=glasl_stage_after,
+        macro_summary=macro_summary,
+    )
+    ni_worksheet = ni_result.get("worksheet")
+
+    diplomacy_result: dict[str, Any] | None = None
+    diplomacy_worksheet = None
+    if tracks_needed.get("diplomacy"):
+        diplomacy_result = adjudicate.adjudicate_diplomacy(action, orientation)
+        diplomacy_worksheet = diplomacy_result.get("worksheet")
+
+    info_result: dict[str, Any] | None = None
+    info_brief = None
+    if tracks_needed.get("information"):
+        info_result = adjudicate.adjudicate_information(action, orientation)
+        info_brief = info_result.get("worksheet")
+
     mt_record = adjudicate_router.adjudicate_multitrack(
         action,
         macro_worksheet=macro_for_router,
+        ni_worksheet=ni_worksheet,
+        glasl_worksheet=glasl_worksheet,
+        diplomacy_worksheet=diplomacy_worksheet,
+        info_brief=info_brief,
         orientation=orientation,
         exec_year=exec_year,
         submission_month=submission_month,
@@ -452,11 +548,42 @@ def build_record(
     )
 
     aliases = _macro_aliases(mt_record, worksheet)
+    track_agents: dict[str, Any] = {
+        "macro": {
+            "model": agent_result["model"],
+            "attempts": agent_result["attempts"],
+            "needs_human": agent_result.get("needs_human"),
+        },
+        "glasl": {
+            "model": glasl_result["model"],
+            "attempts": glasl_result["attempts"],
+            "needs_human": glasl_result.get("needs_human"),
+        },
+        "national_interest": {
+            "model": ni_result["model"],
+            "attempts": ni_result["attempts"],
+            "needs_human": ni_result.get("needs_human"),
+        },
+    }
+    if diplomacy_result is not None:
+        track_agents["diplomacy"] = {
+            "model": diplomacy_result["model"],
+            "attempts": diplomacy_result["attempts"],
+            "needs_human": diplomacy_result.get("needs_human"),
+        }
+    if info_result is not None:
+        track_agents["information"] = {
+            "model": info_result["model"],
+            "attempts": info_result["attempts"],
+            "needs_human": info_result.get("needs_human"),
+        }
+
     record: dict[str, Any] = {
         **mt_record,
         "agent": {
             "model": agent_result["model"],
             "attempts": agent_result["attempts"],
+            "tracks": track_agents,
         },
         "declared_orientation": orientation,
         "exec_year": exec_year,
@@ -470,6 +597,10 @@ def build_record(
 
     if agent_result["worksheet"] is None or agent_result["needs_human"]:
         record["needs_human_reason"] = agent_result.get("needs_human_reason")
+    elif glasl_result["worksheet"] is None or glasl_result["needs_human"]:
+        record["needs_human_reason"] = glasl_result.get("needs_human_reason")
+    elif ni_result["worksheet"] is None or ni_result["needs_human"]:
+        record["needs_human_reason"] = ni_result.get("needs_human_reason")
 
     # Surface horizon clamp / beyond-horizon onset for White Cell.
     timing_flags = []

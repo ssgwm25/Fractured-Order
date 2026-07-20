@@ -22,6 +22,18 @@ import jsonschema
 
 HERE = Path(__file__).parent
 SCHEMA = json.loads((HERE / "worksheet_schema.json").read_text(encoding="utf-8"))
+NI_SCHEMA = json.loads(
+    (HERE / "schemas" / "ni_worksheet_schema.json").read_text(encoding="utf-8")
+)
+GLASL_SCHEMA = json.loads(
+    (HERE / "schemas" / "glasl_worksheet_schema.json").read_text(encoding="utf-8")
+)
+DIPLOMACY_SCHEMA = json.loads(
+    (HERE / "schemas" / "diplomacy_worksheet_schema.json").read_text(encoding="utf-8")
+)
+INFO_SCHEMA = json.loads(
+    (HERE / "schemas" / "info_brief_schema.json").read_text(encoding="utf-8")
+)
 TRIAL_CODEBOOK = (HERE / "codebook" / "03_PLI_TRIAL_CODEBOOK.md").read_text(encoding="utf-8")
 MASTER_CODEBOOK = (HERE / "codebook" / "02_ECONOMIC_LEVER_MASTER_CODEBOOK.md").read_text(encoding="utf-8")
 
@@ -154,8 +166,13 @@ def build_prompt(
     )
 
 
-def extract_worksheet(text: str) -> dict[str, Any]:
-    """Pull the JSON worksheet out of the agent reply and validate it."""
+def extract_json_worksheet(
+    text: str,
+    schema: dict[str, Any],
+    *,
+    cross_check=None,
+) -> dict[str, Any]:
+    """Pull JSON from an agent reply and validate against a schema."""
     fenced = re.findall(r"```(?:json)?\s*\n(.*?)```", text, flags=re.DOTALL)
     candidates = fenced if fenced else [text]
 
@@ -166,11 +183,17 @@ def extract_worksheet(text: str) -> dict[str, Any]:
         except json.JSONDecodeError as err:
             last_error = err
             continue
-        jsonschema.validate(worksheet, SCHEMA)
-        _cross_check(worksheet)
+        jsonschema.validate(worksheet, schema)
+        if cross_check is not None:
+            cross_check(worksheet)
         return worksheet
 
     raise ValueError(f"No valid worksheet in agent reply: {last_error}")
+
+
+def extract_worksheet(text: str) -> dict[str, Any]:
+    """Pull the macro JSON worksheet out of the agent reply and validate it."""
+    return extract_json_worksheet(text, SCHEMA, cross_check=_cross_check)
 
 
 def _cross_check(worksheet: dict[str, Any]) -> None:
@@ -243,49 +266,44 @@ def run_agent(prompt: str, *, api_key: str | None = None, model: str = DEFAULT_M
     return result.result or ""
 
 
-def adjudicate_action(
-    action: dict[str, Any],
-    orientation: str,
+def adjudicate_prompt(
+    prompt: str,
+    schema: dict[str, Any],
     *,
-    game_state_notes: str = "",
-    submission_month: str | None = None,
+    cross_check=None,
     api_key: str | None = None,
     model: str = DEFAULT_MODEL,
     max_attempts: int = 2,
+    postprocess=None,
 ) -> dict[str, Any]:
-    """Produce a validated worksheet for one action, retrying once.
-
-    Returns a dict with ``worksheet`` (or None), ``attempts`` transcripts for
-    the trace record, and ``needs_human`` when validation failed twice or the
-    agent itself flagged the action.
-    """
-    month = submission_month or action.get("submission_month")
-    prompt = build_prompt(
-        action, orientation, game_state_notes, submission_month=month
-    )
-    attempts: list[dict[str, str]] = []
+    """Run a Cursor agent against a schema with one validation retry."""
+    attempts: list[dict[str, Any]] = []
+    working_prompt = prompt
 
     for attempt in range(1, max_attempts + 1):
         try:
-            reply = run_agent(prompt, api_key=api_key, model=model)
+            reply = run_agent(working_prompt, api_key=api_key, model=model)
         except Exception as err:  # startup or run failure — record and retry
             attempts.append({"attempt": attempt, "error": str(err)})
             continue
 
         try:
-            worksheet = extract_worksheet(reply)
+            worksheet = extract_json_worksheet(
+                reply, schema, cross_check=cross_check
+            )
         except (ValueError, jsonschema.ValidationError) as err:
-            attempts.append({"attempt": attempt, "error": str(err), "reply": reply[-4000:]})
-            prompt = (
+            attempts.append(
+                {"attempt": attempt, "error": str(err), "reply": reply[-4000:]}
+            )
+            working_prompt = (
                 prompt
                 + "\n\nYour previous reply failed validation with this error, fix it and "
                 + f"return ONLY the corrected JSON worksheet:\n{err}"
             )
             continue
 
-        # Orchestrator month wins over any agent-invented timing.
-        if month and isinstance(worksheet, dict):
-            worksheet["submission_month"] = month
+        if postprocess is not None:
+            worksheet = postprocess(worksheet)
 
         attempts.append({"attempt": attempt, "ok": True})
         return {
@@ -303,3 +321,149 @@ def adjudicate_action(
         "attempts": attempts,
         "model": model,
     }
+
+
+def adjudicate_action(
+    action: dict[str, Any],
+    orientation: str,
+    *,
+    game_state_notes: str = "",
+    submission_month: str | None = None,
+    api_key: str | None = None,
+    model: str = DEFAULT_MODEL,
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    """Produce a validated macro worksheet for one action, retrying once.
+
+    Returns a dict with ``worksheet`` (or None), ``attempts`` transcripts for
+    the trace record, and ``needs_human`` when validation failed twice or the
+    agent itself flagged the action.
+    """
+    month = submission_month or action.get("submission_month")
+    prompt = build_prompt(
+        action, orientation, game_state_notes, submission_month=month
+    )
+
+    def _stamp_month(worksheet: dict[str, Any]) -> dict[str, Any]:
+        if month and isinstance(worksheet, dict):
+            worksheet["submission_month"] = month
+        return worksheet
+
+    return adjudicate_prompt(
+        prompt,
+        SCHEMA,
+        cross_check=_cross_check,
+        api_key=api_key,
+        model=model,
+        max_attempts=max_attempts,
+        postprocess=_stamp_month,
+    )
+
+
+def adjudicate_glasl(
+    action: dict[str, Any],
+    orientation: str,
+    *,
+    stage_before: int,
+    api_key: str | None = None,
+    model: str = DEFAULT_MODEL,
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    """Produce a validated Glasl worksheet for one action."""
+    from track_prompts import build_glasl_prompt
+
+    prompt = build_glasl_prompt(action, orientation, stage_before=stage_before)
+
+    def _stamp_stages(worksheet: dict[str, Any]) -> dict[str, Any]:
+        worksheet = dict(worksheet)
+        worksheet["stage_before"] = int(
+            worksheet.get("stage_before") or stage_before
+        )
+        delta = int(worksheet.get("delta", 0))
+        if worksheet.get("stage_after") is None:
+            worksheet["stage_after"] = max(1, min(9, worksheet["stage_before"] + delta))
+        return worksheet
+
+    return adjudicate_prompt(
+        prompt,
+        GLASL_SCHEMA,
+        api_key=api_key,
+        model=model,
+        max_attempts=max_attempts,
+        postprocess=_stamp_stages,
+    )
+
+
+def adjudicate_ni(
+    action: dict[str, Any],
+    orientation: str,
+    *,
+    glasl_stage: int | None = None,
+    macro_summary: str = "",
+    api_key: str | None = None,
+    model: str = DEFAULT_MODEL,
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    """Produce a validated National Interest worksheet for one action."""
+    from track_prompts import build_ni_prompt
+
+    prompt = build_ni_prompt(
+        action,
+        orientation,
+        macro_summary=macro_summary,
+        glasl_stage=glasl_stage,
+    )
+
+    def _stamp_orientation(worksheet: dict[str, Any]) -> dict[str, Any]:
+        worksheet = dict(worksheet)
+        worksheet["orientation"] = orientation
+        return worksheet
+
+    return adjudicate_prompt(
+        prompt,
+        NI_SCHEMA,
+        api_key=api_key,
+        model=model,
+        max_attempts=max_attempts,
+        postprocess=_stamp_orientation,
+    )
+
+
+def adjudicate_diplomacy(
+    action: dict[str, Any],
+    orientation: str,
+    *,
+    api_key: str | None = None,
+    model: str = DEFAULT_MODEL,
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    """Produce a validated Diplomacy Index worksheet for one action."""
+    from track_prompts import build_diplomacy_prompt
+
+    return adjudicate_prompt(
+        build_diplomacy_prompt(action, orientation),
+        DIPLOMACY_SCHEMA,
+        api_key=api_key,
+        model=model,
+        max_attempts=max_attempts,
+    )
+
+
+def adjudicate_information(
+    action: dict[str, Any],
+    orientation: str,
+    *,
+    api_key: str | None = None,
+    model: str = DEFAULT_MODEL,
+    max_attempts: int = 2,
+) -> dict[str, Any]:
+    """Produce a validated Information brief for one action."""
+    from track_prompts import build_info_prompt
+
+    return adjudicate_prompt(
+        build_info_prompt(action, orientation),
+        INFO_SCHEMA,
+        api_key=api_key,
+        model=model,
+        max_attempts=max_attempts,
+    )
