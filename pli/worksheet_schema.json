@@ -135,7 +135,7 @@
         "rationale": {
           "type": "string",
           "minLength": 12,
-          "description": "One-line mechanism rationale tying the anchor band to the declared orientation."
+          "description": "Mechanism narrative tying the anchor band/score to the declared orientation (prefer 2–4 sentences, comparable to precedent.rationale)."
         }
       }
     }

@@ -105,8 +105,18 @@ export function createPliMacroReview(options = {}) {
         const classification = worksheet?.classification || adjudication?.classification || {};
         const precedent = worksheet?.precedent || adjudication?.precedent || {};
         const implementation = adjudication?.implementation || {};
-        const fit = adjudication?.fit || worksheet?.fit || {};
+        const fit = mergeFit(adjudication?.fit, worksheet?.fit, record.declared_orientation);
         const modifiers = precedent.modifiers || worksheet?.precedent?.modifiers || {};
+        const implementationNarrative = (
+            (precedent.statutory_basis || []).join('; ')
+            || precedent.rationale
+            || ''
+        ).trim();
+        const fitNarrative = (
+            fit.mechanism_rationale
+            || fit.rationale
+            || ''
+        ).trim();
 
         card.innerHTML = `
             <header class="pli-sme-card-header">
@@ -132,15 +142,16 @@ export function createPliMacroReview(options = {}) {
                         <div class="pli-label">2.2 Implementation worksheet</div>
                         <p class="text-sm"><strong>Precedent tier:</strong> ${escapeHtml(String(precedent.tier ?? '—'))}
                             ${implementation.tier_midpoint != null ? ` · Midpoint ${escapeHtml(String(implementation.tier_midpoint))}` : ''}</p>
-                        <p class="pli-cite text-sm">${escapeHtml((precedent.statutory_basis || []).join('; ') || precedent.rationale || '')}</p>
+                        <p class="pli-cite text-sm">${escapeHtml(implementationNarrative || 'No implementation narrative on worksheet.')}</p>
                         <div class="pli-modifiers">${renderModifiers(modifiers, implementation)}</div>
                         <p class="text-sm"><strong>Implementation score:</strong> ${escapeHtml(String(implementation.score ?? '—'))}</p>
                     </div>
                     <div class="pli-block">
                         <div class="pli-label">2.3 Fit score (orientation anchor)</div>
-                        <p class="text-sm"><strong>Orientation:</strong> ${escapeHtml(fit.orientation || record.declared_orientation || '—')}
-                            · <strong>Fit:</strong> ${escapeHtml(String(fit.score ?? fit.band ?? '—'))}</p>
-                        <p class="pli-cite text-sm">${escapeHtml(fit.mechanism_rationale || fit.rationale || '')}</p>
+                        <p class="text-sm"><strong>Orientation:</strong> ${escapeHtml(fit.orientation || '—')}
+                            ${fit.band ? ` · <strong>Band:</strong> ${escapeHtml(String(fit.band))}` : ''}
+                            · <strong>Fit:</strong> ${escapeHtml(String(fit.score ?? '—'))}</p>
+                        <p class="pli-cite text-sm">${escapeHtml(fitNarrative || 'No fit mechanism narrative on worksheet.')}</p>
                     </div>
                     ${(status === 'needs_human' || !adjudication) ? `
                         <div class="pli-notice pli-notice-danger">
@@ -185,6 +196,27 @@ export function createPliMacroReview(options = {}) {
         card.querySelector('[data-pli-sendback]')?.addEventListener('click', () => handleSendBack(row));
 
         return card;
+    }
+
+    function mergeFit(adjudicationFit, worksheetFit, declaredOrientation) {
+        const fromAdj = adjudicationFit && typeof adjudicationFit === 'object' ? adjudicationFit : {};
+        const fromWs = worksheetFit && typeof worksheetFit === 'object' ? worksheetFit : {};
+        const narrative = (
+            fromAdj.mechanism_rationale
+            || fromAdj.rationale
+            || fromWs.mechanism_rationale
+            || fromWs.rationale
+            || ''
+        ).trim();
+        return {
+            ...fromWs,
+            ...fromAdj,
+            orientation: fromAdj.orientation || fromWs.orientation || declaredOrientation || null,
+            band: fromAdj.band || fromWs.band || null,
+            score: fromAdj.score ?? fromWs.score ?? null,
+            rationale: narrative,
+            mechanism_rationale: narrative
+        };
     }
 
     function renderModifiers(modifiers, implementation) {
