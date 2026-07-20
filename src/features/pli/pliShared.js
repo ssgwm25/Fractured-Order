@@ -58,6 +58,56 @@ export function seatNeedsReview(seat) {
     return status === SEAT_STATUS.PENDING || status === SEAT_STATUS.NEEDS_HUMAN;
 }
 
+export function seatIsFinalized(seat) {
+    const status = seat?.status || SEAT_STATUS.PENDING;
+    return status === SEAT_STATUS.APPROVED || status === SEAT_STATUS.OVERRIDDEN;
+}
+
+/**
+ * NI / Diplomacy SME queues unlock only after Macro is finalized or skipped
+ * (non-economic actions skip Macro).
+ */
+export function isDownstreamSeatUnlocked(row) {
+    const macro = getSeatReview(row, SEATS.MACRO);
+    const status = macro?.status || SEAT_STATUS.PENDING;
+    return status === SEAT_STATUS.APPROVED
+        || status === SEAT_STATUS.OVERRIDDEN
+        || status === SEAT_STATUS.SKIPPED;
+}
+
+export const PLI_VIEW_MODES = Object.freeze({
+    REVIEW: 'review',
+    LEAD_READONLY: 'lead_readonly'
+});
+
+/**
+ * Shared visibility filter for SME review vs White Cell Lead finalized viewer.
+ * @param {Object} row
+ * @param {string} seatId
+ * @param {{ viewMode?: string, showReviewed?: boolean, isRowUnlocked?: (row: Object) => boolean }} options
+ */
+export function isPliRowVisible(row, seatId, {
+    viewMode = PLI_VIEW_MODES.REVIEW,
+    showReviewed = false,
+    isRowUnlocked = () => true
+} = {}) {
+    if (typeof isRowUnlocked === 'function' && !isRowUnlocked(row)) {
+        return false;
+    }
+
+    const seat = getSeatReview(row, seatId);
+
+    if (viewMode === PLI_VIEW_MODES.LEAD_READONLY) {
+        return seatIsFinalized(seat);
+    }
+
+    if (seat.status === SEAT_STATUS.SKIPPED) {
+        return showReviewed;
+    }
+
+    return showReviewed || seatNeedsReview(seat);
+}
+
 export function getActionTitle(action, row) {
     return (
         action?.goal

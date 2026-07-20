@@ -6,6 +6,9 @@ describe('database PLI review helpers', () => {
         expect(typeof database.fetchPliAdjudications).toBe('function');
         expect(typeof database.reviewPliSeat).toBe('function');
         expect(typeof database.reviewPliAdjudication).toBe('function');
+        expect(typeof database.fetchSmeHandoffs).toBe('function');
+        expect(typeof database.ensureSmeHandoffs).toBe('function');
+        expect(typeof database.acknowledgeSmeHandoff).toBe('function');
     });
 
     it('rejects invalid seats before network I/O', async () => {

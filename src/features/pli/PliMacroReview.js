@@ -12,9 +12,12 @@ import {
     SEATS,
     STATUS_LABELS,
     STATUS_BADGE,
+    PLI_VIEW_MODES,
     escapeHtml,
     getSeatReview,
     seatNeedsReview,
+    seatIsFinalized,
+    isPliRowVisible,
     getActionTitle,
     getMacroBlock,
     renderTrendCharts,
@@ -28,16 +31,26 @@ const logger = createLogger('PliMacroReview');
 const SEAT = SEATS.MACRO;
 
 export function createPliMacroReview(options = {}) {
-    const { container, getSessionId, getReviewerName, canReview = () => true } = options;
+    const {
+        container,
+        getSessionId,
+        getReviewerName,
+        canReview = () => true,
+        viewMode = PLI_VIEW_MODES.REVIEW,
+        isRowUnlocked = () => true
+    } = options;
     if (!container) throw new Error('Container element is required');
 
     let records = [];
     let actionsById = new Map();
     let showReviewed = false;
+    const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
 
     const wrapper = createSeatPanelShell({
-        title: 'PLI Macro',
-        description: 'Petrihos Lever Index macroeconomic chain — classify, score, chart, then approve or override.',
+        title: isLeadReadonly ? 'PLI Macro (finalized)' : 'PLI Macro',
+        description: isLeadReadonly
+            ? 'Read-only Macro outputs finalized by the Econ SME. Pending items remain in the Econ SME console.'
+            : 'Petrihos Lever Index macroeconomic chain — classify, score, chart, then approve or override.',
         seatId: SEAT
     });
     container.appendChild(wrapper);
@@ -72,21 +85,30 @@ export function createPliMacroReview(options = {}) {
     }
 
     function visibleRows() {
-        return records.filter((row) => {
-            const seat = getSeatReview(row, SEAT);
-            if (seat.status === 'skipped') return showReviewed;
-            return showReviewed || seatNeedsReview(seat);
-        });
+        return records.filter((row) => isPliRowVisible(row, SEAT, {
+            viewMode,
+            showReviewed,
+            isRowUnlocked
+        }));
     }
 
     function render() {
-        const pending = records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)));
+        const pending = isLeadReadonly
+            ? records.filter((r) => seatIsFinalized(getSeatReview(r, SEAT)))
+            : records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)));
         pendingBadge.textContent = String(pending.length);
         const visible = visibleRows();
         if (!visible.length) {
+            const awaiting = records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT))).length;
             list.innerHTML = emptyState(
-                showReviewed ? 'No PLI macro adjudications' : 'No PLI macro adjudications awaiting review',
-                'The PLI pipeline writes multi-track records after each run. Trigger Actions → PLI Adjudication or wait for the schedule.'
+                isLeadReadonly
+                    ? (awaiting > 0 ? 'Awaiting Econ SME' : 'No finalized Macro outputs yet')
+                    : (showReviewed ? 'No PLI macro adjudications' : 'No PLI macro adjudications awaiting review'),
+                isLeadReadonly
+                    ? (awaiting > 0
+                        ? `${awaiting} Macro item(s) awaiting Econ SME finalize.`
+                        : 'Finalized Macro reviews appear here after the Econ SME approves or overrides.')
+                    : 'The PLI pipeline writes multi-track records after each run. Trigger Actions → PLI Adjudication or wait for the schedule.'
             );
             return;
         }

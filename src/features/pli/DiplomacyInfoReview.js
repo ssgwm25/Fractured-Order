@@ -11,9 +11,13 @@ import {
     SEATS,
     STATUS_LABELS,
     STATUS_BADGE,
+    PLI_VIEW_MODES,
     escapeHtml,
     getSeatReview,
     seatNeedsReview,
+    seatIsFinalized,
+    isPliRowVisible,
+    isDownstreamSeatUnlocked,
     getActionTitle,
     createSeatPanelShell,
     emptyState,
@@ -25,16 +29,26 @@ const logger = createLogger('DiplomacyInfoReview');
 const SEAT = SEATS.DIPLOMACY_INFORMATION;
 
 export function createDiplomacyInfoReview(options = {}) {
-    const { container, getSessionId, getReviewerName, canReview = () => true } = options;
+    const {
+        container,
+        getSessionId,
+        getReviewerName,
+        canReview = () => true,
+        viewMode = PLI_VIEW_MODES.REVIEW,
+        isRowUnlocked = isDownstreamSeatUnlocked
+    } = options;
     if (!container) throw new Error('Container element is required');
 
     let records = [];
     let actionsById = new Map();
     let showReviewed = false;
+    const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
 
     const wrapper = createSeatPanelShell({
-        title: 'Diplomacy & Information',
-        description: 'Paired Diplomacy Index + Information brief — both tracks clear together under one SME seat.',
+        title: isLeadReadonly ? 'Diplomacy & Information (finalized)' : 'Diplomacy & Information',
+        description: isLeadReadonly
+            ? 'Read-only Diplomacy / Information outputs finalized by the Diplomacy & Information SME.'
+            : 'Paired Diplomacy Index + Information brief — both tracks clear together under one SME seat. Unlocks after Macro is finalized or skipped.',
         seatId: SEAT
     });
     container.appendChild(wrapper);
@@ -69,21 +83,36 @@ export function createDiplomacyInfoReview(options = {}) {
     }
 
     function visibleRows() {
-        return records.filter((row) => {
-            const seat = getSeatReview(row, SEAT);
-            if (seat.status === 'skipped') return showReviewed;
-            return showReviewed || seatNeedsReview(seat);
-        });
+        return records.filter((row) => isPliRowVisible(row, SEAT, {
+            viewMode,
+            showReviewed,
+            isRowUnlocked: isLeadReadonly ? () => true : isRowUnlocked
+        }));
     }
 
     function render() {
-        const pending = records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)));
+        const pending = isLeadReadonly
+            ? records.filter((r) => seatIsFinalized(getSeatReview(r, SEAT)))
+            : records.filter((r) => (
+                isRowUnlocked(r) && seatNeedsReview(getSeatReview(r, SEAT))
+            ));
         pendingBadge.textContent = String(pending.length);
         const visible = visibleRows();
         if (!visible.length) {
+            const locked = !isLeadReadonly
+                ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)) && !isRowUnlocked(r)).length
+                : 0;
             list.innerHTML = emptyState(
-                showReviewed ? 'No Diplomacy / Information adjudications' : 'No Diplomacy / Information items awaiting review',
-                'Diplomatic and Informational actions (and secondary facets) appear here after the PLI multi-track run.'
+                isLeadReadonly
+                    ? 'No finalized Diplomacy / Information outputs yet'
+                    : (locked > 0
+                        ? 'Awaiting Macro finalize'
+                        : (showReviewed ? 'No Diplomacy / Information adjudications' : 'No Diplomacy / Information items awaiting review')),
+                isLeadReadonly
+                    ? 'Finalized reviews appear here after the Diplomacy & Information SME approves or overrides.'
+                    : (locked > 0
+                        ? `${locked} item(s) waiting for Econ SME Macro finalize (or Macro skip on non-economic actions).`
+                        : 'Diplomatic and Informational actions (and secondary facets) appear here after the PLI multi-track run.')
             );
             return;
         }

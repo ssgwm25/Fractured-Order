@@ -42,8 +42,30 @@ export const ROLE_SURFACE_SEMANTICS = Object.freeze({
 
 export const OPERATOR_SURFACES = Object.freeze({
     GAME_MASTER: 'gamemaster',
-    WHITE_CELL: ROLE_SURFACES.WHITECELL
+    WHITE_CELL: ROLE_SURFACES.WHITECELL,
+    SME: 'sme'
 });
+
+export const SME_ROLES = Object.freeze({
+    ECON: 'econ',
+    NI_ESCALATION: 'ni_escalation',
+    DIPLOMACY_INFORMATION: 'diplomacy_information',
+    TSJ: 'tsj',
+    VERBA: 'verba'
+});
+
+export const SME_ROLE_DISPLAY_LABELS = Object.freeze({
+    [SME_ROLES.ECON]: 'Econ SME',
+    [SME_ROLES.NI_ESCALATION]: 'NI/Escalation SME',
+    [SME_ROLES.DIPLOMACY_INFORMATION]: 'Diplomacy & Information SME',
+    [SME_ROLES.TSJ]: 'TSJ (Tribe Street Journal)',
+    [SME_ROLES.VERBA]: 'Verba AI SME'
+});
+
+const SME_ROLE_VALUES = Object.freeze(Object.values(SME_ROLES));
+const SME_OPERATOR_ROLE_REGEX = new RegExp(
+    `^sme_(${SME_ROLE_VALUES.join('|')})$`
+);
 
 export const TEAM_OPTIONS = Object.freeze([
     { id: 'blue', label: 'Blue Team', shortLabel: 'Blue' },
@@ -53,11 +75,18 @@ export const TEAM_OPTIONS = Object.freeze([
 ]);
 
 const WHITE_CELL_CANONICAL_ROUTE = 'whitecell.html';
+const SME_CANONICAL_ROUTE = 'sme.html';
 
 const WHITE_CELL_TEAM_CONFIG = Object.freeze({
     id: 'white_cell',
     label: 'White Cell',
     shortLabel: 'White Cell'
+});
+
+const SME_TEAM_CONFIG = Object.freeze({
+    id: 'sme',
+    label: 'SME',
+    shortLabel: 'SME'
 });
 
 const TEAM_MAP = Object.freeze(
@@ -74,7 +103,29 @@ export function getTeamConfig(teamId = 'blue') {
     if (teamId === 'white_cell') {
         return WHITE_CELL_TEAM_CONFIG;
     }
+    if (teamId === 'sme') {
+        return SME_TEAM_CONFIG;
+    }
     return TEAM_MAP[teamId] || TEAM_MAP.blue;
+}
+
+export function normalizeSmeOperatorRole(smeRole = '') {
+    const normalized = String(smeRole || '').trim().toLowerCase().replace(/[^a-z_]+/g, '');
+    return SME_ROLE_VALUES.includes(normalized) ? normalized : null;
+}
+
+export function buildSmeOperatorRole(smeRole = SME_ROLES.ECON) {
+    const normalized = normalizeSmeOperatorRole(smeRole) || SME_ROLES.ECON;
+    return `sme_${normalized}`;
+}
+
+export function isSmeOperatorRole(role = '') {
+    return SME_OPERATOR_ROLE_REGEX.test(String(role || '').trim().toLowerCase());
+}
+
+export function getSmeRoleDisplayLabel(smeRole = '') {
+    const normalized = normalizeSmeOperatorRole(smeRole);
+    return (normalized && SME_ROLE_DISPLAY_LABELS[normalized]) || smeRole || '';
 }
 
 export function isSupportedTeam(teamId) {
@@ -147,7 +198,8 @@ export function parseTeamRole(role = '') {
         return {
             teamId: null,
             surface: null,
-            operatorRole: null
+            operatorRole: null,
+            smeRole: null
         };
     }
 
@@ -157,7 +209,8 @@ export function parseTeamRole(role = '') {
         return {
             teamId: null,
             surface: ROLE_SURFACES.VIEWER,
-            operatorRole: null
+            operatorRole: null,
+            smeRole: null
         };
     }
 
@@ -170,7 +223,18 @@ export function parseTeamRole(role = '') {
             surface: ROLE_SURFACES.WHITECELL,
             operatorRole: normalizedRole === buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.SUPPORT)
                 ? WHITE_CELL_OPERATOR_ROLES.SUPPORT
-                : WHITE_CELL_OPERATOR_ROLES.LEAD
+                : WHITE_CELL_OPERATOR_ROLES.LEAD,
+            smeRole: null
+        };
+    }
+
+    const smeMatch = String(normalizedRole || '').trim().toLowerCase().match(SME_OPERATOR_ROLE_REGEX);
+    if (smeMatch) {
+        return {
+            teamId: 'sme',
+            surface: OPERATOR_SURFACES.SME,
+            operatorRole: null,
+            smeRole: smeMatch[1]
         };
     }
 
@@ -179,14 +243,16 @@ export function parseTeamRole(role = '') {
         return {
             teamId: null,
             surface: null,
-            operatorRole: null
+            operatorRole: null,
+            smeRole: null
         };
     }
 
     return {
         teamId: match[1],
         surface: match[2],
-        operatorRole: null
+        operatorRole: null,
+        smeRole: null
     };
 }
 
@@ -229,6 +295,10 @@ export function getRoleRoute(role, { observerTeamId = 'blue', basePath } = {}) {
         return buildAppPath(WHITE_CELL_CANONICAL_ROUTE, { basePath });
     }
 
+    if (parsedRole.surface === OPERATOR_SURFACES.SME) {
+        return buildAppPath(SME_CANONICAL_ROUTE, { basePath });
+    }
+
     if (!parsedRole.teamId || !parsedRole.surface) {
         return null;
     }
@@ -250,6 +320,10 @@ export function getRoleDisplayName(role, { observerTeamId = null } = {}) {
         return parsedRole.operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT
             ? 'White Cell Support'
             : 'White Cell Lead';
+    }
+
+    if (parsedRole.surface === OPERATOR_SURFACES.SME) {
+        return getSmeRoleDisplayLabel(parsedRole.smeRole);
     }
 
     if (!parsedRole.teamId || !parsedRole.surface) {
@@ -278,10 +352,14 @@ export function resolveTeamContext({
     const relativePath = getCurrentAppRelativePath({ locationRef, basePath });
     const onWhiteCellRoute = relativePath.replace(/^\//, '') === WHITE_CELL_CANONICAL_ROUTE
         || relativePath.endsWith('/' + WHITE_CELL_CANONICAL_ROUTE);
+    const onSmeRoute = relativePath.replace(/^\//, '') === SME_CANONICAL_ROUTE
+        || relativePath.endsWith('/' + SME_CANONICAL_ROUTE);
     const routeTeam = relativePath.match(TEAM_ROUTE_REGEX)?.[1];
     const resolvedTeamId = datasetTeam === 'white_cell' || onWhiteCellRoute
         ? 'white_cell'
-        : (datasetTeam || routeTeam || fallbackTeamId);
+        : (datasetTeam === 'sme' || onSmeRoute
+            ? 'sme'
+            : (datasetTeam || routeTeam || fallbackTeamId));
     const team = getTeamConfig(resolvedTeamId);
     const labels = getTeamRoleLabels(team.id);
     const whitecellLeadRole = buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.LEAD);
