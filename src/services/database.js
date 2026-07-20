@@ -2316,6 +2316,41 @@ export const database = {
 
         logger.info('SME handoff acknowledged:', handoffId);
         return data;
+    },
+
+    /**
+     * Generate an LLM after-action narrative for a PLI report fact pack.
+     * @param {{ sessionId: string, scope: string, factPack: Object }} params
+     * @returns {Promise<{ narrative: string }>}
+     */
+    async generatePliReportNarrative({ sessionId, scope, factPack } = {}) {
+        if (!sessionId) {
+            throw new DatabaseError('Session ID is required', 'generatePliReportNarrative');
+        }
+        if (!scope) {
+            throw new DatabaseError('Report scope is required', 'generatePliReportNarrative');
+        }
+        if (!factPack || typeof factPack !== 'object') {
+            throw new DatabaseError('factPack is required', 'generatePliReportNarrative');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const { data, error } = await supabase.functions.invoke('pli-report-narrative', {
+            body: { sessionId, scope, factPack }
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'generatePliReportNarrative');
+        }
+
+        const narrative = String(data?.narrative || '').trim();
+        if (!narrative) {
+            const serverError = data?.error ? String(data.error) : 'Narrative response was empty';
+            throw new DatabaseError(serverError, 'generatePliReportNarrative');
+        }
+
+        return { narrative };
     }
 };
 

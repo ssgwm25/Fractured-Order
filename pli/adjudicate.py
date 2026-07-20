@@ -37,7 +37,7 @@ INFO_SCHEMA = json.loads(
 TRIAL_CODEBOOK = (HERE / "codebook" / "03_PLI_TRIAL_CODEBOOK.md").read_text(encoding="utf-8")
 MASTER_CODEBOOK = (HERE / "codebook" / "02_ECONOMIC_LEVER_MASTER_CODEBOOK.md").read_text(encoding="utf-8")
 
-DEFAULT_MODEL = os.environ.get("PLI_AGENT_MODEL", "composer-2.5")
+DEFAULT_MODEL = os.environ.get("PLI_AGENT_MODEL", "grok-4.5")
 
 SYSTEM_BRIEF = """\
 You are the PLI (Petrihos Lever Index) classification agent for the Fractured

@@ -321,3 +321,13 @@
 .pli-source-footer {
     margin-top: var(--space-3);
 }
+
+.pli-report-panel .pli-report-form {
+    display: grid;
+    gap: var(--space-4);
+    max-width: 40rem;
+}
+
+.pli-report-panel .pli-sme-toolbar {
+    margin-top: var(--space-1);
+}

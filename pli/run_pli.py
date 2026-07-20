@@ -20,7 +20,7 @@ Environment:
     PLI_SESSION_ID              optional: restrict to one session
     PLI_MOVE_YEARS              optional JSON: {"1": 2027, "2": 2030, "3": 2032}
                                 (legacy exec_year back-compat only)
-    PLI_AGENT_MODEL             optional model id (default composer-2.5)
+    PLI_AGENT_MODEL             optional model id (default grok-4.5)
     PLI_DRY_RUN                 optional: "1" = adjudicate but do not write
 """
 from __future__ import annotations

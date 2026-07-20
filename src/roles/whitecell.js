@@ -91,6 +91,7 @@ import {
 import { createPliMacroReview } from '../features/pli/PliMacroReview.js';
 import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.js';
 import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js';
+import { createPliReportPanel } from '../features/pli/PliReportPanel.js';
 import {
     SEATS as PLI_SEATS,
     PLI_VIEW_MODES,
@@ -1221,6 +1222,7 @@ export class WhiteCellController {
         this.pliMacroReview = null;
         this.pliDiplomacyInfoReview = null;
         this.pliNiEscalationReview = null;
+        this.pliReportPanel = null;
     }
 
     async init() {
@@ -1332,6 +1334,22 @@ export class WhiteCellController {
             });
         }
 
+        const reportHost = document.getElementById('pliReportsPanel');
+        if (reportHost && !this.pliReportPanel) {
+            this.pliReportPanel = createPliReportPanel({
+                container: reportHost,
+                getSessionId: sessionId,
+                getSessionMeta: () => {
+                    const sessionData = sessionStore.getSessionData?.() || {};
+                    const auth = sessionStore.getOperatorAuth?.() || {};
+                    return {
+                        sessionName: sessionData.name || auth.sessionName || '',
+                        sessionCode: sessionData.code || auth.sessionCode || ''
+                    };
+                }
+            });
+        }
+
         this.refreshPliSmePanels();
     }
 
@@ -1339,6 +1357,7 @@ export class WhiteCellController {
         this.pliMacroReview?.refresh?.();
         this.pliDiplomacyInfoReview?.refresh?.();
         this.pliNiEscalationReview?.refresh?.();
+        this.pliReportPanel?.refresh?.();
         this.syncPliBadges().catch((err) => {
             logger.warn('Failed to sync PLI badges', err);
         });
@@ -1830,6 +1849,9 @@ export class WhiteCellController {
                 if (link.dataset.section === 'pliNiEscalation') {
                     this.pliNiEscalationReview?.refresh?.();
                     this.syncPliBadges().catch(() => {});
+                }
+                if (link.dataset.section === 'pliReports') {
+                    this.pliReportPanel?.refresh?.();
                 }
             });
         });

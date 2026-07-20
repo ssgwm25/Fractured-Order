@@ -2364,6 +2364,32 @@ export function createE2EMockSupabaseClient() {
 
             return { data: null, error: null };
         },
+        functions: {
+            async invoke(functionName, options = {}) {
+                if (functionName === 'pli-report-narrative') {
+                    const body = options?.body || {};
+                    const actionCount = Array.isArray(body?.factPack?.actions)
+                        ? body.factPack.actions.length
+                        : 0;
+                    return {
+                        data: {
+                            narrative: [
+                                `Mock after-action narrative for ${body.scope || 'simulation'} scope`,
+                                `(${actionCount} finalized action${actionCount === 1 ? '' : 's'}).`,
+                                'Macro, diplomacy, information, national interest, and escalation',
+                                'outputs were summarized from the provided fact pack only.'
+                            ].join(' ')
+                        },
+                        error: null
+                    };
+                }
+
+                return {
+                    data: null,
+                    error: { message: `Unhandled mock edge function: ${functionName}` }
+                };
+            }
+        },
         auth: {
             async getSession() {
                 const session = readMockAuthSession();

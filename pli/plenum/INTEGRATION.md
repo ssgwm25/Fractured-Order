@@ -72,8 +72,11 @@ Use `.github/workflows/pli-adjudicate.yml`. Secrets:
 | `SUPABASE_URL` | `https://<project>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key |
 | `CURSOR_API_KEY` | Cursor API key |
+| `PLI_AGENT_MODEL` | Optional; defaults to `grok-4.5` in the workflow |
 
 Trigger manually (**Actions → PLI Adjudication → Run workflow**) or rely on the weekday schedule.
+
+White Cell Lead **PLI Reports** narratives use the same Cursor key via the Supabase Edge Function `pli-report-narrative` (secret `CURSOR_API_KEY`, model default `grok-4.5`).
 
 ## Step 4 — Routing, seats, and Glasl
 

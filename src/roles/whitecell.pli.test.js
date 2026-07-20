@@ -4,11 +4,13 @@ import { PLI_VIEW_MODES } from '../features/pli/pliShared.js';
 const {
     mockCreatePliMacroReview,
     mockCreateDiplomacyInfoReview,
-    mockCreateNiEscalationReview
+    mockCreateNiEscalationReview,
+    mockCreatePliReportPanel
 } = vi.hoisted(() => ({
     mockCreatePliMacroReview: vi.fn(() => ({ refresh: vi.fn() })),
     mockCreateDiplomacyInfoReview: vi.fn(() => ({ refresh: vi.fn() })),
-    mockCreateNiEscalationReview: vi.fn(() => ({ refresh: vi.fn() }))
+    mockCreateNiEscalationReview: vi.fn(() => ({ refresh: vi.fn() })),
+    mockCreatePliReportPanel: vi.fn(() => ({ refresh: vi.fn() }))
 }));
 
 vi.mock('../features/pli/PliMacroReview.js', () => ({
@@ -20,12 +22,16 @@ vi.mock('../features/pli/DiplomacyInfoReview.js', () => ({
 vi.mock('../features/pli/NiEscalationReview.js', () => ({
     createNiEscalationReview: (...args) => mockCreateNiEscalationReview(...args)
 }));
+vi.mock('../features/pli/PliReportPanel.js', () => ({
+    createPliReportPanel: (...args) => mockCreatePliReportPanel(...args)
+}));
 
 function createPanelHosts() {
     const elements = {
         pliAdjudicationPanel: { id: 'pliAdjudicationPanel' },
         pliDiplomacyInfoPanel: { id: 'pliDiplomacyInfoPanel' },
-        pliNiEscalationPanel: { id: 'pliNiEscalationPanel' }
+        pliNiEscalationPanel: { id: 'pliNiEscalationPanel' },
+        pliReportsPanel: { id: 'pliReportsPanel' }
     };
     return {
         getElementById: (id) => elements[id] || null,
@@ -41,7 +47,7 @@ describe('White Cell PLI Lead readonly mount', () => {
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
     });
 
-    it('mounts all three PLI panels as Lead-readonly with canReview false', async () => {
+    it('mounts PLI review panels and the report panel as Lead-readonly', async () => {
         globalThis.__ESG_DISABLE_AUTO_INIT__ = true;
         global.document = createPanelHosts();
 
@@ -53,6 +59,7 @@ describe('White Cell PLI Lead readonly mount', () => {
         expect(mockCreatePliMacroReview).toHaveBeenCalledTimes(1);
         expect(mockCreateDiplomacyInfoReview).toHaveBeenCalledTimes(1);
         expect(mockCreateNiEscalationReview).toHaveBeenCalledTimes(1);
+        expect(mockCreatePliReportPanel).toHaveBeenCalledTimes(1);
 
         for (const mock of [
             mockCreatePliMacroReview,
@@ -63,5 +70,9 @@ describe('White Cell PLI Lead readonly mount', () => {
             expect(options.viewMode).toBe(PLI_VIEW_MODES.LEAD_READONLY);
             expect(options.canReview()).toBe(false);
         }
+
+        const reportOptions = mockCreatePliReportPanel.mock.calls[0][0];
+        expect(reportOptions.container.id).toBe('pliReportsPanel');
+        expect(typeof reportOptions.getSessionId).toBe('function');
     });
 });

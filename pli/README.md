@@ -95,7 +95,7 @@ Glasl `stage_after` is proposed on PLI write but **session stage advances only a
 | `CURSOR_API_KEY` | Yes (live) | Cursor API key for classification agent |
 | `PLI_SESSION_ID` | No | Restrict run to one session UUID |
 | `PLI_MOVE_YEARS` | No | JSON map, default `{"1":2026,"2":2027,"3":2028}` |
-| `PLI_AGENT_MODEL` | No | Default `composer-2.5` |
+| `PLI_AGENT_MODEL` | No | Default `grok-4.5` |
 | `PLI_DRY_RUN` | No | Set `1` to adjudicate without writing |
 
 ## Codebook authority (trial vs master)

@@ -65,6 +65,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      PLI_AGENT_MODEL: grok-4.5
       PLI_SESSION_ID: ${{ inputs.session_id }}
       PLI_DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
     steps:
