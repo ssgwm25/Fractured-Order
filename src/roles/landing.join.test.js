@@ -580,4 +580,66 @@ describe('landing secure join flow', () => {
         }));
         expect(controller.redirectToRole).toHaveBeenCalledWith('whitecell_lead');
     });
+
+    it('authorizes SME access with the shared operator code and claims the SME seat', async () => {
+        const elements = {
+            sessionCode: createElement('alpha2026'),
+            displayName: createElement('Morgan'),
+            smeAccessCode: createElement('admin2025')
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            }
+        };
+
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({
+            id: 'session-1',
+            name: 'Alpha Session',
+            session_code: 'ALPHA2026',
+            status: 'active'
+        });
+        mockDatabase.authorizeOperatorAccess.mockResolvedValue({
+            id: 'grant-sme-1',
+            surface: 'sme',
+            sessionId: 'session-1',
+            teamId: null,
+            role: 'sme_econ',
+            operatorName: 'Morgan'
+        });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({
+            id: 'session-participant-sme-1',
+            claim_status: 'claimed'
+        });
+        mockDatabase.getGameState.mockResolvedValue({
+            move: 1,
+            phase: 1
+        });
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.redirectToRole = vi.fn();
+
+        await controller.authorizeSme('econ', 'admin2025');
+
+        expect(mockDatabase.authorizeOperatorAccess).toHaveBeenCalledWith({
+            surface: 'sme',
+            accessCode: 'admin2025',
+            sessionId: 'session-1',
+            role: 'sme_econ',
+            operatorName: 'Morgan'
+        });
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('session-1', 'sme_econ', 'Morgan');
+        expect(mockSyncService.initialize).toHaveBeenCalledWith('session-1', {
+            participantId: 'session-participant-sme-1'
+        });
+        expect(mockSessionStore.setOperatorAuth).toHaveBeenCalledWith(expect.objectContaining({
+            id: 'grant-sme-1',
+            surface: 'sme',
+            sessionId: 'session-1',
+            role: 'sme_econ'
+        }));
+        expect(controller.redirectToRole).toHaveBeenCalledWith('sme_econ');
+    });
 });

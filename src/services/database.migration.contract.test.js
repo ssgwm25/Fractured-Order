@@ -53,6 +53,10 @@ const ACTION_ARTIFACT_WORKFLOW_INTEGRITY_PATH = new URL(
     '../../data/2026-07-14_action_artifact_workflow_integrity.sql',
     import.meta.url
 );
+const SME_HANDOFFS_PATH = new URL(
+    '../../data/2026-07-20_sme_handoffs.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -398,5 +402,27 @@ describe('database migration contracts', () => {
         expect(sql).toContain('REVOKE ALL ON public.research_identity_map FROM authenticated;');
         expect(sql).toContain('CREATE POLICY research_export_codebook_select');
         expect(sql).toContain('USING (true);');
+    });
+
+    it('ships SME handoffs table and shared-code SME authorize surface', () => {
+        const sql = readFileSync(SME_HANDOFFS_PATH, 'utf8');
+        const authorizeBody = extractFunctionBody(sql, 'authorize_demo_operator');
+        const seatLimitBody = extractFunctionBody(sql, 'get_session_role_seat_limit');
+        const claimBody = extractFunctionBody(sql, 'claim_session_role_seat');
+        const surfaceBody = extractFunctionBody(sql, 'live_demo_participant_surface');
+
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.sme_handoffs');
+        expect(sql).toContain("seat TEXT NOT NULL CHECK (seat IN ('tsj', 'verba'))");
+        expect(sql).toContain('CONSTRAINT sme_handoffs_action_seat_unique UNIQUE (action_id, seat)');
+        expect(authorizeBody).toContain("normalized_surface NOT IN ('gamemaster', 'whitecell', 'sme')");
+        expect(authorizeBody).toContain("'sme_econ'");
+        expect(authorizeBody).toContain("'sme_ni_escalation'");
+        expect(authorizeBody).toContain("'sme_diplomacy_information'");
+        expect(authorizeBody).toContain("'sme_tsj'");
+        expect(authorizeBody).toContain("'sme_verba'");
+        expect(seatLimitBody).toContain("'sme_econ'");
+        expect(claimBody).toContain("SME seats require operator authorization.");
+        expect(surfaceBody).toContain("RETURN 'sme'");
+        expect(sql).toContain("ARRAY['whitecell', 'gamemaster', 'sme']::TEXT[]");
     });
 });

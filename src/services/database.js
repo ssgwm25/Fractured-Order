@@ -40,8 +40,66 @@ import {
 import {
     normalizePluginState
 } from '../features/plugins/registry.js';
+import {
+    OPERATOR_SURFACES,
+    SME_ROLES,
+    parseTeamRole
+} from '../core/teamContext.js';
+import {
+    SEATS as PLI_SEATS,
+    isDownstreamSeatUnlocked
+} from '../features/pli/pliShared.js';
 
 const logger = createLogger('Database');
+
+const SME_SEAT_WRITE_MAP = Object.freeze({
+    [SME_ROLES.ECON]: PLI_SEATS.MACRO,
+    [SME_ROLES.NI_ESCALATION]: PLI_SEATS.NATIONAL_INTEREST_ESCALATION,
+    [SME_ROLES.DIPLOMACY_INFORMATION]: PLI_SEATS.DIPLOMACY_INFORMATION
+});
+
+function assertPliSeatReviewerAllowed(seatId, existingRow = null) {
+    const role = sessionStore.getRole?.()
+        || sessionStore.getSessionData?.()?.role
+        || sessionStore.getOperatorAuth?.()?.role
+        || null;
+    const parsed = parseTeamRole(role);
+
+    if (parsed.surface === 'whitecell') {
+        throw new DatabaseError(
+            'White Cell operators view finalized PLI seats read-only. Use the matching SME console to Approve or Override.',
+            'reviewPliSeat'
+        );
+    }
+
+    if (parsed.surface === OPERATOR_SURFACES.SME) {
+        const allowedSeat = SME_SEAT_WRITE_MAP[parsed.smeRole];
+        if (!allowedSeat) {
+            throw new DatabaseError(
+                'This SME role cannot review PLI seats.',
+                'reviewPliSeat'
+            );
+        }
+        if (allowedSeat !== seatId) {
+            throw new DatabaseError(
+                `SME role ${role} cannot review seat ${seatId}.`,
+                'reviewPliSeat'
+            );
+        }
+    }
+
+    if (
+        (seatId === PLI_SEATS.NATIONAL_INTEREST_ESCALATION
+            || seatId === PLI_SEATS.DIPLOMACY_INFORMATION)
+        && existingRow
+        && !isDownstreamSeatUnlocked(existingRow)
+    ) {
+        throw new DatabaseError(
+            'This seat unlocks after Macro is finalized or skipped.',
+            'reviewPliSeat'
+        );
+    }
+}
 let latestAuthenticatedSession = null;
 
 async function ensureAuthenticatedBrowser() {
@@ -1957,6 +2015,8 @@ export const database = {
             throw fromSupabaseError(fetchError, 'reviewPliSeat');
         }
 
+        assertPliSeatReviewerAllowed(seatId, existing);
+
         const seatReviews = { ...(existing.seat_reviews || {}) };
         const priorSeat = seatReviews[seatId] || {};
         const reviewedAt = new Date().toISOString();
@@ -2013,6 +2073,143 @@ export const database = {
      */
     async reviewPliAdjudication(adjudicationId, review = {}) {
         return this.reviewPliSeat(adjudicationId, 'macro', review);
+    },
+
+    /**
+     * Fetch TSJ / Verba SME handoff rows for a session.
+     * @param {string} sessionId
+     * @param {{ seat?: 'tsj'|'verba', status?: 'pending'|'done' }} [filters]
+     * @returns {Promise<Object[]>}
+     */
+    async fetchSmeHandoffs(sessionId, filters = {}) {
+        if (!sessionId) {
+            throw new DatabaseError('Session ID is required', 'fetchSmeHandoffs');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        let query = supabase
+            .from('sme_handoffs')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: false });
+
+        if (filters.seat) {
+            query = query.eq('seat', filters.seat);
+        }
+        if (filters.status) {
+            query = query.eq('status', filters.status);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            throw fromSupabaseError(error, 'fetchSmeHandoffs');
+        }
+        return data || [];
+    },
+
+    /**
+     * Ensure pending TSJ + Verba handoff rows exist for an action (idempotent).
+     * Called when White Cell marks a Blue action complete.
+     * @param {string} sessionId
+     * @param {string} actionId
+     * @returns {Promise<Object[]>}
+     */
+    async ensureSmeHandoffs(sessionId, actionId) {
+        if (!sessionId || !actionId) {
+            throw new DatabaseError('Session ID and action ID are required', 'ensureSmeHandoffs');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const seats = ['tsj', 'verba'];
+        const created = [];
+
+        for (const seat of seats) {
+            const { data: existing, error: fetchError } = await supabase
+                .from('sme_handoffs')
+                .select('*')
+                .eq('action_id', actionId)
+                .eq('seat', seat)
+                .maybeSingle();
+
+            if (fetchError) {
+                throw fromSupabaseError(fetchError, 'ensureSmeHandoffs');
+            }
+
+            if (existing) {
+                created.push(existing);
+                continue;
+            }
+
+            const { data, error } = await supabase
+                .from('sme_handoffs')
+                .insert({
+                    session_id: sessionId,
+                    action_id: actionId,
+                    seat,
+                    status: 'pending',
+                    updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (error) {
+                // Unique race: another client inserted first.
+                if (String(error.code || '') === '23505' || /duplicate|unique/i.test(error.message || '')) {
+                    const { data: raced } = await supabase
+                        .from('sme_handoffs')
+                        .select('*')
+                        .eq('action_id', actionId)
+                        .eq('seat', seat)
+                        .maybeSingle();
+                    if (raced) {
+                        created.push(raced);
+                        continue;
+                    }
+                }
+                throw fromSupabaseError(error, 'ensureSmeHandoffs');
+            }
+
+            created.push(data);
+        }
+
+        logger.info('SME handoffs ensured:', { actionId, count: created.length });
+        return created;
+    },
+
+    /**
+     * Mark a TSJ / Verba handoff as done.
+     * @param {string} handoffId
+     * @param {{ acknowledgedBy?: string }} [options]
+     * @returns {Promise<Object>}
+     */
+    async acknowledgeSmeHandoff(handoffId, { acknowledgedBy = null } = {}) {
+        if (!handoffId) {
+            throw new DatabaseError('Handoff ID is required', 'acknowledgeSmeHandoff');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const reviewedAt = new Date().toISOString();
+        const { data, error } = await supabase
+            .from('sme_handoffs')
+            .update({
+                status: 'done',
+                acknowledged_by: acknowledgedBy || sessionStore.getUserName?.() || null,
+                acknowledged_at: reviewedAt,
+                updated_at: reviewedAt
+            })
+            .eq('id', handoffId)
+            .select()
+            .single();
+
+        if (error) {
+            throw fromSupabaseError(error, 'acknowledgeSmeHandoff');
+        }
+
+        logger.info('SME handoff acknowledged:', handoffId);
+        return data;
     }
 };
 

@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { serializeBlueActionDetails } from '../actions/blueActionDetails.js';
 import {
     SEATS,
+    PLI_VIEW_MODES,
     getSeatReview,
     seatNeedsReview,
+    seatIsFinalized,
+    isDownstreamSeatUnlocked,
+    isPliRowVisible,
     getMacroBlock,
     getActionTitle,
     escapeHtml,
@@ -24,6 +28,50 @@ describe('pliShared', () => {
         expect(seatNeedsReview(getSeatReview(row, SEATS.MACRO))).toBe(true);
         expect(seatNeedsReview({ status: 'approved' })).toBe(false);
         expect(seatNeedsReview({ status: 'skipped' })).toBe(false);
+        expect(seatIsFinalized({ status: 'approved' })).toBe(true);
+        expect(seatIsFinalized({ status: 'pending' })).toBe(false);
+    });
+
+    it('unlocks NI/Dip seats only after Macro is finalized or skipped', () => {
+        expect(isDownstreamSeatUnlocked({
+            seat_reviews: { [SEATS.MACRO]: { status: 'pending' } }
+        })).toBe(false);
+        expect(isDownstreamSeatUnlocked({
+            seat_reviews: { [SEATS.MACRO]: { status: 'approved' } }
+        })).toBe(true);
+        expect(isDownstreamSeatUnlocked({
+            seat_reviews: { [SEATS.MACRO]: { status: 'skipped' } }
+        })).toBe(true);
+    });
+
+    it('filters PLI rows for SME review vs White Cell Lead readonly', () => {
+        const pending = {
+            seat_reviews: { [SEATS.MACRO]: { status: 'pending' } }
+        };
+        const approved = {
+            seat_reviews: { [SEATS.MACRO]: { status: 'approved' } }
+        };
+
+        expect(isPliRowVisible(pending, SEATS.MACRO, {
+            viewMode: PLI_VIEW_MODES.REVIEW
+        })).toBe(true);
+        expect(isPliRowVisible(pending, SEATS.MACRO, {
+            viewMode: PLI_VIEW_MODES.LEAD_READONLY
+        })).toBe(false);
+        expect(isPliRowVisible(approved, SEATS.MACRO, {
+            viewMode: PLI_VIEW_MODES.LEAD_READONLY
+        })).toBe(true);
+
+        const niPending = {
+            seat_reviews: {
+                [SEATS.MACRO]: { status: 'pending' },
+                [SEATS.NATIONAL_INTEREST_ESCALATION]: { status: 'pending' }
+            }
+        };
+        expect(isPliRowVisible(niPending, SEATS.NATIONAL_INTEREST_ESCALATION, {
+            viewMode: PLI_VIEW_MODES.REVIEW,
+            isRowUnlocked: isDownstreamSeatUnlocked
+        })).toBe(false);
     });
 
     it('extracts macro aliases from multi-track records', () => {

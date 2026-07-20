@@ -16,15 +16,18 @@ import { navigateToApp } from '../core/navigation.js';
 import { getUserMessage } from '../core/errors.js';
 import {
     OPERATOR_SURFACES,
+    SME_ROLES,
     TEAM_OPTIONS,
     WHITE_CELL_OPERATOR_ROLES,
     isPublicRoleSurface,
     ROLE_SURFACES,
     buildTeamRole,
+    buildSmeOperatorRole,
     buildWhiteCellOperatorRole,
     getRoleDisplayName,
     getRoleRoute,
     getRoleSurfaceDisplayLabel,
+    getSmeRoleDisplayLabel,
     parseTeamRole
 } from '../core/teamContext.js';
 
@@ -35,7 +38,8 @@ const FIELD_ERROR_MAP = {
     sessionCode: 'sessionCodeError',
     displayName: 'displayNameError',
     roleSelection: 'roleSelectionError',
-    operatorAccessCode: 'operatorAccessCodeError'
+    operatorAccessCode: 'operatorAccessCodeError',
+    smeAccessCode: 'smeAccessCodeError'
 };
 
 // No-op join overlay controller used when there is no real DOM (unit tests)
@@ -118,6 +122,9 @@ export class LandingController {
         const operatorAccessCodeInput = document.getElementById('operatorAccessCode');
         operatorAccessCodeInput?.addEventListener('input', () => this.clearFieldError('operatorAccessCode'));
 
+        const smeAccessCodeInput = document.getElementById('smeAccessCode');
+        smeAccessCodeInput?.addEventListener('input', () => this.clearFieldError('smeAccessCode'));
+
         const gameMasterAccessBtn = document.getElementById('operatorGameMasterBtn');
         gameMasterAccessBtn?.addEventListener('click', () => {
             void this.handleOperatorAccess(OPERATOR_SURFACES.GAME_MASTER);
@@ -141,6 +148,19 @@ export class LandingController {
         legacyWhiteCellAccessBtn?.addEventListener('click', () => {
             void this.handleOperatorAccess(OPERATOR_SURFACES.WHITE_CELL, {
                 operatorRole: WHITE_CELL_OPERATOR_ROLES.LEAD
+            });
+        });
+
+        const smeAccessButtons = [
+            ['smeEconBtn', SME_ROLES.ECON],
+            ['smeNiEscalationBtn', SME_ROLES.NI_ESCALATION],
+            ['smeDiplomacyInfoBtn', SME_ROLES.DIPLOMACY_INFORMATION],
+            ['smeTsjBtn', SME_ROLES.TSJ],
+            ['smeVerbaBtn', SME_ROLES.VERBA]
+        ];
+        smeAccessButtons.forEach(([elementId, smeRole]) => {
+            document.getElementById(elementId)?.addEventListener('click', () => {
+                void this.handleOperatorAccess(OPERATOR_SURFACES.SME, { smeRole });
             });
         });
 
@@ -546,13 +566,19 @@ export class LandingController {
         };
     }
 
-    async handleOperatorAccess(surface, { operatorRole = WHITE_CELL_OPERATOR_ROLES.LEAD } = {}) {
-        const operatorCodeInput = document.getElementById('operatorAccessCode');
-        const operatorCode = operatorCodeInput?.value?.trim();
-        this.clearValidationErrors(['sessionCode', 'operatorAccessCode']);
+    async handleOperatorAccess(surface, {
+        operatorRole = WHITE_CELL_OPERATOR_ROLES.LEAD,
+        smeRole = SME_ROLES.ECON
+    } = {}) {
+        const isSme = surface === OPERATOR_SURFACES.SME;
+        const codeField = isSme ? 'smeAccessCode' : 'operatorAccessCode';
+        const operatorCodeInput = document.getElementById(isSme ? 'smeAccessCode' : 'operatorAccessCode');
+        const operatorCode = operatorCodeInput?.value?.trim()
+            || (isSme ? document.getElementById('operatorAccessCode')?.value?.trim() : '');
+        this.clearValidationErrors(['sessionCode', 'operatorAccessCode', 'smeAccessCode']);
 
         if (!this.validateOperatorAccessCode(operatorCode)) {
-            this.setFieldError('operatorAccessCode', 'A valid operator access code is required.', { focus: true });
+            this.setFieldError(codeField, 'A valid operator access code is required.', { focus: true });
             showToast({
                 message: 'A valid operator access code is required.',
                 type: 'error'
@@ -562,7 +588,7 @@ export class LandingController {
 
         // Show the single green overlay (in its "Joining..." state) instead of the
         // generic spinner, then confirm on success or dismiss on failure.
-        if (surface === OPERATOR_SURFACES.WHITE_CELL) {
+        if (surface === OPERATOR_SURFACES.WHITE_CELL || isSme) {
             const sessionCodeInput = document.getElementById('sessionCode');
             const sessionCode = sessionCodeInput?.value?.trim().toUpperCase();
             const codeError = validateSessionCode(sessionCode);
@@ -577,15 +603,21 @@ export class LandingController {
         const operatorName = document.getElementById('displayName')?.value?.trim()
             || (isGameMaster
                 ? 'Game Master Operator'
-                : getRoleDisplayName(buildWhiteCellOperatorRole(operatorRole)));
+                : (isSme
+                    ? getSmeRoleDisplayLabel(smeRole)
+                    : getRoleDisplayName(buildWhiteCellOperatorRole(operatorRole))));
         const metaLabel = isGameMaster
             ? 'Game Master'
-            : `White Cell | ${operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT ? 'Support' : 'Lead'}`;
+            : (isSme
+                ? `SME | ${getSmeRoleDisplayLabel(smeRole)}`
+                : `White Cell | ${operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT ? 'Support' : 'Lead'}`);
         const confirmation = this.showJoinConfirmation({ displayName: operatorName, metaLabel });
 
         try {
             if (isGameMaster) {
                 await this.authorizeGameMaster(operatorCode, confirmation);
+            } else if (isSme) {
+                await this.authorizeSme(smeRole, operatorCode, confirmation);
             } else {
                 await this.authorizeWhiteCell(operatorRole, operatorCode, confirmation);
             }
@@ -695,6 +727,76 @@ export class LandingController {
 
         await confirmation.confirm();
         this.redirectToRole(whiteCellRole);
+    }
+
+    async authorizeSme(smeRole = SME_ROLES.ECON, operatorCode, confirmation = NOOP_CONFIRMATION) {
+        const codeInput = document.getElementById('sessionCode');
+        const sessionCode = codeInput?.value?.trim().toUpperCase();
+        const smeOperatorRole = buildSmeOperatorRole(smeRole);
+        const operatorName = document.getElementById('displayName')?.value?.trim()
+            || getSmeRoleDisplayLabel(smeRole);
+
+        const codeError = validateSessionCode(sessionCode);
+        if (codeError) {
+            this.setFieldError('sessionCode', codeError, { focus: true });
+            throw new Error(codeError);
+        }
+
+        await this.prewarmBrowserIdentity({ interactive: true });
+        const session = await this.findSessionByCode(sessionCode);
+        const sessionCodeFromLookup = session.session_code || sessionCode;
+        confirmation.setSessionName(session.name);
+        const grant = await database.authorizeOperatorAccess({
+            surface: OPERATOR_SURFACES.SME,
+            accessCode: operatorCode,
+            sessionId: session.id,
+            role: smeOperatorRole,
+            operatorName
+        });
+        const participant = await database.claimParticipantSeat(session.id, smeOperatorRole, operatorName);
+
+        sessionStore.clear();
+        sessionStore.setSessionId(session.id);
+        sessionStore.setRole(smeOperatorRole);
+        sessionStore.setUserName(operatorName);
+        sessionStore.setSessionData({
+            id: session.id,
+            name: session.name,
+            code: sessionCodeFromLookup,
+            participantId: participant.id,
+            participantSessionId: participant.id,
+            role: smeOperatorRole,
+            displayName: operatorName,
+            team: 'sme',
+            roleSurface: OPERATOR_SURFACES.SME,
+            smeRole,
+            operatorMode: true,
+            seatClaimStatus: participant.claim_status || 'claimed'
+        });
+        sessionStore.setOperatorAuth({
+            ...grant,
+            sessionId: grant?.sessionId || session.id,
+            sessionCode: sessionCodeFromLookup,
+            teamId: grant?.teamId || null,
+            role: grant?.role || smeOperatorRole,
+            operatorName: grant?.operatorName || operatorName
+        });
+
+        try {
+            const gameState = await database.getGameState(session.id);
+            if (gameState) {
+                sessionStore.setGameState(gameState);
+            }
+        } catch (error) {
+            logger.warn('Failed to preload SME game state:', error);
+        }
+
+        await syncService.initialize(session.id, {
+            participantId: participant.id
+        });
+
+        await confirmation.confirm();
+        this.redirectToRole(smeOperatorRole);
     }
 
     /**

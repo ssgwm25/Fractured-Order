@@ -91,7 +91,13 @@ import {
 import { createPliMacroReview } from '../features/pli/PliMacroReview.js';
 import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.js';
 import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js';
-import { SEATS as PLI_SEATS, seatNeedsReview, getSeatReview } from '../features/pli/pliShared.js';
+import {
+    SEATS as PLI_SEATS,
+    PLI_VIEW_MODES,
+    seatNeedsReview,
+    seatIsFinalized,
+    getSeatReview
+} from '../features/pli/pliShared.js';
 import {
     buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
@@ -1290,7 +1296,9 @@ export class WhiteCellController {
             const auth = sessionStore.getOperatorAuth?.() || {};
             return auth.displayName || auth.role || this.operatorRole || 'White Cell';
         };
-        const canReview = () => this.isLeadOperator();
+        // White Cell Lead/Support view finalized SME outputs only (read-only).
+        const canReview = () => false;
+        const viewMode = PLI_VIEW_MODES.LEAD_READONLY;
 
         const macroHost = document.getElementById('pliAdjudicationPanel');
         const dipHost = document.getElementById('pliDiplomacyInfoPanel');
@@ -1301,7 +1309,8 @@ export class WhiteCellController {
                 container: macroHost,
                 getSessionId: sessionId,
                 getReviewerName: reviewerName,
-                canReview
+                canReview,
+                viewMode
             });
         }
         if (dipHost && !this.pliDiplomacyInfoReview) {
@@ -1309,7 +1318,8 @@ export class WhiteCellController {
                 container: dipHost,
                 getSessionId: sessionId,
                 getReviewerName: reviewerName,
-                canReview
+                canReview,
+                viewMode
             });
         }
         if (niHost && !this.pliNiEscalationReview) {
@@ -1317,7 +1327,8 @@ export class WhiteCellController {
                 container: niHost,
                 getSessionId: sessionId,
                 getReviewerName: reviewerName,
-                canReview
+                canReview,
+                viewMode
             });
         }
 
@@ -1345,17 +1356,44 @@ export class WhiteCellController {
             return;
         }
 
-        const countSeat = (seatId) => rows.filter((row) => seatNeedsReview(getSeatReview(row, seatId))).length;
-        const setBadge = (elementId, count) => {
+        // Badge shows finalized (ready-to-view) count. Title surfaces awaiting-SME count.
+        const countFinalized = (seatId) => rows.filter((row) => seatIsFinalized(getSeatReview(row, seatId))).length;
+        const countAwaiting = (seatId) => rows.filter((row) => seatNeedsReview(getSeatReview(row, seatId))).length;
+        const setBadge = (elementId, finalizedCount, awaitingCount, awaitingLabel) => {
             const badge = document.getElementById(elementId);
             if (!badge) return;
-            badge.textContent = String(count);
-            badge.hidden = count <= 0;
+            badge.textContent = String(finalizedCount);
+            badge.hidden = finalizedCount <= 0 && awaitingCount <= 0;
+            if (finalizedCount <= 0 && awaitingCount > 0) {
+                badge.textContent = String(awaitingCount);
+                badge.title = awaitingLabel;
+                badge.classList.add('sidebar-badge--awaiting');
+            } else {
+                badge.title = finalizedCount > 0
+                    ? `${finalizedCount} finalized (read-only)`
+                    : '';
+                badge.classList.remove('sidebar-badge--awaiting');
+            }
         };
 
-        setBadge('pliMacroBadge', countSeat(PLI_SEATS.MACRO));
-        setBadge('pliDipInfoBadge', countSeat(PLI_SEATS.DIPLOMACY_INFORMATION));
-        setBadge('pliNiEscBadge', countSeat(PLI_SEATS.NATIONAL_INTEREST_ESCALATION));
+        setBadge(
+            'pliMacroBadge',
+            countFinalized(PLI_SEATS.MACRO),
+            countAwaiting(PLI_SEATS.MACRO),
+            'Awaiting Econ SME'
+        );
+        setBadge(
+            'pliDipInfoBadge',
+            countFinalized(PLI_SEATS.DIPLOMACY_INFORMATION),
+            countAwaiting(PLI_SEATS.DIPLOMACY_INFORMATION),
+            'Awaiting Diplomacy & Information SME'
+        );
+        setBadge(
+            'pliNiEscBadge',
+            countFinalized(PLI_SEATS.NATIONAL_INTEREST_ESCALATION),
+            countAwaiting(PLI_SEATS.NATIONAL_INTEREST_ESCALATION),
+            'Awaiting NI/Escalation SME'
+        );
     }
 
     mountFollowAlongOnboarding() {
@@ -3858,6 +3896,15 @@ export class WhiteCellController {
                 phase: gameState.phase ?? 1
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
+
+            // Open TSJ + Verba external handoff queues immediately on Blue action-complete.
+            if (canShareActionToRedTeam(updatedAction)) {
+                try {
+                    await database.ensureSmeHandoffs(sessionStore.getSessionId(), actionId);
+                } catch (handoffError) {
+                    logger.warn('Failed to open SME TSJ/Verba handoffs (migration may be pending)', handoffError);
+                }
+            }
 
             showToast({ message: 'Deliberation recorded', type: 'success' });
             modal?.close();
