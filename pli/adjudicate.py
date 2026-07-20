@@ -89,8 +89,11 @@ Your job for the single action below, in order:
 
 5. FIT ANCHOR: score alignment with the team's DECLARED strategic
    orientation (given below) against the trial codebook anchor table. Pick
-   the band first, then a score inside the band, and give the mechanism
-   rationale. For NE, use band 5-6 score 5 with rationale noting N/A macro Fit.
+   the band first, then a score inside the band, and write `fit.rationale`
+   as a short mechanism narrative (2–4 sentences) comparable in depth to
+   the precedent rationale — how the action's mechanism advances, conflicts
+   with, or only weakly serves the declared orientation, and why that
+   score/band. For NE, use band 5-6 score 5 with rationale noting N/A macro Fit.
 
 6. SUBMISSION MONTH: include ``submission_month`` as the GAME SUBMISSION MONTH
    shown below (YYYY-MM). The orchestrator already grounded that value on a

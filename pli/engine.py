@@ -120,7 +120,14 @@ def compute_implementation_score(tier: int, modifiers: dict[str, bool]) -> dict[
     }
 
 
-def validate_fit_score(band: str, score: int, orientation: str) -> dict[str, Any]:
+def validate_fit_score(
+    band: str,
+    score: int,
+    orientation: str,
+    *,
+    rationale: str | None = None,
+    mechanism_rationale: str | None = None,
+) -> dict[str, Any]:
     """Validate the agent's Fit selection against the anchor bands."""
     anchors = CODEBOOK["fit_anchors"]
     if band not in anchors:
@@ -130,12 +137,18 @@ def validate_fit_score(band: str, score: int, orientation: str) -> dict[str, Any
         raise WorksheetError(f"Fit score {score} outside anchor band {band}")
     if orientation not in CODEBOOK["orientations"]:
         raise WorksheetError(f"Unknown orientation: {orientation!r}")
-    return {
+    narrative = (rationale or mechanism_rationale or "").strip() or None
+    out: dict[str, Any] = {
         "band": band,
         "score": score,
         "orientation": orientation,
         "anchor": anchors[band],
     }
+    if narrative:
+        # Keep both keys: schema uses rationale; SME UI also reads mechanism_rationale.
+        out["rationale"] = narrative
+        out["mechanism_rationale"] = narrative
+    return out
 
 
 def _band_for(score: int, table: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -464,7 +477,13 @@ def adjudicate_from_worksheet(
         }
 
     impl = compute_implementation_score(precedent["tier"], worksheet.get("modifiers", {}))
-    fit_validated = validate_fit_score(fit["band"], fit["score"], fit["orientation"])
+    fit_validated = validate_fit_score(
+        fit["band"],
+        fit["score"],
+        fit["orientation"],
+        rationale=fit.get("rationale"),
+        mechanism_rationale=fit.get("mechanism_rationale"),
+    )
 
     trend = compute_deltas(
         lever=classification["lever"],

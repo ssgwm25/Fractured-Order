@@ -305,6 +305,8 @@ def test_adjudicate_from_worksheet_roundtrip():
     record = adjudicate_from_worksheet(worksheet)
     assert record["implementation"]["score"] == 6
     assert record["fit"]["score"] == 8
+    assert record["fit"]["rationale"] == "Capacity-building under declared Reframing orientation"
+    assert record["fit"]["mechanism_rationale"] == record["fit"]["rationale"]
     assert record["submission_month"] == "2026-01"
     gdp = record["trend"]["indicators"]["real_gdp_growth"]
     assert gdp["start_quarter"] == "2029Q1"
