@@ -104,9 +104,12 @@ def is_pli_candidate(action: dict[str, Any]) -> bool:
 
 
 def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict[str, Any]]:
+    # Include both submitted and White-Cell-deliberated actions. Operators often
+    # record deliberation before PLI runs; those rows leave status='submitted'
+    # and would otherwise never enter the macro SME queue.
     params = {
         "select": "*",
-        "status": "eq.submitted",
+        "status": "in.(submitted,adjudicated)",
         "is_deleted": "eq.false",
         "mechanism": f"neq.{STRATEGIC_ORIENTATION_MECHANISM}",
         "order": "created_at.asc",
