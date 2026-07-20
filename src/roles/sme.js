@@ -143,10 +143,6 @@ export class SmeController {
                 sessionData.displayName || ''
             ].filter(Boolean).join(' · ');
         }
-
-        document.getElementById('sidebarToggle')?.addEventListener('click', () => {
-            document.getElementById('sidebar')?.classList.toggle('is-open');
-        });
     }
 
     mountRoleQueue() {

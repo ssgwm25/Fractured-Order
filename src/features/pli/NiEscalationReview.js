@@ -67,11 +67,12 @@ export function createNiEscalationReview(options = {}) {
     const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
 
     const wrapper = createSeatPanelShell({
-        title: isLeadReadonly ? 'NI & Escalation (finalized)' : 'NI & Escalation',
+        title: 'NI & Escalation',
         description: isLeadReadonly
-            ? 'Read-only NI / Escalation outputs finalized by the NI/Escalation SME.'
+            ? 'Read-only NI / Escalation outputs finalized by NI/Escalation.'
             : 'National Interest domain deltas and Glasl escalation — same SME seat, analytically separate tracks. Unlocks after Macro is finalized or skipped.',
-        seatId: SEAT
+        seatId: SEAT,
+        viewMode
     });
     container.appendChild(wrapper);
 
@@ -124,16 +125,21 @@ export function createNiEscalationReview(options = {}) {
             const locked = !isLeadReadonly
                 ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)) && !isRowUnlocked(r)).length
                 : 0;
+            const awaitingFinal = isLeadReadonly
+                ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT))).length
+                : 0;
             list.innerHTML = emptyState(
                 isLeadReadonly
-                    ? 'No finalized NI / Escalation outputs yet'
+                    ? (awaitingFinal > 0 ? 'Awaiting NI/Escalation' : 'No finalized NI / Escalation outputs yet')
                     : (locked > 0
                         ? 'Awaiting Macro finalize'
                         : (showReviewed ? 'No NI & Escalation adjudications' : 'No NI & Escalation items awaiting review')),
                 isLeadReadonly
-                    ? 'Finalized reviews appear here after the NI/Escalation SME approves or overrides.'
+                    ? (awaitingFinal > 0
+                        ? `${awaitingFinal} item(s) awaiting NI/Escalation finalize.`
+                        : 'Finalized reviews appear here after NI/Escalation approves or overrides.')
                     : (locked > 0
-                        ? `${locked} item(s) waiting for Econ SME Macro finalize (or Macro skip on non-economic actions).`
+                        ? `${locked} item(s) waiting for Econ Macro finalize (or Macro skip on non-economic actions).`
                         : 'Every submitted action receives NI + Glasl tracks. Review pending rows after the PLI pipeline runs.')
             );
             return;

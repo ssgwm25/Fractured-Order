@@ -833,7 +833,8 @@
     z-index: calc(var(--z-fixed) - 1);
 }
 
-.sidebar-overlay.active {
+.sidebar-overlay.active,
+.sidebar-overlay.sidebar-overlay-visible {
     display: block;
 }
 
@@ -881,7 +882,8 @@
         transition: transform var(--transition-smooth);
     }
 
-    .sidebar.open {
+    .sidebar.open,
+    .sidebar.sidebar-open {
         transform: translateX(0);
     }
 

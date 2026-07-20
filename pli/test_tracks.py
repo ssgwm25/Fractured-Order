@@ -546,6 +546,14 @@ def test_glasl_session_state_persists_across_actions(tmp_path, monkeypatch):
     )
     assert first["tracks"]["glasl"]["stage_after"] == 5
     saved = __import__("json").loads(state_path.read_text(encoding="utf-8"))
+    # Stage advances only after NI/Escalation SME finalize — not on PLI write.
+    assert saved["glasl_stage"] == 4
+    assert saved["pending_glasl_by_action"]["TEST-GLASL-1"] == 5
+
+    from adjudicate_router import finalize_glasl_stage
+
+    finalize_glasl_stage(None, action_id="TEST-GLASL-1")
+    saved = __import__("json").loads(state_path.read_text(encoding="utf-8"))
     assert saved["glasl_stage"] == 5
 
     second = adjudicate_multitrack(
@@ -568,9 +576,55 @@ def test_glasl_session_state_persists_across_actions(tmp_path, monkeypatch):
     )
     assert second["tracks"]["glasl"]["stage_after"] == 6
     saved2 = __import__("json").loads(state_path.read_text(encoding="utf-8"))
+    assert saved2["glasl_stage"] == 5
+    assert saved2["pending_glasl_by_action"]["TEST-GLASL-2"] == 6
+    finalize_glasl_stage(None, action_id="TEST-GLASL-2")
+    saved2 = __import__("json").loads(state_path.read_text(encoding="utf-8"))
     assert saved2["glasl_stage"] == 6
     assert "TEST-GLASL-1" in saved2["actions"]
     assert "TEST-GLASL-2" in saved2["actions"]
+
+
+def test_applied_glasl_stage_requires_ni_seat_finalize():
+    from adjudicate_router import (
+        extract_applied_glasl_stage,
+        resolve_applied_glasl_stage_from_rows,
+    )
+
+    record = {"tracks": {"glasl": {"stage_after": 6}}}
+    assert extract_applied_glasl_stage(
+        {"national_interest_escalation": {"status": "pending"}},
+        record,
+    ) is None
+    assert extract_applied_glasl_stage(
+        {"national_interest_escalation": {"status": "approved"}},
+        record,
+    ) == 6
+    assert extract_applied_glasl_stage(
+        {
+            "national_interest_escalation": {
+                "status": "overridden",
+                "override_value": {"stage_after": 7},
+            }
+        },
+        record,
+    ) == 7
+
+    rows = [
+        {
+            "seat_reviews": {
+                "national_interest_escalation": {"status": "pending"}
+            },
+            "record": {"tracks": {"glasl": {"stage_after": 8}}},
+        },
+        {
+            "seat_reviews": {
+                "national_interest_escalation": {"status": "approved"}
+            },
+            "record": {"tracks": {"glasl": {"stage_after": 5}}},
+        },
+    ]
+    assert resolve_applied_glasl_stage_from_rows(rows) == 5
 
 
 def test_instrument_from_pilot_entry():

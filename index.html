@@ -131,7 +131,7 @@
                             <label for="operatorAccessCode">Access Code</label>
                             <input type="password" id="operatorAccessCode" class="form-input"
                                 autocomplete="current-password" placeholder="Operator code"
-                                aria-describedby="operatorAccessCodeError">
+                                aria-describedby="operatorAccessCodeError operatorAccessHelp">
                             <p class="form-error" id="operatorAccessCodeError" role="alert" hidden></p>
                         </div>
                         <div class="op-actions">
@@ -145,7 +145,7 @@
                                 title="Supports the White Cell lead operator"
                                 aria-label="Authorize White Cell Support access">WC Support</button>
                         </div>
-                        <p class="op-help">Operator access is for session staff only.</p>
+                        <p class="op-help" id="operatorAccessHelp">Enter the access code, then click your role. Joins the current active session automatically.</p>
                     </form>
                 </details>
 
@@ -156,7 +156,7 @@
                             <label for="smeAccessCode">Access Code</label>
                             <input type="password" id="smeAccessCode" class="form-input"
                                 autocomplete="current-password" placeholder="Operator code"
-                                aria-describedby="smeAccessCodeError">
+                                aria-describedby="smeAccessCodeError smeAccessHelp">
                             <p class="form-error" id="smeAccessCodeError" role="alert" hidden></p>
                         </div>
                         <div class="op-actions op-actions--sme">
@@ -176,7 +176,7 @@
                                 title="Verba AI external handoff queue"
                                 aria-label="Authorize Verba AI SME access">Verba AI</button>
                         </div>
-                        <p class="op-help">Uses the same access code as Operator Access. Enter the session code above.</p>
+                        <p class="op-help" id="smeAccessHelp">Enter the access code, then click your SME role. Same code as Operator Access. No session code needed.</p>
                     </form>
                 </details>
                 </div><!-- /.form-main -->

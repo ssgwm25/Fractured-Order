@@ -216,20 +216,34 @@ function renderIndicatorChart(periods, indicator, submissionMonth) {
     return holder;
 }
 
-export function createSeatPanelShell({ title, description, seatId }) {
+export function createSeatPanelShell({
+    title,
+    description,
+    seatId,
+    viewMode = PLI_VIEW_MODES.REVIEW,
+    countLabel = null
+} = {}) {
     const wrapper = document.createElement('div');
     wrapper.className = 'pli-sme-panel';
     wrapper.dataset.seat = seatId;
+    const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
+    const resolvedCountLabel = countLabel
+        || (isLeadReadonly
+            ? `${title} ready to view`
+            : `awaiting ${title} review`);
+    const reviewedToggleLabel = isLeadReadonly
+        ? 'Show all finalized'
+        : 'Show reviewed / skipped';
     wrapper.innerHTML = `
         <div class="pli-sme-toolbar">
             <div class="pli-sme-toolbar-left">
                 <span class="badge badge-primary" data-pli-pending-count>0</span>
-                <span class="text-sm text-gray-600">awaiting ${escapeHtml(title)} review</span>
+                <span class="text-sm text-gray-600">${escapeHtml(resolvedCountLabel)}</span>
             </div>
             <div class="pli-sme-toolbar-right">
                 <label class="checkbox-label">
                     <input type="checkbox" data-pli-show-reviewed>
-                    <span class="text-sm">Show reviewed / skipped</span>
+                    <span class="text-sm">${escapeHtml(reviewedToggleLabel)}</span>
                 </label>
                 <button type="button" class="btn btn-secondary btn-sm" data-pli-refresh>Refresh</button>
             </div>

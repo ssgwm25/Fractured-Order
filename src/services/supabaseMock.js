@@ -936,20 +936,18 @@ function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
                     state,
                     authUserId,
                     currentRow.session_id,
-                    ['whitecell', 'gamemaster', 'sme']
+                    ['sme', 'gamemaster']
                 )
                 || liveDemoHasOperatorGrant(state, authUserId, 'sme', currentRow.session_id)
-                || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', currentRow.session_id)
                 || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
             ) && (
                 liveDemoCanWriteSessionSurface(
                     state,
                     authUserId,
                     nextRow.session_id,
-                    ['whitecell', 'gamemaster', 'sme']
+                    ['sme', 'gamemaster']
                 )
                 || liveDemoHasOperatorGrant(state, authUserId, 'sme', nextRow.session_id)
-                || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', nextRow.session_id)
                 || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
             );
         default:
@@ -1041,15 +1039,8 @@ function authorizeDemoOperator(state, {
         return { data: null, error: { message: 'Unsupported operator surface.' } };
     }
 
+    let resolvedSession = null;
     if (normalizedSurface === 'whitecell' || normalizedSurface === 'sme') {
-        const session = state.tables.sessions.find((entry) => (
-            entry.id === requested_session_id && entry.status === 'active'
-        ));
-
-        if (!session) {
-            return { data: null, error: { message: 'This session is not currently joinable.' } };
-        }
-
         if (normalizedSurface === 'whitecell'
             && !['whitecell_lead', 'whitecell_support'].includes(normalizedRole)) {
             return { data: null, error: { message: 'White Cell authorization requires a supported operator role.' } };
@@ -1057,6 +1048,26 @@ function authorizeDemoOperator(state, {
 
         if (normalizedSurface === 'sme' && !SME_OPERATOR_ROLES.has(normalizedRole)) {
             return { data: null, error: { message: 'SME authorization requires a supported SME role.' } };
+        }
+
+        if (requested_session_id) {
+            resolvedSession = state.tables.sessions.find((entry) => (
+                entry.id === requested_session_id && entry.status === 'active'
+            ));
+            if (!resolvedSession) {
+                return { data: null, error: { message: 'This session is not currently joinable.' } };
+            }
+        } else {
+            const active = state.tables.sessions
+                .filter((entry) => entry.status === 'active')
+                .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')));
+            resolvedSession = active[0] || null;
+            if (!resolvedSession) {
+                return {
+                    data: null,
+                    error: { message: 'No active session is available. Ask Game Master to open a session first.' }
+                };
+            }
         }
 
         normalizedTeam = null;
@@ -1070,7 +1081,7 @@ function authorizeDemoOperator(state, {
         auth_user_id: authUserId,
         surface: normalizedSurface,
         session_id: (normalizedSurface === 'whitecell' || normalizedSurface === 'sme')
-            ? requested_session_id
+            ? resolvedSession.id
             : null,
         team_id: (normalizedSurface === 'whitecell' || normalizedSurface === 'sme')
             ? normalizedTeam
@@ -1084,7 +1095,11 @@ function authorizeDemoOperator(state, {
     state.tables.operator_grants.push(grant);
 
     return {
-        data: cloneValue(grant),
+        data: cloneValue({
+            ...grant,
+            session_code: resolvedSession?.session_code || resolvedSession?.metadata?.session_code || null,
+            session_name: resolvedSession?.name || null
+        }),
         error: null
     };
 }

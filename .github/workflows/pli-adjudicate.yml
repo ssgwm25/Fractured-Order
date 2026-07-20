@@ -50,8 +50,8 @@ jobs:
           cache-dependency-path: pli/requirements.txt
       - name: Install PLI dependencies
         run: pip install -r requirements.txt
-      - name: Unit tests (engine + tracks)
-        run: python -m pytest test_engine.py test_tracks.py -q
+      - name: Unit tests (engine + tracks + seats)
+        run: python -m pytest test_engine.py test_tracks.py test_run_pli_seats.py -q
 
   adjudicate:
     needs: test

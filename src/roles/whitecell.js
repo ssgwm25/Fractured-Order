@@ -1380,19 +1380,19 @@ export class WhiteCellController {
             'pliMacroBadge',
             countFinalized(PLI_SEATS.MACRO),
             countAwaiting(PLI_SEATS.MACRO),
-            'Awaiting Econ SME'
+            'Awaiting Econ'
         );
         setBadge(
             'pliDipInfoBadge',
             countFinalized(PLI_SEATS.DIPLOMACY_INFORMATION),
             countAwaiting(PLI_SEATS.DIPLOMACY_INFORMATION),
-            'Awaiting Diplomacy & Information SME'
+            'Awaiting Dip & Info'
         );
         setBadge(
             'pliNiEscBadge',
             countFinalized(PLI_SEATS.NATIONAL_INTEREST_ESCALATION),
             countAwaiting(PLI_SEATS.NATIONAL_INTEREST_ESCALATION),
-            'Awaiting NI/Escalation SME'
+            'Awaiting NI/Escalation'
         );
     }
 
