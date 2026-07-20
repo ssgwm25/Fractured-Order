@@ -53,6 +53,7 @@ export default defineConfig(({ mode }) => {
                     main: resolve(__dirname, 'index.html'),
                     master: resolve(__dirname, 'master.html'),
                     whitecell: resolve(__dirname, 'whitecell.html'),
+                    sme: resolve(__dirname, 'sme.html'),
                     blueFacilitatorDeck: resolve(__dirname, 'decks/blue/fractured-order-facilitator-deck.html'),
                     blueFacilitator: resolve(__dirname, 'teams/blue/facilitator.html'),
                     blueScribe: resolve(__dirname, 'teams/blue/scribe.html'),
