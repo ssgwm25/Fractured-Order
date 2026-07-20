@@ -91,6 +91,21 @@ class SupabaseRest:
         data = response.json()
         return data[0] if isinstance(data, list) else data
 
+    def upsert(self, table: str, row: dict[str, Any], *, on_conflict: str) -> dict[str, Any]:
+        response = requests.post(
+            f"{self.base}/{table}",
+            headers={
+                **self.headers,
+                "Prefer": "return=representation,resolution=merge-duplicates",
+            },
+            params={"on_conflict": on_conflict},
+            json=row,
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data[0] if isinstance(data, list) else data
+
 
 def is_pli_candidate(action: dict[str, Any]) -> bool:
     """True when the row is a DIME-routable team action (not proposal/SO)."""
@@ -118,12 +133,19 @@ def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict
         params["session_id"] = f"eq.{session_id}"
     actions = db.select("actions", params)
 
-    existing = db.select("pli_adjudications", {"select": "action_id"})
-    adjudicated_ids = {row["action_id"] for row in existing}
+    # Skip rows that already have a finished PLI write. Re-score needs_human
+    # stubs (e.g. after orientation alias fixes) so operators do not need a
+    # manual delete before re-running the workflow.
+    existing = db.select("pli_adjudications", {"select": "action_id,status"})
+    skip_ids = {
+        row["action_id"]
+        for row in existing
+        if row.get("status") not in (None, "needs_human")
+    }
     pending: list[dict[str, Any]] = []
     ineligible = 0
     for action in actions:
-        if action["id"] in adjudicated_ids:
+        if action["id"] in skip_ids:
             continue
         if is_pli_candidate(action):
             pending.append(action)
@@ -161,31 +183,89 @@ def fetch_session_adjudications(
     )
 
 
+# Plenum UI ids (reframe) vs PLI codebook tokens (reframing).
+ORIENTATION_ALIASES = {
+    "pressure": "pressure",
+    "stabilization": "stabilization",
+    "reframing": "reframing",
+    "reframe": "reframing",
+}
+
+
+def normalize_declared_orientation(value: str | None) -> str | None:
+    if not value:
+        return None
+    return ORIENTATION_ALIASES.get(str(value).strip().lower())
+
+
+def parse_orientation_from_details(details: str) -> str | None:
+    for line in (details or "").split("\n"):
+        stripped = line.strip()
+        if stripped.lower().startswith("orientation:"):
+            return normalize_declared_orientation(stripped.split(":", 1)[1])
+    return None
+
+
+def parse_orientation_from_payload(payload: Any) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    so = payload.get("strategic_orientation") or payload
+    if not isinstance(so, dict):
+        return None
+    return normalize_declared_orientation(
+        so.get("orientation") or so.get("orientationKey")
+    )
+
+
 def fetch_declared_orientation(db: SupabaseRest, session_id: str, team: str) -> str | None:
     """Read the team's Strategic Orientation artifact and parse the selection."""
-    rows = db.select(
-        "actions",
-        {
-            "select": "ally_contingencies,created_at",
-            "session_id": f"eq.{session_id}",
-            "team": f"eq.{team}",
-            "mechanism": f"eq.{STRATEGIC_ORIENTATION_MECHANISM}",
-            "is_deleted": "eq.false",
-            "order": "created_at.desc",
-            "limit": "1",
-        },
+    select_attempts = (
+        "ally_contingencies,artifact_payload,created_at",
+        "ally_contingencies,created_at",
     )
+    rows: list[dict[str, Any]] = []
+    for select_cols in select_attempts:
+        try:
+            rows = db.select(
+                "actions",
+                {
+                    "select": select_cols,
+                    "session_id": f"eq.{session_id}",
+                    "team": f"eq.{team}",
+                    "mechanism": f"eq.{STRATEGIC_ORIENTATION_MECHANISM}",
+                    "is_deleted": "eq.false",
+                    "order": "created_at.desc",
+                    "limit": "1",
+                },
+            )
+            break
+        except requests.HTTPError:
+            rows = []
+    if not rows:
+        # Fallback: artifact_type column used by newer FO schema
+        try:
+            rows = db.select(
+                "actions",
+                {
+                    "select": "ally_contingencies,artifact_payload,created_at",
+                    "session_id": f"eq.{session_id}",
+                    "team": f"eq.{team}",
+                    "artifact_type": "eq.strategic_orientation_selection",
+                    "is_deleted": "eq.false",
+                    "order": "created_at.desc",
+                    "limit": "1",
+                },
+            )
+        except requests.HTTPError:
+            rows = []
     if not rows:
         return None
 
-    details = rows[0].get("ally_contingencies") or ""
-    for line in details.split("\n"):
-        stripped = line.strip()
-        if stripped.lower().startswith("orientation:"):
-            orientation = stripped.split(":", 1)[1].strip().lower()
-            if orientation in ("pressure", "stabilization", "reframing"):
-                return orientation
-    return None
+    row = rows[0]
+    return (
+        parse_orientation_from_details(row.get("ally_contingencies") or "")
+        or parse_orientation_from_payload(row.get("artifact_payload"))
+    )
 
 
 def _seat_entry(status: str) -> dict[str, Any]:
@@ -530,7 +610,7 @@ def main() -> int:
         if dry_run:
             print(json.dumps(row["record"], indent=2)[:2000])
         else:
-            db.insert("pli_adjudications", row)
+            db.upsert("pli_adjudications", row, on_conflict="action_id")
 
     print(f"Done. {len(actions) - failures} adjudicated, {failures} failed.")
     return 1 if failures else 0
