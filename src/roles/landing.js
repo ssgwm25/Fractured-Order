@@ -140,13 +140,6 @@ export class LandingController {
             });
         });
 
-        const whiteCellSupportAccessBtn = document.getElementById('operatorWhiteCellSupportBtn');
-        whiteCellSupportAccessBtn?.addEventListener('click', () => {
-            void this.handleOperatorAccess(OPERATOR_SURFACES.WHITE_CELL, {
-                operatorRole: WHITE_CELL_OPERATOR_ROLES.SUPPORT
-            });
-        });
-
         const legacyWhiteCellAccessBtn = document.getElementById('operatorWhiteCellBtn');
         legacyWhiteCellAccessBtn?.addEventListener('click', () => {
             void this.handleOperatorAccess(OPERATOR_SURFACES.WHITE_CELL, {
