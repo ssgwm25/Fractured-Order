@@ -671,11 +671,36 @@ export async function createProposal(page, {
     await modal.locator('#proposalTimingConditions').fill(timingAndConditions);
     await modal.locator('#proposalExpectedOutcomes').fill(expectedOutcomes);
 
-    const submitTarget = recipientTeam === 'red' ? 'sendRed' : 'sendBlue';
-    await modal.locator(`[data-proposal-nav="${submitTarget}"]`).click();
-    await expect(page.locator('#toast-container')).toContainText('Proposal submitted for White Cell review');
+    const forwardTarget = recipientTeam === 'red' ? 'forwardRed' : 'forwardBlue';
+    await modal.locator(`[data-proposal-nav="${forwardTarget}"]`).click();
+    await expect(page.locator('#toast-container')).toContainText('Proposal forwarded to Facilitator');
     await expect(modal).toBeHidden();
     await expect(page.locator('#actionsList')).toContainText(title);
+}
+
+export async function submitForwardedProposalFromFacilitator(page, { title } = {}) {
+    if (!title) {
+        throw new Error('submitForwardedProposalFromFacilitator requires a title.');
+    }
+
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+
+    const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]').filter({
+        hasText: title
+    }).first();
+    await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
+    await actionSlideLink.click();
+
+    const actionFrame = page.locator('#deckActionFrame');
+    await expect(actionFrame).toContainText(title);
+    await actionFrame.locator('[data-scribe-action-submit]').first().click();
+
+    const confirmModal = page.locator('.modal-overlay').filter({ hasText: 'Submit Proposal to White Cell' });
+    await expect(confirmModal).toBeVisible();
+    await confirmModal.getByRole('button', { name: 'Submit' }).click();
+    await expect(page.locator('#toast-container')).toContainText('Proposal submitted to White Cell');
 }
 
 export async function reviewProposal(page, {

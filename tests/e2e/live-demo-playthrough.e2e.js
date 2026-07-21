@@ -24,6 +24,7 @@ import {
     reviewStrategicOrientation,
     sendWhiteCellCommunication,
     submitActionFromScribe,
+    submitForwardedProposalFromFacilitator,
     submitRfi,
     submitStrategicOrientationFromScribe
 } from './support/liveDemoHarness.js';
@@ -406,6 +407,9 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
                 await createProposal(actors.teams[proposal.owner].scribe, {
                     title: proposal.title,
                     recipientTeam: proposal.recipient
+                });
+                await submitForwardedProposalFromFacilitator(actors.teams[proposal.owner].facilitator, {
+                    title: proposal.title
                 });
             }
 
