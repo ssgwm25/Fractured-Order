@@ -28,6 +28,24 @@ import {
 const logger = createLogger('DiplomacyInfoReview');
 const SEAT = SEATS.DIPLOMACY_INFORMATION;
 
+const TEAM_FILTERS = Object.freeze([
+    { id: 'all', label: 'All' },
+    { id: 'blue', label: 'Blue' },
+    { id: 'green', label: 'Green' }
+]);
+
+function isProposalActionRow(action = null) {
+    const mechanism = String(action?.mechanism || '').trim().toLowerCase();
+    const artifact = String(action?.artifact_type || '').trim().toLowerCase();
+    return mechanism === 'proposal' || artifact === 'proposal';
+}
+
+function resolveActingTeam(action = null, row = {}) {
+    return String(action?.team || row?.record?.action?.team || '')
+        .trim()
+        .toLowerCase();
+}
+
 export function createDiplomacyInfoReview(options = {}) {
     const {
         container,
@@ -42,17 +60,37 @@ export function createDiplomacyInfoReview(options = {}) {
     let records = [];
     let actionsById = new Map();
     let showReviewed = false;
+    let teamFilter = 'all';
     const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
 
     const wrapper = createSeatPanelShell({
         title: 'Diplomacy & Information',
         description: isLeadReadonly
-            ? 'Read-only Diplomacy / Information outputs finalized by Dip & Info.'
-            : 'Paired Diplomacy Index + Information brief — both tracks clear together under one SME seat. Unlocks after Macro is finalized or skipped.',
+            ? 'Read-only Diplomacy / Information outputs finalized by Dip & Info. Filter by Blue or Green.'
+            : 'Paired Diplomacy Index + Information brief — both tracks clear together under one SME seat. Unlocks after Macro is finalized or skipped. Green proposals appear under the Green tab.',
         seatId: SEAT,
         viewMode
     });
     container.appendChild(wrapper);
+
+    const desc = wrapper.querySelector('.pli-sme-desc');
+    const teamTabs = document.createElement('div');
+    teamTabs.className = 'pli-team-tabs';
+    teamTabs.setAttribute('role', 'tablist');
+    teamTabs.setAttribute('aria-label', 'Filter by acting team');
+    teamTabs.innerHTML = TEAM_FILTERS.map((entry) => `
+        <button
+            type="button"
+            class="pli-team-tab${entry.id === teamFilter ? ' is-active' : ''}"
+            role="tab"
+            aria-selected="${entry.id === teamFilter ? 'true' : 'false'}"
+            data-pli-team-filter="${escapeHtml(entry.id)}"
+        >
+            <span>${escapeHtml(entry.label)}</span>
+            <span class="pli-team-tab-count" data-pli-team-count="${escapeHtml(entry.id)}">0</span>
+        </button>
+    `).join('');
+    desc?.insertAdjacentElement('afterend', teamTabs);
 
     const list = wrapper.querySelector('[data-pli-list]');
     const pendingBadge = wrapper.querySelector('[data-pli-pending-count]');
@@ -62,6 +100,19 @@ export function createDiplomacyInfoReview(options = {}) {
         render();
     });
     wrapper.querySelector('[data-pli-refresh]').addEventListener('click', () => refresh());
+    teamTabs.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-pli-team-filter]');
+        if (!button) return;
+        const nextFilter = button.dataset.pliTeamFilter || 'all';
+        if (nextFilter === teamFilter) return;
+        teamFilter = nextFilter;
+        teamTabs.querySelectorAll('[data-pli-team-filter]').forEach((tab) => {
+            const active = tab.dataset.pliTeamFilter === teamFilter;
+            tab.classList.toggle('is-active', active);
+            tab.setAttribute('aria-selected', String(active));
+        });
+        render();
+    });
 
     async function refresh() {
         const sessionId = getSessionId?.();
@@ -83,12 +134,64 @@ export function createDiplomacyInfoReview(options = {}) {
         }
     }
 
-    function visibleRows() {
+    function baseVisibleRows() {
         return records.filter((row) => isPliRowVisible(row, SEAT, {
             viewMode,
             showReviewed,
             isRowUnlocked: isLeadReadonly ? () => true : isRowUnlocked
         }));
+    }
+
+    function matchesTeamFilter(row) {
+        if (teamFilter === 'all') return true;
+        const action = actionsById.get(row.action_id);
+        return resolveActingTeam(action, row) === teamFilter;
+    }
+
+    function visibleRows() {
+        return baseVisibleRows().filter(matchesTeamFilter);
+    }
+
+    function countForTeam(teamId) {
+        const rows = baseVisibleRows();
+        if (teamId === 'all') return rows.length;
+        return rows.filter((row) => {
+            const action = actionsById.get(row.action_id);
+            return resolveActingTeam(action, row) === teamId;
+        }).length;
+    }
+
+    function syncTeamTabCounts() {
+        TEAM_FILTERS.forEach((entry) => {
+            const badge = teamTabs.querySelector(`[data-pli-team-count="${entry.id}"]`);
+            if (badge) {
+                badge.textContent = String(countForTeam(entry.id));
+            }
+        });
+    }
+
+    function emptyCopyForFilter() {
+        if (teamFilter === 'green') {
+            return {
+                title: isLeadReadonly
+                    ? 'No finalized Green Diplomacy / Information outputs'
+                    : 'No Green proposals awaiting Dip & Info review',
+                detail: isLeadReadonly
+                    ? 'Finalized Green proposal reviews appear here after Dip & Info approves or overrides.'
+                    : 'Submitted Green proposals appear here after the PLI multi-track run (Macro skipped).'
+            };
+        }
+        if (teamFilter === 'blue') {
+            return {
+                title: isLeadReadonly
+                    ? 'No finalized Blue Diplomacy / Information outputs'
+                    : 'No Blue items awaiting Dip & Info review',
+                detail: isLeadReadonly
+                    ? 'Finalized Blue Dip / Info reviews appear here after SME approval.'
+                    : 'Diplomatic and Informational Blue actions appear here after the PLI multi-track run.'
+            };
+        }
+        return null;
     }
 
     function render() {
@@ -98,8 +201,15 @@ export function createDiplomacyInfoReview(options = {}) {
                 isRowUnlocked(r) && seatNeedsReview(getSeatReview(r, SEAT))
             ));
         pendingBadge.textContent = String(pending.length);
+        syncTeamTabCounts();
+
         const visible = visibleRows();
         if (!visible.length) {
+            const filterCopy = emptyCopyForFilter();
+            if (filterCopy && teamFilter !== 'all') {
+                list.innerHTML = emptyState(filterCopy.title, filterCopy.detail);
+                return;
+            }
             const locked = !isLeadReadonly
                 ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)) && !isRowUnlocked(r)).length
                 : 0;
@@ -118,7 +228,7 @@ export function createDiplomacyInfoReview(options = {}) {
                         : 'Finalized reviews appear here after Dip & Info approves or overrides.')
                     : (locked > 0
                         ? `${locked} item(s) waiting for Econ Macro finalize (or Macro skip on non-economic actions).`
-                        : 'Diplomatic and Informational actions (and secondary facets) appear here after the PLI multi-track run.')
+                        : 'Diplomatic and Informational actions, plus Green proposals, appear here after the PLI multi-track run.')
             );
             return;
         }
@@ -137,12 +247,20 @@ export function createDiplomacyInfoReview(options = {}) {
         const seat = getSeatReview(row, SEAT);
         const status = seat.status || row.status;
         const routing = tracks.routing?.tracks || {};
+        const actingTeam = resolveActingTeam(action, row);
+        const proposalBadge = isProposalActionRow(action)
+            ? '<span class="badge badge-info">Proposal</span>'
+            : '';
+        const teamBadge = actingTeam
+            ? `<span class="badge badge-secondary">${escapeHtml(actingTeam)}</span>`
+            : '';
 
         card.innerHTML = `
             <header class="pli-sme-card-header">
                 <div>
                     <h3 class="pli-sme-card-title">${escapeHtml(getActionTitle(action, row))}</h3>
                     <p class="text-sm text-gray-600">Diplomacy &amp; Information — SME Review · Model Dip / Info Trial</p>
+                    <div class="pli-card-badges">${teamBadge}${proposalBadge}</div>
                 </div>
                 <span class="badge ${STATUS_BADGE[status] || 'badge-secondary'}">${escapeHtml(STATUS_LABELS[status] || status)}</span>
             </header>

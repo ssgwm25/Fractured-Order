@@ -7,10 +7,12 @@ PLI runs parallel tracks after White Cell completeness. Plenum **Instrument of P
 | Track | When | Output | SME seat |
 |-------|------|--------|----------|
 | **Macro** | Economic (default) | Lever/instrument, Implementation, Fit, quarterly indicator deltas + charts | Macro / White Cell |
-| **Diplomacy index** | Diplomatic (default); secondary facet when cited | Four-field taxonomy code (not a score) | Diplomacy Index & Information SME |
-| **Information brief** | Informational (default); secondary facet when cited | Unscored SME text brief | Diplomacy Index & Information SME |
+| **Diplomacy index** | Diplomatic (default); secondary facet when cited; **Green proposals** | Four-field taxonomy code (not a score) | Diplomacy Index & Information SME |
+| **Information brief** | Informational (default); secondary facet when cited; **Green proposals** | Unscored SME text brief | Diplomacy Index & Information SME |
 | **National Interest** | Always | Six-domain National War College tier deltas (NI-1…NI-6) | National Interest & Escalation SME |
 | **Glasl escalation** | Always | Stage before/after + Δ | National Interest & Escalation SME |
+
+**Green proposals:** `team=green` + `mechanism/artifact Proposal` enter PLI as Diplomatic + Information (Macro skipped). Industry proposals remain excluded for now. The Dip & Info SME console filters with **All / Blue / Green** tabs.
 
 **SME staffing (game director):** National Interest and Escalation are the **same person**; Diplomacy Index and Information are the **same person**. Tracks remain analytically separate; only the human reviewer seat is paired.
 

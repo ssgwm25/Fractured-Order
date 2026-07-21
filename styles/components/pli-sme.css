@@ -26,6 +26,47 @@
     margin: 0;
 }
 
+.pli-team-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
+}
+
+.pli-team-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    font: inherit;
+}
+
+.pli-team-tab.is-active {
+    border-color: var(--color-primary, #1d4ed8);
+    background: color-mix(in srgb, var(--color-primary, #1d4ed8) 12%, var(--color-surface));
+}
+
+.pli-team-tab-count {
+    min-width: 1.25rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background: var(--color-bg, #f3f4f6);
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.pli-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
 .pli-sme-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);

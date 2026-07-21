@@ -3,6 +3,9 @@
 Instrument of Power is the default lane map, not the sole authority: callers may
 enable secondary diplomacy/information facets when dual-lane evidence exists, and
 agents should flag needs_human when the stated mechanism conflicts with content.
+
+Green proposals (team=green, mechanism/artifact Proposal) route as Diplomatic with
+an Information secondary facet so they enter the Dip & Info SME seat with Macro skipped.
 """
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ from tracks import DATA, TrackError
 INSTRUMENTS = set(DATA["instruments_of_power"])
 ROUTING = DATA["routing"]
 UI_LEVER_PRIORS = DATA["ui_lever_priors"]
+PROPOSAL_MECHANISM = "proposal"
 
 LEVER_LINE = re.compile(
     r"Levers?:\s*(\[[^\]]*\]|[^;\n]+)",
@@ -44,6 +48,22 @@ def normalize_instrument_of_power(mechanism: str | None) -> str | None:
         "econ": "Economic",
     }
     return aliases.get(text.lower())
+
+
+def is_proposal_action(action: dict[str, Any] | None = None) -> bool:
+    """True when the row is a Proposal artifact (any team)."""
+    if not action:
+        return False
+    artifact = str(action.get("artifact_type") or "").strip().lower()
+    mechanism = str(action.get("mechanism") or "").strip().lower()
+    return artifact == PROPOSAL_MECHANISM or mechanism == PROPOSAL_MECHANISM
+
+
+def is_green_proposal(action: dict[str, Any] | None = None) -> bool:
+    """True for Green-team proposals that should enter Dip & Info PLI."""
+    if not is_proposal_action(action):
+        return False
+    return str((action or {}).get("team") or "").strip().lower() == "green"
 
 
 def parse_ui_levers(ally_contingencies: str | None) -> list[str]:
@@ -92,6 +112,24 @@ def default_ne_facets(instrument_of_power: str) -> dict[str, bool]:
 
 def build_routing_record(action: dict[str, Any]) -> dict[str, Any]:
     """Derive routing from a Plenum-shaped action dict."""
+    if is_green_proposal(action):
+        # Green proposals are ally diplomatic/informational instruments: Macro off,
+        # Dip + Info on so the paired SME seat can review them.
+        iop = "Diplomatic"
+        tracks = route_tracks(iop, secondary_information=True)
+        return {
+            "instrument_of_power": iop,
+            "ui_levers": [],
+            "ui_lever_priors": [],
+            "tracks": tracks,
+            "ne_facets": {
+                "diplomacy": tracks["diplomacy"],
+                "information": tracks["information"],
+            },
+            "default_lever": ROUTING[iop]["default_lever"],
+            "artifact_kind": "green_proposal",
+        }
+
     mechanism = action.get("mechanism") or action.get("instrument_of_power")
     iop = normalize_instrument_of_power(mechanism)
     if iop is None:

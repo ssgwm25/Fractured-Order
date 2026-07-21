@@ -36,16 +36,20 @@ import adjudicate
 import adjudicate_router
 import engine
 from submission_timing import derive_submission_month
-from tracks.router import build_routing_record, normalize_instrument_of_power
+from tracks.router import (
+    build_routing_record,
+    is_green_proposal,
+    is_proposal_action,
+    normalize_instrument_of_power,
+)
 
 STRATEGIC_ORIENTATION_MECHANISM = "Strategic Orientation"
-# Non-DIME artifact mechanisms that must not enter the PLI router.
+# Non-DIME artifact mechanisms that must not enter the PLI router (except
+# Green proposals, which are routed explicitly via is_green_proposal).
 SKIP_MECHANISMS = {
     "strategic orientation",
-    "proposal",
 }
 SKIP_ARTIFACT_TYPES = {
-    "proposal",
     "strategic_orientation_selection",
     "strategic_orientation_forecast",
 }
@@ -152,7 +156,14 @@ class SupabaseRest:
 
 
 def is_pli_candidate(action: dict[str, Any]) -> bool:
-    """True when the row is a DIME-routable team action (not proposal/SO)."""
+    """True for DIME-routable actions, or Green proposals for Dip & Info."""
+    if is_green_proposal(action):
+        return True
+
+    # Industry (and other) proposals stay out of PLI for this pass.
+    if is_proposal_action(action):
+        return False
+
     artifact = str(action.get("artifact_type") or "").strip().lower()
     if artifact in SKIP_ARTIFACT_TYPES:
         return False
@@ -194,7 +205,10 @@ def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict
         else:
             ineligible += 1
     if ineligible:
-        print(f"Skipping {ineligible} submitted non-DIME row(s) (proposals / SO / unroutable)")
+        print(
+            f"Skipping {ineligible} submitted non-PLI row(s) "
+            "(Industry proposals / SO / unroutable)"
+        )
     return pending
 
 
@@ -476,6 +490,10 @@ def build_record(
     facets = (worksheet or {}).get("ne_facets") or {}
     secondary_diplomacy = bool(facets.get("diplomacy"))
     secondary_information = bool(facets.get("information"))
+    # Green proposals always open the paired Dip & Info seat (Macro skipped).
+    if is_green_proposal(action):
+        secondary_diplomacy = True
+        secondary_information = True
     if secondary_diplomacy:
         tracks_needed = {**tracks_needed, "diplomacy": True}
     if secondary_information:

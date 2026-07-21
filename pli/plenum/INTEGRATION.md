@@ -6,6 +6,7 @@ This document describes how the Petrihos Lever Index pipeline connects to a **Fr
 
 ```
 White Cell marks Blue action complete
+  (or Green proposal submitted to White Cell)
         │
         ├─► sme_handoffs (TSJ + Verba queues)     ← app-side; never gates PLI
         │
@@ -13,12 +14,14 @@ White Cell marks Blue action complete
 GitHub Actions: PLI Adjudication workflow (run_pli.py)
         │
         ├─ agents → macro / Glasl / NI (+ Dip / Info when routed)
+        │   Green proposals → Dip + Info (Macro skipped) + NI/Glasl
         └─ adjudicate_router → multi-track record + seat_reviews
         │
         ▼
 Supabase: pli_adjudications
         │
         ├─► sme.html — Econ → NI/Escalation + Dip & Info (after Macro finalize/skip)
+        │              Dip & Info console: All / Blue / Green tabs
         └─► whitecell.html — Lead read-only view of finalized seats
 ```
 
@@ -46,7 +49,7 @@ Landing **SME ACCESS** roles: Econ, NI/Escalation, Dip & Info, TSJ, Verba (share
 |----------|-----|
 | `sme_econ` | Macro seat Approve / Override |
 | `sme_ni_escalation` | NI + Glasl seat (unlocks after Macro `approved`/`overridden`/`skipped`) |
-| `sme_diplomacy_information` | Diplomacy + Information seat (same unlock) |
+| `sme_diplomacy_information` | Diplomacy + Information seat (same unlock); **All / Blue / Green** team filter tabs. Green proposals appear under Green. |
 | `sme_tsj` / `sme_verba` | Handoff queues only (non-blocking) |
 
 ### White Cell Lead (`whitecell.html`)
