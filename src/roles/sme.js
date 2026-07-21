@@ -95,7 +95,7 @@ export class SmeController {
 
         this.smeRole = accessState.smeRole;
         this.bindChrome();
-        this.mountRolePanel();
+        this.mountRoleQueue();
         this.startRefreshLoop();
 
         const sessionId = accessState.sessionId;
