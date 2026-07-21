@@ -28,6 +28,19 @@ import {
 
 const logger = createLogger('SmeConsole');
 
+/** Queue kinds mounted by the SME console — one entry per SME_ROLES value. */
+export const SME_QUEUE_KINDS = Object.freeze({
+    [SME_ROLES.ECON]: 'macro',
+    [SME_ROLES.NI_ESCALATION]: 'ni_escalation',
+    [SME_ROLES.DIPLOMACY_INFORMATION]: 'diplomacy_information',
+    [SME_ROLES.TSJ]: 'handoff_tsj',
+    [SME_ROLES.VERBA]: 'handoff_verba'
+});
+
+export function getSmeQueueKind(smeRole) {
+    return SME_QUEUE_KINDS[smeRole] || null;
+}
+
 export function getSmeAccessState(sessionStoreRef = sessionStore) {
     const sessionId = sessionStoreRef.getSessionId?.()
         || sessionStoreRef.getSessionData?.()?.id
@@ -93,22 +106,30 @@ export class SmeController {
             return;
         }
 
-        this.smeRole = accessState.smeRole;
-        this.bindChrome();
-        this.mountRoleQueue();
-        this.startRefreshLoop();
+        try {
+            this.smeRole = accessState.smeRole;
+            this.bindChrome();
+            this.mountRoleQueue();
+            this.startRefreshLoop();
 
-        const sessionId = accessState.sessionId;
-        const participantId = sessionStore.getSessionData?.()?.participantId;
-        if (sessionId && !syncService.isInitialized?.()) {
-            try {
-                await syncService.initialize(sessionId, { participantId });
-            } catch (error) {
-                logger.warn('SME sync initialize skipped/failed', error);
+            const sessionId = accessState.sessionId;
+            const participantId = sessionStore.getSessionData?.()?.participantId;
+            if (sessionId && !syncService.isInitialized?.()) {
+                try {
+                    await syncService.initialize(sessionId, { participantId });
+                } catch (error) {
+                    logger.warn('SME sync initialize skipped/failed', error);
+                }
             }
-        }
 
-        logger.info('SME console initialized for', this.smeRole);
+            logger.info('SME console initialized for', this.smeRole);
+        } catch (error) {
+            logger.error('SME console failed to start', error);
+            showToast({
+                message: 'SME console failed to start. Try signing in again.',
+                type: 'error'
+            });
+        }
     }
 
     bindChrome() {
@@ -147,7 +168,9 @@ export class SmeController {
 
     mountRoleQueue() {
         const host = document.getElementById('smeQueuePanel');
-        if (!host) return;
+        if (!host) {
+            throw new Error('SME queue host #smeQueuePanel is missing from sme.html');
+        }
 
         host.innerHTML = '';
         this.panel?.destroy?.();
@@ -162,14 +185,15 @@ export class SmeController {
                 || getSmeRoleDisplayLabel(this.smeRole);
         };
 
-        if (this.smeRole === SME_ROLES.ECON) {
+        const queueKind = getSmeQueueKind(this.smeRole);
+        if (queueKind === 'macro') {
             this.panel = createPliMacroReview({
                 container: host,
                 getSessionId: sessionId,
                 getReviewerName: reviewerName,
                 canReview: () => true
             });
-        } else if (this.smeRole === SME_ROLES.NI_ESCALATION) {
+        } else if (queueKind === 'ni_escalation') {
             this.panel = createNiEscalationReview({
                 container: host,
                 getSessionId: sessionId,
@@ -177,7 +201,7 @@ export class SmeController {
                 canReview: () => true,
                 isRowUnlocked: isDownstreamSeatUnlocked
             });
-        } else if (this.smeRole === SME_ROLES.DIPLOMACY_INFORMATION) {
+        } else if (queueKind === 'diplomacy_information') {
             this.panel = createDiplomacyInfoReview({
                 container: host,
                 getSessionId: sessionId,
@@ -185,13 +209,19 @@ export class SmeController {
                 canReview: () => true,
                 isRowUnlocked: isDownstreamSeatUnlocked
             });
-        } else if (this.smeRole === SME_ROLES.TSJ || this.smeRole === SME_ROLES.VERBA) {
+        } else if (queueKind === 'handoff_tsj' || queueKind === 'handoff_verba') {
             this.panel = createSmeHandoffQueue({
                 container: host,
                 getSessionId: sessionId,
                 getAcknowledgerName: reviewerName,
-                seat: this.smeRole === SME_ROLES.VERBA ? 'verba' : 'tsj'
+                seat: queueKind === 'handoff_verba' ? 'verba' : 'tsj'
             });
+        } else {
+            throw new Error(`Unsupported SME role for queue mount: ${this.smeRole || 'unknown'}`);
+        }
+
+        if (!this.panel?.refresh) {
+            throw new Error(`SME queue panel for ${this.smeRole} did not expose refresh()`);
         }
 
         this.refreshQueue();
@@ -251,13 +281,21 @@ export class SmeController {
 
 export const smeController = new SmeController();
 
+function startSmeConsole() {
+    void smeController.init().catch((error) => {
+        logger.error('Unhandled SME console init failure', error);
+        showToast({
+            message: 'SME console failed to start. Try signing in again.',
+            type: 'error'
+        });
+    });
+}
+
 if (!globalThis.__ESG_DISABLE_AUTO_INIT__) {
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            void smeController.init();
-        });
+        document.addEventListener('DOMContentLoaded', startSmeConsole);
     } else {
-        void smeController.init();
+        startSmeConsole();
     }
 }
 
