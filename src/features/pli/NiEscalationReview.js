@@ -78,11 +78,24 @@ export function formatSigned(n) {
     return n > 0 ? `+${n}` : String(n);
 }
 
+export function summarizeNiPath(domains, ni = {}) {
+    if (ni.needs_human || ni.status === 'needs_human') {
+        return ni.needs_human_reason || 'Needs human NI adjudication.';
+    }
+    const parts = Object.keys(NI_DOMAIN_LABELS).map((key) => {
+        const delta = niDomainDelta(domains[key]);
+        if (delta == null) return null;
+        return `${key}:${formatSigned(delta)}`;
+    }).filter(Boolean);
+    return parts.length ? parts.join(' · ') : 'No domain deltas.';
+}
+
+/** Outputs-column NI block: numbered net + path narrative + 1–6 bar (mirrors Glasl). */
 export function renderOverallNiScore(domains, ni = {}) {
     if (ni.needs_human || ni.status === 'needs_human') {
         return `
             <div class="pli-block pli-ni-overall">
-                <div class="pli-label">Overall NI</div>
+                <div class="pli-label">NI score</div>
                 <p class="text-sm text-gray-500">${escapeHtml(ni.needs_human_reason || 'Needs human NI adjudication.')}</p>
             </div>
         `;
@@ -91,30 +104,36 @@ export function renderOverallNiScore(domains, ni = {}) {
     if (net == null) {
         return `
             <div class="pli-block pli-ni-overall">
-                <div class="pli-label">Overall NI</div>
+                <div class="pli-label">NI score</div>
                 <p class="text-sm text-gray-500">No domain deltas on record.</p>
             </div>
         `;
     }
     const netTone = net > 0 ? 'is-positive' : (net < 0 ? 'is-negative' : 'is-zero');
-    const chips = Object.keys(NI_DOMAIN_LABELS).map((key) => {
+    const path = summarizeNiPath(domains, ni);
+    const chips = Object.keys(NI_DOMAIN_LABELS).map((key, index) => {
+        const domainNum = String(index + 1);
         const delta = niDomainDelta(domains[key]);
         const label = NI_DOMAIN_LABELS[key];
         if (delta == null) {
-            return `<span class="pli-ni-score-step is-missing" title="${escapeHtml(label)}">${escapeHtml(key.replace('NI-', ''))}</span>`;
+            return `<span class="pli-ni-score-step is-missing" title="${escapeHtml(label)}">${escapeHtml(domainNum)}</span>`;
         }
         const tone = delta > 0 ? 'is-positive' : (delta < 0 ? 'is-negative' : 'is-zero');
-        return `<span class="pli-ni-score-step ${tone}" title="${escapeHtml(`${key}: ${label} (${formatSigned(delta)})`)}">${escapeHtml(formatSigned(delta))}</span>`;
+        const active = delta !== 0 ? ' is-active' : '';
+        return `<span class="pli-ni-score-step ${tone}${active}" title="${escapeHtml(`${key}: ${label} (${formatSigned(delta)})`)}">${escapeHtml(domainNum)}</span>`;
     }).join('');
 
     return `
         <div class="pli-block pli-ni-overall">
-            <div class="pli-label">Overall NI</div>
-            <p class="pli-ni-overall-net ${netTone}">Net <strong>${escapeHtml(formatSigned(net))}</strong></p>
-            <div class="pli-ni-score-bar" aria-label="National Interest domain deltas">
+            <div class="pli-label">NI score</div>
+            <p class="text-sm pli-ni-overall-net ${netTone}">
+                Net <strong>${escapeHtml(formatSigned(net))}</strong>
+                <span class="pli-ni-overall-delta">(Σ NI-1…NI-6)</span>
+            </p>
+            <p class="text-sm pli-ni-overall-narrative">${escapeHtml(path)}</p>
+            <div class="pli-ni-score-bar" aria-label="National Interest domains 1 through 6" aria-hidden="true">
                 ${chips}
             </div>
-            <p class="text-sm text-gray-500 pli-ni-overall-caption">Glance aid: uncapped sum of NI-1…NI-6 tier deltas (U.S./Blue-centric).</p>
         </div>
     `;
 }
@@ -261,10 +280,6 @@ export function createNiEscalationReview(options = {}) {
                 <section class="pli-col pli-col-outputs">
                     <h3 class="pli-col-title">Outputs</h3>
                     <div class="pli-block">
-                        <div class="pli-label">NI path summary</div>
-                        <p class="text-sm">${escapeHtml(summarizeNi(domains, ni))}</p>
-                    </div>
-                    <div class="pli-block">
                         <div class="pli-label">Glasl trajectory</div>
                         <p class="text-sm">
                             Stage ${escapeHtml(String(glasl.stage_before ?? '—'))}
@@ -353,19 +368,6 @@ export function createNiEscalationReview(options = {}) {
                     <div class="pli-notice pli-notice-danger">${escapeHtml(glasl.needs_human_reason || 'Glasl needs human adjudication.')}</div>` : ''}
             </div>
         `;
-    }
-
-    function summarizeNi(domains, ni) {
-        if (ni.needs_human || ni.status === 'needs_human') {
-            return ni.needs_human_reason || 'Needs human NI adjudication.';
-        }
-        const parts = Object.keys(NI_DOMAIN_LABELS).map((key) => {
-            const entry = domains[key];
-            if (!entry) return null;
-            const delta = typeof entry === 'object' ? entry.delta : entry;
-            return `${key}:${delta}`;
-        }).filter(Boolean);
-        return parts.length ? parts.join(' · ') : 'No domain deltas.';
     }
 
     async function handleApprove(row) {

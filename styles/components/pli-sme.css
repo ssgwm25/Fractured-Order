@@ -375,13 +375,24 @@
 }
 
 .pli-ni-overall-net {
-    margin: 0 0 var(--space-2);
+    margin: 0 0 var(--space-1);
     font-size: 0.95rem;
 }
 
 .pli-ni-overall-net strong {
     font-variant-numeric: tabular-nums;
     font-size: 1.15rem;
+}
+
+.pli-ni-overall-delta {
+    color: var(--color-text-muted, #6b7280);
+    margin-left: 0.25rem;
+}
+
+.pli-ni-overall-narrative {
+    margin: 0 0 var(--space-2);
+    color: var(--color-text, #1f2937);
+    font-variant-numeric: tabular-nums;
 }
 
 .pli-ni-overall-net.is-positive strong {
@@ -403,45 +414,42 @@
 }
 
 .pli-ni-score-step {
-    min-width: 2.1rem;
+    width: 1.75rem;
     height: 1.75rem;
-    padding: 0 0.35rem;
     border-radius: 4px;
     border: 1px solid var(--color-border);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-size: 0.75rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     background: var(--color-surface-alt);
 }
 
-.pli-ni-score-step.is-positive {
-    background: rgba(10, 77, 40, 0.12);
+.pli-ni-score-step.is-positive.is-active {
+    background: rgba(10, 77, 40, 0.18);
     border-color: #0a4d28;
     color: #0a4d28;
+    font-weight: 700;
 }
 
-.pli-ni-score-step.is-negative {
-    background: rgba(176, 74, 74, 0.14);
+.pli-ni-score-step.is-negative.is-active {
+    background: rgba(176, 74, 74, 0.18);
     border-color: #b04a4a;
     color: #b04a4a;
+    font-weight: 700;
 }
 
 .pli-ni-score-step.is-zero {
-    background: rgba(31, 59, 110, 0.08);
-    border-color: #1f3b6e;
-    color: #1f3b6e;
+    background: rgba(31, 59, 110, 0.06);
+    border-color: var(--color-border);
+    color: var(--color-navy, #1f3b6e);
 }
 
 .pli-ni-score-step.is-missing {
-    opacity: 0.55;
+    opacity: 0.45;
     font-weight: 500;
-}
-
-.pli-ni-overall-caption {
-    margin: var(--space-2) 0 0;
 }
 
 .pli-source-footer {
