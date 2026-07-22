@@ -134,17 +134,6 @@
 .pli-meta dd {
     margin: 0;
     font-size: 0.9rem;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-}
-
-.pli-code-wrap {
-    display: inline-block;
-    max-width: 100%;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    font-size: 0.85em;
 }
 
 .pli-narrative {

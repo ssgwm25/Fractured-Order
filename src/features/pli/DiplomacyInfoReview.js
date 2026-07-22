@@ -331,20 +331,14 @@ export function createDiplomacyInfoReview(options = {}) {
         if (!diplomacy) {
             return '<p class="text-sm text-gray-500">No diplomacy worksheet yet.</p>';
         }
-        if (diplomacy.status === 'needs_human' && !diplomacy.code && !diplomacy.code_string) {
+        if (diplomacy.status === 'needs_human' && !diplomacy.code) {
             return `<div class="pli-notice pli-notice-danger">${escapeHtml(diplomacy.needs_human_reason || 'Needs human diplomacy worksheet.')}</div>`;
         }
         const fields = diplomacy.fields || diplomacy.taxonomy || diplomacy;
-        const code = diplomacy.code_string || diplomacy.code || fields.code || '—';
-        const band = diplomacy.band || fields.band || '—';
-        const category = diplomacy.category || fields.paradigm || fields.diplomacy_paradigm || '—';
-        const style = diplomacy.policy_style || fields.policy_style || '—';
         return `
             <dl class="pli-meta">
-                <div><dt>Band</dt><dd>${escapeHtml(String(band))}</dd></div>
-                <div><dt>Taxonomy / code</dt><dd><code class="pli-code-wrap">${escapeHtml(String(code))}</code></dd></div>
-                <div><dt>Category</dt><dd>${escapeHtml(String(category))}</dd></div>
-                <div><dt>Policy style</dt><dd>${escapeHtml(String(style))}</dd></div>
+                <div><dt>Taxonomy / code</dt><dd>${escapeHtml(String(diplomacy.code || fields.code || '—'))}</dd></div>
+                <div><dt>Paradigm</dt><dd>${escapeHtml(String(fields.paradigm || fields.diplomacy_paradigm || '—'))}</dd></div>
                 <div><dt>Channel / modality</dt><dd>${escapeHtml(formatList(fields.channel || fields.channels || fields.modality))}</dd></div>
                 <div><dt>Audience</dt><dd>${escapeHtml(formatList(fields.audience || fields.counterpart))}</dd></div>
                 <div><dt>Effect summary</dt><dd>${escapeHtml(String(fields.effect_summary || fields.proposed_outcome || '—'))}</dd></div>
