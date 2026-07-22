@@ -50,6 +50,75 @@ const GLASL_LABELS = {
     9: 'Together into the abyss'
 };
 
+export function niDomainDelta(entry) {
+    if (entry == null) return null;
+    if (typeof entry === 'number') return Number.isFinite(entry) ? entry : null;
+    if (typeof entry === 'object') {
+        const n = Number(entry.delta);
+        return Number.isFinite(n) ? n : null;
+    }
+    const n = Number(entry);
+    return Number.isFinite(n) ? n : null;
+}
+
+export function sumNiDeltas(domains = {}) {
+    let sum = 0;
+    let count = 0;
+    for (const key of Object.keys(NI_DOMAIN_LABELS)) {
+        const delta = niDomainDelta(domains[key]);
+        if (delta == null) continue;
+        sum += delta;
+        count += 1;
+    }
+    return count ? sum : null;
+}
+
+export function formatSigned(n) {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return n > 0 ? `+${n}` : String(n);
+}
+
+export function renderOverallNiScore(domains, ni = {}) {
+    if (ni.needs_human || ni.status === 'needs_human') {
+        return `
+            <div class="pli-block pli-ni-overall">
+                <div class="pli-label">Overall NI</div>
+                <p class="text-sm text-gray-500">${escapeHtml(ni.needs_human_reason || 'Needs human NI adjudication.')}</p>
+            </div>
+        `;
+    }
+    const net = sumNiDeltas(domains);
+    if (net == null) {
+        return `
+            <div class="pli-block pli-ni-overall">
+                <div class="pli-label">Overall NI</div>
+                <p class="text-sm text-gray-500">No domain deltas on record.</p>
+            </div>
+        `;
+    }
+    const netTone = net > 0 ? 'is-positive' : (net < 0 ? 'is-negative' : 'is-zero');
+    const chips = Object.keys(NI_DOMAIN_LABELS).map((key) => {
+        const delta = niDomainDelta(domains[key]);
+        const label = NI_DOMAIN_LABELS[key];
+        if (delta == null) {
+            return `<span class="pli-ni-score-step is-missing" title="${escapeHtml(label)}">${escapeHtml(key.replace('NI-', ''))}</span>`;
+        }
+        const tone = delta > 0 ? 'is-positive' : (delta < 0 ? 'is-negative' : 'is-zero');
+        return `<span class="pli-ni-score-step ${tone}" title="${escapeHtml(`${key}: ${label} (${formatSigned(delta)})`)}">${escapeHtml(formatSigned(delta))}</span>`;
+    }).join('');
+
+    return `
+        <div class="pli-block pli-ni-overall">
+            <div class="pli-label">Overall NI</div>
+            <p class="pli-ni-overall-net ${netTone}">Net <strong>${escapeHtml(formatSigned(net))}</strong></p>
+            <div class="pli-ni-score-bar" aria-label="National Interest domain deltas">
+                ${chips}
+            </div>
+            <p class="text-sm text-gray-500 pli-ni-overall-caption">Glance aid: uncapped sum of NI-1…NI-6 tier deltas (U.S./Blue-centric).</p>
+        </div>
+    `;
+}
+
 export function createNiEscalationReview(options = {}) {
     const {
         container,
@@ -213,6 +282,7 @@ export function createNiEscalationReview(options = {}) {
                             }).join('')}
                         </div>
                     </div>
+                    ${renderOverallNiScore(domains, ni)}
                     ${record.agent?.attempts?.length ? `
                         <details class="pli-transcript">
                             <summary>View full agent transcript</summary>

@@ -370,6 +370,80 @@
     font-weight: 700;
 }
 
+.pli-ni-overall {
+    margin-top: var(--space-3);
+}
+
+.pli-ni-overall-net {
+    margin: 0 0 var(--space-2);
+    font-size: 0.95rem;
+}
+
+.pli-ni-overall-net strong {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.15rem;
+}
+
+.pli-ni-overall-net.is-positive strong {
+    color: #0a4d28;
+}
+
+.pli-ni-overall-net.is-negative strong {
+    color: #b04a4a;
+}
+
+.pli-ni-overall-net.is-zero strong {
+    color: var(--color-navy, #1f3b6e);
+}
+
+.pli-ni-score-bar {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.pli-ni-score-step {
+    min-width: 2.1rem;
+    height: 1.75rem;
+    padding: 0 0.35rem;
+    border-radius: 4px;
+    border: 1px solid var(--color-border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: var(--color-surface-alt);
+}
+
+.pli-ni-score-step.is-positive {
+    background: rgba(10, 77, 40, 0.12);
+    border-color: #0a4d28;
+    color: #0a4d28;
+}
+
+.pli-ni-score-step.is-negative {
+    background: rgba(176, 74, 74, 0.14);
+    border-color: #b04a4a;
+    color: #b04a4a;
+}
+
+.pli-ni-score-step.is-zero {
+    background: rgba(31, 59, 110, 0.08);
+    border-color: #1f3b6e;
+    color: #1f3b6e;
+}
+
+.pli-ni-score-step.is-missing {
+    opacity: 0.55;
+    font-weight: 500;
+}
+
+.pli-ni-overall-caption {
+    margin: var(--space-2) 0 0;
+}
+
 .pli-source-footer {
     margin-top: var(--space-3);
 }
