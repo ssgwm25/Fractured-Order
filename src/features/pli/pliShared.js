@@ -137,31 +137,32 @@ export function getMacroBlock(record = {}) {
     return { macro, worksheet, adjudication, tracks };
 }
 
-export function renderTrendCharts(trend, submissionMonth) {
-    const grid = document.createElement('div');
-    grid.className = 'pli-trend-grid';
-    if (!trend?.indicators) {
-        grid.innerHTML = '<p class="text-sm text-gray-500">No trend series for this action.</p>';
-        return grid;
-    }
-    const periods = trend.quarters || trend.years || [];
-    Object.values(trend.indicators).forEach((indicator) => {
-        grid.appendChild(renderIndicatorChart(periods, indicator, submissionMonth));
-    });
-    return grid;
-}
-
-function renderIndicatorChart(periods, indicator, submissionMonth) {
-    const width = 280;
-    const height = 168;
+/**
+ * Print-/DOM-safe SVG markup for one indicator (baseline vs post-action).
+ * Shared by SME Macro review cards and WC Lead Move/Sim report PDFs.
+ * @param {string[]} periods
+ * @param {Object} indicator
+ * @param {{ width?: number, height?: number }} [options]
+ * @returns {string}
+ */
+export function indicatorChartSvgHtml(periods, indicator, options = {}) {
+    const width = options.width ?? 280;
+    const height = options.height ?? 168;
     const pad = { top: 28, right: 10, bottom: 22, left: 34 };
-    const n = Math.max(periods.length, 1);
-    const base = indicator.baseline || [];
-    const post = indicator.post_action || base;
-    const favDir = Number(indicator.favorable_direction ?? 1);
-    const allValues = base.concat(post);
+    const n = Math.max(periods?.length || 0, 1);
+    const base = (indicator?.baseline || []).map(Number);
+    const postRaw = indicator?.post_action || indicator?.baseline || [];
+    const post = postRaw.map(Number);
+    while (base.length < n) base.push(base.length ? base[base.length - 1] : 0);
+    while (post.length < n) post.push(post.length ? post[post.length - 1] : 0);
+    const favDir = Number(indicator?.favorable_direction ?? 1);
+    const allValues = base.slice(0, n).concat(post.slice(0, n));
     let min = Math.min(...allValues);
     let max = Math.max(...allValues);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        min = 0;
+        max = 1;
+    }
     if (max - min < 1) {
         const mid = (max + min) / 2;
         min = mid - 0.5;
@@ -172,7 +173,9 @@ function renderIndicatorChart(periods, indicator, submissionMonth) {
     const x = (i) => pad.left + (spanX * i) / Math.max(n - 1, 1);
     const y = (value) => pad.top + spanY * (1 - (value - min) / (max - min));
     const pathOf = (series) => series.map((value, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
-    const verdictColor = indicator.verdict === 'favorable' ? GREEN : (indicator.verdict === 'unfavorable' ? RED : GREY);
+    const verdict = indicator?.verdict || 'n/a';
+    const verdictColor = verdict === 'favorable' ? GREEN : (verdict === 'unfavorable' ? RED : GREY);
+    const label = String(indicator?.label || 'Indicator');
 
     const fillSegments = [];
     for (let i = 0; i < n - 1; i += 1) {
@@ -190,12 +193,14 @@ function renderIndicatorChart(periods, indicator, submissionMonth) {
         fillSegments.push(`<path d="${d}" fill="${fillColor}" fill-opacity="${opacity}" stroke="none"/>`);
     }
 
-    const gridLines = periods.map((period, i) => {
-        const label = String(period);
-        const showLabel = label.endsWith('Q1') || (!label.includes('Q') && i % Math.max(1, Math.floor(n / 6)) === 0);
+    const periodList = Array.isArray(periods) && periods.length ? periods : Array.from({ length: n }, (_, i) => String(i));
+    const gridLines = periodList.map((period, i) => {
+        const periodLabel = String(period);
+        const showLabel = periodLabel.endsWith('Q1')
+            || (!periodLabel.includes('Q') && i % Math.max(1, Math.floor(n / 6)) === 0);
         return `
             <line x1="${x(i)}" y1="${pad.top}" x2="${x(i)}" y2="${height - pad.bottom}" stroke="#e4e6eb" stroke-width="1"/>
-            ${showLabel ? `<text x="${x(i)}" y="${height - 6}" font-size="7" text-anchor="middle" fill="${GREY}">${label.slice(2, 4)}</text>` : ''}
+            ${showLabel ? `<text x="${x(i)}" y="${height - 6}" font-size="7" text-anchor="middle" fill="${GREY}">${escapeHtml(periodLabel.slice(2, 4) || periodLabel)}</text>` : ''}
         `;
     }).join('');
 
@@ -203,19 +208,37 @@ function renderIndicatorChart(periods, indicator, submissionMonth) {
         <text x="${pad.left - 4}" y="${y(value) + 3}" font-size="8" text-anchor="end" fill="${GREY}">${value.toFixed(1)}</text>
     `).join('');
 
-    const holder = document.createElement('div');
-    holder.className = 'pli-chart-card';
-    holder.innerHTML = `
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(indicator.label)} baseline vs post-action" style="width:100%; height:auto; display:block;">
-            <text x="${pad.left}" y="14" font-size="9" font-weight="700" fill="${verdictColor}">${escapeHtml(indicator.label)}</text>
-            <text x="${width - pad.right}" y="14" font-size="9" font-weight="700" text-anchor="end" fill="${verdictColor}">[${indicator.verdict}]</text>
+    return `
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)} baseline vs post-action" style="width:100%; height:auto; display:block;">
+            <text x="${pad.left}" y="14" font-size="9" font-weight="700" fill="${verdictColor}">${escapeHtml(label)}</text>
+            <text x="${width - pad.right}" y="14" font-size="9" font-weight="700" text-anchor="end" fill="${verdictColor}">[${escapeHtml(String(verdict))}]</text>
             ${gridLines}
             ${yTicks}
             ${fillSegments.join('')}
-            <path d="${pathOf(base)}" fill="none" stroke="${NAVY}" stroke-width="1.9"/>
-            <path d="${pathOf(post)}" fill="none" stroke="${GOLD}" stroke-width="1.9" stroke-dasharray="5,3"/>
+            <path d="${pathOf(base.slice(0, n))}" fill="none" stroke="${NAVY}" stroke-width="1.9"/>
+            <path d="${pathOf(post.slice(0, n))}" fill="none" stroke="${GOLD}" stroke-width="1.9" stroke-dasharray="5,3"/>
         </svg>
     `;
+}
+
+export function renderTrendCharts(trend, submissionMonth) {
+    const grid = document.createElement('div');
+    grid.className = 'pli-trend-grid';
+    if (!trend?.indicators) {
+        grid.innerHTML = '<p class="text-sm text-gray-500">No trend series for this action.</p>';
+        return grid;
+    }
+    const periods = trend.quarters || trend.years || [];
+    Object.values(trend.indicators).forEach((indicator) => {
+        grid.appendChild(renderIndicatorChart(periods, indicator, submissionMonth));
+    });
+    return grid;
+}
+
+function renderIndicatorChart(periods, indicator, _submissionMonth) {
+    const holder = document.createElement('div');
+    holder.className = 'pli-chart-card';
+    holder.innerHTML = indicatorChartSvgHtml(periods, indicator);
     return holder;
 }
 

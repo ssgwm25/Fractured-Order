@@ -8,7 +8,8 @@ import {
     escapeHtml,
     getSeatReview,
     seatIsFinalized,
-    getActionTitle
+    getActionTitle,
+    indicatorChartSvgHtml
 } from './pliShared.js';
 
 export const PLI_REPORT_SCOPES = Object.freeze({
@@ -101,6 +102,111 @@ function macroHasScoredVector(macro) {
     if (macro.status === 'skipped_ne' || macro.status === 'skipped') return false;
     if (macro.trend?.no_effect || macro.noEffect) return false;
     return true;
+}
+
+function indicatorHasSeries(indicator) {
+    return Array.isArray(indicator?.baseline) && indicator.baseline.length > 0;
+}
+
+function padSeries(values, n, fill = 0) {
+    const out = (values || []).map(Number).slice(0, n);
+    while (out.length < n) out.push(fill);
+    return out;
+}
+
+function rollupVerdict(baseline, post, favorableDirection) {
+    const favDir = Number(favorableDirection ?? 1) || 1;
+    let net = 0;
+    for (let i = 0; i < baseline.length; i += 1) {
+        net += ((post[i] ?? 0) - (baseline[i] ?? 0)) * favDir;
+    }
+    if (Math.abs(net) < 1e-9) return 'neutral';
+    return net > 0 ? 'favorable' : 'unfavorable';
+}
+
+/**
+ * Uncapped FO 2.0 stack of finalized Macro deltas in the report scope.
+ * One cumulative trend for Move/Sim charts (not per-action).
+ * @param {Object[]} reportRows collected via collectFinalizedPliReportRows
+ * @returns {Object|null} synthetic trend or null when no series available
+ */
+export function buildCumulativeMacroTrend(reportRows = []) {
+    const scored = (reportRows || []).filter(
+        (row) => row?.finalized?.macro && macroHasScoredVector(row.tracks?.macro)
+    );
+    if (!scored.length) return null;
+
+    let quarters = null;
+    const indicatorMeta = new Map();
+
+    for (const row of scored) {
+        const trend = row.tracks.macro.trend || {};
+        if (!quarters) {
+            const q = trend.quarters || trend.years || [];
+            if (Array.isArray(q) && q.length) quarters = [...q];
+        }
+        for (const [key, ind] of Object.entries(trend.indicators || {})) {
+            if (!indicatorHasSeries(ind)) continue;
+            if (!indicatorMeta.has(key)) {
+                indicatorMeta.set(key, {
+                    label: ind.label || key,
+                    favorable_direction: Number(ind.favorable_direction ?? 1) || 1,
+                    baseline: ind.baseline.map(Number)
+                });
+            }
+        }
+    }
+
+    if (!indicatorMeta.size) return null;
+
+    if (!quarters || !quarters.length) {
+        const firstBaseline = indicatorMeta.values().next().value.baseline;
+        quarters = firstBaseline.map((_, i) => `Q${i + 1}`);
+    }
+    const n = quarters.length;
+
+    const indicators = {};
+    for (const [key, meta] of indicatorMeta.entries()) {
+        const baseline = padSeries(meta.baseline, n, meta.baseline[meta.baseline.length - 1] ?? 0);
+        const stacked = Array(n).fill(0);
+        for (const row of scored) {
+            const ind = row.tracks.macro.trend?.indicators?.[key];
+            if (!ind) continue;
+            let deltas = ind.deltas;
+            if (!Array.isArray(deltas) || !deltas.length) {
+                if (Array.isArray(ind.post_action) && Array.isArray(ind.baseline)) {
+                    const base = padSeries(ind.baseline, n);
+                    const post = padSeries(ind.post_action, n);
+                    deltas = base.map((b, i) => (post[i] ?? 0) - b);
+                } else {
+                    continue;
+                }
+            }
+            const series = padSeries(deltas, n, 0);
+            for (let i = 0; i < n; i += 1) stacked[i] += series[i];
+        }
+        const post_action = baseline.map((b, i) => Math.round((b + stacked[i]) * 100) / 100);
+        const deltasRounded = stacked.map((v) => Math.round(v * 100) / 100);
+        indicators[key] = {
+            label: meta.label,
+            favorable_direction: meta.favorable_direction,
+            baseline,
+            deltas: deltasRounded,
+            post_action,
+            verdict: rollupVerdict(baseline, post_action, meta.favorable_direction)
+        };
+    }
+
+    if (!Object.keys(indicators).length) return null;
+
+    return {
+        quarters,
+        years: quarters,
+        stacked: true,
+        stacking_policy: 'uncapped',
+        action_count: scored.length,
+        indicators
+    };
 }
 
 /**
@@ -424,6 +530,28 @@ export function buildPliReportFactPack(selection, scopedRows = [], sessionMeta =
     return pack;
 }
 
+function renderCumulativeMacroChartsHtml(trend) {
+    if (!trend?.indicators || !Object.keys(trend.indicators).length) return '';
+    const periods = trend.quarters || trend.years || [];
+    const cards = Object.entries(trend.indicators).map(([key, ind]) => `
+        <div class="pli-report-chart-card" data-indicator="${escapeHtml(String(key))}">
+            ${indicatorChartSvgHtml(periods, ind, { width: 320, height: 180 })}
+        </div>
+    `).join('');
+    const countNote = trend.action_count
+        ? ` Stacked uncapped across ${trend.action_count} finalized Economic action${trend.action_count === 1 ? '' : 's'} in this report scope.`
+        : '';
+    return `
+        <section class="pli-report-cumulative-macro">
+            <h2>Cumulative macroeconomic trends</h2>
+            <p class="pli-report-note">One chart per indicator (baseline vs cumulative post-action).${countNote} Per-action Macro sections below list lever / fit / verdicts only.</p>
+            <div class="pli-report-chart-grid">
+                ${cards}
+            </div>
+        </section>
+    `;
+}
+
 function renderMacroHtml(macro) {
     if (!macro) {
         return '<p class="pli-report-empty">No macroeconomic vector on this finalized seat.</p>';
@@ -631,6 +759,13 @@ export function buildPliReportHtml({
         grouped.get(key).push(row);
     }
 
+    const isRollupScope = selection.scope === PLI_REPORT_SCOPES.MOVE
+        || selection.scope === PLI_REPORT_SCOPES.SIMULATION;
+    const cumulativeTrend = isRollupScope ? buildCumulativeMacroTrend(rows) : null;
+    const cumulativeBlock = cumulativeTrend
+        ? renderCumulativeMacroChartsHtml(cumulativeTrend)
+        : '';
+
     const bodyParts = [];
     for (const [moveKey, moveRows] of grouped) {
         if (selection.scope !== PLI_REPORT_SCOPES.ACTION) {
@@ -715,6 +850,25 @@ export function buildPliReportHtml({
   .pli-report-note, .pli-report-empty { color: #5a5f6e; font-size: 10pt; }
   .pli-report-subhead { margin: 14px 0 6px; font-size: 11pt; color: #1f3b6e; }
   .pli-report-narrative-inline { margin: 0 0 8px; font-size: 10pt; line-height: 1.45; }
+  .pli-report-cumulative-macro {
+    margin: 8px 0 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #115740;
+  }
+  .pli-report-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .pli-report-chart-card {
+    border: 1px solid #d7dce5;
+    border-radius: 4px;
+    padding: 8px;
+    background: #fff;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
   .pli-report-narrative {
     margin-top: 32px;
     padding-top: 16px;
@@ -739,6 +893,7 @@ export function buildPliReportHtml({
     </p>
     <p class="pli-report-note">SME-finalized PLI outputs only (approved or overridden seats).</p>
   </header>
+  ${cumulativeBlock}
   ${rows.length ? bodyParts.join('') : '<p class="pli-report-empty">No SME-finalized PLI outputs in this selection.</p>'}
   ${narrativeBlock}
 </body>

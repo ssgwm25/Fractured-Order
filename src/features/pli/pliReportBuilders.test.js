@@ -7,6 +7,7 @@ import {
     filterReportRowsForScope,
     buildPliReportFactPack,
     buildPliReportHtml,
+    buildCumulativeMacroTrend,
     canGeneratePliReport
 } from './pliReportBuilders.js';
 
@@ -29,6 +30,43 @@ function makeRow({
             action: { goal, team, move, instrument_of_power: 'Economic' },
             move,
             tracks
+        }
+    };
+}
+
+function makeMacroWithSeries({
+    gdpDeltas = [0.1, 0.2, 0.1, 0],
+    pceDeltas = [0.05, 0.05, 0, 0],
+    lever = 'sanctions'
+} = {}) {
+    const quarters = ['2026Q1', '2026Q2', '2026Q3', '2026Q4'];
+    const gdpBase = [2.0, 2.1, 2.2, 2.3];
+    const pceBase = [2.4, 2.3, 2.2, 2.1];
+    return {
+        classification: { lever, instrument: 'targeted', direction: 'restrictive' },
+        implementation: { score: 7 },
+        fit: { score: 6, band: 'aligned', orientation: 'competing' },
+        trend: {
+            quarters,
+            years: quarters,
+            indicators: {
+                real_gdp_growth: {
+                    label: 'GDP growth',
+                    verdict: 'favorable',
+                    favorable_direction: 1,
+                    baseline: gdpBase,
+                    deltas: gdpDeltas,
+                    post_action: gdpBase.map((b, i) => b + gdpDeltas[i])
+                },
+                pce_inflation: {
+                    label: 'PCE Inflation',
+                    verdict: 'unfavorable',
+                    favorable_direction: -1,
+                    baseline: pceBase,
+                    deltas: pceDeltas,
+                    post_action: pceBase.map((b, i) => b + pceDeltas[i])
+                }
+            }
         }
     };
 }
@@ -215,6 +253,69 @@ describe('pliReportBuilders', () => {
         expect(html).toContain('Narrative summary');
         expect(html).toContain('White Cell talking points');
         expect(html).toContain('assertive');
+        // Verdict-only macro fixtures have no series → no cumulative chart block
+        expect(html).not.toContain('Cumulative macroeconomic trends');
+    });
+
+    it('stacks uncapped macro deltas for Move/Sim cumulative charts', () => {
+        const reportRows = collectFinalizedPliReportRows([
+            makeRow({
+                actionId: 'a1',
+                goal: 'First package',
+                seatReviews: { macro: { status: 'approved' } },
+                tracks: { macro: makeMacroWithSeries({ gdpDeltas: [0.1, 0.2, 0, 0], pceDeltas: [0.1, 0, 0, 0] }) }
+            }),
+            makeRow({
+                id: 'adj-2',
+                actionId: 'a2',
+                goal: 'Second package',
+                seatReviews: { macro: { status: 'approved' } },
+                tracks: { macro: makeMacroWithSeries({ gdpDeltas: [0.3, 0.1, 0.1, 0], pceDeltas: [0.05, 0.05, 0, 0] }) }
+            })
+        ]);
+
+        const stacked = buildCumulativeMacroTrend(reportRows);
+        expect(stacked).toBeTruthy();
+        expect(stacked.stacking_policy).toBe('uncapped');
+        expect(stacked.action_count).toBe(2);
+        expect(stacked.indicators.real_gdp_growth.deltas).toEqual([0.4, 0.3, 0.1, 0]);
+        expect(stacked.indicators.pce_inflation.deltas).toEqual([0.15, 0.05, 0, 0]);
+        expect(stacked.indicators.real_gdp_growth.post_action[0]).toBeCloseTo(2.4);
+        expect(stacked.indicators.pce_inflation.label).toBe('PCE Inflation');
+
+        const moveHtml = buildPliReportHtml({
+            selection: { scope: PLI_REPORT_SCOPES.MOVE, move: 1 },
+            rows: reportRows,
+            narrative: 'Move rollup.',
+            sessionMeta: { sessionName: 'Alpha' }
+        });
+        expect(moveHtml).toContain('Cumulative macroeconomic trends');
+        expect(moveHtml).toContain('PCE Inflation');
+        expect(moveHtml).toContain('GDP growth');
+        expect(moveHtml).toContain('<svg');
+        expect(moveHtml).toContain('data-indicator="pce_inflation"');
+        expect(moveHtml).toContain('data-indicator="real_gdp_growth"');
+        // One cumulative section, not a chart card per action
+        expect(moveHtml.match(/<section class="pli-report-cumulative-macro">/g)).toHaveLength(1);
+        expect(moveHtml.match(/data-indicator="pce_inflation"/g)).toHaveLength(1);
+
+        const simHtml = buildPliReportHtml({
+            selection: { scope: PLI_REPORT_SCOPES.SIMULATION },
+            rows: reportRows,
+            narrative: 'Sim rollup.',
+            sessionMeta: { sessionName: 'Alpha' }
+        });
+        expect(simHtml).toContain('Cumulative macroeconomic trends');
+        expect(simHtml.match(/data-indicator="pce_inflation"/g)).toHaveLength(1);
+
+        const actionHtml = buildPliReportHtml({
+            selection: { scope: PLI_REPORT_SCOPES.ACTION, actionId: 'a1' },
+            rows: filterReportRowsForScope(reportRows, { scope: PLI_REPORT_SCOPES.ACTION, actionId: 'a1' }),
+            narrative: 'Single action.',
+            sessionMeta: { sessionName: 'Alpha' }
+        });
+        expect(actionHtml).not.toContain('Cumulative macroeconomic trends');
+        expect(actionHtml).toContain('Macroeconomic indicators');
     });
 
     it('omits Macro section for green Dip/Info filings with skipped/no-effect macro', () => {
