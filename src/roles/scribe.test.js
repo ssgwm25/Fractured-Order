@@ -2295,6 +2295,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             expect(html).toContain('../../styles/components/modals.css');
             expect(html).toContain('../../styles/components/forms.css');
             expect(html).toContain('../../styles/layouts/grid.css');
+            expect(html).toContain('id="pageRefreshBtn"');
+            expect(html).toContain('data-page-refresh');
             expect(html).toContain('id="logoutBtn"');
         }
     });

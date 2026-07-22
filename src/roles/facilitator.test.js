@@ -291,18 +291,23 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(blueHtml).toContain('id="strategicOrientationBtn"');
         expect(blueHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
         expect(blueHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
+        expect(blueHtml).toContain('id="pageRefreshBtn"');
+        expect(blueHtml).toContain('data-page-refresh');
         expect(blueHtml).toContain('Strategic Orientation');
         expect(greenHtml).toContain('id="strategicOrientationBtn"');
         expect(greenHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
         expect(greenHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
+        expect(greenHtml).toContain('id="pageRefreshBtn"');
         expect(greenHtml).toContain('Forecast Blue');
         expect(redHtml).toContain('id="strategicOrientationBtn"');
         expect(redHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
         expect(redHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
+        expect(redHtml).toContain('id="pageRefreshBtn"');
         expect(redHtml).toContain('Forecast Teams');
         expect(industryHtml).toContain('id="strategicOrientationBtn"');
         expect(industryHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
         expect(industryHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
+        expect(industryHtml).toContain('id="pageRefreshBtn"');
         expect(industryHtml).toContain('Forecast Teams');
     });
 
@@ -946,6 +951,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const html = readFileSync(GREEN_FACILITATOR_HTML_PATH, 'utf8');
 
         expect(html).toContain('id="newActionBtn"');
+        expect(html).toContain('id="pageRefreshBtn"');
         expect(html).toContain('New Proposal');
         expect(html).toContain('No Proposals Yet');
         expect(html).toContain('Create your first proposal to start the White Cell review flow.');
@@ -960,6 +966,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         expect(html).toContain('body data-team="industry"');
         expect(html).toContain('id="newActionBtn"');
+        expect(html).toContain('id="pageRefreshBtn"');
         expect(html).toContain('New Proposal');
         expect(html).toContain('No Proposals Yet');
         expect(html).toContain('Create your first proposal to start the White Cell review flow.');
@@ -973,6 +980,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const html = readFileSync(RED_FACILITATOR_HTML_PATH, 'utf8');
 
         expect(html).toContain('id="newActionBtn"');
+        expect(html).toContain('id="pageRefreshBtn"');
         expect(html).toContain('Actions');
         expect(html).toContain('Take Action');
         expect(html).toContain('No Actions Yet');
