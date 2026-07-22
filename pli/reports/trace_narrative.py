@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from reports.ni_titles import national_interest_section_title
+
 
 def _lines(title: str, body: list[str]) -> str:
     parts = [f"## {title}", ""]
@@ -56,12 +58,13 @@ def macro_narrative(macro: dict[str, Any] | None) -> str:
     return _lines("Macroeconomic adjudication", lines)
 
 
-def ni_narrative(ni: dict[str, Any] | None) -> str:
+def ni_narrative(ni: dict[str, Any] | None, *, team: Any = None) -> str:
+    title = national_interest_section_title(team)
     if not ni:
-        return _lines("National Interest", ["No NI track record."])
+        return _lines(title, ["No NI track record."])
     if ni.get("status") == "needs_human":
         return _lines(
-            "National Interest",
+            title,
             [f"Needs human adjudication: {ni.get('needs_human_reason')}"],
         )
     lines = [f"Orientation context: **{ni.get('orientation')}**", ""]
@@ -90,7 +93,7 @@ def ni_narrative(ni: dict[str, Any] | None) -> str:
             "(alliance credibility risk)."
         )
     lines.extend(["", "Engine trace:"] + [f"- {t}" for t in ni.get("trace") or []])
-    return _lines("National Interest", lines)
+    return _lines(title, lines)
 
 
 def glasl_narrative(glasl: dict[str, Any] | None) -> str:
@@ -204,24 +207,37 @@ def record_to_markdown(record: dict[str, Any]) -> str:
         "",
         ]
     )
-    body = [
-        macro_narrative(tracks.get("macro")),
-        ni_narrative(tracks.get("national_interest")),
-        glasl_narrative(tracks.get("glasl")),
-        diplomacy_narrative(tracks.get("diplomacy")),
-        information_narrative(tracks.get("information")),
-        _lines(
-            "PLI multi-track footnote",
-            [
-                "PLI now runs parallel tracks after White Cell completeness: macroeconomic "
-                "adjudication (Economic Instrument of Power only), Diplomacy indexing "
-                "(Diplomatic), an unscored Information brief (Informational), and always-on "
-                "National Interest (six-domain National War College tier deltas) plus Glasl escalation "
-                "staging. Charts reuse the canonical `pli_charts.py` / FO report generators. "
-                "Sources: `PLI_Annotated_Bibliography.md`."
-            ],
-        ),
-    ]
+    body = []
+    # Omit Macro when routing did not schedule it (Green proposals, Dip/Info, etc.).
+    # skipped_ne stubs are never narrated as a Macro section.
+    macro = tracks.get("macro")
+    if (routing.get("tracks") or {}).get("macro") and macro and macro.get("status") not in (
+        "skipped_ne",
+        "skipped",
+    ):
+        body.append(macro_narrative(macro))
+
+    team = action.get("team")
+    body.extend(
+        [
+            ni_narrative(tracks.get("national_interest"), team=team),
+            glasl_narrative(tracks.get("glasl")),
+            diplomacy_narrative(tracks.get("diplomacy")),
+            information_narrative(tracks.get("information")),
+            _lines(
+                "PLI multi-track footnote",
+                [
+                    "PLI now runs parallel tracks after White Cell completeness: macroeconomic "
+                    "adjudication (Economic Instrument of Power only), Diplomacy indexing "
+                    "(Diplomatic), an unscored Information brief (Informational), and always-on "
+                    "National Interest (six-domain National War College tier deltas; U.S./Blue-centric "
+                    "for every team) plus Glasl escalation "
+                    "staging. Charts reuse the canonical `pli_charts.py` / FO report generators. "
+                    "Sources: `PLI_Annotated_Bibliography.md`."
+                ],
+            ),
+        ]
+    )
     return "\n".join(header + body)
 
 

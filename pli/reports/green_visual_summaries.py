@@ -164,7 +164,7 @@ def plot_ni_summary(records: list[dict[str, Any]], out_path: Path) -> dict[str, 
 
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.4), facecolor="white")
     fig.suptitle(
-        "National Interest — domain tier deltas (National War College)",
+        "National Interest (impact on Blue) — domain tier deltas (National War College)",
         fontsize=13,
         fontweight="bold",
         color=WM_GREEN,

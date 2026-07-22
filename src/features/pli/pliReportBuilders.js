@@ -36,6 +36,13 @@ function formatList(value) {
     return String(value);
 }
 
+/** NI is always U.S./Blue-centric; label that for non-Blue acting teams. */
+export function nationalInterestSectionTitle(team) {
+    return String(team || '').trim().toLowerCase() === 'blue'
+        ? 'National Interest'
+        : 'National Interest (impact on Blue)';
+}
+
 function resolveActionMeta(row, actionsById = new Map()) {
     const action = actionsById.get(row.action_id) || null;
     const record = row.record || {};
@@ -86,6 +93,17 @@ function resolveTracks(row) {
 }
 
 /**
+ * True when Macro produced a real lever vector (not NE-skipped / no-effect).
+ * @param {Object|null|undefined} macro
+ */
+function macroHasScoredVector(macro) {
+    if (!macro) return false;
+    if (macro.status === 'skipped_ne' || macro.status === 'skipped') return false;
+    if (macro.trend?.no_effect || macro.noEffect) return false;
+    return true;
+}
+
+/**
  * Shape adjudication rows into report entries with only finalized seat tracks.
  * @param {Object[]} rows
  * @param {Map<string, Object>} [actionsById]
@@ -111,7 +129,9 @@ export function collectFinalizedPliReportRows(rows = [], actionsById = new Map()
             const meta = resolveActionMeta(row, actionsById);
             const tracks = resolveTracks(row);
             const included = {};
-            if (finalized.macro) included.macro = tracks.macro || null;
+            if (finalized.macro && macroHasScoredVector(tracks.macro)) {
+                included.macro = tracks.macro || null;
+            }
             if (finalized.diplomacy_information) {
                 included.diplomacy = tracks.diplomacy || null;
                 included.information = tracks.information || null;
@@ -132,7 +152,11 @@ export function collectFinalizedPliReportRows(rows = [], actionsById = new Map()
                 goal: meta.goal,
                 codebookVersion: row.codebook_version || row.record?.codebook_version || '',
                 seats,
-                finalized,
+                finalized: {
+                    ...finalized,
+                    // Treat NE-skipped / no-effect as not showing a Macro section in reports
+                    macro: Boolean(finalized.macro && macroHasScoredVector(tracks.macro))
+                },
                 tracks: included
             };
         })
@@ -217,7 +241,35 @@ function compactMacro(macro) {
     };
 }
 
-function compactDiplomacy(diplomacy) {
+function buildDiplomacyNarrativeSummary(diplomacy, meta = {}) {
+    if (!diplomacy) return '';
+    if (diplomacy.status === 'needs_human' && !diplomacy.band && !diplomacy.code_string && !diplomacy.code) {
+        const reason = diplomacy.needs_human_reason || 'Needs human indexing.';
+        return `White Cell talking points — ${meta.actionId || 'this action'}: Diplomacy lane is awaiting SME indexing (${reason}).`;
+    }
+    const aid = meta.actionId || 'this action';
+    const title = meta.title || meta.goal || aid;
+    const team = meta.team || 'n/a';
+    const band = diplomacy.band || 'n/a';
+    const category = diplomacy.category || diplomacy.fields?.paradigm || 'n/a';
+    const style = diplomacy.policy_style || diplomacy.policyStyle || 'n/a';
+    const code = diplomacy.code_string || diplomacy.code || 'n/a';
+    const rationale = String(diplomacy.rationale || '').trim();
+    const rationaleBit = rationale
+        ? ` SME rationale: ${rationale}`
+        : ' SME rationale was not recorded on the worksheet.';
+    return (
+        `White Cell talking points — ${aid}: ${title} (${team}). `
+        + `Indexed in the ${band} band under ${category} with a ${style} policy style `
+        + `(code \`${code}\`).${rationaleBit} `
+        + 'Brief players that the Diplomacy Index is a categorical code path — band and '
+        + 'style shifts are the story — not a numeric effectiveness score. Use the band '
+        + 'to situate how hard or soft this filing sits relative to Pressure vs '
+        + 'Relationship-Building neighbors in the move.'
+    );
+}
+
+function compactDiplomacy(diplomacy, meta = {}) {
     if (!diplomacy) return null;
     return {
         status: diplomacy.status || null,
@@ -225,7 +277,8 @@ function compactDiplomacy(diplomacy) {
         band: diplomacy.band || null,
         category: diplomacy.category || diplomacy.fields?.paradigm || null,
         policyStyle: diplomacy.policy_style || null,
-        rationale: diplomacy.rationale || null
+        rationale: diplomacy.rationale || null,
+        narrativeSummary: buildDiplomacyNarrativeSummary(diplomacy, meta) || null
     };
 }
 
@@ -290,7 +343,14 @@ export function buildPliReportFactPack(selection, scopedRows = [], sessionMeta =
         mechanism: row.mechanism,
         goal: row.goal,
         macro: row.finalized.macro ? compactMacro(row.tracks.macro) : undefined,
-        diplomacy: row.finalized.diplomacy_information ? compactDiplomacy(row.tracks.diplomacy) : undefined,
+        diplomacy: row.finalized.diplomacy_information
+            ? compactDiplomacy(row.tracks.diplomacy, {
+                actionId: row.actionId,
+                title: row.title,
+                goal: row.goal,
+                team: row.team
+            })
+            : undefined,
         information: row.finalized.diplomacy_information ? compactInformation(row.tracks.information) : undefined,
         nationalInterest: row.finalized.national_interest_escalation
             ? compactNi(row.tracks.national_interest)
@@ -316,9 +376,15 @@ export function buildPliReportFactPack(selection, scopedRows = [], sessionMeta =
             ...action,
             goal: action.goal ? String(action.goal).slice(0, 120) : action.goal,
             diplomacy: action.diplomacy
-                ? { ...action.diplomacy, rationale: action.diplomacy.rationale
-                    ? String(action.diplomacy.rationale).slice(0, 160)
-                    : null }
+                ? {
+                    ...action.diplomacy,
+                    rationale: action.diplomacy.rationale
+                        ? String(action.diplomacy.rationale).slice(0, 160)
+                        : null,
+                    narrativeSummary: action.diplomacy.narrativeSummary
+                        ? String(action.diplomacy.narrativeSummary).slice(0, 400)
+                        : null
+                }
                 : action.diplomacy,
             information: action.information
                 ? {
@@ -362,9 +428,8 @@ function renderMacroHtml(macro) {
     if (!macro) {
         return '<p class="pli-report-empty">No macroeconomic vector on this finalized seat.</p>';
     }
-    if (macro.status === 'skipped_ne' || macro.trend?.no_effect) {
-        const reason = macro.trend?.reason || macro.trend?.no_effect_reason || 'non-economic / no lever vector';
-        return `<p>No macroeconomic vector applied (${escapeHtml(String(reason))}).</p>`;
+    if (!macroHasScoredVector(macro)) {
+        return '';
     }
     const classification = macro.classification || {};
     const implementation = macro.implementation || {};
@@ -393,22 +458,27 @@ function renderMacroHtml(macro) {
     `;
 }
 
-function renderDiplomacyHtml(diplomacy) {
+function renderDiplomacyHtml(diplomacy, meta = {}) {
     if (!diplomacy) {
         return '<p class="pli-report-empty">No diplomacy index on this finalized seat.</p>';
     }
-    if (diplomacy.status === 'needs_human') {
+    if (diplomacy.status === 'needs_human' && !diplomacy.band && !diplomacy.code_string && !diplomacy.code) {
         return `<p>${escapeHtml(diplomacy.needs_human_reason || 'Needs human indexing.')}</p>`;
     }
     const code = diplomacy.code_string || diplomacy.code || '—';
+    const summary = diplomacy.narrativeSummary || buildDiplomacyNarrativeSummary(diplomacy, meta);
     return `
         <dl class="pli-report-dl">
-            <div><dt>Code</dt><dd><code>${escapeHtml(String(code))}</code></dd></div>
+            <div><dt>Code</dt><dd><code class="pli-report-code">${escapeHtml(String(code))}</code></dd></div>
             <div><dt>Band / category</dt><dd>${escapeHtml(String(diplomacy.band || '—'))} · ${escapeHtml(String(diplomacy.category || diplomacy.fields?.paradigm || '—'))}</dd></div>
-            <div><dt>Policy style</dt><dd>${escapeHtml(String(diplomacy.policy_style || '—'))}</dd></div>
+            <div><dt>Policy style</dt><dd>${escapeHtml(String(diplomacy.policy_style || diplomacy.policyStyle || '—'))}</dd></div>
             ${diplomacy.rationale ? `<div><dt>Rationale</dt><dd>${escapeHtml(String(diplomacy.rationale))}</dd></div>` : ''}
         </dl>
         <p class="pli-report-note">Diplomacy index code (not a numeric score).</p>
+        ${summary ? `
+            <h4 class="pli-report-subhead">Narrative summary</h4>
+            <p class="pli-report-narrative-inline">${escapeHtml(summary)}</p>
+        ` : ''}
     `;
 }
 
@@ -489,19 +559,27 @@ function renderGlaslHtml(glasl) {
 
 function renderActionSectionsHtml(row) {
     const sections = [];
-    if (row.finalized.macro) {
-        sections.push(`
+    if (row.finalized.macro && macroHasScoredVector(row.tracks.macro)) {
+        const macroHtml = renderMacroHtml(row.tracks.macro);
+        if (macroHtml) {
+            sections.push(`
             <section class="pli-report-section">
                 <h3>Macroeconomic indicators</h3>
-                ${renderMacroHtml(row.tracks.macro)}
+                ${macroHtml}
             </section>
         `);
+        }
     }
     if (row.finalized.diplomacy_information) {
         sections.push(`
             <section class="pli-report-section">
                 <h3>Diplomacy</h3>
-                ${renderDiplomacyHtml(row.tracks.diplomacy)}
+                ${renderDiplomacyHtml(row.tracks.diplomacy, {
+                    actionId: row.actionId,
+                    title: row.title,
+                    goal: row.goal,
+                    team: row.team
+                })}
             </section>
             <section class="pli-report-section">
                 <h3>Information</h3>
@@ -512,7 +590,7 @@ function renderActionSectionsHtml(row) {
     if (row.finalized.national_interest_escalation) {
         sections.push(`
             <section class="pli-report-section">
-                <h3>National Interest</h3>
+                <h3>${escapeHtml(nationalInterestSectionTitle(row.team))}</h3>
                 ${renderNiHtml(row.tracks.national_interest)}
             </section>
             <section class="pli-report-section">
@@ -622,11 +700,21 @@ export function buildPliReportHtml({
   .pli-report-dl { display: grid; gap: 6px; margin: 0; }
   .pli-report-dl > div { display: grid; grid-template-columns: 160px 1fr; gap: 8px; }
   .pli-report-dl dt { font-weight: 600; color: #5a5f6e; }
-  .pli-report-dl dd { margin: 0; }
+  .pli-report-dl dd { margin: 0; overflow-wrap: anywhere; word-break: break-word; }
+  .pli-report-code {
+    display: inline-block;
+    max-width: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 0.92em;
+  }
   .pli-report-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10pt; }
   .pli-report-table th, .pli-report-table td { border: 1px solid #d7dce5; padding: 6px 8px; text-align: left; vertical-align: top; }
   .pli-report-table th { background: #f3f5f8; }
   .pli-report-note, .pli-report-empty { color: #5a5f6e; font-size: 10pt; }
+  .pli-report-subhead { margin: 14px 0 6px; font-size: 11pt; color: #1f3b6e; }
+  .pli-report-narrative-inline { margin: 0 0 8px; font-size: 10pt; line-height: 1.45; }
   .pli-report-narrative {
     margin-top: 32px;
     padding-top: 16px;

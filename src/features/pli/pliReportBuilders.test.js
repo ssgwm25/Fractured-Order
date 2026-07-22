@@ -189,6 +189,8 @@ describe('pliReportBuilders', () => {
         expect(factPack.actionCount).toBe(1);
         expect(factPack.actions[0].macro.lever).toBe('sanctions');
         expect(factPack.actions[0].diplomacy.code).toBe('D-2-COERCE');
+        expect(factPack.actions[0].diplomacy.narrativeSummary).toContain('White Cell talking points');
+        expect(factPack.actions[0].diplomacy.narrativeSummary).toContain('assertive');
         expect(factPack.actions[0].information.summary).toContain('enforcement');
         expect(factPack.actions[0].nationalInterest.domains['NI-1'].delta).toBe(1);
         expect(factPack.actions[0].escalation.stageAfter).toBe(3);
@@ -204,11 +206,52 @@ describe('pliReportBuilders', () => {
         expect(html).toContain('Diplomacy');
         expect(html).toContain('Information');
         expect(html).toContain('National Interest');
+        expect(html).not.toContain('National Interest (impact on Blue)');
         expect(html).toContain('Escalation (Glasl)');
         expect(html).toContain('Narrative summary');
         expect(html).toContain('Facilitator summary paragraph.');
         expect(html).toContain('GDP growth');
         expect(html).toContain('D-2-COERCE');
+        expect(html).toContain('Narrative summary');
+        expect(html).toContain('White Cell talking points');
+        expect(html).toContain('assertive');
+    });
+
+    it('omits Macro section for green Dip/Info filings with skipped/no-effect macro', () => {
+        const rows = [
+            makeRow({
+                team: 'green',
+                goal: 'EU consultations plus messaging',
+                seatReviews: {
+                    macro: { status: 'skipped' },
+                    diplomacy_information: { status: 'approved' },
+                    national_interest_escalation: { status: 'approved' }
+                },
+                tracks: {
+                    macro: { status: 'skipped_ne', trend: { no_effect: true, reason: 'non-economic' } },
+                    diplomacy: fullTracks.diplomacy,
+                    information: fullTracks.information,
+                    national_interest: fullTracks.national_interest,
+                    glasl: fullTracks.glasl
+                }
+            })
+        ];
+        const collected = collectFinalizedPliReportRows(rows);
+        expect(collected[0].finalized.macro).toBe(false);
+        expect(collected[0].tracks.macro).toBeUndefined();
+
+        const html = buildPliReportHtml({
+            selection: { scope: PLI_REPORT_SCOPES.ACTION, actionId: 'action-1' },
+            rows: collected,
+            narrative: 'Green dual-lane summary.',
+            sessionMeta: { sessionName: 'Green sample' }
+        });
+        expect(html).not.toContain('Macroeconomic indicators');
+        expect(html).not.toContain('No macroeconomic vector applied');
+        expect(html).toContain('Diplomacy');
+        expect(html).toContain('Information');
+        expect(html).toContain('National Interest (impact on Blue)');
+        expect(html).toContain('pli-report-code');
     });
 
     it('gates generate readiness on required dropdowns', () => {

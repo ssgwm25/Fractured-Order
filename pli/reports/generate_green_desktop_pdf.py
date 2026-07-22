@@ -27,7 +27,7 @@ def _track_flags(record: dict[str, Any]) -> str:
         bits.append("Diplomacy")
     if t.get("information"):
         bits.append("Information")
-    bits.append("National Interest")
+    bits.append("National Interest (impact on Blue)")
     bits.append("Escalation")
     return ", ".join(bits)
 
@@ -129,7 +129,7 @@ def _append_visual_summaries(pdf: PDF, records: list[dict[str, Any]]) -> None:
         pdf.set_text_color(40, 40, 40)
         _write_wrapped(
             pdf,
-            "Corpus-level visuals for Diplomacy, National Interest, Information, "
+            "Corpus-level visuals for Diplomacy, National Interest (impact on Blue), Information, "
             "Escalation (Glasl), and Economics. Economics charts reuse the canonical "
             "SME adjudication generator (pli_charts.py). Board caveat: this pilot has "
             "no Green-country macro baselines — econ charts show Green Economic lever "
@@ -151,7 +151,7 @@ def _append_visual_summaries(pdf: PDF, records: list[dict[str, Any]]) -> None:
         )
         _section_with_chart(
             pdf,
-            "2. National Interest (National War College domains)",
+            "2. National Interest (impact on Blue — National War College domains)",
             summaries["national_interest"]["path"],
             summaries["national_interest"]["narrative"],
             max_h=100,
@@ -269,7 +269,7 @@ def write_green_desktop_pdf(
     pdf.multi_cell(
         0,
         6,
-        S("Information  ·  Diplomacy  ·  National Interest  ·  Escalation  ·  Economics"),
+        S("Information  ·  Diplomacy  ·  National Interest (impact on Blue)  ·  Escalation  ·  Economics"),
         align="C",
     )
     pdf.ln(8)
@@ -284,7 +284,7 @@ def write_green_desktop_pdf(
         "Pipeline: PLI Master multi-track (adjudicate_router + track engines)",
         "Order lock: Move 1 seq 1-12, then Move 2 seq 1-10",
         "Tracks: Macro when Economic IOP; Diplomacy / Information by lane;",
-        "         National Interest + Glasl Escalation on every action",
+        "         National Interest (impact on Blue) + Glasl Escalation on every action",
         "",
         "SYNTHETIC OFFLINE PILOT — interpretive NI/Glasl/Info/Diplomacy and",
         "macro worksheets are corpus fixtures for full-pipeline demonstration;",
@@ -391,7 +391,13 @@ def write_green_desktop_pdf(
         ni = tracks.get("national_interest") or {}
         pdf.set_font("Helvetica", "B", 10)
         pdf.set_text_color(*NAVY)
-        pdf.cell(0, 6, S("National Interest (National War College domains)"), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0,
+            6,
+            S("National Interest (impact on Blue — National War College domains)"),
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
         if ni.get("status") == "needs_human":
             _write_wrapped(pdf, f"Needs human: {ni.get('needs_human_reason')}")
         else:
@@ -424,38 +430,38 @@ def write_green_desktop_pdf(
         )
         pdf.ln(2)
 
-        # Economics / Macro
+        # Economics / Macro — only when this filing actually scored a lever vector
         macro = tracks.get("macro") or {}
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.set_text_color(*NAVY)
-        pdf.cell(0, 6, S("Economics (Macro PLI)"), new_x="LMARGIN", new_y="NEXT")
-        if macro.get("status") == "skipped_ne" or (macro.get("trend") or {}).get("no_effect"):
-            reason = (macro.get("trend") or {}).get("reason") or "non-economic / no lever vector"
-            _write_wrapped(
-                pdf,
-                f"No macroeconomic vector applied ({reason}). "
-                "Indicators remain on sourced baseline. NI and Escalation still apply.",
-            )
-        elif macro.get("status") == "needs_human":
-            _write_wrapped(pdf, f"Needs human: {macro.get('needs_human_reason')}")
-        else:
-            clf = macro.get("classification") or {}
-            impl = macro.get("implementation") or {}
-            fit = macro.get("fit") or {}
-            trend = macro.get("trend") or {}
-            lines = [
-                f"Lever {clf.get('lever')} / instrument {clf.get('instrument')} "
-                f"({clf.get('direction')})",
-                f"Rule: {clf.get('rule_citation')}",
-                f"Implementation {impl.get('score')}/10 | Fit {fit.get('score')}/10 "
-                f"(band {fit.get('band')}, orientation {fit.get('orientation')})",
-                "Indicator verdicts:",
-            ]
-            for key, ind in (trend.get("indicators") or {}).items():
-                lines.append(
-                    f"  - {ind.get('label', key)}: {ind.get('verdict', 'n/a')}"
-                )
-            _write_wrapped(pdf, "\n".join(lines))
+        routing_macro = ((tracks.get("routing") or {}).get("tracks") or {}).get("macro")
+        macro_skipped = (
+            not routing_macro
+            or macro.get("status") in ("skipped_ne", "skipped")
+            or (macro.get("trend") or {}).get("no_effect")
+        )
+        if not macro_skipped:
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.set_text_color(*NAVY)
+            pdf.cell(0, 6, S("Economics (Macro PLI)"), new_x="LMARGIN", new_y="NEXT")
+            if macro.get("status") == "needs_human":
+                _write_wrapped(pdf, f"Needs human: {macro.get('needs_human_reason')}")
+            else:
+                clf = macro.get("classification") or {}
+                impl = macro.get("implementation") or {}
+                fit = macro.get("fit") or {}
+                trend = macro.get("trend") or {}
+                lines = [
+                    f"Lever {clf.get('lever')} / instrument {clf.get('instrument')} "
+                    f"({clf.get('direction')})",
+                    f"Rule: {clf.get('rule_citation')}",
+                    f"Implementation {impl.get('score')}/10 | Fit {fit.get('score')}/10 "
+                    f"(band {fit.get('band')}, orientation {fit.get('orientation')})",
+                    "Indicator verdicts:",
+                ]
+                for key, ind in (trend.get("indicators") or {}).items():
+                    lines.append(
+                        f"  - {ind.get('label', key)}: {ind.get('verdict', 'n/a')}"
+                    )
+                _write_wrapped(pdf, "\n".join(lines))
 
     # Rollup
     pdf.h1("Simulation rollup (chronological)")
