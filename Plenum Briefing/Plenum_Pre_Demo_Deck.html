@@ -1,0 +1,2690 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plenum Pre-Demo Briefing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --ink: #16191d;
+      --graphite-deep: #101317;
+      --graphite: #1c2026;
+      --slate: #41474f;
+      --paper: #fffefb;
+      --canvas: #f6f4ee;
+      --mist: #ece9e0;
+      --hair: #e2ddd0;
+      --hair-strong: #cec9ba;
+      --muted: #6e7178;
+      --accent: #1b365d;
+      --accent-bright: #d5b27a;
+      --accent-soft: rgba(27, 54, 93, .12);
+      --t-blue: #3a6597;
+      --t-red: #a8504c;
+      --t-green: #5a7d56;
+      --t-industry: #8f7440;
+      --surface-translucent: rgba(255, 255, 255, .72);
+      --surface-soft: rgba(255, 255, 255, .44);
+      --surface-dark-card: rgba(16, 19, 23, .78);
+      --hair-on-dark: rgba(255, 255, 255, .16);
+      --text-on-dark-muted: rgba(255, 255, 255, .74);
+      --accent-wash: rgba(167, 139, 74, .07);
+      --serif: 'Source Serif 4', ui-serif, Georgia, 'Times New Roman', serif;
+      --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: var(--sans);
+      color: var(--ink);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      background: radial-gradient(circle at 50% -10%, var(--paper), var(--canvas) 60%);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: .035;
+      mix-blend-mode: multiply;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(27, 54, 93, 0.10);
+      z-index: 60;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+      transition: width .45s ease;
+    }
+
+    /* corner brand lockup — the Plenum mark + wordmark */
+    .lockup {
+      position: fixed;
+      top: clamp(18px, 3vh, 30px);
+      left: clamp(26px, 6vw, 60px);
+      z-index: 55;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .lockup img {
+      height: clamp(22px, 3vh, 32px);
+      width: auto;
+      object-fit: contain;
+    }
+
+    .lockup .gold-logo {
+      height: clamp(50px, 7.2vh, 80px);
+    }
+
+    .lockup .aiddata-logo {
+      display: none;
+    }
+
+    .lockup .aiddata-dark {
+      display: block;
+    }
+
+    body.dark-chrome .lockup .aiddata-dark {
+      display: none;
+    }
+
+    body.dark-chrome .lockup .aiddata-white {
+      display: block;
+    }
+
+    .deck {
+      position: relative;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(72px, 11vh, 128px) clamp(28px, 8vw, 130px) clamp(66px, 9vh, 104px);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    .content {
+      width: 100%;
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    .slide.active .content>* {
+      animation: fadeUp .6s both cubic-bezier(.2, .7, .2, 1);
+    }
+
+    .slide.active .content>*:nth-child(1) {
+      animation-delay: .05s
+    }
+
+    .slide.active .content>*:nth-child(2) {
+      animation-delay: .15s
+    }
+
+    .slide.active .content>*:nth-child(3) {
+      animation-delay: .25s
+    }
+
+    .slide.active .content>*:nth-child(4) {
+      animation-delay: .35s
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    .eyebrow {
+      font-size: clamp(.75rem, 1.1vw, .88rem);
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: clamp(18px, 2.8vh, 30px);
+      display: flex;
+      align-items: center;
+    }
+
+    .eyebrow::before {
+      content: "";
+      display: inline-block;
+      width: 24px;
+      height: 1px;
+      background: var(--accent);
+      margin-right: 14px;
+    }
+
+    h1 {
+      font-family: var(--serif);
+      font-size: clamp(3rem, 6.2vw, 5rem);
+      line-height: 1.04;
+      letter-spacing: -0.035em;
+      font-weight: 500;
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    h1 .pl-dot {
+      color: var(--accent);
+    }
+
+    h2 {
+      font-family: var(--serif);
+      font-size: clamp(2.1rem, 3.8vw, 2.85rem);
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      font-weight: 500;
+      margin-bottom: clamp(22px, 3.4vh, 40px);
+      max-width: 20ch;
+    }
+
+    h2 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    .lede {
+      font-size: clamp(1.25rem, 1.9vw, 1.65rem);
+      line-height: 1.55;
+      color: var(--slate);
+      max-width: 46ch;
+      margin-top: clamp(18px, 2.8vh, 30px);
+      font-weight: 400;
+      font-family: var(--serif);
+      font-style: italic;
+    }
+
+    .body {
+      font-size: clamp(1.2rem, 1.65vw, 1.45rem);
+      line-height: 1.7;
+      max-width: 50ch;
+      color: #3a372f;
+    }
+
+    .pull {
+      font-family: var(--serif);
+      font-size: clamp(1.6rem, 2.7vw, 2.25rem);
+      line-height: 1.28;
+      color: var(--accent);
+      font-weight: 500;
+      font-style: italic;
+      border-left: 2px solid var(--accent);
+      padding-left: clamp(18px, 2vw, 26px);
+      margin-top: clamp(28px, 4vh, 48px);
+      max-width: 34ch;
+    }
+
+    /* dark slides */
+    .slide.invert {
+      color: #f3f2ee;
+      background: radial-gradient(125% 120% at 22% -10%, #232830 0%, var(--graphite-deep) 58%, #090b0e 100%);
+    }
+
+    .slide.invert::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at 80% 16%, rgba(213, 178, 122, 0.16), transparent 46%);
+    }
+
+    .slide.invert::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .05;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .slide.hero-bg {
+      background: linear-gradient(90deg, rgba(9, 11, 14, 0.94) 0%, rgba(9, 11, 14, 0.78) 42%, rgba(9, 11, 14, 0.24) 100%), url('img/intro.jpg');
+      background-size: cover;
+      background-position: center;
+    }
+
+    .slide.objectives-bg {
+      background: radial-gradient(125% 120% at 22% -10%, rgba(35, 40, 48, 0.75) 0%, rgba(16, 19, 23, 0.82) 58%, rgba(9, 11, 14, 0.92) 100%), url('img/slide_2.jpg');
+      background-size: cover;
+      background-position: center;
+    }
+
+    .slide.proposition-bg {
+      background: linear-gradient(180deg, rgba(9, 11, 14, 0.78) 0%, rgba(9, 11, 14, 0.66) 46%, rgba(9, 11, 14, 0.82) 100%), url('img/slide_3.jpg');
+      background-size: cover;
+      background-position: center;
+    }
+
+    .slide.enhanced.proposition-bg .cards4 {
+      gap: clamp(20px, 2.8vw, 42px);
+      margin-top: clamp(26px, 4.5vh, 48px);
+    }
+
+    .slide.enhanced.proposition-bg .card {
+      padding: clamp(18px, 2.8vh, 28px) 0 0;
+      color: var(--paper);
+      background: transparent;
+      border: 0;
+      border-top: 1px solid rgba(255, 255, 255, .32);
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .slide.enhanced.proposition-bg .card .role {
+      color: var(--accent-bright);
+    }
+
+    .slide.enhanced.proposition-bg .card h3 {
+      color: var(--paper);
+      font-size: clamp(1.35rem, 1.8vw, 1.65rem);
+    }
+
+    .slide.enhanced.proposition-bg .card p {
+      color: var(--text-on-dark-muted);
+      font-size: clamp(.92rem, 1.15vw, 1.08rem);
+      line-height: 1.55;
+    }
+
+    .slide.invert.enhanced.teams-dark .card {
+      color: var(--paper);
+      background: var(--surface-dark-card);
+      border-color: var(--hair-on-dark);
+      box-shadow: none;
+    }
+
+    .slide.invert.enhanced.teams-dark .card.blue {
+      border-top-color: var(--t-blue);
+    }
+
+    .slide.invert.enhanced.teams-dark .card.green {
+      border-top-color: var(--t-green);
+    }
+
+    .slide.invert.enhanced.teams-dark .card.red {
+      border-top-color: var(--t-red);
+    }
+
+    .slide.invert.enhanced.teams-dark .card.industry {
+      border-top-color: var(--t-industry);
+    }
+
+    .slide.invert.enhanced.teams-dark .card .role {
+      color: var(--accent-bright);
+    }
+
+    .slide.invert.enhanced.teams-dark .card h3,
+    .slide.invert.enhanced.teams-dark .card .seats {
+      color: var(--paper);
+    }
+
+    .slide.invert.enhanced.teams-dark .card p {
+      color: var(--text-on-dark-muted);
+    }
+
+    .slide.enhanced.objectives-bg h2 {
+      font-size: clamp(2.5rem, 4.2vw, 3.4rem);
+      line-height: 1.1;
+      max-width: 15ch;
+      margin-bottom: clamp(16px, 2.4vh, 28px);
+    }
+
+    .slide.enhanced.objectives-bg .lede {
+      max-width: 38ch;
+      margin-top: 0;
+      color: rgba(243, 242, 238, 0.9);
+    }
+
+    .slide.enhanced.objectives-bg .fields {
+      margin-top: 0;
+      max-width: none;
+    }
+
+    @media (max-width: 760px) {
+      .slide.enhanced.objectives-bg .fields {
+        margin-top: clamp(20px, 3vh, 32px);
+      }
+    }
+
+    .slide.hero-bg::before {
+      background: radial-gradient(circle at 80% 16%, rgba(213, 178, 122, 0.16), transparent 46%);
+    }
+
+    .slide.hero-bg .eyebrow {
+      font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+      color: #d5b27a;
+    }
+
+    .slide.hero-bg .eyebrow::before {
+      background: #d5b27a;
+    }
+
+    .slide.hero-bg h1 {
+      font-size: clamp(4rem, 8.2vw, 6.8rem);
+      line-height: 1.02;
+    }
+
+    .slide.hero-bg h1 .pl-dot {
+      color: #d5b27a;
+    }
+
+    .slide.hero-bg .lede {
+      font-size: clamp(1.5rem, 2.3vw, 2.1rem);
+      max-width: 38ch;
+    }
+
+    .slide.hero-bg .title-rule {
+      background: linear-gradient(90deg, #d5b27a, rgba(213, 178, 122, 0));
+      margin-top: clamp(26px, 4vh, 48px);
+    }
+
+    .slide.hero-bg .hint {
+      font-size: clamp(0.85rem, 1.2vw, 1.05rem);
+    }
+
+    body.dark-chrome .progress-fill {
+      background: linear-gradient(90deg, #d5b27a, #f5dca6);
+    }
+
+    .slide.invert .content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .slide.invert h1 {
+      color: #f8f7f3;
+    }
+
+    .slide.invert h1 em {
+      color: var(--accent-bright);
+    }
+
+    .slide.invert h1 .pl-dot {
+      color: var(--accent-bright);
+    }
+
+    .slide.invert .lede {
+      color: rgba(243, 242, 238, .8);
+    }
+
+    .slide.invert .eyebrow {
+      color: var(--accent-bright);
+    }
+
+    .slide.invert .eyebrow::before {
+      background: var(--accent-bright);
+    }
+
+    .slide.invert h2 {
+      color: #f7f6f2;
+    }
+
+    .slide.invert h2 em {
+      color: var(--accent-bright);
+    }
+
+    .slide.invert .body {
+      color: rgba(243, 242, 238, .82);
+    }
+
+    .slide.invert .pull {
+      color: #f7f6f2;
+      border-left-color: var(--accent-bright);
+    }
+
+    .slide.invert .pl-wordmark {
+      color: #f7f6f2;
+    }
+
+    .slide.invert .pl-wordmark .pl-dot {
+      color: var(--accent-bright);
+    }
+
+    .title-rule {
+      width: clamp(120px, 22vw, 280px);
+      height: 1px;
+      background: linear-gradient(90deg, var(--accent-bright), rgba(213, 178, 122, 0));
+      margin-top: clamp(26px, 4vh, 48px);
+    }
+
+    .hint {
+      font-size: .72rem;
+      letter-spacing: .12em;
+      color: rgba(243, 242, 238, .5);
+      margin-top: clamp(26px, 4.6vh, 52px);
+      font-weight: 500;
+    }
+
+    .meta-row {
+      margin-top: clamp(30px, 4.6vh, 52px);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 28px;
+      font-size: .68rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: rgba(243, 242, 238, .55);
+      font-weight: 600;
+    }
+
+    .meta-row span {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .meta-row span::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent-bright);
+    }
+
+    .cta {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 14px;
+      margin-top: clamp(22px, 3.4vh, 42px);
+      text-decoration: none;
+      border: 1px solid rgba(213, 178, 122, 0.5);
+      border-radius: 9px;
+      padding: 14px 24px;
+      transition: background .15s, border-color .15s;
+    }
+
+    .cta:hover {
+      background: rgba(213, 178, 122, 0.14);
+      border-color: var(--accent-bright);
+    }
+
+    .cta:focus-visible {
+      outline: 3px solid var(--accent-bright);
+      outline-offset: 4px;
+    }
+
+    .cta .cta-k {
+      font-size: .66rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--accent-bright);
+      font-weight: 600;
+    }
+
+    .cta .cta-url {
+      font-family: var(--serif);
+      font-size: clamp(1.1rem, 1.9vw, 1.6rem);
+      color: #f7f6f2;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    /* ===== Plenum animated mark (hero + section motif) ===== */
+    .pl-hero-stage {
+      display: flex;
+      align-items: center;
+      gap: clamp(22px, 4vw, 60px);
+    }
+
+    .pl-hero-copy {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .pl-hero-mark {
+      flex: 0 0 auto;
+    }
+
+    .pl-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(14px, 2.4vh, 28px);
+    }
+
+    .pl-mark {
+      width: clamp(180px, 24vw, 320px);
+      height: auto;
+      overflow: visible;
+      color: #f3f2ee;
+    }
+
+    .pl-mark circle,
+    .pl-mark g {
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .pl-tabletop {
+      fill: url(#plTableGlow);
+    }
+
+    .pl-edge {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.1;
+      opacity: .3;
+    }
+
+    .pl-seat {
+      fill: currentColor;
+    }
+
+    .pl-matter {
+      fill: var(--accent-bright);
+    }
+
+    .pl-matter-halo {
+      fill: var(--accent-bright);
+      opacity: 0;
+    }
+
+    .pl-ripple {
+      fill: none;
+      stroke: var(--accent-bright);
+      stroke-width: 1.2;
+      opacity: 0;
+    }
+
+    .pl-wordmark {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: clamp(2.1rem, 4.2vw, 3.4rem);
+      letter-spacing: -0.03em;
+      color: #f7f6f2;
+    }
+
+    .pl-wordmark .pl-dot {
+      color: var(--accent-bright);
+    }
+
+    .pl-markroot {
+      animation: plBreathe 7s ease-in-out infinite;
+    }
+
+    .slide.active .pl-tabletop {
+      animation: plTableIn .6s ease both;
+    }
+
+    .slide.active .pl-edge {
+      animation: plRingDraw .8s cubic-bezier(.4, 0, .2, 1) both .2s;
+    }
+
+    .slide.active .pl-seat {
+      animation: plSeatIn .5s cubic-bezier(.22, .68, .28, 1) both;
+      animation-delay: var(--d);
+    }
+
+    .slide.active .pl-matter {
+      animation: plMatterIn .6s cubic-bezier(.2, .7, .3, 1.35) both 1.18s, plMatterBeat 2s ease-in-out infinite 2.2s;
+    }
+
+    .slide.active .pl-matter-halo {
+      animation: plHaloIn .9s ease both 1.18s, plHaloBreath 3.4s ease-in-out infinite 2.4s;
+    }
+
+    .slide.active .pl-ripple.r1 {
+      animation: plRipple 2.6s ease-out infinite 1.7s;
+    }
+
+    .slide.active .pl-ripple.r2 {
+      animation: plRipple 2.6s ease-out infinite 3s;
+    }
+
+    .slide.active .pl-wordmark {
+      animation: plWordIn .8s cubic-bezier(.2, .7, .2, 1) both 1.55s;
+    }
+
+    @keyframes plBreathe {
+
+      0%,
+      100% {
+        transform: scale(1)
+      }
+
+      50% {
+        transform: scale(1.014)
+      }
+    }
+
+    @keyframes plTableIn {
+      0% {
+        opacity: 0;
+        transform: scale(.4)
+      }
+
+      100% {
+        opacity: 1;
+        transform: scale(1)
+      }
+    }
+
+    @keyframes plRingDraw {
+      0% {
+        stroke-dashoffset: 91.2;
+        opacity: 0
+      }
+
+      30% {
+        opacity: .3
+      }
+
+      100% {
+        stroke-dashoffset: 0;
+        opacity: .3
+      }
+    }
+
+    @keyframes plSeatIn {
+      0% {
+        opacity: 0;
+        transform: scale(.2)
+      }
+
+      62% {
+        opacity: 1;
+        transform: scale(1.18)
+      }
+
+      100% {
+        opacity: 1;
+        transform: scale(1)
+      }
+    }
+
+    @keyframes plMatterIn {
+      0% {
+        opacity: 0;
+        transform: scale(0)
+      }
+
+      70% {
+        opacity: 1;
+        transform: scale(1.3)
+      }
+
+      100% {
+        opacity: 1;
+        transform: scale(1)
+      }
+    }
+
+    @keyframes plMatterBeat {
+
+      0%,
+      100% {
+        transform: scale(1)
+      }
+
+      50% {
+        transform: scale(1.24)
+      }
+    }
+
+    @keyframes plHaloIn {
+      0% {
+        opacity: 0;
+        transform: scale(.5)
+      }
+
+      100% {
+        opacity: .18;
+        transform: scale(1)
+      }
+    }
+
+    @keyframes plHaloBreath {
+
+      0%,
+      100% {
+        opacity: .12;
+        transform: scale(.85)
+      }
+
+      50% {
+        opacity: .34;
+        transform: scale(1.18)
+      }
+    }
+
+    @keyframes plRipple {
+      0% {
+        opacity: .5;
+        transform: scale(.12)
+      }
+
+      70% {
+        opacity: 0
+      }
+
+      100% {
+        opacity: 0;
+        transform: scale(1.05)
+      }
+    }
+
+    @keyframes plWordIn {
+      0% {
+        opacity: 0;
+        transform: translateY(14px)
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .pl-markroot,
+      .pl-tabletop,
+      .pl-edge,
+      .pl-seat,
+      .pl-matter,
+      .pl-matter-halo,
+      .pl-ripple,
+      .pl-wordmark {
+        animation: none !important;
+      }
+
+      .pl-edge {
+        stroke-dashoffset: 0;
+      }
+
+      .pl-tabletop,
+      .pl-seat,
+      .pl-matter,
+      .pl-wordmark {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+
+      .pl-matter-halo {
+        opacity: .16 !important;
+        transform: none !important;
+      }
+
+      .pl-ripple {
+        display: none;
+      }
+    }
+
+    /* cards */
+    .cards3,
+    .cards4 {
+      display: grid;
+      gap: clamp(14px, 1.8vw, 26px);
+      margin-bottom: clamp(14px, 2.2vh, 26px);
+    }
+
+    .cards3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .cards4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--hair);
+      border-top: 2px solid var(--accent);
+      padding: clamp(18px, 2.2vw, 30px);
+      box-shadow: 0 10px 30px rgba(22, 25, 29, 0.05);
+      border-radius: 14px;
+    }
+
+    .card.blue {
+      border-top-color: var(--t-blue)
+    }
+
+    .card.red {
+      border-top-color: var(--t-red)
+    }
+
+    .card.green {
+      border-top-color: var(--t-green)
+    }
+
+    .card.industry {
+      border-top-color: var(--t-industry)
+    }
+
+    .card h3 {
+      font-family: var(--serif);
+      font-size: clamp(1.3rem, 1.9vw, 1.7rem);
+      margin-bottom: 5px;
+      color: var(--ink);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+
+    .card .role {
+      font-size: clamp(.72rem, 1.1vw, .84rem);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 13px;
+      font-weight: 600;
+    }
+
+    .card p {
+      font-size: clamp(1.1rem, 1.4vw, 1.22rem);
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .card .seats {
+      margin-top: 15px;
+      padding-top: 13px;
+      border-top: 1px solid var(--hair);
+      font-size: clamp(.75rem, 1.1vw, .86rem);
+      color: var(--slate);
+      letter-spacing: .04em;
+      font-weight: 600;
+    }
+
+    .ops {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(14px, 1.8vw, 26px);
+    }
+
+    /* split (poster / mark + copy) */
+    .split {
+      display: grid;
+      grid-template-columns: 0.82fr 1fr;
+      gap: clamp(22px, 3.4vw, 52px);
+      align-items: center;
+    }
+
+    .split .body {
+      margin-top: clamp(8px, 1.4vh, 16px);
+    }
+
+    .poster {
+      width: 100%;
+      height: auto;
+      max-height: 74vh;
+      object-fit: contain;
+      border-radius: 12px;
+      border: 1px solid #858380;
+
+      display: block;
+    }
+
+    /* phase row (Convene / Deliberate / Decide / Debrief) */
+    .phases {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: clamp(16px, 2vw, 30px);
+      margin-top: clamp(10px, 1.8vh, 22px);
+    }
+
+    .phases.workflow-phases {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(28px, 4vw, 64px);
+      margin-top: clamp(28px, 5vh, 58px);
+      padding: 0;
+    }
+
+    .workflow-phases .phase {
+      list-style: none;
+    }
+
+    .phase .pn {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: clamp(1.2rem, 1.8vw, 1.45rem);
+      color: var(--accent);
+    }
+
+    .phase .ph-rule {
+      height: 1px;
+      background: var(--hair-strong);
+      margin: 12px 0 16px;
+      position: relative;
+    }
+
+    .phase .ph-rule::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: -2px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .phase h3 {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: clamp(1.38rem, 2.1vw, 1.7rem);
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .phase p {
+      margin-top: 9px;
+      font-size: clamp(1.05rem, 1.4vw, 1.2rem);
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    /* fields — quiet open blocks, separated by a hairline, no boxes */
+    .fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(24px, 3vw, 46px) clamp(34px, 5vw, 72px);
+      margin-top: clamp(8px, 1.4vh, 18px);
+      max-width: 62ch;
+    }
+
+    .fields.three {
+      grid-template-columns: repeat(3, 1fr);
+      max-width: none;
+    }
+
+    .fields.four {
+      grid-template-columns: repeat(4, 1fr);
+      max-width: none;
+    }
+
+    .field {
+      padding-top: 14px;
+      border-top: 1px solid var(--hair-strong);
+    }
+
+    .field.blue {
+      border-top-color: var(--t-blue)
+    }
+
+    .field.green {
+      border-top-color: var(--t-green)
+    }
+
+    .field.red {
+      border-top-color: var(--t-red)
+    }
+
+    .field .fl {
+      font-size: clamp(.75rem, 1.1vw, .88rem);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 9px;
+      font-weight: 600;
+    }
+
+    .field.blue .fl {
+      color: var(--t-blue)
+    }
+
+    .field.green .fl {
+      color: var(--t-green)
+    }
+
+    .field.red .fl {
+      color: var(--t-red)
+    }
+
+    .field p {
+      font-size: clamp(1.1rem, 1.4vw, 1.28rem);
+      line-height: 1.55;
+      color: #3a372f;
+    }
+
+    /* visibility — make fields legible on dark (invert) slides */
+    .slide.invert .field {
+      border-top-color: rgba(255, 255, 255, 0.28);
+    }
+
+    .slide.invert .field .fl {
+      color: var(--accent-bright);
+    }
+
+    .slide.invert .field p {
+      color: rgba(243, 242, 238, 0.92);
+    }
+
+    /* visibility — scoped boost for the enhanced scenario / role slides */
+    .slide.enhanced .field .fl {
+      font-size: clamp(.82rem, 1.2vw, .96rem);
+    }
+
+    .slide.enhanced .field p {
+      font-size: clamp(1.22rem, 1.55vw, 1.42rem);
+      line-height: 1.6;
+      color: #2a2820;
+    }
+
+    .slide.enhanced.invert .field p {
+      color: #ffffff;
+    }
+
+    .slide.enhanced .card {
+      border-top-width: 3px;
+    }
+
+    .slide.enhanced .card h3 {
+      font-size: clamp(1.45rem, 2.1vw, 1.9rem);
+    }
+
+    .slide.enhanced .card .role {
+      font-size: clamp(.78rem, 1.2vw, .92rem);
+    }
+
+    .slide.enhanced .card p {
+      font-size: clamp(1.18rem, 1.5vw, 1.32rem);
+      color: var(--slate);
+    }
+
+    .slide.enhanced .card .seats {
+      color: var(--ink);
+    }
+
+    /* flow row */
+    .flow {
+      display: flex;
+      align-items: stretch;
+      gap: clamp(6px, 0.8vw, 14px);
+      margin: clamp(18px, 3vh, 38px) 0 clamp(10px, 1.8vh, 18px);
+      flex-wrap: wrap;
+    }
+
+    .node-card {
+      flex: 1 1 0;
+      min-width: 150px;
+      background: var(--paper);
+      border: 1px solid var(--hair);
+      border-radius: 13px;
+      padding: clamp(16px, 1.8vw, 24px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 8px 24px rgba(22, 25, 29, 0.045);
+    }
+
+    .node-card .n {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: clamp(1rem, 1.3vw, 1.2rem);
+      color: var(--accent);
+      margin-bottom: 9px;
+    }
+
+    .node-card p {
+      font-size: clamp(1.1rem, 1.4vw, 1.28rem);
+      line-height: 1.45;
+      color: var(--ink);
+    }
+
+    .chev {
+      display: flex;
+      align-items: center;
+      color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .chev svg {
+      width: clamp(16px, 1.6vw, 26px);
+      height: auto;
+    }
+
+    /* steps */
+    .steps {
+      list-style: none;
+      counter-reset: s;
+      margin-top: clamp(8px, 1.5vh, 18px);
+    }
+
+    .steps li {
+      counter-increment: s;
+      display: grid;
+      grid-template-columns: clamp(36px, 3vw, 50px) 1fr;
+      gap: clamp(12px, 1.4vw, 20px);
+      align-items: baseline;
+      padding: clamp(10px, 1.5vh, 16px) 0;
+      border-bottom: 1px solid var(--hair);
+      font-size: clamp(1.2rem, 1.7vw, 1.5rem);
+      line-height: 1.44;
+    }
+
+    .steps li::before {
+      content: counter(s, decimal-leading-zero);
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: clamp(1.32rem, 2vw, 1.8rem);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* point grid */
+    .points,
+    .grid6 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: clamp(22px, 3vw, 44px) clamp(34px, 5vw, 72px);
+      margin-top: clamp(8px, 1.5vh, 18px);
+      max-width: 62ch;
+    }
+
+    .point .k {
+      font-size: clamp(.75rem, 1.1vw, .88rem);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--hair-strong);
+    }
+
+    .point p {
+      font-size: clamp(1.1rem, 1.4vw, 1.28rem);
+      line-height: 1.55;
+      color: #3a372f;
+    }
+
+    /* flow graph */
+    .graph-wrap {
+      margin-top: clamp(10px, 1.8vh, 20px);
+    }
+
+    .graph-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(20px, 3vw, 40px);
+      margin-bottom: clamp(26px, 4vh, 44px);
+      border-bottom: 1px solid var(--hair);
+    }
+
+    .graph-controls button {
+      font-family: var(--sans);
+      font-size: clamp(.64rem, .9vw, .76rem);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      font-weight: 600;
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      margin-bottom: -1px;
+      padding: 8px 2px 12px;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+
+    .graph-controls button:hover {
+      color: var(--ink);
+    }
+
+    .graph-controls button.active {
+      background: transparent;
+      color: var(--ink);
+      border-color: var(--accent);
+    }
+
+    .graph-controls button:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 4px;
+    }
+
+    .graph-svg {
+      width: 100%;
+    }
+
+    .flowgraph {
+      width: 100%;
+      height: auto;
+      max-height: clamp(320px, 52vh, 520px);
+      display: block;
+    }
+
+    .flowgraph .node rect {
+      fill: #fff;
+      stroke: var(--accent);
+      stroke-width: 1.6;
+    }
+
+    .flowgraph .node-wc rect {
+      fill: var(--graphite-deep);
+      stroke: var(--graphite);
+      stroke-width: 2.4;
+    }
+
+    .flowgraph .node-wc .node-t {
+      fill: #f7f6f2;
+    }
+
+    .flowgraph .node-blue rect {
+      fill: var(--t-blue);
+      stroke: var(--t-blue);
+    }
+
+    .flowgraph .node-blue .node-t {
+      fill: #fffefb;
+    }
+
+    .flowgraph .node-red rect {
+      fill: var(--t-red);
+      stroke: var(--t-red);
+    }
+
+    .flowgraph .node-red .node-t {
+      fill: #fffefb;
+    }
+
+    .flowgraph .node-green rect {
+      fill: var(--t-green);
+      stroke: var(--t-green);
+    }
+
+    .flowgraph .node-green .node-t {
+      fill: #fffefb;
+    }
+
+    .flowgraph .node-industry rect {
+      fill: var(--t-industry);
+      stroke: var(--t-industry);
+    }
+
+    .flowgraph .node-industry .node-t {
+      fill: #fffefb;
+    }
+
+    .flowgraph .node-gm rect {
+      stroke: var(--muted);
+      stroke-dasharray: 4 4
+    }
+
+    .flowgraph .node-t {
+      font-family: var(--sans);
+      font-size: 15px;
+      fill: var(--ink);
+      font-weight: 700;
+    }
+
+    .flowgraph .elabel-t {
+      font-family: var(--sans);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .flowgraph .edge {
+      transition: opacity .3s;
+    }
+
+    .flowgraph .elabel {
+      display: none;
+    }
+
+    .flowgraph.show-all .edge {
+      opacity: .5;
+    }
+
+    .flowgraph.show-all .edge-control {
+      opacity: .32;
+    }
+
+    .flowgraph.show-action .edge {
+      opacity: .07
+    }
+
+    .flowgraph.show-action .edge-action {
+      opacity: 1
+    }
+
+    .flowgraph.show-action .edge-action .elabel {
+      display: block
+    }
+
+    .flowgraph.show-proposal .edge {
+      opacity: .07
+    }
+
+    .flowgraph.show-proposal .edge-proposal {
+      opacity: 1
+    }
+
+    .flowgraph.show-proposal .edge-proposal .elabel {
+      display: block
+    }
+
+    .flowgraph.show-rfi .edge {
+      opacity: .07
+    }
+
+    .flowgraph.show-rfi .edge-rfi {
+      opacity: 1
+    }
+
+    .flowgraph.show-rfi .edge-rfi .elabel {
+      display: block
+    }
+
+    .flowgraph.show-control .edge {
+      opacity: .07
+    }
+
+    .flowgraph.show-control .edge-control {
+      opacity: 1
+    }
+
+    .flowgraph.show-control .edge-control .elabel {
+      display: block
+    }
+
+    /* role-accurate information workflow */
+    .workflow-stage {
+      min-height: clamp(240px, 35vh, 330px);
+    }
+
+    .workflow-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) clamp(42px, 6vw, 84px) minmax(0, 1fr) clamp(42px, 6vw, 84px) minmax(0, 1fr);
+      gap: clamp(8px, 1vw, 16px);
+      align-items: start;
+    }
+
+    .workflow-panel[hidden] {
+      display: none;
+    }
+
+    .workflow-node,
+    .workflow-source {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      min-width: 0;
+      padding: clamp(18px, 2.5vh, 28px) 0 0;
+      background: transparent;
+      border: 0;
+      border-top: 1px solid var(--hair-strong);
+      border-radius: 0;
+    }
+
+    .workflow-source {
+      gap: 12px;
+    }
+
+    .workflow-source .team-chip {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 9px;
+      align-items: center;
+      padding: 0;
+      color: var(--ink);
+      background: transparent;
+      border: 0;
+    }
+
+    .workflow-source .team-chip.blue {
+      --team-color: var(--t-blue);
+    }
+
+    .workflow-source .team-chip.red {
+      --team-color: var(--t-red);
+    }
+
+    .workflow-source .team-chip.green {
+      --team-color: var(--t-green);
+    }
+
+    .workflow-source .team-chip.industry {
+      --team-color: var(--t-industry);
+    }
+
+    .team-chip .chip-mark {
+      display: grid;
+      width: 24px;
+      height: 24px;
+      place-items: center;
+      color: var(--paper);
+      background: var(--team-color);
+      border-radius: 50%;
+      font-family: var(--sans);
+      font-size: .58rem;
+      font-weight: 700;
+    }
+
+    .team-chip strong {
+      font-family: var(--sans);
+      font-size: clamp(.76rem, 1vw, .9rem);
+      line-height: 1.15;
+    }
+
+    .team-chip small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: clamp(.62rem, .78vw, .72rem);
+    }
+
+    .workflow-role {
+      display: block;
+      margin-bottom: 10px;
+      color: var(--accent);
+      font-family: var(--sans);
+      font-size: clamp(.64rem, .82vw, .76rem);
+      font-weight: 600;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .workflow-node h3 {
+      margin: 0 0 12px;
+      font-size: clamp(1.3rem, 1.8vw, 1.65rem);
+      line-height: 1.18;
+    }
+
+    .workflow-node p {
+      margin: 0;
+      color: var(--slate);
+      font-size: clamp(.8rem, 1vw, .94rem);
+      line-height: 1.5;
+    }
+
+    .workflow-node.facilitator {
+      border-top-color: var(--hair-strong);
+    }
+
+    .workflow-node.white-cell {
+      color: var(--ink);
+      background: transparent;
+      border-top: 2px solid var(--accent);
+    }
+
+    .workflow-node.white-cell .workflow-role {
+      color: var(--accent);
+    }
+
+    .workflow-node.white-cell p {
+      color: var(--slate);
+    }
+
+    .workflow-arrow {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      min-height: 132px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .workflow-arrow::after {
+      content: "\2192";
+      font-family: var(--serif);
+      font-size: clamp(1.45rem, 2vw, 1.9rem);
+      line-height: 1;
+    }
+
+    .workflow-arrow span {
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: clamp(.56rem, .72vw, .67rem);
+      font-weight: 600;
+      letter-spacing: .08em;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 900px) {
+      .workflow-panel {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .workflow-arrow {
+        min-height: 36px;
+      }
+
+      .workflow-arrow::after {
+        content: "\2193";
+      }
+    }
+
+    /* restrained three-stage information workflow */
+    .workflow-sequence {
+      --workflow-gap: clamp(42px, 6vw, 88px);
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--workflow-gap);
+      margin-top: clamp(42px, 7vh, 76px);
+      list-style: none;
+    }
+
+    .workflow-step {
+      position: relative;
+      min-width: 0;
+      padding-top: clamp(22px, 3vh, 34px);
+      border-top: 1px solid var(--hair-strong);
+    }
+
+    .workflow-step + .workflow-step::before {
+      content: "\2192";
+      position: absolute;
+      top: clamp(18px, 2.5vh, 28px);
+      left: calc(-1 * var(--workflow-gap));
+      width: var(--workflow-gap);
+      color: var(--muted);
+      font-family: var(--serif);
+      font-size: clamp(1.6rem, 2.4vw, 2.2rem);
+      line-height: 1;
+      text-align: center;
+    }
+
+    .workflow-step.white-cell {
+      border-top-color: var(--accent);
+    }
+
+    .workflow-kicker {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--accent);
+      font-size: clamp(.66rem, .82vw, .76rem);
+      font-weight: 600;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .workflow-step h3 {
+      margin: 0 0 12px;
+      font-size: clamp(1.45rem, 2.1vw, 2rem);
+      line-height: 1.15;
+    }
+
+    .workflow-step p {
+      max-width: 34ch;
+      color: var(--slate);
+      font-size: clamp(.9rem, 1.15vw, 1.04rem);
+      line-height: 1.55;
+    }
+
+    .footer {
+      display: none !important;
+    }
+
+    body.dark-chrome .footer {
+      color: rgba(243, 242, 238, .55);
+    }
+
+    .controls {
+      display: none !important;
+    }
+
+    .controls button {
+      font-family: var(--sans);
+      font-size: .62rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-weight: 600;
+      background: transparent;
+      border: 1px solid var(--hair);
+      color: var(--ink);
+      padding: 6px 13px;
+      cursor: pointer;
+      border-radius: 7px;
+      transition: all .15s;
+    }
+
+    .controls button:hover {
+      background: rgba(27, 54, 93, 0.07);
+      border-color: var(--accent);
+    }
+
+    body.dark-chrome .controls button {
+      color: #f3f2ee;
+      border-color: rgba(213, 178, 122, 0.4);
+    }
+
+    body.dark-chrome .controls button:hover {
+      background: rgba(213, 178, 122, 0.12);
+      border-color: var(--accent-bright);
+    }
+
+    .dots {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1px solid var(--muted);
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .dot.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    body.dark-chrome .dot {
+      border-color: rgba(243, 242, 238, .55);
+    }
+
+    body.dark-chrome .dot.active {
+      background: var(--accent-bright);
+      border-color: var(--accent-bright);
+    }
+
+    .counter {
+      min-width: 64px;
+      text-align: right;
+    }
+
+    @media (max-width:760px) {
+
+      .cards3,
+      .cards4,
+      .points,
+      .grid6,
+      .fields,
+      .fields.three,
+      .fields.four,
+      .phases,
+      .phases.workflow-phases {
+        grid-template-columns: 1fr;
+      }
+
+      .workflow-sequence {
+        grid-template-columns: 1fr;
+        gap: clamp(24px, 4vh, 36px);
+      }
+
+      .workflow-step + .workflow-step::before {
+        display: none;
+      }
+
+      .ops {
+        grid-template-columns: 1fr;
+      }
+
+      .split,
+      .pl-hero-stage {
+        grid-template-columns: 1fr;
+        display: block;
+      }
+
+      .pl-hero-mark {
+        display: none;
+      }
+
+      .poster {
+        max-width: 300px;
+        margin: 0 auto;
+        max-height: 40vh;
+      }
+
+      .chev {
+        display: none;
+      }
+
+      .lockup {
+        display: none;
+      }
+
+      .pt-grid,
+      .pt-signals {
+        grid-template-columns: 1fr;
+      }
+
+      .pt-table {
+        font-size: .92rem;
+      }
+    }
+
+    /* ── Playtest worksheet slide ── */
+    .pt-slide .content {
+      max-width: 1240px;
+    }
+
+    .pt-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(20px, 2.6vw, 40px);
+      align-items: start;
+      margin-top: clamp(8px, 1.5vh, 18px);
+    }
+
+    .pt-block-title {
+      font-size: clamp(.7rem, 1vw, .82rem);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--hair-strong);
+    }
+
+    .pt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: clamp(.92rem, 1.05vw, 1.04rem);
+      line-height: 1.4;
+    }
+
+    .pt-table th {
+      text-align: left;
+      font-family: var(--sans);
+      font-size: clamp(.62rem, .82vw, .72rem);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 0 10px 8px 0;
+      border-bottom: 1px solid var(--hair);
+      vertical-align: bottom;
+    }
+
+    .pt-table td {
+      padding: 9px 10px 9px 0;
+      border-bottom: 1px solid var(--hair);
+      color: #3a372f;
+      vertical-align: top;
+    }
+
+    .pt-seat {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .pt-loop {
+      margin-top: clamp(8px, 1.5vh, 18px);
+    }
+
+    .pt-loop .pt-table {
+      max-width: 880px;
+    }
+
+    .pt-loop .pt-table th:not(:first-child),
+    .pt-loop .pt-table td:not(:first-child) {
+      text-align: center;
+      padding-right: 0;
+    }
+
+    .pt-seat.blue {
+      color: var(--t-blue);
+    }
+
+    .pt-seat.green {
+      color: var(--t-green);
+    }
+
+    .pt-seat.industry {
+      color: var(--t-industry);
+    }
+
+    .pt-seat.red {
+      color: var(--t-red);
+    }
+
+    .pt-seat.white {
+      color: var(--slate);
+    }
+
+    .pt-box {
+      display: inline-block;
+      width: 17px;
+      height: 17px;
+      border: 1.8px solid var(--hair-strong);
+      border-radius: 3px;
+      vertical-align: -3px;
+    }
+
+    .pt-signals {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: clamp(14px, 1.8vw, 26px);
+      margin-top: clamp(8px, 1.5vh, 16px);
+    }
+
+    .pt-signal .k {
+      font-size: clamp(.72rem, 1vw, .86rem);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--hair-strong);
+    }
+
+    .pt-signal p {
+      font-size: clamp(.92rem, 1.1vw, 1.04rem);
+      line-height: 1.5;
+      color: #3a372f;
+    }
+
+    .pt-hotwash {
+      margin-top: clamp(18px, 2.6vh, 32px);
+      padding-top: clamp(16px, 2.4vh, 28px);
+      border-top: 1px solid var(--hair-strong);
+    }
+
+    .pt-hotwash ol {
+      list-style: none;
+      counter-reset: hw;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(16px, 2vw, 32px);
+      margin-top: clamp(8px, 1.4vh, 16px);
+    }
+
+    .pt-hotwash li {
+      counter-increment: hw;
+      font-size: clamp(.98rem, 1.2vw, 1.14rem);
+      line-height: 1.45;
+      color: #3a372f;
+      padding-left: clamp(30px, 2.6vw, 42px);
+      position: relative;
+    }
+
+    .pt-hotwash li::before {
+      content: counter(hw, decimal-leading-zero);
+      position: absolute;
+      left: 0;
+      top: -2px;
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: clamp(1.2rem, 1.7vw, 1.6rem);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    @media (max-width: 760px) {
+      .pt-hotwash ol {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ── Playthrough handoff slides ── */
+    .proof-slide h2 {
+      max-width: 24ch;
+      margin-bottom: clamp(14px, 2.2vh, 24px);
+    }
+
+    .proof-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(260px, .55fr);
+      gap: clamp(34px, 6vw, 84px);
+      align-items: start;
+      margin-top: clamp(18px, 3vh, 34px);
+    }
+
+    .proof-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(22px, 3vw, 38px);
+      list-style: none;
+    }
+
+    .proof-item {
+      padding-top: 14px;
+      border-top: 1px solid var(--hair-on-dark);
+    }
+
+    .proof-kicker {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent-bright);
+      font-size: clamp(.66rem, .82vw, .75rem);
+      font-weight: 600;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+
+    .proof-item h3 {
+      margin-bottom: 7px;
+      color: var(--paper);
+      font-family: var(--serif);
+      font-size: clamp(1.15rem, 1.55vw, 1.45rem);
+      font-weight: 500;
+    }
+
+    .proof-item p {
+      color: var(--text-on-dark-muted);
+      font-size: clamp(.85rem, 1.05vw, .98rem);
+      line-height: 1.5;
+    }
+
+    .seat-panel {
+      padding: clamp(20px, 3vw, 30px);
+      border: 1px solid var(--hair-on-dark);
+      border-radius: 14px;
+      background: var(--surface-dark-card);
+    }
+
+    .seat-panel h3 {
+      margin-bottom: 16px;
+      color: var(--paper);
+      font-family: var(--serif);
+      font-size: clamp(1.45rem, 2vw, 1.85rem);
+      font-weight: 500;
+    }
+
+    .seat-panel ol {
+      display: grid;
+      gap: 12px;
+      margin-left: 1.15rem;
+      color: var(--text-on-dark-muted);
+      font-size: clamp(.88rem, 1.05vw, 1rem);
+      line-height: 1.45;
+    }
+
+    .seat-panel .cta {
+      margin-top: clamp(20px, 3vh, 30px);
+    }
+
+    @media (max-width: 900px) {
+      .proof-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .proof-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .proof-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="progress">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <!-- shared Plenum mark symbol + table-glow gradient -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <radialGradient id="plTableGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="var(--accent-bright)" stop-opacity="0.26" />
+        <stop offset="68%" stop-color="var(--accent-bright)" stop-opacity="0.1" />
+        <stop offset="100%" stop-color="var(--accent-bright)" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+    <symbol id="plMk" viewBox="0 0 80 80">
+      <circle class="pl-tabletop" cx="40" cy="40" r="14.5" />
+      <circle class="pl-edge" cx="40" cy="40" r="14.5" />
+      <circle class="pl-matter" cx="40" cy="40" r="3" />
+      <g class="pl-seat">
+        <circle cx="40" cy="16" r="2.3" />
+        <circle cx="54.11" cy="20.58" r="2.3" />
+        <circle cx="62.82" cy="32.58" r="2.3" />
+        <circle cx="62.82" cy="47.42" r="2.3" />
+        <circle cx="54.11" cy="59.42" r="2.3" />
+        <circle cx="40" cy="64" r="2.3" />
+        <circle cx="25.89" cy="59.42" r="2.3" />
+        <circle cx="17.18" cy="47.42" r="2.3" />
+        <circle cx="17.18" cy="32.58" r="2.3" />
+        <circle cx="25.89" cy="20.58" r="2.3" />
+      </g>
+    </symbol>
+  </svg>
+
+  <div class="lockup">
+    <img src="img/Gold No Background.png" alt="Statecraft Simulations Group logo" class="gold-logo">
+    <img src="img/AidData_Logo--full_color.png" alt="AidData Logo" class="aiddata-logo aiddata-dark">
+    <img src="img/AidData_Logo--white.png" alt="AidData Logo" class="aiddata-logo aiddata-white">
+  </div>
+
+  <div class="deck" id="deck">
+    <!-- 1 · HERO — Plenum leads -->
+    <section class="slide invert hero-bg active">
+      <div class="content">
+        <div class="pl-hero-stage">
+          <div class="pl-hero-copy">
+            <h1>Plenum<span class="pl-dot">.</span></h1>
+            <p class="lede">Digital delivery and evidence simulation platform.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · Why the platform -->
+    <section class="slide invert enhanced proposition-bg">
+      <div class="content">
+        <p class="eyebrow">Why the platform</p>
+        <h2>Why Plenum?</h2>
+        <div class="cards4">
+          <div class="card">
+            <div class="role">During the game</div>
+            <h3>One shared format</h3>
+            <p>Information passes between assigned seats in a consistent, structured form, so every action, proposal,
+              RFI, handoff, and decision reads clearly.</p>
+          </div>
+          <div class="card">
+            <div class="role">For the White Cell</div>
+            <h3>An eagle-eye view</h3>
+            <p>The control group sees orientations, actions, proposals, RFIs, communications, and review queues across
+              all teams while retaining adjudication authority.</p>
+          </div>
+          <div class="card">
+            <div class="role">After the game</div>
+            <h3>An analysable record</h3>
+            <p>Everything is captured as detailed, time-stamped, labelled data, ready for after-action review and
+              research.</p>
+          </div>
+          <div class="card">
+            <div class="role">Decision authority</div>
+            <h3>Human judgment remains</h3>
+            <p>Plenum structures, routes, records, and exposes evidence. Facilitators, White Cell, and SMEs retain
+              exercise judgment and final review authority.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · Use cases -->
+    <section class="slide">
+      <div class="content">
+        <p class="eyebrow">Platform Use Cases</p>
+        <h2>Versatility in simulation.</h2>
+        <div class="cards4">
+          <div class="card blue">
+            <div class="role">Seminar Wargaming</div>
+            <h3>Synchronize live play</h3>
+            <p>Keep distributed teams, facilitators, adjudicators, and the Game Master aligned during a structured
+              statecraft exercise.</p>
+          </div>
+          <div class="card green">
+            <div class="role">Decision Rehearsal</div>
+            <h3>Expose assumptions</h3>
+            <p>Make intent, dependencies, implementation routes, coordination choices, and expected effects visible
+              before execution.</p>
+          </div>
+          <div class="card red">
+            <div class="role">Professional Education</div>
+            <h3>Observe decision practice</h3>
+            <p>Assess how participants frame problems, coordinate, revise, and respond under time pressure.</p>
+          </div>
+          <div class="card">
+            <div class="role">AAR &amp; Research</div>
+            <h3>Reconstruct and compare</h3>
+            <p>Trace what changed and why, then compare process, interaction, and outcome evidence across controlled
+              sessions.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 4 · Plenum in Fractured Order -->
+    <section class="slide">
+      <div class="content">
+        <div class="split">
+          <div>
+            <img class="poster" src="img/fractured_order_poster_.png"
+              alt="Fractured Order poster showing a digitally connected globe and rising strategic trend lines">
+          </div>
+          <div>
+            <p class="eyebrow">Fractured Order Simulation</p>
+            <h2>How Plenum supports Fractured Order.</h2>
+            <p class="body">
+              It keeps guidance, decisions, and evidence connected in one
+              time-stamped exercise record while facilitators and adjudicators retain human control.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · Fractured Order Simulation Objectives -->
+    <section class="slide invert enhanced objectives-bg">
+      <div class="content">
+        <div class="split">
+          <div>
+            <p class="eyebrow">Simulation Objectives</p>
+            <h2>Evaluating Non-Military Statecraft.</h2>
+            <p class="lede">
+              Explore the effectiveness of non-military instruments in shaping state behavior and international
+              outcomes.
+            </p>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <div class="fl">Sanctions</div>
+              <p>Economic and investment restrictions.</p>
+            </div>
+            <div class="field">
+              <div class="fl">Incentives</div>
+              <p>Economic incentives and trade measures.</p>
+            </div>
+            <div class="field">
+              <div class="fl">Information</div>
+              <p>Strategic narrative and information campaigns.</p>
+            </div>
+            <div class="field">
+              <div class="fl">Diplomacy</div>
+              <p>Diplomatic and multilateral initiatives.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · Four teams -->
+    <section class="slide invert enhanced teams-dark">
+      <div class="content">
+        <p class="eyebrow">Who is at the table?</p>
+        <h2>Four teams</h2>
+        <div class="cards4">
+          <div class="card blue">
+            <div class="role">Blue</div>
+            <h3>United States</h3>
+            <p>Drives the play, weighing economic statecraft, alliance management, and deterrence in the Indo-Pacific.
+            </p>
+            <div class="seats">Submits actions each move</div>
+          </div>
+          <div class="card green">
+            <div class="role">Green</div>
+            <h3>Allies</h3>
+            <p>European and Indo-Pacific allies who enable, modify, or constrain how far U.S. strategy can proceed.</p>
+            <div class="seats">Submits proposals to Blue or Red</div>
+          </div>
+          <div class="card red">
+            <div class="role">Red</div>
+            <h3>PRC &amp; Russia</h3>
+            <p>Pursues technological self-sufficiency and strategic resilience, applying patient, sustained pressure.
+            </p>
+            <div class="seats">Submits actions each move</div>
+          </div>
+          <div class="card industry">
+            <div class="role">Industry</div>
+            <h3>Private Sector</h3>
+            <p>Firms and industry bodies whose commercial choices shape the contest across the strategic sectors.
+            </p>
+            <div class="seats">Submits proposals to Blue or Red</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 · Role-accurate information flow -->
+    <section class="slide">
+      <div class="content">
+        <p class="eyebrow">The flow of information</p>
+        <h2>How work moves through Plenum.</h2>
+        <div class="graph-wrap" id="graphWrap">
+          <div class="graph-controls" id="graphControls" role="tablist" aria-label="Choose an information workflow">
+            <button id="flow-tab-orientation" data-mode="orientation" class="active" type="button" role="tab"
+              aria-selected="true" aria-controls="flow-orientation" tabindex="0">01 &middot; Strategic Orientations</button>
+            <button id="flow-tab-action" data-mode="action" type="button" role="tab" aria-selected="false"
+              aria-controls="flow-action" tabindex="-1">02 &middot; Actions</button>
+            <button id="flow-tab-proposal" data-mode="proposal" type="button" role="tab" aria-selected="false"
+              aria-controls="flow-proposal" tabindex="-1">03 &middot; Proposals</button>
+            <button id="flow-tab-rfi" data-mode="rfi" type="button" role="tab" aria-selected="false"
+              aria-controls="flow-rfi" tabindex="-1">04 &middot; RFIs</button>
+          </div>
+
+          <div class="workflow-stage">
+            <div class="workflow-panel" id="flow-orientation" data-flow-panel="orientation" role="tabpanel"
+              aria-labelledby="flow-tab-orientation">
+              <div class="workflow-source" aria-label="Team Scribes record Strategic Orientations">
+                <span class="workflow-role">Team Scribes</span>
+                <div class="team-chip blue"><span class="chip-mark">B</span><span><strong>Blue</strong><small>Selects its orientation</small></span></div>
+                <div class="team-chip green"><span class="chip-mark">G</span><span><strong>Green</strong><small>Forecasts all other teams</small></span></div>
+                <div class="team-chip red"><span class="chip-mark">R</span><span><strong>Red</strong><small>Forecasts all other teams</small></span></div>
+                <div class="team-chip industry"><span class="chip-mark">I</span><span><strong>Industry</strong><small>Forecasts all other teams</small></span></div>
+              </div>
+              <div class="workflow-arrow"><span>Record rationale</span></div>
+              <article class="workflow-node facilitator">
+                <span class="workflow-role">Same-team Facilitator</span>
+                <h3>Review and submit</h3>
+                <p>Projects the selection or forecast, resolves edits with the team, and submits the finalized record.</p>
+              </article>
+              <div class="workflow-arrow"><span>Submit</span></div>
+              <article class="workflow-node white-cell">
+                <span class="workflow-role">White Cell</span>
+                <h3>Clear the orientation gate</h3>
+                <p>Reviews the submitted orientation set and forecasts before play advances.</p>
+              </article>
+            </div>
+
+            <div class="workflow-panel" id="flow-action" data-flow-panel="action" role="tabpanel"
+              aria-labelledby="flow-tab-action" hidden>
+              <div class="workflow-source" aria-label="Blue and Red Scribes author actions">
+                <span class="workflow-role">Team Scribes</span>
+                <div class="team-chip blue"><span class="chip-mark">B</span><span><strong>Blue</strong><small>Authors an action</small></span></div>
+                <div class="team-chip red"><span class="chip-mark">R</span><span><strong>Red</strong><small>Authors an action</small></span></div>
+              </div>
+              <div class="workflow-arrow"><span>Draft + forward</span></div>
+              <article class="workflow-node facilitator">
+                <span class="workflow-role">Same-team Facilitator</span>
+                <h3>Review and submit</h3>
+                <p>Confirms the team artifact, completes coordination and engagement choices, then forwards it.</p>
+              </article>
+              <div class="workflow-arrow"><span>Submit</span></div>
+              <article class="workflow-node white-cell">
+                <span class="workflow-role">White Cell</span>
+                <h3>Deliberate and adjudicate</h3>
+                <p>Reviews the submitted action and records the authoritative exercise outcome.</p>
+              </article>
+            </div>
+
+            <div class="workflow-panel" id="flow-proposal" data-flow-panel="proposal" role="tabpanel"
+              aria-labelledby="flow-tab-proposal" hidden>
+              <div class="workflow-source" aria-label="Green and Industry Scribes author proposals">
+                <span class="workflow-role">Team Scribes</span>
+                <div class="team-chip green"><span class="chip-mark">G</span><span><strong>Green</strong><small>Authors a proposal</small></span></div>
+                <div class="team-chip industry"><span class="chip-mark">I</span><span><strong>Industry</strong><small>Authors a proposal</small></span></div>
+              </div>
+              <div class="workflow-arrow"><span>Draft + forward</span></div>
+              <article class="workflow-node facilitator">
+                <span class="workflow-role">Same-team Facilitator</span>
+                <h3>Review and submit</h3>
+                <p>Confirms the intended Blue or Red recipient and submits the completed proposal.</p>
+              </article>
+              <div class="workflow-arrow"><span>Submit</span></div>
+              <article class="workflow-node white-cell">
+                <span class="workflow-role">White Cell</span>
+                <h3>Review and route</h3>
+                <p>Forwards to the recipient, requests changes, or rejects with an explicit reason.</p>
+              </article>
+            </div>
+
+            <div class="workflow-panel" id="flow-rfi" data-flow-panel="rfi" role="tabpanel"
+              aria-labelledby="flow-tab-rfi" hidden>
+              <div class="workflow-source"
+                aria-label="Blue, Green, Red, and Industry Scribes can submit requests for information">
+                <span class="workflow-role">Team Scribes</span>
+                <div class="team-chip blue"><span class="chip-mark">B</span><span><strong>Blue Scribe</strong><small>Submits an RFI during play</small></span></div>
+                <div class="team-chip green"><span class="chip-mark">G</span><span><strong>Green Scribe</strong><small>Submits an RFI during play</small></span></div>
+                <div class="team-chip red"><span class="chip-mark">R</span><span><strong>Red Scribe</strong><small>Submits an RFI during play</small></span></div>
+                <div class="team-chip industry"><span class="chip-mark">I</span><span><strong>Industry Scribe</strong><small>Submits an RFI during play</small></span></div>
+              </div>
+              <div class="workflow-arrow"><span>Submit question</span></div>
+              <article class="workflow-node facilitator">
+                <span class="workflow-role">Structured request</span>
+                <h3>Category, priority, context</h3>
+                <p>The RFI preserves who asked, what guidance is needed, and where the question sits in the move.</p>
+              </article>
+              <div class="workflow-arrow"><span>Route</span></div>
+              <article class="workflow-node white-cell">
+                <span class="workflow-role">White Cell</span>
+                <h3>Provide guidance during play</h3>
+                <p>Reviews and answers the linked RFI so teams receive authoritative guidance during the simulation.</p>
+              </article>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 8 · Inside each team -->
+    <section class="slide enhanced">
+      <div class="content">
+        <p class="eyebrow">Who is in the room?</p>
+        <h2>One team, four distinct seats.</h2>
+        <p class="body" style="max-width: 60ch; margin-bottom: 30px;">
+          Each surface exposes only the controls and records appropriate to that role.
+        </p>
+        <div class="cards4">
+          <div class="card">
+            <div class="role">Facilitator</div>
+            <p>Reviews the Scribe's work, projects and edits it with the team, then submits the finalized artifact.</p>
+          </div>
+          <div class="card">
+            <div class="role">Scribe</div>
+            <p>Records Strategic Orientation, authors actions or proposals, creates RFIs, and forwards completed work.</p>
+          </div>
+          <div class="card">
+            <div class="role">Notetaker 1</div>
+            <p>Records team reasoning, decisions, quotes, and consequential moments as the session unfolds.</p>
+          </div>
+          <div class="card">
+            <div class="role">Notetaker 2</div>
+            <p>Captures team dynamics, relationships, and supporting qualitative evidence for the session record.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 · What gets collected -->
+    <section class="slide">
+      <div class="content">
+        <div class="split"
+          style="grid-template-columns: 0.95fr 1.05fr; align-items: start; gap: clamp(30px, 6vw, 80px);">
+          <div>
+            <p class="eyebrow">Session Data Export</p>
+            <h2>Five linked layers of evidence.</h2>
+            <p class="body" style="color: var(--slate); line-height: 1.6; margin-bottom: 12px;">
+              Research schema 1.6.0 keeps structured content, qualitative context, chronology, lineage, quality, and
+              analytical outputs linked in one validated archive.
+            </p>
+            <pre
+              style="background: rgba(22, 25, 29, 0.02); border: 1px solid var(--hair-strong); padding: 18px 22px; border-radius: 12px; font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; color: var(--slate); margin-top: 24px; overflow-x: auto; font-weight: 500;">
+{
+  <span style="color: var(--accent);">"schemaVersion"</span>: "1.6.0",
+  <span style="color: var(--accent);">"session"</span>: { /* metadata, teams, phase */ },
+  <span style="color: var(--accent);">"evidence"</span>: [
+    "orientations", "actions", "proposals",
+    "rfis", "adjudications", "timeline"
+  ],
+  <span style="color: var(--accent);">"quality"</span>: "data_quality_summary.json",
+  <span style="color: var(--accent);">"lineage"</span>: "decision_lineage.csv",
+  <span style="color: var(--accent);">"context"</span>: "scenario_context.json",
+  <span style="color: var(--accent);">"derivedLayers"</span>: [
+    "outcome_taxonomy",
+    "training_rubric",
+    "network_metrics",
+    "turning_points"
+  ],
+  <span style="color: var(--accent);">"reports"</span>: [ "report.html", "reports/*.html" ]
+}</pre>
+          </div>
+          <div style="margin-top: 0; display: flex; flex-direction: column; gap: 12px;">
+            <div style="border-top: 1px solid var(--hair-strong); padding-top: 12px;">
+              <span
+                style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Session
+                Context</span>
+              <p style="font-size: 0.92rem; color: var(--slate); line-height: 1.42;">
+                Session identity, move, phase, timers, active seats, role grants, and runtime configuration.
+              </p>
+            </div>
+            <div style="border-top: 1px solid var(--hair-strong); padding-top: 12px;">
+              <span
+                style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Decision
+                Artifacts</span>
+              <p style="font-size: 0.92rem; color: var(--slate); line-height: 1.42;">
+                Orientations, forecasts, actions, proposals, move records, revisions, and final workflow status.
+              </p>
+            </div>
+            <div style="border-top: 1px solid var(--hair-strong); padding-top: 12px;">
+              <span
+                style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Interaction
+                Record</span>
+              <p style="font-size: 0.92rem; color: var(--slate); line-height: 1.42;">
+                RFIs, answers, proposal routing, recipient decisions, communications, interaction edges, and latency.
+              </p>
+            </div>
+            <div style="border-top: 1px solid var(--hair-strong); padding-top: 12px;">
+              <span
+                style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Human
+                Observation</span>
+              <p style="font-size: 0.92rem; color: var(--slate); line-height: 1.42;">
+                Notes, quotes, moments, team dynamics, alliance tracking, quick capture, and recording metadata.
+              </p>
+            </div>
+            <div style="border-top: 1px solid var(--hair-strong); padding-top: 12px;">
+              <span
+                style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Outcome
+                &amp; Provenance</span>
+              <p style="font-size: 0.92rem; color: var(--slate); line-height: 1.42;">
+                White Cell rulings, PLI-routed Macro, NI/escalation, Dip/Info, and Glasl review states, chronology,
+                lineage, metrics, and quality events. PLI augments rather than replaces human authority.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 · Session reports -->
+    <section class="slide">
+      <div class="content">
+        <div class="split">
+          <div>
+            <img class="poster" src="img/session_report.PNG" alt="Plenum Session Report preview">
+          </div>
+          <div>
+            <p class="eyebrow">Analysis &amp; Publication</p>
+            <h2>One dataset, many analytical views.</h2>
+            <p class="body" style="color: var(--slate); line-height: 1.6; margin-bottom: 16px;">
+              Human-readable reports and machine-readable evidence are generated from the same validated session
+              dataset rather than separate narratives.
+            </p>
+            <div style="display: grid; gap: 12px; margin-top: 20px;">
+              <div style="border-top: 1px solid var(--hair-strong); padding-top: 10px;">
+                <span
+                  style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Game
+                  Analysts</span>
+                <p style="font-size: 0.98rem; color: var(--slate); line-height: 1.45;">Trace how strategy became action,
+                  where coordination changed a decision, and which events formed the decision chain.</p>
+              </div>
+              <div style="border-top: 1px solid var(--hair-strong); padding-top: 10px;">
+                <span
+                  style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Policy
+                  Makers</span>
+                <p style="font-size: 0.98rem; color: var(--slate); line-height: 1.45;">Surface policy levers, tradeoffs,
+                  partner responses, implementation friction, and recipient decisions.</p>
+              </div>
+              <div style="border-top: 1px solid var(--hair-strong); padding-top: 10px;">
+                <span
+                  style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Strategic
+                  Leaders</span>
+                <p style="font-size: 0.98rem; color: var(--slate); line-height: 1.45;">Highlight turning points,
+                  coalition patterns, escalation paths, relationship effects, and decision tempo.</p>
+              </div>
+              <div style="border-top: 1px solid var(--hair-strong); padding-top: 10px;">
+                <span
+                  style="font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;">Training
+                  Evaluators</span>
+                <p style="font-size: 0.98rem; color: var(--slate); line-height: 1.45;">Use role handoffs, revisions,
+                  rubric evidence, participation signals, and learning gaps to assess the exercise.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11 · Playthrough targets and launch -->
+    <section class="slide invert proof-slide">
+      <div class="content">
+        <p class="eyebrow">Playthrough targets</p>
+        <h2>Four proof loops close before we call it complete.</h2>
+
+        <div class="proof-layout">
+          <ul class="proof-list" aria-label="Playthrough completion gates">
+            <li class="proof-item">
+              <span class="proof-kicker">Gate 01</span>
+              <h3>Orientation</h3>
+              <p>White Cell reviews all four team artifacts before the Move 1 gate advances.</p>
+            </li>
+            <li class="proof-item">
+              <span class="proof-kicker">Gate 02</span>
+              <h3>Actions</h3>
+              <p>Blue and Red submissions show as adjudicated only after White Cell records deliberation.</p>
+            </li>
+            <li class="proof-item">
+              <span class="proof-kicker">Gate 03</span>
+              <h3>Proposal</h3>
+              <p>Green's European consortium proposal moves through White Cell to Blue, where Blue selects Accept.</p>
+            </li>
+            <li class="proof-item">
+              <span class="proof-kicker">Gate 04</span>
+              <h3>RFI + Timeline</h3>
+              <p>The answer leaves the pending queue, returns in Responses, and creates a visible timeline event.</p>
+            </li>
+          </ul>
+
+          <aside class="seat-panel" aria-labelledby="begin-heading">
+            <h3 id="begin-heading">Then we begin.</h3>
+            <ol>
+              <li>Join session <strong>JSJ72026</strong> in your assigned role.</li>
+              <li>Use only the controls and records exposed to that seat.</li>
+              <li>Watch each handoff return live before moving on.</li>
+            </ol>
+            <a class="cta" id="openPlenumCta" href="https://tinyurl.com/ssgfo" target="_blank" rel="noopener"><span
+                class="cta-k">Open Plenum</span><span class="cta-url">tinyurl.com/ssgfo</span></a>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="footer">
+    <span>Plenum &middot; William &amp; Mary SSG</span>
+    <div class="controls">
+      <button id="prevBtn" type="button">Prev</button>
+      <div class="dots" id="dots"></div>
+      <button id="nextBtn" type="button">Next</button>
+      <button id="fsBtn" type="button">Full screen</button>
+      <span class="counter" id="counter">1 / 11</span>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+      var total = slides.length, index = 0;
+      var fill = document.getElementById("progressFill");
+      var counter = document.getElementById("counter");
+      var dotsWrap = document.getElementById("dots");
+
+      slides.forEach(function (_, i) {
+        var d = document.createElement("button");
+        d.className = "dot" + (i === 0 ? " active" : "");
+        d.type = "button";
+        d.setAttribute("aria-label", "Go to slide " + (i + 1));
+        d.addEventListener("click", function (e) { e.stopPropagation(); go(i); });
+        dotsWrap.appendChild(d);
+      });
+      var dots = Array.prototype.slice.call(dotsWrap.children);
+
+      function render() {
+        slides.forEach(function (s, i) { s.classList.toggle("active", i === index); });
+        dots.forEach(function (d, i) { d.classList.toggle("active", i === index); });
+        fill.style.width = ((index + 1) / total * 100) + "%";
+        counter.textContent = (index + 1) + " / " + total;
+        document.body.classList.toggle("dark-chrome", slides[index].classList.contains("invert"));
+      }
+      function go(i) { index = Math.max(0, Math.min(total - 1, i)); render(); }
+      function next() { if (index < total - 1) go(index + 1); }
+      function prev() { if (index > 0) go(index - 1); }
+
+      document.getElementById("nextBtn").addEventListener("click", function (e) { e.stopPropagation(); next(); });
+      document.getElementById("prevBtn").addEventListener("click", function (e) { e.stopPropagation(); prev(); });
+      document.getElementById("fsBtn").addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!document.fullscreenElement) { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); }
+        else { if (document.exitFullscreen) document.exitFullscreen(); }
+      });
+      var openPlenumCta = document.getElementById("openPlenumCta");
+      if (openPlenumCta) {
+        openPlenumCta.addEventListener("click", function (e) { e.stopPropagation(); });
+      }
+      document.getElementById("deck").addEventListener("click", function () { next(); });
+      document.addEventListener("keydown", function (e) {
+        switch (e.key) {
+          case "ArrowRight": case "ArrowDown": case " ": case "PageDown": e.preventDefault(); next(); break;
+          case "ArrowLeft": case "ArrowUp": case "PageUp": e.preventDefault(); prev(); break;
+          case "Home": e.preventDefault(); go(0); break;
+          case "End": e.preventDefault(); go(total - 1); break;
+        }
+      });
+
+      // Switch the role-accurate information workflow without advancing the deck.
+      var wrap = document.getElementById("graphWrap");
+      if (wrap) { wrap.addEventListener("click", function (e) { e.stopPropagation(); }); }
+      var ctrl = document.getElementById("graphControls");
+      if (ctrl) {
+        var btns = Array.prototype.slice.call(ctrl.querySelectorAll("button"));
+        var panels = Array.prototype.slice.call(document.querySelectorAll("[data-flow-panel]"));
+        function selectWorkflowTab(button) {
+          btns.forEach(function (x) {
+            var selected = x === button;
+            x.classList.toggle("active", selected);
+            x.setAttribute("aria-selected", selected ? "true" : "false");
+            x.tabIndex = selected ? 0 : -1;
+          });
+          panels.forEach(function (panel) {
+            panel.hidden = panel.dataset.flowPanel !== button.dataset.mode;
+          });
+        }
+        btns.forEach(function (b) {
+          b.addEventListener("click", function (e) {
+            e.stopPropagation();
+            selectWorkflowTab(b);
+          });
+        });
+        ctrl.addEventListener("keydown", function (e) {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") { return; }
+          e.preventDefault();
+          e.stopPropagation();
+          var current = Math.max(0, btns.indexOf(document.activeElement));
+          var direction = e.key === "ArrowRight" ? 1 : -1;
+          var nextTab = btns[(current + direction + btns.length) % btns.length];
+          selectWorkflowTab(nextTab);
+          nextTab.focus();
+        });
+      }
+
+      render();
+    })();
+  </script>
+
+</body>
+
+</html>
