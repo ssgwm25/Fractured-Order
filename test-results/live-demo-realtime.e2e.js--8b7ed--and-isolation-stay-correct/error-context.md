@@ -52,7 +52,7 @@
             - button "Next" [ref=e77] [cursor=pointer]
       - generic [ref=e78]:
         - generic [ref=e79]: Session
-        - generic [ref=e80]: Realtime Gate RTRNV492DA
+        - generic [ref=e80]: Realtime Isolation RTRNVMZXSB
     - banner [ref=e81]:
       - generic [ref=e83]:
         - generic [ref=e84]: Operator
@@ -76,30 +76,53 @@
               - heading "Session Management" [level=2] [ref=e105]
               - paragraph [ref=e106]: Operator-only creation and configuration of simulation instances
             - button "+ New Session" [active] [ref=e108] [cursor=pointer]
-          - generic [ref=e111]:
-            - generic [ref=e112]:
-              - generic [ref=e113]:
-                - generic [ref=e114]:
-                  - heading "Realtime Gate RTRNV492DA" [level=3] [ref=e115]
-                  - generic [ref=e117]: Selected
-                - paragraph [ref=e118]:
-                  - text: "Code:"
-                  - strong [ref=e119]: RTRNV492DA
-              - generic [ref=e121]: active
-            - generic [ref=e123]:
-              - generic [ref=e124]:
-                - generic [ref=e125]: Status
-                - generic [ref=e126]: active
-              - generic [ref=e127]:
-                - generic [ref=e128]: Created
-                - generic [ref=e129]: just now
-              - generic [ref=e130]:
-                - generic [ref=e131]: Updated
-                - generic [ref=e132]: just now
-            - generic [ref=e133]:
-              - button "Select" [ref=e134] [cursor=pointer]
-              - button "View Details" [ref=e135] [cursor=pointer]
-              - button "Delete" [ref=e136] [cursor=pointer]
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - generic [ref=e114]:
+                    - heading "Realtime Isolation RTRNVMZXSB" [level=3] [ref=e115]
+                    - generic [ref=e117]: Selected
+                  - paragraph [ref=e118]:
+                    - text: "Code:"
+                    - strong [ref=e119]: RTRNVMZXSB
+                - generic [ref=e121]: active
+              - generic [ref=e123]:
+                - generic [ref=e124]:
+                  - generic [ref=e125]: Status
+                  - generic [ref=e126]: active
+                - generic [ref=e127]:
+                  - generic [ref=e128]: Created
+                  - generic [ref=e129]: just now
+                - generic [ref=e130]:
+                  - generic [ref=e131]: Updated
+                  - generic [ref=e132]: just now
+              - generic [ref=e133]:
+                - button "Select" [ref=e134] [cursor=pointer]
+                - button "View Details" [ref=e135] [cursor=pointer]
+                - button "Delete" [ref=e136] [cursor=pointer]
+            - generic [ref=e137]:
+              - generic [ref=e138]:
+                - generic [ref=e139]:
+                  - heading "Realtime Gate RTRNVMZXSA" [level=3] [ref=e141]
+                  - paragraph [ref=e142]:
+                    - text: "Code:"
+                    - strong [ref=e143]: RTRNVMZXSA
+                - generic [ref=e145]: active
+              - generic [ref=e147]:
+                - generic [ref=e148]:
+                  - generic [ref=e149]: Status
+                  - generic [ref=e150]: active
+                - generic [ref=e151]:
+                  - generic [ref=e152]: Created
+                  - generic [ref=e153]: just now
+                - generic [ref=e154]:
+                  - generic [ref=e155]: Updated
+                  - generic [ref=e156]: just now
+              - generic [ref=e157]:
+                - button "Select" [ref=e158] [cursor=pointer]
+                - button "View Details" [ref=e159] [cursor=pointer]
+                - button "Delete" [ref=e160] [cursor=pointer]
         - text: No plugins are active for the selected session. Choose a session and enable plugins from the White Cell settings.
   - region "Notifications"
 ```

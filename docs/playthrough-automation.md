@@ -94,6 +94,12 @@ The local browser layer dispatches offline/online transitions against the
 shared deterministic backend. It proves the recovery UI and reconciliation
 flow, but not Supabase WebSocket behavior.
 
+The Realtime suite exercises the `actions` subscription through the Blue
+Strategic Orientation handoff while the session remains in its required
+pre-move state. The four-team orientation gate and the subsequent normal-action
+lifecycle are covered by the professional playthrough. The focused Realtime
+gate does not bypass or weaken that workflow precondition.
+
 Run the authoritative Realtime gate against the dedicated rehearsal deployment:
 
 ```powershell

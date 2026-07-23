@@ -3,15 +3,14 @@ import { test, expect } from '@playwright/test';
 import {
     authorizeGameMaster,
     authorizeWhiteCell,
-    createDraftAction,
     createIsolatedActorPage,
     createSessionFromMaster,
-    forwardActionToScribe,
     joinPublicParticipant,
     openSidebarSection,
     openWhiteCellSettingsTab,
+    recordStrategicOrientationFromScribe,
     sendWhiteCellCommunication,
-    submitActionFromScribe,
+    submitStrategicOrientationFromScribe,
     submitRfi
 } from './support/liveDemoHarness.js';
 
@@ -93,7 +92,7 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
     const latencySamples = [];
     const sessionName = `Realtime Gate ${sessionCodes.primary}`;
     const isolationSessionName = `Realtime Isolation ${sessionCodes.isolation}`;
-    const actionTitle = `Realtime action ${sessionCodes.primary}`;
+    const orientationRationale = `Realtime orientation ${sessionCodes.primary}`;
     const rfiQuestion = `Realtime RFI ${sessionCodes.primary}`;
     const directMessage = `Realtime direct message ${sessionCodes.primary}`;
     const missedMessage = `Realtime recovered message ${sessionCodes.primary}`;
@@ -173,16 +172,21 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             recordLatency(latencySamples, 'game_state timer fanout', timerStartedAt);
             await whiteCell.page.locator('#pauseTimerBtn').click({ timeout: 20000 });
 
-            await createDraftAction(blueScribe.page, { goal: actionTitle });
-            await forwardActionToScribe(blueScribe.page, actionTitle);
-            await openSidebarSection(whiteCell.page, 'actions');
+            const orientationGoal = await recordStrategicOrientationFromScribe(blueScribe.page, {
+                team: 'blue',
+                orientation: 'pressure',
+                rationale: orientationRationale
+            });
+            if (!actorPool.hosted) {
+                await blueFacilitator.page.reload();
+            }
             const actionStartedAt = Date.now();
-            await submitActionFromScribe(blueFacilitator.page, actionTitle);
+            await submitStrategicOrientationFromScribe(blueFacilitator.page, orientationGoal);
             if (!actorPool.hosted) {
                 await whiteCell.page.reload();
-                await openSidebarSection(whiteCell.page, 'actions');
             }
-            await expect(whiteCell.page.locator('#actionsList')).toContainText(actionTitle);
+            await openSidebarSection(whiteCell.page, 'strategicOrientation');
+            await expect(whiteCell.page.locator('#strategicOrientationList')).toContainText(orientationGoal);
             recordLatency(latencySamples, 'actions fanout', actionStartedAt);
 
             await openSidebarSection(whiteCell.page, 'requests');

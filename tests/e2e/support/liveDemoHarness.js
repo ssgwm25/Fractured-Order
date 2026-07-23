@@ -392,7 +392,10 @@ export async function createDraftAction(page, {
 
     await page.locator('#newActionBtn').click();
 
-    const modal = page.locator('.modal-overlay');
+    const modal = page
+        .locator('.modal-overlay.modal-visible:not(.modal-hiding)')
+        .filter({ has: page.locator('#actionTitle') });
+    await expect(modal).toBeVisible({ timeout: 20000 });
     await modal.locator('#actionTitle').fill(goal);
     await modal.locator('#actionObjective').fill(objective);
     const instrumentCheckboxes = modal.locator('[data-blue-action-checkbox="instrument"]');
