@@ -41,6 +41,11 @@ import {
     isProposalRecipientFinal
 } from '../features/actions/proposalRecipientState.js';
 import {
+    getProposalViewModel,
+    isProposalAction,
+    isProposalForwardedToScribe
+} from '../features/actions/proposalDetails.js';
+import {
     buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
     DEFAULT_SCRIBE_DECK_PATH,
@@ -323,14 +328,17 @@ function getActionSlideLifecycleLabel(action = {}) {
 function isScribeVisibleAction(action = {}) {
     return !isDraftAction(action)
         || isBlueActionForwardedToScribe(action)
-        || isStrategicOrientationForwardedToScribe(action);
+        || isStrategicOrientationForwardedToScribe(action)
+        || isProposalForwardedToScribe(action);
 }
 
 export function buildScribeActionSlides(actions = [], {
     teamLabel = 'Team'
 } = {}) {
     const sortedActions = sortTeamActions(actions.filter(isScribeVisibleAction));
-    const sequencedActions = sortedActions.filter((action) => !isStrategicOrientationAction(action));
+    const sequencedActions = sortedActions.filter((action) => (
+        !isStrategicOrientationAction(action) && !isProposalAction(action)
+    ));
 
     if (!sortedActions.length) {
         return {
@@ -342,10 +350,14 @@ export function buildScribeActionSlides(actions = [], {
     const slides = sortedActions.map((action, index) => {
         const strategicOrientation = getStrategicOrientationViewModel(action);
         const isStrategicOrientationSlide = strategicOrientation.hasStrategicOrientationDetails;
-        const actionViewModel = isStrategicOrientationSlide
+        const proposalViewModel = isStrategicOrientationSlide
+            ? null
+            : getProposalViewModel(action);
+        const isOwnProposalSlide = Boolean(proposalViewModel?.hasProposalDetails);
+        const actionViewModel = isStrategicOrientationSlide || isOwnProposalSlide
             ? null
             : getBlueActionViewModel(action);
-        const actionNumber = isStrategicOrientationSlide
+        const actionNumber = isStrategicOrientationSlide || isOwnProposalSlide
             ? null
             : (getActionSequenceNumber(sequencedActions, action) || sequencedActions.indexOf(action) + 1 || index + 1);
         const sequenceLabel = formatActionSequenceLabel({
@@ -353,18 +365,30 @@ export function buildScribeActionSlides(actions = [], {
             move: action.move || 1,
             actionNumber
         });
+        const recipientLabel = proposalViewModel?.recipientTeam === 'red'
+            ? 'Red'
+            : (proposalViewModel?.recipientTeam === 'blue' ? 'Blue' : 'Recipient');
 
         return {
             slideKey: `action-${action.id}`,
-            slideType: isStrategicOrientationSlide ? 'strategic-orientation' : 'action',
+            slideType: isStrategicOrientationSlide
+                ? 'strategic-orientation'
+                : (isOwnProposalSlide ? 'own-proposal' : 'action'),
             action,
             actionViewModel,
             strategicOrientation,
-            title: isStrategicOrientationSlide ? strategicOrientation.title : actionViewModel.title,
-            sidebarOrdinal: isStrategicOrientationSlide ? 'SO' : String(actionNumber),
+            proposalViewModel: isOwnProposalSlide ? proposalViewModel : null,
+            title: isStrategicOrientationSlide
+                ? strategicOrientation.title
+                : (isOwnProposalSlide ? proposalViewModel.title : actionViewModel.title),
+            sidebarOrdinal: isStrategicOrientationSlide
+                ? 'SO'
+                : (isOwnProposalSlide ? 'P' : String(actionNumber)),
             sidebarKicker: isStrategicOrientationSlide
                 ? `${getActionSlideLifecycleLabel(action)} | Pre-Move 1 | ${strategicOrientation.isForecast ? 'Forecast' : 'Selection'}`
-                : `${getActionSlideLifecycleLabel(action)} | ${sequenceLabel}`
+                : (isOwnProposalSlide
+                    ? `${getActionSlideLifecycleLabel(action)} | Proposal → ${recipientLabel}`
+                    : `${getActionSlideLifecycleLabel(action)} | ${sequenceLabel}`)
         };
     });
 
@@ -751,6 +775,8 @@ export class ScribeController {
         this.communicationsSeeded = false;
         this.actionsSeeded = false;
         this.collapsedStrategicActionIds = new Set();
+        this.presentationEditActionId = null;
+        this.presentationEditHost = null;
     }
 
     async init() {
@@ -1082,6 +1108,7 @@ export class ScribeController {
             }
 
             if (!isFullscreenActive && isPresenting) {
+                this.closePresentationEditPanel();
                 setScribePresentationMode({ isActive: false });
             }
         });
@@ -1560,6 +1587,7 @@ export class ScribeController {
         const isPresenting = this.isPresentationModeActive();
 
         if (isPresenting) {
+            this.closePresentationEditPanel();
             if (document.fullscreenElement) {
                 try {
                     await document.exitFullscreen?.();
@@ -1997,8 +2025,9 @@ export class ScribeController {
     renderPresentationToolbar(action = {}, actionViewModel = getBlueActionViewModel(action)) {
         const actionId = String(action.id || '');
         const isOrientation = isStrategicOrientationAction(action);
+        const isProposal = isProposalAction(action);
         const isEditableDraft = isDraftAction(action);
-        const actionControlsDisabled = isOrientation || !isEditableDraft;
+        const actionControlsDisabled = isOrientation || isProposal || !isEditableDraft;
         const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
         const informedEngagedDecision = normalizeScribeDecision(actionViewModel.informedEngagedDecision);
         const coordinatedValues = actionViewModel.coordinated || [];
@@ -2018,13 +2047,15 @@ export class ScribeController {
                 ? (isScribeOptionSelected('Allies', informedValues) ? 'yes' : 'no')
                 : ''
         };
-        const isComplete = isOrientation || this.isPresentationActionSelectionsComplete(presentationSelections);
+        const isComplete = isOrientation || isProposal || this.isPresentationActionSelectionsComplete(presentationSelections);
         const statusId = buildScribeControlId(actionId, 'presentation-toolbar', 'status');
         const toolbarStatus = !isEditableDraft
             ? 'Submitted to White Cell.'
             : (isOrientation
                 ? 'Coordination and engagement apply to action submissions only.'
-                : (isComplete ? 'Ready to forward.' : 'Complete every Yes/No choice to forward.'));
+                : (isProposal
+                    ? 'Review the proposal with the room, then forward to White Cell.'
+                    : (isComplete ? 'Ready to forward.' : 'Complete every Yes/No choice to forward.')));
 
         return `
             <footer
@@ -2218,7 +2249,64 @@ export class ScribeController {
         this.actionEditorController.teamId = this.teamId;
         this.actionEditorController.teamLabel = this.teamLabel;
         this.actionEditorController.isReadOnly = false;
+
+        if (this.isPresentationModeActive()) {
+            this.openPresentationEditPanel(action);
+            return;
+        }
+
         this.actionEditorController.showEditActionModal(action);
+    }
+
+    ensurePresentationEditHost() {
+        let host = document.getElementById('scribePresentationEditPanel');
+        if (host) {
+            this.presentationEditHost = host;
+            return host;
+        }
+
+        host = document.createElement('aside');
+        host.id = 'scribePresentationEditPanel';
+        host.className = 'scribe-presentation-edit-panel';
+        host.hidden = true;
+        host.setAttribute('aria-label', 'Live presentation editor');
+
+        const main = document.querySelector('.scribe-main');
+        if (main) {
+            main.appendChild(host);
+        } else {
+            document.body.appendChild(host);
+        }
+
+        this.presentationEditHost = host;
+        return host;
+    }
+
+    openPresentationEditPanel(action = {}) {
+        const host = this.ensurePresentationEditHost();
+        const artifactLabel = isStrategicOrientationAction(action)
+            ? 'Strategic Orientation'
+            : (isProposalAction(action) ? 'Proposal' : 'Action');
+
+        this.presentationEditActionId = String(action.id || '');
+        document.body.dataset.scribePresentationEdit = 'active';
+        host.hidden = false;
+
+        this.actionEditorController.mountEditActionInHost(action, {
+            host,
+            title: `Edit ${artifactLabel}`,
+            onClose: () => this.closePresentationEditPanel()
+        });
+    }
+
+    closePresentationEditPanel() {
+        const host = this.presentationEditHost || document.getElementById('scribePresentationEditPanel');
+        if (host) {
+            host.hidden = true;
+            host.replaceChildren();
+        }
+        this.presentationEditActionId = null;
+        delete document.body.dataset.scribePresentationEdit;
     }
 
     renderScribeStrategicOrientationSubmissionControls(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
@@ -2535,6 +2623,29 @@ export class ScribeController {
             return;
         }
 
+        if (isProposalAction(action)) {
+            if (!isProposalForwardedToScribe(action)) {
+                showToast({ message: 'Only scribe-forwarded proposal drafts can be submitted by the facilitator.', type: 'error' });
+                return;
+            }
+
+            const viewModel = getProposalViewModel(action);
+            const recipientLabel = viewModel.recipientTeam === 'red' ? 'Red Team' : 'Blue Team';
+            const confirmed = await confirmModal({
+                title: 'Submit Proposal to White Cell',
+                message: `Submit ${viewModel.title} to White Cell for review (intended recipient: ${recipientLabel})? The proposal will become read-only for Scribe and Facilitator seats.`,
+                confirmLabel: 'Submit',
+                variant: 'primary'
+            });
+
+            if (!confirmed) {
+                return;
+            }
+
+            await this.submitScribeAction(action);
+            return;
+        }
+
         if (!isBlueActionForwardedToScribe(action)) {
             showToast({ message: 'Only scribe-forwarded draft actions can be submitted by the facilitator.', type: 'error' });
             return;
@@ -2563,6 +2674,11 @@ export class ScribeController {
     async submitScribeAction(action = {}, selections = {}) {
         if (isStrategicOrientationAction(action)) {
             await this.submitScribeStrategicOrientation(action);
+            return;
+        }
+
+        if (isProposalAction(action)) {
+            await this.submitScribeProposal(action);
             return;
         }
 
@@ -2609,6 +2725,52 @@ export class ScribeController {
         }
     }
 
+    async submitScribeProposal(action = {}) {
+        if (!isDraftAction(action) || !isProposalForwardedToScribe(action)) {
+            showToast({ message: 'Only scribe-forwarded proposal drafts can be submitted by the facilitator.', type: 'error' });
+            return;
+        }
+
+        const viewModel = getProposalViewModel(action);
+        const recipientLabel = viewModel.recipientTeam === 'red' ? 'Red Team' : 'Blue Team';
+        const loader = showLoader({ message: 'Submitting proposal to White Cell...' });
+
+        try {
+            const submittedAction = await database.submitAction(action.id);
+            actionsStore.updateFromServer('UPDATE', submittedAction);
+
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: submittedAction.session_id || action.session_id,
+                type: 'PROPOSAL_SUBMITTED',
+                content: `Proposal submitted to White Cell by Facilitator (intended recipient: ${recipientLabel}): ${submittedAction.goal || action.goal || viewModel.title}`,
+                metadata: {
+                    related_id: submittedAction.id || action.id,
+                    role: this.role || this.teamContext.scribeRole,
+                    submitted_by: 'facilitator',
+                    legacy_submitted_by: 'scribe',
+                    proposal: true,
+                    recipient_team: viewModel.recipientTeam || null,
+                    review_stage: 'white_cell_review'
+                },
+                team: this.teamId,
+                move: submittedAction.move ?? action.move ?? 1,
+                phase: submittedAction.phase ?? action.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+
+            this.closePresentationEditPanel();
+            showToast({
+                message: `Proposal submitted to White Cell. It will be forwarded to ${recipientLabel} once approved.`,
+                type: 'success'
+            });
+        } catch (error) {
+            logger.error('Failed to submit proposal:', error);
+            showToast({ message: 'Failed to submit proposal. Refresh the facilitator view and try again.', type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
     async submitScribeStrategicOrientation(action = {}) {
         if (!isDraftAction(action) || !isStrategicOrientationForwardedToScribe(action)) {
             showToast({ message: 'Only scribe-forwarded Strategic Orientation drafts can be submitted by the facilitator.', type: 'error' });
@@ -2649,6 +2811,89 @@ export class ScribeController {
         } finally {
             hideLoader();
         }
+    }
+
+    renderOwnProposalSlide(slide, viewModel = getProposalViewModel(slide.action || {})) {
+        const action = slide.action || {};
+        const isDraftPreview = isDraftAction(action);
+        const recipientLabel = viewModel.recipientTeam === 'red'
+            ? 'Red Team'
+            : (viewModel.recipientTeam === 'blue' ? 'Blue Team' : 'Not specified');
+        const formatList = (value) => Array.isArray(value) && value.length
+            ? value.join(', ')
+            : (value || 'Not specified');
+
+        return `
+            <article class="scribe-action-slide scribe-own-proposal-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
+                <header class="scribe-action-slide-header">
+                    <div>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(this.teamLabel)} Proposal</p>
+                        <h2 class="scribe-action-slide-title">${escapeHtml(viewModel.title)}</h2>
+                        <p class="scribe-action-slide-summary">Intended recipient: ${escapeHtml(recipientLabel)}</p>
+                    </div>
+                </header>
+
+                <section class="scribe-action-slide-panel">
+                    <section class="scribe-action-slide-lead" aria-label="Proposal objective">
+                        <p class="scribe-action-slide-section-label">Objective</p>
+                        <p class="scribe-action-slide-body">${escapeHtml(viewModel.objective || 'No objective provided.')}</p>
+                    </section>
+
+                    <section class="scribe-action-slide-glance" aria-label="Proposal details">
+                        <div class="scribe-action-slide-section-header">
+                            <h3 class="scribe-action-slide-section-title">Proposal details</h3>
+                        </div>
+                        <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
+                            ${renderActionSlideGlanceCard({ label: 'Originators', value: formatList(viewModel.originators) })}
+                            ${renderActionSlideGlanceCard({ label: 'Category', value: viewModel.category || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Intended partners', value: viewModel.intendedPartners || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Focus sector', value: formatList(viewModel.focusSector) })}
+                            ${renderActionSlideGlanceCard({ label: 'Delivery', value: viewModel.delivery || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Timing and conditions', value: viewModel.timingAndConditions || 'Not specified' })}
+                        </div>
+                    </section>
+
+                    ${viewModel.expectedOutcomes ? `
+                        <section class="scribe-action-slide-lead scribe-action-slide-lead--outcome" aria-label="Expected outcomes">
+                            <p class="scribe-action-slide-section-label">Expected outcomes</p>
+                            <p class="scribe-action-slide-body">${escapeHtml(viewModel.expectedOutcomes)}</p>
+                        </section>
+                    ` : ''}
+
+                    ${isDraftPreview ? `
+                        <section
+                            class="scribe-action-slide-submit-panel"
+                            data-scribe-action-submit-panel
+                            data-action-id="${escapeHtml(String(action.id || ''))}"
+                            aria-label="Facilitator proposal submission controls"
+                        >
+                            <div class="scribe-action-slide-submit-head">
+                                <div>
+                                    <p class="scribe-action-slide-section-label">Facilitator-to-White Cell handoff</p>
+                                    <h3 class="scribe-action-slide-submit-title">Project the proposal, then send to White Cell</h3>
+                                </div>
+                                <div class="scribe-action-slide-submit-actions">
+                                    <button
+                                        type="button"
+                                        class="btn btn-secondary"
+                                        data-scribe-action-edit
+                                        data-action-id="${escapeHtml(String(action.id || ''))}"
+                                    >Edit</button>
+                                    <button
+                                        type="button"
+                                        class="btn btn-primary"
+                                        data-scribe-action-submit
+                                        data-action-id="${escapeHtml(String(action.id || ''))}"
+                                    >Forward to White Cell</button>
+                                </div>
+                            </div>
+                        </section>
+                    ` : ''}
+                </section>
+
+                ${this.renderPresentationToolbar(action)}
+            </article>
+        `;
     }
 
     renderStrategicOrientationSlide(slide, viewModel = getStrategicOrientationViewModel(slide.action || {})) {
@@ -2999,6 +3244,11 @@ export class ScribeController {
         const strategicOrientation = slide.strategicOrientation || getStrategicOrientationViewModel(action);
         if (strategicOrientation.hasStrategicOrientationDetails) {
             return this.renderStrategicOrientationSlide(slide, strategicOrientation);
+        }
+
+        const proposalViewModel = slide.proposalViewModel || getProposalViewModel(action);
+        if (proposalViewModel.hasProposalDetails || slide.slideType === 'own-proposal') {
+            return this.renderOwnProposalSlide(slide, proposalViewModel);
         }
 
         const actionViewModel = slide.actionViewModel || getBlueActionViewModel(action);

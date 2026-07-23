@@ -8,6 +8,7 @@ const EXPECTED_INPUTS = Object.freeze({
     main: 'index.html',
     master: 'master.html',
     whitecell: 'whitecell.html',
+    sme: 'sme.html',
     blueFacilitatorDeck: 'decks/blue/fractured-order-facilitator-deck.html',
     blueFacilitator: 'teams/blue/facilitator.html',
     blueScribe: 'teams/blue/scribe.html',

@@ -25,6 +25,7 @@ const MOCK_TABLES = [
     'communications',
     'timeline',
     'notetaker_data',
+    'sme_handoffs',
     'research_audit_event_log',
     'research_participant',
     'research_note',
@@ -42,6 +43,14 @@ const MOCK_TABLES = [
     'research_derived_session_metrics',
     'research_export_codebook'
 ];
+
+const SME_OPERATOR_ROLES = new Set([
+    'sme_econ',
+    'sme_ni_escalation',
+    'sme_diplomacy_information',
+    'sme_tsj',
+    'sme_verba'
+]);
 
 function cloneValue(value) {
     return value === undefined
@@ -473,6 +482,19 @@ function normalizeInsertRow(tableName, payload, state) {
                 updated_at: timestamp,
                 ...cloneValue(payload)
             };
+        case 'sme_handoffs':
+            return {
+                ...baseRow,
+                session_id: null,
+                action_id: null,
+                seat: null,
+                status: 'pending',
+                acknowledged_by: null,
+                acknowledged_at: null,
+                created_at: timestamp,
+                updated_at: timestamp,
+                ...cloneValue(payload)
+            };
         case 'participants':
             return {
                 ...baseRow,
@@ -638,6 +660,9 @@ function getSessionRoleSeatLimit(role = '') {
     if (/^whitecell_support$/.test(normalizedRole)) {
         return 1;
     }
+    if (SME_OPERATOR_ROLES.has(normalizedRole)) {
+        return 1;
+    }
 
     return null;
 }
@@ -709,6 +734,10 @@ function getLiveDemoParticipantSurface(state, authUserId, sessionId) {
 
     if (/^whitecell(_lead|_support)?$/.test(role || '')) {
         return 'whitecell';
+    }
+
+    if (SME_OPERATOR_ROLES.has(role || '')) {
+        return 'sme';
     }
 
     return null;
@@ -819,8 +848,11 @@ function canReadTableRow(state, tableName, row, authUserId) {
 
     if (tableName === 'session_participants' || tableName === 'game_state' || tableName === 'actions'
         || tableName === 'requests' || tableName === 'communications' || tableName === 'timeline'
-        || tableName === 'notetaker_data') {
-        return liveDemoCanReadSession(state, authUserId, row.session_id);
+        || tableName === 'notetaker_data' || tableName === 'sme_handoffs') {
+        return liveDemoCanReadSession(state, authUserId, row.session_id)
+            || liveDemoHasOperatorGrant(state, authUserId, 'sme', row.session_id)
+            || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
+            || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster');
     }
 
     if (tableName.startsWith('research_') && tableName !== 'research_export_codebook') {
@@ -863,6 +895,17 @@ function canInsertTableRow(state, tableName, row, authUserId) {
                 row.session_id,
                 ['notetaker']
             );
+        case 'sme_handoffs':
+            return (
+                liveDemoCanWriteSessionSurface(
+                    state,
+                    authUserId,
+                    row.session_id,
+                    ['whitecell', 'gamemaster']
+                )
+                || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
+                || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            );
         default:
             return false;
     }
@@ -886,6 +929,26 @@ function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
             return (
                 liveDemoCanWriteSessionSurface(state, authUserId, currentRow.session_id, ['notetaker'])
                 && liveDemoCanWriteSessionSurface(state, authUserId, nextRow.session_id, ['notetaker'])
+            );
+        case 'sme_handoffs':
+            return (
+                liveDemoCanWriteSessionSurface(
+                    state,
+                    authUserId,
+                    currentRow.session_id,
+                    ['sme', 'gamemaster']
+                )
+                || liveDemoHasOperatorGrant(state, authUserId, 'sme', currentRow.session_id)
+                || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            ) && (
+                liveDemoCanWriteSessionSurface(
+                    state,
+                    authUserId,
+                    nextRow.session_id,
+                    ['sme', 'gamemaster']
+                )
+                || liveDemoHasOperatorGrant(state, authUserId, 'sme', nextRow.session_id)
+                || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
             );
         default:
             return false;
@@ -972,21 +1035,39 @@ function authorizeDemoOperator(state, {
         return { data: null, error: { message: 'Invalid operator access code.' } };
     }
 
-    if (!['gamemaster', 'whitecell'].includes(normalizedSurface)) {
+    if (!['gamemaster', 'whitecell', 'sme'].includes(normalizedSurface)) {
         return { data: null, error: { message: 'Unsupported operator surface.' } };
     }
 
-    if (normalizedSurface === 'whitecell') {
-        const session = state.tables.sessions.find((entry) => (
-            entry.id === requested_session_id && entry.status === 'active'
-        ));
-
-        if (!session) {
-            return { data: null, error: { message: 'This session is not currently joinable.' } };
+    let resolvedSession = null;
+    if (normalizedSurface === 'whitecell' || normalizedSurface === 'sme') {
+        if (normalizedSurface === 'whitecell'
+            && !['whitecell_lead', 'whitecell_support'].includes(normalizedRole)) {
+            return { data: null, error: { message: 'White Cell authorization requires a supported operator role.' } };
         }
 
-        if (!['whitecell_lead', 'whitecell_support'].includes(normalizedRole)) {
-            return { data: null, error: { message: 'White Cell authorization requires a supported operator role.' } };
+        if (normalizedSurface === 'sme' && !SME_OPERATOR_ROLES.has(normalizedRole)) {
+            return { data: null, error: { message: 'SME authorization requires a supported SME role.' } };
+        }
+
+        if (requested_session_id) {
+            resolvedSession = state.tables.sessions.find((entry) => (
+                entry.id === requested_session_id && entry.status === 'active'
+            ));
+            if (!resolvedSession) {
+                return { data: null, error: { message: 'This session is not currently joinable.' } };
+            }
+        } else {
+            const active = state.tables.sessions
+                .filter((entry) => entry.status === 'active')
+                .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')));
+            resolvedSession = active[0] || null;
+            if (!resolvedSession) {
+                return {
+                    data: null,
+                    error: { message: 'No active session is available. Ask Game Master to open a session first.' }
+                };
+            }
         }
 
         normalizedTeam = null;
@@ -999,16 +1080,26 @@ function authorizeDemoOperator(state, {
     const grant = normalizeInsertRow('operator_grants', {
         auth_user_id: authUserId,
         surface: normalizedSurface,
-        session_id: normalizedSurface === 'whitecell' ? requested_session_id : null,
-        team_id: normalizedSurface === 'whitecell' ? normalizedTeam : null,
-        role: normalizedSurface === 'whitecell' ? normalizedRole : 'white',
+        session_id: (normalizedSurface === 'whitecell' || normalizedSurface === 'sme')
+            ? resolvedSession.id
+            : null,
+        team_id: (normalizedSurface === 'whitecell' || normalizedSurface === 'sme')
+            ? normalizedTeam
+            : null,
+        role: normalizedSurface === 'whitecell' || normalizedSurface === 'sme'
+            ? normalizedRole
+            : 'white',
         operator_name: String(requested_operator_name || '').trim() || null
     }, state);
 
     state.tables.operator_grants.push(grant);
 
     return {
-        data: cloneValue(grant),
+        data: cloneValue({
+            ...grant,
+            session_code: resolvedSession?.session_code || resolvedSession?.metadata?.session_code || null,
+            session_name: resolvedSession?.name || null
+        }),
         error: null
     };
 }
@@ -1149,6 +1240,15 @@ function claimSessionRoleSeat(state, {
             || grant.session_id !== requested_session_id
             || grant.role !== normalizedRole) {
             return { data: null, error: { message: 'White Cell seats require operator authorization.' } };
+        }
+    }
+
+    if (SME_OPERATOR_ROLES.has(normalizedRole)) {
+        const grant = getOperatorGrant(state, authUserId, 'sme');
+        if (!grant
+            || grant.session_id !== requested_session_id
+            || grant.role !== normalizedRole) {
+            return { data: null, error: { message: 'SME seats require operator authorization.' } };
         }
     }
 
@@ -2263,6 +2363,32 @@ export function createE2EMockSupabaseClient() {
             }
 
             return { data: null, error: null };
+        },
+        functions: {
+            async invoke(functionName, options = {}) {
+                if (functionName === 'pli-report-narrative') {
+                    const body = options?.body || {};
+                    const actionCount = Array.isArray(body?.factPack?.actions)
+                        ? body.factPack.actions.length
+                        : 0;
+                    return {
+                        data: {
+                            narrative: [
+                                `Mock after-action narrative for ${body.scope || 'simulation'} scope`,
+                                `(${actionCount} finalized action${actionCount === 1 ? '' : 's'}).`,
+                                'Macro, diplomacy, information, national interest, and escalation',
+                                'outputs were summarized from the provided fact pack only.'
+                            ].join(' ')
+                        },
+                        error: null
+                    };
+                }
+
+                return {
+                    data: null,
+                    error: { message: `Unhandled mock edge function: ${functionName}` }
+                };
+            }
         },
         auth: {
             async getSession() {

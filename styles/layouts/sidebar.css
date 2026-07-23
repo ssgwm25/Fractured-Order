@@ -468,6 +468,12 @@
     animation: sidebarBadgePop var(--transition-bounce);
 }
 
+/* White Cell PLI badges while SME review is still outstanding */
+.sidebar-badge--awaiting {
+    background: var(--color-warning-soft, #f3e8c8);
+    color: var(--color-warning-ink, #7a4b00);
+}
+
 @keyframes sidebarBadgePop {
     from { transform: scale(0.62); }
     to { transform: scale(1); }
@@ -827,7 +833,8 @@
     z-index: calc(var(--z-fixed) - 1);
 }
 
-.sidebar-overlay.active {
+.sidebar-overlay.active,
+.sidebar-overlay.sidebar-overlay-visible {
     display: block;
 }
 
@@ -875,7 +882,8 @@
         transition: transform var(--transition-smooth);
     }
 
-    .sidebar.open {
+    .sidebar.open,
+    .sidebar.sidebar-open {
         transform: translateX(0);
     }
 

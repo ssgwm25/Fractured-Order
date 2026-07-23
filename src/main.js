@@ -110,6 +110,9 @@ async function initApp() {
     // Setup logout handler
     setupLogoutHandler();
 
+    // Setup page refresh controls (role headers / facilitator section actions)
+    setupPageRefreshHandler();
+
     // Setup sidebar navigation
     setupSidebarNavigation();
 
@@ -444,6 +447,14 @@ function setupLogoutHandler() {
     logoutBtn.addEventListener('click', async () => {
         await requestLogout({
             actionLabel: logoutBtn.textContent
+        });
+    });
+}
+
+function setupPageRefreshHandler() {
+    document.querySelectorAll('[data-page-refresh]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            window.location.reload();
         });
     });
 }

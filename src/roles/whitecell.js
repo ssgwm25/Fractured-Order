@@ -88,6 +88,17 @@ import {
     getWhiteCellCommunicationUpdateKind,
     isTeamCaptureTimelineEvent
 } from '../features/communications/targeting.js';
+import { createPliMacroReview } from '../features/pli/PliMacroReview.js';
+import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.js';
+import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js';
+import { createPliReportPanel } from '../features/pli/PliReportPanel.js';
+import {
+    SEATS as PLI_SEATS,
+    PLI_VIEW_MODES,
+    seatNeedsReview,
+    seatIsFinalized,
+    getSeatReview
+} from '../features/pli/pliShared.js';
 import {
     buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
@@ -1208,6 +1219,10 @@ export class WhiteCellController {
         this.hasHydratedBlueActionQueue = false;
         this.hasHydratedGreenProposalQueue = false;
         this.hasHydratedRedResponseQueue = false;
+        this.pliMacroReview = null;
+        this.pliDiplomacyInfoReview = null;
+        this.pliNiEscalationReview = null;
+        this.pliReportPanel = null;
     }
 
     async init() {
@@ -1272,8 +1287,132 @@ export class WhiteCellController {
         });
 
         this.mountFollowAlongOnboarding();
+        this.mountPliSmePanels();
 
         logger.info('White Cell interface initialized');
+    }
+
+    mountPliSmePanels() {
+        const sessionId = () => sessionStore.getSessionId?.() || sessionStore.getSessionData?.()?.id || null;
+        const reviewerName = () => {
+            const auth = sessionStore.getOperatorAuth?.() || {};
+            return auth.displayName || auth.role || this.operatorRole || 'White Cell';
+        };
+        // White Cell Lead/Support view finalized SME outputs only (read-only).
+        const canReview = () => false;
+        const viewMode = PLI_VIEW_MODES.LEAD_READONLY;
+
+        const macroHost = document.getElementById('pliAdjudicationPanel');
+        const dipHost = document.getElementById('pliDiplomacyInfoPanel');
+        const niHost = document.getElementById('pliNiEscalationPanel');
+
+        if (macroHost && !this.pliMacroReview) {
+            this.pliMacroReview = createPliMacroReview({
+                container: macroHost,
+                getSessionId: sessionId,
+                getReviewerName: reviewerName,
+                canReview,
+                viewMode
+            });
+        }
+        if (dipHost && !this.pliDiplomacyInfoReview) {
+            this.pliDiplomacyInfoReview = createDiplomacyInfoReview({
+                container: dipHost,
+                getSessionId: sessionId,
+                getReviewerName: reviewerName,
+                canReview,
+                viewMode
+            });
+        }
+        if (niHost && !this.pliNiEscalationReview) {
+            this.pliNiEscalationReview = createNiEscalationReview({
+                container: niHost,
+                getSessionId: sessionId,
+                getReviewerName: reviewerName,
+                canReview,
+                viewMode
+            });
+        }
+
+        const reportHost = document.getElementById('pliReportsPanel');
+        if (reportHost && !this.pliReportPanel) {
+            this.pliReportPanel = createPliReportPanel({
+                container: reportHost,
+                getSessionId: sessionId,
+                getSessionMeta: () => {
+                    const sessionData = sessionStore.getSessionData?.() || {};
+                    const auth = sessionStore.getOperatorAuth?.() || {};
+                    return {
+                        sessionName: sessionData.name || auth.sessionName || '',
+                        sessionCode: sessionData.code || auth.sessionCode || ''
+                    };
+                }
+            });
+        }
+
+        this.refreshPliSmePanels();
+    }
+
+    refreshPliSmePanels() {
+        this.pliMacroReview?.refresh?.();
+        this.pliDiplomacyInfoReview?.refresh?.();
+        this.pliNiEscalationReview?.refresh?.();
+        this.pliReportPanel?.refresh?.();
+        this.syncPliBadges().catch((err) => {
+            logger.warn('Failed to sync PLI badges', err);
+        });
+    }
+
+    async syncPliBadges() {
+        const sessionId = sessionStore.getSessionId?.() || sessionStore.getSessionData?.()?.id;
+        if (!sessionId) return;
+
+        let rows = [];
+        try {
+            rows = await database.fetchPliAdjudications(sessionId);
+        } catch (err) {
+            logger.warn('PLI badge fetch skipped (migration may be pending)', err);
+            return;
+        }
+
+        // Badge shows finalized (ready-to-view) count. Title surfaces awaiting-SME count.
+        const countFinalized = (seatId) => rows.filter((row) => seatIsFinalized(getSeatReview(row, seatId))).length;
+        const countAwaiting = (seatId) => rows.filter((row) => seatNeedsReview(getSeatReview(row, seatId))).length;
+        const setBadge = (elementId, finalizedCount, awaitingCount, awaitingLabel) => {
+            const badge = document.getElementById(elementId);
+            if (!badge) return;
+            badge.textContent = String(finalizedCount);
+            badge.hidden = finalizedCount <= 0 && awaitingCount <= 0;
+            if (finalizedCount <= 0 && awaitingCount > 0) {
+                badge.textContent = String(awaitingCount);
+                badge.title = awaitingLabel;
+                badge.classList.add('sidebar-badge--awaiting');
+            } else {
+                badge.title = finalizedCount > 0
+                    ? `${finalizedCount} finalized (read-only)`
+                    : '';
+                badge.classList.remove('sidebar-badge--awaiting');
+            }
+        };
+
+        setBadge(
+            'pliMacroBadge',
+            countFinalized(PLI_SEATS.MACRO),
+            countAwaiting(PLI_SEATS.MACRO),
+            'Awaiting Econ'
+        );
+        setBadge(
+            'pliDipInfoBadge',
+            countFinalized(PLI_SEATS.DIPLOMACY_INFORMATION),
+            countAwaiting(PLI_SEATS.DIPLOMACY_INFORMATION),
+            'Awaiting Dip & Info'
+        );
+        setBadge(
+            'pliNiEscBadge',
+            countFinalized(PLI_SEATS.NATIONAL_INTEREST_ESCALATION),
+            countAwaiting(PLI_SEATS.NATIONAL_INTEREST_ESCALATION),
+            'Awaiting NI/Escalation'
+        );
     }
 
     mountFollowAlongOnboarding() {
@@ -1697,6 +1836,22 @@ export class WhiteCellController {
 
                 if (link.dataset.section === 'responses') {
                     this.clearQueueArrivalHighlights('responses');
+                }
+
+                if (link.dataset.section === 'pliAdjudication') {
+                    this.pliMacroReview?.refresh?.();
+                    this.syncPliBadges().catch(() => {});
+                }
+                if (link.dataset.section === 'pliDiplomacyInfo') {
+                    this.pliDiplomacyInfoReview?.refresh?.();
+                    this.syncPliBadges().catch(() => {});
+                }
+                if (link.dataset.section === 'pliNiEscalation') {
+                    this.pliNiEscalationReview?.refresh?.();
+                    this.syncPliBadges().catch(() => {});
+                }
+                if (link.dataset.section === 'pliReports') {
+                    this.pliReportPanel?.refresh?.();
                 }
             });
         });
@@ -3763,6 +3918,15 @@ export class WhiteCellController {
                 phase: gameState.phase ?? 1
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
+
+            // Open TSJ + Verba external handoff queues immediately on Blue action-complete.
+            if (canShareActionToRedTeam(updatedAction)) {
+                try {
+                    await database.ensureSmeHandoffs(sessionStore.getSessionId(), actionId);
+                } catch (handoffError) {
+                    logger.warn('Failed to open SME TSJ/Verba handoffs (migration may be pending)', handoffError);
+                }
+            }
 
             showToast({ message: 'Deliberation recorded', type: 'success' });
             modal?.close();

@@ -548,6 +548,20 @@ html, body {
 
 .op-actions .btn { flex: 1; min-width: 0; }
 
+/* SME Access: five roles in a 2-column grid so labels never crush/overlap. */
+.op-actions--sme {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.op-actions--sme .btn {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+}
+
 /* ================================================================
    RESUME SECTION
    ================================================================ */

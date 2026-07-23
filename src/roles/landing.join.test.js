@@ -439,7 +439,7 @@ describe('landing secure join flow', () => {
         expect(mockDatabase.lookupJoinableSessionByCode).not.toHaveBeenCalled();
         expect(mockDatabase.claimParticipantSeat).not.toHaveBeenCalled();
         expect(mockShowToast).toHaveBeenCalledWith({
-            message: 'The configured Supabase backend could not be reached. Verify the project URL, DNS, and network access, then reload this page.',
+            message: 'This exercise isn\'t ready yet. Ask your exercise facilitator to check the session setup, then try again.',
             type: 'error'
         });
         expect(controller.redirectToRole).not.toHaveBeenCalled();
@@ -516,10 +516,10 @@ describe('landing secure join flow', () => {
         expect(mockDatabase.getActiveSessions).not.toHaveBeenCalled();
     });
 
-    it('authorizes White Cell through the server-side operator grant before claiming a seat', async () => {
+    it('authorizes White Cell with session code + access code', async () => {
         const elements = {
-            sessionCode: createElement('alpha2026'),
-            displayName: createElement('Morgan')
+            operatorSessionCode: createElement('alpha2026'),
+            operatorAccessCode: createElement('admin2025')
         };
 
         global.document = {
@@ -540,7 +540,7 @@ describe('landing secure join flow', () => {
             sessionId: 'session-1',
             teamId: null,
             role: 'whitecell_lead',
-            operatorName: 'Morgan'
+            operatorName: 'White Cell Lead'
         });
         mockDatabase.claimParticipantSeat.mockResolvedValue({
             id: 'session-participant-1',
@@ -553,19 +553,23 @@ describe('landing secure join flow', () => {
 
         const { LandingController } = await loadLandingModule();
         const controller = new LandingController();
-        controller.selectedTeam = 'blue';
         controller.redirectToRole = vi.fn();
 
         await controller.authorizeWhiteCell('lead', 'admin2025');
 
+        expect(mockDatabase.lookupJoinableSessionByCode).toHaveBeenCalledWith('ALPHA2026');
         expect(mockDatabase.authorizeOperatorAccess).toHaveBeenCalledWith({
             surface: 'whitecell',
             accessCode: 'admin2025',
             sessionId: 'session-1',
             role: 'whitecell_lead',
-            operatorName: 'Morgan'
+            operatorName: 'White Cell Lead'
         });
-        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('session-1', 'whitecell_lead', 'Morgan');
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith(
+            'session-1',
+            'whitecell_lead',
+            'White Cell Lead'
+        );
         expect(mockSyncService.initialize).toHaveBeenCalledWith('session-1', {
             participantId: 'session-participant-1'
         });
@@ -576,8 +580,80 @@ describe('landing secure join flow', () => {
             sessionCode: 'ALPHA2026',
             teamId: null,
             role: 'whitecell_lead',
-            operatorName: 'Morgan'
+            operatorName: 'White Cell Lead'
         }));
         expect(controller.redirectToRole).toHaveBeenCalledWith('whitecell_lead');
+    });
+
+    it('authorizes SME with session code + access code (role from button)', async () => {
+        const elements = {
+            smeSessionCode: createElement('alpha2026'),
+            smeAccessCode: createElement('admin2025'),
+            displayName: createElement(''),
+            selectedRole: createElement(''),
+            roleSelectionError: createErrorElement()
+        };
+        const confirmation = {
+            confirm: vi.fn(async () => {}),
+            dismiss: vi.fn(),
+            setSessionName: vi.fn()
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            },
+            querySelector: vi.fn(() => null)
+        };
+
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({
+            id: 'session-1',
+            name: 'Alpha Session',
+            session_code: 'ALPHA2026',
+            status: 'active'
+        });
+        mockDatabase.authorizeOperatorAccess.mockResolvedValue({
+            id: 'grant-sme-1',
+            surface: 'sme',
+            sessionId: 'session-1',
+            teamId: null,
+            role: 'sme_econ',
+            operatorName: 'Econ SME'
+        });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({
+            id: 'session-participant-sme-1',
+            claim_status: 'claimed'
+        });
+        mockDatabase.getGameState.mockResolvedValue({
+            move: 1,
+            phase: 1
+        });
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.redirectToRole = vi.fn();
+        controller.showJoinConfirmation = vi.fn(() => confirmation);
+
+        await controller.handleOperatorAccess('sme', { smeRole: 'econ' });
+
+        expect(controller.showJoinConfirmation).toHaveBeenCalledWith({
+            displayName: 'Econ SME',
+            metaLabel: 'SME | Econ SME'
+        });
+        expect(mockDatabase.lookupJoinableSessionByCode).toHaveBeenCalledWith('ALPHA2026');
+        expect(mockDatabase.authorizeOperatorAccess).toHaveBeenCalledWith({
+            surface: 'sme',
+            accessCode: 'admin2025',
+            sessionId: 'session-1',
+            role: 'sme_econ',
+            operatorName: 'Econ SME'
+        });
+        expect(confirmation.setSessionName).toHaveBeenCalledWith('Alpha Session');
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith(
+            'session-1',
+            'sme_econ',
+            'Econ SME'
+        );
+        expect(controller.redirectToRole).toHaveBeenCalledWith('sme_econ');
     });
 });

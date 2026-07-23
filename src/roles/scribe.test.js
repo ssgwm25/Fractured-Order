@@ -217,8 +217,22 @@ function createFakeElement(id = null, className = '', tagName = 'div') {
         },
         appendChild(child) {
             children.push(child);
+            if (child?.id && global.document?.register) {
+                global.document.register(child);
+            }
             innerHTML += child?.outerHTML || '';
             return child;
+        },
+        querySelector(selector = '') {
+            const normalized = String(selector || '');
+            if (normalized.startsWith('.')) {
+                const className = normalized.slice(1);
+                return children.find((child) => child?.classList?.contains?.(className)) || null;
+            }
+            if (normalized.startsWith('#')) {
+                return global.document?.getElementById?.(normalized.slice(1)) || null;
+            }
+            return children.find((child) => child?.tagName === normalized.toUpperCase()) || null;
         }
     };
 
@@ -233,7 +247,7 @@ function createFakeDocument() {
     const elements = new Map();
     const body = createFakeElement('body');
 
-    return {
+    const documentRef = {
         activeElement: body,
         body,
         createElement(tagName) {
@@ -249,9 +263,25 @@ function createFakeDocument() {
         getElementById(id) {
             return elements.get(id) || null;
         },
+        querySelector(selector = '') {
+            const normalized = String(selector || '');
+            if (normalized.startsWith('#')) {
+                return elements.get(normalized.slice(1)) || null;
+            }
+            if (normalized.startsWith('.')) {
+                const className = normalized.slice(1);
+                if (body.classList?.contains?.(className)) {
+                    return body;
+                }
+                return body.querySelector?.(normalized) || null;
+            }
+            return null;
+        },
         addEventListener: vi.fn(),
         removeEventListener: vi.fn()
     };
+
+    return documentRef;
 }
 
 async function loadScribeModule() {
@@ -1751,12 +1781,141 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         const showEditActionModal = vi.fn();
         controller.teamActions = [action];
         controller.actionEditorController = { showEditActionModal };
+        controller.isPresentationModeActive = () => false;
 
         await controller.editProjectedAction(action.id);
 
         expect(showEditActionModal).toHaveBeenCalledWith(action);
         expect(controller.actionEditorController.actions).toBe(controller.teamActions);
         expect(controller.actionEditorController.isReadOnly).toBe(false);
+    });
+
+    it('opens a presentation side panel instead of a modal while presenting', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const main = global.document.createElement('main');
+        main.className = 'scribe-main';
+        main.classList.add('scribe-main');
+        global.document.body.appendChild(main);
+
+        const controller = new ScribeController();
+        const action = {
+            id: 'projected-action-live-edit',
+            team: 'blue',
+            status: 'draft',
+            goal: 'Edit live while presenting'
+        };
+        const mountEditActionInHost = vi.fn();
+        controller.teamActions = [action];
+        controller.actionEditorController = { mountEditActionInHost, showEditActionModal: vi.fn() };
+        controller.isPresentationModeActive = () => true;
+
+        await controller.editProjectedAction(action.id);
+
+        expect(mountEditActionInHost).toHaveBeenCalledWith(action, expect.objectContaining({
+            title: 'Edit Action'
+        }));
+        expect(controller.actionEditorController.showEditActionModal).not.toHaveBeenCalled();
+        expect(global.document.body.dataset.scribePresentationEdit).toBe('active');
+        expect(global.document.getElementById('scribePresentationEditPanel')).toBeTruthy();
+    });
+
+    it('includes forwarded own proposals as proposal-shaped Facilitator slides', async () => {
+        const { buildScribeActionSlides } = await loadScribeModule();
+        const { serializeProposalDetails, PROPOSAL_SCRIBE_HANDOFF } = await import(
+            '../features/actions/proposalDetails.js'
+        );
+
+        const draftHidden = {
+            id: 'proposal-draft-hidden',
+            team: 'green',
+            status: 'draft',
+            mechanism: 'Proposal',
+            goal: 'Hidden draft proposal',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU'],
+                objective: 'Draft only',
+                category: 'Partnership',
+                intendedPartners: 'Partners',
+                delivery: 'Joint Statement',
+                timingAndConditions: 'Soon',
+                recipientTeam: 'blue',
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.DRAFT
+            })
+        };
+        const forwarded = {
+            id: 'proposal-forwarded-visible',
+            team: 'green',
+            status: 'draft',
+            mechanism: 'Proposal',
+            goal: 'Visible forwarded proposal',
+            sector: 'Biotechnology',
+            expected_outcomes: 'Durable alignment',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'UK'],
+                objective: 'Coordinate export posture',
+                category: 'Alignment',
+                intendedPartners: 'ASEAN',
+                delivery: 'Diplomatic Engagement',
+                timingAndConditions: 'This move',
+                recipientTeam: 'blue',
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            })
+        };
+
+        const slides = buildScribeActionSlides([draftHidden, forwarded], { teamLabel: 'Green Team' });
+        expect(slides.slideCount).toBe(1);
+        expect(slides.slides[0]).toEqual(expect.objectContaining({
+            slideType: 'own-proposal',
+            title: 'Visible forwarded proposal',
+            sidebarOrdinal: 'P'
+        }));
+        expect(slides.slides[0].sidebarKicker).toContain('Proposal → Blue');
+    });
+
+    it('renders own proposal slides with presentation Edit and Forward controls', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { serializeProposalDetails, PROPOSAL_SCRIBE_HANDOFF } = await import(
+            '../features/actions/proposalDetails.js'
+        );
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamLabel = 'Green Team';
+
+        const action = {
+            id: 'own-proposal-slide',
+            team: 'green',
+            status: 'draft',
+            mechanism: 'Proposal',
+            goal: 'Green proposal for Blue',
+            sector: 'Agriculture',
+            expected_outcomes: 'Joint delivery',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['France'],
+                objective: 'Secure food-system resilience',
+                category: 'Partnership',
+                intendedPartners: 'Selected partners',
+                delivery: 'Multilateral Forum',
+                timingAndConditions: 'Current move',
+                recipientTeam: 'blue',
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            })
+        };
+
+        const html = controller.renderActionSlide({
+            slideKey: `action-${action.id}`,
+            slideType: 'own-proposal',
+            action,
+            proposalViewModel: undefined
+        });
+
+        expect(html).toContain('Green Team Proposal');
+        expect(html).toContain('Green proposal for Blue');
+        expect(html).toContain('Secure food-system resilience');
+        expect(html).toContain('data-scribe-action-edit');
+        expect(html).toContain('Forward to White Cell');
+        expect(html).toContain('Review the proposal with the room, then forward to White Cell.');
+        expect(html).toContain('scribe-presentation-toolbar-group" disabled');
     });
 
     it('shows each selected Strategic Orientation component once without lifecycle repetition', async () => {
@@ -2136,6 +2295,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             expect(html).toContain('../../styles/components/modals.css');
             expect(html).toContain('../../styles/components/forms.css');
             expect(html).toContain('../../styles/layouts/grid.css');
+            expect(html).toContain('id="pageRefreshBtn"');
+            expect(html).toContain('data-page-refresh');
             expect(html).toContain('id="logoutBtn"');
         }
     });

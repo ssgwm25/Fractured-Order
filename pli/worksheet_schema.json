@@ -1,0 +1,143 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PLI agent worksheet",
+  "description": "The interpretive output the Cursor agent must produce for one action. Everything downstream is deterministic table lookup in engine.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["classification", "precedent", "modifiers", "fit", "needs_human", "instrument_of_power", "ne_facets", "submission_month"],
+  "properties": {
+    "submission_month": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "description": "FO 2.0 month-of-submission anchor (YYYY-MM). Orchestrator-grounded on a fixed 6-month action cadence (session chronology from 2027-01); maps to calendar quarter for onset/ramp/decay. Agent should echo the provided month; live runs overwrite agent-invented values."
+    },
+    "needs_human": {
+      "type": "boolean",
+      "description": "True when the action cannot be classified cleanly under the codebook; the record is routed to the SME without scores."
+    },
+    "needs_human_reason": {
+      "type": ["string", "null"]
+    },
+    "instrument_of_power": {
+      "type": "string",
+      "enum": ["Diplomatic", "Informational", "Military", "Economic"],
+      "description": "Echo of Plenum actions.mechanism (Blue Instrument of Power)."
+    },
+    "ne_facets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["diplomacy", "information"],
+      "properties": {
+        "diplomacy": {
+          "type": "boolean",
+          "description": "True when Diplomacy Index track should run."
+        },
+        "information": {
+          "type": "boolean",
+          "description": "True when Information brief track should run."
+        }
+      }
+    },
+    "secondary_facet_citation": {
+      "type": ["string", "null"],
+      "description": "Required when a secondary DIME facet is set contrary to primary Instrument of Power defaults."
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lever", "instrument", "direction", "rule_citation"],
+      "properties": {
+        "lever": {
+          "type": "string",
+          "enum": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "NE"]
+        },
+        "instrument": {
+          "type": ["string", "null"],
+          "pattern": "^I[1-9]\\.[0-9]{2}$",
+          "description": "Primary instrument code from the master codebook; null only for NE."
+        },
+        "secondary_instrument": {
+          "type": ["string", "null"],
+          "pattern": "^I[1-9]\\.[0-9]{2}$"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["coercive", "inducement", "mixed"]
+        },
+        "rule_citation": {
+          "type": "string",
+          "minLength": 8,
+          "description": "The codebook boundary or tie-break rule that decided the lever, quoted by number."
+        }
+      }
+    },
+    "precedent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "citations", "rationale"],
+      "properties": {
+        "tier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Precedent tier from the trial codebook decision tree."
+        },
+        "citations": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Real statutes, standing authorities, or historical analogs supporting the tier (e.g., 'Section 301, Trade Act of 1974')."
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 12
+        }
+      }
+    },
+    "modifiers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "funding_available",
+        "partners_committed",
+        "timeline_mismatch",
+        "multi_authority_coordination"
+      ],
+      "properties": {
+        "funding_available": {"type": "boolean"},
+        "partners_committed": {"type": "boolean"},
+        "timeline_mismatch": {"type": "boolean"},
+        "multi_authority_coordination": {"type": "boolean"}
+      }
+    },
+    "modifier_rationales": {
+      "type": "object",
+      "description": "One-line justification for each modifier set to true.",
+      "additionalProperties": {"type": "string"}
+    },
+    "fit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["band", "score", "orientation", "rationale"],
+      "properties": {
+        "band": {
+          "type": "string",
+          "enum": ["9-10", "7-8", "5-6", "3-4", "1-2"]
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "orientation": {
+          "type": "string",
+          "enum": ["pressure", "stabilization", "reframing"]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 12,
+          "description": "Mechanism narrative tying the anchor band/score to the declared orientation (prefer 2–4 sentences, comparable to precedent.rationale)."
+        }
+      }
+    }
+  }
+}

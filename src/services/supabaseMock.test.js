@@ -144,6 +144,26 @@ describe('supabase mock bootstrap guardrails', () => {
 
         expect(validAuthorization.error).toBeNull();
         expect(validAuthorization.data.surface).toBe('gamemaster');
+
+        const sessionCreate = await mockClient.rpc('create_live_demo_session', {
+            requested_name: 'SME Session',
+            requested_session_code: 'SME2026',
+            requested_description: null
+        });
+        expect(sessionCreate.error).toBeNull();
+        expect(sessionCreate.data?.id).toBeTruthy();
+
+        const smeAuthorization = await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'sme',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: sessionCreate.data.id,
+            requested_role: 'sme_econ',
+            requested_operator_name: 'Econ SME'
+        });
+
+        expect(smeAuthorization.error).toBeNull();
+        expect(smeAuthorization.data.surface).toBe('sme');
+        expect(smeAuthorization.data.role).toBe('sme_econ');
     });
 
     it('routes shared-state RPC and table writes through a browser-wide lock', async () => {

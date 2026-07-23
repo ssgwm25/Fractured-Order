@@ -128,6 +128,13 @@
                             hidden
                         >
                         <div class="lf-field">
+                            <label for="operatorSessionCode">Session Code</label>
+                            <input type="text" id="operatorSessionCode" class="form-input"
+                                autocomplete="off" placeholder="e.g. ADMIN2026"
+                                aria-describedby="operatorSessionCodeError operatorAccessHelp">
+                            <p class="form-error" id="operatorSessionCodeError" role="alert" hidden></p>
+                        </div>
+                        <div class="lf-field">
                             <label for="operatorAccessCode">Access Code</label>
                             <input type="password" id="operatorAccessCode" class="form-input"
                                 autocomplete="current-password" placeholder="Operator code"
@@ -141,11 +148,46 @@
                             <button type="button" class="btn btn-secondary btn-sm" id="operatorWhiteCellLeadBtn"
                                 title="Adjudicates actions and answers RFIs"
                                 aria-label="Authorize White Cell Lead access to adjudicate actions and answer RFIs">WC Lead</button>
-                            <button type="button" class="btn btn-secondary btn-sm" id="operatorWhiteCellSupportBtn"
-                                title="Supports the White Cell lead operator"
-                                aria-label="Authorize White Cell Support access">WC Support</button>
                         </div>
-                        <p class="op-help">Operator access is for session staff only.</p>
+                        <p class="op-help" id="operatorAccessHelp">WC Lead needs session code + access code. Game Master needs only the access code.</p>
+                    </form>
+                </details>
+
+                <details class="op-details" id="smeAccessSection">
+                    <summary class="op-summary">SME Access</summary>
+                    <form class="op-body" id="smeAccessForm" novalidate>
+                        <div class="lf-field">
+                            <label for="smeSessionCode">Session Code</label>
+                            <input type="text" id="smeSessionCode" class="form-input"
+                                autocomplete="off" placeholder="e.g. ADMIN2026"
+                                aria-describedby="smeSessionCodeError smeAccessHelp">
+                            <p class="form-error" id="smeSessionCodeError" role="alert" hidden></p>
+                        </div>
+                        <div class="lf-field">
+                            <label for="smeAccessCode">Access Code</label>
+                            <input type="password" id="smeAccessCode" class="form-input"
+                                autocomplete="current-password" placeholder="Operator code"
+                                aria-describedby="smeAccessCodeError">
+                            <p class="form-error" id="smeAccessCodeError" role="alert" hidden></p>
+                        </div>
+                        <div class="op-actions op-actions--sme">
+                            <button type="button" class="btn btn-secondary btn-sm" id="smeEconBtn"
+                                title="Finalize Macro PLI outputs"
+                                aria-label="Authorize Econ SME access to finalize Macro PLI outputs">Econ</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="smeNiEscalationBtn"
+                                title="Finalize National Interest and Escalation PLI outputs"
+                                aria-label="Authorize NI Escalation SME access">NI/Escalation</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="smeDiplomacyInfoBtn"
+                                title="Finalize Diplomacy and Information PLI outputs"
+                                aria-label="Authorize Diplomacy and Information SME access">Dip &amp; Info</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="smeTsjBtn"
+                                title="Tribe Street Journal external handoff queue"
+                                aria-label="Authorize TSJ Tribe Street Journal SME access">TSJ</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="smeVerbaBtn"
+                                title="Verba AI external handoff queue"
+                                aria-label="Authorize Verba AI SME access">Verba AI</button>
+                        </div>
+                        <p class="op-help" id="smeAccessHelp">Session code + access code, then click your SME role. Same access code as Operator Access.</p>
                     </form>
                 </details>
                 </div><!-- /.form-main -->

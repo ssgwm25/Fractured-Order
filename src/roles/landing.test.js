@@ -21,7 +21,7 @@ describe('landing public role visibility', () => {
         expect(html).not.toContain('data-role-surface="whitecell"');
         expect(html).toContain('Operator Access');
         expect(html).toContain('operatorWhiteCellLeadBtn');
-        expect(html).toContain('operatorWhiteCellSupportBtn');
+        expect(html).not.toContain('operatorWhiteCellSupportBtn');
         expect(html).toContain('operatorGameMasterBtn');
     });
 
@@ -86,8 +86,12 @@ describe('landing public role visibility', () => {
         expect(html).toContain('id="roleSelectionGroup"');
         expect(html).toContain('aria-describedby="roleSelectionHelp roleSelectionError"');
         expect(html).toContain('id="roleSelectionError"');
-        expect(html).toContain('aria-describedby="operatorAccessCodeError"');
+        expect(html).toContain('id="operatorSessionCode"');
+        expect(html).toContain('id="operatorSessionCodeError"');
         expect(html).toContain('id="operatorAccessCodeError"');
+        expect(html).toContain('id="smeSessionCode"');
+        expect(html).toContain('id="smeSessionCodeError"');
+        expect(html).toContain('id="smeAccessCodeError"');
     });
 
     it('bounds the landing session-code input to the shared validation maximum', () => {

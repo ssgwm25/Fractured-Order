@@ -1,0 +1,101 @@
+name: PLI Adjudication
+
+# Petrihos Lever Index pipeline for Fractured Order on Plenum.
+# Unit tests always run. Live adjudication runs when secrets are configured.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pli/**'
+      - '.github/workflows/pli-adjudicate.yml'
+  pull_request:
+    paths:
+      - 'pli/**'
+      - '.github/workflows/pli-adjudicate.yml'
+  workflow_dispatch:
+    inputs:
+      session_id:
+        description: Restrict to one session (UUID). Leave blank for all sessions.
+        required: false
+        type: string
+      dry_run:
+        description: Adjudicate but do not write to Supabase
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '*/15 13-22 * * 1-5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pli-adjudication
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: pli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pli/requirements.txt
+      - name: Install PLI dependencies
+        run: pip install -r requirements.txt
+      - name: Unit tests (engine + tracks + seats)
+        run: python -m pytest test_engine.py test_tracks.py test_run_pli_seats.py -q
+
+  adjudicate:
+    needs: test
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: pli
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      PLI_AGENT_MODEL: grok-4.5
+      PLI_SESSION_ID: ${{ inputs.session_id }}
+      PLI_DRY_RUN: ${{ inputs.dry_run == true && '1' || '' }}
+    steps:
+      - name: Check secrets are configured
+        id: secrets
+        working-directory: .
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$CURSOR_API_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PLI secrets (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / CURSOR_API_KEY) are not fully configured - skipping this run."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.secrets.outputs.configured == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pli/requirements.txt
+
+      - name: Install PLI dependencies
+        if: steps.secrets.outputs.configured == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Run PLI adjudication
+        if: steps.secrets.outputs.configured == 'true'
+        run: python run_pli.py

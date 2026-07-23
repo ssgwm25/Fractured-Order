@@ -4,15 +4,20 @@ import {
     OPERATOR_SURFACES,
     PUBLIC_ROLE_SURFACES,
     ROLE_SURFACES,
+    SME_ROLES,
     WHITE_CELL_OPERATOR_ROLES,
     buildTeamRole,
+    buildSmeOperatorRole,
     buildWhiteCellOperatorRole,
     getRoleDisplayName,
     getRoleRoute,
     getRoleSurfaceDisplayLabel,
     getSemanticRoleSurface,
+    getSmeRoleDisplayLabel,
     isOperatorSurface,
     isPublicRoleSurface,
+    isSmeOperatorRole,
+    parseTeamRole,
     resolveTeamContext
 } from './teamContext.js';
 
@@ -86,5 +91,24 @@ describe('teamContext', () => {
         expect(isPublicRoleSurface(ROLE_SURFACES.SCRIBE)).toBe(true);
         expect(isOperatorSurface(OPERATOR_SURFACES.GAME_MASTER)).toBe(true);
         expect(isOperatorSurface(OPERATOR_SURFACES.WHITE_CELL)).toBe(true);
+        expect(isOperatorSurface(OPERATOR_SURFACES.SME)).toBe(true);
+    });
+
+    it('builds SME operator roles and routes to sme.html', () => {
+        expect(buildSmeOperatorRole(SME_ROLES.ECON)).toBe('sme_econ');
+        expect(buildSmeOperatorRole(SME_ROLES.NI_ESCALATION)).toBe('sme_ni_escalation');
+        expect(buildSmeOperatorRole(SME_ROLES.DIPLOMACY_INFORMATION)).toBe('sme_diplomacy_information');
+        expect(buildSmeOperatorRole(SME_ROLES.TSJ)).toBe('sme_tsj');
+        expect(buildSmeOperatorRole(SME_ROLES.VERBA)).toBe('sme_verba');
+        expect(isSmeOperatorRole('sme_econ')).toBe(true);
+        expect(isSmeOperatorRole('whitecell_lead')).toBe(false);
+        expect(getRoleRoute('sme_econ', { basePath: '/repo-slug/' })).toBe('/repo-slug/sme.html');
+        expect(getRoleDisplayName('sme_ni_escalation')).toBe(getSmeRoleDisplayLabel(SME_ROLES.NI_ESCALATION));
+        expect(parseTeamRole('sme_verba')).toEqual({
+            teamId: 'sme',
+            surface: OPERATOR_SURFACES.SME,
+            operatorRole: null,
+            smeRole: SME_ROLES.VERBA
+        });
     });
 });

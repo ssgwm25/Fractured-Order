@@ -43,6 +43,11 @@ export const PROPOSAL_DELIVERIES = Object.freeze([
     'Other'
 ]);
 
+export const PROPOSAL_SCRIBE_HANDOFF = Object.freeze({
+    DRAFT: 'Draft',
+    FORWARDED: 'Forwarded'
+});
+
 function normalizeString(value) {
     return typeof value === 'string'
         ? value.replace(/\s+/g, ' ').trim()
@@ -54,8 +59,24 @@ function normalizeStringList(values = []) {
     return values.map((value) => normalizeString(value)).filter(Boolean);
 }
 
+function normalizeScribeHandoff(value = '') {
+    const normalizedValue = normalizeString(value).toLowerCase();
+
+    if (normalizedValue === 'forwarded' || normalizedValue === 'forwarded to scribe') {
+        return PROPOSAL_SCRIBE_HANDOFF.FORWARDED;
+    }
+
+    if (normalizedValue === 'draft') {
+        return PROPOSAL_SCRIBE_HANDOFF.DRAFT;
+    }
+
+    return '';
+}
+
 export function serializeProposalDetails(details = {}) {
     const originators = normalizeStringList(details.originators);
+    const scribeHandoff = normalizeScribeHandoff(details.scribeHandoff)
+        || PROPOSAL_SCRIBE_HANDOFF.DRAFT;
     return [
         PROPOSAL_DETAILS_PREFIX,
         `Originators: ${originators.length ? originators.join(', ') : 'None selected'}`,
@@ -64,7 +85,8 @@ export function serializeProposalDetails(details = {}) {
         `Intended Partners: ${normalizeString(details.intendedPartners)}`,
         `Delivery: ${normalizeString(details.delivery)}`,
         `Timing And Conditions: ${normalizeString(details.timingAndConditions)}`,
-        `Recipient Team: ${normalizeString(details.recipientTeam)}`
+        `Recipient Team: ${normalizeString(details.recipientTeam)}`,
+        `Scribe Handoff: ${scribeHandoff}`
     ].join('\n');
 }
 
@@ -101,11 +123,17 @@ export function parseProposalDetails(value = '') {
             intendedPartners: normalizeString(parsed['Intended Partners']),
             delivery: normalizeString(parsed.Delivery),
             timingAndConditions: normalizeString(parsed['Timing And Conditions']),
-            recipientTeam: normalizeString(parsed['Recipient Team'])
+            recipientTeam: normalizeString(parsed['Recipient Team']),
+            scribeHandoff: normalizeScribeHandoff(parsed['Scribe Handoff'])
         };
     } catch (_error) {
         return null;
     }
+}
+
+export function isProposalAction(action = {}) {
+    return Boolean(parseProposalDetails(action?.ally_contingencies))
+        || normalizeString(action?.mechanism) === PROPOSAL_ACTION_MECHANISM;
 }
 
 export function getProposalViewModel(action = {}) {
@@ -122,8 +150,13 @@ export function getProposalViewModel(action = {}) {
         delivery: details?.delivery || '',
         timingAndConditions: details?.timingAndConditions || '',
         expectedOutcomes: action.expected_outcomes || '',
-        recipientTeam: details?.recipientTeam || ''
+        recipientTeam: details?.recipientTeam || '',
+        scribeHandoff: details?.scribeHandoff || ''
     };
+}
+
+export function isProposalForwardedToScribe(action = {}) {
+    return getProposalViewModel(action).scribeHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED;
 }
 
 export function formatProposalSelection(values = [], fallback = 'Not specified') {

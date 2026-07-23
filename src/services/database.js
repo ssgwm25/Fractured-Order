@@ -40,8 +40,142 @@ import {
 import {
     normalizePluginState
 } from '../features/plugins/registry.js';
+import {
+    OPERATOR_SURFACES,
+    SME_ROLES,
+    parseTeamRole
+} from '../core/teamContext.js';
+import {
+    SEATS as PLI_SEATS,
+    isDownstreamSeatUnlocked
+} from '../features/pli/pliShared.js';
 
 const logger = createLogger('Database');
+
+const SME_SEAT_WRITE_MAP = Object.freeze({
+    [SME_ROLES.ECON]: PLI_SEATS.MACRO,
+    [SME_ROLES.NI_ESCALATION]: PLI_SEATS.NATIONAL_INTEREST_ESCALATION,
+    [SME_ROLES.DIPLOMACY_INFORMATION]: PLI_SEATS.DIPLOMACY_INFORMATION
+});
+
+const SME_HANDOFF_SEAT_MAP = Object.freeze({
+    [SME_ROLES.TSJ]: 'tsj',
+    [SME_ROLES.VERBA]: 'verba'
+});
+
+function resolveOperatorRole() {
+    return sessionStore.getRole?.()
+        || sessionStore.getSessionData?.()?.role
+        || sessionStore.getOperatorAuth?.()?.role
+        || null;
+}
+
+/**
+ * PLI seat writes are SME-console only (matching seat). White Cell is read-only.
+ * Exported for unit tests.
+ */
+export function assertPliSeatReviewerAllowed(seatId, existingRow = null, { nextStatus = null } = {}) {
+    const role = resolveOperatorRole();
+    const parsed = parseTeamRole(role);
+
+    if (parsed.surface === 'whitecell') {
+        throw new DatabaseError(
+            'White Cell operators view finalized PLI seats read-only. Use the matching SME console to Approve or Override.',
+            'reviewPliSeat'
+        );
+    }
+
+    if (parsed.surface !== OPERATOR_SURFACES.SME) {
+        throw new DatabaseError(
+            'Only the matching SME console can Approve or Override PLI seats.',
+            'reviewPliSeat'
+        );
+    }
+
+    const allowedSeat = SME_SEAT_WRITE_MAP[parsed.smeRole];
+    if (!allowedSeat) {
+        throw new DatabaseError(
+            'This SME role cannot review PLI seats.',
+            'reviewPliSeat'
+        );
+    }
+    if (allowedSeat !== seatId) {
+        throw new DatabaseError(
+            `SME role ${role} cannot review seat ${seatId}.`,
+            'reviewPliSeat'
+        );
+    }
+
+    if (
+        (seatId === PLI_SEATS.NATIONAL_INTEREST_ESCALATION
+            || seatId === PLI_SEATS.DIPLOMACY_INFORMATION)
+        && existingRow
+        && !isDownstreamSeatUnlocked(existingRow)
+    ) {
+        throw new DatabaseError(
+            'This seat unlocks after Macro is finalized or skipped.',
+            'reviewPliSeat'
+        );
+    }
+
+    const priorStatus = existingRow?.seat_reviews?.[seatId]?.status
+        || (seatId === PLI_SEATS.MACRO ? existingRow?.status : null)
+        || null;
+    if (
+        (priorStatus === 'approved' || priorStatus === 'overridden')
+        && nextStatus
+        && nextStatus !== 'needs_human'
+    ) {
+        throw new DatabaseError(
+            'This PLI seat is already finalized. Send back (needs_human) before re-reviewing.',
+            'reviewPliSeat'
+        );
+    }
+}
+
+/**
+ * TSJ / Verba mark-done is seat-scoped to the matching SME role.
+ * Exported for unit tests.
+ */
+export function assertSmeHandoffAcknowledgerAllowed(handoffSeat) {
+    const role = resolveOperatorRole();
+    const parsed = parseTeamRole(role);
+
+    if (parsed.surface !== OPERATOR_SURFACES.SME) {
+        throw new DatabaseError(
+            'Only the matching SME console can mark handoffs done.',
+            'acknowledgeSmeHandoff'
+        );
+    }
+
+    const allowedSeat = SME_HANDOFF_SEAT_MAP[parsed.smeRole];
+    if (!allowedSeat || allowedSeat !== handoffSeat) {
+        throw new DatabaseError(
+            `SME role ${role} cannot acknowledge ${handoffSeat} handoffs.`,
+            'acknowledgeSmeHandoff'
+        );
+    }
+}
+
+/**
+ * Stage to apply after NI/Escalation SME finalize (override wins, else track stage_after).
+ * Exported for unit tests. Live PLI rehydrates from seat_reviews on the next run.
+ */
+export function resolveNiGlaslStageAfter(row, review = {}) {
+    const override = review?.override_value
+        ?? row?.seat_reviews?.[PLI_SEATS.NATIONAL_INTEREST_ESCALATION]?.override_value
+        ?? null;
+    if (override && typeof override === 'object' && override.stage_after != null) {
+        const staged = Number(override.stage_after);
+        if (Number.isFinite(staged)) {
+            return Math.max(1, Math.min(9, staged));
+        }
+    }
+    const stageAfter = row?.record?.tracks?.glasl?.stage_after;
+    if (stageAfter == null) return null;
+    const staged = Number(stageAfter);
+    return Number.isFinite(staged) ? Math.max(1, Math.min(9, staged)) : null;
+}
 let latestAuthenticatedSession = null;
 
 async function ensureAuthenticatedBrowser() {
@@ -276,6 +410,8 @@ function normalizeOperatorGrantRecord(record = null) {
         grantId: record.grantId ?? record.id ?? null,
         operatorName: record.operatorName ?? record.operator_name ?? null,
         sessionId: record.sessionId ?? record.session_id ?? null,
+        sessionCode: record.sessionCode ?? record.session_code ?? null,
+        sessionName: record.sessionName ?? record.session_name ?? null,
         teamId: record.teamId ?? record.team_id ?? null,
         grantedAt: record.grantedAt ?? record.granted_at ?? null,
         verifiedAt: new Date().toISOString()
@@ -1879,7 +2015,366 @@ export const database = {
         }
 
         return data || [];
+    },
+
+    /**
+     * Fetch PLI multi-track adjudications for a session (White Cell SME queues).
+     * @param {string} sessionId
+     * @param {Object} [filters]
+     * @returns {Promise<Object[]>}
+     */
+    async fetchPliAdjudications(sessionId, filters = {}) {
+        let query = supabase
+            .from('pli_adjudications')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: false });
+
+        if (filters.status) {
+            query = query.eq('status', filters.status);
+        }
+
+        if (Array.isArray(filters.statuses) && filters.statuses.length > 0) {
+            query = query.in('status', filters.statuses);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            throw fromSupabaseError(error, 'fetchPliAdjudications');
+        }
+
+        return data || [];
+    },
+
+    /**
+     * Review one SME seat on a PLI adjudication row.
+     * Seats: macro | diplomacy_information | national_interest_escalation
+     * @param {string} adjudicationId
+     * @param {string} seatId
+     * @param {Object} review
+     * @returns {Promise<Object>}
+     */
+    async reviewPliSeat(adjudicationId, seatId, review = {}) {
+        const allowedSeats = new Set([
+            'macro',
+            'diplomacy_information',
+            'national_interest_escalation'
+        ]);
+        if (!allowedSeats.has(seatId)) {
+            throw new DatabaseError(`Invalid PLI SME seat: ${seatId}`, 'reviewPliSeat');
+        }
+
+        const status = String(review.status || '').trim();
+        const allowed = new Set(['approved', 'overridden', 'needs_human']);
+        if (!allowed.has(status)) {
+            throw new DatabaseError(`Invalid PLI seat review status: ${status}`, 'reviewPliSeat');
+        }
+
+        if (status === 'overridden') {
+            const rationale = String(review.override_rationale || '').trim();
+            if (!rationale) {
+                throw new DatabaseError('Override rationale is required', 'reviewPliSeat');
+            }
+            if (review.override_value == null) {
+                throw new DatabaseError('Override value is required when status is overridden', 'reviewPliSeat');
+            }
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const { data: existing, error: fetchError } = await supabase
+            .from('pli_adjudications')
+            .select('*')
+            .eq('id', adjudicationId)
+            .single();
+
+        if (fetchError) {
+            throw fromSupabaseError(fetchError, 'reviewPliSeat');
+        }
+
+        assertPliSeatReviewerAllowed(seatId, existing, { nextStatus: status });
+
+        const seatReviews = { ...(existing.seat_reviews || {}) };
+        const priorSeat = seatReviews[seatId] || {};
+        const reviewedAt = new Date().toISOString();
+        seatReviews[seatId] = {
+            ...priorSeat,
+            status,
+            sme_reviewer: review.sme_reviewer || priorSeat.sme_reviewer || null,
+            reviewed_at: reviewedAt,
+            override_value: status === 'overridden' ? review.override_value : (priorSeat.override_value || null),
+            override_rationale: review.override_rationale || priorSeat.override_rationale || null
+        };
+
+        const aggregateStatus = computePliAggregateStatus(seatReviews, existing.status);
+
+        const updates = {
+            seat_reviews: seatReviews,
+            status: aggregateStatus,
+            updated_at: reviewedAt,
+            sme_reviewer: review.sme_reviewer || existing.sme_reviewer || null,
+            reviewed_at: reviewedAt
+        };
+
+        // Keep legacy top-level override columns in sync for the macro seat.
+        if (seatId === 'macro') {
+            if (status === 'overridden') {
+                updates.override_value = review.override_value;
+                updates.override_rationale = review.override_rationale;
+            } else if (status === 'approved') {
+                updates.override_value = null;
+                updates.override_rationale = null;
+            } else if (status === 'needs_human') {
+                updates.override_rationale = review.override_rationale || null;
+            }
+        }
+
+        const { data, error } = await supabase
+            .from('pli_adjudications')
+            .update(updates)
+            .eq('id', adjudicationId)
+            .select()
+            .single();
+
+        if (error) {
+            throw fromSupabaseError(error, 'reviewPliSeat');
+        }
+
+        // Glasl session stage advances only after NI/Escalation SME finalize.
+        // Live runners rehydrate stage from finalized seat_reviews (see run_pli.sync_live_glasl_stage).
+        if (
+            seatId === PLI_SEATS.NATIONAL_INTEREST_ESCALATION
+            && (status === 'approved' || status === 'overridden')
+        ) {
+            const stageAfter = resolveNiGlaslStageAfter(data, review);
+            if (stageAfter != null) {
+                logger.info('PLI Glasl stage ready for next run:', {
+                    adjudicationId,
+                    sessionId: data.session_id,
+                    stageAfter
+                });
+            }
+        }
+
+        logger.info('PLI seat reviewed:', { adjudicationId, seatId, status });
+        return data;
+    },
+
+    /**
+     * Legacy helper — approves/overrides the macro seat (and aggregate status).
+     * Prefer reviewPliSeat for multi-track UIs.
+     */
+    async reviewPliAdjudication(adjudicationId, review = {}) {
+        return this.reviewPliSeat(adjudicationId, 'macro', review);
+    },
+
+    /**
+     * Fetch TSJ / Verba SME handoff rows for a session.
+     * @param {string} sessionId
+     * @param {{ seat?: 'tsj'|'verba', status?: 'pending'|'done' }} [filters]
+     * @returns {Promise<Object[]>}
+     */
+    async fetchSmeHandoffs(sessionId, filters = {}) {
+        if (!sessionId) {
+            throw new DatabaseError('Session ID is required', 'fetchSmeHandoffs');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        let query = supabase
+            .from('sme_handoffs')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: false });
+
+        if (filters.seat) {
+            query = query.eq('seat', filters.seat);
+        }
+        if (filters.status) {
+            query = query.eq('status', filters.status);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            throw fromSupabaseError(error, 'fetchSmeHandoffs');
+        }
+        return data || [];
+    },
+
+    /**
+     * Ensure pending TSJ + Verba handoff rows exist for an action (idempotent).
+     * Called when White Cell marks a Blue action complete.
+     * @param {string} sessionId
+     * @param {string} actionId
+     * @returns {Promise<Object[]>}
+     */
+    async ensureSmeHandoffs(sessionId, actionId) {
+        if (!sessionId || !actionId) {
+            throw new DatabaseError('Session ID and action ID are required', 'ensureSmeHandoffs');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const seats = ['tsj', 'verba'];
+        const created = [];
+
+        for (const seat of seats) {
+            const { data: existing, error: fetchError } = await supabase
+                .from('sme_handoffs')
+                .select('*')
+                .eq('action_id', actionId)
+                .eq('seat', seat)
+                .maybeSingle();
+
+            if (fetchError) {
+                throw fromSupabaseError(fetchError, 'ensureSmeHandoffs');
+            }
+
+            if (existing) {
+                created.push(existing);
+                continue;
+            }
+
+            const { data, error } = await supabase
+                .from('sme_handoffs')
+                .insert({
+                    session_id: sessionId,
+                    action_id: actionId,
+                    seat,
+                    status: 'pending',
+                    updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (error) {
+                // Unique race: another client inserted first.
+                if (String(error.code || '') === '23505' || /duplicate|unique/i.test(error.message || '')) {
+                    const { data: raced } = await supabase
+                        .from('sme_handoffs')
+                        .select('*')
+                        .eq('action_id', actionId)
+                        .eq('seat', seat)
+                        .maybeSingle();
+                    if (raced) {
+                        created.push(raced);
+                        continue;
+                    }
+                }
+                throw fromSupabaseError(error, 'ensureSmeHandoffs');
+            }
+
+            created.push(data);
+        }
+
+        logger.info('SME handoffs ensured:', { actionId, count: created.length });
+        return created;
+    },
+
+    /**
+     * Mark a TSJ / Verba handoff as done.
+     * @param {string} handoffId
+     * @param {{ acknowledgedBy?: string }} [options]
+     * @returns {Promise<Object>}
+     */
+    async acknowledgeSmeHandoff(handoffId, { acknowledgedBy = null } = {}) {
+        if (!handoffId) {
+            throw new DatabaseError('Handoff ID is required', 'acknowledgeSmeHandoff');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const { data: existing, error: fetchError } = await supabase
+            .from('sme_handoffs')
+            .select('*')
+            .eq('id', handoffId)
+            .single();
+
+        if (fetchError) {
+            throw fromSupabaseError(fetchError, 'acknowledgeSmeHandoff');
+        }
+
+        assertSmeHandoffAcknowledgerAllowed(existing.seat);
+
+        const reviewedAt = new Date().toISOString();
+        const { data, error } = await supabase
+            .from('sme_handoffs')
+            .update({
+                status: 'done',
+                acknowledged_by: acknowledgedBy || sessionStore.getUserName?.() || null,
+                acknowledged_at: reviewedAt,
+                updated_at: reviewedAt
+            })
+            .eq('id', handoffId)
+            .select()
+            .single();
+
+        if (error) {
+            throw fromSupabaseError(error, 'acknowledgeSmeHandoff');
+        }
+
+        logger.info('SME handoff acknowledged:', handoffId);
+        return data;
+    },
+
+    /**
+     * Generate an LLM after-action narrative for a PLI report fact pack.
+     * @param {{ sessionId: string, scope: string, factPack: Object }} params
+     * @returns {Promise<{ narrative: string }>}
+     */
+    async generatePliReportNarrative({ sessionId, scope, factPack } = {}) {
+        if (!sessionId) {
+            throw new DatabaseError('Session ID is required', 'generatePliReportNarrative');
+        }
+        if (!scope) {
+            throw new DatabaseError('Report scope is required', 'generatePliReportNarrative');
+        }
+        if (!factPack || typeof factPack !== 'object') {
+            throw new DatabaseError('factPack is required', 'generatePliReportNarrative');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const { data, error } = await supabase.functions.invoke('pli-report-narrative', {
+            body: { sessionId, scope, factPack }
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'generatePliReportNarrative');
+        }
+
+        const narrative = String(data?.narrative || '').trim();
+        if (!narrative) {
+            const serverError = data?.error ? String(data.error) : 'Narrative response was empty';
+            throw new DatabaseError(serverError, 'generatePliReportNarrative');
+        }
+
+        return { narrative };
     }
 };
+
+/**
+ * Roll per-seat reviews into row-level status for RLS / team visibility.
+ * @param {Object} seatReviews
+ * @param {string} fallback
+ * @returns {string}
+ */
+function computePliAggregateStatus(seatReviews = {}, fallback = 'pending') {
+    const active = Object.values(seatReviews)
+        .map((seat) => seat?.status || 'pending')
+        .filter((status) => status !== 'skipped');
+
+    if (!active.length) {
+        return fallback || 'pending';
+    }
+    if (active.some((status) => status === 'needs_human')) {
+        return 'needs_human';
+    }
+    if (active.every((status) => status === 'approved' || status === 'overridden')) {
+        return active.some((status) => status === 'overridden') ? 'overridden' : 'approved';
+    }
+    return 'pending';
+}
 
 export default database;

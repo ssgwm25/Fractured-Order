@@ -1,7 +1,9 @@
 import {
     TEAM_OPTIONS,
+    SME_ROLES,
     WHITE_CELL_OPERATOR_ROLES,
     buildTeamRole,
+    buildSmeOperatorRole,
     buildWhiteCellOperatorRole,
     normalizeWhiteCellOperatorRole,
     ROLE_SURFACES
@@ -14,7 +16,8 @@ export const LIVE_DEMO_SEAT_LIMITS = Object.freeze({
     observer: 0,
     whiteCellLead: 1,
     whiteCellSupport: 1,
-    gameMaster: 1
+    gameMaster: 1,
+    sme: 1
 });
 
 const TEAM_ROLE_LIMITS = Object.fromEntries(
@@ -29,6 +32,15 @@ const WHITE_CELL_ROLE_LIMITS = Object.freeze({
     [buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.LEAD)]: LIVE_DEMO_SEAT_LIMITS.whiteCellLead,
     [buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.SUPPORT)]: LIVE_DEMO_SEAT_LIMITS.whiteCellSupport
 });
+
+const SME_ROLE_LIMITS = Object.freeze(
+    Object.fromEntries(
+        Object.values(SME_ROLES).map((smeRole) => [
+            buildSmeOperatorRole(smeRole),
+            LIVE_DEMO_SEAT_LIMITS.sme
+        ])
+    )
+);
 
 /**
  * Application Configuration
@@ -46,6 +58,7 @@ export const CONFIG = {
         white: LIVE_DEMO_SEAT_LIMITS.gameMaster,
         ...TEAM_ROLE_LIMITS,
         ...WHITE_CELL_ROLE_LIMITS,
+        ...SME_ROLE_LIMITS,
         viewer: LIVE_DEMO_SEAT_LIMITS.observer
     },
 

@@ -45,6 +45,7 @@ import {
     PROPOSAL_CATEGORIES,
     PROPOSAL_SECTORS,
     PROPOSAL_DELIVERIES,
+    PROPOSAL_SCRIBE_HANDOFF,
     formatProposalSelection,
     serializeProposalDetails,
     getProposalViewModel
@@ -1989,7 +1990,7 @@ export class FacilitatorController {
                 ? 'No team actions have been created yet.'
                 : 'No scribe actions have been created yet.')
             : (isGreenProposalFlow
-                ? 'Create your first proposal to start the White Cell review flow.'
+                ? 'Create your first proposal to start the Facilitator review flow.'
                 : isRedTeamActionFlow
                 ? 'Create your first action to start the White Cell review flow.'
                 : 'Create your first action to start the scribe-to-facilitator review flow.');
@@ -2566,7 +2567,9 @@ export class FacilitatorController {
                     ${isStrategicOrientationFlow
                         ? 'Draft Strategic Orientation artifacts are projected by the Facilitator before White Cell submission.'
                         : isGreenProposalFlow
-                    ? 'Draft proposals can be edited, sent to White Cell, or deleted by the active team-lead seat.'
+                    ? (proposal.scribeHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+                        ? 'Forwarded to the Facilitator for projection, live edit, and White Cell submission.'
+                        : 'Draft proposals can be edited, forwarded to the Facilitator, or deleted by the active team-lead seat.')
                     : (isLegacyRedResponseFlow
                         ? 'Draft actions can be edited, submitted, or deleted by the active team-lead seat.'
                         : 'Draft actions can be edited, forwarded to the Facilitator, or deleted by the active team-lead seat.')}
@@ -2667,14 +2670,14 @@ export class FacilitatorController {
                     ` : ''}
                     ${lifecycleMessage}
 
-                    ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow && !isGreenProposalFlow) || canRemoveDraft) ? `
+                    ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow) || canRemoveDraft) ? `
                         <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
                             ${canManageDraft ? `
                                 <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
                                     ${isGreenProposalFlow ? 'Edit Proposal' : 'Edit Draft'}
                                 </button>
                             ` : ''}
-                            ${canSubmitDraft && !isStrategicOrientationFlow && !isGreenProposalFlow ? `
+                            ${canSubmitDraft && !isStrategicOrientationFlow ? `
                                 <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
                                     Forward to Facilitator
                                 </button>
@@ -2739,7 +2742,7 @@ export class FacilitatorController {
         });
     }
 
-    showEditActionModal(action) {
+    showEditActionModal(action, options = {}) {
         if (!this.requireWriteAccess()) return;
         const isProposal = this.isGreenTeamProposalEnabled(action);
         if (!canEditAction(action)) {
@@ -2747,6 +2750,11 @@ export class FacilitatorController {
                 message: isProposal ? 'Only draft proposals can be edited.' : 'Only draft actions can be edited.',
                 type: 'error'
             });
+            return;
+        }
+
+        if (options.host) {
+            this.mountEditActionInHost(action, options);
             return;
         }
 
@@ -2790,6 +2798,96 @@ export class FacilitatorController {
                 }
             ]
         });
+    }
+
+    /**
+     * Mount an edit editor into a host element (presentation side panel) instead of a modal.
+     * Reuses the same form builders/binders; `modal.close()` maps to onClose.
+     */
+    mountEditActionInHost(action, {
+        host = null,
+        onClose = null,
+        title = 'Edit while presenting'
+    } = {}) {
+        if (!host || !action?.id) {
+            return null;
+        }
+
+        const closeHost = () => {
+            onClose?.();
+        };
+        const modalAdapter = {
+            close: closeHost
+        };
+
+        host.replaceChildren();
+        const shell = document.createElement('div');
+        shell.className = 'scribe-presentation-edit-shell';
+        shell.innerHTML = `
+            <header class="scribe-presentation-edit-header">
+                <div>
+                    <p class="scribe-presentation-edit-eyebrow">Live edit</p>
+                    <h3 class="scribe-presentation-edit-title">${this.escapeHtml(title)}</h3>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" data-presentation-edit-close aria-label="Close edit panel">Close</button>
+            </header>
+            <div class="scribe-presentation-edit-body" data-presentation-edit-body></div>
+        `;
+        host.appendChild(shell);
+
+        const body = shell.querySelector('[data-presentation-edit-body]');
+        shell.querySelector('[data-presentation-edit-close]')?.addEventListener('click', closeHost);
+
+        if (isStrategicOrientationAction(action)) {
+            const content = this.createStrategicOrientationContent(action);
+            body.appendChild(content);
+            this.bindStrategicOrientationModal(content, modalAdapter, {
+                actionId: action.id,
+                isEdit: true
+            });
+            return modalAdapter;
+        }
+
+        if (this.isTeamActionWizardEnabled(action)) {
+            const sequenceContext = this.getBlueActionSequenceContext(action);
+            const content = this.createBlueActionWizardContent(action, {
+                isEdit: true,
+                sequenceContext
+            });
+            body.appendChild(content);
+            this.bindBlueActionWizard(content, modalAdapter, {
+                actionId: action.id,
+                sequenceContext
+            });
+            return modalAdapter;
+        }
+
+        if (this.isGreenTeamProposalEnabled(action)) {
+            const content = this.createGreenProposalContent(action, { isEdit: true });
+            body.appendChild(content);
+            this.bindGreenProposalModal(content, modalAdapter, {
+                actionId: action.id,
+                isEdit: true
+            });
+            return modalAdapter;
+        }
+
+        const content = this.createActionFormContent(action);
+        body.appendChild(content);
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.className = 'btn btn-primary';
+        saveButton.textContent = 'Save Changes';
+        saveButton.addEventListener('click', () => {
+            this.handleUpdateAction(modalAdapter, action.id).catch((err) => {
+                logger.error('Failed to update action:', err);
+            });
+        });
+        const footer = document.createElement('div');
+        footer.className = 'scribe-presentation-edit-footer';
+        footer.appendChild(saveButton);
+        body.appendChild(footer);
+        return modalAdapter;
     }
 
     isTeamActionWizardEnabled(action = null) {
@@ -3708,8 +3806,13 @@ export class FacilitatorController {
                 <div style="display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
                     <button type="button" class="btn btn-secondary" data-proposal-nav="cancel">Cancel</button>
                     <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end;">
-                        <button type="button" class="btn btn-primary" data-proposal-nav="sendBlue">Send to Blue Team</button>
-                        <button type="button" class="btn btn-primary" data-proposal-nav="sendRed">Send to Red Team</button>
+                        ${isEdit && viewModel.scribeHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED ? `
+                            <button type="button" class="btn btn-primary" data-proposal-nav="saveChanges">Save Changes</button>
+                        ` : `
+                            <button type="button" class="btn btn-secondary" data-proposal-nav="saveDraft">Save Draft</button>
+                            <button type="button" class="btn btn-primary" data-proposal-nav="forwardBlue">Forward to Facilitator (Blue)</button>
+                            <button type="button" class="btn btn-primary" data-proposal-nav="forwardRed">Forward to Facilitator (Red)</button>
+                        `}
                     </div>
                 </div>
             </form>
@@ -3742,15 +3845,52 @@ export class FacilitatorController {
             modal?.close();
         });
 
-        content.querySelector('[data-proposal-nav="sendBlue"]')?.addEventListener('click', () => {
-            this.submitGreenProposal(modal, form, { recipientTeam: 'blue', actionId, isEdit }).catch((err) => {
-                logger.error('Failed to send proposal to Blue Team:', err);
+        content.querySelector('[data-proposal-nav="saveDraft"]')?.addEventListener('click', () => {
+            const recipientTeam = getProposalViewModel(
+                actionsStore.getById(actionId) || this.actions.find((candidate) => candidate?.id === actionId) || {}
+            ).recipientTeam || 'blue';
+            this.saveGreenProposalDraft(modal, form, {
+                recipientTeam,
+                actionId,
+                isEdit,
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.DRAFT
+            }).catch((err) => {
+                logger.error('Failed to save proposal draft:', err);
             });
         });
 
-        content.querySelector('[data-proposal-nav="sendRed"]')?.addEventListener('click', () => {
-            this.submitGreenProposal(modal, form, { recipientTeam: 'red', actionId, isEdit }).catch((err) => {
-                logger.error('Failed to send proposal to Red Team:', err);
+        content.querySelector('[data-proposal-nav="saveChanges"]')?.addEventListener('click', () => {
+            const existing = actionsStore.getById(actionId)
+                || this.actions.find((candidate) => candidate?.id === actionId)
+                || {};
+            const recipientTeam = getProposalViewModel(existing).recipientTeam || 'blue';
+            this.saveGreenProposalDraft(modal, form, {
+                recipientTeam,
+                actionId,
+                isEdit: true,
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            }).catch((err) => {
+                logger.error('Failed to update forwarded proposal:', err);
+            });
+        });
+
+        content.querySelector('[data-proposal-nav="forwardBlue"]')?.addEventListener('click', () => {
+            this.forwardGreenProposalToFacilitator(modal, form, {
+                recipientTeam: 'blue',
+                actionId,
+                isEdit
+            }).catch((err) => {
+                logger.error('Failed to forward proposal to Facilitator (Blue):', err);
+            });
+        });
+
+        content.querySelector('[data-proposal-nav="forwardRed"]')?.addEventListener('click', () => {
+            this.forwardGreenProposalToFacilitator(modal, form, {
+                recipientTeam: 'red',
+                actionId,
+                isEdit
+            }).catch((err) => {
+                logger.error('Failed to forward proposal to Facilitator (Red):', err);
             });
         });
 
@@ -3804,7 +3944,7 @@ export class FacilitatorController {
         return null;
     }
 
-    buildGreenProposalPayload(data, { recipientTeam }) {
+    buildGreenProposalPayload(data, { recipientTeam, scribeHandoff = PROPOSAL_SCRIBE_HANDOFF.DRAFT } = {}) {
         return {
             goal: data.title,
             mechanism: PROPOSAL_ACTION_MECHANISM,
@@ -3820,12 +3960,125 @@ export class FacilitatorController {
                 intendedPartners: data.intendedPartners,
                 delivery: data.delivery,
                 timingAndConditions: data.timingAndConditions,
-                recipientTeam
+                recipientTeam,
+                scribeHandoff
             })
         };
     }
 
-    async submitGreenProposal(modal, form, { recipientTeam, actionId = null, isEdit = false } = {}) {
+    buildForwardedProposalUpdate(action = {}) {
+        const proposal = getProposalViewModel(action);
+        if (!proposal.hasProposalDetails) {
+            return {};
+        }
+
+        return {
+            ally_contingencies: serializeProposalDetails({
+                originators: proposal.originators,
+                objective: proposal.objective,
+                category: proposal.category,
+                intendedPartners: proposal.intendedPartners,
+                delivery: proposal.delivery,
+                timingAndConditions: proposal.timingAndConditions,
+                recipientTeam: proposal.recipientTeam,
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            })
+        };
+    }
+
+    async saveGreenProposalDraft(modal, form, {
+        recipientTeam = 'blue',
+        actionId = null,
+        isEdit = false,
+        scribeHandoff = PROPOSAL_SCRIBE_HANDOFF.DRAFT
+    } = {}) {
+        if (!this.requireWriteAccess()) return;
+
+        const data = this.getGreenProposalData(form);
+        const error = this.validateGreenProposal(data);
+        if (error) {
+            showToast({ message: error, type: 'error' });
+            return;
+        }
+
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No session found', type: 'error' });
+            return;
+        }
+
+        const existingAction = (isEdit && actionId)
+            ? (actionsStore.getById(actionId) || this.actions.find((candidate) => candidate?.id === actionId) || null)
+            : null;
+        const existingHandoff = getProposalViewModel(existingAction || {}).scribeHandoff;
+        const resolvedHandoff = existingHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            ? PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            : scribeHandoff;
+        const loader = showLoader({ message: isEdit ? 'Updating proposal draft...' : 'Saving proposal draft...' });
+
+        try {
+            const gameState = this.getCurrentGameState();
+            const payload = this.buildGreenProposalPayload(data, {
+                recipientTeam,
+                scribeHandoff: resolvedHandoff
+            });
+
+            let action;
+            if (isEdit && actionId) {
+                action = await database.updateDraftAction(actionId, payload);
+                actionsStore.updateFromServer('UPDATE', action);
+            } else {
+                action = await database.createAction({
+                    ...payload,
+                    session_id: sessionId,
+                    client_id: sessionStore.getClientId(),
+                    team: this.teamId,
+                    status: ENUMS.ACTION_STATUS.DRAFT,
+                    move: gameState.move ?? 1,
+                    phase: gameState.phase ?? 1
+                });
+                actionsStore.updateFromServer('INSERT', action);
+
+                const timelineEvent = await database.createTimelineEvent({
+                    session_id: sessionId,
+                    type: 'ACTION_CREATED',
+                    content: `Draft proposal created: ${action.goal || 'Untitled proposal'}`,
+                    metadata: {
+                        related_id: action.id,
+                        role: this.role || this.getCurrentLeadRole(),
+                        proposal: true,
+                        recipient_team: recipientTeam
+                    },
+                    team: this.teamId,
+                    move: action.move ?? gameState.move ?? 1,
+                    phase: action.phase ?? gameState.phase ?? 1
+                });
+                timelineStore.updateFromServer('INSERT', timelineEvent);
+            }
+
+            showToast({
+                message: isEdit ? 'Proposal draft updated' : 'Proposal draft saved',
+                type: 'success'
+            });
+            modal?.close();
+        } catch (err) {
+            logger.error('Failed to save proposal draft:', err);
+            showToast({
+                message: getUserMessage(err, {
+                    fallback: 'Failed to save proposal draft. Check the form and try again.'
+                }),
+                type: 'error'
+            });
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async forwardGreenProposalToFacilitator(modal, form, {
+        recipientTeam = 'blue',
+        actionId = null,
+        isEdit = false
+    } = {}) {
         if (!this.requireWriteAccess()) return;
 
         const data = this.getGreenProposalData(form);
@@ -3842,11 +4095,14 @@ export class FacilitatorController {
         }
 
         const recipientLabel = recipientTeam === 'blue' ? 'Blue Team' : 'Red Team';
-        const loader = showLoader({ message: `Submitting proposal for White Cell review...` });
+        const loader = showLoader({ message: 'Forwarding proposal to Facilitator...' });
 
         try {
             const gameState = this.getCurrentGameState();
-            const payload = this.buildGreenProposalPayload(data, { recipientTeam });
+            const payload = this.buildGreenProposalPayload(data, {
+                recipientTeam,
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            });
 
             let action;
             if (isEdit && actionId) {
@@ -3858,46 +4114,67 @@ export class FacilitatorController {
                     session_id: sessionId,
                     client_id: sessionStore.getClientId(),
                     team: this.teamId,
-                    status: ENUMS.ACTION_STATUS.SUBMITTED,
+                    status: ENUMS.ACTION_STATUS.DRAFT,
                     move: gameState.move ?? 1,
                     phase: gameState.phase ?? 1
                 });
                 actionsStore.updateFromServer('INSERT', action);
+
+                const createdTimelineEvent = await database.createTimelineEvent({
+                    session_id: sessionId,
+                    type: 'ACTION_CREATED',
+                    content: `Draft proposal created: ${action.goal || 'Untitled proposal'}`,
+                    metadata: {
+                        related_id: action.id,
+                        role: this.role || this.getCurrentLeadRole(),
+                        proposal: true,
+                        recipient_team: recipientTeam
+                    },
+                    team: this.teamId,
+                    move: action.move ?? gameState.move ?? 1,
+                    phase: action.phase ?? gameState.phase ?? 1
+                });
+                timelineStore.updateFromServer('INSERT', createdTimelineEvent);
             }
 
-            const timelineEvent = await database.createTimelineEvent({
-                session_id: sessionId,
-                type: 'PROPOSAL_SUBMITTED',
-                content: `Proposal submitted for White Cell review (intended recipient: ${recipientLabel}): ${action.goal || 'Untitled proposal'}`,
+            const forwardedTimelineEvent = await database.createTimelineEvent({
+                session_id: action.session_id || sessionId,
+                type: 'PROPOSAL_FORWARDED_TO_SCRIBE',
+                content: `Proposal forwarded to Facilitator (intended recipient: ${recipientLabel}): ${action.goal || 'Untitled proposal'}`,
                 metadata: {
                     related_id: action.id,
                     role: this.role || this.getCurrentLeadRole(),
-                    recipient_team: recipientTeam,
                     proposal: true,
-                    review_stage: 'white_cell_review'
+                    recipient_team: recipientTeam,
+                    next_step: 'facilitator_submit_to_white_cell'
                 },
                 team: this.teamId,
                 move: action.move ?? gameState.move ?? 1,
                 phase: action.phase ?? gameState.phase ?? 1
             });
-            timelineStore.updateFromServer('INSERT', timelineEvent);
+            timelineStore.updateFromServer('INSERT', forwardedTimelineEvent);
 
             showToast({
-                message: `Proposal submitted for White Cell review. It will be forwarded to ${recipientLabel} once approved.`,
+                message: `Proposal forwarded to Facilitator. It will be projected, edited if needed, then sent to White Cell for ${recipientLabel}.`,
                 type: 'success'
             });
             modal?.close();
         } catch (err) {
-            logger.error('Failed to send proposal:', err);
+            logger.error('Failed to forward proposal:', err);
             showToast({
                 message: getUserMessage(err, {
-                    fallback: 'Failed to submit proposal. Check the form and try again.'
+                    fallback: 'Failed to forward proposal. Check the form and try again.'
                 }),
                 type: 'error'
             });
         } finally {
             hideLoader();
         }
+    }
+
+    /** @deprecated Prefer saveGreenProposalDraft / forwardGreenProposalToFacilitator */
+    async submitGreenProposal(modal, form, { recipientTeam, actionId = null, isEdit = false } = {}) {
+        await this.forwardGreenProposalToFacilitator(modal, form, { recipientTeam, actionId, isEdit });
     }
 
     showBlueActionWizard(action = null) {
@@ -5232,13 +5509,18 @@ export class FacilitatorController {
             return;
         }
 
-        const sequenceLabel = this.isTeamActionWizardEnabled(action)
-            ? this.getBlueActionSequenceContext(action).label
-            : 'this draft';
+        const isProposal = this.isGreenTeamProposalEnabled(action);
+        const sequenceLabel = isProposal
+            ? (getProposalViewModel(action).title || 'this proposal')
+            : (this.isTeamActionWizardEnabled(action)
+                ? this.getBlueActionSequenceContext(action).label
+                : 'this draft');
 
         const confirmed = await confirmModal({
-            title: 'Forward Action to Facilitator',
-            message: `Forward ${sequenceLabel} to the Facilitator? The Facilitator will project it and submit the completed action to White Cell.`,
+            title: isProposal ? 'Forward Proposal to Facilitator' : 'Forward Action to Facilitator',
+            message: isProposal
+                ? `Forward ${sequenceLabel} to the Facilitator? The Facilitator will project it, edit if needed, and submit it to White Cell.`
+                : `Forward ${sequenceLabel} to the Facilitator? The Facilitator will project it and submit the completed action to White Cell.`,
             confirmLabel: 'Forward',
             variant: 'primary'
         });
@@ -5249,26 +5531,34 @@ export class FacilitatorController {
 
     async forwardActionToScribe(actionId) {
         if (!this.requireWriteAccess()) return;
-        const loader = showLoader({ message: 'Forwarding action to Facilitator...' });
+        const existingAction = actionsStore.getById(actionId)
+            || this.actions.find((candidate) => candidate?.id === actionId);
+        const isProposal = this.isGreenTeamProposalEnabled(existingAction);
+        const loader = showLoader({
+            message: isProposal
+                ? 'Forwarding proposal to Facilitator...'
+                : 'Forwarding action to Facilitator...'
+        });
 
         try {
-            const existingAction = actionsStore.getById(actionId)
-                || this.actions.find((candidate) => candidate?.id === actionId);
-            const action = await database.updateDraftAction(
-                actionId,
-                existingAction ? this.buildForwardedBlueActionUpdate(existingAction) : {}
-            );
+            const updatePayload = isProposal
+                ? this.buildForwardedProposalUpdate(existingAction || {})
+                : (existingAction ? this.buildForwardedBlueActionUpdate(existingAction) : {});
+            const action = await database.updateDraftAction(actionId, updatePayload);
             actionsStore.updateFromServer('UPDATE', action);
 
             const timelineEvent = await database.createTimelineEvent({
                 session_id: action.session_id,
-                type: 'ACTION_FORWARDED_TO_SCRIBE',
-                content: `Action forwarded to Facilitator: ${action.goal || 'Untitled action'}`,
+                type: isProposal ? 'PROPOSAL_FORWARDED_TO_SCRIBE' : 'ACTION_FORWARDED_TO_SCRIBE',
+                content: isProposal
+                    ? `Proposal forwarded to Facilitator: ${action.goal || 'Untitled proposal'}`
+                    : `Action forwarded to Facilitator: ${action.goal || 'Untitled action'}`,
                 metadata: {
                     related_id: action.id,
                     role: this.role || this.getCurrentLeadRole(),
                     next_step: 'scribe_submit_to_white_cell',
-                    semantic_next_step: 'facilitator_submit_to_white_cell'
+                    semantic_next_step: 'facilitator_submit_to_white_cell',
+                    ...(isProposal ? { proposal: true } : {})
                 },
                 team: this.teamId,
                 move: action.move ?? 1,
@@ -5276,12 +5566,17 @@ export class FacilitatorController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            showToast({ message: 'Action forwarded to Facilitator', type: 'success' });
+            showToast({
+                message: isProposal ? 'Proposal forwarded to Facilitator' : 'Action forwarded to Facilitator',
+                type: 'success'
+            });
         } catch (err) {
-            logger.error('Failed to forward action:', err);
+            logger.error(isProposal ? 'Failed to forward proposal:' : 'Failed to forward action:', err);
             showToast({
                 message: getUserMessage(err, {
-                    fallback: 'Failed to forward action. Refresh the draft and try again.'
+                    fallback: isProposal
+                        ? 'Failed to forward proposal. Refresh the draft and try again.'
+                        : 'Failed to forward action. Refresh the draft and try again.'
                 }),
                 type: 'error'
             });
