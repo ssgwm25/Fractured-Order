@@ -108,54 +108,14 @@
   .slide.break .eyebrow{color:var(--accent)}
   .slide.break h1.s{font-size:7.4cqw;max-width:80cqw}
 
-  /* Plenum-inspired team title slide */
-  .slide.title{
-    justify-content:center;
-    overflow:hidden;
-    background:
-      radial-gradient(circle at 78% 22%,var(--accent-soft),transparent 31%),
-      linear-gradient(118deg,var(--slide-bg) 0%,var(--ink) 58%,var(--slide-bg) 100%);
-  }
-  .slide.title::before{
-    content:"";
-    position:absolute;
-    width:46cqw;
-    height:46cqw;
-    right:-4cqw;
-    top:2cqw;
-    border:1px solid var(--slide-rule);
-    border-radius:50%;
-    box-shadow:
-      0 0 0 7cqw var(--accent-soft),
-      0 0 0 14cqw var(--slide-panel);
-  }
-  .slide.title::after{
-    content:"";
-    position:absolute;
-    width:15cqw;
-    height:15cqw;
-    right:11.5cqw;
-    top:17.5cqw;
-    border:1px solid var(--wm-gold-bright);
-    border-radius:50%;
-    background:var(--accent-soft);
-  }
-  .slide.title .title-brand{position:absolute;top:5.2cqw;left:7cqw;display:flex;align-items:center;gap:1.5cqw}
-  .slide.title .title-seal{width:4.8cqw;height:4.8cqw;border:1px solid var(--wm-gold-bright);border-radius:3px;display:flex;align-items:center;justify-content:center;color:var(--wm-gold-bright);font-family:Georgia,serif;font-size:1.4cqw;font-weight:700}
-  .slide.title .title-brand-copy{display:flex;flex-direction:column;gap:.35cqw}
-  .slide.title .title-brand-name{font-size:1.45cqw;letter-spacing:.22em;color:var(--slide-ink);font-weight:700}
-  .slide.title .title-brand-sub{font-size:1cqw;letter-spacing:.18em;color:var(--slide-dim);font-weight:600}
-  .slide.title .title-copy{position:relative;z-index:2;max-width:67cqw}
-  .slide.title .title-kicker{font-size:1.35cqw;letter-spacing:.34em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:1.8cqw}
-  .slide.title h1.s{font-size:7.6cqw;line-height:.98;margin:0;max-width:64cqw}
-  .slide.title .title-dot{color:var(--wm-gold-bright)}
-  .slide.title .title-descriptor{font-size:1.55cqw;letter-spacing:.28em;text-transform:uppercase;color:var(--wm-gold-bright);font-weight:700;margin-top:1.5cqw}
-  .slide.title .title-rule{width:28cqw;height:1px;background:linear-gradient(90deg,var(--wm-gold-bright),transparent);margin:2.5cqw 0 2.2cqw}
-  .slide.title .title-mission{font-family:Georgia,"Times New Roman",serif;font-size:2.7cqw;line-height:1.18;color:var(--slide-ink);max-width:58cqw}
-  .slide.title .title-mandate{font-size:1.65cqw;line-height:1.42;color:var(--slide-dim);max-width:61cqw;margin-top:1.2cqw}
-  .slide.title .title-meta{display:flex;gap:2.8cqw;margin-top:2.4cqw;font-size:1cqw;letter-spacing:.16em;text-transform:uppercase;color:var(--slide-dim);font-weight:700}
-  .slide.title .title-meta span{display:flex;align-items:center;gap:.75cqw}
-  .slide.title .title-meta span::before{content:"";width:.45cqw;height:.45cqw;border-radius:50%;background:var(--wm-gold-bright)}
+  /* title slide */
+  .slide.title{justify-content:center}
+  .slide.title .kicker{font-size:1.7cqw;letter-spacing:.32em;text-transform:uppercase;color:var(--slide-dim);font-weight:700}
+  .slide.title h1.s{font-size:9cqw;margin:2cqw 0 1cqw}
+  .slide.title .accentbar{width:14cqw;height:.7cqw;background:var(--accent);border-radius:3px;margin:1.4cqw 0}
+  .slide.title .org{font-size:2cqw;color:var(--slide-dim);letter-spacing:.04em}
+  .slide.title .deck-date{font-size:1.7cqw;color:var(--slide-ink);font-weight:700;letter-spacing:.08em;margin-top:1.1cqw}
+  .slide.title .teamrole{position:absolute;top:6cqw;right:7cqw;font-size:1.6cqw;letter-spacing:.2em;text-transform:uppercase;color:#0c211a;background:var(--accent);padding:.8cqw 1.6cqw;border-radius:4px;font-weight:700}
 
   .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;background:#fff;border:1px solid var(--rule);box-shadow:0 4px 14px var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--wm-industry);transition:transform .12s,background .12s;z-index:10}
   .nav-arrow:hover{background:var(--wm-industry);color:#fff;transform:translateY(-50%) scale(1.06)}
@@ -217,25 +177,15 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div class="slide-frame" id="frame">
-<section class="slide title" data-title="Industry Team - Industry and Market Actors" data-n="1">
-    <div class="title-brand">
-      <div class="title-seal" aria-hidden="true">SSG</div>
-      <div class="title-brand-copy">
-        <div class="title-brand-name">WILLIAM &amp; MARY</div>
-        <div class="title-brand-sub">STATECRAFT SIMULATIONS GROUP</div>
-      </div>
-    </div>
-    <div class="title-copy">
-      <div class="title-kicker">Fractured Order &middot; Facilitator Deck</div>
-      <h1 class="s">INDUSTRY TEAM<span class="title-dot">.</span></h1>
-      <div class="title-descriptor">INDUSTRY & MARKET ACTORS</div>
-      <div class="title-rule"></div>
-      <div class="title-mission">Turn strategy into capacity.</div>
-      <p class="title-mandate">Translate policy into production, supply-chain exposure, investment, and market response.</p>
-      <div class="title-meta"><span>INDUSTRIAL BASE</span><span>CAPACITY + EXPOSURE</span><span>FACILITATOR DECK</span></div>
-    </div>
-    <div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>1 / 30</span></div>
-  </section>
+<section class="slide title" data-title="Title — Industry Facilitator Folder" data-n="1">
+    
+    <div class="teamrole">INDUSTRY &middot; Facilitator</div>
+    <div class="kicker">William &amp; Mary &middot; Statecraft Simulations Group</div>
+    <h1 class="s">Fractured Order</h1>
+    <div class="accentbar"></div>
+    <div class="org">INDUSTRY Team &mdash; Facilitator Support Folder</div><time class="deck-date" datetime="2026-07-24">July 24, 2026</time>
+    <div class="sub">Partners &amp; allies navigating U.S.&ndash;PRC competition: Asia-Pacific and Europe cells weighing alignment, exposure, and autonomy.</div>
+    <div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>1 / 30</span></div></section>
 <section class="slide" data-title="Fractured Order — A Seminar Simulation" data-n="2"><div class="eyebrow">The Game</div><h2 class="s">A one-day seminar wargame</h2><div class="lead">Participants manage sustained U.S.&ndash;PRC strategic competition using non-military instruments. The <b>Industry Team</b> plays the partners and allies whose choices decide whether the U.S. alliance structure holds or fractures.</div><div class="cards c3"><div class="card"><div class="kx">Blue</div><p>United States &mdash; sets economic statecraft.</p></div><div class="card"><div class="kx">Industry</div><p>Partners &amp; allies &mdash; you.</p></div><div class="card"><div class="kx">Red</div><p>PRC &amp; Russia &mdash; the competitor.</p></div></div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>2 / 30</span></div></section>
 <section class="slide" data-title="Simulation Purpose" data-n="3"><div class="eyebrow">Why we play</div><h2 class="s">Purpose</h2><div class="lead">Explore how alliance cohesion is built or broken when a great power leans on economic statecraft, and surface the inflection points where partner action reinforces or undermines the U.S.-led order.</div><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>3 / 30</span></div></section>
 <section class="slide" data-title="Industry Team Objective" data-n="4"><div class="eyebrow">Your mandate</div><h2 class="s">Industry Team objective</h2><ul class="s"><li><b>Protect national interest first.</b><small>Security, economy, and domestic politics of your own state set your bottom line.</small></li><li><b>Decide your alignment.</b><small>How far you move with Blue, how far you hedge toward Red, and on what terms.</small></li><li><b>Manage exposure.</b><small>Trade, supply-chain, and technology dependence shape what you can actually afford to do.</small></li><li><b>Keep your options open.</b><small>Autonomy is a resource; do not spend it cheaply for either side.</small></li></ul><div class="foot"><span><span class="mk">INDUSTRY</span> &middot; Fractured Order</span><span>4 / 30</span></div></section>

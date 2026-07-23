@@ -21,3 +21,28 @@ describe('facilitator deck schedules', () => {
         expect(html).not.toContain('"title": "Introductions"');
     });
 });
+
+describe('facilitator deck front-slide dates', () => {
+    it.each(FACILITATOR_DECKS)('dates the front slide July 24, 2026 in %s', (relativePath) => {
+        const html = readFileSync(new URL(relativePath, ROOT_URL), 'utf8');
+        const imageDeckMatch = html.match(/^  const SLIDES = (\[.*\]);$/m);
+
+        if (imageDeckMatch) {
+            const [frontSlide] = JSON.parse(imageDeckMatch[1]);
+            const encodedSvg = frontSlide.src.replace('data:image/svg+xml;base64,', '');
+            const frontSlideSvg = Buffer.from(encodedSvg, 'base64').toString('utf8');
+
+            expect(frontSlide.title).toContain('July 24, 2026');
+            expect(frontSlide.src).toMatch(/^data:image\/svg\+xml;base64,/);
+            expect(frontSlideSvg).toContain('July 24, 2026');
+            expect(frontSlideSvg).toContain('7/24/2026');
+            return;
+        }
+
+        const frontSlide = html.match(/<section class="slide title"[\s\S]*?<\/section>/)?.[0];
+
+        expect(frontSlide).toContain(
+            '<time class="deck-date" datetime="2026-07-24">July 24, 2026</time>'
+        );
+    });
+});
