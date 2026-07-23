@@ -21,7 +21,8 @@
     "test:e2e:rehearsal": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js tests/e2e/live-demo-scale.e2e.js tests/e2e/live-demo-realtime.e2e.js tests/e2e/live-demo-playthrough.e2e.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "cheerio": "^1.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
