@@ -9,6 +9,33 @@ import {
 } from './proposalDetails.js';
 
 describe('proposalDetails scribe handoff', () => {
+    it('round-trips Industry instruments of power without losing custom values', () => {
+        const serialized = serializeProposalDetails({
+            originators: ['EU'],
+            objective: 'Coordinate industrial capacity',
+            instruments: ['Economic', 'Information', 'Standards, finance, and insurance'],
+            intendedPartners: 'Blue Team',
+            delivery: 'Joint Statement',
+            timingAndConditions: 'Before Move 2'
+        });
+
+        expect(serialized).toContain(
+            'Instruments: ["Economic","Information","Standards, finance, and insurance"]'
+        );
+        expect(parseProposalDetails(serialized)?.instruments).toEqual([
+            'Economic',
+            'Information',
+            'Standards, finance, and insurance'
+        ]);
+        expect(getProposalViewModel({
+            mechanism: 'Proposal',
+            ally_contingencies: serialized
+        })).toEqual(expect.objectContaining({
+            instrumentOfPower: 'Economic',
+            instruments: ['Economic', 'Information', 'Standards, finance, and insurance']
+        }));
+    });
+
     it('serializes and parses Scribe Handoff', () => {
         const serialized = serializeProposalDetails({
             originators: ['EU', 'UK'],

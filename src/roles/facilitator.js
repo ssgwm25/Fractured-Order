@@ -2506,7 +2506,12 @@ export class FacilitatorController {
             ? [
                 { label: 'Proposal Objective', value: proposal.objective || 'Not specified', wide: true },
                 { label: 'Originators', value: formatProposalSelection(proposal.originators) },
-                { label: 'Category', value: proposal.category || 'Not specified' },
+                {
+                    label: action.team === 'industry' || proposal.instruments.length
+                        ? 'Instrument of Power'
+                        : 'Category',
+                    value: formatProposalSelection(proposal.instruments, proposal.category || 'Not specified')
+                },
                 { label: 'Intended Partners', value: proposal.intendedPartners || 'Not specified' },
                 { label: 'Focus Sector', value: proposal.focusSector || 'Not specified' },
                 { label: 'Delivery', value: proposal.delivery || 'Not specified' },
@@ -2670,14 +2675,14 @@ export class FacilitatorController {
                     ` : ''}
                     ${lifecycleMessage}
 
-                    ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow) || canRemoveDraft) ? `
+                    ${(canManageDraft || (canSubmitDraft && !isStrategicOrientationFlow && !isGreenProposalFlow) || canRemoveDraft) ? `
                         <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
                             ${canManageDraft ? `
                                 <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
                                     ${isGreenProposalFlow ? 'Edit Proposal' : 'Edit Draft'}
                                 </button>
                             ` : ''}
-                            ${canSubmitDraft && !isStrategicOrientationFlow ? `
+                            ${canSubmitDraft && !isStrategicOrientationFlow && !isGreenProposalFlow ? `
                                 <button class="btn btn-primary btn-sm forward-action-btn" data-action-id="${action.id}">
                                     Forward to Facilitator
                                 </button>
@@ -3624,6 +3629,7 @@ export class FacilitatorController {
     createGreenProposalContent(action = {}, { isEdit = false } = {}) {
         const content = document.createElement('div');
         const viewModel = getProposalViewModel(action);
+        const isIndustryProposal = this.teamId === 'industry';
 
         const categoryIsCustom = Boolean(viewModel.category)
             && !PROPOSAL_CATEGORIES.includes(viewModel.category);
@@ -3635,6 +3641,17 @@ export class FacilitatorController {
         const categorySelectValue = categoryIsCustom ? 'Other' : (viewModel.category || '');
         const sectorSelectValue = sectorIsCustom ? 'Other' : (viewModel.focusSector || '');
         const deliverySelectValue = deliveryIsCustom ? 'Other' : (viewModel.delivery || '');
+        const builtInInstrumentValues = BLUE_ACTION_INSTRUMENTS.filter((value) => value !== 'Other');
+        const proposalInstruments = viewModel.instruments.length
+            ? viewModel.instruments
+            : (isIndustryProposal && viewModel.category ? [viewModel.category] : []);
+        const customInstrumentValue = proposalInstruments.find(
+            (value) => value && !builtInInstrumentValues.includes(value) && value !== 'Other'
+        ) || '';
+        const selectedInstrumentValues = [
+            ...proposalInstruments.filter((value) => builtInInstrumentValues.includes(value)),
+            ...(customInstrumentValue || proposalInstruments.includes('Other') ? ['Other'] : [])
+        ];
 
         const renderOptions = (values, selectedValue = '', placeholder = 'Select an option') => `
             <option value="">${placeholder}</option>
@@ -3691,17 +3708,42 @@ export class FacilitatorController {
                     >${this.escapeHtml(viewModel.objective)}</textarea>
                 </div>
 
-                <div class="section-grid section-grid-2">
+                ${isIndustryProposal ? `
                     <div class="form-group">
-                        <label class="form-label" for="proposalCategory">Proposal Category *</label>
-                        <select
-                            id="proposalCategory"
-                            class="form-select"
-                            data-proposal-other-target="proposalCategoryOther"
+                        <span class="form-label" id="proposalInstrumentsLabel">Instrument of Power *</span>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-labelledby="proposalInstrumentsLabel"
+                            aria-describedby="proposalInstrumentsHint"
+                            aria-required="true"
                         >
-                            ${renderOptions(PROPOSAL_CATEGORIES, categorySelectValue, 'Select category')}
-                        </select>
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_INSTRUMENTS,
+                                selectedValues: selectedInstrumentValues,
+                                dataAttribute: 'data-proposal-instrument',
+                                group: 'true',
+                                idPrefix: 'proposalInstrumentOption'
+                            })}
+                        </div>
+                        <p class="form-hint" id="proposalInstrumentsHint">Select one or more instruments of power.</p>
                     </div>
+
+                    <div
+                        class="form-group"
+                        id="proposalInstrumentOtherGroup"
+                        ${selectedInstrumentValues.includes('Other') ? '' : 'hidden'}
+                    >
+                        <label class="form-label" for="proposalInstrumentOther">Other Instrument of Power *</label>
+                        <input
+                            id="proposalInstrumentOther"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(customInstrumentValue)}"
+                            maxlength="120"
+                        >
+                    </div>
+
                     <div class="form-group">
                         <label class="form-label" for="proposalIntendedPartners">Intended Partner(s) *</label>
                         <input
@@ -3713,22 +3755,46 @@ export class FacilitatorController {
                             maxlength="200"
                         >
                     </div>
-                </div>
+                ` : `
+                    <div class="section-grid section-grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="proposalCategory">Proposal Category *</label>
+                            <select
+                                id="proposalCategory"
+                                class="form-select"
+                                data-proposal-other-target="proposalCategoryOther"
+                            >
+                                ${renderOptions(PROPOSAL_CATEGORIES, categorySelectValue, 'Select category')}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="proposalIntendedPartners">Intended Partner(s) *</label>
+                            <input
+                                id="proposalIntendedPartners"
+                                class="form-input"
+                                type="text"
+                                placeholder="Country(s) or alliance(s)"
+                                value="${this.escapeHtml(viewModel.intendedPartners)}"
+                                maxlength="200"
+                            >
+                        </div>
+                    </div>
 
-                <div
-                    class="form-group"
-                    id="proposalCategoryOtherGroup"
-                    ${categorySelectValue === 'Other' ? '' : 'hidden'}
-                >
-                    <label class="form-label" for="proposalCategoryOther">Other Category *</label>
-                    <input
-                        id="proposalCategoryOther"
-                        class="form-input"
-                        type="text"
-                        value="${this.escapeHtml(categoryIsCustom ? viewModel.category : '')}"
-                        maxlength="120"
+                    <div
+                        class="form-group"
+                        id="proposalCategoryOtherGroup"
+                        ${categorySelectValue === 'Other' ? '' : 'hidden'}
                     >
-                </div>
+                        <label class="form-label" for="proposalCategoryOther">Other Category *</label>
+                        <input
+                            id="proposalCategoryOther"
+                            class="form-input"
+                            type="text"
+                            value="${this.escapeHtml(categoryIsCustom ? viewModel.category : '')}"
+                            maxlength="120"
+                        >
+                    </div>
+                `}
 
                 <div class="section-grid section-grid-2">
                     <div class="form-group">
@@ -3837,7 +3903,22 @@ export class FacilitatorController {
             });
         };
 
-        bindOtherToggle('proposalCategory', 'proposalCategoryOtherGroup', 'proposalCategoryOther');
+        if (this.teamId === 'industry') {
+            const updateInstrumentOtherField = () => {
+                const group = form.querySelector('#proposalInstrumentOtherGroup');
+                const input = form.querySelector('#proposalInstrumentOther');
+                const showOther = Boolean(form.querySelector('#proposalInstrumentOptionOther')?.checked);
+
+                if (group) group.hidden = !showOther;
+                if (input && !showOther) input.value = '';
+            };
+
+            form.querySelectorAll('[data-proposal-instrument="true"]').forEach((checkbox) => {
+                checkbox.addEventListener('change', updateInstrumentOtherField);
+            });
+        } else {
+            bindOtherToggle('proposalCategory', 'proposalCategoryOtherGroup', 'proposalCategoryOther');
+        }
         bindOtherToggle('proposalFocusSector', 'proposalFocusSectorOtherGroup', 'proposalFocusSectorOther');
         bindOtherToggle('proposalDelivery', 'proposalDeliveryOtherGroup', 'proposalDeliveryOther');
 
@@ -3902,6 +3983,12 @@ export class FacilitatorController {
             form.querySelectorAll('[data-proposal-originator="true"]:checked')
         ).map((checkbox) => checkbox.value);
 
+        const selectedInstrumentValues = getCheckedValues(form, '[data-proposal-instrument="true"]');
+        const instrumentOther = form.querySelector('#proposalInstrumentOther')?.value?.trim() || '';
+        const instruments = [
+            ...selectedInstrumentValues.filter((value) => value !== 'Other'),
+            ...(selectedInstrumentValues.includes('Other') && instrumentOther ? [instrumentOther] : [])
+        ];
         const categorySelect = form.querySelector('#proposalCategory')?.value || '';
         const categoryOther = form.querySelector('#proposalCategoryOther')?.value?.trim() || '';
         const sectorSelect = form.querySelector('#proposalFocusSector')?.value || '';
@@ -3913,6 +4000,9 @@ export class FacilitatorController {
             title: form.querySelector('#proposalTitle')?.value?.trim() || '',
             originators,
             objective: form.querySelector('#proposalObjective')?.value?.trim() || '',
+            selectedInstrumentValues,
+            instrumentOther,
+            instruments,
             categorySelect,
             categoryOther,
             category: categorySelect === 'Other' ? categoryOther : categorySelect,
@@ -3932,8 +4022,15 @@ export class FacilitatorController {
         if (!data.title) return 'Proposal Title is required.';
         if (!data.originators.length) return 'Select at least one Originator.';
         if (!data.objective) return 'Objective is required.';
-        if (!data.categorySelect) return 'Proposal Category is required.';
-        if (data.categorySelect === 'Other' && !data.categoryOther) return 'Please enter the custom category.';
+        if (this.teamId === 'industry') {
+            if (!data.selectedInstrumentValues.length) return 'Select at least one instrument of power.';
+            if (data.selectedInstrumentValues.includes('Other') && !data.instrumentOther) {
+                return 'Please enter the custom instrument of power.';
+            }
+        } else {
+            if (!data.categorySelect) return 'Proposal Category is required.';
+            if (data.categorySelect === 'Other' && !data.categoryOther) return 'Please enter the custom category.';
+        }
         if (!data.intendedPartners) return 'Intended Partner(s) is required.';
         if (!data.sectorSelect) return 'Focus Sector is required.';
         if (data.sectorSelect === 'Other' && !data.sectorOther) return 'Please enter the custom sector.';
@@ -3956,6 +4053,7 @@ export class FacilitatorController {
             ally_contingencies: serializeProposalDetails({
                 originators: data.originators,
                 objective: data.objective,
+                instruments: data.instruments,
                 category: data.category,
                 intendedPartners: data.intendedPartners,
                 delivery: data.delivery,
@@ -3976,6 +4074,7 @@ export class FacilitatorController {
             ally_contingencies: serializeProposalDetails({
                 originators: proposal.originators,
                 objective: proposal.objective,
+                instruments: proposal.instruments,
                 category: proposal.category,
                 intendedPartners: proposal.intendedPartners,
                 delivery: proposal.delivery,

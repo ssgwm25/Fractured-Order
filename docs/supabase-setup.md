@@ -63,7 +63,7 @@ The migration fails closed instead of guessing when it finds any of these condit
 
 Resolve the cited row IDs as an explicit data-repair operation, then reapply the migration. Do not delete or relabel a legitimate artifact merely to make the migration pass.
 
-White Cell proposal review now calls `operator_review_proposal`. The RPC adjudicates the proposal and writes its review timeline, forwarding communication, and forwarding timeline in one transaction. Repeating the same completed decision returns the committed records with `idempotent_replay = true`; a conflicting second decision fails.
+White Cell proposal review now calls `operator_review_proposal`. The RPC adjudicates the proposal and writes its review timeline, forwarding communication, and forwarding timeline in one transaction. Its forwarded proposal snapshot preserves the Industry Instrument of Power selections recorded in the proposal details. Repeating the same completed decision returns the committed records with `idempotent_replay = true`; a conflicting second decision fails.
 
 After applying the migration, verify the operational contract:
 

@@ -1044,7 +1044,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(actionsList.innerHTML).not.toContain('strategic action');
     });
 
-    it('uses an Industry-scoped proposal form selector for the Industry proposal modal', async () => {
+    it('uses Blue Team instruments of power in the Industry proposal modal', async () => {
         global.document = createFakeDocument();
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
@@ -1054,6 +1054,31 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         expect(content.innerHTML).toContain('id="industryProposalForm"');
         expect(content.innerHTML).not.toContain('id="greenProposalForm"');
+        expect(content.innerHTML).toContain('id="proposalInstrumentsLabel">Instrument of Power *');
+        expect(content.innerHTML).toContain('data-proposal-instrument="true"');
+        expect(content.innerHTML).toContain('aria-required="true"');
+        expect(content.innerHTML).toContain('value="Economic"');
+        expect(content.innerHTML).toContain('value="Diplomacy"');
+        expect(content.innerHTML).toContain('value="Information"');
+        expect(content.innerHTML).toContain('value="Military"');
+        expect(content.innerHTML).toContain('value="Other"');
+        expect(content.innerHTML).toContain('Select one or more instruments of power.');
+        expect(content.innerHTML).toContain('id="proposalInstrumentOtherGroup"');
+        expect(content.innerHTML).not.toContain('Proposal Category');
+        expect(content.innerHTML).not.toContain('id="proposalCategory"');
+    });
+
+    it('keeps Proposal Category in the Green proposal modal', async () => {
+        global.document = createFakeDocument();
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+
+        const content = controller.createGreenProposalContent();
+
+        expect(content.innerHTML).toContain('Proposal Category *');
+        expect(content.innerHTML).toContain('id="proposalCategory"');
+        expect(content.innerHTML).not.toContain('id="proposalInstrumentsLabel"');
     });
 
     it('renders action-specific empty-state copy for the Red facilitator queue', async () => {
@@ -1326,7 +1351,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             expect(markup).toContain('Coordinate port investment standards.');
             expect(markup).toContain('Originators');
             expect(markup).toContain('EU, Japan');
-            expect(markup).toContain('Category');
+            expect(markup).toContain(teamId === 'industry' ? 'Instrument of Power' : 'Category');
             expect(markup).toContain('Intended Partners');
             expect(markup).toContain('Focus Sector');
             expect(markup).toContain('Delivery');
@@ -2330,6 +2355,43 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(payload.mechanism).toBe('Proposal');
         expect(payload.ally_contingencies).toContain('Proposal Details');
         expect(payload.ally_contingencies).toContain('Recipient Team: blue');
+    });
+
+    it('persists Industry instruments of power in proposal details', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+
+        const payload = controller.buildGreenProposalPayload({
+            title: 'Align biotech export posture',
+            originators: ['EU', 'Japan'],
+            objective: 'Coordinate export controls across allied channels.',
+            instruments: ['Economic', 'Diplomacy'],
+            category: '',
+            intendedPartners: 'Blue Team',
+            focusSector: 'Biotechnology',
+            delivery: 'Joint Statement',
+            timingAndConditions: 'Next move after White Cell approval.',
+            expectedOutcomes: 'Reduce room for adversarial arbitrage.'
+        }, {
+            recipientTeam: 'blue'
+        });
+
+        expect(payload.ally_contingencies).toContain('Instruments: ["Economic","Diplomacy"]');
+        expect(controller.validateGreenProposal({
+            title: 'Align biotech export posture',
+            originators: ['EU'],
+            objective: 'Coordinate export controls.',
+            selectedInstrumentValues: ['Economic', 'Diplomacy'],
+            instrumentOther: '',
+            intendedPartners: 'Blue Team',
+            sectorSelect: 'Biotechnology',
+            sectorOther: '',
+            deliverySelect: 'Joint Statement',
+            deliveryOther: '',
+            timingAndConditions: 'Next move.',
+            expectedOutcomes: 'Aligned posture.'
+        })).toBeNull();
     });
 
     it('shows forwarded proposals in both the received proposals inbox and the responses feed', async () => {

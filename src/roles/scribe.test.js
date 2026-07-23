@@ -1034,6 +1034,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Proposal from Industry Team');
         expect(html).toContain('Critical Minerals Compact');
         expect(html).toContain('Coordinate a shared stockpile.');
+        expect(html).toContain('Instrument of Power');
+        expect(html).not.toContain('>Category<');
         expect(html.match(/data-facilitator-proposal-decision=/g)).toHaveLength(3);
         expect(html).toContain('data-facilitator-proposal-decision="accept"');
         expect(html).toContain('>Accept</button>');
@@ -1648,6 +1650,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('data-scribe-action-edit');
         expect(html).toContain('>Edit</button>');
         expect(html).toContain('<legend>Coordinated</legend>');
+        expect(html).not.toContain('data-scribe-presentation-radio="coordinated"');
         expect(html).toContain('>Legislative</span>');
         expect(html).toContain('>Executive</span>');
         expect(html).toContain('<legend>Informed/Engaged</legend>');
@@ -1710,8 +1713,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).not.toContain('Transitional inefficiencies');
         expect(html).toContain('data-scribe-presentation-toolbar');
         expect(html).toContain('>Edit</button>');
-        expect(html).toContain('<fieldset class="scribe-presentation-toolbar-group" disabled>');
-        expect(html).toContain('Coordination and engagement apply to action submissions only.');
+        expect(html).not.toContain('scribe-presentation-toolbar-group');
+        expect(html).not.toContain('Coordination and engagement apply to action submissions only.');
+        expect(html).toContain('Review the Strategic Orientation with the room, then forward to White Cell.');
         expect(html).toContain('>Forward to White Cell</button>');
     });
 
@@ -1742,7 +1746,6 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         global.document = createFakeDocument();
         const controller = new ScribeController();
         const decisions = {
-            coordinated: 'yes',
             'coordinated-legislative': 'yes',
             'coordinated-executive': 'no',
             'informed-industry': 'no',
@@ -1763,6 +1766,80 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             coordinatedValues: ['Legislative'],
             informedEngagedDecision: 'yes',
             informedValues: ['Allies']
+        }));
+        expect(controller.isPresentationActionSelectionsComplete(selections)).toBe(true);
+        expect(controller.isScribeActionSelectionsComplete(selections)).toBe(true);
+    });
+
+    it('removes coordination and informed-engaged groups from Green, Red, and Industry toolbars', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
+
+        ['green', 'red', 'industry'].forEach((teamId) => {
+            controller.teamId = teamId;
+            const html = controller.renderPresentationToolbar({
+                id: `${teamId}-action-toolbar`,
+                team: teamId,
+                status: 'draft'
+            }, {
+                coordinatedDecision: 'yes',
+                informedEngagedDecision: 'yes',
+                coordinated: ['Legislative'],
+                informed: ['Industry']
+            });
+            const selections = controller.getPresentationActionSelections({});
+
+            expect(html).toContain('scribe-presentation-toolbar--handoff-only');
+            expect(html).not.toContain('scribe-presentation-toolbar-group');
+            expect(html).not.toContain('<legend>Coordinated</legend>');
+            expect(html).not.toContain('<legend>Informed/Engaged</legend>');
+            expect(html).not.toContain('data-scribe-presentation-radio');
+            expect(html).toContain('>Edit</button>');
+            expect(html).toContain('Ready to forward to White Cell.');
+            expect(html).toContain('>Forward to White Cell</button>');
+            expect(selections).toMatchObject({
+                coordinatedDecision: 'no',
+                coordinatedValues: [],
+                informedEngagedDecision: 'no',
+                informedValues: []
+            });
+            expect(controller.isPresentationActionSelectionsComplete(selections)).toBe(true);
+            expect(controller.isScribeActionSelectionsComplete(selections)).toBe(true);
+        });
+
+        expect(css).toContain(
+            'body[data-scribe-presentation="active"] .scribe-presentation-toolbar--handoff-only'
+        );
+        expect(css).toContain('grid-template-columns: auto minmax(0, 1fr);');
+    });
+
+    it('derives a No coordinated decision when both Legislative and Executive are No', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        const decisions = {
+            'coordinated-legislative': 'no',
+            'coordinated-executive': 'no',
+            'informed-industry': 'yes',
+            'informed-allies': 'no'
+        };
+        const toolbar = {
+            matches: (selector) => selector === '[data-scribe-presentation-toolbar]',
+            querySelector: (selector) => {
+                const group = selector.match(/data-scribe-presentation-radio="([^"]+)"/)?.[1];
+                return group && decisions[group] ? { value: decisions[group] } : null;
+            }
+        };
+
+        const selections = controller.getScribeActionSelections(toolbar);
+
+        expect(selections).toEqual(expect.objectContaining({
+            coordinatedDecision: 'no',
+            coordinatedValues: [],
+            informedEngagedDecision: 'yes',
+            informedValues: ['Industry']
         }));
         expect(controller.isPresentationActionSelectionsComplete(selections)).toBe(true);
         expect(controller.isScribeActionSelectionsComplete(selections)).toBe(true);
@@ -1880,6 +1957,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         );
         global.document = createFakeDocument();
         const controller = new ScribeController();
+        controller.teamId = 'green';
         controller.teamLabel = 'Green Team';
 
         const action = {
@@ -1915,7 +1993,214 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('data-scribe-action-edit');
         expect(html).toContain('Forward to White Cell');
         expect(html).toContain('Review the proposal with the room, then forward to White Cell.');
-        expect(html).toContain('scribe-presentation-toolbar-group" disabled');
+        expect(html).not.toContain('scribe-presentation-toolbar-group');
+    });
+
+    it('keeps the proposing Facilitator informed when a proposal is accepted, declined, or sent to negotiation', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { serializeProposalDetails, PROPOSAL_SCRIBE_HANDOFF } = await import(
+            '../features/actions/proposalDetails.js'
+        );
+        global.document = createFakeDocument();
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        const controller = new ScribeController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+        const action = {
+            id: 'proposal-process-visible',
+            team: 'green',
+            status: 'submitted',
+            mechanism: 'Proposal',
+            goal: 'Regional Food Security Compact',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['Green Team'],
+                objective: 'Coordinate regional food resilience.',
+                category: 'Partnership',
+                intendedPartners: 'Red Team',
+                delivery: 'Joint statement',
+                timingAndConditions: 'Before Move 3',
+                recipientTeam: 'red',
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            })
+        };
+        const forwardedProposal = {
+            id: 'proposal-forwarded-process-visible',
+            type: 'PROPOSAL_FORWARDED',
+            metadata: {
+                source_proposal_id: action.id,
+                source_team: 'green',
+                recipient_team: 'red',
+                proposal: { title: action.goal }
+            }
+        };
+        const renderWithRecipientState = (proposalRecipientState) => {
+            getAll.mockReturnValue([{
+                ...forwardedProposal,
+                metadata: {
+                    ...forwardedProposal.metadata,
+                    proposal_recipient_state: proposalRecipientState
+                }
+            }]);
+            return controller.renderActionSlide({
+                slideKey: `action-${action.id}`,
+                slideType: 'own-proposal',
+                action
+            });
+        };
+
+        const acceptedHtml = renderWithRecipientState({
+            status: 'responded',
+            facilitator_decision: 'accept',
+            response_content: 'Accepted',
+            response_sent_at: '2026-07-23T12:00:00.000Z'
+        });
+        const declinedHtml = renderWithRecipientState({
+            status: 'declined',
+            facilitator_decision: 'not_interested',
+            response_content: 'Not Interested',
+            response_sent_at: '2026-07-23T12:05:00.000Z'
+        });
+        const negotiationHtml = renderWithRecipientState({
+            status: 'responded',
+            facilitator_decision: 'negotiate',
+            response_content: 'Add a six-month review clause.',
+            response_sent_at: '2026-07-23T12:10:00.000Z'
+        });
+
+        expect(acceptedHtml).toContain('Proposal process');
+        expect(acceptedHtml).toContain('<strong>Current stage:</strong> Accepted');
+        expect(acceptedHtml).toContain('Red Team accepted this proposal.');
+        expect(declinedHtml).toContain('<strong>Current stage:</strong> Declined');
+        expect(declinedHtml).toContain('Red Team recorded Not Interested and declined this proposal.');
+        expect(negotiationHtml).toContain('<strong>Current stage:</strong> Negotiation requested');
+        expect(negotiationHtml).toContain('Red Team wants to negotiate this proposal.');
+        expect(negotiationHtml).toContain('<strong>Negotiation terms:</strong>');
+        expect(negotiationHtml).toContain('Add a six-month review clause.');
+        expect(negotiationHtml).toContain('role="status" aria-live="polite"');
+    });
+
+    it('alerts the proposing Facilitator once when a recipient decision arrives', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { showToast } = await import('../components/ui/Toast.js');
+        global.document = createFakeDocument();
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        const controller = new ScribeController();
+        controller.teamId = 'green';
+        controller.teamActions = [{
+            id: 'proposal-alert-source',
+            team: 'green',
+            goal: 'Regional Food Security Compact'
+        }];
+        controller.renderAlerts = vi.fn();
+        const pending = {
+            id: 'proposal-alert-forwarded',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-07-23T12:00:00.000Z',
+            metadata: {
+                source_proposal_id: 'proposal-alert-source',
+                source_team: 'green',
+                recipient_team: 'blue',
+                proposal: { title: 'Regional Food Security Compact' },
+                proposal_recipient_state: { status: 'unread' }
+            }
+        };
+        const negotiated = {
+            ...pending,
+            updated_at: '2026-07-23T12:05:00.000Z',
+            metadata: {
+                ...pending.metadata,
+                proposal_recipient_state: {
+                    status: 'responded',
+                    facilitator_decision: 'negotiate',
+                    response_content: 'Add a six-month review clause.',
+                    response_sent_at: '2026-07-23T12:05:00.000Z'
+                }
+            }
+        };
+
+        getAll.mockReturnValue([pending]);
+        controller.processCommunicationNotifications('initialized');
+        expect(controller.notifications).toHaveLength(0);
+
+        getAll.mockReturnValue([negotiated]);
+        controller.processCommunicationNotifications('updated');
+        controller.processCommunicationNotifications('updated');
+
+        expect(controller.notifications).toHaveLength(1);
+        expect(controller.notifications[0]).toMatchObject({
+            title: 'Negotiation requested',
+            detail: 'Blue Team requested negotiation on "Regional Food Security Compact". Open the proposal to review the terms.',
+            slideKey: 'action-proposal-alert-source'
+        });
+        expect(controller.unreadNotifications).toBe(1);
+        expect(showToast).toHaveBeenCalledTimes(1);
+    });
+
+    it('presents every Industry Scribe proposal field to the Industry Facilitator for review', async () => {
+        const { ScribeController, buildScribeActionSlides } = await loadScribeModule();
+        const { serializeProposalDetails, PROPOSAL_SCRIBE_HANDOFF } = await import(
+            '../features/actions/proposalDetails.js'
+        );
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamId = 'industry';
+        controller.teamLabel = 'Industry Team';
+
+        const action = {
+            id: 'industry-proposal-full-detail',
+            team: 'industry',
+            status: 'draft',
+            mechanism: 'Proposal',
+            goal: 'Critical Infrastructure Investment Compact',
+            sector: 'Critical minerals and logistics',
+            expected_outcomes: 'Near term: align financing. Long term: reduce infrastructure exposure.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU', 'Japan'],
+                objective: 'Coordinate private capital and insurance capacity.',
+                instruments: ['Economic', 'Information', 'Standards and insurance'],
+                intendedPartners: 'Blue Team and ASEAN partners',
+                delivery: 'Industry-led investment forum',
+                timingAndConditions: 'Launch in Move 2 after White Cell approval.',
+                recipientTeam: 'blue',
+                scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            })
+        };
+
+        const slides = buildScribeActionSlides([action], { teamLabel: 'Industry Team' });
+        const html = controller.renderActionSlide(slides.slides[0]);
+
+        expect(slides).toMatchObject({
+            slideCount: 1,
+            slides: [expect.objectContaining({
+                slideType: 'own-proposal',
+                title: 'Critical Infrastructure Investment Compact'
+            })]
+        });
+        expect(html).toContain('Industry Team proposal details for presentation and review');
+        expect(html).toContain('Full proposal details');
+        expect(html).toContain('Critical Infrastructure Investment Compact');
+        expect(html).toContain('>Objective</p>');
+        expect(html).toContain('Coordinate private capital and insurance capacity.');
+        expect(html).toContain('Originator(s)');
+        expect(html).toContain('EU, Japan');
+        expect(html).toContain('Instrument of Power');
+        expect(html).toContain('Economic, Information, Standards and insurance');
+        expect(html).toContain('Intended Partner(s)');
+        expect(html).toContain('Blue Team and ASEAN partners');
+        expect(html).toContain('Focus Sector(s)');
+        expect(html).toContain('Critical minerals and logistics');
+        expect(html).toContain('>Delivery</p>');
+        expect(html).toContain('Industry-led investment forum');
+        expect(html).toContain('Timing &amp; Conditions');
+        expect(html).toContain('Launch in Move 2 after White Cell approval.');
+        expect(html).toContain('Expected Outcome(s) &amp; Duration Assessment');
+        expect(html).toContain('Near term: align financing. Long term: reduce infrastructure exposure.');
+        expect(html).toContain('Intended recipient: Blue Team');
+        expect(html).toContain('data-scribe-action-edit');
+        expect(html).toContain('Forward to White Cell');
+        expect(html).not.toContain('Proposal Category');
     });
 
     it('shows each selected Strategic Orientation component once without lifecycle repetition', async () => {
@@ -2327,16 +2612,22 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(css).toContain('.scribe-section-trigger {\n    width: 100%;\n    display: flex;\n    align-items: center;');
         expect(css).toContain('padding: var(--space-3);');
         expect(css).toContain('.scribe-section-card.is-current .scribe-section-trigger::before');
-        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list {\n    display: flex;\n    flex-direction: row;\n    flex-wrap: nowrap;');
-        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list > li {\n    flex: 0 0 calc(var(--space-8) * 5);');
-        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list > li + li {\n    margin-top: 0;');
-        expect(css).toContain('.scribe-section-card--actions .scribe-slide-link {\n    height: 100%;');
         expect(css).toContain('.scribe-slide-link {\n    width: 100%;\n    display: grid;');
         expect(css).toContain('.scribe-slide-link.is-action {\n    background: transparent;\n    color: inherit;\n    box-shadow: none;');
         expect(css).toContain('.scribe-slide-link.is-action.is-active {\n    background: var(--color-navy-soft);');
         expect(css).toContain('padding: var(--space-2);');
         expect(css).not.toContain('linear-gradient(180deg, var(--color-info-100)');
         expect(css).not.toContain('box-shadow: inset 3px 0 0 var(--color-team-blue);');
+    });
+
+    it('stacks Team Action Review entries vertically without a horizontal action rail', () => {
+        const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
+
+        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list {\n    display: flex;\n    flex-direction: column;\n    gap: var(--space-1);');
+        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list > li {\n    flex: 0 1 auto;\n    min-width: 0;\n    width: 100%;');
+        expect(css).toContain('.scribe-section-card--actions .scribe-slide-list > li + li {\n    margin-top: 0;');
+        expect(css).not.toContain('scroll-snap-type: inline proximity');
+        expect(css).not.toContain('overscroll-behavior-inline: contain');
     });
 
     it('builds the team-scoped facilitator decks into the same decks/team paths that scribe seats fetch at runtime', () => {

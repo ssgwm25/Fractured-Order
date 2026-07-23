@@ -692,6 +692,29 @@ describe('research export builder', () => {
         );
     });
 
+    it('labels Industry proposal instruments of power in generated reports', async () => {
+        const bundle = buildBundleFixture();
+        const proposal = bundle.actions.find((action) => action.id === 'proposal-green-1');
+        proposal.team = 'industry';
+        proposal.ally_contingencies = serializeProposalDetails({
+            originators: ['EU'],
+            objective: 'Seek joint messaging',
+            instruments: ['Economic', 'Information'],
+            intendedPartners: 'Blue Team',
+            delivery: 'Joint Statement',
+            timingAndConditions: 'Before next move',
+            recipientTeam: 'blue'
+        });
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z'
+        });
+
+        expect(exportBundle.reportHtml).toContain('Instrument of Power');
+        expect(exportBundle.reportHtml).toContain('Economic, Information');
+        expect(exportBundle.reportLatex).toContain('Instrument of Power');
+    });
+
     it('labels a supplied research audit spine as captured evidence', async () => {
         const bundle = buildBundleFixture();
         bundle.researchAuditEventLog = [

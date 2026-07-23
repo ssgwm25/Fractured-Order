@@ -38,6 +38,7 @@ import {
     formatProposalRecipientStatus,
     getProposalRecipientEntry,
     getProposalRecipientStatus,
+    isProposalNegotiationRequest,
     isProposalRecipientFinal
 } from '../features/actions/proposalRecipientState.js';
 import {
@@ -770,6 +771,7 @@ export class ScribeController {
         this.alertsOpen = false;
         this.alertsReturnFocus = null;
         this.knownCommunicationIds = new Set();
+        this.authoredProposalStateByCommunicationId = new Map();
         this.actionStatusById = new Map();
         this.actionVisibleById = new Map();
         this.communicationsSeeded = false;
@@ -1184,9 +1186,11 @@ export class ScribeController {
     }
 
     primeNotifications() {
+        const communications = communicationsStore.getAll();
         this.knownCommunicationIds = new Set(
-            communicationsStore.getAll().map((communication) => communication?.id).filter(Boolean)
+            communications.map((communication) => communication?.id).filter(Boolean)
         );
+        this.seedAuthoredProposalStates(communications);
         this.communicationsSeeded = true;
         actionsStore.getByTeam(this.teamId).forEach((action) => {
             if (action?.id) {
@@ -1206,6 +1210,147 @@ export class ScribeController {
         case 'industry': return 'Industry Team';
         default: return team || 'Another team';
         }
+    }
+
+    isAuthoredProposalCommunication(communication = {}) {
+        if (communication?.type !== 'PROPOSAL_FORWARDED') {
+            return false;
+        }
+
+        const metadata = communication.metadata && typeof communication.metadata === 'object'
+            ? communication.metadata
+            : {};
+        const sourceTeam = String(metadata.source_team || '').trim().toLowerCase();
+        if (sourceTeam) {
+            return sourceTeam === this.teamId;
+        }
+
+        return Boolean(
+            metadata.source_proposal_id
+            && this.teamActions.some((action) => action?.id === metadata.source_proposal_id)
+        );
+    }
+
+    getAuthoredProposalStateFingerprint(communication = {}) {
+        const recipientEntry = getProposalRecipientEntry(communication);
+        return JSON.stringify({
+            status: getProposalRecipientStatus(communication),
+            decision: recipientEntry?.facilitator_decision || communication?.metadata?.facilitator_decision || '',
+            response: recipientEntry?.response_content || '',
+            actionedAt: recipientEntry?.responded_at
+                || recipientEntry?.response_sent_at
+                || recipientEntry?.actioned_at
+                || ''
+        });
+    }
+
+    seedAuthoredProposalStates(communications = []) {
+        this.authoredProposalStateByCommunicationId.clear();
+        communications
+            .filter((communication) => this.isAuthoredProposalCommunication(communication))
+            .forEach((communication) => {
+                if (communication?.id) {
+                    this.authoredProposalStateByCommunicationId.set(
+                        communication.id,
+                        this.getAuthoredProposalStateFingerprint(communication)
+                    );
+                }
+            });
+    }
+
+    getAuthoredProposalCommunication(action = {}) {
+        if (!action?.id) {
+            return null;
+        }
+
+        return communicationsStore.getAll()
+            .filter((communication) => (
+                communication?.type === 'PROPOSAL_FORWARDED'
+                && communication?.metadata?.source_proposal_id === action.id
+            ))
+            .sort((left, right) => {
+                const leftAt = left?.updated_at || left?.created_at || '';
+                const rightAt = right?.updated_at || right?.created_at || '';
+                return new Date(rightAt) - new Date(leftAt);
+            })[0] || null;
+    }
+
+    getAuthoredProposalResponseNotification(communication = {}) {
+        if (!this.isAuthoredProposalCommunication(communication) || !isProposalRecipientFinal(communication)) {
+            return null;
+        }
+
+        const metadata = communication.metadata && typeof communication.metadata === 'object'
+            ? communication.metadata
+            : {};
+        const recipientEntry = getProposalRecipientEntry(communication);
+        const status = getProposalRecipientStatus(communication);
+        const decision = String(
+            recipientEntry?.facilitator_decision || metadata.facilitator_decision || ''
+        ).trim().toLowerCase();
+        const recipientLabel = this.getTeamLabel(
+            metadata.recipient_team || recipientEntry?.response_from_team || ''
+        );
+        const proposalTitle = metadata?.proposal?.title
+            || this.teamActions.find((action) => action?.id === metadata.source_proposal_id)?.goal
+            || 'Your proposal';
+        const title = isProposalNegotiationRequest(communication)
+            ? 'Negotiation requested'
+            : (decision === FACILITATOR_PROPOSAL_DECISIONS.ACCEPT
+                ? 'Proposal accepted'
+                : (status === PROPOSAL_RECIPIENT_STATUSES.DECLINED
+                    || decision === FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
+                    ? 'Proposal declined'
+                    : 'Proposal response received'));
+        const detail = isProposalNegotiationRequest(communication)
+            ? `${recipientLabel} requested negotiation on "${proposalTitle}". Open the proposal to review the terms.`
+            : (decision === FACILITATOR_PROPOSAL_DECISIONS.ACCEPT
+                ? `${recipientLabel} accepted "${proposalTitle}". Open the proposal to review the decision.`
+                : (status === PROPOSAL_RECIPIENT_STATUSES.DECLINED
+                    || decision === FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
+                    ? `${recipientLabel} declined "${proposalTitle}". Open the proposal to review the decision.`
+                    : `${recipientLabel} responded to "${proposalTitle}". Open the proposal to review the decision.`));
+
+        return {
+            kind: 'proposal',
+            tone: 'proposal',
+            title,
+            detail,
+            slideKey: metadata.source_proposal_id ? `action-${metadata.source_proposal_id}` : '',
+            at: recipientEntry?.response_sent_at
+                || recipientEntry?.responded_at
+                || recipientEntry?.actioned_at
+                || communication.updated_at
+                || communication.created_at
+                || null
+        };
+    }
+
+    processAuthoredProposalStateNotifications(communications = []) {
+        communications
+            .filter((communication) => this.isAuthoredProposalCommunication(communication))
+            .forEach((communication) => {
+                if (!communication?.id) {
+                    return;
+                }
+
+                const nextFingerprint = this.getAuthoredProposalStateFingerprint(communication);
+                const previousFingerprint = this.authoredProposalStateByCommunicationId.get(communication.id);
+                const isNewCommunication = !this.knownCommunicationIds.has(communication.id);
+                this.authoredProposalStateByCommunicationId.set(communication.id, nextFingerprint);
+
+                if (
+                    (
+                        (previousFingerprint !== undefined && previousFingerprint !== nextFingerprint)
+                        || (previousFingerprint === undefined && isNewCommunication)
+                    )
+                ) {
+                    const notification = this.getAuthoredProposalResponseNotification(communication);
+                    if (notification) {
+                        this.pushNotification(notification);
+                    }
+                }
+            });
     }
 
     syncProposalsFromStore({
@@ -1318,10 +1463,12 @@ export class ScribeController {
         const all = communicationsStore.getAll();
         if (!this.communicationsSeeded || event === 'initialized') {
             this.knownCommunicationIds = new Set(all.map((communication) => communication?.id).filter(Boolean));
+            this.seedAuthoredProposalStates(all);
             this.communicationsSeeded = true;
             return;
         }
 
+        this.processAuthoredProposalStateNotifications(all);
         const fresh = all.filter((communication) => communication?.id && !this.knownCommunicationIds.has(communication.id));
         fresh.forEach((communication) => this.knownCommunicationIds.add(communication.id));
         fresh.forEach((communication) => {
@@ -2028,6 +2175,7 @@ export class ScribeController {
         const isProposal = isProposalAction(action);
         const isEditableDraft = isDraftAction(action);
         const actionControlsDisabled = isOrientation || isProposal || !isEditableDraft;
+        const showsCollaborationGroups = this.teamId === 'blue';
         const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
         const informedEngagedDecision = normalizeScribeDecision(actionViewModel.informedEngagedDecision);
         const coordinatedValues = actionViewModel.coordinated || [];
@@ -2047,19 +2195,26 @@ export class ScribeController {
                 ? (isScribeOptionSelected('Allies', informedValues) ? 'yes' : 'no')
                 : ''
         };
-        const isComplete = isOrientation || isProposal || this.isPresentationActionSelectionsComplete(presentationSelections);
+        const isComplete = !showsCollaborationGroups
+            || isOrientation
+            || isProposal
+            || this.isPresentationActionSelectionsComplete(presentationSelections);
         const statusId = buildScribeControlId(actionId, 'presentation-toolbar', 'status');
         const toolbarStatus = !isEditableDraft
             ? 'Submitted to White Cell.'
-            : (isOrientation
-                ? 'Coordination and engagement apply to action submissions only.'
-                : (isProposal
-                    ? 'Review the proposal with the room, then forward to White Cell.'
-                    : (isComplete ? 'Ready to forward.' : 'Complete every Yes/No choice to forward.')));
+            : (isProposal
+                ? 'Review the proposal with the room, then forward to White Cell.'
+                : (isOrientation
+                    ? (showsCollaborationGroups
+                        ? 'Coordination and engagement apply to action submissions only.'
+                        : 'Review the Strategic Orientation with the room, then forward to White Cell.')
+                    : (!showsCollaborationGroups
+                        ? 'Ready to forward to White Cell.'
+                        : (isComplete ? 'Ready to forward.' : 'Complete every Yes/No choice to forward.'))));
 
         return `
             <footer
-                class="scribe-presentation-toolbar"
+                class="scribe-presentation-toolbar${showsCollaborationGroups ? '' : ' scribe-presentation-toolbar--handoff-only'}"
                 data-scribe-presentation-toolbar
                 data-scribe-action-submit-panel
                 data-action-id="${escapeHtml(actionId)}"
@@ -2075,36 +2230,30 @@ export class ScribeController {
                     >Edit</button>
                 </div>
 
-                <fieldset class="scribe-presentation-toolbar-group" ${actionControlsDisabled ? 'disabled' : ''}>
-                    <legend>Coordinated</legend>
-                    <div class="scribe-presentation-toolbar-choices">
-                        ${renderPresentationBinaryChoice({
-                actionId,
-                group: 'coordinated',
-                label: 'Coordinated',
-                decision: presentationSelections.coordinatedDecision,
-                disabled: actionControlsDisabled
-            })}
+                ${showsCollaborationGroups ? `
+                    <fieldset class="scribe-presentation-toolbar-group" ${actionControlsDisabled ? 'disabled' : ''}>
+                        <legend>Coordinated</legend>
+                        <div class="scribe-presentation-toolbar-choices">
                         ${renderPresentationBinaryChoice({
                 actionId,
                 group: 'coordinated-legislative',
                 label: 'Legislative',
                 decision: presentationSelections.coordinatedLegislativeDecision,
-                disabled: actionControlsDisabled || coordinatedDecision !== 'yes'
+                disabled: actionControlsDisabled
             })}
                         ${renderPresentationBinaryChoice({
                 actionId,
                 group: 'coordinated-executive',
                 label: 'Executive',
                 decision: presentationSelections.coordinatedExecutiveDecision,
-                disabled: actionControlsDisabled || coordinatedDecision !== 'yes'
+                disabled: actionControlsDisabled
             })}
-                    </div>
-                </fieldset>
+                        </div>
+                    </fieldset>
 
-                <fieldset class="scribe-presentation-toolbar-group" ${actionControlsDisabled ? 'disabled' : ''}>
-                    <legend>Informed/Engaged</legend>
-                    <div class="scribe-presentation-toolbar-choices">
+                    <fieldset class="scribe-presentation-toolbar-group" ${actionControlsDisabled ? 'disabled' : ''}>
+                        <legend>Informed/Engaged</legend>
+                        <div class="scribe-presentation-toolbar-choices">
                         ${renderPresentationBinaryChoice({
                 actionId,
                 group: 'informed-industry',
@@ -2119,8 +2268,9 @@ export class ScribeController {
                 decision: presentationSelections.informedAlliesDecision,
                 disabled: actionControlsDisabled
             })}
-                    </div>
-                </fieldset>
+                        </div>
+                    </fieldset>
+                ` : ''}
 
                 <div class="scribe-presentation-toolbar-submit">
                     <p id="${escapeHtml(statusId)}" class="scribe-presentation-toolbar-status" role="status" aria-live="polite">
@@ -2140,23 +2290,45 @@ export class ScribeController {
     }
 
     getPresentationActionSelections(toolbar) {
+        if (this.teamId !== 'blue') {
+            return {
+                coordinatedDecision: 'no',
+                coordinatedLegislativeDecision: '',
+                coordinatedExecutiveDecision: '',
+                informedIndustryDecision: '',
+                informedAlliesDecision: '',
+                coordinatedValues: [],
+                informedEngagedDecision: 'no',
+                informedValues: []
+            };
+        }
+
         const getDecision = (group) => normalizeScribeDecision(
             toolbar?.querySelector?.(`[data-scribe-presentation-radio="${group}"]:checked`)?.value
         );
-        const coordinatedDecision = getDecision('coordinated');
         const coordinatedLegislativeDecision = getDecision('coordinated-legislative');
         const coordinatedExecutiveDecision = getDecision('coordinated-executive');
         const informedIndustryDecision = getDecision('informed-industry');
         const informedAlliesDecision = getDecision('informed-allies');
+        const coordinatedDecisionsComplete = Boolean(
+            coordinatedLegislativeDecision && coordinatedExecutiveDecision
+        );
         const informedDecisionsComplete = Boolean(informedIndustryDecision && informedAlliesDecision);
 
         return {
-            coordinatedDecision,
+            coordinatedDecision: coordinatedDecisionsComplete
+                ? (
+                    coordinatedLegislativeDecision === 'yes'
+                    || coordinatedExecutiveDecision === 'yes'
+                        ? 'yes'
+                        : 'no'
+                )
+                : '',
             coordinatedLegislativeDecision,
             coordinatedExecutiveDecision,
             informedIndustryDecision,
             informedAlliesDecision,
-            coordinatedValues: coordinatedDecision === 'yes'
+            coordinatedValues: coordinatedDecisionsComplete
                 ? [
                     ...(coordinatedLegislativeDecision === 'yes' ? ['Legislative'] : []),
                     ...(coordinatedExecutiveDecision === 'yes' ? ['Executive'] : [])
@@ -2175,24 +2347,14 @@ export class ScribeController {
     }
 
     isPresentationActionSelectionsComplete(selections = {}) {
-        const coordinatedDecision = normalizeScribeDecision(selections.coordinatedDecision);
-        if (!coordinatedDecision) {
-            return false;
-        }
-
-        if (coordinatedDecision === 'yes' && (
-            !normalizeScribeDecision(selections.coordinatedLegislativeDecision)
-            || !normalizeScribeDecision(selections.coordinatedExecutiveDecision)
-            || (
-                normalizeScribeDecision(selections.coordinatedLegislativeDecision) !== 'yes'
-                && normalizeScribeDecision(selections.coordinatedExecutiveDecision) !== 'yes'
-            )
-        )) {
-            return false;
+        if (this.teamId !== 'blue') {
+            return true;
         }
 
         return Boolean(
-            normalizeScribeDecision(selections.informedIndustryDecision)
+            normalizeScribeDecision(selections.coordinatedLegislativeDecision)
+            && normalizeScribeDecision(selections.coordinatedExecutiveDecision)
+            && normalizeScribeDecision(selections.informedIndustryDecision)
             && normalizeScribeDecision(selections.informedAlliesDecision)
         );
     }
@@ -2201,20 +2363,6 @@ export class ScribeController {
         if (!toolbar) {
             return;
         }
-
-        const coordinatedDecision = normalizeScribeDecision(
-            toolbar.querySelector('[data-scribe-presentation-radio="coordinated"]:checked')?.value
-        );
-        const coordinatedChildRadios = Array.from(toolbar.querySelectorAll(
-            '[data-scribe-presentation-radio="coordinated-legislative"], [data-scribe-presentation-radio="coordinated-executive"]'
-        ));
-
-        coordinatedChildRadios.forEach((radio) => {
-            radio.disabled = coordinatedDecision !== 'yes';
-            if (coordinatedDecision === 'no') {
-                radio.checked = radio.value === 'no';
-            }
-        });
 
         const selections = this.getPresentationActionSelections(toolbar);
         const isComplete = this.isPresentationActionSelectionsComplete(selections);
@@ -2816,6 +2964,7 @@ export class ScribeController {
     renderOwnProposalSlide(slide, viewModel = getProposalViewModel(slide.action || {})) {
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
+        const isIndustryProposal = action.team === 'industry';
         const recipientLabel = viewModel.recipientTeam === 'red'
             ? 'Red Team'
             : (viewModel.recipientTeam === 'blue' ? 'Blue Team' : 'Not specified');
@@ -2839,26 +2988,37 @@ export class ScribeController {
                         <p class="scribe-action-slide-body">${escapeHtml(viewModel.objective || 'No objective provided.')}</p>
                     </section>
 
-                    <section class="scribe-action-slide-glance" aria-label="Proposal details">
+                    <section
+                        class="scribe-action-slide-glance"
+                        aria-label="${escapeHtml(`${this.teamLabel} proposal details for presentation and review`)}"
+                    >
                         <div class="scribe-action-slide-section-header">
-                            <h3 class="scribe-action-slide-section-title">Proposal details</h3>
+                            <h3 class="scribe-action-slide-section-title">Full proposal details</h3>
                         </div>
                         <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
-                            ${renderActionSlideGlanceCard({ label: 'Originators', value: formatList(viewModel.originators) })}
-                            ${renderActionSlideGlanceCard({ label: 'Category', value: viewModel.category || 'Not specified' })}
-                            ${renderActionSlideGlanceCard({ label: 'Intended partners', value: viewModel.intendedPartners || 'Not specified' })}
-                            ${renderActionSlideGlanceCard({ label: 'Focus sector', value: formatList(viewModel.focusSector) })}
+                            ${renderActionSlideGlanceCard({ label: 'Originator(s)', value: formatList(viewModel.originators) })}
+                            ${renderActionSlideGlanceCard({
+                                label: isIndustryProposal || viewModel.instruments.length
+                                    ? 'Instrument of Power'
+                                    : 'Category',
+                                value: formatList(viewModel.instruments.length ? viewModel.instruments : viewModel.category)
+                            })}
+                            ${renderActionSlideGlanceCard({ label: 'Intended Partner(s)', value: viewModel.intendedPartners || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Focus Sector(s)', value: formatList(viewModel.focusSector) })}
                             ${renderActionSlideGlanceCard({ label: 'Delivery', value: viewModel.delivery || 'Not specified' })}
-                            ${renderActionSlideGlanceCard({ label: 'Timing and conditions', value: viewModel.timingAndConditions || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({ label: 'Timing & Conditions', value: viewModel.timingAndConditions || 'Not specified' })}
                         </div>
                     </section>
 
-                    ${viewModel.expectedOutcomes ? `
-                        <section class="scribe-action-slide-lead scribe-action-slide-lead--outcome" aria-label="Expected outcomes">
-                            <p class="scribe-action-slide-section-label">Expected outcomes</p>
-                            <p class="scribe-action-slide-body">${escapeHtml(viewModel.expectedOutcomes)}</p>
-                        </section>
-                    ` : ''}
+                    <section
+                        class="scribe-action-slide-lead scribe-action-slide-lead--outcome"
+                        aria-label="Expected outcomes and duration assessment"
+                    >
+                        <p class="scribe-action-slide-section-label">Expected Outcome(s) &amp; Duration Assessment</p>
+                        <p class="scribe-action-slide-body">${escapeHtml(viewModel.expectedOutcomes || 'Not specified')}</p>
+                    </section>
+
+                    ${this.renderOwnProposalProcess(action, viewModel)}
 
                     ${isDraftPreview ? `
                         <section
@@ -2893,6 +3053,108 @@ export class ScribeController {
 
                 ${this.renderPresentationToolbar(action)}
             </article>
+        `;
+    }
+
+    renderOwnProposalProcess(action = {}, viewModel = getProposalViewModel(action)) {
+        const communication = this.getAuthoredProposalCommunication(action);
+        const recipientLabel = this.getTeamLabel(
+            communication?.metadata?.recipient_team || viewModel.recipientTeam || ''
+        );
+        const statusId = `own-proposal-process-${String(action.id || 'proposal').replace(/[^a-z0-9]+/gi, '-')}`;
+
+        if (!communication) {
+            const reviewed = isAdjudicatedAction(action);
+            const submitted = isSubmittedAction(action);
+            const stageLabel = reviewed
+                ? 'White Cell review complete'
+                : (submitted ? 'With White Cell' : 'Ready for White Cell');
+            const detail = reviewed
+                ? 'White Cell completed its review. No recipient handoff is recorded yet.'
+                : (submitted
+                    ? 'White Cell is reviewing this proposal before it is forwarded to the intended recipient.'
+                    : 'Review this proposal with the room, then forward it to White Cell.');
+
+            return `
+                <section class="scribe-proposal-decision-panel scribe-own-proposal-process" aria-labelledby="${escapeHtml(statusId)}">
+                    <div>
+                        <p class="scribe-action-slide-section-label">Proposal process</p>
+                        <p id="${escapeHtml(statusId)}" class="scribe-proposal-decision-status" role="status" aria-live="polite">
+                            <strong>Current stage:</strong> ${escapeHtml(stageLabel)}
+                        </p>
+                        <p class="scribe-proposal-negotiation-terms">${escapeHtml(detail)}</p>
+                    </div>
+                </section>
+            `;
+        }
+
+        const recipientEntry = getProposalRecipientEntry(communication);
+        const status = getProposalRecipientStatus(communication);
+        const decision = String(
+            recipientEntry?.facilitator_decision || communication?.metadata?.facilitator_decision || ''
+        ).trim().toLowerCase();
+        const isNegotiation = isProposalNegotiationRequest(communication);
+        const isAccepted = decision === FACILITATOR_PROPOSAL_DECISIONS.ACCEPT
+            || String(recipientEntry?.response_content || '').trim().toLowerCase() === 'accepted';
+        const stageLabel = isNegotiation
+            ? 'Negotiation requested'
+            : (isAccepted
+                ? 'Accepted'
+                : (status === PROPOSAL_RECIPIENT_STATUSES.DECLINED
+                    || decision === FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
+                    ? 'Declined'
+                    : ({
+                        [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: 'Under review',
+                        [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: 'Response received',
+                        [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: 'Closed without response',
+                        [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: 'Awaiting recipient response'
+                    }[status] || 'Awaiting recipient response')));
+        const detail = isNegotiation
+            ? `${recipientLabel} wants to negotiate this proposal.`
+            : (isAccepted
+                ? `${recipientLabel} accepted this proposal.`
+                : (status === PROPOSAL_RECIPIENT_STATUSES.DECLINED
+                    || decision === FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
+                    ? `${recipientLabel} recorded Not Interested and declined this proposal.`
+                    : ({
+                        [PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED]: `${recipientLabel} opened this proposal and is reviewing it.`,
+                        [PROPOSAL_RECIPIENT_STATUSES.RESPONDED]: `${recipientLabel} sent a response.`,
+                        [PROPOSAL_RECIPIENT_STATUSES.IGNORED]: `${recipientLabel} closed this proposal without a response.`,
+                        [PROPOSAL_RECIPIENT_STATUSES.UNREAD]: `Waiting for ${recipientLabel} to review this proposal.`
+                    }[status] || `Waiting for ${recipientLabel} to review this proposal.`)));
+        const responseAt = recipientEntry?.response_sent_at
+            || recipientEntry?.responded_at
+            || recipientEntry?.actioned_at
+            || null;
+        const timestamp = responseAt ? formatRelativeTime(responseAt) : '';
+        const responseContent = String(recipientEntry?.response_content || '').trim();
+        const showResponseContent = responseContent
+            && (!isAccepted || responseContent.toLowerCase() !== 'accepted')
+            && !(status === PROPOSAL_RECIPIENT_STATUSES.DECLINED
+                && responseContent.toLowerCase() === 'not interested');
+
+        return `
+            <section
+                class="scribe-proposal-decision-panel scribe-own-proposal-process"
+                data-proposal-process-status="${escapeHtml(stageLabel.toLowerCase().replace(/\s+/g, '-'))}"
+                aria-labelledby="${escapeHtml(statusId)}"
+            >
+                <div>
+                    <p class="scribe-action-slide-section-label">Proposal process</p>
+                    <p id="${escapeHtml(statusId)}" class="scribe-proposal-decision-status" role="status" aria-live="polite">
+                        <strong>Current stage:</strong> ${escapeHtml(stageLabel)}
+                    </p>
+                    <p class="scribe-proposal-negotiation-terms">
+                        ${escapeHtml(detail)}${timestamp ? ` ${escapeHtml(timestamp)}.` : ''}
+                    </p>
+                    ${showResponseContent ? `
+                        <p class="scribe-proposal-negotiation-terms">
+                            <strong>${isNegotiation ? 'Negotiation terms' : 'Recipient response'}:</strong>
+                            ${escapeHtml(responseContent)}
+                        </p>
+                    ` : ''}
+                </div>
+            </section>
         `;
     }
 
@@ -3022,7 +3284,12 @@ export class ScribeController {
                         </div>
                         <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
                             ${renderActionSlideGlanceCard({ label: 'Originators', value: formatList(proposal.originators) })}
-                            ${renderActionSlideGlanceCard({ label: 'Category', value: proposal.category || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({
+                                label: sourceTeam === 'industry' || proposal.instruments?.length
+                                    ? 'Instrument of Power'
+                                    : 'Category',
+                                value: formatList(proposal.instruments?.length ? proposal.instruments : proposal.category)
+                            })}
                             ${renderActionSlideGlanceCard({ label: 'Intended partners', value: proposal.intendedPartners || 'Not specified' })}
                             ${renderActionSlideGlanceCard({ label: 'Focus sector', value: formatList(proposal.focusSector) })}
                             ${renderActionSlideGlanceCard({ label: 'Delivery', value: proposal.delivery || 'Not specified' })}

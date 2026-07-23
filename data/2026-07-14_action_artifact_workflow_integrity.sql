@@ -828,6 +828,7 @@ DECLARE
     review_label TEXT;
     proposal_snapshot JSONB;
     originators_text TEXT;
+    instruments_text TEXT;
 BEGIN
     SELECT *
     INTO action_row
@@ -981,6 +982,10 @@ BEGIN
             updated_action.ally_contingencies,
             'Originators'
         );
+        instruments_text := public.action_legacy_detail(
+            updated_action.ally_contingencies,
+            'Instruments'
+        );
 
         proposal_snapshot := jsonb_strip_nulls(jsonb_build_object(
             'title', updated_action.goal,
@@ -989,6 +994,11 @@ BEGIN
                 ELSE to_jsonb(regexp_split_to_array(originators_text, '[[:space:]]*,[[:space:]]*'))
             END,
             'objective', public.action_legacy_detail(updated_action.ally_contingencies, 'Objective'),
+            'instruments', CASE
+                WHEN instruments_text IS NULL OR instruments_text = 'None selected' THEN '[]'::jsonb
+                WHEN instruments_text ~ '^[[:space:]]*\[' THEN instruments_text::jsonb
+                ELSE to_jsonb(regexp_split_to_array(instruments_text, '[[:space:]]*,[[:space:]]*'))
+            END,
             'category', public.action_legacy_detail(updated_action.ally_contingencies, 'Category'),
             'intendedPartners', public.action_legacy_detail(updated_action.ally_contingencies, 'Intended Partners'),
             'focusSector', updated_action.sector,

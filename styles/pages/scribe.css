@@ -673,32 +673,21 @@ body::before {
     margin-top: 2px;
 }
 
-/* Actions are peer decisions, so expose them as one left-to-right tab rail.
-   Proposal entries retain the vertical reading order defined above. */
+/* Keep Team Action Review in one top-to-bottom reading sequence. */
 .scribe-section-card--actions .scribe-slide-list {
     display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: var(--space-2);
-    padding-bottom: var(--space-2);
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: inline proximity;
+    flex-direction: column;
+    gap: var(--space-1);
 }
 
 .scribe-section-card--actions .scribe-slide-list > li {
-    flex: 0 0 calc(var(--space-8) * 5);
-    max-width: calc(100% - var(--space-4));
-    scroll-snap-align: start;
+    flex: 0 1 auto;
+    min-width: 0;
+    width: 100%;
 }
 
 .scribe-section-card--actions .scribe-slide-list > li + li {
     margin-top: 0;
-}
-
-.scribe-section-card--actions .scribe-slide-link {
-    height: 100%;
 }
 
 .scribe-slide-link {
@@ -1797,6 +1786,15 @@ body[data-scribe-presentation="active"] .scribe-presentation-toolbar {
     border-top: 1px solid var(--color-border);
     background: var(--color-surface);
     box-shadow: var(--shadow-float);
+}
+
+body[data-scribe-presentation="active"] .scribe-presentation-toolbar--handoff-only {
+    grid-template-columns: auto minmax(0, 1fr);
+}
+
+body[data-scribe-presentation="active"] .scribe-presentation-toolbar--handoff-only .scribe-presentation-toolbar-submit {
+    justify-items: end;
+    text-align: right;
 }
 
 .scribe-presentation-edit-panel {

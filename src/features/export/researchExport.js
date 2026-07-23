@@ -4443,7 +4443,12 @@ export function buildResearchReportHtml(dataset, {
                         { label: 'Requested Action', value: proposal.requested_action },
                         { label: 'Rationale', value: proposal.rationale },
                         { label: 'Originators', value: details.originators },
-                        { label: 'Category', value: details.category },
+                        {
+                            label: proposal.author_team === 'industry' || safeArray(details.instruments).length
+                                ? 'Instrument of Power'
+                                : 'Category',
+                            value: safeArray(details.instruments).length ? details.instruments : details.category
+                        },
                         { label: 'Intended Partners', value: details.intendedPartners },
                         { label: 'Focus Sector', value: details.focusSector || safeObject(proposal.full_content).focusSector },
                         { label: 'Delivery', value: details.delivery },
@@ -6223,7 +6228,12 @@ ${renderLatexDescription([
         { label: 'Author role', value: proposal.author_role },
         { label: 'Originators', value: details.originators },
         { label: 'Objective', value: proposal.proposal_text },
-        { label: 'Category', value: details.category },
+        {
+            label: proposal.author_team === 'industry' || safeArray(details.instruments).length
+                ? 'Instrument of Power'
+                : 'Category',
+            value: safeArray(details.instruments).length ? details.instruments : details.category
+        },
         { label: 'Intended partners', value: details.intendedPartners },
         { label: 'Focus sector', value: details.focusSector },
         { label: 'Delivery', value: details.delivery },
@@ -6292,7 +6302,7 @@ ${renderLatexDescription([
             event.entity_type,
             event.entity_id,
             event.move_number,
-            event.event_id || event.event_uuid,
+            event.event_uuid || event.event_id,
             event.event_hash
         ])
         : [];
@@ -6427,7 +6437,7 @@ ${escapeLatex(eventProvenanceText)}
 
 ${eventLogIsCaptured
         ? String.raw`\begin{landscape}
-${renderLatexLongTable(['Occurred UTC', 'Actor', 'Event type', 'Entity type', 'Entity ID', 'Move', 'Event ID', 'Event hash'], capturedEventRows)}
+${renderLatexLongTable(['Occurred UTC', 'Actor', 'Event type', 'Entity type', 'Entity ID', 'Move', 'Event UUID', 'Event hash'], capturedEventRows)}
 \end{landscape}
 
 Only the first ${Math.min(100, safeArray(dataset.eventLog).length)} captured audit events are printed. The complete stream remains in \texttt{event\_log.csv} and \texttt{event\_log.jsonl}.`

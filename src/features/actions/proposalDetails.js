@@ -59,6 +59,27 @@ function normalizeStringList(values = []) {
     return values.map((value) => normalizeString(value)).filter(Boolean);
 }
 
+function serializeStringList(values = []) {
+    const normalizedValues = normalizeStringList(values);
+    return normalizedValues.length ? JSON.stringify(normalizedValues) : 'None selected';
+}
+
+function parseStringList(value = '') {
+    const normalizedValue = normalizeString(value);
+    if (!normalizedValue || normalizedValue === 'None selected') return [];
+
+    try {
+        const parsedValue = JSON.parse(normalizedValue);
+        if (Array.isArray(parsedValue)) {
+            return normalizeStringList(parsedValue);
+        }
+    } catch (_error) {
+        // Fall through for legacy comma-separated values.
+    }
+
+    return normalizeStringList(normalizedValue.split(','));
+}
+
 function normalizeScribeHandoff(value = '') {
     const normalizedValue = normalizeString(value).toLowerCase();
 
@@ -81,6 +102,7 @@ export function serializeProposalDetails(details = {}) {
         PROPOSAL_DETAILS_PREFIX,
         `Originators: ${originators.length ? originators.join(', ') : 'None selected'}`,
         `Objective: ${normalizeString(details.objective)}`,
+        `Instruments: ${serializeStringList(details.instruments)}`,
         `Category: ${normalizeString(details.category)}`,
         `Intended Partners: ${normalizeString(details.intendedPartners)}`,
         `Delivery: ${normalizeString(details.delivery)}`,
@@ -119,6 +141,7 @@ export function parseProposalDetails(value = '') {
         return {
             originators: normalizeStringList(originatorsValue ? originatorsValue.split(',') : []),
             objective: normalizeString(parsed.Objective),
+            instruments: parseStringList(parsed.Instruments),
             category: normalizeString(parsed.Category),
             intendedPartners: normalizeString(parsed['Intended Partners']),
             delivery: normalizeString(parsed.Delivery),
@@ -144,6 +167,8 @@ export function getProposalViewModel(action = {}) {
         title: action.goal || action.title || 'Untitled proposal',
         originators: details?.originators || [],
         objective: details?.objective || '',
+        instrumentOfPower: details?.instruments?.[0] || '',
+        instruments: details?.instruments || [],
         category: details?.category || '',
         intendedPartners: details?.intendedPartners || '',
         focusSector: action.sector || '',

@@ -386,6 +386,8 @@ describe('database migration contracts', () => {
         expect(reviewProposalBody).toContain('public.operator_adjudicate_action');
         expect(reviewProposalBody).toContain("'proposal_review_decision', normalized_decision");
         expect(reviewProposalBody).toContain("'PROPOSAL_FORWARDED'");
+        expect(reviewProposalBody).toContain("'instruments', CASE");
+        expect(reviewProposalBody).toContain("'Instruments'");
         expect(reviewProposalBody).toContain('INSERT INTO public.communications');
         expect(reviewProposalBody).toContain('INSERT INTO public.timeline');
         expect(reviewProposalBody).toContain("'idempotent_replay', true");

@@ -3006,7 +3006,15 @@ export class WhiteCellController {
             <div class="section-grid section-grid-2" style="gap: var(--space-3); margin-top: var(--space-3);">
                 ${this.renderSummaryCard('Proposal Overview', [
                     { label: 'Objective', value: proposalViewModel.objective || 'Not specified' },
-                    { label: 'Category', value: proposalViewModel.category || 'Not specified' },
+                    {
+                        label: action.team === 'industry' || proposalViewModel.instruments.length
+                            ? 'Instrument of Power'
+                            : 'Category',
+                        value: formatProposalSelection(
+                            proposalViewModel.instruments,
+                            proposalViewModel.category || 'Not specified'
+                        )
+                    },
                     { label: 'Focus Sector', value: proposalViewModel.focusSector || 'Not specified' },
                     { label: 'Expected Outcomes', value: proposalViewModel.expectedOutcomes || 'Not specified' }
                 ])}
@@ -3184,6 +3192,15 @@ export class WhiteCellController {
             move: action.move || 1,
             actionNumber
         });
+    }
+
+    getStrategicOrientationReviewTitle(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
+        if (!viewModel.hasStrategicOrientationDetails || !viewModel.isSelection) {
+            return viewModel.title;
+        }
+
+        const teamLabel = this.formatTeamLabel(viewModel.team || action.team);
+        return `${teamLabel} Strategic Orientation Selection: ${viewModel.orientationLabel}`;
     }
 
     renderStrategicOrientationReview() {
@@ -3368,6 +3385,7 @@ export class WhiteCellController {
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
         const strategicOrientation = getStrategicOrientationViewModel(action);
         const isStrategicOrientationFlow = strategicOrientation.hasStrategicOrientationDetails;
+        const strategicOrientationTitle = this.getStrategicOrientationReviewTitle(action, strategicOrientation);
         const blueAction = getBlueActionViewModel(action);
         const proposalViewModel = getProposalViewModel(action);
         const expectedOutcomes = isStrategicOrientationFlow
@@ -3496,7 +3514,7 @@ export class WhiteCellController {
                 <div class="entity-card__head">
                     <div>
                         <p class="entity-card__eyebrow">${this.escapeHtml(isStrategicOrientationFlow ? 'Strategic Orientation' : (blueAction.instrumentOfPower || 'No mechanism'))} &middot; ${this.escapeHtml(sequenceLabel)} &middot; Phase ${action.phase || 1}</p>
-                        <h3 class="entity-card__title">${this.escapeHtml(isStrategicOrientationFlow ? strategicOrientation.title : blueAction.title)}</h3>
+                        <h3 class="entity-card__title">${this.escapeHtml(isStrategicOrientationFlow ? strategicOrientationTitle : blueAction.title)}</h3>
                     </div>
                     <div class="entity-card__badges">
                         ${arrivalBadgeMarkup}
@@ -3731,11 +3749,12 @@ export class WhiteCellController {
             .map((value) => `<option value="${value}">${value}</option>`)
             .join('');
         const viewModel = getStrategicOrientationViewModel(action);
+        const reviewTitle = this.getStrategicOrientationReviewTitle(action, viewModel);
         const content = document.createElement('div');
 
         content.innerHTML = `
             <div class="mb-4">
-                <h4 class="font-semibold">${this.escapeHtml(viewModel.title)}</h4>
+                <h4 class="font-semibold">${this.escapeHtml(reviewTitle)}</h4>
                 <p class="text-sm text-gray-500">Strategic Orientation | Pre-Move 1 | ${this.escapeHtml(viewModel.isForecast ? 'Forecast' : 'Selection')}</p>
                 ${action.submitted_at ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">

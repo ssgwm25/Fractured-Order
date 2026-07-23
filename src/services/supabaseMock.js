@@ -1624,6 +1624,22 @@ function readLegacyActionDetail(details = '', label = '') {
     return match?.[1]?.trim() || null;
 }
 
+function readLegacyActionList(details = '', label = '') {
+    const value = readLegacyActionDetail(details, label);
+    if (!value || value === 'None selected') return [];
+
+    try {
+        const parsedValue = JSON.parse(value);
+        if (Array.isArray(parsedValue)) {
+            return parsedValue.map((entry) => String(entry).trim()).filter(Boolean);
+        }
+    } catch (_error) {
+        // Fall through for legacy comma-separated values.
+    }
+
+    return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
 function operatorReviewProposal(state, params) {
     const action = state.tables.actions.find((entry) => (
         entry.id === params?.requested_action_id && entry.is_deleted !== true
@@ -1731,7 +1747,8 @@ function operatorReviewProposal(state, params) {
     let communication = null;
     const timelineEvents = [reviewTimeline];
     if (decision === 'forward_to_recipient') {
-        const originators = readLegacyActionDetail(updatedAction.ally_contingencies, 'Originators');
+        const originators = readLegacyActionList(updatedAction.ally_contingencies, 'Originators');
+        const instruments = readLegacyActionList(updatedAction.ally_contingencies, 'Instruments');
         const communicationResult = operatorSendCommunication(state, {
             requested_session_id: updatedAction.session_id,
             requested_to_role: recipientTeam,
@@ -1747,10 +1764,9 @@ function operatorReviewProposal(state, params) {
                 review_stage: 'forwarded_to_recipient',
                 proposal: {
                     title: updatedAction.goal || null,
-                    originators: originators && originators !== 'None selected'
-                        ? originators.split(',').map((value) => value.trim()).filter(Boolean)
-                        : [],
+                    originators,
                     objective: readLegacyActionDetail(updatedAction.ally_contingencies, 'Objective'),
+                    instruments,
                     category: readLegacyActionDetail(updatedAction.ally_contingencies, 'Category'),
                     intendedPartners: readLegacyActionDetail(updatedAction.ally_contingencies, 'Intended Partners'),
                     focusSector: updatedAction.sector || null,

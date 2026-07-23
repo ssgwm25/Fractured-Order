@@ -1735,7 +1735,9 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.actionsBadge.hidden).toBe(false);
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(false);
         expect(fakeDocument.elements.responsesBadge.hidden).toBe(false);
-        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Strategic Orientation: Pressure');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain(
+            'Blue Team Strategic Orientation Selection: Pressure'
+        );
         expect(fakeDocument.elements.actionsBadge.textContent).not.toBe('3');
     });
 
@@ -2166,6 +2168,28 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Strategic Orientation');
     });
 
+    it('labels Blue Strategic Orientation selections explicitly in the White Cell card and review dialog', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        global.document = createFakeDocument();
+        const controller = new WhiteCellController();
+        const action = {
+            ...buildStrategicOrientationAction('blue'),
+            goal: 'Strategic Orientation: Pressure'
+        };
+
+        const markup = controller.renderActionCard(action);
+        controller.showStrategicOrientationReviewModal(action);
+
+        expect(markup).toContain(
+            '<h3 class="entity-card__title">Blue Team Strategic Orientation Selection: Pressure</h3>'
+        );
+        expect(markup).toContain('<span class="badge-text">Blue Team</span>');
+        expect(markup).toContain('<span class="badge-text">Selection</span>');
+        expect(showModal.mock.calls.at(-1)?.[0]?.content?.innerHTML).toContain(
+            '<h4 class="font-semibold">Blue Team Strategic Orientation Selection: Pressure</h4>'
+        );
+    });
+
     it('uses a distinct token-backed source badge for every submission team', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         global.document = createFakeDocument();
@@ -2360,6 +2384,27 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Blue Team');
         expect(markup).toContain('Review Proposal');
         expect(markup).not.toContain('Proposal Details');
+    });
+
+    it('shows Industry instruments of power in White Cell proposal review', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        global.document = createFakeDocument();
+        const controller = new WhiteCellController();
+
+        const markup = controller.renderProposalDetails({
+            team: 'industry',
+            mechanism: 'Proposal',
+            ally_contingencies: serializeProposalDetails({
+                objective: 'Coordinate industrial capacity.',
+                instruments: ['Economic', 'Information'],
+                intendedPartners: 'Blue Team'
+            })
+        });
+
+        expect(markup).toContain('Instrument of Power');
+        expect(markup).toContain('Economic, Information');
+        expect(markup).not.toContain('>Category<');
     });
 
     it('shows proposal-specific review options in the White Cell modal', async () => {
