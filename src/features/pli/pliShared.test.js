@@ -91,6 +91,10 @@ describe('pliShared', () => {
     it('labels Lead seat badges as draft vs finalized', () => {
         expect(leadSeatStatusBadge({ status: 'pending' }).label).toBe('Draft — awaiting SME');
         expect(leadSeatStatusBadge({ status: 'needs_human' }).label).toBe('Draft — awaiting SME');
+        expect(leadSeatStatusBadge({
+            status: 'needs_human',
+            override_rationale: 'Hey this is nonsense'
+        }).label).toBe('Returned by SME');
         expect(leadSeatStatusBadge({ status: 'approved' }).label).toBe('Finalized');
         expect(leadSeatStatusBadge({ status: 'overridden' }).label).toBe('Finalized (overridden)');
     });

@@ -19,6 +19,7 @@ import {
     seatIsFinalized,
     isPliRowVisible,
     leadSeatStatusBadge,
+    renderSeatSmeNotes,
     getActionTitle,
     getMacroBlock,
     renderTrendCharts,
@@ -27,6 +28,8 @@ import {
     sourceActionColumn,
     footerActions
 } from './pliShared.js';
+import { notifyPliSeatSentBack } from './pliNotify.js';
+import { sessionStore } from '../../stores/session.js';
 
 const logger = createLogger('PliMacroReview');
 const SEAT = SEATS.MACRO;
@@ -205,11 +208,7 @@ export function createPliMacroReview(options = {}) {
                 canOverride: true,
                 overrideDisabledReason: ''
             }) : ''}
-            ${seat.status === 'overridden' && seat.override_rationale ? `
-                <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
-                    <strong>SME override</strong>${seat.sme_reviewer ? ` by ${escapeHtml(seat.sme_reviewer)}` : ''}:
-                    ${escapeHtml(seat.override_rationale)}
-                </div>` : ''}
+            ${renderSeatSmeNotes(seat)}
         `;
 
         const chartsHost = card.querySelector('[data-pli-charts]');
@@ -316,12 +315,23 @@ export function createPliMacroReview(options = {}) {
                             return;
                         }
                         try {
+                            const reviewer = getReviewerName?.() || 'White Cell';
                             await database.reviewPliSeat(row.id, SEAT, {
                                 status: 'needs_human',
-                                sme_reviewer: getReviewerName?.() || 'White Cell',
+                                sme_reviewer: reviewer,
                                 override_rationale: notes
                             });
-                            showToast({ message: 'Returned for human adjudication', type: 'success' });
+                            const gameState = sessionStore.getGameState?.() || {};
+                            await notifyPliSeatSentBack({
+                                sessionId: getSessionId?.() || row.session_id,
+                                actionId: row.action_id,
+                                seatId: SEAT,
+                                notes,
+                                reviewerName: reviewer,
+                                move: gameState.move ?? 1,
+                                phase: gameState.phase ?? 1
+                            });
+                            showToast({ message: 'Sent back to White Cell', type: 'success' });
                             modal.close();
                             await refresh();
                         } catch (err) {
