@@ -15,7 +15,8 @@ export const BLUE_ACTION_LEVERS = Object.freeze([
     'Trade Measures',
     'Financial Restrictions',
     'Industrial Policy',
-    'Infrastructure Access'
+    'Infrastructure Access',
+    'Territory & Basing Access'
 ]);
 
 export const BLUE_ACTION_SECTORS = Object.freeze([

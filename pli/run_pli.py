@@ -73,6 +73,10 @@ RESCORE_REASON_MARKERS = (
     "Macro agent worksheet missing",
     "Placeholder; replace with agent worksheet",
     "Placeholder neutral delta",
+    # L10 codebook expansion: prior needs_human for territory/basing outside L1–L9
+    "outside L1–L9",
+    "outside L1-L9",
+    "No master-codebook instrument covers acquisition of sovereign territory",
 )
 
 

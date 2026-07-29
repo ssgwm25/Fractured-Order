@@ -313,6 +313,53 @@ def test_adjudicate_from_worksheet_roundtrip():
     assert gdp["deltas"][12] > 0
 
 
+def test_adjudicate_l10_territory_basing_chagos_style():
+    """Chagos-style sovereignty purchase scores under L10 (not NE / needs_human stub)."""
+    worksheet = {
+        "classification": {
+            "lever": "L10",
+            "instrument": "I10.01",
+            "direction": "inducement",
+            "rule_citation": (
+                "Tie-break rule 11: sovereign territory purchase/cession "
+                "for basing and SLOC access -> L10 / I10.01"
+            ),
+        },
+        "precedent": {
+            "tier": 2,
+            "citations": [
+                "Historical Louisiana Purchase / Alaska Purchase analogs; "
+                "modern basing treaties require bilateral consent"
+            ],
+            "rationale": (
+                "Authority class for negotiated territorial transfer exists; "
+                "new appropriations and UK legislative cession required"
+            ),
+        },
+        "modifiers": {
+            "partners_committed": True,
+            "funding_available": True,
+        },
+        "fit": {
+            "band": "7-8",
+            "score": 7,
+            "orientation": "reframing",
+            "rationale": "Strategic access bargain under declared Reframing orientation",
+        },
+        "submission_month": "2026-01",
+        "needs_human": False,
+        "instrument_of_power": "Economic",
+        "ne_facets": {"diplomacy": False, "information": False},
+    }
+    record = adjudicate_from_worksheet(worksheet)
+    assert record["classification"]["lever"] == "L10"
+    assert record["classification"]["instrument"] == "I10.01"
+    assert record["implementation"]["score"] >= 5
+    assert "real_gdp_growth" in record["trend"]["indicators"]
+    gdp = record["trend"]["indicators"]["real_gdp_growth"]
+    assert any(v != 0 for v in gdp["deltas"])
+
+
 # ---------------------------------------------------------------------------
 # Multi-action stacking (FO 2.0)
 # ---------------------------------------------------------------------------

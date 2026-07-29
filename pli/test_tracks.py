@@ -59,6 +59,16 @@ def test_build_routing_parses_ui_levers():
     assert "L7" in rec["ui_lever_priors"]
 
 
+def test_build_routing_maps_territory_basing_ui_lever_to_l10():
+    action = {
+        "mechanism": "Economic",
+        "ally_contingencies": 'Levers: ["Territory & Basing Access"]',
+    }
+    rec = build_routing_record(action)
+    assert rec["ui_levers"] == ["Territory & Basing Access"]
+    assert rec["ui_lever_priors"] == ["L10"]
+
+
 def test_ni_engine_happy_path():
     ws = {
         "orientation": "reframing",

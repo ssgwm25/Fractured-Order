@@ -76,7 +76,7 @@ def main() -> None:
     m = extract_sections(
         master,
         [
-            "Layer 1 — The nine economic levers",
+            "Layer 1 — The ten economic levers",
             "Layer 2 — Policy instruments (by lever)",
             "Tie-break hierarchy (lever assignment)",
             "Currency, bond, and foreign exchange operations",
@@ -145,7 +145,7 @@ def main() -> None:
 
     parts.append("\n# Part I — Macroeconomic Adjudication\n\n")
     parts.append(ARCHITECTURE + "\n")
-    parts.append(section("Layer 1 — The nine economic levers", m["Layer 1 — The nine economic levers"]))
+    parts.append(section("Layer 1 — The ten economic levers", m["Layer 1 — The ten economic levers"]))
     parts.append(section("Layer 2 — Policy instruments (by lever)", m["Layer 2 — Policy instruments (by lever)"]))
     parts.append(section("Layer 3a — Implementation score (1–10)", t["Layer 3a — Implementation score (1–10)"]))
     parts.append(section("Layer 3b — Fit score (1–10)", fit))
