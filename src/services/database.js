@@ -2319,6 +2319,39 @@ export const database = {
     },
 
     /**
+     * Dispatch the PLI Adjudication GitHub Action for a session (via edge function).
+     * Fire-and-forget from White Cell after action-complete; cron remains backup.
+     * @param {string} sessionId
+     * @returns {Promise<{ ok: boolean, dispatched?: boolean }>}
+     */
+    async triggerPliAdjudication(sessionId) {
+        if (!sessionId) {
+            throw new DatabaseError('Session ID is required', 'triggerPliAdjudication');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const { data, error } = await supabase.functions.invoke('trigger-pli-adjudication', {
+            body: { sessionId, dryRun: false }
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'triggerPliAdjudication');
+        }
+
+        if (data?.error) {
+            throw new DatabaseError(String(data.error), 'triggerPliAdjudication');
+        }
+
+        return {
+            ok: data?.ok !== false,
+            dispatched: Boolean(data?.dispatched),
+            sessionId,
+            ...(data && typeof data === 'object' ? data : {})
+        };
+    },
+
+    /**
      * Generate an LLM after-action narrative for a PLI report fact pack.
      * @param {{ sessionId: string, scope: string, factPack: Object }} params
      * @returns {Promise<{ narrative: string }>}

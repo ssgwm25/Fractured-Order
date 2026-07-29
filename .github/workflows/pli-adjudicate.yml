@@ -24,8 +24,9 @@ on:
         required: false
         type: boolean
         default: false
+  # Backup while live playtests rely on WC-complete edge trigger (*/5 during play window).
   schedule:
-    - cron: '*/15 13-22 * * 1-5'
+    - cron: '*/5 13-22 * * 1-5'
 
 permissions:
   contents: read

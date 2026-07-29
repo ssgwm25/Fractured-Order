@@ -84,7 +84,8 @@ export const PLI_VIEW_MODES = Object.freeze({
 });
 
 /**
- * Shared visibility filter for SME review vs White Cell Lead finalized viewer.
+ * Shared visibility filter for SME review vs White Cell Lead viewer.
+ * Lead readonly shows finalized seats and draft pending/needs_human previews.
  * @param {Object} row
  * @param {string} seatId
  * @param {{ viewMode?: string, showReviewed?: boolean, isRowUnlocked?: (row: Object) => boolean }} options
@@ -101,7 +102,10 @@ export function isPliRowVisible(row, seatId, {
     const seat = getSeatReview(row, seatId);
 
     if (viewMode === PLI_VIEW_MODES.LEAD_READONLY) {
-        return seatIsFinalized(seat);
+        if (seat.status === SEAT_STATUS.SKIPPED) {
+            return showReviewed;
+        }
+        return seatIsFinalized(seat) || seatNeedsReview(seat);
     }
 
     if (seat.status === SEAT_STATUS.SKIPPED) {
@@ -109,6 +113,32 @@ export function isPliRowVisible(row, seatId, {
     }
 
     return showReviewed || seatNeedsReview(seat);
+}
+
+/**
+ * Badge copy for White Cell Lead PLI cards (draft preview vs finalized).
+ * @param {Object} seat
+ * @returns {{ label: string, badgeClass: string }}
+ */
+export function leadSeatStatusBadge(seat) {
+    if (seatIsFinalized(seat)) {
+        const status = seat?.status || SEAT_STATUS.APPROVED;
+        return {
+            label: status === SEAT_STATUS.OVERRIDDEN ? 'Finalized (overridden)' : 'Finalized',
+            badgeClass: STATUS_BADGE[status] || 'badge-success'
+        };
+    }
+    if (seatNeedsReview(seat)) {
+        return {
+            label: 'Draft — awaiting SME',
+            badgeClass: 'badge-warning'
+        };
+    }
+    const status = seat?.status || SEAT_STATUS.PENDING;
+    return {
+        label: STATUS_LABELS[status] || status,
+        badgeClass: STATUS_BADGE[status] || 'badge-secondary'
+    };
 }
 
 export function getActionTitle(action, row) {

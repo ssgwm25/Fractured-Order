@@ -18,6 +18,7 @@ import {
     seatNeedsReview,
     seatIsFinalized,
     isPliRowVisible,
+    leadSeatStatusBadge,
     getActionTitle,
     getMacroBlock,
     renderTrendCharts,
@@ -49,7 +50,7 @@ export function createPliMacroReview(options = {}) {
     const wrapper = createSeatPanelShell({
         title: isLeadReadonly ? 'PLI Macro' : 'PLI Macro',
         description: isLeadReadonly
-            ? 'Read-only Macro outputs finalized by Econ. Pending items remain in the Econ console.'
+            ? 'Read-only Macro view. Draft agent outputs appear before Econ finalize; Finalized is the official gate for reports.'
             : 'Petrihos Lever Index macroeconomic chain — classify, score, chart, then approve or override.',
         seatId: SEAT,
         viewMode
@@ -95,20 +96,20 @@ export function createPliMacroReview(options = {}) {
 
     function render() {
         const pending = isLeadReadonly
-            ? records.filter((r) => seatIsFinalized(getSeatReview(r, SEAT)))
+            ? records.filter((r) => {
+                const seat = getSeatReview(r, SEAT);
+                return seatIsFinalized(seat) || seatNeedsReview(seat);
+            })
             : records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)));
         pendingBadge.textContent = String(pending.length);
         const visible = visibleRows();
         if (!visible.length) {
-            const awaiting = records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT))).length;
             list.innerHTML = emptyState(
                 isLeadReadonly
-                    ? (awaiting > 0 ? 'Awaiting Econ' : 'No finalized Macro outputs yet')
+                    ? 'No Macro drafts or finalized outputs yet'
                     : (showReviewed ? 'No PLI macro adjudications' : 'No PLI macro adjudications awaiting review'),
                 isLeadReadonly
-                    ? (awaiting > 0
-                        ? `${awaiting} Macro item(s) awaiting Econ finalize.`
-                        : 'Finalized Macro reviews appear here after Econ approves or overrides.')
+                    ? 'Draft Macro cards appear after the PLI pipeline runs. Finalized cards appear after Econ approves or overrides.'
                     : 'The PLI pipeline writes multi-track records after each run. Trigger Actions → PLI Adjudication or wait for the schedule.'
             );
             return;
@@ -125,6 +126,9 @@ export function createPliMacroReview(options = {}) {
         const { worksheet, adjudication } = getMacroBlock(record);
         const seat = getSeatReview(row, SEAT);
         const status = seat.status || row.status;
+        const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
+        const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
+        const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
         const classification = worksheet?.classification || adjudication?.classification || {};
         const precedent = worksheet?.precedent || adjudication?.precedent || {};
         const implementation = adjudication?.implementation || {};
@@ -147,7 +151,7 @@ export function createPliMacroReview(options = {}) {
                     <h3 class="pli-sme-card-title">${escapeHtml(getActionTitle(action, row))}</h3>
                     <p class="text-sm text-gray-600">PLI Adjudication — SME Review · Codebook ${escapeHtml(row.codebook_version || '')}</p>
                 </div>
-                <span class="badge ${STATUS_BADGE[status] || 'badge-secondary'}">${escapeHtml(STATUS_LABELS[status] || status)}</span>
+                <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
             </header>
             <div class="pli-sme-columns">
                 ${sourceActionColumn(action, row, record)}
@@ -196,8 +200,8 @@ export function createPliMacroReview(options = {}) {
                 </section>
             </div>
             ${seatNeedsReview(seat) && canReview() ? footerActions({
-                approveLabel: 'Approve PLI Outputs',
-                canApprove: status === 'pending',
+                approveLabel: status === 'needs_human' ? 'Approve as-is' : 'Approve PLI Outputs',
+                canApprove: status === 'pending' || status === 'needs_human',
                 canOverride: true,
                 overrideDisabledReason: ''
             }) : ''}
@@ -267,11 +271,22 @@ export function createPliMacroReview(options = {}) {
 
     async function handleApprove(row) {
         try {
-            await database.reviewPliSeat(row.id, SEAT, {
+            const seat = getSeatReview(row, SEAT);
+            const status = seat.status || row.status;
+            const payload = {
                 status: 'approved',
                 sme_reviewer: getReviewerName?.() || 'White Cell'
+            };
+            if (status === 'needs_human') {
+                payload.override_rationale = 'Accepted agent needs_human reason';
+            }
+            await database.reviewPliSeat(row.id, SEAT, payload);
+            showToast({
+                message: status === 'needs_human'
+                    ? 'PLI macro outputs approved as-is'
+                    : 'PLI macro outputs approved',
+                type: 'success'
             });
-            showToast({ message: 'PLI macro outputs approved', type: 'success' });
             await refresh();
         } catch (err) {
             logger.error('Failed to approve PLI macro seat:', err);

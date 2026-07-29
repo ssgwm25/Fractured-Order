@@ -18,6 +18,7 @@ import {
     seatNeedsReview,
     seatIsFinalized,
     isPliRowVisible,
+    leadSeatStatusBadge,
     isDownstreamSeatUnlocked,
     getActionTitle,
     createSeatPanelShell,
@@ -157,7 +158,7 @@ export function createNiEscalationReview(options = {}) {
     const wrapper = createSeatPanelShell({
         title: 'NI & Escalation',
         description: isLeadReadonly
-            ? 'Read-only NI / Escalation outputs finalized by NI/Escalation.'
+            ? 'Read-only NI / Escalation view. Draft agent outputs appear before SME finalize; Finalized is the official gate.'
             : 'National Interest domain deltas and Glasl escalation — same SME seat, analytically separate tracks. Unlocks after Macro is finalized or skipped.',
         seatId: SEAT,
         viewMode
@@ -203,7 +204,10 @@ export function createNiEscalationReview(options = {}) {
 
     function render() {
         const pending = isLeadReadonly
-            ? records.filter((r) => seatIsFinalized(getSeatReview(r, SEAT)))
+            ? records.filter((r) => {
+                const seat = getSeatReview(r, SEAT);
+                return seatIsFinalized(seat) || seatNeedsReview(seat);
+            })
             : records.filter((r) => (
                 isRowUnlocked(r) && seatNeedsReview(getSeatReview(r, SEAT))
             ));
@@ -213,19 +217,14 @@ export function createNiEscalationReview(options = {}) {
             const locked = !isLeadReadonly
                 ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)) && !isRowUnlocked(r)).length
                 : 0;
-            const awaitingFinal = isLeadReadonly
-                ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT))).length
-                : 0;
             list.innerHTML = emptyState(
                 isLeadReadonly
-                    ? (awaitingFinal > 0 ? 'Awaiting NI/Escalation' : 'No finalized NI / Escalation outputs yet')
+                    ? 'No NI / Escalation drafts or finalized outputs yet'
                     : (locked > 0
                         ? 'Awaiting Macro finalize'
                         : (showReviewed ? 'No NI & Escalation adjudications' : 'No NI & Escalation items awaiting review')),
                 isLeadReadonly
-                    ? (awaitingFinal > 0
-                        ? `${awaitingFinal} item(s) awaiting NI/Escalation finalize.`
-                        : 'Finalized reviews appear here after NI/Escalation approves or overrides.')
+                    ? 'Draft NI / Escalation cards appear after the PLI pipeline runs. Finalized cards appear after SME approval.'
                     : (locked > 0
                         ? `${locked} item(s) waiting for Econ Macro finalize (or Macro skip on non-economic actions).`
                         : 'Every submitted action receives NI + Glasl tracks. Review pending rows after the PLI pipeline runs.')
@@ -246,6 +245,9 @@ export function createNiEscalationReview(options = {}) {
         const glasl = tracks.glasl || {};
         const seat = getSeatReview(row, SEAT);
         const status = seat.status || row.status;
+        const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
+        const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
+        const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
         const domains = ni.domain_deltas || ni.domains || {};
 
         card.innerHTML = `
@@ -254,7 +256,7 @@ export function createNiEscalationReview(options = {}) {
                     <h3 class="pli-sme-card-title">${escapeHtml(getActionTitle(action, row))}</h3>
                     <p class="text-sm text-gray-600">NI &amp; Escalation — SME Review</p>
                 </div>
-                <span class="badge ${STATUS_BADGE[status] || 'badge-secondary'}">${escapeHtml(STATUS_LABELS[status] || status)}</span>
+                <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
             </header>
             <div class="pli-sme-columns pli-sme-columns-3">
                 ${sourceActionColumn(action, row, record)}

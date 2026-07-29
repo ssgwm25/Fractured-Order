@@ -8,6 +8,7 @@ import {
     seatIsFinalized,
     isDownstreamSeatUnlocked,
     isPliRowVisible,
+    leadSeatStatusBadge,
     getMacroBlock,
     getActionTitle,
     escapeHtml,
@@ -48,19 +49,32 @@ describe('pliShared', () => {
         const pending = {
             seat_reviews: { [SEATS.MACRO]: { status: 'pending' } }
         };
+        const needsHuman = {
+            seat_reviews: { [SEATS.MACRO]: { status: 'needs_human' } }
+        };
         const approved = {
             seat_reviews: { [SEATS.MACRO]: { status: 'approved' } }
+        };
+        const skipped = {
+            seat_reviews: { [SEATS.MACRO]: { status: 'skipped' } }
         };
 
         expect(isPliRowVisible(pending, SEATS.MACRO, {
             viewMode: PLI_VIEW_MODES.REVIEW
         })).toBe(true);
+        // Lead can preview drafts before SME finalize.
         expect(isPliRowVisible(pending, SEATS.MACRO, {
             viewMode: PLI_VIEW_MODES.LEAD_READONLY
-        })).toBe(false);
+        })).toBe(true);
+        expect(isPliRowVisible(needsHuman, SEATS.MACRO, {
+            viewMode: PLI_VIEW_MODES.LEAD_READONLY
+        })).toBe(true);
         expect(isPliRowVisible(approved, SEATS.MACRO, {
             viewMode: PLI_VIEW_MODES.LEAD_READONLY
         })).toBe(true);
+        expect(isPliRowVisible(skipped, SEATS.MACRO, {
+            viewMode: PLI_VIEW_MODES.LEAD_READONLY
+        })).toBe(false);
 
         const niPending = {
             seat_reviews: {
@@ -72,6 +86,13 @@ describe('pliShared', () => {
             viewMode: PLI_VIEW_MODES.REVIEW,
             isRowUnlocked: isDownstreamSeatUnlocked
         })).toBe(false);
+    });
+
+    it('labels Lead seat badges as draft vs finalized', () => {
+        expect(leadSeatStatusBadge({ status: 'pending' }).label).toBe('Draft — awaiting SME');
+        expect(leadSeatStatusBadge({ status: 'needs_human' }).label).toBe('Draft — awaiting SME');
+        expect(leadSeatStatusBadge({ status: 'approved' }).label).toBe('Finalized');
+        expect(leadSeatStatusBadge({ status: 'overridden' }).label).toBe('Finalized (overridden)');
     });
 
     it('extracts macro aliases from multi-track records', () => {
