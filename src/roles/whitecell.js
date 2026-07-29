@@ -3947,6 +3947,18 @@ export class WhiteCellController {
                 }
             }
 
+            // Kick PLI Adjudication immediately (schedule remains backup). Do not block UI.
+            const sessionIdForPli = sessionStore.getSessionId();
+            if (sessionIdForPli) {
+                database.triggerPliAdjudication(sessionIdForPli).catch((triggerError) => {
+                    logger.warn('Failed to trigger PLI adjudication workflow', triggerError);
+                    showToast({
+                        message: 'Deliberation recorded, but PLI auto-trigger failed — cron or Actions dispatch is backup.',
+                        type: 'warning'
+                    });
+                });
+            }
+
             showToast({ message: 'Deliberation recorded', type: 'success' });
             modal?.close();
         } catch (err) {

@@ -17,6 +17,7 @@ import {
     seatNeedsReview,
     seatIsFinalized,
     isPliRowVisible,
+    leadSeatStatusBadge,
     isDownstreamSeatUnlocked,
     getActionTitle,
     createSeatPanelShell,
@@ -66,7 +67,7 @@ export function createDiplomacyInfoReview(options = {}) {
     const wrapper = createSeatPanelShell({
         title: 'Diplomacy & Information',
         description: isLeadReadonly
-            ? 'Read-only Diplomacy / Information outputs finalized by Dip & Info. Filter by Blue or Green.'
+            ? 'Read-only Dip / Info view. Draft agent outputs appear before SME finalize; Finalized is the official gate. Filter by Blue or Green.'
             : 'Paired Diplomacy Index + Information brief — both tracks clear together under one SME seat. Unlocks after Macro is finalized or skipped. Green proposals appear under the Green tab.',
         seatId: SEAT,
         viewMode
@@ -196,7 +197,10 @@ export function createDiplomacyInfoReview(options = {}) {
 
     function render() {
         const pending = isLeadReadonly
-            ? records.filter((r) => seatIsFinalized(getSeatReview(r, SEAT)))
+            ? records.filter((r) => {
+                const seat = getSeatReview(r, SEAT);
+                return seatIsFinalized(seat) || seatNeedsReview(seat);
+            })
             : records.filter((r) => (
                 isRowUnlocked(r) && seatNeedsReview(getSeatReview(r, SEAT))
             ));
@@ -213,19 +217,14 @@ export function createDiplomacyInfoReview(options = {}) {
             const locked = !isLeadReadonly
                 ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)) && !isRowUnlocked(r)).length
                 : 0;
-            const awaitingFinal = isLeadReadonly
-                ? records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT))).length
-                : 0;
             list.innerHTML = emptyState(
                 isLeadReadonly
-                    ? (awaitingFinal > 0 ? 'Awaiting Dip & Info' : 'No finalized Diplomacy / Information outputs yet')
+                    ? 'No Dip / Info drafts or finalized outputs yet'
                     : (locked > 0
                         ? 'Awaiting Macro finalize'
                         : (showReviewed ? 'No Diplomacy / Information adjudications' : 'No Diplomacy / Information items awaiting review')),
                 isLeadReadonly
-                    ? (awaitingFinal > 0
-                        ? `${awaitingFinal} item(s) awaiting Dip & Info finalize.`
-                        : 'Finalized reviews appear here after Dip & Info approves or overrides.')
+                    ? 'Draft Dip / Info cards appear after the PLI pipeline runs. Finalized cards appear after Dip & Info approves or overrides.'
                     : (locked > 0
                         ? `${locked} item(s) waiting for Econ Macro finalize (or Macro skip on non-economic actions).`
                         : 'Diplomatic and Informational actions, plus Green proposals, appear here after the PLI multi-track run.')
@@ -246,6 +245,9 @@ export function createDiplomacyInfoReview(options = {}) {
         const information = tracks.information || null;
         const seat = getSeatReview(row, SEAT);
         const status = seat.status || row.status;
+        const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
+        const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
+        const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
         const routing = tracks.routing?.tracks || {};
         const actingTeam = resolveActingTeam(action, row);
         const proposalBadge = isProposalActionRow(action)
@@ -262,7 +264,7 @@ export function createDiplomacyInfoReview(options = {}) {
                     <p class="text-sm text-gray-600">Diplomacy &amp; Information — SME Review · Model Dip / Info Trial</p>
                     <div class="pli-card-badges">${teamBadge}${proposalBadge}</div>
                 </div>
-                <span class="badge ${STATUS_BADGE[status] || 'badge-secondary'}">${escapeHtml(STATUS_LABELS[status] || status)}</span>
+                <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
             </header>
             <div class="pli-sme-columns pli-sme-columns-3">
                 ${sourceActionColumn(action, row, record)}

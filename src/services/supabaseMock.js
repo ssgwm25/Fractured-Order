@@ -2400,6 +2400,20 @@ export function createE2EMockSupabaseClient() {
                     };
                 }
 
+                if (functionName === 'trigger-pli-adjudication') {
+                    const body = options?.body || {};
+                    return {
+                        data: {
+                            ok: true,
+                            dispatched: true,
+                            sessionId: body.sessionId || null,
+                            dryRun: Boolean(body.dryRun),
+                            workflow: 'pli-adjudicate.yml'
+                        },
+                        error: null
+                    };
+                }
+
                 return {
                     data: null,
                     error: { message: `Unhandled mock edge function: ${functionName}` }
