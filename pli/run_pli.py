@@ -61,12 +61,15 @@ SEAT_NI_ESC = "national_interest_escalation"
 
 # needs_human stubs that should be re-scored when the pipeline gains new agents
 # or orientation parsing fixes — not every SME-flagged needs_human forever.
+MISSING_SO_MARKER = "No declared Strategic Orientation"
+
 RESCORE_REASON_MARKERS = (
     "Missing NI agent worksheet",
     "Missing Glasl agent worksheet",
     "Missing Diplomacy agent worksheet",
     "Missing Information brief",
-    "No declared Strategic Orientation",
+    MISSING_SO_MARKER,
+    "Blue SO required for Green proposal Fit",
     "Macro agent worksheet missing",
     "Placeholder; replace with agent worksheet",
     "Placeholder neutral delta",
@@ -90,16 +93,49 @@ def _collect_needs_human_reasons(row: dict[str, Any]) -> list[str]:
     return reasons
 
 
-def _should_skip_existing_adjudication(row: dict[str, Any]) -> bool:
+def _rescore_markers_present(reasons: list[str]) -> list[str]:
+    return [
+        marker
+        for marker in RESCORE_REASON_MARKERS
+        if any(marker in reason for reason in reasons)
+    ]
+
+
+def _is_missing_so_only_stub(row: dict[str, Any]) -> bool:
+    """True when the only rescore reason is a missing Strategic Orientation stub."""
+    markers = _rescore_markers_present(_collect_needs_human_reasons(row))
+    if not markers:
+        return False
+    so_markers = {MISSING_SO_MARKER, "Blue SO required for Green proposal Fit"}
+    return all(marker in so_markers for marker in markers)
+
+
+def _should_skip_existing_adjudication(
+    row: dict[str, Any],
+    *,
+    orientation_now_available: bool | None = None,
+) -> bool:
+    """Skip finished rows; rescore stubbed needs_human when markers match.
+
+    Missing-SO stubs are only re-scored when ``orientation_now_available`` is
+    True (SO artifact now exists). When False, leave them alone so the
+    schedule does not burn agents forever on sessions without SO.
+    """
     status = row.get("status")
     if status not in (None, "needs_human"):
         return True
     if status != "needs_human":
         return False
-    reasons = _collect_needs_human_reasons(row)
-    return not any(
-        marker in reason for reason in reasons for marker in RESCORE_REASON_MARKERS
-    )
+    markers = _rescore_markers_present(_collect_needs_human_reasons(row))
+    if not markers:
+        return True
+    so_markers = {MISSING_SO_MARKER, "Blue SO required for Green proposal Fit"}
+    if all(marker in so_markers for marker in markers):
+        if orientation_now_available is True:
+            return False
+        # Unknown or still missing → do not rescore yet.
+        return True
+    return False
 
 
 def _env(name: str) -> str:
@@ -187,14 +223,31 @@ def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict
     if session_id:
         params["session_id"] = f"eq.{session_id}"
     actions = db.select("actions", params)
+    actions_by_id = {action["id"]: action for action in actions}
 
     # Skip finished rows. Re-score only stubbed needs_human rows (missing
     # worksheets / missing orientation) so agent-flagged SME work does not
     # burn another full multi-agent run on every schedule tick.
     existing = db.select("pli_adjudications", {"select": "action_id,status,record"})
-    skip_ids = {
-        row["action_id"] for row in existing if _should_skip_existing_adjudication(row)
-    }
+    orientation_cache: dict[tuple[str, str], str | None] = {}
+    skip_ids: set[str] = set()
+    for row in existing:
+        orientation_now: bool | None = None
+        if _is_missing_so_only_stub(row):
+            action = actions_by_id.get(row["action_id"])
+            if action is None:
+                skip_ids.add(row["action_id"])
+                continue
+            orientation_now = (
+                resolve_declared_orientation(
+                    db, action, cache=orientation_cache
+                )
+                is not None
+            )
+        if _should_skip_existing_adjudication(
+            row, orientation_now_available=orientation_now
+        ):
+            skip_ids.add(row["action_id"])
     pending: list[dict[str, Any]] = []
     ineligible = 0
     for action in actions:
@@ -348,6 +401,42 @@ def fetch_declared_orientation(db: SupabaseRest, session_id: str, team: str) -> 
     )
 
 
+def resolve_declared_orientation(
+    db: SupabaseRest,
+    action: dict[str, Any],
+    *,
+    cache: dict[tuple[str, str], str | None] | None = None,
+) -> str | None:
+    """Resolve Fit orientation for an action.
+
+    Green proposals do not carry a Green Strategic Orientation. FO 2.0 Fit
+    anchors to Blue's declared SO for those filings.
+    """
+    session_id = action.get("session_id") or ""
+    team = str(action.get("team") or "").strip().lower()
+    lookup_team = "blue" if is_green_proposal(action) else team
+    key = (str(session_id), lookup_team)
+    if cache is not None and key in cache:
+        return cache[key]
+    orientation = fetch_declared_orientation(db, str(session_id), lookup_team)
+    if cache is not None:
+        cache[key] = orientation
+    return orientation
+
+
+def missing_orientation_reason(action: dict[str, Any]) -> str:
+    if is_green_proposal(action):
+        return (
+            "Blue SO required for Green proposal Fit — no declared Strategic "
+            "Orientation on record for team 'blue' (trial codebook, Layer 3b)."
+        )
+    team = action.get("team") or ""
+    return (
+        f"No declared Strategic Orientation on record for team "
+        f"'{team}' - Fit cannot be scored (trial codebook, Layer 3b)."
+    )
+
+
 def _seat_entry(status: str) -> dict[str, Any]:
     return {
         "status": status,
@@ -443,10 +532,7 @@ def build_record(
         routing = build_routing_record(action)
         routed = routing.get("tracks") or {}
         record = {
-            "needs_human_reason": (
-                f"No declared Strategic Orientation on record for team "
-                f"'{action.get('team')}' - Fit cannot be scored (trial codebook, Layer 3b)."
-            ),
+            "needs_human_reason": missing_orientation_reason(action),
             "exec_year": exec_year,
             "move": action.get("move"),
             "submission_month": submission_month,
@@ -708,9 +794,9 @@ def main() -> int:
 
     for action in actions:
         sid = action["session_id"]
-        key = (sid, action.get("team") or "")
-        if key not in orientation_cache:
-            orientation_cache[key] = fetch_declared_orientation(db, *key)
+        orientation = resolve_declared_orientation(
+            db, action, cache=orientation_cache
+        )
         if sid not in peers_cache:
             try:
                 peers_cache[sid] = fetch_session_actions(db, sid)
@@ -734,7 +820,7 @@ def main() -> int:
         try:
             row = build_record(
                 action,
-                orientation_cache[key],
+                orientation,
                 move_years,
                 peer_actions=peers_cache[sid],
             )

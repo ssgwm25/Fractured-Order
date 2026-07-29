@@ -86,3 +86,74 @@ def test_rescore_markers_catch_missing_worksheets():
         },
     }
     assert run_pli._should_skip_existing_adjudication(sme_flagged) is True
+
+
+def test_missing_so_stub_only_rescores_when_so_available():
+    import run_pli
+
+    so_stub = {
+        "action_id": "z",
+        "status": "needs_human",
+        "record": {
+            "needs_human_reason": (
+                "No declared Strategic Orientation on record for team 'blue' "
+                "- Fit cannot be scored (trial codebook, Layer 3b)."
+            ),
+        },
+    }
+    assert run_pli._is_missing_so_only_stub(so_stub) is True
+    assert run_pli._should_skip_existing_adjudication(so_stub) is True
+    assert (
+        run_pli._should_skip_existing_adjudication(
+            so_stub, orientation_now_available=False
+        )
+        is True
+    )
+    assert (
+        run_pli._should_skip_existing_adjudication(
+            so_stub, orientation_now_available=True
+        )
+        is False
+    )
+
+
+def test_resolve_declared_orientation_uses_blue_so_for_green_proposals():
+    import run_pli
+
+    calls: list[tuple[str, str]] = []
+
+    class FakeDb:
+        def select(self, table, params):
+            calls.append((params.get("team"), params.get("mechanism")))
+            if params.get("team") == "eq.blue":
+                return [
+                    {
+                        "ally_contingencies": "Orientation: reframe\n",
+                        "artifact_payload": None,
+                    }
+                ]
+            return []
+
+    green = {
+        "id": "g1",
+        "session_id": "sess-1",
+        "team": "green",
+        "mechanism": "Proposal",
+        "artifact_type": "proposal",
+    }
+    orientation = run_pli.resolve_declared_orientation(FakeDb(), green)
+    assert orientation == "reframing"
+    assert any(team == "eq.blue" for team, _ in calls)
+    assert run_pli.missing_orientation_reason(green).startswith(
+        "Blue SO required for Green proposal Fit"
+    )
+
+    blue = {
+        "id": "b1",
+        "session_id": "sess-1",
+        "team": "blue",
+        "mechanism": "Economic",
+    }
+    assert run_pli.missing_orientation_reason(blue).startswith(
+        "No declared Strategic Orientation on record for team 'blue'"
+    )
