@@ -101,6 +101,7 @@ import {
     canEditAction,
     canSubmitAction,
     isAdjudicatedAction,
+    isDraftAction,
     isSubmittedAction
 } from '../core/enums.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
@@ -2410,6 +2411,10 @@ export class FacilitatorController {
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
+        const isReturnedToBlue = (
+            String(action.workflow_state || '').trim() === 'returned_to_blue'
+            || action.adjudication?.returned_to_blue === true
+        );
         const canManageDraft = !this.isReadOnly && !isStrategicOrientationFlow && canEditAction(action);
         const canSubmitDraft = !this.isReadOnly && canSubmitAction(action);
         const canRemoveDraft = !this.isReadOnly && !isStrategicOrientationFlow && canDeleteAction(action);
@@ -2417,7 +2422,14 @@ export class FacilitatorController {
             ? this.getForwardedProposalCommunication(action)
             : null;
         const shouldHideWhiteCellReviewDetails = Boolean(isGreenProposalFlow && forwardedProposalCommunication);
-        const statusBadge = isStrategicOrientationFlow && isSubmittedAction(action)
+        const statusBadge = isReturnedToBlue && isDraftAction(action)
+            ? createBadge({
+                text: 'Returned by White Cell',
+                variant: 'warning',
+                size: 'sm',
+                rounded: true
+            }).outerHTML
+            : isStrategicOrientationFlow && isSubmittedAction(action)
             ? createBadge({
                 text: 'With White Cell',
                 variant: 'info',
@@ -2668,9 +2680,15 @@ export class FacilitatorController {
                     </p>
                     ${detailsMarkup}
                     ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
-                    ${action.adjudication_notes && !shouldHideWhiteCellReviewDetails ? `
-                        <p class="entity-card__note">
-                            <strong>White Cell Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}
+                    ${action.adjudication_notes && (!shouldHideWhiteCellReviewDetails || isReturnedToBlue) ? `
+                        <p class="entity-card__note"${isReturnedToBlue ? ' style="border-left: 3px solid var(--color-warning, #b45309); padding-left: var(--space-2);"' : ''}>
+                            <strong>${isReturnedToBlue ? 'Send-back notes from White Cell:' : 'White Cell Notes:'}</strong>
+                            ${this.escapeHtml(action.adjudication_notes)}
+                        </p>
+                    ` : ''}
+                    ${isReturnedToBlue && isDraftAction(action) && !action.adjudication_notes ? `
+                        <p class="entity-card__note" style="border-left: 3px solid var(--color-warning, #b45309); padding-left: var(--space-2);">
+                            <strong>Returned by White Cell.</strong> Edit this draft and resubmit when complete.
                         </p>
                     ` : ''}
                     ${lifecycleMessage}
