@@ -62,7 +62,8 @@
     "Trade Measures": "L1",
     "Financial Restrictions": "L4",
     "Industrial Policy": "L7",
-    "Infrastructure Access": "L6"
+    "Infrastructure Access": "L6",
+    "Territory & Basing Access": "L10"
   },
   "national_interest": {
     "domains": {

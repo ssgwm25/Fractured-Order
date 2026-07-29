@@ -20,27 +20,30 @@ A team can land in the correct lever (L4 Sanctions) with the wrong instrument (I
 
 ---
 
-## Layer 1 — The nine economic levers
+## Layer 1 — The ten economic levers
 
-Nine levers cover the full Blue/Red/Green economic action corpus with minimal overlap. No catch-all bucket.
+Ten levers cover the full Blue/Red/Green economic action corpus with minimal overlap. No undifferentiated catch-all bucket — each lever has a defined domain and instrument table.
 
 | Code | Lever | Definition | Boundary |
 |------|-------|------------|----------|
 | **L1** | Trade & Customs | Tariffs, quotas, trade remedies (Section 301, Section 232, anti-dumping and countervailing duties), import/export bans on ordinary goods and services | Dual-use technology denial → **L2** |
 | **L2** | Export Controls & Entity Lists | Entity lists, license denials, information and communications technology and services restrictions, deemed-export, strategic technology access denial | Generic tariffs → **L1** |
-| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans | Asset freeze → **L4** |
-| **L4** | Financial Sanctions & Coercion | Targeted/secondary sanctions, asset freezes, payment-system denial, financial-market access bans, **legal-economic asset remedies** | Non-punitive regulation → **L5** |
+| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans | Asset freeze → **L4**. Ordinary FDI / land investment without sovereignty or exclusive basing rights stays **L3** |
+| **L4** | Financial Sanctions & Coercion | Targeted/secondary sanctions, asset freezes, payment-system denial, financial-market access bans, **legal-economic asset remedies** | Non-punitive regulation → **L5**. Sovereignty or basing-access transfer between states → **L10** (not I4.06) |
 | **L5** | Financial Regulation & Digital Policy | Prudential and anti-money-laundering rules, digital asset policy, market-structure regulation, **domestic foreign-exchange intervention / rate-check coordination** without country-specific punishment | Bilateral partner-support swaps → **L6** (rule 4). Any sanction element → **L4** |
-| **L6** | Development & Infrastructure Finance | Development finance institutions, foreign aid, export credit, overseas infrastructure/connectivity financing, **bilateral currency swaps for partner support**, **sovereign bond purchase/guarantee for partner states** | Domestic-only capacity → **L7**. Domestic foreign-exchange operations (not partner swap) → **L5** |
+| **L6** | Development & Infrastructure Finance | Development finance institutions, foreign aid, export credit, overseas infrastructure/connectivity financing, **bilateral currency swaps for partner support**, **sovereign bond purchase/guarantee for partner states** | Domestic-only capacity → **L7**. Domestic foreign-exchange operations (not partner swap) → **L5**. Overseas infra finance whose *object* is territory/basing rights → **L10** |
 | **L7** | Industrial Policy & Domestic Capacity | Subsidies, tax incentives, deregulation, procurement preferences, domestic research and development / industrial funding | Foreign deployment → **L6** |
 | **L8** | Strategic Reserves & Supply Security | Stockpiling, reserve mandates, supply contingency authorities | New production → **L7** |
 | **L9** | Standards, Regulation & Data Governance | Technical standards, regulatory harmonization, data governance, certification/trust regimes | Access bans → **L1/L2** |
+| **L10** | Territorial Acquisition, Basing & Strategic Access | Negotiated acquisition, cession, long-term lease, or compensatory transfer of **sovereign territory, exclusive basing rights, or strategic geographic access** (including SLOC-critical islands/ports) where the economic bargain (payment, lease, offset package) is the operative instrument | Pure Military force posture, alliance messaging, or diplomacy with no purchase/lease/concession bargain → **NE**. Asset/IP/fund seizure inside a jurisdiction → **L4 / I4.06**. Ordinary FDI without sovereignty or exclusive basing → **L3**. Overseas infra finance without territorial/basing rights as the deal object → **L6** |
 
 | Code | Special | Use |
 |------|---------|-----|
 | **NE** | Non-Economic | Default when Instrument of Power is Diplomatic, Informational, or Military — or when an Economic filing has no economic lever vector (mislabel / needs_human). No macro lever vector. Always routed to National Interest + Glasl; Diplomacy Index and Information brief follow default lanes or cited secondary facets (see Architecture / track routing). |
 
-**Design note:** Legal-economic coercion (intellectual-property seizure, eminent domain, retroactive compensation) is coercive financial punishment — it belongs under **L4** as instrument **I4.06**, not as its own lever. Nine levers cover the full Blue/Red/Green economic action space without a catch-all bucket.
+**Design notes:**
+- Legal-economic coercion (intellectual-property seizure, eminent domain, retroactive compensation) is coercive financial punishment — it belongs under **L4** as instrument **I4.06**, not as its own lever.
+- **L10 is not the retired legal-coercion lever.** The 2026-06-15 consolidation moved former legal-coercion L10 into I4.06. The current **L10** is a distinct domain for sovereignty / basing / strategic-access *transactions* between states.
 
 ---
 
@@ -125,6 +128,18 @@ Each action gets **one primary instrument**. Secondary instruments optional when
 | I9.03 | Data localization / cross-border data rule |
 | I9.04 | Certification / trusted-vendor regime |
 
+### L10 — Territorial Acquisition, Basing & Strategic Access
+| Code | Instrument |
+|------|------------|
+| I10.01 | Sovereign territory purchase or cession (treaty / legislative transfer) |
+| I10.02 | Long-term basing / Status of Forces Agreement / exclusive facility rights package |
+| I10.03 | Strategic port, canal, or sea-lane-of-communication access concession |
+| I10.04 | Compensatory economic package tied to territorial or basing settlement |
+
+**Default direction:** Inducement (purchase/lease packages). Use Coercive or Mixed when the deal is framed as compelled cession or dual carrot-stick.
+
+**Worked example — Purchase Chagos Archipelago:** Economic Instrument of Power; operative act is UK–US sovereign territory purchase/cession for Indian Ocean basing and SLOC protection → **L10 / I10.01**, direction Inducement. National Interest (NI-1 / NI-4) and Glasl still run in parallel. Do **not** force-fit L1–L9 or route to `needs_human` solely because no prior L-code existed.
+
 ---
 
 ## Layer 3 — Implementation Fit score (0–4)
@@ -196,11 +211,14 @@ Facets do **not** compete with levers or instruments. Use when:
 8. Domestic subsidy / deregulation / procurement → **L7**
 9. Standards / harmonization → **L9**
 10. Non-sanctions financial rule → **L5**
+11. **Sovereign territory purchase/cession, exclusive basing rights, or strategic geographic access concession (payment, lease, or compensatory package) → L10**
 
 **Rule 4 scope:** Partner-support swaps only. Domestic/prudential foreign-exchange management stays **L5** (rule 10). Punitive denial of swap or bond market access stays **L4** (rule 1). Swap used as capital-control enforcement stays **L3** (rule 3).
 
-If Direction is Inducement and two levers fit, prefer L6/L7/L8 over L1–L4.  
-If Direction is Coercive, prefer L1–L4 over L6–L9.
+**Rule 11 scope:** The object of the bargain must be sovereignty, exclusive basing, or strategic geographic access. Ordinary overseas infrastructure without those rights stays **L6** (rule 7). Intra-jurisdiction asset seizure stays **L4 / I4.06** (rule 1). Pure Military/Diplomatic acts without a transactional access deal stay **NE**.
+
+If Direction is Inducement and two levers fit, prefer L6/L7/L8/L10 over L1–L4.  
+If Direction is Coercive, prefer L1–L4 over L6–L10 unless rule 11 (territory/basing) clearly dominates.
 
 ---
 
@@ -214,6 +232,9 @@ If Direction is Coercive, prefer L1–L4 over L6–L9.
 | Ban on adversary sovereign bond access | **L4** | **I4.05** | Rule 1; coercive market access denial |
 | United States purchase of partner sovereign bonds (inducement) | **L6** | **I6.07** | Rule 7 if infrastructure-framed; I6.07 when bond support dominates |
 | Outbound ban on buying adversary sovereign debt | **L3** or **L4** | I3.04 or I4.05 | Dominance rule; both covered |
+| United States purchase of Chagos Archipelago from the United Kingdom | **L10** | **I10.01** | Rule 11; sovereignty transfer for basing / SLOC |
+| Long-term exclusive basing rights package with host-nation offsets | **L10** | **I10.02** | Rule 11; not L6 overseas infra alone |
+| Strategic port access concession tied to lease payments | **L10** | **I10.03** | Rule 11 |
 
 ---
 
@@ -267,3 +288,4 @@ Reference classifications for the eleven economic actions submitted by the Blue 
 | 2026-06-15 | Initial 10-lever + facet model (superseded) |
 | 2026-06-15 | Nine-lever architecture; instrument layer; Implementation Fit; former L10 consolidated into I4.06; facets simplified |
 | 2026-06-30 | Master codebook: I5.04, I6.06, I6.07; tie-break rule 4 (partner-support swaps); currency/bond/foreign-exchange guidance |
+| 2026-07-29 | Add **L10 Territorial Acquisition, Basing & Strategic Access** (I10.01–I10.04) and tie-break rule 11. Distinct from the retired legal-coercion L10 that was merged into I4.06. Covers Chagos-style sovereignty / basing transactions so they classify under Macro instead of `needs_human`. |
