@@ -19,6 +19,7 @@ import {
     seatIsFinalized,
     isPliRowVisible,
     leadSeatStatusBadge,
+    renderSeatSmeNotes,
     isDownstreamSeatUnlocked,
     getActionTitle,
     createSeatPanelShell,
@@ -26,6 +27,8 @@ import {
     sourceActionColumn,
     footerActions
 } from './pliShared.js';
+import { notifyPliSeatSentBack } from './pliNotify.js';
+import { sessionStore } from '../../stores/session.js';
 
 const logger = createLogger('NiEscalationReview');
 const SEAT = SEATS.NATIONAL_INTEREST_ESCALATION;
@@ -312,6 +315,7 @@ export function createNiEscalationReview(options = {}) {
                 canApprove: status === 'pending' || status === 'needs_human',
                 canOverride: true
             }) : ''}
+            ${renderSeatSmeNotes(seat)}
         `;
 
         const rationale = card.querySelector('[data-pli-rationale]');
@@ -432,12 +436,23 @@ export function createNiEscalationReview(options = {}) {
                             return;
                         }
                         try {
+                            const reviewer = getReviewerName?.() || 'White Cell';
                             await database.reviewPliSeat(row.id, SEAT, {
                                 status: 'needs_human',
-                                sme_reviewer: getReviewerName?.() || 'White Cell',
+                                sme_reviewer: reviewer,
                                 override_rationale: notes
                             });
-                            showToast({ message: 'Returned for human adjudication', type: 'success' });
+                            const gameState = sessionStore.getGameState?.() || {};
+                            await notifyPliSeatSentBack({
+                                sessionId: getSessionId?.() || row.session_id,
+                                actionId: row.action_id,
+                                seatId: SEAT,
+                                notes,
+                                reviewerName: reviewer,
+                                move: gameState.move ?? 1,
+                                phase: gameState.phase ?? 1
+                            });
+                            showToast({ message: 'Sent back to White Cell', type: 'success' });
                             modal.close();
                             await refresh();
                         } catch (err) {

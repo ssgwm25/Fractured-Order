@@ -129,6 +129,13 @@ export function leadSeatStatusBadge(seat) {
         };
     }
     if (seatNeedsReview(seat)) {
+        const smeNotes = String(seat?.override_rationale || '').trim();
+        if (seat?.status === SEAT_STATUS.NEEDS_HUMAN && smeNotes) {
+            return {
+                label: 'Returned by SME',
+                badgeClass: 'badge-danger'
+            };
+        }
         return {
             label: 'Draft — awaiting SME',
             badgeClass: 'badge-warning'
@@ -139,6 +146,22 @@ export function leadSeatStatusBadge(seat) {
         label: STATUS_LABELS[status] || status,
         badgeClass: STATUS_BADGE[status] || 'badge-secondary'
     };
+}
+
+/** Render SME notes for needs_human send-back or override. */
+export function renderSeatSmeNotes(seat) {
+    const notes = String(seat?.override_rationale || '').trim();
+    if (!notes) return '';
+    const status = seat?.status || '';
+    if (status !== SEAT_STATUS.OVERRIDDEN && status !== SEAT_STATUS.NEEDS_HUMAN) {
+        return '';
+    }
+    const heading = status === SEAT_STATUS.OVERRIDDEN ? 'SME override' : 'SME send-back notes';
+    return `
+        <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
+            <strong>${heading}</strong>${seat.sme_reviewer ? ` by ${escapeHtml(seat.sme_reviewer)}` : ''}:
+            ${escapeHtml(notes)}
+        </div>`;
 }
 
 export function getActionTitle(action, row) {

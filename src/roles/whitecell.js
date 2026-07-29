@@ -781,6 +781,8 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
         ACTION_CREATED: 'Action Created',
         ACTION_SUBMITTED: 'Action Submitted',
         ACTION_ADJUDICATED: 'Deliberation Update',
+        ACTION_RETURNED_TO_BLUE: 'Returned to Blue',
+        PLI_SENT_BACK: 'PLI Sent Back',
         STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE: 'Strategic Orientation Forwarded',
         STRATEGIC_ORIENTATION_SUBMITTED: 'Strategic Orientation Submitted',
         PROPOSAL_SUBMITTED: 'Proposal Submitted',
@@ -804,6 +806,15 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
 
 export function canShareActionToRedTeam(action = {}) {
     return action?.team === 'blue' && !isStrategicOrientationAction(action);
+}
+
+/** Blue strategic actions White Cell Lead may reopen for rewrite. */
+export function canReturnActionToBlue(action = {}) {
+    if (!action || action.team !== 'blue') return false;
+    if (isStrategicOrientationAction(action)) return false;
+    const artifact = String(action.artifact_type || '').trim().toLowerCase();
+    if (artifact === 'proposal' || artifact === 'move_response') return false;
+    return canAdjudicateAction(action) || isAdjudicatedAction(action);
 }
 
 export function buildSharedActionCommunicationContent(action = {}) {
@@ -3291,6 +3302,7 @@ export class WhiteCellController {
             const body = group.items.length
                 ? visibleItems.map((action) => this.renderActionCard(action, {
                     showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
+                    showReturnToBlueAction: this.isLeadOperator() && canReturnActionToBlue(action),
                     includeOutcome: true,
                     isNew: newIds?.has(action.id)
                 })).join('')
@@ -3354,6 +3366,7 @@ export class WhiteCellController {
             ${visiblePendingActions.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator(),
+                showReturnToBlueAction: this.isLeadOperator() && canReturnActionToBlue(action),
                 includeOutcome: false,
                 isNew: this.newBlueActionIds.has(action.id)
                     || this.newStrategicOrientationIds.has(action.id)
@@ -3379,6 +3392,7 @@ export class WhiteCellController {
 
     renderActionCard(action, {
         showAdjudicateAction = false,
+        showReturnToBlueAction = false,
         includeOutcome = false,
         isNew = false
     } = {}) {
@@ -3509,6 +3523,10 @@ export class WhiteCellController {
             actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Record Deliberation')}</button>`);
         }
 
+        if (showReturnToBlueAction && canReturnActionToBlue(action)) {
+            actionButtons.push(`<button class="btn btn-secondary btn-sm return-to-blue-btn" data-action-id="${action.id}">Return to Blue</button>`);
+        }
+
         return `
             <div class="entity-card${statusAccent ? ` entity-card--${statusAccent}` : ''}" data-action-id="${action.id}"${isNew ? ' style="background: var(--color-surface-alt);"' : ''}>
                 <div class="entity-card__head">
@@ -3563,6 +3581,98 @@ export class WhiteCellController {
                     this.showAdjudicateModal(action);
                 }
             });
+        });
+
+        container.querySelectorAll('.return-to-blue-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                const actionId = button.dataset.actionId;
+                const action = this.actions.find((candidate) => candidate.id === actionId);
+                if (action) {
+                    this.showReturnToBlueModal(action).catch((err) => {
+                        logger.error('Failed to open Return to Blue modal:', err);
+                    });
+                }
+            });
+        });
+    }
+
+    async showReturnToBlueModal(action) {
+        if (!this.isLeadOperator()) {
+            showToast({ message: 'Only White Cell Lead can return actions to Blue.', type: 'warning' });
+            return;
+        }
+        if (!canReturnActionToBlue(action)) {
+            showToast({ message: 'This action cannot be returned to Blue.', type: 'warning' });
+            return;
+        }
+
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <p class="text-sm text-gray-600" style="margin-bottom: var(--space-3);">
+                Reopen this Blue action as an editable draft. Linked PLI adjudications will be cleared so the pipeline can re-run after Blue resubmits and White Cell completes again.
+            </p>
+            <label class="form-label" for="returnToBlueNotes">Notes for Blue (required)</label>
+            <textarea id="returnToBlueNotes" class="form-input form-textarea" rows="4"
+                placeholder="What should Blue fix before resubmitting?"></textarea>
+        `;
+
+        showModal({
+            title: 'Return to Blue',
+            content,
+            size: 'md',
+            buttons: [
+                { text: 'Cancel', variant: 'secondary', onClick: (modal) => modal.close() },
+                {
+                    text: 'Return to Blue',
+                    variant: 'primary',
+                    onClick: async (modal) => {
+                        const notes = document.getElementById('returnToBlueNotes')?.value?.trim() || '';
+                        if (!notes) {
+                            showToast({ message: 'Notes are required', type: 'error' });
+                            return;
+                        }
+                        const loader = showLoader({ message: 'Returning action to Blue...' });
+                        try {
+                            const updated = await database.returnActionToBlue(action.id, { notes });
+                            actionsStore.updateFromServer('UPDATE', updated);
+
+                            const gameState = this.getCurrentGameState();
+                            const timelineEvent = await database.createTimelineEvent({
+                                session_id: sessionStore.getSessionId(),
+                                type: 'ACTION_RETURNED_TO_BLUE',
+                                content: `Returned to Blue for rewrite: ${notes}`,
+                                metadata: {
+                                    related_id: action.id,
+                                    action_id: action.id,
+                                    role: this.getTimelineActorRole(),
+                                    return_notes: notes
+                                },
+                                team: 'white_cell',
+                                move: gameState.move ?? 1,
+                                phase: gameState.phase ?? 1
+                            });
+                            timelineStore.updateFromServer('INSERT', timelineEvent);
+
+                            this.pliMacroReview?.refresh?.();
+                            this.pliDiplomacyInfoReview?.refresh?.();
+                            this.pliNiEscalationReview?.refresh?.();
+
+                            showToast({ message: 'Action returned to Blue as a draft', type: 'success' });
+                            modal.close();
+                            this.renderActionReview?.();
+                            this.renderAdjudicationQueue?.();
+                        } catch (err) {
+                            logger.error('Failed to return action to Blue:', err);
+                            showToast({
+                                message: err?.message || 'Failed to return action to Blue',
+                                type: 'error'
+                            });
+                        } finally {
+                            hideLoader();
+                        }
+                    }
+                }
+            ]
         });
     }
 

@@ -1396,6 +1396,35 @@ export const database = {
     },
 
     /**
+     * Return a submitted/adjudicated Blue action to an editable draft for rewrite.
+     * Deletes linked PLI adjudications so the next WC-complete re-intakes the action.
+     * @param {string} actionId
+     * @param {{ notes?: string }} options
+     * @returns {Promise<Object>} Updated action
+     */
+    async returnActionToBlue(actionId, { notes } = {}) {
+        const trimmed = String(notes || '').trim();
+        if (!actionId) {
+            throw new DatabaseError('Action ID is required', 'returnActionToBlue');
+        }
+        if (!trimmed) {
+            throw new DatabaseError('Return notes are required', 'returnActionToBlue');
+        }
+
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('operator_return_action_to_blue', {
+            requested_action_id: actionId,
+            requested_return_notes: trimmed
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'returnActionToBlue');
+        }
+
+        return data;
+    },
+
+    /**
      * Atomically review a proposal and, when approved, forward it to the
      * persisted recipient team with its communication and timeline records.
      * @param {string} actionId - Submitted proposal action ID
