@@ -40,7 +40,7 @@ const TEAM_LABELS = Object.freeze({
 function buildSessionCode(retry = 0) {
     const configuredRunId = String(process.env.PLAYWRIGHT_REHEARSAL_RUN_ID || '').trim();
     const runId = configuredRunId || Date.now().toString(36);
-    return `P19${runId.replace(/[^a-z0-9]/gi, '').slice(-8)}${retry || ''}`.toUpperCase();
+    return `P18${runId.replace(/[^a-z0-9]/gi, '').slice(-8)}${retry || ''}`.toUpperCase();
 }
 
 async function createActorPool(browser) {
@@ -148,7 +148,7 @@ async function selectSessionForOperatorView(page, {
     return sessionId;
 }
 
-test('@playthrough nineteen-actor professional rehearsal covers the complete shipped role and workflow contract', async ({ browser }, testInfo) => {
+test('@playthrough eighteen-actor professional rehearsal covers the complete shipped role and workflow contract', async ({ browser }, testInfo) => {
     test.setTimeout(10 * 60 * 1000);
 
     const actorPool = await createActorPool(browser);
@@ -169,7 +169,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
     };
 
     try {
-        await test.step('create the rehearsal session and fill all 19 human roles', async () => {
+        await test.step('create the rehearsal session and fill the 18-browser role topology', async () => {
             actors.gameMaster = await createObservedActor('playthrough-game-master', { resetBackend: true });
             await authorizeGameMaster(actors.gameMaster, {
                 displayName: 'Playthrough Game Master'
@@ -177,7 +177,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
             await createSessionFromMaster(actors.gameMaster, {
                 sessionName,
                 sessionCode,
-                description: 'Automated 19-person professional playthrough covering communications, proposals, actions, RFIs, notes, controls, UI consistency, and export.'
+                description: 'Automated 18-person professional playthrough covering communications, proposals, actions, RFIs, notes, controls, UI consistency, and export.'
             });
 
             for (const team of TEAMS) {
@@ -194,7 +194,6 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
             }
 
             actors.whiteCellLead = await createObservedActor('playthrough-whitecell-lead');
-            actors.whiteCellSupport = await createObservedActor('playthrough-whitecell-support');
 
             const seatClaimOperations = TEAMS.flatMap((team) => {
                 const teamActors = actors.teams[team];
@@ -226,26 +225,20 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
                     sessionCode,
                     displayName: 'White Cell Lead',
                     operatorRole: 'lead'
-                }),
-                () => authorizeWhiteCell(actors.whiteCellSupport, {
-                    sessionCode,
-                    displayName: 'White Cell Support',
-                    operatorRole: 'support'
                 })
             );
             await runActorOperations(seatClaimOperations, {
                 concurrent: actorPool.useIndependentContexts
             });
 
-            expect(allActorPages).toHaveLength(19);
+            expect(allActorPages).toHaveLength(18);
             await expect(actors.whiteCellLead.locator('#startTimerBtn')).toBeEnabled();
-            await expect(actors.whiteCellSupport.locator('#startTimerBtn')).toBeDisabled();
 
             const backendState = await dumpE2EMockBackend(actors.gameMaster);
             if (backendState) {
                 const session = getSessionFromState(backendState, sessionCode);
                 const activeSeatCounts = getActiveSeatCounts(backendState, session.id);
-                expect(Object.values(activeSeatCounts).reduce((sum, count) => sum + count, 0)).toBe(18);
+                expect(Object.values(activeSeatCounts).reduce((sum, count) => sum + count, 0)).toBe(17);
                 for (const team of TEAMS) {
                     expect(activeSeatCounts).toMatchObject({
                         [`${team}_facilitator`]: 1,
@@ -254,8 +247,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
                     });
                 }
                 expect(activeSeatCounts).toMatchObject({
-                    whitecell_lead: 1,
-                    whitecell_support: 1
+                    whitecell_lead: 1
                 });
             }
         });
@@ -313,7 +305,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
                 recordStrategicOrientationFromScribe(actors.teams[team].scribe, {
                     team,
                     orientation: orientationByTeam[team],
-                    rationale: `${TEAM_LABELS[team]} rationale recorded during the 19-person playthrough.`
+                    rationale: `${TEAM_LABELS[team]} rationale recorded during the 18-person playthrough.`
                 })
             )), { concurrent: actorPool.useIndependentContexts });
             TEAMS.forEach((team, index) => {
@@ -339,7 +331,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
             }
         });
 
-        await test.step('synchronize timer state and preserve White Cell permission boundaries', async () => {
+        await test.step('synchronize timer state through White Cell Lead controls', async () => {
             await openSidebarSection(actors.whiteCellLead, 'controls');
             await actors.whiteCellLead.locator('#startTimerBtn').click();
             await expect(actors.whiteCellLead.locator('#pauseTimerBtn')).toBeEnabled();
@@ -348,15 +340,13 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
             )));
             await actors.whiteCellLead.locator('#pauseTimerBtn').click();
             await expect(actors.whiteCellLead.locator('#pauseTimerBtn')).toBeDisabled();
-            await openSidebarSection(actors.whiteCellSupport, 'controls');
-            await expect(actors.whiteCellSupport.locator('#startTimerBtn')).toBeDisabled();
         });
 
         const actionTitles = {
             blue: 'Coordinate allied semiconductor export controls',
             red: 'Reframe regional investment incentives'
         };
-        await test.step('run Blue and Red action lifecycles and prevent support adjudication', async () => {
+        await test.step('run Blue and Red action lifecycles through White Cell Lead adjudication', async () => {
             await runActorOperations(['blue', 'red'].map((team) => async () => {
                 await createDraftAction(actors.teams[team].scribe, {
                     goal: actionTitles[team],
@@ -368,20 +358,6 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
             await runActorOperations(['blue', 'red'].map((team) => () => (
                 submitActionFromScribe(actors.teams[team].facilitator, actionTitles[team])
             )), { concurrent: actorPool.useIndependentContexts });
-
-            await openSidebarSection(actors.whiteCellSupport, 'actions');
-            const supportAction = actors.whiteCellSupport
-                .locator('#actionsList .tab-panel:not([hidden]) .entity-card')
-                .filter({
-                    has: actors.whiteCellSupport.getByRole('heading', {
-                        name: actionTitles.blue,
-                        exact: true
-                    })
-                })
-                .first();
-            await expect(supportAction).toBeVisible();
-            await expect(supportAction.locator('.adjudicate-btn')).toHaveCount(0);
-            await expect(actors.whiteCellSupport.locator('.modal-overlay')).toHaveCount(0);
 
             await adjudicateAction(actors.whiteCellLead, {
                 goal: actionTitles.blue,
@@ -527,7 +503,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
                 () => actors.teams.green.scribe.reload(),
                 () => actors.teams.blue.facilitator.reload(),
                 () => actors.teams.industry.notetakers[0].reload(),
-                () => actors.whiteCellSupport.reload()
+                () => actors.whiteCellLead.reload()
             ], { concurrent: actorPool.useIndependentContexts });
 
             await expect(actors.teams.green.scribe.locator('#sessionName')).toContainText(sessionName);
@@ -540,7 +516,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
             await expect(actors.teams.industry.notetakers[0].locator('#recentCaptures')).toContainText(
                 'Industry Notetaker 1 playthrough observation'
             );
-            await expect(actors.whiteCellSupport.locator('#startTimerBtn')).toBeDisabled();
+            await expect(actors.whiteCellLead.locator('#startTimerBtn')).toBeEnabled();
         });
 
         await test.step('export and reconcile the selected-session JSON evidence', async () => {
@@ -567,7 +543,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
             expect(exported.requests.map((request) => request.query)).toEqual(expect.arrayContaining(
                 Object.values(rfiQuestions).map((question) => expect.stringContaining(question))
             ));
-            expect(exported.participants).toHaveLength(18);
+            expect(exported.participants).toHaveLength(17);
             expect(exported.timeline.length).toBeGreaterThan(0);
         });
 
@@ -576,7 +552,7 @@ test('@playthrough nineteen-actor professional rehearsal covers the complete shi
                 sessionCode,
                 sessionName,
                 actorCount: allActorPages.length,
-                sessionSeatCount: 18,
+                sessionSeatCount: 17,
                 backend: actorPool.useIndependentContexts ? 'hosted-real-backend' : 'local-deterministic-mock',
                 diagnostics
             }, null, 2),

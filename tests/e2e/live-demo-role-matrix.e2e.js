@@ -28,8 +28,7 @@ const ROLE_SURFACES = Object.freeze({
 });
 
 const WHITE_CELL_OPERATOR_ROLES = Object.freeze({
-    LEAD: 'lead',
-    SUPPORT: 'support'
+    LEAD: 'lead'
 });
 
 const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
@@ -54,17 +53,10 @@ const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
 ])).concat([
     {
         actorName: 'whitecell-lead-matrix',
-        displayName: 'White Cell Lead Matrix',
+        displayName: 'White Cell Lead',
         teamId: null,
         roleSurface: ROLE_SURFACES.WHITECELL,
         operatorRole: WHITE_CELL_OPERATOR_ROLES.LEAD
-    },
-    {
-        actorName: 'whitecell-support-matrix',
-        displayName: 'White Cell Support Matrix',
-        teamId: null,
-        roleSurface: ROLE_SURFACES.WHITECELL,
-        operatorRole: WHITE_CELL_OPERATOR_ROLES.SUPPORT
     }
 ]);
 
@@ -75,8 +67,7 @@ function buildExpectedSeatCounts() {
         [`${team.id}_scribe`]: 1,
         [`${team.id}_notetaker`]: 2
     }), {
-        whitecell_lead: 1,
-        whitecell_support: 1
+        whitecell_lead: 1
     });
 }
 
@@ -115,12 +106,7 @@ async function expectRoleSurface(page, roleCase) {
 
     await expect(page).toHaveURL(/\/whitecell\.html(?:\?.*)?$/);
     await expect(page.locator('#startTimerBtn')).toBeVisible();
-
-    if (roleCase.operatorRole === WHITE_CELL_OPERATOR_ROLES.SUPPORT) {
-        await expect(page.locator('#startTimerBtn')).toBeDisabled();
-    } else {
-        await expect(page.locator('#startTimerBtn')).toBeEnabled();
-    }
+    await expect(page.locator('#startTimerBtn')).toBeEnabled();
 }
 
 test('@live-demo browser role matrix covers all teams and roles through join, reload persistence, and operator roster visibility', async ({ browser }) => {

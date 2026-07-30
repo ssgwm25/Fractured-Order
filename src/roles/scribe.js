@@ -1191,7 +1191,10 @@ export class ScribeController {
             communications.map((communication) => communication?.id).filter(Boolean)
         );
         this.seedAuthoredProposalStates(communications);
-        this.communicationsSeeded = true;
+        // Role controllers can mount before live sync finishes its first store
+        // load. Keep the feed unseeded in that case so the ensuing `loaded`
+        // snapshot establishes history without replaying it as new activity.
+        this.communicationsSeeded = communicationsStore.initialized;
         actionsStore.getByTeam(this.teamId).forEach((action) => {
             if (action?.id) {
                 this.actionStatusById.set(action.id, action.status);

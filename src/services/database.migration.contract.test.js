@@ -53,6 +53,14 @@ const ACTION_ARTIFACT_WORKFLOW_INTEGRITY_PATH = new URL(
     '../../data/2026-07-14_action_artifact_workflow_integrity.sql',
     import.meta.url
 );
+const SCRIBE_PROPOSAL_SUBMIT_POLICY_PATH = new URL(
+    '../../data/2026-07-21_scribe_proposal_submit_policy.sql',
+    import.meta.url
+);
+const INDUSTRY_SUBMISSION_PERMISSIONS_PATH = new URL(
+    '../../data/2026-07-29_industry_submission_permissions.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -209,6 +217,52 @@ describe('database migration contracts', () => {
         expect(sql).toContain("LIKE 'strategic orientation details%'");
         expect(sql).toContain("LIKE 'blue team action details%'");
         expect(sql).toContain("status <> 'adjudicated'");
+    });
+
+    it('extends legacy same-team *_scribe submission rights to forwarded proposals', () => {
+        const sql = readFileSync(SCRIBE_PROPOSAL_SUBMIT_POLICY_PATH, 'utf8');
+
+        expect(sql).toContain('DROP POLICY IF EXISTS actions_live_demo_update ON public.actions;');
+        expect(sql).toContain('CREATE POLICY actions_live_demo_update');
+        expect(sql).toContain("live_demo_can_write_team_session(session_id, team, ARRAY['scribe']::TEXT[])");
+        expect(sql).toContain("mechanism = 'Proposal'");
+        expect(sql).toContain("LIKE 'proposal details%'");
+        expect(sql).toContain("LIKE '%scribe handoff: forwarded%'");
+        expect(sql).toContain("AND status IN ('draft', 'submitted')");
+        expect(sql).toContain("status <> 'adjudicated'");
+    });
+
+    it('recovers Industry Scribe and Facilitator submission permissions without cross-team writes', () => {
+        const sql = readFileSync(INDUSTRY_SUBMISSION_PERMISSIONS_PATH, 'utf8');
+        const participantRoleBody = extractFunctionBody(sql, 'live_demo_participant_role');
+        const participantSurfaceBody = extractFunctionBody(sql, 'live_demo_participant_surface');
+        const participantTeamBody = extractFunctionBody(sql, 'live_demo_participant_team');
+
+        expect(participantRoleBody).toContain(
+            'public.live_demo_normalize_role(COALESCE(sp.role, p.role))'
+        );
+        expect(participantSurfaceBody).toContain(
+            "resolved_role ~ '^(blue|red|green|industry)_facilitator$'"
+        );
+        expect(participantSurfaceBody).toContain(
+            "resolved_role ~ '^sme_(econ|ni_escalation|diplomacy_information|tsj|verba)$'"
+        );
+        expect(participantTeamBody).toContain(
+            "resolved_role ~ '^(blue|red|green|industry)_'"
+        );
+        expect(sql).toContain('CREATE POLICY actions_industry_submission_insert');
+        expect(sql).toContain('CREATE POLICY actions_industry_submission_update');
+        expect(sql).toContain('CREATE POLICY requests_industry_submission_insert');
+        expect(sql).toContain('CREATE POLICY requests_industry_submission_update');
+        expect(sql).toContain("LOWER(BTRIM(team)) = 'industry'");
+        expect(sql).toContain("ARRAY['facilitator']::TEXT[]");
+        expect(sql).toContain("ARRAY['scribe']::TEXT[]");
+        expect(sql).toContain("workflow_state = 'forwarded_to_facilitator'");
+        expect(sql).toContain("workflow_state = 'submitted_to_white_cell'");
+        expect(sql).toContain("'strategic_orientation_forecast'");
+        expect(sql).toContain("'proposal'");
+        expect(sql).toContain("status <> 'adjudicated'");
+        expect(sql).not.toContain("LOWER(BTRIM(team)) IN ('blue', 'red', 'green', 'industry')");
     });
 
     it('normalizes participant seat roles before RLS derives write surface and team', () => {

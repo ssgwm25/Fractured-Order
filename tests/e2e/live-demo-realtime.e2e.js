@@ -5,6 +5,7 @@ import {
     authorizeWhiteCell,
     createIsolatedActorPage,
     createSessionFromMaster,
+    getWhiteCellStrategicOrientationTitle,
     joinPublicParticipant,
     openSidebarSection,
     openWhiteCellSettingsTab,
@@ -186,7 +187,9 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
                 await whiteCell.page.reload();
             }
             await openSidebarSection(whiteCell.page, 'strategicOrientation');
-            await expect(whiteCell.page.locator('#strategicOrientationList')).toContainText(orientationGoal);
+            await expect(whiteCell.page.locator('#strategicOrientationList')).toContainText(
+                getWhiteCellStrategicOrientationTitle(orientationGoal, 'blue')
+            );
             recordLatency(latencySamples, 'actions fanout', actionStartedAt);
 
             await openSidebarSection(whiteCell.page, 'requests');

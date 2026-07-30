@@ -29,7 +29,7 @@ Use the current hardening path for live environments:
 
 1. Apply the complete/current schema baseline used for this repository.
 2. Apply dated hardening migrations in order.
-3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, and `data/2026-07-14_action_artifact_workflow_integrity.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence.
+3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, and `data/2026-07-29_industry_submission_permissions.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration is required for existing projects where Industry Scribes or Facilitators receive RLS errors while creating Strategic Orientation forecasts, proposals, or RFIs, or while submitting a forwarded orientation or proposal.
 4. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the current build requires it.
 5. For PLI (Petrihos Lever Index) White Cell SME review, apply `data/2026-07-17_pli_adjudications.sql` after the live-demo RLS helpers exist (`data/2026-04-08_live_demo_rls_hardening.sql`). This creates `pli_adjudications` with multi-track `record` JSON and per-seat `seat_reviews`.
 6. Verify RPCs and RLS policies before a demo.
@@ -53,6 +53,8 @@ Do not treat legacy broad-policy files such as `data/updated_supabase_schema.sql
 ## Action Artifact And Workflow Integrity
 
 Apply `data/2026-07-14_action_artifact_workflow_integrity.sql` to make action, proposal, Strategic Orientation, forecast, and move-response meaning explicit in the database. The migration deterministically classifies existing rows from the current legacy prefixes, adds structured payload and workflow fields, makes lifecycle timestamps server-owned, rejects status regression and post-submission content changes, and logs every action mutation. Draft updates and submission now filter on the returned `row_version`; a stale browser receives a refresh-before-save error instead of overwriting a newer revision.
+
+After the workflow-integrity migration, apply `data/2026-07-21_scribe_proposal_submit_policy.sql` and `data/2026-07-29_industry_submission_permissions.sql`. The first permits the legacy `*_scribe` Facilitator seat to submit a Scribe-forwarded proposal. The second normalizes existing Industry seat identities and reasserts Industry-only action, Strategic Orientation, proposal, and RFI permissions. It does not permit cross-team writes, Facilitator creation of new artifacts, or participant adjudication.
 
 The migration fails closed instead of guessing when it finds any of these conditions:
 
@@ -102,9 +104,20 @@ where event_object_schema = 'public'
     'audit_action_workflow_write'
   )
 order by trigger_name;
+
+select tablename, policyname, cmd
+from pg_policies
+where schemaname = 'public'
+  and policyname in (
+    'actions_industry_submission_insert',
+    'actions_industry_submission_update',
+    'requests_industry_submission_insert',
+    'requests_industry_submission_update'
+  )
+order by tablename, policyname;
 ```
 
-Pass: seven action columns, three unique indexes, and two action triggers are returned. A proposal review performed through the UI produces one adjudicated proposal, at most one forwarded communication, the matching timeline rows, action-log revisions, and hash-chained research audit events.
+Pass: seven action columns, three unique indexes, two action triggers, and four Industry submission policies are returned. A proposal review performed through the UI produces one adjudicated proposal, at most one forwarded communication, the matching timeline rows, action-log revisions, and hash-chained research audit events.
 
 ## Session Recorder Artifact Metadata
 
@@ -168,7 +181,8 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - role seat limits are enforced by `claim_session_role_seat`
 - White Cell and Game Master actions require operator grants
 - stored participant roles are normalized before RLS derives write surface/team
-- same-team Facilitators, currently stored as legacy `*_scribe` seats, can submit Scribe-forwarded action and Strategic Orientation drafts to White Cell
+- the Industry Scribe can create same-team Strategic Orientation forecasts, proposals, and RFIs while cross-team inserts still fail
+- same-team Facilitators, currently stored as legacy `*_scribe` seats, can submit Scribe-forwarded actions, Strategic Orientation drafts, and proposals to White Cell
 - action artifacts have a first-class type, workflow state, monotonic row version, structured snapshot, and server-owned transition timestamps
 - each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication
 - White Cell proposal review, adjudication, forwarding, and timeline records commit atomically through `operator_review_proposal`

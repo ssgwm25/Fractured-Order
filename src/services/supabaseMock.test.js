@@ -4,6 +4,7 @@ import { createE2EMockSupabaseClient, isE2EMockEnabled } from './supabaseMock.js
 
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
+const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 
 class MemoryStorage {
     constructor() {
@@ -108,6 +109,80 @@ describe('supabase mock bootstrap guardrails', () => {
         };
 
         expect(isE2EMockEnabled()).toBe(true);
+    });
+
+    it('hydrates the empty PLI adjudications table into persisted mock state', async () => {
+        const { localStorage } = installBrowserRuntime();
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            counters: {
+                sessions: 1
+            },
+            tables: {
+                sessions: []
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        const result = await mockClient
+            .from('pli_adjudications')
+            .select('*')
+            .eq('session_id', 'session-1')
+            .order('created_at', { ascending: false });
+
+        expect(result).toEqual({
+            data: [],
+            error: null
+        });
+    });
+
+    it('keeps pending mock PLI adjudications restricted to operators', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                pli_adjudications: [{
+                    id: 'pli-1',
+                    action_id: 'action-1',
+                    session_id: 'session-1',
+                    status: 'pending',
+                    record: {},
+                    codebook_version: 'test-v1',
+                    seat_reviews: {},
+                    created_at: '2026-07-30T12:00:00.000Z'
+                }]
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+
+        const participantlessResult = await mockClient
+            .from('pli_adjudications')
+            .select('*')
+            .eq('session_id', 'session-1');
+        expect(participantlessResult).toEqual({
+            data: [],
+            error: null
+        });
+
+        const authorization = await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'gamemaster',
+            requested_operator_code: 'playwright-test-code',
+            requested_operator_name: 'Mock GM'
+        });
+        expect(authorization.error).toBeNull();
+
+        const operatorResult = await mockClient
+            .from('pli_adjudications')
+            .select('*')
+            .eq('session_id', 'session-1');
+        expect(operatorResult.error).toBeNull();
+        expect(operatorResult.data).toHaveLength(1);
+        expect(operatorResult.data[0].id).toBe('pli-1');
     });
 
     it('requires an explicit operator code for the local Playwright mock path', async () => {

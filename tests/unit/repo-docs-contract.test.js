@@ -37,5 +37,7 @@ describe('repository operator docs contract', () => {
         expect(combined).toContain('./src/roles/landing.js');
         expect(combined).toContain('/Fractured-Order/assets/');
         expect(combined).toMatch(/Allow all operations/i);
+        expect(supabase).toContain('data/2026-07-29_industry_submission_permissions.sql');
+        expect(runbook).toContain('data/2026-07-29_industry_submission_permissions.sql');
     });
 });

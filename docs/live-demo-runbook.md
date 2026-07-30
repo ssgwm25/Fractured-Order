@@ -6,8 +6,8 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
-3. Confirm Supabase anonymous auth, RPCs, RLS checks, and the `intercom-announcements` Storage bucket pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, and `data/2026-06-28_intercom_storage_bucket.sql` in that order before testing Industry seats, Strategic Orientation forecasts, Facilitator-to-White Cell submissions through the legacy `*_scribe` seat, White Cell time allocations, White Cell plugin toggles, or Intercom voice announcements.
-4. Confirm the role matrix can join: Blue, Red, Green, and Industry scribes; facilitators; notetakers; White Cell Lead; White Cell Support; Game Master.
+3. Confirm Supabase anonymous auth, RPCs, RLS checks, and the `intercom-announcements` Storage bucket pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, and `data/2026-07-29_industry_submission_permissions.sql` in that order before testing Industry seats, Strategic Orientation forecasts, proposals, RFIs, Facilitator-to-White Cell submissions through the legacy `*_scribe` seat, White Cell time allocations, White Cell plugin toggles, or Intercom voice announcements.
+4. Confirm the role matrix can join: Blue, Red, Green, and Industry Scribes, Facilitators, and Notetakers; White Cell Lead; and Game Master. White Cell Support is not a landing-page entry in the shipped SME workflow.
 5. Confirm production source maps are not published by default.
 
 Commands:
@@ -19,7 +19,7 @@ npm run test:e2e:smoke
 npm run test:e2e:live-demo
 ```
 
-Pass: unit tests, production build, smoke, the nineteen-actor professional
+Pass: unit tests, production build, smoke, the eighteen-actor professional
 playthrough, focused Realtime recovery gate, and live-demo role tests complete
 without failures. The focused
 playthrough command and hosted real-backend procedure are documented in
@@ -73,17 +73,16 @@ For each team:
 Operator seats:
 
 - one White Cell Lead
-- one White Cell Support
 - one Game Master
 
-White Cell Support should be able to monitor and communicate but not perform lead-only controls such as starting the timer or recording deliberation.
+The retired White Cell Support role may remain on historical records, but it is not claimable from the landing page.
 
 ## Core Flow Checks
 
 Scribe:
 
 - before Move 1, Blue completes Strategic Orientation, Green completes a forecast of Blue orientation, and Red plus Industry each complete forecasts for Blue, Green (Asian Pacific), and Green (Europe) with one shared team rationale; all four artifacts go to the Facilitator first
-- if a Green, Red, or Industry forecast insert returns a 403 on `actions` or the browser warns that `game_state` is missing, apply `data/2026-06-25_participant_role_resolver_normalization.sql`; pass condition is that the same-team Scribe can forward the Strategic Orientation forecast, cross-team writes still fail, and the live tracker loads from the backend
+- if a Green or Red forecast insert returns a 403 on `actions` or the browser warns that `game_state` is missing, apply `data/2026-06-25_participant_role_resolver_normalization.sql`; if an Industry Scribe or Facilitator receives an RLS error for an orientation, proposal, RFI, or forwarded submission after the July workflow migration, apply `data/2026-07-21_scribe_proposal_submit_policy.sql` and then `data/2026-07-29_industry_submission_permissions.sql`; pass condition is that same-team Industry writes succeed, cross-team writes and participant adjudication still fail, and the live tracker loads from the backend
 - confirm the Strategic Orientation button disappears after the team records its selection or forecast; it is a one-time pre-Move-1 input
 - confirm the header live tracker reads Strategic Orientation / Pre-Move 1 until all required orientation artifacts reach White Cell, then returns to Move 1 / Internal Deliberation
 - create a draft action/proposal/response
@@ -133,7 +132,7 @@ Facilitator:
 - for a Blue action in presentation mode, use the fixed bottom toolbar to open the established team action editor, record Legislative and Executive Yes/No under the `Coordinated` heading, record Industry and Allies Yes/No under `Informed/Engaged`, and select Forward to White Cell; confirm the Blue toolbar has no duplicate top-level Coordinated Yes/No choice, forwarding stays disabled until all four decisions are complete, and the persisted Coordinated decision is derived as Yes when either Legislative or Executive is Yes and No when both are No; then confirm the committed toolbar reports `Submitted to White Cell.` while its controls remain read-only
 - for Green, Red, and Industry presentation toolbars, confirm neither the `Coordinated` nor `Informed/Engaged` group is rendered; the streamlined footer must retain Edit, a visible handoff status, and Forward to White Cell, use the full available width without empty decision-group columns, and submit explicit No parent decisions with empty coordination/engagement selections
 - from the Facilitator Team Action Review, click Edit on a forwarded draft for each team; confirm the modal uses the shared styled labels, inputs, selects, checkbox/radio cards, focus rings, field spacing, and responsive two-column layout where applicable
-- confirm Facilitator submission succeeds for Scribe-forwarded Strategic Orientation artifacts and normal forwarded actions after the legacy Scribe RLS policy patch is applied
+- confirm Facilitator submission succeeds for Scribe-forwarded Strategic Orientation artifacts, proposals, and normal forwarded actions after the legacy Scribe and Industry submission RLS patches are applied
 - project forwarded actions, complete the Coordinated and Informed/Engaged controls, and submit actions to White Cell; confirm unrelated live session refreshes do not clear or disable in-progress finalization choices
 - confirm deck failure states are visible if an upload/path is invalid
 

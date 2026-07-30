@@ -21,7 +21,7 @@ const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const HOSTED_OPERATOR_ACCESS_CODE = getHostedOperatorAccessCode();
-const JOIN_FAILURE_FALLBACK_MESSAGE = 'Could not claim that seat. Check whether the role is still available, then try again.';
+const JOIN_FAILURE_FALLBACK_MESSAGE = 'We couldn\'t claim that seat. Check whether the role is still available, then try again.';
 
 export { buildAppUrl } from './rehearsalRuntime.js';
 
@@ -339,6 +339,12 @@ export async function authorizeWhiteCell(page, {
     operatorRole = 'lead',
     operatorAccessCode = OPERATOR_ACCESS_CODE
 } = {}) {
+    if (operatorRole !== 'lead') {
+        throw new Error(
+            `authorizeWhiteCell only supports the shipped White Cell Lead entry; received "${operatorRole}".`
+        );
+    }
+
     requireHostedOperatorAccessCode();
     await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
     await prepareLandingPage(page);
@@ -346,12 +352,7 @@ export async function authorizeWhiteCell(page, {
     await page.locator('#displayName').fill(displayName);
     await openOperatorAccessSection(page);
     await page.locator('#operatorAccessCode').fill(operatorAccessCode);
-
-    const accessButtonId = operatorRole === 'support'
-        ? '#operatorWhiteCellSupportBtn'
-        : '#operatorWhiteCellLeadBtn';
-
-    await page.locator(accessButtonId).click();
+    await page.locator('#operatorWhiteCellLeadBtn').click();
     await waitForOperatorAuthorizationRoute(page, /whitecell\.html/, `White Cell ${operatorRole}`);
 }
 
@@ -630,14 +631,15 @@ export async function reviewStrategicOrientation(page, {
         throw new Error(`reviewStrategicOrientation received an unsupported team: ${team}`);
     }
 
-    let orientationCards = getVisibleReviewCard(page, '#strategicOrientationList', goal);
+    const reviewTitle = getWhiteCellStrategicOrientationTitle(goal, normalizedTeam);
+    let orientationCards = getVisibleReviewCard(page, '#strategicOrientationList', reviewTitle);
     if (normalizedTeam) {
         orientationCards = orientationCards.filter({
             has: page.locator(`.badge-source-team--${normalizedTeam}`)
         });
     }
     const orientationCard = orientationCards.first();
-    await expect(orientationCard).toContainText(goal);
+    await expect(orientationCard).toContainText(reviewTitle);
     await orientationCard.locator('.adjudicate-btn').click();
 
     const modal = page.locator('.modal-overlay');
@@ -646,6 +648,20 @@ export async function reviewStrategicOrientation(page, {
     await modal.getByRole('button', { name: 'Record Review' }).click();
     await expect(modal).toBeHidden();
     await expect(page.locator('#toast-container')).toContainText('Deliberation recorded');
+}
+
+export function getWhiteCellStrategicOrientationTitle(goal, team = '') {
+    const normalizedGoal = String(goal || '').trim();
+    const normalizedTeam = String(team || '').trim().toLowerCase();
+
+    if (
+        (normalizedTeam === 'blue' || (!normalizedTeam && normalizedGoal.startsWith('Strategic Orientation:')))
+        && normalizedGoal.startsWith('Strategic Orientation:')
+    ) {
+        return `Blue Team Strategic Orientation Selection:${normalizedGoal.slice('Strategic Orientation:'.length)}`;
+    }
+
+    return normalizedGoal;
 }
 
 export async function createProposal(page, {
@@ -667,7 +683,18 @@ export async function createProposal(page, {
     await modal.locator('#proposalTitle').fill(title);
     await modal.locator('[data-proposal-originator="true"]').first().check();
     await modal.locator('#proposalObjective').fill(objective);
-    await modal.locator('#proposalCategory').selectOption({ index: 1 });
+
+    const industryInstrument = modal.locator(
+        '[data-proposal-instrument="true"][value="Economic"]'
+    );
+    if (await industryInstrument.count()) {
+        await industryInstrument.check();
+    } else {
+        const proposalCategory = modal.locator('#proposalCategory');
+        await expect(proposalCategory).toBeVisible();
+        await proposalCategory.selectOption({ index: 1 });
+    }
+
     await modal.locator('#proposalIntendedPartners').fill(intendedPartners);
     await modal.locator('#proposalFocusSector').selectOption({ index: 1 });
     await modal.locator('#proposalDelivery').selectOption({ index: 1 });

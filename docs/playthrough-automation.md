@@ -1,14 +1,13 @@
 # Professional Playthrough Automation
 
-The professional playthrough gate uses nineteen simultaneous browser actors:
+The professional playthrough gate uses eighteen simultaneous browser actors:
 
 - Blue, Red, Green, and Industry: one Scribe, one Facilitator, and two Notetakers per team
 - one White Cell Lead
-- one White Cell Support
 - one Game Master
 
 The Game Master is an active operator but is not a session role-seat row. The
-expected selected-session seat count is therefore eighteen while nineteen
+expected selected-session seat count is therefore seventeen while eighteen
 browser actors remain open.
 
 ## Test Layers
@@ -16,17 +15,18 @@ browser actors remain open.
 `tests/e2e/live-demo-playthrough.e2e.js` is the end-to-end professional
 playthrough. It covers:
 
-- all eighteen selected-session role seats, with concurrent claiming on the
+- all seventeen selected-session role seats, with concurrent claiming on the
   hosted real backend
 - shared UI tokens, duplicate DOM IDs, document overflow, and raw-JSON leakage
 - Strategic Orientation from Scribe to Facilitator to White Cell for all teams
 - orientation gating of White Cell move controls
-- timer synchronization and White Cell Lead/Support permission separation
+- timer synchronization through White Cell Lead controls
 - multi-actor Blue and Red action submission and White Cell adjudication,
   concurrent on the hosted real backend
 - stable Facilitator finalization controls during unchanged live-data refreshes,
   preserving in-progress Coordinated and Informed/Engaged choices
-- Green and Industry proposal creation
+- Green proposal creation through the Category selector and Industry proposal
+  creation through its Instrument of Power checkbox group
 - White Cell forward, request-changes, and reject decisions
 - recipient Accept, Not Interested, and Negotiate decisions
 - multi-team RFI submission, White Cell response, and team-only routing,
@@ -34,7 +34,8 @@ playthrough. It covers:
 - direct communications, unread counts, ordering, and team isolation
 - capture from all eight Notetakers with team isolation, concurrent on the
   hosted real backend
-- representative role reload and persisted-state recovery
+- representative role reload and persisted-state recovery without replaying
+  pre-existing communications as new unread Facilitator activity
 - selected-session JSON export reconciliation
 - uncaught page errors and browser console errors
 
@@ -69,8 +70,12 @@ persists shared state through browser `localStorage`, actor operations that
 write shared records are deliberately serialized locally. The mock also places
 every state-changing RPC and table write behind an origin-wide browser lock so
 background participant heartbeats cannot overwrite a workflow write between
-the shared-state read and write. The static server decodes percent-encoded built
-asset paths while retaining its root-directory traversal guard. After the
+the shared-state read and write. It initializes the PLI adjudication table even
+when hydrating state saved by an older mock build, so an empty White Cell PLI
+queue renders as an empty state instead of a missing-table error. Pending PLI
+rows remain restricted to White Cell and Game Master operators, matching the
+live RLS boundary. The static server decodes percent-encoded built asset paths
+while retaining its root-directory traversal guard. After the
 multi-Notetaker capture batch, local actor pages reload from that shared
 persisted state before cross-page assertions because the mock does not emulate
 Supabase Realtime fanout. Hosted mode keeps the pages live and requires Realtime
@@ -142,8 +147,8 @@ Remove-Variable secureCode, credential -ErrorAction SilentlyContinue
 
 Pass:
 
-- nineteen browser actors remain active for the test
-- the selected session contains exactly eighteen active role seats
+- eighteen browser actors remain active for the test
+- the selected session contains exactly seventeen active role seats
 - every test step completes without retries or skipped tests
 - the JSON export contains the expected actions, proposals, RFIs, participants,
   and timeline evidence
@@ -193,8 +198,9 @@ initialization failure, not as a Realtime result.
 
 Pass:
 
-- all eighteen role-seat claims succeed without manual repair
-- White Cell Lead and Support receive distinct grants
+- all seventeen role-seat claims succeed without manual repair
+- White Cell Lead receives the selected-session operator grant and appears in
+  the roster under its system-owned `White Cell Lead` display name
 - every client converges on the orientation gate and timer state
 - concurrent writes create no missing, duplicated, or cross-team records
 - all proposal and RFI responses reach only the intended surfaces

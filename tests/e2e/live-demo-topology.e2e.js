@@ -11,6 +11,7 @@ import {
     expectJoinFailure,
     getActiveSeatCounts,
     getSessionFromState,
+    getWhiteCellStrategicOrientationTitle,
     joinPublicParticipant,
     logoutCurrentUser,
     openSidebarSection,
@@ -52,7 +53,6 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
     const scribe = await createIsolatedActorPage(context, 'blue-scribe');
     const notetakers = [];
     let whiteCellLead;
-    let whiteCellSupport;
 
     await test.step('create a live-demo session from the operator surface', async () => {
         await authorizeGameMaster(gameMaster, {
@@ -93,21 +93,12 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         }
 
         whiteCellLead = await createIsolatedActorPage(context, 'blue-whitecell-lead');
-        whiteCellSupport = await createIsolatedActorPage(context, 'blue-whitecell-support');
 
         await authorizeWhiteCell(whiteCellLead, {
             sessionCode,
             displayName: 'White Cell Lead',
             operatorRole: 'lead'
         });
-
-        await authorizeWhiteCell(whiteCellSupport, {
-            sessionCode,
-            displayName: 'White Cell Support',
-            operatorRole: 'support'
-        });
-
-        await expect(whiteCellSupport.locator('#startTimerBtn')).toBeDisabled();
 
         const extraFacilitator = await createIsolatedActorPage(context, 'extra-facilitator');
         const extraScribe = await createIsolatedActorPage(context, 'extra-scribe');
@@ -172,7 +163,9 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
             notes: orientationReviewNotes
         });
 
-        await expect(whiteCellLead.locator('#strategicOrientationList')).toContainText(orientationGoal);
+        await expect(whiteCellLead.locator('#strategicOrientationList')).toContainText(
+            getWhiteCellStrategicOrientationTitle(orientationGoal, 'blue')
+        );
 
         await expect(scribe.locator('#nextSlideBtn')).toBeVisible();
         await expect(actionSlideLink).toContainText('White Cell Reviewed');
@@ -189,8 +182,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
             blue_facilitator: 1,
             blue_scribe: 1,
             blue_notetaker: 2,
-            whitecell_lead: 1,
-            whitecell_support: 1
+            whitecell_lead: 1
         }));
     });
 

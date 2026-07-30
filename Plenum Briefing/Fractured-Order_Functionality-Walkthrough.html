@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fractured Order on Plenum &mdash; First-Run Functionality Walkthrough</title>
+  <style>
+    :root {
+      /* Brand & Neutral Palette */
+      --color-brand-primary: #115740;
+      --color-brand-primary-deep: #0c3e2d;
+      --color-brand-accent: #b9975b;
+      --color-brand-accent-light: #f7f4ee;
+      
+      --color-bg-base: #f4f6f5;
+      --color-bg-surface: #ffffff;
+      --color-bg-subtle: #f8faf9;
+      --color-bg-tint: #f0f4f2;
+      
+      --color-text-primary: #18221b;
+      --color-text-secondary: #4a554e;
+      --color-text-muted: #6e7c73;
+      --color-text-inverse: #ffffff;
+      
+      --color-border-subtle: #e2e8e4;
+      --color-border-default: #d1dad4;
+      --color-border-strong: #a3b0a7;
+
+      /* Team Status Accent Colors */
+      --color-status-blue: #1d5280;
+      --color-status-red: #822e2a;
+      --color-status-green: #1e6142;
+      --color-status-industry: #6e501f;
+      --color-status-white-cell: #434d58;
+      --color-focus-ring: #115740;
+
+      /* Typography */
+      --font-display: Georgia, "Times New Roman", serif;
+      --font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", "Liberation Mono", Consolas, monospace;
+
+      --text-2xs: 6.8pt;
+      --text-xs: 7.5pt;
+      --text-sm: 8.5pt;
+      --text-base: 9pt;
+      --text-md: 10.5pt;
+      --text-lg: 13pt;
+      --text-xl: 18pt;
+
+      --weight-regular: 400;
+      --weight-medium: 500;
+      --weight-semibold: 600;
+      --weight-bold: 700;
+
+      --leading-tight: 1.2;
+      --leading-base: 1.4;
+
+      /* Geometry & Spacing */
+      --space-1: 1.2mm;
+      --space-2: 2.5mm;
+      --space-3: 3.5mm;
+      --space-4: 5mm;
+      --space-5: 6.5mm;
+      --space-6: 8mm;
+      --radius-sm: 1.2mm;
+      --radius-md: 2mm;
+      
+      --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow-sheet: 0 4px 16px rgba(18, 34, 25, 0.06);
+
+      --sheet-width: 192mm;
+      --sheet-height: 279mm;
+      --label-column: 42mm;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 9mm;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: var(--color-bg-base);
+    }
+
+    body {
+      margin: 0;
+      color: var(--color-text-primary);
+      background: var(--color-bg-base);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-base);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: var(--space-2);
+      left: var(--space-2);
+      z-index: 100;
+      padding: var(--space-2) var(--space-3);
+      color: var(--color-text-inverse);
+      background: var(--color-brand-primary-deep);
+      border-radius: var(--radius-sm);
+      transform: translateY(-200%);
+      transition: transform 0.2s ease;
+      font-size: var(--text-xs);
+      text-decoration: none;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+      outline: 2px solid var(--color-focus-ring);
+    }
+
+    main {
+      padding: var(--space-6) 0;
+    }
+
+    /* Standard Sheet Layout */
+    .guide-sheet {
+      position: relative;
+      width: var(--sheet-width);
+      min-height: var(--sheet-height);
+      margin: 0 auto var(--space-6);
+      padding: var(--space-6);
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sheet);
+      break-after: page;
+      page-break-after: always;
+    }
+
+    .guide-sheet:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    /* Masthead */
+    .sheet-masthead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .masthead-brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .masthead-crest {
+      height: 7mm;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .masthead-logo-fallback {
+      display: inline-grid;
+      place-items: center;
+      width: 7mm;
+      height: 7mm;
+      border: 1px solid var(--color-brand-primary);
+      border-radius: 50%;
+      font-family: var(--font-display);
+      font-size: var(--text-2xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: -0.03em;
+      color: var(--color-brand-primary);
+    }
+
+    .masthead-logo-fallback[hidden],
+    .masthead-crest[hidden] {
+      display: none;
+    }
+
+    .masthead-org {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .masthead-org .org-name {
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.02em;
+      color: var(--color-text-primary);
+    }
+
+    .masthead-org .org-sub {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    .masthead-meta {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      color: var(--color-text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      line-height: 1.3;
+    }
+
+    .masthead-meta .meta-title {
+      font-weight: var(--weight-bold);
+      color: var(--color-text-primary);
+      display: block;
+    }
+
+    .plenum-wordmark {
+      display: inline-flex;
+      align-items: baseline;
+      font-family: var(--font-display);
+      font-size: 1.08em;
+      font-weight: var(--weight-bold);
+      letter-spacing: -0.035em;
+      line-height: 1;
+      text-transform: none;
+      white-space: nowrap;
+      color: var(--color-text-primary);
+    }
+
+    .plenum-dot {
+      color: var(--team-color, var(--color-brand-primary));
+    }
+
+    .masthead-platform {
+      display: block;
+      margin-top: var(--space-1);
+      line-height: 1;
+    }
+
+    .masthead-platform .plenum-wordmark {
+      font-size: var(--text-md);
+    }
+
+    /* Header */
+    .sheet-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-2);
+      border-bottom: 2px solid var(--team-color);
+    }
+
+    h1, h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      font-weight: var(--weight-bold);
+      color: var(--color-text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    h3 {
+      margin: 0 0 var(--space-1);
+      font-family: var(--font-body);
+      font-size: var(--text-md);
+      font-weight: var(--weight-semibold);
+      color: var(--color-text-primary);
+    }
+
+    .eyebrow,
+    .page-id,
+    .section-kicker,
+    .field-label,
+    .role-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* Workflow Strip */
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--space-2);
+      margin: 0 0 var(--space-4);
+      padding: 0;
+      list-style: none;
+    }
+
+    .workflow li {
+      padding: var(--space-2);
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+    }
+
+    .workflow strong {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--team-color);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: 0.05em;
+    }
+
+    .workflow span {
+      color: var(--color-text-secondary);
+      font-size: var(--text-xs);
+      line-height: 1.25;
+    }
+
+    /* Layout Columns & Panels */
+    .columns {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .panel {
+      margin-bottom: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      break-inside: avoid;
+    }
+
+    .panel.tint {
+      background: var(--color-bg-subtle);
+    }
+
+    .orientation-panel {
+      border-left: 3px solid var(--team-color);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+      padding-bottom: var(--space-1);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .modal-name {
+      padding: 2px 6px;
+      color: var(--color-text-muted);
+      background: var(--color-bg-tint);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      font-weight: var(--weight-medium);
+    }
+
+    /* Tables & Fields */
+    .fields {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: var(--space-2);
+    }
+
+    .fields tr {
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .fields tr:last-child {
+      border-bottom: none;
+    }
+
+    .fields th,
+    .fields td {
+      padding: var(--space-2) 0;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .fields th {
+      width: var(--label-column);
+      padding-right: var(--space-2);
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      font-weight: var(--weight-medium);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .fields td {
+      color: var(--color-text-secondary);
+      font-size: var(--text-xs);
+    }
+
+    .fields td strong {
+      color: var(--color-text-primary);
+    }
+
+    /* Badges & Callouts */
+    .page-marker {
+      display: inline-block;
+      margin-right: var(--space-1);
+      padding: 1px 4px;
+      color: var(--team-color);
+      background: color-mix(in srgb, var(--team-color) 10%, transparent);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      font-weight: var(--weight-semibold);
+    }
+
+    .copy-block {
+      margin: var(--space-2) 0;
+      padding: var(--space-2) var(--space-3);
+      color: var(--color-text-secondary);
+      background: var(--color-bg-subtle);
+      border-left: 2px solid var(--color-border-strong);
+      font-size: var(--text-xs);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .copy-block strong {
+      color: var(--color-text-primary);
+    }
+
+    /* Lists */
+    .checklist,
+    .compact-list {
+      margin: var(--space-2) 0;
+      padding-left: var(--space-4);
+      color: var(--color-text-secondary);
+    }
+
+    .checklist li,
+    .compact-list li {
+      margin-bottom: var(--space-1);
+      font-size: var(--text-xs);
+    }
+
+    .button-label {
+      display: inline-block;
+      padding: 1px 5px;
+      color: var(--color-text-primary);
+      background: var(--color-bg-tint);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      font-weight: var(--weight-medium);
+    }
+
+    .button-label.secondary {
+      background: transparent;
+      color: var(--color-text-secondary);
+    }
+
+    .handoff {
+      display: flex;
+      gap: var(--space-3);
+      align-items: baseline;
+      margin-top: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--color-border-subtle);
+    }
+
+    .role-label {
+      min-width: 22mm;
+      color: var(--team-color);
+    }
+
+    .handoff p {
+      margin: 0;
+      color: var(--color-text-secondary);
+      font-size: var(--text-xs);
+    }
+
+    /* Response Bank Table */
+    .response-bank {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: var(--space-2);
+    }
+
+    .response-bank th,
+    .response-bank td {
+      padding: var(--space-2);
+      text-align: left;
+      vertical-align: top;
+      border: 1px solid var(--color-border-subtle);
+    }
+
+    .response-bank th {
+      color: var(--color-text-muted);
+      background: var(--color-bg-subtle);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .response-bank td {
+      color: var(--color-text-secondary);
+      font-size: var(--text-2xs);
+    }
+
+    .response-bank td:first-child {
+      width: 22mm;
+      color: var(--color-text-primary);
+      font-weight: var(--weight-semibold);
+    }
+
+    .gate {
+      display: flex;
+      gap: var(--space-3);
+      align-items: baseline;
+      margin-bottom: var(--space-3);
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-bg-subtle);
+      border: 1px solid var(--color-border-subtle);
+      border-left: 3px solid var(--team-color);
+      border-radius: var(--radius-sm);
+    }
+
+    .gate .section-kicker {
+      color: var(--team-color);
+      white-space: nowrap;
+    }
+
+    .gate p {
+      margin: 0;
+      color: var(--color-text-secondary);
+      font-size: var(--text-xs);
+    }
+
+    /* Footer */
+    .sheet-footer {
+      position: absolute;
+      right: var(--space-6);
+      bottom: var(--space-4);
+      left: var(--space-6);
+      display: flex;
+      justify-content: space-between;
+      padding-top: var(--space-2);
+      color: var(--color-text-muted);
+      border-top: 1px solid var(--color-border-subtle);
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Team Variants */
+    .blue { --team-color: var(--color-status-blue); }
+    .red { --team-color: var(--color-status-red); }
+    .green { --team-color: var(--color-status-green); }
+    .industry { --team-color: var(--color-status-industry); }
+    .white-cell { --team-color: var(--color-status-white-cell); }
+
+    /* Screen UI Components */
+    .screen-note {
+      width: var(--sheet-width);
+      margin: 0 auto var(--space-3);
+      padding: var(--space-2) var(--space-3);
+      color: var(--color-text-muted);
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+      text-align: center;
+    }
+
+    .screen-nav {
+      position: sticky;
+      top: 12px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      width: min(192mm, calc(100% - 2rem));
+      margin: 0 auto var(--space-4);
+      padding: 0.5rem 0.75rem;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--color-border-default);
+      border-radius: 8px;
+      box-shadow: var(--shadow-subtle);
+      backdrop-filter: blur(8px);
+    }
+
+    .screen-nav::before {
+      content: "Navigation";
+      margin-right: auto;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: var(--weight-bold);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .screen-nav a,
+    .screen-nav button {
+      padding: 0.35rem 0.65rem;
+      color: var(--color-text-secondary);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: var(--weight-medium);
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .screen-nav a:hover,
+    .screen-nav button:hover {
+      color: var(--color-brand-primary);
+      background: var(--color-bg-tint);
+    }
+
+    .screen-nav button {
+      margin-left: 0.4rem;
+      color: var(--color-brand-primary);
+      border-color: var(--color-border-default);
+      background: var(--color-bg-surface);
+    }
+
+    /* Print Overrides */
+    @media print {
+      html, body {
+        background: #ffffff;
+      }
+
+      main {
+        padding: 0;
+      }
+
+      .skip-link,
+      .screen-note,
+      .screen-nav {
+        display: none !important;
+      }
+
+      .guide-sheet {
+        width: var(--sheet-width);
+        min-height: var(--sheet-height);
+        margin: 0;
+        padding: var(--space-5);
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      
+      .page-break-before {
+        break-before: page;
+        page-break-before: always;
+      }
+      
+      .keep-together {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      * {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+    }
+
+    /* Screen Responsive Adjustments */
+    @media screen and (max-width: 820px) {
+      main {
+        padding: 0;
+      }
+
+      .screen-note,
+      .guide-sheet {
+        width: 100%;
+        min-height: auto;
+        margin: 0 0 var(--space-4);
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .workflow {
+        grid-template-columns: 1fr;
+      }
+
+      .sheet-footer {
+        position: static;
+        margin-top: var(--space-4);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <a class="skip-link" href="#main-content">Skip to the playthrough guides</a>
+  <main id="main-content">
+
+    <p class="screen-note"><strong>Fractured Order &middot; First-run functionality check &middot; Session TEST2026.</strong>
+      For print: A4 portrait, 100% scale, backgrounds enabled. Each step begins on a new page.</p>
+    <nav class="screen-nav" aria-label="Jump to a walkthrough step">
+      <a href="#part1-login">1 Login</a>
+      <a href="#part2-announcement">2 Announcement</a>
+      <a href="#part3-rfis">3 RFIs</a>
+      <a href="#part4-orientations">4 Orientations</a>
+      <a href="#part5-blue-action">5 Blue Action</a>
+      <a href="#part6-green-proposal">6 Green Proposal</a>
+      <a href="#part7-industry-proposal">7 Industry Proposal</a>
+      <a href="#part8-red-action">8 Red Action</a>
+      <a href="#wrap">Wrap</a>
+      <button type="button" onclick="window.print()">Print pack</button>
+    </nav>
+
+    <!-- ============================ STEP 1 — LOGIN ============================ -->
+    <article id="part1-login" class="guide-sheet white-cell" aria-labelledby="part1-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h1 id="part1-title">Step 1 &middot; Login</h1>
+        </div>
+      </header>
+
+      <div class="gate">
+        <span class="section-kicker">Read first</span>
+        <p>One person = one seat, in a separate tab, window, or device. On this build the <strong>Scribe</strong> is the
+          drafting workspace (orientations, actions, proposals, RFIs) and the <strong>Facilitator</strong> is the
+          deck that receives the Scribe handoff and submits to White Cell. Almost every artifact is a two-hand relay.</p>
+      </div>
+
+      <ol class="workflow" aria-label="Login workflow">
+        <li><strong>1 &middot; Link</strong><span>Open the platform.</span></li>
+        <li><strong>2 &middot; Code</strong><span>Enter TEST2026.</span></li>
+        <li><strong>3 &middot; Team</strong><span>Pick your team.</span></li>
+        <li><strong>4 &middot; Role</strong><span>Pick your role, Join.</span></li>
+        <li><strong>5 &middot; Operators</strong><span>Authorize GM and WC.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel" aria-labelledby="part1-team-heading">
+          <div class="panel-header">
+            <h3 id="part1-team-heading">Team participants &mdash; Scribes, Facilitators, Notetakers</h3>
+            <span class="modal-name">Landing page</span>
+          </div>
+          <table class="fields">
+            <tbody>
+              <tr>
+                <th>Link</th>
+                <td><strong>ssgwm25.github.io/Fractured-Order/</strong></td>
+              </tr>
+              <tr>
+                <th>Session Code</th>
+                <td><strong>TEST2026</strong></td>
+              </tr>
+              <tr>
+                <th>Your name</th>
+                <td>Enter your display name.</td>
+              </tr>
+              <tr>
+                <th>Team</th>
+                <td><strong>Blue</strong>, <strong>Red</strong>, <strong>Green</strong>, or <strong>Industry</strong>.</td>
+              </tr>
+              <tr>
+                <th>Role</th>
+                <td><strong>Scribe</strong>, <strong>Facilitator</strong>, or <strong>Notetaker</strong>.</td>
+              </tr>
+              <tr>
+                <th>Finish</th>
+                <td>Choose <span class="button-label">Join Session</span>.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="copy-block">Scribe and Facilitator are <strong>single-seat</strong> per team; Notetaker allows
+            <strong>up to two</strong> seats per team.</p>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part1-op-heading">
+          <div class="panel-header">
+            <h3 id="part1-op-heading">Operators</h3>
+            <span class="modal-name">Operator Access</span>
+          </div>
+          <table class="fields">
+            <tbody>
+              <tr>
+                <th>Game Master</th>
+                <td>Enter the operator <strong>Access Code</strong> (no session code) &rarr;
+                  <span class="button-label">Authorize</span>. Roster and export console opens.</td>
+              </tr>
+              <tr>
+                <th>White Cell Lead</th>
+                <td>Enter <strong>Session Code TEST2026</strong> + <strong>Access Code</strong> &rarr;
+                  <span class="button-label">WC Lead</span> &rarr; <span class="button-label">Authorize</span>.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="copy-block">Optional extra operator seats join the same way to be tested: White Cell Support / SME
+            &mdash; Econ, NI/Escalation, Dip &amp; Info, TSJ, Verba AI.</p>
+        </section>
+
+        <div class="page-break-before">
+          <section class="panel" aria-labelledby="part1-seats-heading">
+            <div class="panel-header">
+              <h3 id="part1-seats-heading">Seats to fill for a full check</h3>
+              <span class="modal-name">Role matrix</span>
+            </div>
+            <table class="response-bank">
+              <thead>
+                <tr>
+                  <th>Team / group</th>
+                  <th>Seats</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Blue</td>
+                  <td>Scribe, Facilitator, Notetaker</td>
+                </tr>
+                <tr>
+                  <td>Green</td>
+                  <td>Scribe, Facilitator, Notetaker</td>
+                </tr>
+                <tr>
+                  <td>Red</td>
+                  <td>Scribe, Facilitator, Notetaker</td>
+                </tr>
+                <tr>
+                  <td>Industry</td>
+                  <td>Scribe, Facilitator, Notetaker</td>
+                </tr>
+                <tr>
+                  <td>Operators</td>
+                  <td>Game Master, White Cell Lead (+ optional WC Support / SME)</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="panel tint" aria-labelledby="part1-check-heading">
+            <div class="panel-header">
+              <h3 id="part1-check-heading">Confirm before moving on</h3>
+              <span class="modal-name">Functionality check</span>
+            </div>
+            <ul class="checklist">
+              <li>The loading screen names the resolved session before each role surface opens.</li>
+              <li>As team seats join, each participant appears in the <strong>Game Master</strong> roster live, without a
+                refresh.</li>
+              <li>The header live tracker on team surfaces reads <strong>Strategic Orientation / Pre-Move 1</strong>.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 1 &middot; Login &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ==================== STEP 2 — WHITE CELL ANNOUNCEMENT ==================== -->
+    <article id="part2-announcement" class="guide-sheet white-cell" aria-labelledby="part2-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="part2-title">Step 2 &middot; White Cell Announcement</h2>
+        </div>
+      </header>
+
+      <div class="gate">
+        <span class="section-kicker">Who / where</span>
+        <p><strong>White Cell Lead</strong>, on <strong>White Cell &rarr; Communications</strong>. Send three separate
+          messages with the <strong>Recipient</strong> selector to exercise the targeting.</p>
+      </div>
+
+      <ol class="workflow" aria-label="Announcement workflow">
+        <li><strong>1 &middot; All Teams</strong><span>Broadcast reaches everyone.</span></li>
+        <li><strong>2 &middot; Facilitators</strong><span>One per team.</span></li>
+        <li><strong>3 &middot; Scribes</strong><span>One per team.</span></li>
+        <li><strong>4 &middot; Intercom</strong><span>Optional voice clip.</span></li>
+        <li><strong>5 &middot; Verify</strong><span>Bells and updates land.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel" aria-labelledby="part2-send-heading">
+          <div class="panel-header">
+            <h3 id="part2-send-heading">Three targeted sends</h3>
+            <span class="modal-name">Communications</span>
+          </div>
+          <table class="response-bank">
+            <thead>
+              <tr>
+                <th>Recipient</th>
+                <th>Confirm</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>All Teams</td>
+                <td>Every surface (all Scribes, Facilitators, Notetakers) registers the message.</td>
+              </tr>
+              <tr>
+                <td>Facilitators</td>
+                <td>Send to Blue, Green, Red, and Industry Facilitator in turn; each Facilitator activity bell shows the
+                  arrival, other roles on the team do not.</td>
+              </tr>
+              <tr>
+                <td>Scribes</td>
+                <td>Send to Blue, Green, Red, and Industry Scribe in turn; each Scribe received-updates panel shows the
+                  message, other roles do not.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part2-intercom-heading">
+          <div class="panel-header">
+            <h3 id="part2-intercom-heading">Voice announcement</h3>
+            <span class="modal-name">Intercom plugin &middot; optional</span>
+          </div>
+          <ul class="checklist">
+            <li>White Cell &rarr; <strong>Simulation Settings &rarr; Plugins</strong> &rarr; enable <strong>Intercom</strong>.</li>
+            <li>Record a short clip &rarr; preview &rarr; <span class="button-label">Send to Scribes</span>.</li>
+            <li>Each Scribe tab shows <strong>Incoming announcement</strong> and plays it, or shows
+              <strong>&ldquo;Playback blocked &mdash; click to play.&rdquo;</strong> with a working click-to-play.</li>
+          </ul>
+          <p class="copy-block"><strong>Check:</strong> Facilitator bells and Scribe received-updates populate for the
+            targeted rows; no console errors on the Scribe tabs.</p>
+        </section>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 2 &middot; Announcement &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ============================ STEP 3 — RFIs ============================ -->
+    <article id="part3-rfis" class="guide-sheet white-cell" aria-labelledby="part3-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="part3-title">Step 3 &middot; RFIs &middot; Blue, Green, Red, Industry</h2>
+        </div>
+      </header>
+
+      <div class="gate">
+        <span class="section-kicker">Who / where</span>
+        <p>Each team&rsquo;s <strong>Scribe</strong> submits from the <strong>RFI</strong> section; the
+          <strong>White Cell Lead</strong> answers from the pending queue. This checks the RFI round-trip and category
+          routing for all four teams.</p>
+      </div>
+
+      <ol class="workflow" aria-label="RFI workflow">
+        <li><strong>1 &middot; Scribe</strong><span>Open RFI.</span></li>
+        <li><strong>2 &middot; Category</strong><span>Pick a tab.</span></li>
+        <li><strong>3 &middot; Submit</strong><span>Submit RFI.</span></li>
+        <li><strong>4 &middot; White Cell</strong><span>Answer the card.</span></li>
+        <li><strong>5 &middot; Return</strong><span>Answer lands by tab.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel" aria-labelledby="part3-submit-heading">
+          <div class="panel-header">
+            <h3 id="part3-submit-heading">Each team submits</h3>
+            <span class="modal-name">Submit Request for Information</span>
+          </div>
+          <table class="response-bank">
+            <thead>
+              <tr>
+                <th>Team (Scribe)</th>
+                <th>What to submit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Blue</td>
+                <td>Two RFIs on <strong>different category tabs</strong>, then <span class="button-label">Submit RFI</span>.</td>
+              </tr>
+              <tr>
+                <td>Green</td>
+                <td>Two RFIs on different category tabs.</td>
+              </tr>
+              <tr>
+                <td>Red</td>
+                <td>Two RFIs on different category tabs.</td>
+              </tr>
+              <tr>
+                <td>Industry</td>
+                <td>Two RFIs on different category tabs.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="copy-block">Using different tabs is deliberate &mdash; it exercises the category routing that the
+            check below relies on.</p>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part3-answer-heading">
+          <div class="panel-header">
+            <h3 id="part3-answer-heading">White Cell answers</h3>
+            <span class="modal-name">Respond to RFI</span>
+          </div>
+          <ul class="checklist">
+            <li>Open each incoming RFI in the pending queue and <span class="button-label">Respond</span>.</li>
+            <li>Confirm each RFI carries the correct <strong>source-team badge</strong>.</li>
+            <li>Answered RFIs leave the pending queue.</li>
+          </ul>
+          <p class="copy-block"><strong>Check:</strong> back on each Scribe surface, White Cell&rsquo;s responses appear
+            <strong>separated by category tab</strong> &mdash; an answer filed under one category shows under that
+            category, not another.</p>
+        </section>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 3 &middot; RFIs &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ==================== STEP 4 — STRATEGIC ORIENTATIONS ==================== -->
+    <article id="part4-orientations" class="guide-sheet white-cell" aria-labelledby="part4-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="part4-title">Step 4 &middot; Strategic Orientations</h2>
+        </div>
+      </header>
+
+      <div class="gate">
+        <span class="section-kicker">Move 1 gate</span>
+        <p>A <strong>one-time pre-Move-1 input</strong>. Each team records via its Scribe, forwards to its Facilitator,
+          and the Facilitator submits to White Cell. Move 1 stays locked until all four artifacts reach White Cell.</p>
+      </div>
+
+      <ol class="workflow" aria-label="Strategic Orientation workflow">
+        <li><strong>1 &middot; Scribe</strong><span>Record selection or forecast.</span></li>
+        <li><strong>2 &middot; Forward</strong><span>Send to Facilitator.</span></li>
+        <li><strong>3 &middot; Facilitator</strong><span>Submit to White Cell.</span></li>
+        <li><strong>4 &middot; Gate</strong><span>All four arrive.</span></li>
+        <li><strong>5 &middot; Move 1</strong><span>Advance unlocks.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel orientation-panel" aria-labelledby="part4-record-heading">
+          <div class="panel-header">
+            <h3 id="part4-record-heading">What each team records</h3>
+            <span class="modal-name">Strategic Orientation</span>
+          </div>
+          <table class="fields">
+            <tbody>
+              <tr>
+                <th>Blue</th>
+                <td>Orientation <strong>selection</strong> (the primary green button on the Scribe surface).</td>
+              </tr>
+              <tr>
+                <th>Green</th>
+                <td><strong>Forecast</strong> of Blue&rsquo;s orientation.</td>
+              </tr>
+              <tr>
+                <th>Red</th>
+                <td>Forecasts for <strong>Blue</strong>, <strong>Green (Asian Pacific)</strong>, and
+                  <strong>Green (Europe)</strong> with one shared team rationale.</td>
+              </tr>
+              <tr>
+                <th>Industry</th>
+                <td>The same three forecasts (Blue, Green Asian Pacific, Green Europe) with one shared rationale.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="handoff">
+            <span class="role-label">Scribe</span>
+            <p>Record the selection or forecast, then <span class="button-label">Forward to Facilitator</span>.</p>
+          </div>
+          <div class="handoff">
+            <span class="role-label">Facilitator</span>
+            <p>The forwarded artifact appears as a distinct orientation slide; project if desired, then
+              <span class="button-label">Forward to White Cell</span>.</p>
+          </div>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part4-check-heading">
+          <div class="panel-header">
+            <h3 id="part4-check-heading">Confirm across the platform</h3>
+            <span class="modal-name">Functionality check</span>
+          </div>
+          <ul class="checklist">
+            <li>Once a team records its orientation, the Strategic Orientation button <strong>disappears</strong> and the
+              action/proposal control becomes the primary green button.</li>
+            <li>The header live tracker stays on <strong>Strategic Orientation / Pre-Move 1</strong> until all four reach
+              White Cell, then flips to <strong>Move 1 / Internal Deliberation</strong>.</li>
+            <li>The <strong>White Cell</strong> Strategic Orientation queue shows the Blue selection plus Green, Red, and
+              Industry forecasts, each with its own <strong>source-team badge</strong>.</li>
+            <li>The Blue entry is headed <strong>&ldquo;Blue Team Strategic Orientation Selection: &lt;orientation&gt;&rdquo;</strong>.</li>
+            <li>White Cell Move 1 advance controls stay <strong>blocked</strong> until all four arrive, then unlock.</li>
+          </ul>
+        </section>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 4 &middot; Strategic Orientations &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ========================= STEP 5 — BLUE ACTION ========================= -->
+    <article id="part5-blue-action" class="guide-sheet blue" aria-labelledby="part5-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="part5-title">Step 5 &middot; Blue Action</h2>
+        </div>
+      </header>
+
+      <ol class="workflow" aria-label="Blue action workflow">
+        <li><strong>1 &middot; Scribe</strong><span>Open Blue Team Action.</span></li>
+        <li><strong>2 &middot; Wizard</strong><span>Complete pages 1&ndash;3.</span></li>
+        <li><strong>3 &middot; Forward</strong><span>Send to Facilitator.</span></li>
+        <li><strong>4 &middot; Facilitator</strong><span>Coordinated + Informed.</span></li>
+        <li><strong>5 &middot; White Cell</strong><span>Forward to adjudicate.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel" aria-labelledby="part5-action-heading">
+          <div class="panel-header">
+            <h3 id="part5-action-heading">Blue Team Action modal</h3>
+            <span class="modal-name">Take Action &middot; three pages</span>
+          </div>
+          <table class="fields">
+            <tbody>
+              <tr>
+                <th><span class="page-marker">Page 1</span>Action Title</th>
+                <td>Give the action a title.</td>
+              </tr>
+              <tr>
+                <th>Instrument of Power</th>
+                <td>Multi-select: <strong>Economic, Diplomacy, Information, Military, Other</strong>. Choosing
+                  <strong>Other</strong> reveals a required free-text value.</td>
+              </tr>
+              <tr>
+                <th>Sectors</th>
+                <td>Choosing <strong>Other</strong> reveals a required free-text field.</td>
+              </tr>
+              <tr>
+                <th><span class="page-marker">Page 2</span>Supply-chain focus?</th>
+                <td><strong>Yes / No.</strong> No keeps the dependent controls hidden.</td>
+              </tr>
+              <tr>
+                <th>If Yes &rarr; Action Angle</th>
+                <td><strong>Build resilience for Blue</strong> / <strong>Disrupt Red</strong> (at least one).</td>
+              </tr>
+              <tr>
+                <th>If Yes &rarr; Supply Chain Area</th>
+                <td><strong>Extraction, Refinement, Distribution, Advanced Manufacturing</strong> (at least one).</td>
+              </tr>
+              <tr>
+                <th><span class="page-marker">Page 3</span>Implementation</th>
+                <td>Record the implementation route.</td>
+              </tr>
+              <tr>
+                <th>Focus Countries</th>
+                <td><strong>U.S</strong>, <strong>Other</strong> (Other reveals a required free-text value).</td>
+              </tr>
+              <tr>
+                <th>Expected Outcomes</th>
+                <td>State the intended outcome.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="handoff">
+            <span class="role-label">Scribe</span>
+            <p>Save the draft, then <span class="button-label">Forward to Facilitator</span>.</p>
+          </div>
+          <div class="handoff">
+            <span class="role-label">Facilitator</span>
+            <p>Open in <strong>Team Action Review</strong>, project, then use the bottom toolbar to record
+              <strong>Coordinated</strong> (Legislative Y/N, Executive Y/N) and <strong>Informed/Engaged</strong>
+              (Industry Y/N, Allies Y/N) &rarr; <span class="button-label">Forward to White Cell</span>.</p>
+          </div>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part5-check-heading">
+          <div class="panel-header">
+            <h3 id="part5-check-heading">Confirm</h3>
+            <span class="modal-name">Functionality check</span>
+          </div>
+          <ul class="checklist">
+            <li>Forwarding stays <strong>disabled</strong> until all four Coordinated/Informed decisions are set.</li>
+            <li>Once submitted, the toolbar reads <strong>&ldquo;Submitted to White Cell.&rdquo;</strong> and locks
+              read-only.</li>
+            <li><strong>White Cell</strong> sees the Blue action in its action queue, including the recorded
+              supply-chain focus, and can adjudicate it.</li>
+          </ul>
+        </section>
+        <div class="page-break-before">
+          <section class="panel tint" aria-labelledby="blue-sme-heading">
+            <div class="panel-header">
+              <h3 id="blue-sme-heading">Can the SMEs see and adjudicate this action?</h3>
+              <span class="modal-name">Operator scope check</span>
+            </div>
+            <ul class="checklist">
+              <li>Econ, NI/Escalation, and Diplomacy &amp; Information SMEs each open a <strong>role-scoped PLI review</strong>
+                console; TSJ and Verba AI SMEs open external <strong>handoff queues</strong> (copy narrative, mark done).</li>
+              <li>The SME consoles do <strong>not</strong> render the team-action queue &mdash; SMEs <strong>cannot see or
+                adjudicate</strong> team actions.</li>
+              <li>Team-action adjudication (<span class="button-label">Record Deliberation</span>: SUCCESS /
+                PARTIAL_SUCCESS / FAIL / BACKFIRE) stays a <strong>White Cell Lead</strong> control.</li>
+              <li>Each SME approves or overrides its own PLI outputs (for example, Econ finalizes Macro PLI); the
+                <strong>White Cell Lead</strong> then sees the finalized PLI <strong>read-only</strong>.</li>
+            </ul>
+            <p class="copy-block"><strong>Check:</strong> each SME seat lands on its own PLI / handoff queue with no
+              action-adjudication control; the White Cell Lead retains action adjudication and sees finalized PLI
+              read-only.</p>
+          </section>
+        </div>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 5 &middot; Blue Action &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ======================= STEP 6 — GREEN PROPOSAL ======================= -->
+    <article id="part6-green-proposal" class="guide-sheet green" aria-labelledby="part6-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="part6-title">Step 6 &middot; Green Proposal</h2>
+        </div>
+      </header>
+
+      <ol class="workflow" aria-label="Green proposal workflow">
+        <li><strong>1 &middot; Scribe</strong><span>Open the proposal flow.</span></li>
+        <li><strong>2 &middot; Fields</strong><span>Complete every field.</span></li>
+        <li><strong>3 &middot; Forward</strong><span>Send to Facilitator.</span></li>
+        <li><strong>4 &middot; White Cell</strong><span>Facilitator forwards on.</span></li>
+        <li><strong>5 &middot; Recipient</strong><span>Records a final response.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel" aria-labelledby="part6-proposal-heading">
+          <div class="panel-header">
+            <h3 id="part6-proposal-heading">Green proposal</h3>
+            <span class="modal-name">PROPOSAL</span>
+          </div>
+          <table class="fields">
+            <tbody>
+              <tr>
+                <th>Proposal Objective</th>
+                <td>State the intent of the proposal.</td>
+              </tr>
+              <tr>
+                <th>Originators</th>
+                <td>Select at least one.</td>
+              </tr>
+              <tr>
+                <th>Intended Partners</th>
+                <td>Required free text.</td>
+              </tr>
+              <tr>
+                <th>Focus Sector</th>
+                <td>Choose the sector (Other reveals free text).</td>
+              </tr>
+              <tr>
+                <th>Category</th>
+                <td>Green proposals retain a proposal <strong>Category</strong>.</td>
+              </tr>
+              <tr>
+                <th>Delivery</th>
+                <td>Choose the delivery method.</td>
+              </tr>
+              <tr>
+                <th>Timing &amp; Conditions</th>
+                <td>State timing and any conditions.</td>
+              </tr>
+              <tr>
+                <th>Expected Outcomes</th>
+                <td>State the expected outcome and duration assessment.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="handoff">
+            <span class="role-label">Scribe</span>
+            <p>Draft the proposal, then <span class="button-label">Forward to Facilitator</span>.</p>
+          </div>
+          <div class="handoff">
+            <span class="role-label">Facilitator</span>
+            <p>Open from the <strong>Proposals</strong> section (below Actions), project, then
+              <span class="button-label">Forward to White Cell</span>. It then routes to the intended recipient team.</p>
+          </div>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part6-response-heading">
+          <div class="panel-header">
+            <h3 id="part6-response-heading">Recipient response &amp; checks</h3>
+            <span class="modal-name">Proposal response</span>
+          </div>
+          <ul class="checklist">
+            <li>The recipient Facilitator responds with exactly one of <strong>Accept</strong>,
+              <strong>Not Interested</strong>, or <strong>Negotiate</strong>.</li>
+            <li>Accept and Not Interested require confirmation; Negotiate requires terms. The committed response is final
+              and read-only.</li>
+          </ul>
+          <p class="copy-block"><strong>Check:</strong> White Cell sees the proposal with its source-team badge. On the
+            <strong>Green Facilitator</strong> surface, the <strong>Proposal process</strong> panel updates live without
+            a refresh: White Cell review &rarr; awaiting recipient response &rarr;
+            <strong>Accepted / Declined / Negotiation requested</strong> (terms shown in full). A decision fires the
+            activity bell / toast exactly once.</p>
+        </section>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 6 &middot; Green Proposal &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ====================== STEP 7 — INDUSTRY PROPOSAL ====================== -->
+    <article id="part7-industry-proposal" class="guide-sheet industry" aria-labelledby="part7-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="part7-title">Step 7 &middot; Industry Proposal</h2>
+        </div>
+      </header>
+
+      <ol class="workflow" aria-label="Industry proposal workflow">
+        <li><strong>1 &middot; Scribe</strong><span>Open the proposal flow.</span></li>
+        <li><strong>2 &middot; Fields</strong><span>Complete every field.</span></li>
+        <li><strong>3 &middot; Forward</strong><span>Send to Facilitator.</span></li>
+        <li><strong>4 &middot; White Cell</strong><span>Facilitator forwards on.</span></li>
+        <li><strong>5 &middot; Recipient</strong><span>Records a final response.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel" aria-labelledby="part7-proposal-heading">
+          <div class="panel-header">
+            <h3 id="part7-proposal-heading">Industry proposal</h3>
+            <span class="modal-name">PROPOSAL</span>
+          </div>
+          <table class="fields">
+            <tbody>
+              <tr>
+                <th>Proposal Objective</th>
+                <td>State the intent of the proposal.</td>
+              </tr>
+              <tr>
+                <th>Originators</th>
+                <td>Select at least one.</td>
+              </tr>
+              <tr>
+                <th>Intended Partners</th>
+                <td>Required free text.</td>
+              </tr>
+              <tr>
+                <th>Focus Sector</th>
+                <td>Choose the sector (Other reveals free text).</td>
+              </tr>
+              <tr>
+                <th>Instrument of Power</th>
+                <td><strong>Replaces Proposal Category</strong> on the Industry modal. Multi-select:
+                  <strong>Economic, Diplomacy, Information, Military, Other</strong> (Other requires a custom value);
+                  preserved on save/edit.</td>
+              </tr>
+              <tr>
+                <th>Delivery</th>
+                <td>Choose the delivery method.</td>
+              </tr>
+              <tr>
+                <th>Timing &amp; Conditions</th>
+                <td>State timing and any conditions.</td>
+              </tr>
+              <tr>
+                <th>Expected Outcome(s) &amp; Duration Assessment</th>
+                <td>State the expected outcome and duration assessment.</td>
+              </tr>
+              <tr>
+                <th>Intended recipient</th>
+                <td>Set the recipient team with the forward control.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="handoff">
+            <span class="role-label">Scribe</span>
+            <p>Draft the proposal, then <span class="button-label">Forward to Facilitator</span>. Proposal cards read
+              <span class="button-label secondary">Edit Proposal</span> and
+              <span class="button-label secondary">Delete Proposal</span>.</p>
+          </div>
+          <div class="handoff">
+            <span class="role-label">Facilitator</span>
+            <p>Open from the <strong>Proposals</strong> section, project, then
+              <span class="button-label">Forward to White Cell</span>. The presentation surface shows the full Scribe
+              record &mdash; title, objective, every originator, every Instrument of Power (including a custom
+              <strong>Other</strong> value), partners, sectors, delivery, timing, and outcomes.</p>
+          </div>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part7-response-heading">
+          <div class="panel-header">
+            <h3 id="part7-response-heading">Recipient response &amp; checks</h3>
+            <span class="modal-name">Proposal response</span>
+          </div>
+          <ul class="checklist">
+            <li>The recipient Facilitator responds with exactly one of <strong>Accept</strong>,
+              <strong>Not Interested</strong>, or <strong>Negotiate</strong>.</li>
+            <li>Accept and Not Interested require confirmation; Negotiate requires terms. The committed response is final
+              and read-only.</li>
+          </ul>
+          <p class="copy-block"><strong>Check:</strong> White Cell sees the proposal with its source-team badge and the
+            Industry modal shows <strong>Instrument of Power</strong> in place of Category. On the
+            <strong>Industry Facilitator</strong> surface, the <strong>Proposal process</strong> panel updates live:
+            White Cell review &rarr; awaiting recipient response &rarr;
+            <strong>Accepted / Declined / Negotiation requested</strong> (terms shown in full), with the bell / toast
+            firing once.</p>
+        </section>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 7 &middot; Industry Proposal &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ========================= STEP 8 — RED ACTION ========================= -->
+    <article id="part8-red-action" class="guide-sheet red" aria-labelledby="part8-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="part8-title">Step 8 &middot; Red Action</h2>
+        </div>
+      </header>
+
+      <ol class="workflow" aria-label="Red action workflow">
+        <li><strong>1 &middot; Scribe</strong><span>Open Red Team Action.</span></li>
+        <li><strong>2 &middot; Complete</strong><span>Fill the Red fields.</span></li>
+        <li><strong>3 &middot; Forward</strong><span>Send to Facilitator.</span></li>
+        <li><strong>4 &middot; Facilitator</strong><span>Project, forward.</span></li>
+        <li><strong>5 &middot; White Cell</strong><span>Adjudicate.</span></li>
+      </ol>
+
+      <div class="columns">
+        <section class="panel" aria-labelledby="part7-action-heading">
+          <div class="panel-header">
+            <h3 id="part7-action-heading">Red Team Action modal</h3>
+            <span class="modal-name">Take Action</span>
+          </div>
+          <table class="fields">
+            <tbody>
+              <tr>
+                <th>Objective hint</th>
+                <td>Reads <strong>&ldquo;What you intend this action to achieve in 6 months.&rdquo;</strong></td>
+              </tr>
+              <tr>
+                <th>Instrument of Power</th>
+                <td>Multi-select: <strong>Economic, Diplomacy, Information, Military, Other</strong> (Other requires a
+                  free-text value); preserved on save/edit.</td>
+              </tr>
+              <tr>
+                <th>Focus Countries</th>
+                <td><strong>U.S</strong>, <strong>PRC</strong>, <strong>Other</strong> (Other requires a free-text value).</td>
+              </tr>
+              <tr>
+                <th>Not present</th>
+                <td>No Implementation, Legislative Route, or Date of Effect controls on the Red modal.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="handoff">
+            <span class="role-label">Scribe</span>
+            <p>Draft the action, then <span class="button-label">Forward to Facilitator</span>.</p>
+          </div>
+          <div class="handoff">
+            <span class="role-label">Facilitator</span>
+            <p>Open in <strong>Team Action Review</strong>, project, then <span class="button-label">Forward to White
+                Cell</span>. The Red footer is streamlined &mdash; Edit, handoff status, and Forward to White Cell, with
+              <strong>no Coordinated or Informed/Engaged groups</strong>.</p>
+          </div>
+        </section>
+
+        <section class="panel tint" aria-labelledby="part7-check-heading">
+          <div class="panel-header">
+            <h3 id="part7-check-heading">Confirm</h3>
+            <span class="modal-name">Functionality check</span>
+          </div>
+          <ul class="checklist">
+            <li><strong>White Cell</strong> sees the Red action in its action queue and can adjudicate it.</li>
+            <li>The Red Facilitator toolbar shows <strong>no</strong> Coordinated / Informed decision groups &mdash; that
+              is expected, those are Blue-only.</li>
+          </ul>
+        </section>
+        <div class="page-break-before">
+          <section class="panel tint" aria-labelledby="red-sme-heading">
+            <div class="panel-header">
+              <h3 id="red-sme-heading">Can the SMEs see and adjudicate this action?</h3>
+              <span class="modal-name">Operator scope check</span>
+            </div>
+            <ul class="checklist">
+              <li>Econ, NI/Escalation, and Diplomacy &amp; Information SMEs each open a <strong>role-scoped PLI review</strong>
+                console; TSJ and Verba AI SMEs open external <strong>handoff queues</strong> (copy narrative, mark done).</li>
+              <li>The SME consoles do <strong>not</strong> render the team-action queue &mdash; SMEs <strong>cannot see or
+                adjudicate</strong> team actions.</li>
+              <li>Team-action adjudication (<span class="button-label">Record Deliberation</span>: SUCCESS /
+                PARTIAL_SUCCESS / FAIL / BACKFIRE) stays a <strong>White Cell Lead</strong> control.</li>
+              <li>Each SME approves or overrides its own PLI outputs (for example, Econ finalizes Macro PLI); the
+                <strong>White Cell Lead</strong> then sees the finalized PLI <strong>read-only</strong>.</li>
+            </ul>
+            <p class="copy-block"><strong>Check:</strong> each SME seat lands on its own PLI / handoff queue with no
+              action-adjudication control; the White Cell Lead retains action adjudication and sees finalized PLI
+              read-only.</p>
+          </section>
+        </div>
+      </div>
+
+      <footer class="sheet-footer">
+        <span>Step 8 &middot; Red Action &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+    <!-- ============================ WRAP — EVIDENCE ============================ -->
+    <article id="wrap" class="guide-sheet white-cell" aria-labelledby="wrap-title">
+      <div class="sheet-masthead">
+        <div class="masthead-brand">
+          <span class="masthead-logo-fallback" aria-hidden="true">SSG</span>
+          <img src="./img/Green No Background.png" alt="Statecraft Simulations Group logo" class="masthead-crest"
+            onload="this.previousElementSibling.hidden=true" onerror="this.hidden=true">
+          <span class="masthead-org">
+            <span class="org-name">Statecraft Simulations Group</span>
+            <span class="org-sub">William &amp; Mary</span>
+          </span>
+        </div>
+        <div class="masthead-meta">
+          <span class="meta-title">Fractured Order &middot; 30 July 2026</span>
+          <span>Session TEST2026</span>
+        </div>
+      </div>
+      <header class="sheet-header">
+        <div>
+          <h2 id="wrap-title">Wrap &middot; Evidence check</h2>
+        </div>
+      </header>
+
+      <div class="gate">
+        <span class="section-kicker">Who / where</span>
+        <p><strong>Game Master</strong>, on the console kept open since Step 1. Confirm the run captured cleanly before
+          closing the session.</p>
+      </div>
+
+      <section class="panel" aria-labelledby="wrap-export-heading">
+        <div class="panel-header">
+          <h3 id="wrap-export-heading">Export and verify</h3>
+          <span class="modal-name">Data export</span>
+        </div>
+        <ul class="compact-list">
+          <li>Export session JSON, plus <strong>actions</strong>, <strong>RFIs</strong>, <strong>timeline</strong>, and
+            <strong>participant</strong> CSVs.</li>
+          <li>Confirm the export reflects the run: the four orientation artifacts, the RFIs, the Blue action, the Green
+            proposal and its response, and the Red action.</li>
+        </ul>
+      </section>
+
+      <section class="panel tint" aria-labelledby="wrap-note-heading">
+        <div class="panel-header">
+          <h3 id="wrap-note-heading">If something failed</h3>
+          <span class="modal-name">Report back</span>
+        </div>
+        <p class="copy-block">If any step did not behave as its <strong>Confirm / Check</strong> describes, note the
+          <strong>team</strong>, <strong>role</strong>, and <strong>step number</strong>. That is exactly the
+          functionality signal this session exists to surface.</p>
+      </section>
+
+      <footer class="sheet-footer">
+        <span>Wrap &middot; Evidence check &middot;</span>
+        <span>Delivered on <span class="plenum-wordmark">Plenum<span class="plenum-dot">.</span></span></span>
+      </footer>
+    </article>
+
+  </main>
+</body>
+
+</html>

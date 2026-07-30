@@ -25,6 +25,7 @@ const MOCK_TABLES = [
     'communications',
     'timeline',
     'notetaker_data',
+    'pli_adjudications',
     'sme_handoffs',
     'research_audit_event_log',
     'research_participant',
@@ -846,6 +847,22 @@ function canReadTableRow(state, tableName, row, authUserId) {
         return liveDemoCanReadSession(state, authUserId, row.id);
     }
 
+    if (tableName === 'pli_adjudications') {
+        return (
+            liveDemoCanWriteSessionSurface(
+                state,
+                authUserId,
+                row.session_id,
+                ['whitecell', 'gamemaster']
+            )
+            || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            || (
+                liveDemoCanReadSession(state, authUserId, row.session_id)
+                && ['approved', 'overridden'].includes(row.status)
+            )
+        );
+    }
+
     if (tableName === 'session_participants' || tableName === 'game_state' || tableName === 'actions'
         || tableName === 'requests' || tableName === 'communications' || tableName === 'timeline'
         || tableName === 'notetaker_data' || tableName === 'sme_handoffs') {
@@ -949,6 +966,28 @@ function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
                 )
                 || liveDemoHasOperatorGrant(state, authUserId, 'sme', nextRow.session_id)
                 || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            );
+        case 'pli_adjudications':
+            return (
+                ['pending', 'approved', 'overridden', 'needs_human'].includes(nextRow.status)
+                && (
+                    liveDemoCanWriteSessionSurface(
+                        state,
+                        authUserId,
+                        currentRow.session_id,
+                        ['whitecell', 'gamemaster']
+                    )
+                    || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+                )
+                && (
+                    liveDemoCanWriteSessionSurface(
+                        state,
+                        authUserId,
+                        nextRow.session_id,
+                        ['whitecell', 'gamemaster']
+                    )
+                    || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+                )
             );
         default:
             return false;

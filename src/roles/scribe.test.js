@@ -730,6 +730,39 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         });
     });
 
+    it('seeds a delayed initial communications snapshot without replaying unread activity', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { showToast } = await import('../components/ui/Toast.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { buildWhiteCellRecipientMetadata } = await import('../features/communications/targeting.js');
+
+        global.document = createFakeDocument();
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        const controller = new ScribeController();
+        controller.renderAlerts = vi.fn();
+        const historicalCommunication = {
+            id: 'comm-present-before-reload-1',
+            from_role: 'white_cell',
+            to_role: 'blue_scribe',
+            type: 'GUIDANCE',
+            content: 'This communication existed before the Facilitator reloaded.',
+            created_at: '2026-07-15T12:00:00.000Z',
+            metadata: buildWhiteCellRecipientMetadata('blue_scribe')
+        };
+
+        communicationsStore.initialized = false;
+        getAll.mockReturnValue([]);
+        controller.primeNotifications();
+
+        getAll.mockReturnValue([historicalCommunication]);
+        controller.processCommunicationNotifications('loaded');
+
+        expect(controller.knownCommunicationIds).toContain(historicalCommunication.id);
+        expect(controller.notifications).toHaveLength(0);
+        expect(controller.unreadNotifications).toBe(0);
+        expect(showToast).not.toHaveBeenCalled();
+    });
+
     it('keeps two consecutive White Cell communications in the Facilitator activity feed', async () => {
         const { ScribeController } = await loadScribeModule();
         const { showToast } = await import('../components/ui/Toast.js');
