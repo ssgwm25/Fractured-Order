@@ -62,6 +62,9 @@ bundle multiple tools or be mislabeled: if the stated mechanism conflicts
 with the action text / UI levers / bundled authorities, set
 needs_human=true and explain the mismatch. You may set a SECONDARY facet
 true only with secondary_facet_citation evidence of a clear dual DIME lane.
+Ignore non-DIME / joke Instruments tags (e.g. Magic). Diplomacy or Information
+listed in Instruments without a cited dual-lane operative act does NOT force
+needs_human when mechanism is Economic and a primary L-code is clear.
 
 SPECIAL RULE — TERRITORY / BASING / STRATEGIC ACCESS (L10):
 When an Economic filing's operative act is negotiated purchase, cession,
