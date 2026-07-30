@@ -2094,7 +2094,7 @@ describe('White Cell DOM contract', () => {
         controller.destroy();
     });
 
-    it('renders facilitator action details needed for White Cell adjudication', async () => {
+    it('renders facilitator action details without a Red Team send control in White Cell adjudication', async () => {
         const { WhiteCellController, buildSharedActionCommunicationContent } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');
         global.document = createFakeDocument();
@@ -2150,7 +2150,7 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Exposure:</strong> Overt');
         expect(markup).toContain('Ally Contingencies:</strong> Coordinate with customs union partners.');
         expect(markup).toContain('Submitted:</strong>');
-        expect(markup).toContain('Send to Red Team');
+        expect(markup).not.toContain('Send to Red Team');
         expect(greenMarkup).not.toContain('Send to Red Team');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Blue Team action shared by White Cell');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Title: Stabilize port access');
@@ -2323,8 +2323,10 @@ describe('White Cell DOM contract', () => {
         });
 
         const modalConfig = showModal.mock.calls.at(-1)?.[0];
+        const modalButtonLabels = modalConfig?.buttons?.map((button) => button.label) || [];
         expect(modalConfig?.title).toBe('Record Deliberation');
-        expect(modalConfig?.buttons?.[1]?.label).toBe('Record Deliberation');
+        expect(modalButtonLabels).toContain('Record Deliberation');
+        expect(modalButtonLabels).not.toContain('Send to Red Team');
         expect(modalConfig?.content?.innerHTML).toContain('<strong>Supply Chain Focus:</strong> Advanced Manufacturing');
         expect(modalConfig?.content?.innerHTML).toContain('id="outcomeSelect"');
         expect(modalConfig?.content?.innerHTML).toContain('id="adjudicationNotes"');

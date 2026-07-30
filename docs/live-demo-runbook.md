@@ -108,7 +108,7 @@ White Cell:
 - start/pause/reset the Strategic Orientation timer as lead while the pre-Move-1 gate is still incomplete
 - advance/regress phase and move after the Strategic Orientation gate clears
 - confirm advancing or regressing moves pauses the timer and loads the target move allocation
-- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues; confirm the Blue action modal includes its recorded supply-chain focus
+- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues; confirm the Blue action modal includes its recorded supply-chain focus and the action review/adjudication cards do not offer a `Send to Red Team` control
 - answer RFIs
 - send direct communications and section updates
 - review participant roster filters; select multiple seats, remove them in one confirmation, and confirm each successful removal disappears immediately without a page refresh

@@ -3515,10 +3515,6 @@ export class WhiteCellController {
         }).outerHTML;
         const actionButtons = [];
 
-        if (canShareActionToRedTeam(action)) {
-            actionButtons.push(`<button class="btn btn-secondary btn-sm share-action-to-red-btn" data-action-id="${action.id}">Send to Red Team</button>`);
-        }
-
         if (showAdjudicateAction) {
             actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Record Deliberation')}</button>`);
         }
@@ -3557,18 +3553,6 @@ export class WhiteCellController {
     }
 
     bindActionCardButtons(container) {
-        container.querySelectorAll('.share-action-to-red-btn').forEach((button) => {
-            button.addEventListener('click', () => {
-                const actionId = button.dataset.actionId;
-                const action = this.actions.find((candidate) => candidate.id === actionId);
-                if (action) {
-                    this.shareActionWithRedTeam(action).catch((err) => {
-                        logger.error('Failed to share action with Red Team:', err);
-                    });
-                }
-            });
-        });
-
         if (!this.isLeadOperator()) {
             return;
         }
