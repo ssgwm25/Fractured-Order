@@ -509,7 +509,7 @@ def cover_page(pdf: MasterPDF) -> None:
         6,
         S(
             "Statecraft Simulations Group  |  William & Mary\n"
-            "Ben Petrihos, Senior Fellow\n"
+            "Ben Petrihos, Fellow\n"
             "2026"
         ),
         align="C",
