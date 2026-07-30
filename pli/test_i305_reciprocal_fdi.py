@@ -64,3 +64,18 @@ def test_rescore_marker_picks_up_reciprocal_fdi_needs_human():
         },
     }
     assert _should_skip_existing_adjudication(row) is False
+
+
+def test_rescore_marker_picks_up_ni_blue_details_attribution():
+    assert "SME must confirm actor attribution" in RESCORE_REASON_MARKERS
+    row = {
+        "status": "needs_human",
+        "record": {
+            "needs_human_reason": (
+                "Filing contradicts itself: team=red ... but details block is labeled "
+                "'Blue Team Action Details' ... SME must confirm actor attribution "
+                "before locking deltas."
+            )
+        },
+    }
+    assert _should_skip_existing_adjudication(row) is False
