@@ -81,6 +81,9 @@ RESCORE_REASON_MARKERS = (
     "Reciprocal FDI Package",
     "inbound security screening (I3.01)",
     "primary instrument and direction cannot be assigned cleanly",
+    # NI: shared Blue Team Action Details form prefix misread as actor conflict
+    "SME must confirm actor attribution",
+    "Blue Team Action Details",
 )
 
 

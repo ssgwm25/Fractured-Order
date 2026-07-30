@@ -76,6 +76,13 @@ The NI agent returns JSON matching `schemas/ni_worksheet_schema.json`:
 - `evidence_refs`: NSS era / matrix / National War College citations
 - `needs_human` / reason when judgment is unclean
 
+### Actor attribution (team field)
+
+- The authoritative actor is `actions.team` (blue / red / green / industry).
+- Plenum action details often use the shared form header **"Blue Team Action Details"** even for Red (and other) filings. That label is a **form prefix**, not an actor claim.
+- Do **not** set `needs_human` solely because the details block says "Blue Team Action Details" while `team` is red/green/industry, or because objective vs expected-outcomes tone differs across teams.
+- Score NI from the Red/Blue/Green actor in `team`, using title, objective, expected outcomes, and macro summary. Note form-prefix quirks in a rationale only if useful; they are not attribution blockers.
+
 ---
 
 ## Engine validation rules

@@ -45,7 +45,11 @@ def build_ni_prompt(
         [
             "You are the PLI National Interest adjudication agent. Execute the NI codebook "
             "strictly. Output a six-domain National War College tier-delta vector. Do not invent a scalar score. "
-            "Cite NSS / National War College evidence in evidence_refs. Reply with one fenced JSON worksheet only.",
+            "Cite NSS / National War College evidence in evidence_refs. Reply with one fenced JSON worksheet only.\n"
+            "ACTOR ATTRIBUTION: Prefer actions.team as the authoritative actor. The details string often "
+            "begins with 'Blue Team Action Details' even for Red/Green filings — that is a shared form "
+            "prefix, not proof the actor is Blue. Do NOT set needs_human solely for that label mismatch "
+            "or for objective vs expected-outcomes tone differences across teams.",
             "=== NI CODEBOOK ===\n" + codebook,
             "=== JSON SCHEMA ===\n" + schema,
             f"=== ORIENTATION ===\n{orientation}",
