@@ -781,6 +781,8 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
         ACTION_CREATED: 'Action Created',
         ACTION_SUBMITTED: 'Action Submitted',
         ACTION_ADJUDICATED: 'Deliberation Update',
+        ACTION_RETURNED_TO_BLUE: 'Returned to Blue',
+        PLI_SENT_BACK: 'PLI Sent Back',
         STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE: 'Strategic Orientation Forwarded',
         STRATEGIC_ORIENTATION_SUBMITTED: 'Strategic Orientation Submitted',
         PROPOSAL_SUBMITTED: 'Proposal Submitted',
@@ -804,6 +806,15 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
 
 export function canShareActionToRedTeam(action = {}) {
     return action?.team === 'blue' && !isStrategicOrientationAction(action);
+}
+
+/** Blue strategic actions White Cell Lead may reopen for rewrite. */
+export function canReturnActionToBlue(action = {}) {
+    if (!action || action.team !== 'blue') return false;
+    if (isStrategicOrientationAction(action)) return false;
+    const artifact = String(action.artifact_type || '').trim().toLowerCase();
+    if (artifact === 'proposal' || artifact === 'move_response') return false;
+    return canAdjudicateAction(action) || isAdjudicatedAction(action);
 }
 
 export function buildSharedActionCommunicationContent(action = {}) {
@@ -3291,6 +3302,7 @@ export class WhiteCellController {
             const body = group.items.length
                 ? visibleItems.map((action) => this.renderActionCard(action, {
                     showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
+                    showReturnToBlueAction: this.isLeadOperator() && canReturnActionToBlue(action),
                     includeOutcome: true,
                     isNew: newIds?.has(action.id)
                 })).join('')
@@ -3354,6 +3366,7 @@ export class WhiteCellController {
             ${visiblePendingActions.map((action) =>
             this.renderActionCard(action, {
                 showAdjudicateAction: this.isLeadOperator(),
+                showReturnToBlueAction: this.isLeadOperator() && canReturnActionToBlue(action),
                 includeOutcome: false,
                 isNew: this.newBlueActionIds.has(action.id)
                     || this.newStrategicOrientationIds.has(action.id)
@@ -3379,6 +3392,7 @@ export class WhiteCellController {
 
     renderActionCard(action, {
         showAdjudicateAction = false,
+        showReturnToBlueAction = false,
         includeOutcome = false,
         isNew = false
     } = {}) {
@@ -3509,6 +3523,10 @@ export class WhiteCellController {
             actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Record Deliberation')}</button>`);
         }
 
+        if (showReturnToBlueAction && canReturnActionToBlue(action)) {
+            actionButtons.push(`<button class="btn btn-secondary btn-sm return-to-blue-btn" data-action-id="${action.id}">Send Back</button>`);
+        }
+
         return `
             <div class="entity-card${statusAccent ? ` entity-card--${statusAccent}` : ''}" data-action-id="${action.id}"${isNew ? ' style="background: var(--color-surface-alt);"' : ''}>
                 <div class="entity-card__head">
@@ -3563,6 +3581,128 @@ export class WhiteCellController {
                     this.showAdjudicateModal(action);
                 }
             });
+        });
+
+        container.querySelectorAll('.return-to-blue-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                const actionId = button.dataset.actionId;
+                const action = this.actions.find((candidate) => candidate.id === actionId);
+                if (action) {
+                    this.showReturnToBlueModal(action).catch((err) => {
+                        logger.error('Failed to open Return to Blue modal:', err);
+                    });
+                }
+            });
+        });
+    }
+
+    /**
+     * QC path: reopen Blue action as draft (workflow Sent Back).
+     * @param {Object} action
+     * @param {string} notes
+     * @param {{ timelinePrefix?: string }} [options]
+     */
+    async performReturnActionToBlue(action, notes, { timelinePrefix = 'Returned to Blue for rewrite:' } = {}) {
+        if (!this.isLeadOperator()) {
+            throw new Error('Only White Cell Lead can return actions to Blue.');
+        }
+        if (!canReturnActionToBlue(action)) {
+            throw new Error('This action cannot be returned to Blue.');
+        }
+        const trimmed = String(notes || '').trim();
+        if (!trimmed) {
+            throw new Error('Notes are required');
+        }
+
+        const updated = await database.returnActionToBlue(action.id, { notes: trimmed });
+        actionsStore.updateFromServer('UPDATE', updated);
+
+        const gameState = this.getCurrentGameState();
+        const timelineEvent = await database.createTimelineEvent({
+            session_id: sessionStore.getSessionId(),
+            type: 'ACTION_RETURNED_TO_BLUE',
+            content: `${timelinePrefix} ${trimmed}`,
+            metadata: {
+                related_id: action.id,
+                action_id: action.id,
+                role: this.getTimelineActorRole(),
+                return_notes: trimmed,
+                incomplete_qc: /incomplete/i.test(timelinePrefix)
+            },
+            team: 'white_cell',
+            move: gameState.move ?? 1,
+            phase: gameState.phase ?? 1
+        });
+        timelineStore.updateFromServer('INSERT', timelineEvent);
+
+        this.pliMacroReview?.refresh?.();
+        this.pliDiplomacyInfoReview?.refresh?.();
+        this.pliNiEscalationReview?.refresh?.();
+        this.renderActionReview?.();
+        this.renderAdjudicationQueue?.();
+
+        return updated;
+    }
+
+    async showReturnToBlueModal(action) {
+        if (!this.isLeadOperator()) {
+            showToast({ message: 'Only White Cell Lead can return actions to Blue.', type: 'warning' });
+            return;
+        }
+        if (!canReturnActionToBlue(action)) {
+            showToast({ message: 'This action cannot be returned to Blue.', type: 'warning' });
+            return;
+        }
+
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <p class="text-sm text-gray-600" style="margin-bottom: var(--space-3);">
+                Send this action back to Blue as an editable draft (Action Complete → No). Linked PLI adjudications will be cleared so the pipeline can re-run after Blue resubmits.
+            </p>
+            <label class="form-label" for="returnToBlueNotes">Notes for Blue (required)</label>
+            <textarea id="returnToBlueNotes" class="form-input form-textarea" rows="4"
+                placeholder="What should Blue fix before resubmitting?"></textarea>
+        `;
+
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Send Back',
+            content,
+            size: 'md',
+            buttons: [
+                {
+                    label: 'Cancel',
+                    variant: 'secondary',
+                    onClick: () => {}
+                },
+                {
+                    label: 'Send Back',
+                    variant: 'primary',
+                    onClick: () => {
+                        const notes = document.getElementById('returnToBlueNotes')?.value?.trim() || '';
+                        if (!notes) {
+                            showToast({ message: 'Notes are required', type: 'error' });
+                            return false;
+                        }
+                        const loader = showLoader({ message: 'Sending action back to Blue...' });
+                        this.performReturnActionToBlue(action, notes, {
+                            timelinePrefix: 'Sent back — incomplete:'
+                        }).then(() => {
+                            showToast({ message: 'Action sent back to Blue', type: 'success' });
+                            modalRef.current?.close?.();
+                        }).catch((err) => {
+                            logger.error('Failed to return action to Blue:', err);
+                            showToast({
+                                message: err?.message || 'Failed to send action back to Blue',
+                                type: 'error'
+                            });
+                        }).finally(() => {
+                            hideLoader();
+                        });
+                        return false;
+                    }
+                }
+            ]
         });
     }
 
@@ -3714,8 +3854,12 @@ export class WhiteCellController {
 
                 <div class="form-group">
                     <label class="form-label" for="adjudicationNotes">Notes</label>
-                    <textarea id="adjudicationNotes" class="form-input form-textarea" rows="4" placeholder="Explain the outcome..."></textarea>
+                    <textarea id="adjudicationNotes" class="form-input form-textarea" rows="4"
+                        placeholder="Explain the outcome — or what Blue must fix if sending back incomplete..."></textarea>
                 </div>
+                <p class="text-xs text-gray-500" style="margin: 0;">
+                    Action complete? Choose <strong>Record Deliberation</strong> (Yes) or <strong>Send Back (incomplete)</strong> (No).
+                </p>
             </form>
         `;
 
@@ -3729,6 +3873,37 @@ export class WhiteCellController {
                     label: 'Cancel',
                     variant: 'secondary',
                     onClick: () => {}
+                },
+                {
+                    label: 'Send Back (incomplete)',
+                    variant: 'secondary',
+                    onClick: () => {
+                        if (!canReturnActionToBlue(action)) {
+                            showToast({ message: 'This action cannot be sent back to Blue.', type: 'warning' });
+                            return false;
+                        }
+                        const notes = document.getElementById('adjudicationNotes')?.value?.trim() || '';
+                        if (!notes) {
+                            showToast({ message: 'Notes are required to send back incomplete actions', type: 'error' });
+                            return false;
+                        }
+                        const loader = showLoader({ message: 'Sending action back to Blue...' });
+                        this.performReturnActionToBlue(action, notes, {
+                            timelinePrefix: 'Sent back — incomplete:'
+                        }).then(() => {
+                            showToast({ message: 'Action sent back to Blue (incomplete)', type: 'success' });
+                            modalRef.current?.close?.();
+                        }).catch((err) => {
+                            logger.error('Failed to send incomplete action back to Blue:', err);
+                            showToast({
+                                message: err?.message || 'Failed to send action back to Blue',
+                                type: 'error'
+                            });
+                        }).finally(() => {
+                            hideLoader();
+                        });
+                        return false;
+                    }
                 },
                 {
                     label: 'Record Deliberation',

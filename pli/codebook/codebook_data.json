@@ -291,6 +291,7 @@
     "L7": "Industrial Policy & Domestic Capacity",
     "L8": "Strategic Reserves & Supply Security",
     "L9": "Standards, Regulation & Data Governance",
+    "L10": "Territorial Acquisition, Basing & Strategic Access",
     "NE": "Non-Economic"
   },
   "lever_default_direction": {
@@ -302,7 +303,8 @@
     "L6": "inducement",
     "L7": "inducement",
     "L8": "inducement",
-    "L9": "inducement"
+    "L9": "inducement",
+    "L10": "inducement"
   },
   "directionality_matrix": {
     "L1": {
@@ -682,6 +684,48 @@
         "ramp_in_quarters": 8,
         "decay_quarters": 8,
         "bib": "Source 10 CBO gradual standards/buildout"
+      }
+    },
+    "L10": {
+      "real_gdp_growth": {
+        "sign": 1,
+        "class": "tr",
+        "onset_quarters": 8,
+        "ramp_in_quarters": 12,
+        "decay_quarters": 8,
+        "bib": "Source 10 CBO federal investment 2016/2021 (L6-analog pending Econ SME/General sign-off for L10 magnitudes)"
+      },
+      "pce_inflation": {
+        "sign": 0,
+        "class": "0",
+        "onset_quarters": 8,
+        "ramp_in_quarters": 0,
+        "decay_quarters": 0,
+        "bib": "Source 10 CBO federal investment 2016/2021 (L6-analog pending Econ SME/General sign-off for L10 magnitudes)"
+      },
+      "unemployment_rate": {
+        "sign": 0,
+        "class": "0",
+        "onset_quarters": 8,
+        "ramp_in_quarters": 0,
+        "decay_quarters": 0,
+        "bib": "Source 10 CBO federal investment 2016/2021 (L6-analog pending Econ SME/General sign-off for L10 magnitudes)"
+      },
+      "trade_volume_growth": {
+        "sign": 1,
+        "class": "M",
+        "onset_quarters": 8,
+        "ramp_in_quarters": 8,
+        "decay_quarters": 8,
+        "bib": "Source 10 CBO federal investment 2016/2021 (L6-analog pending Econ SME/General sign-off for L10 magnitudes)"
+      },
+      "fixed_investment_growth": {
+        "sign": 1,
+        "class": "s",
+        "onset_quarters": 8,
+        "ramp_in_quarters": 8,
+        "decay_quarters": 8,
+        "bib": "Source 10 CBO federal investment 2016/2021 (L6-analog pending Econ SME/General sign-off for L10 magnitudes)"
       }
     }
   },

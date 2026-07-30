@@ -1656,6 +1656,56 @@ function operatorAdjudicateAction(state, params) {
     };
 }
 
+function operatorReturnActionToBlue(state, params) {
+    const authUserId = getCurrentAuthUserId();
+    const grant = getOperatorGrant(state, authUserId, 'whitecell');
+    const action = state.tables.actions.find((entry) => (
+        entry.id === params?.requested_action_id && entry.is_deleted !== true
+    ));
+    const notes = String(params?.requested_return_notes || '').trim();
+
+    if (!action) {
+        return { data: null, error: { message: 'Action not found.' } };
+    }
+    if (!grant || grant.session_id !== action.session_id) {
+        return { data: null, error: { message: 'White Cell operator authorization is required.' } };
+    }
+    if (!notes) {
+        return { data: null, error: { message: 'Return notes are required.' } };
+    }
+    if (String(action.team || '').toLowerCase() !== 'blue') {
+        return { data: null, error: { message: 'Only Blue Team actions can be returned to Blue.' } };
+    }
+    if (!['submitted', 'adjudicated'].includes(action.status)) {
+        return { data: null, error: { message: 'Only submitted or adjudicated actions can be returned to Blue.' } };
+    }
+
+    const updated = {
+        ...action,
+        status: 'draft',
+        workflow_state: 'returned_to_blue',
+        outcome: null,
+        submitted_at: null,
+        adjudicated_at: null,
+        adjudication_notes: `Returned to Blue: ${notes}`,
+        updated_at: getTimestamp()
+    };
+
+    state.tables.actions = state.tables.actions.map((entry) => (
+        entry.id === updated.id ? updated : entry
+    ));
+    if (Array.isArray(state.tables.pli_adjudications)) {
+        state.tables.pli_adjudications = state.tables.pli_adjudications.filter((row) => (
+            row.action_id !== updated.id
+        ));
+    }
+
+    return {
+        data: cloneValue(updated),
+        error: null
+    };
+}
+
 function readLegacyActionDetail(details = '', label = '') {
     if (typeof details !== 'string' || !details || !label) return null;
     const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -2373,6 +2423,10 @@ export function createE2EMockSupabaseClient() {
 
             if (functionName === 'operator_adjudicate_action') {
                 return mutateMockState((state) => operatorAdjudicateAction(state, params));
+            }
+
+            if (functionName === 'operator_return_action_to_blue') {
+                return mutateMockState((state) => operatorReturnActionToBlue(state, params));
             }
 
             if (functionName === 'operator_review_proposal') {

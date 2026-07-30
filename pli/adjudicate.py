@@ -49,7 +49,7 @@ the codebook rule or real-world authority it rests on.
 
 PLENUM INSTRUMENT OF POWER (actions.mechanism) is the DEFAULT lane map,
 not the sole authority over routing:
-- Economic → classify L1-L9 + instrument; set ne_facets.diplomacy=false,
+- Economic → classify L1-L10 + instrument; set ne_facets.diplomacy=false,
   ne_facets.information=false; echo instrument_of_power="Economic".
 - Diplomatic → lever=NE, instrument=null; ne_facets.diplomacy=true,
   information=false; instrument_of_power="Diplomatic".
@@ -63,6 +63,15 @@ with the action text / UI levers / bundled authorities, set
 needs_human=true and explain the mismatch. You may set a SECONDARY facet
 true only with secondary_facet_citation evidence of a clear dual DIME lane.
 
+SPECIAL RULE — TERRITORY / BASING / STRATEGIC ACCESS (L10):
+When an Economic filing's operative act is negotiated purchase, cession,
+long-term lease, exclusive basing rights, or strategic geographic access
+(including SLOC-critical islands/ports) with a payment/lease/offset bargain,
+classify L10 (I10.01–I10.04) using tie-break rule 11. Do NOT set
+needs_human solely because the act is outside L1–L9. Pure Military or
+Diplomatic acts with no transactional access deal remain NE. Intra-
+jurisdiction asset/IP/fund seizure remains L4/I4.06, not L10.
+
 Your job for the single action below, in order:
 
 1. INSTRUMENT OF POWER: echo `instrument_of_power` from the action's
@@ -70,11 +79,12 @@ Your job for the single action below, in order:
    above, and flag needs_human (or secondary facet) when the content
    shows a mislabel or multi-tool second lane.
 
-2. CLASSIFY: assign exactly one primary lever (L1-L9, or NE for
+2. CLASSIFY: assign exactly one primary lever (L1-L10, or NE for
    non-economic) and one primary instrument code, using the master codebook
-   Layer 1/Layer 2 definitions, boundary rules, and the ten tie-break rules.
+   Layer 1/Layer 2 definitions, boundary rules, and the eleven tie-break rules.
    UI levers listed in ally_contingencies are strong priors for Economic
-   filings. Record the deciding rule in `classification.rule_citation`.
+   filings (including "Territory & Basing Access" → L10). Record the deciding
+   rule in `classification.rule_citation`.
    Set `direction` per the Direction facet (coercive / inducement / mixed).
 
 3. PRECEDENT TIER: apply the trial codebook's four-tier precedent test to
@@ -240,7 +250,11 @@ def _cross_check(worksheet: dict[str, Any]) -> None:
 
     if not instrument:
         raise ValueError(f"Lever {lever} requires an instrument code")
-    if instrument[1] != lever[1]:
+    lever_match = re.fullmatch(r"L(\d+)", str(lever))
+    instrument_match = re.fullmatch(r"I(\d+)\.(\d{2})", str(instrument))
+    if not lever_match or not instrument_match:
+        raise ValueError(f"Instrument {instrument} does not belong to lever {lever}")
+    if lever_match.group(1) != instrument_match.group(1):
         raise ValueError(f"Instrument {instrument} does not belong to lever {lever}")
 
     fit = worksheet["fit"]

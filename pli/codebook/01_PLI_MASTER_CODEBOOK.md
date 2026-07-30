@@ -27,37 +27,36 @@ Facets (tie-breaks & context only)         Direction, Sector, Target, Coalition,
 
 **Operating principle — PLI adjudicates, the SME approves.** Scores and trend lines are produced from documented rules; White Cell approve/override is the adjudication of record.
 
-**SME staffing (game director).** Two multi-track SME seats cover the non-macro tracks: (1) **National Interest & Escalation SME** — same person reviews National Interest and Glasl escalation; (2) **Diplomacy Index & Information SME** — same person reviews Diplomacy indexing and Information briefs. Macroeconomic approve/override remains the Macro / White Cell SME. Analytical outputs stay track-separate; only the human reviewer seat is paired (`codebook/adjudication_data.json` → `sme_role_pairing`).
-
-**Submission timing (FO 2.0).** Actions are **not** grounded by the Plenum wall-clock timer. The orchestrator places filings on a fixed **6-month cadence** in session chronology (default origin `2027-01`: first action, then +6 months each). Explicit stamped `submission_month` on an action still wins when present.
-
 **Track routing (Instrument of Power is the default lane, not the sole authority).** Plenum `actions.mechanism` (Diplomatic | Informational | Military | Economic) sets the *starting* track map: Economic filings run Layers 1–3 and macroeconomic adjudication; all actions receive National Interest and Glasl; Diplomatic filings receive Diplomacy indexing; Informational filings receive an unscored Information brief. That label is **not** decisive by itself. Actions often bundle multiple tools, carry a secondary DIME lane, or are mislabeled at intake. The agent and White Cell must read the action text, UI levers, and bundled authorities against the stated Instrument of Power. If the label and content diverge — or a second lane is clearly present — do **not** force the wrong track: set `needs_human=true` with an explanation, and/or open a **secondary facet** only with a cited dual-lane rationale (`secondary_facet_citation`).
 
 ![Plenum adjudication workflow](PLENUM_Adjudication_Workflow.png)
 
 *Plenum adjudication workflow — White Cell completeness, Instrument of Power routing, parallel tracks, and SME approve/override.*
 
-## Layer 1 — The nine economic levers
+## Layer 1 — The ten economic levers
 
-Nine levers cover the full Blue/Red/Green economic action corpus with minimal overlap. No catch-all bucket.
+Ten levers cover the full Blue/Red/Green economic action corpus with minimal overlap. No undifferentiated catch-all bucket — each lever has a defined domain and instrument table.
 
 | Code | Lever | Definition | Boundary |
 |------|-------|------------|----------|
 | **L1** | Trade & Customs | Tariffs, quotas, trade remedies (Section 301, Section 232, anti-dumping and countervailing duties), import/export bans on ordinary goods and services | Dual-use technology denial → **L2** |
 | **L2** | Export Controls & Entity Lists | Entity lists, license denials, information and communications technology and services restrictions, deemed-export, strategic technology access denial | Generic tariffs → **L1** |
-| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans | Asset freeze → **L4** |
-| **L4** | Financial Sanctions & Coercion | Targeted/secondary sanctions, asset freezes, payment-system denial, financial-market access bans, **legal-economic asset remedies** | Non-punitive regulation → **L5** |
+| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans | Asset freeze → **L4**. Ordinary FDI / land investment without sovereignty or exclusive basing rights stays **L3** |
+| **L4** | Financial Sanctions & Coercion | Targeted/secondary sanctions, asset freezes, payment-system denial, financial-market access bans, **legal-economic asset remedies** | Non-punitive regulation → **L5**. Sovereignty or basing-access transfer between states → **L10** (not I4.06) |
 | **L5** | Financial Regulation & Digital Policy | Prudential and anti-money-laundering rules, digital asset policy, market-structure regulation, **domestic foreign-exchange intervention / rate-check coordination** without country-specific punishment | Bilateral partner-support swaps → **L6** (rule 4). Any sanction element → **L4** |
-| **L6** | Development & Infrastructure Finance | Development finance institutions, foreign aid, export credit, overseas infrastructure/connectivity financing, **bilateral currency swaps for partner support**, **sovereign bond purchase/guarantee for partner states** | Domestic-only capacity → **L7**. Domestic foreign-exchange operations (not partner swap) → **L5** |
+| **L6** | Development & Infrastructure Finance | Development finance institutions, foreign aid, export credit, overseas infrastructure/connectivity financing, **bilateral currency swaps for partner support**, **sovereign bond purchase/guarantee for partner states** | Domestic-only capacity → **L7**. Domestic foreign-exchange operations (not partner swap) → **L5**. Overseas infra finance whose *object* is territory/basing rights → **L10** |
 | **L7** | Industrial Policy & Domestic Capacity | Subsidies, tax incentives, deregulation, procurement preferences, domestic research and development / industrial funding | Foreign deployment → **L6** |
 | **L8** | Strategic Reserves & Supply Security | Stockpiling, reserve mandates, supply contingency authorities | New production → **L7** |
 | **L9** | Standards, Regulation & Data Governance | Technical standards, regulatory harmonization, data governance, certification/trust regimes | Access bans → **L1/L2** |
+| **L10** | Territorial Acquisition, Basing & Strategic Access | Negotiated acquisition, cession, long-term lease, or compensatory transfer of **sovereign territory, exclusive basing rights, or strategic geographic access** (including SLOC-critical islands/ports) where the economic bargain (payment, lease, offset package) is the operative instrument | Pure Military force posture, alliance messaging, or diplomacy with no purchase/lease/concession bargain → **NE**. Asset/IP/fund seizure inside a jurisdiction → **L4 / I4.06**. Ordinary FDI without sovereignty or exclusive basing → **L3**. Overseas infra finance without territorial/basing rights as the deal object → **L6** |
 
 | Code | Special | Use |
 |------|---------|-----|
 | **NE** | Non-Economic | Default when Instrument of Power is Diplomatic, Informational, or Military — or when an Economic filing has no economic lever vector (mislabel / needs_human). No macro lever vector. Always routed to National Interest + Glasl; Diplomacy Index and Information brief follow default lanes or cited secondary facets (see Architecture / track routing). |
 
-**Design note:** Legal-economic coercion (intellectual-property seizure, eminent domain, retroactive compensation) is coercive financial punishment — it belongs under **L4** as instrument **I4.06**, not as its own lever. Nine levers cover the full Blue/Red/Green economic action space without a catch-all bucket.
+**Design notes:**
+- Legal-economic coercion (intellectual-property seizure, eminent domain, retroactive compensation) is coercive financial punishment — it belongs under **L4** as instrument **I4.06**, not as its own lever.
+- **L10 is not the retired legal-coercion lever.** The 2026-06-15 consolidation moved former legal-coercion L10 into I4.06. The current **L10** is a distinct domain for sovereignty / basing / strategic-access *transactions* between states.
 
 ---
 ## Layer 2 — Policy instruments (by lever)
@@ -141,6 +140,18 @@ Each action gets **one primary instrument**. Secondary instruments optional when
 | I9.03 | Data localization / cross-border data rule |
 | I9.04 | Certification / trusted-vendor regime |
 
+### L10 — Territorial Acquisition, Basing & Strategic Access
+| Code | Instrument |
+|------|------------|
+| I10.01 | Sovereign territory purchase or cession (treaty / legislative transfer) |
+| I10.02 | Long-term basing / Status of Forces Agreement / exclusive facility rights package |
+| I10.03 | Strategic port, canal, or sea-lane-of-communication access concession |
+| I10.04 | Compensatory economic package tied to territorial or basing settlement |
+
+**Default direction:** Inducement (purchase/lease packages). Use Coercive or Mixed when the deal is framed as compelled cession or dual carrot-stick.
+
+**Worked example — Purchase Chagos Archipelago:** Economic Instrument of Power; operative act is UK–US sovereign territory purchase/cession for Indian Ocean basing and SLOC protection → **L10 / I10.01**, direction Inducement. National Interest (NI-1 / NI-4) and Glasl still run in parallel. Do **not** force-fit L1–L9 or route to `needs_human` solely because no prior L-code existed.
+
 ---
 ## Layer 3a — Implementation score (1–10)
 
@@ -215,11 +226,11 @@ Coercive levers (L1–L4) are the natural home of Pressure; L5, L6, and L8 of St
 
 ### Purpose and output
 
-PLI's primary output is directional: for each scored action, PLI produces the **new quarterly trend line of each of five macroeconomic indicators** (grid `2026Q1`–`2034Q4`), plotted against the pre-action baseline in a color-coded chart (baseline navy solid; post-action gold dashed; divergence shaded green where favorable to the acting team, red where unfavorable). PLI adjudicates **directionality, not point forecasts** — across the six institutional forecasters reviewed, point estimates for the same indicator-year differ by up to 1.4 percentage points, but direction and shape are unanimous. Direction is the empirically defensible layer. The trend lines are computed from the tables in this section, not judged case-by-case; the SME's role is to review the recorded chain and approve the adjudication.
+PLI's primary output is directional: for each scored action, PLI produces the **new quarterly trend line of each of five macroeconomic indicators**, plotted against the pre-action baseline in a color-coded chart (baseline navy solid; post-action gold dashed; divergence shaded green where favorable to the acting team, red where unfavorable). PLI adjudicates **directionality, not point forecasts** — across the six institutional forecasters reviewed, point estimates for the same indicator-year differ by up to 1.4 percentage points, but direction and shape are unanimous. Direction is the empirically defensible layer. The trend lines are computed from the tables in this section, not judged case-by-case; the SME's role is to review the recorded chain and approve the adjudication.
 
 ### The five indicators and the quarterly adjudication grid (2026Q1–2034Q4)
 
-Baseline trend lines are anchored to the IMF United States 2026 Article IV projections, corroborated by the Congressional Budget Office, the Federal Reserve's Summary of Economic Projections, the World Trade Organization, and the OECD. Institutions publish **annual** (or Q4/Q4) rates; PLI expands them to a **quarterly adjudication grid** by holding each year's institutional rate constant across Q1–Q4 of that year through 2034Q4. That expansion is a discretization for month-anchored onset/ramp/decay — **not** a claim of higher-frequency institutional forecasts. Full sourcing is in *PLI_Annotated_Bibliography.md*.
+Baseline trend lines are anchored to the IMF United States 2026 Article IV projections, corroborated by CBO, Fed SEP, WTO, and OECD. Institutions publish annual or Q4/Q4 rates; PLI expands them to a **quarterly adjudication grid** by **within-year hold** through 2034Q4 (discretization for month anchors — not higher-frequency forecasts). See *PLI_Annotated_Bibliography.md* (“Quarterly adjudication grid and month anchors”).
 
 | Indicator | 2026 | 2027 | 2028 | 2029 | 2030 | 2031 | 2032* |
 |-----------|------|------|------|------|------|------|-------|
@@ -229,100 +240,68 @@ Baseline trend lines are anchored to the IMF United States 2026 Article IV proje
 | Trade volume growth (%) | 1.0 | 3.6 | 1.4 | 1.4 | 1.7 | 1.5 | 1.5 |
 | Fixed investment growth (%) | 4.0 | 3.3 | 2.1 | 1.8 | 1.8 | 1.8 | 1.8 |
 
-\*2032 holds the 2031 annual anchor (within-year hold on the quarterly grid).
-
-Baseline shape: growth glides to potential (~1.8%), inflation normalizes to target by 2027 (CBO slow bound: 2030), unemployment flattens near 4%, trade stays subdued with a 2027 rebound, investment starts strong and normalizes.
-
-### FO 2.0 month anchors
-
-Every FO 2.0 worksheet carries a required ``submission_month`` (`YYYY-MM`). The engine maps month → calendar quarter (1–3→Q1 … 10–12→Q4). Effect start is:
-
-`start_quarter = submission_quarter + onset_quarters + implementation_delay_quarters`
-
-Weights then follow a bib-cited **ramp → plateau → decay** profile in quarters (Sources 7–10). Legacy annual worksheets may omit the field only in back-compat tests (`exec_year` → `YYYY-01`); live FO 2.0 play requires the real month.
+\*2032 holds the 2031 annual anchor. FO 2.0 worksheets require `submission_month` (`YYYY-MM`).
 
 ### Multi-action stacking (FO 2.0)
 
-Single-action adjudication (`compute_deltas` / `adjudicate_from_worksheet`) is unchanged. When **multiple actions** affect the same indicator-quarter, the engine stacks their quarterly deltas under an explicit `stacking_policy` (machine-readable in `codebook_data.json`):
-
-| Policy | Behavior |
-|--------|----------|
-| **`uncapped`** (default) | Elementwise sum of profiled quarterly deltas. Cumulative |Δ| may exceed magnitude class S so 2nd–4th order effects across years remain visible. |
-| **`same_quarter`** | After each action is added, clamp each indicator’s cumulative delta that quarter to ±`same_quarter_cap_class` (S = 0.8). Legacy FO display behavior. |
-| **`per_move`** | Sum uncapped within a move; when the move closes, clamp that move’s contribution per quarter to ±S, then add to the running game total. |
-
-Annual charts are Q4 aggregates of the quarterly path for display only — the quarterly grid is authoritative. `same_year_cap_class` is legacy and must not be treated as the FO 2.0 stacking rule.
+Single-action adjudication is unchanged. Multi-action stacking uses `stack_action_deltas` with codebook default **`uncapped`** (profiled quarterly deltas sum without a cumulative ±S clamp so higher-order effects remain visible). Alternate modes: **`same_quarter`** (clamp cumulative per quarter to ±S after each add) and **`per_move`** (uncapped within a move; clamp each move’s contribution to ±S before adding to the running total). See Master Codebook for the full table. Annual display is Q4 aggregate only; `same_year_cap_class` is legacy.
 
 ### Lever × indicator directionality matrix (static)
 
-Each lever carries a static directional impulse per indicator, with a magnitude class and timing fields in **quarters** (`onset_quarters`, `ramp_in_quarters`, `decay_quarters`, optional `duration_quarters`). The matrix is stated for each lever's **default direction** (coercive for L1–L4, inducement/neutral for L5–L9); when the Direction facet is opposite the default (e.g., preferential trade access under L1), PLI flips the affected signs and writes the flip to the adjudication record.
+Each lever carries a static directional impulse per indicator, with magnitude class and timing in **quarters** (`onset_quarters`, `ramp_in_quarters`, `decay_quarters`; optional `duration_quarters`). Default directions and sign-flip rules are unchanged from the Master Codebook; machine-readable values live in `codebook_data.json` (`trial-2026-07-13-quarterly`).
 
 | Lever | GDP | Inflation | Unemployment | Trade | Investment | Timing (bib) |
 |-------|-----|-----------|--------------|-------|------------|--------------|
-| L1 Trade & Customs | -s | +M | +tr | -S | -s | Fast onset/ramp (Source 7) |
-| L2 Export Controls | -tr | 0 | 0 | -M | -s | Prompt start; slow macro (Source 8) |
+| L1 Trade & Customs | -s | +M | +tr | -S | -s | Fast (Source 7) |
+| L2 Export Controls | -tr | 0 | 0 | -M | -s | Prompt/slow macro (Source 8) |
 | L3 Investment & Capital | -tr | 0 | 0 | -s | -M | Medium lag |
-| L4 Financial Sanctions | -tr | +s | 0 | -M | -s | Completeness → bite (Source 9) |
+| L4 Financial Sanctions | -tr | +s | 0 | -M | -s | Completeness (Source 9) |
 | L5 Financial Regulation | +tr | -s | 0 | 0 | +tr | Medium lag |
 | L6 Development Finance | +tr | 0 | 0 | +M | +s | Long ramp (Source 10) |
-| L7 Industrial Policy | +M | +s (transitory) | -s | -s | +S | Long onset + multi-year ramp (Source 10) |
+| L7 Industrial Policy | +M | +s (transitory) | -s | -s | +S | Long onset/ramp (Source 10) |
 | L8 Strategic Reserves | 0 | -s | 0 | +s | +s | Medium lag |
-| L9 Standards & Data | +tr | 0 | 0 | +s | +tr | Slow buildout (Source 10) |
+| L9 Standards & Data | +tr | 0 | 0 | +s | +tr | Slow (Source 10) |
 
-**Magnitude classes** (display values for charting, in percentage points; directional, not point forecasts): **S** = 0.8, **M** = 0.5, **s** = 0.2, **tr** = 0.1, **0** = no effect. Transitory tags use `duration_quarters` (and Fit may extend duration).
-
-Matrix rationale, in brief: coercive trade and sanctions levers suppress trade volumes and impose small price and output costs on the acting economy; industrial policy is the strongest positive investment impulse but arrives late and carries build-phase inflation; development finance works through export demand; reserves damp volatility; standards work slowly through trade facilitation.
+**Magnitude classes:** **S** = 0.8, **M** = 0.5, **s** = 0.2, **tr** = 0.1, **0** = no effect.
 
 ### How Implementation modulates the trend line (magnitude and onset)
-
-Implementation determines **how much of the matrix impulse is realized and when it starts**. Lookup by band — no hidden math:
 
 | Implementation | Magnitude | Onset delay |
 |----------------|-----------|-------------|
 | 9–10 | Full matrix class | Matrix onset |
 | 7–8 | Full matrix class | Matrix + 4 quarters |
-| 5–6 | One class down (S→M, M→s, s→tr, tr→0) | Matrix + 4 quarters |
+| 5–6 | One class down | Matrix + 4 quarters |
 | 3–4 | Two classes down | Matrix + 8 quarters |
-| 1–2 | No macroeconomic effect (action fails to execute; escalation consequences may still apply) | — |
+| 1–2 | No macroeconomic effect | — |
 
 ### How Fit modulates the trend line (persistence)
 
-Fit determines **how long the effect holds** after ramp-in (plateau length in quarters, then decay). Rationale: an action misaligned with the team's declared orientation is not reinforced by the rest of the team's play.
-
 | Fit | Persistence |
 |-----|-------------|
-| 9–10 | Horizon plateau; duration-limited effects extended +4 quarters |
+| 9–10 | Horizon plateau; duration-limited effects +4 quarters |
 | 7–8 | Horizon plateau |
 | 5–6 | 8-quarter plateau after ramp, then decay |
 | 3–4 | 4-quarter plateau after ramp, then decay |
-| 1–2 | No sustained macroeconomic effect; PLI flags strategic incoherence for SME review |
+| 1–2 | No sustained macroeconomic effect; strategic incoherence flag |
 
 ### Traceability chain and SME approval
 
-Every adjudicated trend line must be reproducible from five recorded facts: **(1)** lever and instrument → matrix row; **(2)** Direction facet → sign check; **(3)** Implementation score → magnitude/onset-delay band; **(4)** Fit score → persistence/decay band; **(5)** `submission_month` → start quarter + profiled weights. Any SME can recompute any quarter's delta from the tables above.
+Every adjudicated trend line must be reproducible from five recorded facts: **(1)** lever and instrument → matrix row; **(2)** Direction facet → sign check; **(3)** Implementation score → magnitude/onset-delay band; **(4)** Fit score → persistence/decay band; **(5)** `submission_month` → start quarter + profiled weights.
 
 The adjudication record carries this chain plus the Implementation worksheet (tier, modifiers) and the Fit anchor rationale. The SME reviews the record after PLI produces it and marks it **Approved** or **Overridden**; an override records the changed value and a one-line rationale, and the override — not the mechanical output — becomes the adjudication of record. The approval loop validates the rules themselves: repeated overrides of the same table entry are the signal to revise the table, not the scores.
 
 ### Worked example — L7 / I7.01 domestic supply-chain investment
 
-Blue executes a domestic semiconductor supply-chain investment program in 2026. Lever L7, instrument I7.01, Direction Inducement (default — no sign flip), Orientation Reframing.
+Blue submits a domestic semiconductor supply-chain investment program in **2026-01**. Lever L7, instrument I7.01, Direction Inducement (default — no sign flip), Orientation Reframing.
 
-- **Implementation 6:** Tier 2 (existing statutory authority in the CHIPS-class precedent, but the specific program requires new appropriations — game state favorable), midpoint 6.5, timeline-mismatch modifier not triggered, no partner modifier → 6. Band 5–6: magnitudes one class down, onset +1 year.
-- **Fit 8:** capacity-building under a declared Reframing orientation, minor coercive-signaling friction → band 7–8: effect holds through horizon.
+- **Implementation 6:** Tier 2 midpoint 6.5 → 6. Band 5–6: magnitudes one class down, onset delay +4 quarters.
+- **Fit 8:** band 7–8: horizon plateau after ramp.
 
-Resulting deltas (percentage points vs baseline):
-
-| Indicator | Matrix | After Implementation 6 | Effect years |
-|-----------|--------|------------------------|--------------|
-| GDP growth | +M, onset 2 | +s (+0.2), onset 3 | 2029–2031 |
-| PCE inflation | +s (2-yr), onset 1 | +tr (+0.1), onset 2 | 2028–2029 (transitory) |
-| Unemployment | -s, onset 2 | -tr (-0.1), onset 3 | 2029–2031 |
-| Trade volume | -s, onset 2 | -tr (-0.1), onset 3 | 2029–2031 |
-| Fixed investment | +S, onset 1 | +M (+0.5), onset 2 | 2028–2031 |
+Illustrative path shape (not annual bricks): fixed investment starts **2028Q1** and ramps; GDP starts **2029Q1** and rises across multiple quarters (Source 10); inflation is duration-capped and transitory. Exact quarter weights are in `codebook_data.json` / `engine.py`.
 
 ![PLI adjudication output example](PLI_Trend_Example.png)
 
-Reading the chart: investment leads (2028), GDP and jobs follow (2029), the build-phase inflation bump is transitory, and the trade drag reflects import substitution. Green shading marks favorable divergence for the acting team, red unfavorable. This is the standard adjudication output for every scored action.
+Reading the chart: investment leads, GDP and jobs follow with multi-quarter ramps, the build-phase inflation bump is transitory, and the trade drag reflects import substitution. Green shading marks favorable divergence for the acting team, red unfavorable. This is the standard adjudication output for every scored action.
 
 ---
 ## Facets — tie-breaks and context only
@@ -350,11 +329,14 @@ Reading the chart: investment leads (2028), GDP and jobs follow (2029), the buil
 8. Domestic subsidy / deregulation / procurement → **L7**
 9. Standards / harmonization → **L9**
 10. Non-sanctions financial rule → **L5**
+11. **Sovereign territory purchase/cession, exclusive basing rights, or strategic geographic access concession (payment, lease, or compensatory package) → L10**
 
 **Rule 4 scope:** Partner-support swaps only. Domestic/prudential foreign-exchange management stays **L5** (rule 10). Punitive denial of swap or bond market access stays **L4** (rule 1). Swap used as capital-control enforcement stays **L3** (rule 3).
 
-If Direction is Inducement and two levers fit, prefer L6/L7/L8 over L1–L4.  
-If Direction is Coercive, prefer L1–L4 over L6–L9.
+**Rule 11 scope:** The object of the bargain must be sovereignty, exclusive basing, or strategic geographic access. Ordinary overseas infrastructure without those rights stays **L6** (rule 7). Intra-jurisdiction asset seizure stays **L4 / I4.06** (rule 1). Pure Military/Diplomatic acts without a transactional access deal stay **NE**.
+
+If Direction is Inducement and two levers fit, prefer L6/L7/L8/L10 over L1–L4.  
+If Direction is Coercive, prefer L1–L4 over L6–L10 unless rule 11 (territory/basing) clearly dominates.
 
 ---
 ## Currency, bond, and foreign exchange operations
@@ -367,6 +349,9 @@ If Direction is Coercive, prefer L1–L4 over L6–L9.
 | Ban on adversary sovereign bond access | **L4** | **I4.05** | Rule 1; coercive market access denial |
 | United States purchase of partner sovereign bonds (inducement) | **L6** | **I6.07** | Rule 7 if infrastructure-framed; I6.07 when bond support dominates |
 | Outbound ban on buying adversary sovereign debt | **L3** or **L4** | I3.04 or I4.05 | Dominance rule; both covered |
+| United States purchase of Chagos Archipelago from the United Kingdom | **L10** | **I10.01** | Rule 11; sovereignty transfer for basing / SLOC |
+| Long-term exclusive basing rights package with host-nation offsets | **L10** | **I10.02** | Rule 11; not L6 overseas infra alone |
+| Strategic port access concession tied to lease payments | **L10** | **I10.03** | Rule 11 |
 
 ---
 ## Intake and adjudication record
