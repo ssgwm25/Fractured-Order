@@ -47,7 +47,7 @@ Ten levers cover the full Blue/Red/Green economic action corpus with minimal ove
 |------|-------|------------|----------|
 | **L1** | Trade & Customs | Tariffs, quotas, trade remedies (Section 301, Section 232, anti-dumping and countervailing duties), import/export bans on ordinary goods and services | Dual-use technology denial → **L2** |
 | **L2** | Export Controls & Entity Lists | Entity lists, license denials, information and communications technology and services restrictions, deemed-export, strategic technology access denial | Generic tariffs → **L1** |
-| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans | Asset freeze → **L4**. Ordinary FDI / land investment without sovereignty or exclusive basing rights stays **L3** |
+| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans, reciprocal FDI / investment-access packages | Asset freeze → **L4**. Ordinary FDI / land investment without sovereignty or exclusive basing rights stays **L3**. Named reciprocal FDI packages → **I3.05** (not `needs_human` for inbound/outbound ambiguity) |
 | **L4** | Financial Sanctions & Coercion | Targeted/secondary sanctions, asset freezes, payment-system denial, financial-market access bans, legal-economic asset remedies | Non-punitive regulation → **L5**. Sovereignty or basing-access transfer between states → **L10** (not I4.06) |
 | **L5** | Financial Regulation & Digital Policy | Prudential and anti-money-laundering rules, digital asset policy, market-structure regulation, domestic foreign-exchange intervention / rate-check coordination without country-specific punishment | Bilateral partner-support swaps → **L6** (rule 4). Any sanction element → **L4** |
 | **L6** | Development & Infrastructure Finance | Development finance institutions, foreign aid, export credit, overseas infrastructure/connectivity financing, bilateral currency swaps for partner support, sovereign bond purchase/guarantee for partner states | Domestic-only capacity → **L7**. Domestic foreign-exchange operations (not partner swap) → **L5**. Overseas infra finance whose *object* is territory/basing rights → **L10** |
@@ -64,7 +64,7 @@ Ten levers cover the full Blue/Red/Green economic action corpus with minimal ove
 
 ## Layer 2 — Policy instruments (by lever)
 
-Each action gets **one primary instrument**. Secondary instruments optional when bundled authorities are distinct. Instrument tables follow the master codebook (I1.01–I10.04, including I5.04, I6.06, I6.07, I10.01–I10.04). See the master codebook for the full listing; instrument codes cited in this document carry the same definitions.
+Each action gets **one primary instrument**. Secondary instruments optional when bundled authorities are distinct. Instrument tables follow the master codebook (I1.01–I10.04, including I3.05, I5.04, I6.06, I6.07, I10.01–I10.04). See the master codebook for the full listing; instrument codes cited in this document carry the same definitions.
 
 ---
 

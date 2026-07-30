@@ -12,6 +12,7 @@ export const BLUE_ACTION_LEVERS = Object.freeze([
     'Sanctions',
     'Export Controls',
     'Investment Screening',
+    'Reciprocal FDI Package',
     'Trade Measures',
     'Financial Restrictions',
     'Industrial Policy',

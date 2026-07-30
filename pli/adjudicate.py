@@ -72,6 +72,17 @@ needs_human solely because the act is outside L1–L9. Pure Military or
 Diplomatic acts with no transactional access deal remain NE. Intra-
 jurisdiction asset/IP/fund seizure remains L4/I4.06, not L10.
 
+SPECIAL RULE — RECIPROCAL FDI PACKAGE (L3 / I3.05):
+When an Economic filing is titled or framed as a Reciprocal FDI Package
+(or equivalent security-restricted reciprocal investment / investment-access
+package) and no single inbound screening, outbound restriction, or
+country/sector ban clearly dominates, classify L3 / I3.05 (direction Mixed
+unless the text is denial-only or access-only). Do NOT set needs_human solely
+because UI levers are "None selected", Implementation/Legislative fields are
+empty, or the package could be read as I3.01 vs I3.02 vs I3.04. Prefer a
+discrete I3.01–I3.04 code only when the operative act is clearly one of those
+alone. UI lever "Reciprocal FDI Package" is a strong prior for L3/I3.05.
+
 Your job for the single action below, in order:
 
 1. INSTRUMENT OF POWER: echo `instrument_of_power` from the action's
@@ -83,7 +94,8 @@ Your job for the single action below, in order:
    non-economic) and one primary instrument code, using the master codebook
    Layer 1/Layer 2 definitions, boundary rules, and the eleven tie-break rules.
    UI levers listed in ally_contingencies are strong priors for Economic
-   filings (including "Territory & Basing Access" → L10). Record the deciding
+   filings (including "Territory & Basing Access" → L10 and
+   "Reciprocal FDI Package" → L3/I3.05). Record the deciding
    rule in `classification.rule_citation`.
    Set `direction` per the Direction facet (coercive / inducement / mixed).
 
