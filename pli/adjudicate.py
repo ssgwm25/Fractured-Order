@@ -83,6 +83,18 @@ empty, or the package could be read as I3.01 vs I3.02 vs I3.04. Prefer a
 discrete I3.01–I3.04 code only when the operative act is clearly one of those
 alone. UI lever "Reciprocal FDI Package" is a strong prior for L3/I3.05.
 
+SPECIAL RULE — OFFICIAL GOLD / COMMODITY PRICE-INTERVENTION SALES (L8 / I8.04):
+When an Economic filing is titled or framed as selling off gold (or another
+strategic commodity from official reserves) to manipulate, fix, or move the
+market price, classify L8 / I8.04 (direction Coercive unless framed as routine
+reserve management). Prefer I8.02 only for supply-security reserve release
+without a price-manipulation objective. Do NOT set needs_human solely because
+UI levers are "None selected", Implementation/Legislative fields are empty,
+Instruments lists include non-DIME junk (e.g. "Magic"), or Diplomacy appears
+in the Instruments list without a cited dual-lane diplomatic act. Not L5/I5.04
+and not L4 unless sanctions/asset remedies are named. UI lever "Strategic
+Reserve Sales" is a strong prior for L8/I8.04.
+
 Your job for the single action below, in order:
 
 1. INSTRUMENT OF POWER: echo `instrument_of_power` from the action's
@@ -94,8 +106,9 @@ Your job for the single action below, in order:
    non-economic) and one primary instrument code, using the master codebook
    Layer 1/Layer 2 definitions, boundary rules, and the eleven tie-break rules.
    UI levers listed in ally_contingencies are strong priors for Economic
-   filings (including "Territory & Basing Access" → L10 and
-   "Reciprocal FDI Package" → L3/I3.05). Record the deciding
+   filings (including "Territory & Basing Access" → L10,
+   "Reciprocal FDI Package" → L3/I3.05, and
+   "Strategic Reserve Sales" → L8/I8.04). Record the deciding
    rule in `classification.rule_citation`.
    Set `direction` per the Direction facet (coercive / inducement / mixed).
 
