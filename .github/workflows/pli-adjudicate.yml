@@ -52,7 +52,7 @@ jobs:
       - name: Install PLI dependencies
         run: pip install -r requirements.txt
       - name: Unit tests (engine + tracks + seats)
-        run: python -m pytest test_engine.py test_tracks.py test_run_pli_seats.py test_l10_cross_check.py test_i305_reciprocal_fdi.py -q
+        run: python -m pytest test_engine.py test_tracks.py test_run_pli_seats.py test_l10_cross_check.py test_i305_reciprocal_fdi.py test_i804_gold_sales.py -q
 
   adjudicate:
     needs: test

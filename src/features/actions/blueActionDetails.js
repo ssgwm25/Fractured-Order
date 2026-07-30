@@ -17,6 +17,7 @@ export const BLUE_ACTION_LEVERS = Object.freeze([
     'Financial Restrictions',
     'Industrial Policy',
     'Infrastructure Access',
+    'Strategic Reserve Sales',
     'Territory & Basing Access'
 ]);
 

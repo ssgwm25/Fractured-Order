@@ -33,7 +33,7 @@ Ten levers cover the full Blue/Red/Green economic action corpus with minimal ove
 | **L5** | Financial Regulation & Digital Policy | Prudential and anti-money-laundering rules, digital asset policy, market-structure regulation, **domestic foreign-exchange intervention / rate-check coordination** without country-specific punishment | Bilateral partner-support swaps → **L6** (rule 4). Any sanction element → **L4** |
 | **L6** | Development & Infrastructure Finance | Development finance institutions, foreign aid, export credit, overseas infrastructure/connectivity financing, **bilateral currency swaps for partner support**, **sovereign bond purchase/guarantee for partner states** | Domestic-only capacity → **L7**. Domestic foreign-exchange operations (not partner swap) → **L5**. Overseas infra finance whose *object* is territory/basing rights → **L10** |
 | **L7** | Industrial Policy & Domestic Capacity | Subsidies, tax incentives, deregulation, procurement preferences, domestic research and development / industrial funding | Foreign deployment → **L6** |
-| **L8** | Strategic Reserves & Supply Security | Stockpiling, reserve mandates, supply contingency authorities | New production → **L7** |
+| **L8** | Strategic Reserves & Supply Security | Stockpiling, reserve mandates, supply contingency authorities, **official reserve / commodity sales to move market prices** | New production → **L7**. Gold/commodity sell-offs for price intervention → **I8.04** (not L5 FX rate-check; not L4 unless sanctions/asset remedies named) |
 | **L9** | Standards, Regulation & Data Governance | Technical standards, regulatory harmonization, data governance, certification/trust regimes | Access bans → **L1/L2** |
 | **L10** | Territorial Acquisition, Basing & Strategic Access | Negotiated acquisition, cession, long-term lease, or compensatory transfer of **sovereign territory, exclusive basing rights, or strategic geographic access** (including SLOC-critical islands/ports) where the economic bargain (payment, lease, offset package) is the operative instrument | Pure Military force posture, alliance messaging, or diplomacy with no purchase/lease/concession bargain → **NE**. Asset/IP/fund seizure inside a jurisdiction → **L4 / I4.06**. Ordinary FDI without sovereignty or exclusive basing → **L3**. Overseas infra finance without territorial/basing rights as the deal object → **L6** |
 
@@ -126,6 +126,13 @@ Each action gets **one primary instrument**. Secondary instruments optional when
 | I8.01 | Strategic stockpile build |
 | I8.02 | Reserve mandate / release authority |
 | I8.03 | Supply-security emergency authority |
+| I8.04 | Official reserve / commodity sales for market-price intervention (e.g. gold sell-off to move the topline price) |
+
+**Default direction for I8.04:** Coercive when framed as price fixing / market manipulation; Mixed when framed as routine reserve management with a price effect; Inducement only when sales are explicitly partner-support or liquidity support.
+
+**Instrument selection — gold / commodity price intervention sales:** When the action title or objective is selling official gold (or another strategic commodity) to manipulate, fix, or move the market price, assign **L8 / I8.04**. Prefer I8.02 only when the operative act is supply-security reserve release without a price-manipulation objective. Do **not** set `needs_human` solely because UI levers are empty, Implementation/Legislative fields are blank, or the Instruments list includes non-DIME junk (e.g. "Magic") or Diplomacy without a cited dual-lane diplomatic act. Not L5/I5.04 (FX rate-check) and not L4 unless sanctions or asset remedies are named.
+
+**Worked example — Selling off gold to manipulate the price:** Economic Instrument of Power; objective is fixing the topline gold price via official sell-off → **L8 / I8.04**, direction Coercive. National Interest and Glasl still run in parallel.
 
 ### L9 — Standards & Data Governance
 | Code | Instrument |
@@ -243,6 +250,7 @@ If Direction is Coercive, prefer L1–L4 over L6–L10 unless rule 11 (territory
 | Long-term exclusive basing rights package with host-nation offsets | **L10** | **I10.02** | Rule 11; not L6 overseas infra alone |
 | Strategic port access concession tied to lease payments | **L10** | **I10.03** | Rule 11 |
 | Reciprocal FDI Package (security-restricted investment + access bargain; inbound/outbound not specified) | **L3** | **I3.05** | Rule 3; package instrument when I3.01–I3.04 do not uniquely dominate |
+| Selling off gold to manipulate / fix the market price | **L8** | **I8.04** | Rule 6; official commodity sales for price intervention (not I8.02 supply-security release alone) |
 
 ---
 
@@ -298,3 +306,5 @@ Reference classifications for the eleven economic actions submitted by the Blue 
 | 2026-06-30 | Master codebook: I5.04, I6.06, I6.07; tie-break rule 4 (partner-support swaps); currency/bond/foreign-exchange guidance |
 | 2026-07-29 | Add **L10 Territorial Acquisition, Basing & Strategic Access** (I10.01–I10.04) and tie-break rule 11. Distinct from the retired legal-coercion L10 that was merged into I4.06. Covers Chagos-style sovereignty / basing transactions so they classify under Macro instead of `needs_human`. |
 | 2026-07-30 | Add **I3.05 Reciprocal FDI / investment-access package** under L3. Named reciprocal FDI / security-restricted investment packages classify as L3/I3.05 instead of `needs_human` when inbound vs outbound vs ban cannot be uniquely assigned. |
+| 2026-07-30 | Clarify **I8.02** covers official gold / monetary-metal or strategic commodity reserve sales to influence market price. Named gold sell-offs classify as L8/I8.02 instead of `needs_human` for empty UI/Implementation or non-DIME Instruments noise. |
+| 2026-07-30 | Add **I8.04 Official reserve / commodity sales for market-price intervention** under L8. Gold/commodity sell-offs to manipulate or fix market prices classify as L8/I8.04 instead of `needs_human` when UI levers/implementation are empty or Instruments lists include non-DIME noise. |

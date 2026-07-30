@@ -84,6 +84,11 @@ RESCORE_REASON_MARKERS = (
     # NI: shared Blue Team Action Details form prefix misread as actor conflict
     "SME must confirm actor attribution",
     "Blue Team Action Details",
+    # I8.04: prior needs_human for gold/commodity price-intervention sales
+    "gold-price",
+    "Selling off gold",
+    "No discrete L1–L10 instrument uniquely dominates",
+    "Magic",
 )
 
 
