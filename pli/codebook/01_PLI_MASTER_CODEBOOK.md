@@ -41,7 +41,7 @@ Ten levers cover the full Blue/Red/Green economic action corpus with minimal ove
 |------|-------|------------|----------|
 | **L1** | Trade & Customs | Tariffs, quotas, trade remedies (Section 301, Section 232, anti-dumping and countervailing duties), import/export bans on ordinary goods and services | Dual-use technology denial → **L2** |
 | **L2** | Export Controls & Entity Lists | Entity lists, license denials, information and communications technology and services restrictions, deemed-export, strategic technology access denial | Generic tariffs → **L1** |
-| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans | Asset freeze → **L4**. Ordinary FDI / land investment without sovereignty or exclusive basing rights stays **L3** |
+| **L3** | Investment & Capital Controls | Foreign investment screening, outbound investment rules, ownership caps, investment bans, **reciprocal FDI / investment-access packages** | Asset freeze → **L4**. Ordinary FDI / land investment without sovereignty or exclusive basing rights stays **L3**. Named reciprocal FDI packages → **I3.05** (not `needs_human` for inbound/outbound ambiguity) |
 | **L4** | Financial Sanctions & Coercion | Targeted/secondary sanctions, asset freezes, payment-system denial, financial-market access bans, **legal-economic asset remedies** | Non-punitive regulation → **L5**. Sovereignty or basing-access transfer between states → **L10** (not I4.06) |
 | **L5** | Financial Regulation & Digital Policy | Prudential and anti-money-laundering rules, digital asset policy, market-structure regulation, **domestic foreign-exchange intervention / rate-check coordination** without country-specific punishment | Bilateral partner-support swaps → **L6** (rule 4). Any sanction element → **L4** |
 | **L6** | Development & Infrastructure Finance | Development finance institutions, foreign aid, export credit, overseas infrastructure/connectivity financing, **bilateral currency swaps for partner support**, **sovereign bond purchase/guarantee for partner states** | Domestic-only capacity → **L7**. Domestic foreign-exchange operations (not partner swap) → **L5**. Overseas infra finance whose *object* is territory/basing rights → **L10** |
@@ -87,6 +87,13 @@ Each action gets **one primary instrument**. Secondary instruments optional when
 | I3.02 | Outbound investment restriction |
 | I3.03 | Foreign ownership cap / divestment order |
 | I3.04 | Investment ban (sector- or country-specific) |
+| I3.05 | Reciprocal FDI / investment-access package (coupled screening, outbound rules, and/or market-access reciprocity) |
+
+**Default direction for I3.05:** Mixed (security restriction + reciprocal access bargain). Use Coercive when the filing is framed only as denial/decoupling; Inducement when framed only as opening access conditional on partner reciprocity.
+
+**Instrument selection — Reciprocal FDI Package:** When the action title, objective, or UI lever names a **Reciprocal FDI Package** (or equivalent security-restricted reciprocal investment package) and no single inbound/outbound/ban instrument clearly dominates, assign **L3 / I3.05**. Do **not** set `needs_human` solely because UI levers are empty, Implementation/Legislative fields are blank, or the package could be read as I3.01 vs I3.02 vs I3.04. Prefer a discrete I3.01–I3.04 code only when the operative act is clearly one of those alone.
+
+**Worked example — Reciprocal FDI Package:** Economic Instrument of Power; objective cites alliance cohesion and security-restricted investment (biotech/telecom) without specifying inbound-only or outbound-only → **L3 / I3.05**, direction Mixed. National Interest and Glasl still run in parallel.
 
 ### L4 — Financial Sanctions & Coercion
 | Code | Instrument |
@@ -352,6 +359,7 @@ If Direction is Coercive, prefer L1–L4 over L6–L10 unless rule 11 (territory
 | United States purchase of Chagos Archipelago from the United Kingdom | **L10** | **I10.01** | Rule 11; sovereignty transfer for basing / SLOC |
 | Long-term exclusive basing rights package with host-nation offsets | **L10** | **I10.02** | Rule 11; not L6 overseas infra alone |
 | Strategic port access concession tied to lease payments | **L10** | **I10.03** | Rule 11 |
+| Reciprocal FDI Package (security-restricted investment + access bargain; inbound/outbound not specified) | **L3** | **I3.05** | Rule 3; package instrument when I3.01–I3.04 do not uniquely dominate |
 
 ---
 ## Intake and adjudication record

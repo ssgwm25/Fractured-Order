@@ -77,6 +77,10 @@ RESCORE_REASON_MARKERS = (
     "outside L1–L9",
     "outside L1-L9",
     "No master-codebook instrument covers acquisition of sovereign territory",
+    # I3.05: prior needs_human for underspecified Reciprocal FDI Package
+    "Reciprocal FDI Package",
+    "inbound security screening (I3.01)",
+    "primary instrument and direction cannot be assigned cleanly",
 )
 
 
