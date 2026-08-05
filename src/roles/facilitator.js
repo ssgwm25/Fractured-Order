@@ -18,9 +18,8 @@ import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
 import {
     createBadge,
-    createOutcomeBadge,
-    createPriorityBadge,
-    createStatusBadge
+    createArtifactLifecycleBadge,
+    createPriorityBadge
 } from '../components/ui/Badge.js';
 import {
     BLUE_ACTION_COUNTRIES,
@@ -1593,7 +1592,6 @@ export class FacilitatorController {
             const title = snapshot.title || 'Untitled proposal';
             const sourceTeam = metadata.source_team || 'green';
             const sourceLabel = this.formatProposalRecipientTeamLabel(sourceTeam);
-            const outcome = metadata.outcome || 'APPROVED';
             const receivedAt = communication.created_at;
             const status = getProposalRecipientStatus(communication);
             const isNegotiationRequest = isProposalNegotiationRequest(communication);
@@ -1651,7 +1649,7 @@ export class FacilitatorController {
                 <div class="entity-card entity-card--${status}"${isNewArrival ? ' style="background: var(--color-surface-alt);"' : ''}>
                     <div class="entity-card__head">
                         <div>
-                            <p class="entity-card__eyebrow">Forwarded from ${escape(sourceLabel)} &middot; ${escape(outcome)}</p>
+                            <p class="entity-card__eyebrow">Forwarded from ${escape(sourceLabel)}</p>
                             <h3 class="entity-card__title">${escape(title)}</h3>
                         </div>
                         <div class="entity-card__badges" style="flex-direction: column; align-items: flex-end; gap: 4px;">
@@ -2400,9 +2398,6 @@ export class FacilitatorController {
             ? (proposal.expectedOutcomes || 'No expected outcomes recorded.')
             : (blueAction.expectedOutcomes || 'No expected outcomes');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
-        const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
-        const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
-        const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = isStrategicOrientationFlow
             ? 'Pre-Move 1 | Strategic Orientation'
             : isGreenProposalFlow
@@ -2410,7 +2405,6 @@ export class FacilitatorController {
             : this.isTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
-        const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
         const isReturnedToBlue = (
             ['returned_to_team', 'returned_to_blue'].includes(
                 String(action.workflow_state || '').trim()
@@ -2424,38 +2418,7 @@ export class FacilitatorController {
             ? this.getForwardedProposalCommunication(action)
             : null;
         const shouldHideWhiteCellReviewDetails = Boolean(isGreenProposalFlow && forwardedProposalCommunication);
-        const statusBadge = isReturnedToBlue && isDraftAction(action)
-            ? createBadge({
-                text: 'Returned by White Cell',
-                variant: 'warning',
-                size: 'sm',
-                rounded: true
-            }).outerHTML
-            : isStrategicOrientationFlow && isSubmittedAction(action)
-            ? createBadge({
-                text: 'With White Cell',
-                variant: 'info',
-                size: 'sm',
-                rounded: true
-            }).outerHTML
-            : isRedResponseFlow && isSubmittedAction(action)
-            ? createBadge({
-                text: 'Deliberation Underway',
-                variant: 'warning',
-                size: 'sm',
-                rounded: true
-            }).outerHTML
-            : (isRedResponseFlow && isAdjudicatedAction(action)
-                ? createBadge({
-                    text: 'Reviewed',
-                    variant: 'success',
-                    size: 'sm',
-                    rounded: true
-                }).outerHTML
-                : createStatusBadge(status).outerHTML);
-        const outcomeBadge = action.outcome
-            ? createOutcomeBadge(action.outcome).outerHTML
-            : '';
+        const statusBadge = createArtifactLifecycleBadge(action, { size: 'sm' }).outerHTML;
         const proposalResponseArrivalBadge = isGreenProposalFlow
             && this.newProposalResponseActionIds.has(action.id)
             ? createBadge({
@@ -2517,20 +2480,7 @@ export class FacilitatorController {
         const detailFields = isStrategicOrientationFlow
             ? strategicOrientationFields
             : isGreenProposalFlow
-            ? [
-                { label: 'Proposal Objective', value: proposal.objective || 'Not specified', wide: true },
-                { label: 'Originators', value: formatProposalSelection(proposal.originators) },
-                {
-                    label: action.team === 'industry' || proposal.instruments.length
-                        ? 'Instrument of Power'
-                        : 'Category',
-                    value: formatProposalSelection(proposal.instruments, proposal.category || 'Not specified')
-                },
-                { label: 'Intended Partners', value: proposal.intendedPartners || 'Not specified' },
-                { label: 'Focus Sector', value: proposal.focusSector || 'Not specified' },
-                { label: 'Delivery', value: proposal.delivery || 'Not specified' },
-                { label: 'Timing & Conditions', value: proposal.timingAndConditions || 'Not specified', wide: true }
-            ]
+            ? proposal.artifactDetails
             : isLegacyRedResponseFlow
             ? [
                 { label: 'Strategic Assessment', value: moveResponse.strategicAssessment || 'Not specified', wide: true },
@@ -2540,26 +2490,7 @@ export class FacilitatorController {
                 { label: 'Delivery Channel', value: moveResponse.deliveryChannel || 'Not specified' }
             ]
             : blueAction.hasBlueActionDetails
-            ? [
-                ...(blueAction.objective ? [{ label: 'Objective', value: blueAction.objective, wide: true }] : []),
-                { label: 'Levers', value: leverLabel },
-                { label: 'Implementation', value: blueAction.implementation || 'Not specified' },
-                {
-                    label: 'Supply Chain Focus',
-                    value: formatBlueActionSelection(
-                        blueAction.supplyChainFocuses,
-                        blueAction.supplyChainFocus || 'Not specified'
-                    )
-                },
-                { label: 'Focus Countries', value: targetLabel },
-                { label: 'Sectors', value: sectorLabel },
-                { label: 'Timeline', value: blueAction.enforcementTimeline || 'Not specified' },
-                ...(blueAction.implementation === 'Legislative'
-                    ? [{ label: 'Legislative Route', value: legislativeOptionsLabel, wide: true }]
-                    : []),
-                { label: 'Coordinated', value: formatBlueActionSelection(blueAction.coordinated, 'None selected') },
-                { label: 'Informed/Engaged', value: formatBlueActionSelection(blueAction.informed, 'None selected') }
-            ]
+            ? blueAction.artifactDetails
             : [
                 ...(action.ally_contingencies ? [{ label: 'Ally Contingencies', value: action.ally_contingencies, wide: true }] : []),
                 { label: 'Targets', value: targetLabel },
@@ -2669,7 +2600,6 @@ export class FacilitatorController {
                             ${proposalResponseArrivalBadge}
                             ${statusBadge}
                             ${secondaryBadge}
-                            ${outcomeBadge}
                         </div>
                     </div>
 
@@ -4065,7 +3995,7 @@ export class FacilitatorController {
         return {
             goal: data.title,
             mechanism: PROPOSAL_ACTION_MECHANISM,
-            sector: data.focusSector,
+            sector: data.focusSectors?.[0] || data.focusSector,
             exposure_type: null,
             priority: 'NORMAL',
             targets: [],
@@ -4078,7 +4008,15 @@ export class FacilitatorController {
                 intendedPartners: data.intendedPartners,
                 delivery: data.delivery,
                 timingAndConditions: data.timingAndConditions,
-                recipientTeam,
+                recipientTeams: data.recipientTeams?.length ? data.recipientTeams : [recipientTeam],
+                focusSectors: data.focusSectors?.length ? data.focusSectors : [data.focusSector].filter(Boolean),
+                supplyChainFocusDecision: data.supplyChainFocusDecision,
+                supplyChainActionAngles: data.supplyChainActionAngles,
+                supplyChainAreas: data.supplyChainAreas,
+                industryFocus: data.industryFocus,
+                countryFocus: data.countryFocus,
+                proposedActivity: data.proposedActivity,
+                revisionMetadata: data.revisionMetadata,
                 scribeHandoff
             })
         };
@@ -4099,7 +4037,15 @@ export class FacilitatorController {
                 intendedPartners: proposal.intendedPartners,
                 delivery: proposal.delivery,
                 timingAndConditions: proposal.timingAndConditions,
-                recipientTeam: proposal.recipientTeam,
+                recipientTeams: proposal.recipientTeams,
+                focusSectors: proposal.focusSectors,
+                supplyChainFocusDecision: proposal.supplyChainFocusDecision,
+                supplyChainActionAngles: proposal.supplyChainActionAngles,
+                supplyChainAreas: proposal.supplyChainAreas,
+                industryFocus: proposal.industryFocus,
+                countryFocus: proposal.countryFocus,
+                proposedActivity: proposal.proposedActivity,
+                revisionMetadata: proposal.revisionMetadata,
                 scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
             })
         };
@@ -4137,7 +4083,10 @@ export class FacilitatorController {
 
         try {
             const gameState = this.getCurrentGameState();
-            const payload = this.buildGreenProposalPayload(data, {
+            const retainedData = existingAction
+                ? { ...getProposalViewModel(existingAction), ...data }
+                : data;
+            const payload = this.buildGreenProposalPayload(retainedData, {
                 recipientTeam,
                 scribeHandoff: resolvedHandoff
             });
@@ -4214,11 +4163,17 @@ export class FacilitatorController {
         }
 
         const recipientLabel = recipientTeam === 'blue' ? 'Blue Team' : 'Red Team';
+        const existingAction = (isEdit && actionId)
+            ? (actionsStore.getById(actionId) || this.actions.find((candidate) => candidate?.id === actionId) || null)
+            : null;
         const loader = showLoader({ message: 'Forwarding proposal to Facilitator...' });
 
         try {
             const gameState = this.getCurrentGameState();
-            const payload = this.buildGreenProposalPayload(data, {
+            const retainedData = existingAction
+                ? { ...getProposalViewModel(existingAction), ...data }
+                : data;
+            const payload = this.buildGreenProposalPayload(retainedData, {
                 recipientTeam,
                 scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
             });
@@ -5846,7 +5801,7 @@ export class FacilitatorController {
                 <div class="card-header" style="display: flex; justify-content: space-between; gap: var(--space-2);">
                     <span class="text-sm font-semibold">${this.escapeHtml(queryText)}</span>
                     <div style="display: flex; gap: var(--space-2);">
-                        ${createStatusBadge(rfi.status || 'pending').outerHTML}
+                        ${createArtifactLifecycleBadge(rfi, { size: 'sm' }).outerHTML}
                         ${createPriorityBadge(rfi.priority || 'NORMAL').outerHTML}
                     </div>
                 </div>

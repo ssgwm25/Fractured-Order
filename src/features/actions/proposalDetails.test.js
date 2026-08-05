@@ -9,6 +9,106 @@ import {
 } from './proposalDetails.js';
 
 describe('proposalDetails scribe handoff', () => {
+    it('round-trips every multi-select, Industry, supply-chain, and revision field', () => {
+        const serialized = serializeProposalDetails({
+            originators: ['Industry', 'Japan'],
+            objective: 'Coordinate a resilient industrial corridor.',
+            instruments: ['Economic', 'Information'],
+            category: 'Partnership',
+            intendedPartners: 'Selected public and private partners',
+            delivery: 'Joint Statement',
+            timingAndConditions: 'Before Move 2',
+            recipientTeams: ['blue', 'red'],
+            focusSectors: ['Biotechnology', 'Telecommunications'],
+            supplyChainFocusDecision: 'Yes',
+            supplyChainActionAngles: ['Build resilience for Blue', 'Disrupt Red'],
+            supplyChainAreas: ['Extraction', 'Advanced Manufacturing'],
+            industryFocus: 'Advanced biomanufacturing',
+            countryFocus: 'Japan and ROK',
+            proposedActivity: 'Stand up a joint capacity facility.',
+            revisionMetadata: {
+                revisionNumber: 3,
+                priorWorkflowState: 'returned_to_team',
+                reviewedAt: '2026-08-05T14:00:00.000Z',
+                reviewedByRole: 'whitecell_lead',
+                reviewNotes: 'Clarify delivery ownership.',
+                completedAt: ''
+            },
+            scribeHandoff: 'Forwarded'
+        });
+
+        expect(parseProposalDetails(serialized)).toEqual({
+            originators: ['Industry', 'Japan'],
+            objective: 'Coordinate a resilient industrial corridor.',
+            instruments: ['Economic', 'Information'],
+            category: 'Partnership',
+            intendedPartners: 'Selected public and private partners',
+            delivery: 'Joint Statement',
+            timingAndConditions: 'Before Move 2',
+            recipientTeam: 'blue',
+            recipientTeams: ['blue', 'red'],
+            focusSector: 'Biotechnology',
+            focusSectors: ['Biotechnology', 'Telecommunications'],
+            supplyChainFocusDecision: 'Yes',
+            supplyChainActionAngles: ['Build resilience for Blue', 'Disrupt Red'],
+            supplyChainAreas: ['Extraction', 'Advanced Manufacturing'],
+            industryFocus: 'Advanced biomanufacturing',
+            countryFocus: 'Japan and ROK',
+            proposedActivity: 'Stand up a joint capacity facility.',
+            revisionMetadata: {
+                revisionNumber: 3,
+                revisionNumberOrigin: '',
+                priorWorkflowState: 'returned_to_team',
+                reviewedAt: '2026-08-05T14:00:00.000Z',
+                reviewedByRole: 'whitecell_lead',
+                reviewNotes: 'Clarify delivery ownership.',
+                completedAt: ''
+            },
+            scribeHandoff: 'Forwarded'
+        });
+
+        const viewModel = getProposalViewModel({
+            goal: 'Industrial corridor proposal',
+            expected_outcomes: 'Shared capacity comes online.',
+            ally_contingencies: serialized
+        });
+        expect(viewModel.recipientTeams).toEqual(['blue', 'red']);
+        expect(viewModel.focusSectors).toEqual(['Biotechnology', 'Telecommunications']);
+        expect(viewModel.artifactDetails).toEqual(expect.arrayContaining([
+            { label: 'Recipient Teams', value: 'Blue Team, Red Team' },
+            { label: 'Focus Sectors', value: 'Biotechnology, Telecommunications' },
+            { label: 'Supply Chain Decision', value: 'Yes' },
+            { label: 'Action Angles', value: 'Build resilience for Blue, Disrupt Red' },
+            { label: 'Supply Chain Areas', value: 'Extraction, Advanced Manufacturing' },
+            { label: 'Industry Focus', value: 'Advanced biomanufacturing' },
+            { label: 'Country Focus', value: 'Japan and ROK' },
+            { label: 'Proposed Activity', value: 'Stand up a joint capacity facility.' },
+            { label: 'Revision', value: '3' }
+        ]));
+    });
+
+    it('parses historical Category, Delivery, single-recipient, and single-sector fields', () => {
+        const historical = [
+            'Proposal Details',
+            'Originators: EU, Japan',
+            'Objective: Preserve the historical proposal.',
+            'Category: Alignment',
+            'Delivery: Backchannel Negotiation',
+            'Recipient Team: red',
+            'Focus Sector: Agriculture'
+        ].join('\n');
+
+        expect(parseProposalDetails(historical)).toMatchObject({
+            originators: ['EU', 'Japan'],
+            category: 'Alignment',
+            delivery: 'Backchannel Negotiation',
+            recipientTeam: 'red',
+            recipientTeams: ['red'],
+            focusSector: 'Agriculture',
+            focusSectors: ['Agriculture']
+        });
+    });
+
     it('round-trips Industry instruments of power without losing custom values', () => {
         const serialized = serializeProposalDetails({
             originators: ['EU'],
@@ -34,6 +134,31 @@ describe('proposalDetails scribe handoff', () => {
             instrumentOfPower: 'Economic',
             instruments: ['Economic', 'Information', 'Standards, finance, and insurance']
         }));
+    });
+
+    it('presents a historical Industry category as its instrument without duplicating Category', () => {
+        const viewModel = getProposalViewModel({
+            team: 'industry',
+            mechanism: 'Proposal',
+            ally_contingencies: [
+                'Proposal Details',
+                'Objective: Coordinate industrial capacity',
+                'Category: Partnership',
+                'Delivery: Industry-led forum',
+                'Recipient Team: blue',
+                'Focus Sector: Critical minerals'
+            ].join('\n')
+        });
+
+        expect(viewModel.artifactDetails).toEqual(expect.arrayContaining([
+            { label: 'Instrument of Power', value: 'Partnership' },
+            { label: 'Recipient Teams', value: 'Blue Team' },
+            { label: 'Focus Sectors', value: 'Critical minerals' }
+        ]));
+        expect(viewModel.artifactDetails).not.toContainEqual({
+            label: 'Category',
+            value: 'Partnership'
+        });
     });
 
     it('serializes and parses Scribe Handoff', () => {

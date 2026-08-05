@@ -17,7 +17,12 @@ import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
-import { createBadge, createRoleBadge, createStatusBadge, createPriorityBadge } from '../components/ui/Badge.js';
+import {
+    createArtifactLifecycleBadge,
+    createBadge,
+    createRoleBadge,
+    createPriorityBadge
+} from '../components/ui/Badge.js';
 import {
     formatActionSequenceLabel,
     formatBlueActionSelection,
@@ -31,8 +36,7 @@ import {
     isStrategicOrientationAction
 } from '../features/actions/strategicOrientationDetails.js';
 import {
-    getProposalViewModel,
-    formatProposalSelection
+    getProposalViewModel
 } from '../features/actions/proposalDetails.js';
 import {
     PROPOSAL_RECIPIENT_STATUSES,
@@ -819,51 +823,23 @@ export function canReturnActionToBlue(action = {}) {
 
 export function buildSharedActionCommunicationContent(action = {}) {
     const blueAction = getBlueActionViewModel(action);
-    const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
-    const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
-    const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
-    const supplyChainFocusLabel = formatBlueActionSelection(
-        blueAction.supplyChainFocuses,
-        blueAction.supplyChainFocus || 'Not specified'
-    );
-    const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
-    const expectedOutcomes = blueAction.expectedOutcomes || 'No expected outcomes recorded.';
     const contentParts = [
         'Blue Team action shared by White Cell',
         `Title: ${blueAction.title}`,
-        `Mechanism: ${blueAction.instrumentOfPower || 'No mechanism'}`,
         `Move: ${action.move || 1}`,
-        `Phase: ${action.phase || 1}`,
-        `${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}: ${targetLabel}`,
-        `${blueAction.hasBlueActionDetails ? 'Sectors' : 'Sector'}: ${sectorLabel}`,
-        `${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}: ${supplyChainFocusLabel}`,
-        `Expected Outcomes: ${expectedOutcomes}`
+        `Phase: ${action.phase || 1}`
     ];
 
     if (blueAction.hasBlueActionDetails) {
-        if (blueAction.objective) {
-            contentParts.push(`Objective: ${blueAction.objective}`);
-        }
-        if (blueAction.levers.length) {
-            contentParts.push(`Levers: ${leverLabel}`);
-        }
-        if (blueAction.implementation) {
-            contentParts.push(`Implementation: ${blueAction.implementation}`);
-        }
-        if (blueAction.implementation === 'Legislative') {
-            contentParts.push(`Legislative Route: ${legislativeOptionsLabel}`);
-        }
-        if (blueAction.enforcementTimeline) {
-            contentParts.push(`Enforcement Timeline: ${blueAction.enforcementTimeline}`);
-        }
-        if (blueAction.coordinated.length) {
-            contentParts.push(`Coordinated: ${blueAction.coordinated.join(', ')}`);
-        }
-        if (blueAction.informed.length) {
-            contentParts.push(`Informed/Engaged: ${blueAction.informed.join(', ')}`);
-        }
+        contentParts.push(...blueAction.artifactDetails.map(
+            (field) => `${field.label}: ${field.value}`
+        ));
     } else if (action.ally_contingencies) {
         contentParts.push(`Ally Contingencies: ${action.ally_contingencies}`);
+        contentParts.push(`Targets: ${formatBlueActionSelection(blueAction.focusCountries)}`);
+        contentParts.push(`Sector: ${action.sector || 'Not specified'}`);
+        contentParts.push(`Exposure: ${action.exposure_type || 'Not specified'}`);
+        contentParts.push(`Expected Outcomes: ${blueAction.expectedOutcomes || 'No expected outcomes recorded.'}`);
     }
 
     return contentParts.join(' | ');
@@ -3009,33 +2985,26 @@ export class WhiteCellController {
 
     renderProposalDetails(action = {}) {
         const proposalViewModel = getProposalViewModel(action);
-        const recipientLabel = proposalViewModel.recipientTeam
-            ? this.formatCommunicationRecipient(proposalViewModel.recipientTeam)
-            : 'Not specified';
+        const routingLabels = new Set([
+            'Originators',
+            'Intended Partners',
+            'Recipient Teams',
+            'Delivery',
+            'Timing & Conditions',
+            'Revision',
+            'Prior Workflow State',
+            'Reviewed At',
+            'Reviewed By',
+            'Review Notes',
+            'Completed At'
+        ]);
+        const routingDetails = proposalViewModel.artifactDetails.filter((field) => routingLabels.has(field.label));
+        const overviewDetails = proposalViewModel.artifactDetails.filter((field) => !routingLabels.has(field.label));
 
         return `
             <div class="section-grid section-grid-2" style="gap: var(--space-3); margin-top: var(--space-3);">
-                ${this.renderSummaryCard('Proposal Overview', [
-                    { label: 'Objective', value: proposalViewModel.objective || 'Not specified' },
-                    {
-                        label: action.team === 'industry' || proposalViewModel.instruments.length
-                            ? 'Instrument of Power'
-                            : 'Category',
-                        value: formatProposalSelection(
-                            proposalViewModel.instruments,
-                            proposalViewModel.category || 'Not specified'
-                        )
-                    },
-                    { label: 'Focus Sector', value: proposalViewModel.focusSector || 'Not specified' },
-                    { label: 'Expected Outcomes', value: proposalViewModel.expectedOutcomes || 'Not specified' }
-                ])}
-                ${this.renderSummaryCard('Routing & Delivery', [
-                    { label: 'Originators', value: formatProposalSelection(proposalViewModel.originators, 'Not specified') },
-                    { label: 'Intended Partners', value: proposalViewModel.intendedPartners || 'Not specified' },
-                    { label: 'Recipient Team', value: recipientLabel },
-                    { label: 'Delivery', value: proposalViewModel.delivery || 'Not specified' },
-                    { label: 'Timing & Conditions', value: proposalViewModel.timingAndConditions || 'Not specified' }
-                ])}
+                ${this.renderSummaryCard('Proposal Overview', overviewDetails)}
+                ${this.renderSummaryCard('Routing & Delivery', routingDetails)}
             </div>
         `;
     }
@@ -3396,7 +3365,6 @@ export class WhiteCellController {
         includeOutcome = false,
         isNew = false
     } = {}) {
-        const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
         const strategicOrientation = getStrategicOrientationViewModel(action);
         const isStrategicOrientationFlow = strategicOrientation.hasStrategicOrientationDetails;
         const strategicOrientationTitle = this.getStrategicOrientationReviewTitle(action, strategicOrientation);
@@ -3408,21 +3376,11 @@ export class WhiteCellController {
                 : (strategicOrientation.orientationTag || 'Strategic Orientation selected.'))
             : (blueAction.expectedOutcomes || '');
         const targetLabel = formatBlueActionSelection(blueAction.focusCountries);
-        const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
-        const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
-        const supplyChainFocusLabel = formatBlueActionSelection(
-            blueAction.supplyChainFocuses,
-            blueAction.supplyChainFocus || 'Not specified'
-        );
-        const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = isStrategicOrientationFlow
             ? 'Pre-Move 1 | Strategic Orientation'
             : this.getBlueTeamActionSequenceLabel(action);
         const submittedMarkup = action.submitted_at
             ? `<p class="entity-card__note"><strong>Submitted:</strong> ${this.escapeHtml(formatDateTime(action.submitted_at))}</p>`
-            : '';
-        const outcomeMarkup = includeOutcome && action.outcome
-            ? `<p class="entity-card__note"><strong>Outcome:</strong> ${this.escapeHtml(action.outcome)}</p>`
             : '';
         const notesMarkup = includeOutcome && action.adjudication_notes
             ? `<p class="entity-card__note"><strong>Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}</p>`
@@ -3473,20 +3431,7 @@ export class WhiteCellController {
             ? this.renderProposalDetails(action)
             : this.renderDetailGrid(
                 blueAction.hasBlueActionDetails
-                    ? [
-                        ...(blueAction.objective ? [{ label: 'Objective', value: blueAction.objective, wide: true }] : []),
-                        { label: 'Levers', value: leverLabel },
-                        { label: 'Implementation', value: blueAction.implementation || 'Not specified' },
-                        { label: 'Supply Chain Focus', value: supplyChainFocusLabel },
-                        { label: 'Focus Countries', value: targetLabel },
-                        { label: 'Sectors', value: sectorLabel },
-                        { label: 'Timeline', value: blueAction.enforcementTimeline || 'Not specified' },
-                        ...(blueAction.implementation === 'Legislative'
-                            ? [{ label: 'Legislative Route', value: legislativeOptionsLabel, wide: true }]
-                            : []),
-                        { label: 'Coordinated', value: formatBlueActionSelection(blueAction.coordinated, 'None selected') },
-                        { label: 'Informed/Engaged', value: formatBlueActionSelection(blueAction.informed, 'None selected') }
-                    ]
+                    ? blueAction.artifactDetails
                     : [
                         ...(action.ally_contingencies ? [{ label: 'Ally Contingencies', value: action.ally_contingencies, wide: true }] : []),
                         { label: 'Targets', value: targetLabel },
@@ -3533,7 +3478,7 @@ export class WhiteCellController {
                     <div class="entity-card__badges">
                         ${arrivalBadgeMarkup}
                         ${sourceTeamBadgeMarkup}
-                        ${createStatusBadge(status).outerHTML}
+                        ${createArtifactLifecycleBadge(action, { size: 'sm' }).outerHTML}
                         ${secondaryBadge}
                     </div>
                 </div>
@@ -3541,7 +3486,6 @@ export class WhiteCellController {
                 ${detailsMarkup}
                 ${proposalRecipientStateMarkup}
                 ${submittedMarkup}
-                ${outcomeMarkup}
                 ${notesMarkup}
                 ${actionButtons.length ? `
                     <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
@@ -3777,13 +3721,7 @@ export class WhiteCellController {
 
         const content = document.createElement('div');
         const blueAction = getBlueActionViewModel(action);
-        const leverLabel = formatBlueActionSelection(blueAction.levers, blueAction.lever || 'Not specified');
         const sectorLabel = formatBlueActionSelection(blueAction.sectors, blueAction.sector || 'Not specified');
-        const supplyChainFocusLabel = formatBlueActionSelection(
-            blueAction.supplyChainFocuses,
-            blueAction.supplyChainFocus || 'Not specified'
-        );
-        const legislativeOptionsLabel = formatBlueActionSelection(blueAction.legislativeOptions, 'None selected');
         const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
         content.innerHTML = `
             <div class="mb-4">
@@ -3791,8 +3729,7 @@ export class WhiteCellController {
                 <p class="text-sm text-gray-500">${this.escapeHtml(blueAction.instrumentOfPower || 'No mechanism')} | ${this.escapeHtml(sequenceLabel)} | Phase ${action.phase || 1}</p>
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                     <strong>${blueAction.hasBlueActionDetails ? 'Focus Countries' : 'Targets'}:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.focusCountries))} |
-                    <strong>${blueAction.hasBlueActionDetails ? 'Sectors' : 'Sector'}:</strong> ${this.escapeHtml(sectorLabel)} |
-                    <strong>${blueAction.hasBlueActionDetails ? 'Supply Chain Focus' : 'Exposure'}:</strong> ${this.escapeHtml(supplyChainFocusLabel)}
+                    <strong>${blueAction.hasBlueActionDetails ? 'Sectors' : 'Sector'}:</strong> ${this.escapeHtml(sectorLabel)}
                 </p>
                 ${action.submitted_at ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
@@ -3800,25 +3737,7 @@ export class WhiteCellController {
                     </p>
                 ` : ''}
                 ${blueAction.hasBlueActionDetails ? `
-                    ${blueAction.objective ? `
-                        <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                            <strong>Objective:</strong> ${this.escapeHtml(blueAction.objective)}
-                        </p>
-                    ` : ''}
-                    <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                        <strong>Levers:</strong> ${this.escapeHtml(leverLabel)} |
-                        <strong>Implementation:</strong> ${this.escapeHtml(blueAction.implementation || 'Not specified')} |
-                        <strong>Timeline:</strong> ${this.escapeHtml(blueAction.enforcementTimeline || 'Not specified')}
-                    </p>
-                    ${blueAction.implementation === 'Legislative' ? `
-                        <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                            <strong>Legislative Route:</strong> ${this.escapeHtml(legislativeOptionsLabel)}
-                        </p>
-                    ` : ''}
-                    <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
-                        <strong>Coordinated:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.coordinated, 'None selected'))} |
-                        <strong>Informed/Engaged:</strong> ${this.escapeHtml(formatBlueActionSelection(blueAction.informed, 'None selected'))}
-                    </p>
+                    ${this.renderDetailGrid(blueAction.artifactDetails)}
                 ` : action.ally_contingencies ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                         <strong>Ally Contingencies:</strong> ${this.escapeHtml(action.ally_contingencies)}
@@ -4216,7 +4135,7 @@ export class WhiteCellController {
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-2); gap: var(--space-2);">
                         <span class="text-xs text-gray-500">${this.escapeHtml(this.formatTeamLabel(rfi.team))} | ${formatRelativeTime(rfi.created_at)}</span>
                         <div style="display: flex; gap: var(--space-2);">
-                            ${createStatusBadge('pending').outerHTML}
+                            ${createArtifactLifecycleBadge(rfi, { size: 'sm' }).outerHTML}
                             ${createPriorityBadge(rfi.priority || 'NORMAL').outerHTML}
                         </div>
                     </div>

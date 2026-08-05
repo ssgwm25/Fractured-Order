@@ -1414,7 +1414,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             slideKey: 'action-action-1',
             slideType: 'action',
             sidebarOrdinal: '2',
-            sidebarKicker: 'Submitted to White Cell | Blue Team | Move 1 | Action 2'
+            sidebarKicker: 'Deliberation Underway | Blue Team | Move 1 | Action 2'
         });
     });
 
@@ -1507,27 +1507,28 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('aria-expanded="true"');
         expect(html).toContain('Blue Team Action');
         expect(html).toContain('Selected action components');
-        expect(html).toContain('Instrument of power');
-        expect(html).toContain('Focus countries');
+        expect(html).toContain('Instrument of Power');
+        expect(html).toContain('Focus Countries');
         expect(html).toContain('Sectors');
         expect(html).toContain('Implementation');
-        expect(html).toContain('Supply chain focus');
-        expect(html).toContain('Legislative route: Existing legislation/policy');
+        expect(html).toContain('Supply Chain Decision');
+        expect(html).toContain('Action Angles');
+        expect(html).toContain('Supply Chain Areas');
+        expect(html).toContain('Legislative Route');
+        expect(html).toContain('Existing legislation/policy');
         expect(html).toContain('scribe-action-slide-key-points');
         expect(html).toContain('scribe-action-slide-lead--outcome');
         expect(html).toContain('aria-label="Expected outcome"');
         expect(html).toContain('Making things not so easy.');
-        expect(html).toContain('scribe-action-slide-glance-card--supply-chain');
-        expect(html).toContain('<dt>Action angle</dt>');
-        expect(html).toContain('<dd>Disrupt Red</dd>');
-        expect(html).toContain('<dt>Area</dt>');
-        expect(html).toContain('<dd>Distribution</dd>');
+        expect(html).toContain('Disrupt Red');
+        expect(html).toContain('Distribution');
         expect(html).not.toContain('Action angle: Disrupt Red | Area: Distribution');
         expect(html).not.toContain('Execution snapshot');
         expect(html).not.toContain('Status and White Cell');
         expect(html).not.toContain('White Cell note');
         expect(html).not.toContain('Keep public messaging aligned with allied licensing language.');
-        expect(html).not.toContain('6 months');
+        expect(html).toContain('Enforcement Timeline');
+        expect(html).toContain('6 months');
         expect(html).not.toContain('Blue Team | Move 2 | Action 1');
     });
 
@@ -1669,7 +1670,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).not.toContain('Draft saved');
         expect(html).not.toContain('Not yet submitted to White Cell');
         expect(html).not.toContain('Awaiting Facilitator submission');
-        expect(html).not.toContain('Immediate');
+        expect(html).toContain('Enforcement Timeline');
+        expect(html).toContain('Immediate');
         expect(html).toContain('Facilitator finalization');
         expect(html).toContain('Project Action');
         expect(html).toContain('Coordinated');
@@ -2216,13 +2218,13 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Critical Infrastructure Investment Compact');
         expect(html).toContain('>Objective</p>');
         expect(html).toContain('Coordinate private capital and insurance capacity.');
-        expect(html).toContain('Originator(s)');
+        expect(html).toContain('Originators');
         expect(html).toContain('EU, Japan');
         expect(html).toContain('Instrument of Power');
         expect(html).toContain('Economic, Information, Standards and insurance');
-        expect(html).toContain('Intended Partner(s)');
+        expect(html).toContain('Intended Partners');
         expect(html).toContain('Blue Team and ASEAN partners');
-        expect(html).toContain('Focus Sector(s)');
+        expect(html).toContain('Focus Sectors');
         expect(html).toContain('Critical minerals and logistics');
         expect(html).toContain('>Delivery</p>');
         expect(html).toContain('Industry-led investment forum');

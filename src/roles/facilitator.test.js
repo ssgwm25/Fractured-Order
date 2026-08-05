@@ -1448,9 +1448,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(expandedMarkup).toContain('Levers:</strong> Export Controls, Sanctions');
         expect(expandedMarkup).toContain('Sectors:</strong> Biotechnology, Agriculture');
         expect(expandedMarkup).toContain('Legislative Route:</strong> Existing legislation/policy, Proposing new legislation/policy');
-        expect(expandedMarkup).toContain('Coordinated:</strong> Executive');
-        expect(expandedMarkup).toContain('Informed/Engaged:</strong> Allies');
-        expect(expandedMarkup).toContain('Timeline:</strong> 6 months');
+        expect(expandedMarkup).toContain('Coordination Selections:</strong> Executive');
+        expect(expandedMarkup).toContain('Informed/Engaged Selections:</strong> Allies');
+        expect(expandedMarkup).toContain('Enforcement Timeline:</strong> 6 months');
         expect(expandedMarkup).toContain('Blue Team | Move 2 | Action 2');
     });
 
@@ -2354,7 +2354,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         expect(payload.mechanism).toBe('Proposal');
         expect(payload.ally_contingencies).toContain('Proposal Details');
-        expect(payload.ally_contingencies).toContain('Recipient Team: blue');
+        expect(payload.ally_contingencies).toContain('Recipient Teams: ["blue"]');
     });
 
     it('persists Industry instruments of power in proposal details', async () => {
@@ -2452,6 +2452,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(responsesBadge.hidden).toBe(false);
         expect(proposalsList.innerHTML).toContain('Joint Port Proposal');
         expect(proposalsList.innerHTML).toContain('Forwarded from Green Team');
+        expect(proposalsList.innerHTML).toContain('Unread');
+        expect(proposalsList.innerHTML).not.toMatch(/SUCCESS|PARTIAL_SUCCESS|FAIL|BACKFIRE/);
         expect(proposalsBadge.textContent).toBe('1');
         expect(proposalsBadge.hidden).toBe(false);
     });

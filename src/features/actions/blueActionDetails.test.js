@@ -176,5 +176,24 @@ describe('blue action details helpers', () => {
             informedEngagedDecision: 'Yes',
             informed: ['Allies']
         });
+
+        expect(getBlueActionViewModel(action).artifactDetails).toEqual([
+            { label: 'Objective', value: 'Reduce dependency on upstream production.' },
+            { label: 'Instrument of Power', value: 'Economic, Information, Military' },
+            { label: 'Levers', value: 'Investment Screening, Industrial Policy' },
+            { label: 'Supply Chain Decision', value: 'Yes' },
+            { label: 'Action Angles', value: 'Build resilience for Blue' },
+            { label: 'Supply Chain Areas', value: 'Refinement, Advanced Manufacturing' },
+            { label: 'Implementation', value: 'Legislative' },
+            { label: 'Legislative Route', value: 'Existing legislation/policy' },
+            { label: 'Sectors', value: 'Biotechnology, Agriculture' },
+            { label: 'Focus Countries', value: 'PRC, Japan' },
+            { label: 'Coordination Decision', value: 'Yes' },
+            { label: 'Coordination Selections', value: 'Legislative' },
+            { label: 'Informed/Engaged Decision', value: 'Yes' },
+            { label: 'Informed/Engaged Selections', value: 'Allies' },
+            { label: 'Enforcement Timeline', value: '12 months' },
+            { label: 'Expected Outcomes', value: 'Shift supply-chain leverage before the next move.' }
+        ]);
     });
 });

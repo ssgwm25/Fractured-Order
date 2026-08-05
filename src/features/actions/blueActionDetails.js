@@ -178,6 +178,32 @@ function getActionTargets(action = {}) {
         : (action.target ? [action.target] : []);
 }
 
+function formatDetailSelection(values = [], fallback = '') {
+    return Array.isArray(values) && values.length ? values.join(', ') : fallback;
+}
+
+function buildBlueActionArtifactDetails(viewModel = {}) {
+    return [
+        { label: 'Objective', value: viewModel.objective },
+        { label: 'Instrument of Power', value: formatDetailSelection(viewModel.instruments, viewModel.instrumentOfPower) },
+        { label: 'Levers', value: formatDetailSelection(viewModel.levers, viewModel.lever) },
+        { label: 'Supply Chain Decision', value: viewModel.supplyChainFocusDecision },
+        { label: 'Action Angles', value: formatDetailSelection(viewModel.supplyChainActionAngles) },
+        { label: 'Supply Chain Areas', value: formatDetailSelection(viewModel.supplyChainAreas, viewModel.supplyChainFocus) },
+        { label: 'Implementation', value: viewModel.implementation },
+        { label: 'Legislative Route', value: formatDetailSelection(viewModel.legislativeOptions) },
+        { label: 'Sectors', value: formatDetailSelection(viewModel.sectors, viewModel.sector) },
+        { label: 'Focus Countries', value: formatDetailSelection(viewModel.focusCountries) },
+        { label: 'Coordination Decision', value: viewModel.coordinatedDecision },
+        { label: 'Coordination Selections', value: formatDetailSelection(viewModel.coordinated) },
+        { label: 'Informed/Engaged Decision', value: viewModel.informedEngagedDecision },
+        { label: 'Informed/Engaged Selections', value: formatDetailSelection(viewModel.informed) },
+        { label: 'Enforcement Timeline', value: viewModel.enforcementTimeline },
+        { label: 'Expected Outcomes', value: viewModel.expectedOutcomes },
+        { label: 'Legacy Notes', value: viewModel.legacyNotes }
+    ].filter((field) => field.value !== '' && field.value !== null && field.value !== undefined);
+}
+
 export function serializeBlueActionDetails(details = {}) {
     const instruments = normalizeStringList(
         Array.isArray(details.instruments)
@@ -349,7 +375,7 @@ export function getBlueActionViewModel(action = {}) {
         ? ''
         : (action.exposure_type || '');
 
-    return {
+    const viewModel = {
         hasBlueActionDetails: Boolean(details),
         title: action.goal || action.title || 'Untitled action',
         objective: details?.objective || normalizeString(action.description),
@@ -376,6 +402,11 @@ export function getBlueActionViewModel(action = {}) {
         informedEngagedDecision: details?.informedEngagedDecision || '',
         informed: details?.informed || [],
         legacyNotes: details ? '' : normalizeString(action.ally_contingencies)
+    };
+
+    return {
+        ...viewModel,
+        artifactDetails: buildBlueActionArtifactDetails(viewModel)
     };
 }
 

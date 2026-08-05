@@ -4,7 +4,7 @@ import { timelineStore } from '../stores/timeline.js';
 import { communicationsStore } from '../stores/communications.js';
 import { database } from '../services/database.js';
 import { createLogger } from '../utils/logger.js';
-import { formatRelativeTime, formatStatus } from '../utils/formatting.js';
+import { formatRelativeTime } from '../utils/formatting.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { confirmModal, showModal } from '../components/ui/Modal.js';
@@ -16,6 +16,7 @@ import {
     isSubmittedAction
 } from '../core/enums.js';
 import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
+import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 import {
     BLUE_ACTION_COORDINATED_OPTIONS,
     BLUE_ACTION_INFORMED_OPTIONS,
@@ -311,19 +312,11 @@ function buildActionPlaceholderSlide({
 }
 
 function getActionSlideLifecycleLabel(action = {}) {
-    if (isDraftAction(action)) {
-        return 'Forwarded to Facilitator';
-    }
-
-    if (isAdjudicatedAction(action)) {
-        return 'White Cell Reviewed';
-    }
-
-    if (isSubmittedAction(action)) {
-        return 'Submitted to White Cell';
-    }
-
-    return 'Action';
+    return getArtifactLifecycleViewModel(
+        isDraftAction(action) && !action.workflow_state && !action.canonical_workflow_state
+            ? { ...action, canonical_workflow_state: 'forwarded_to_facilitator' }
+            : action
+    ).label;
 }
 
 function isScribeVisibleAction(action = {}) {
@@ -2967,13 +2960,9 @@ export class ScribeController {
     renderOwnProposalSlide(slide, viewModel = getProposalViewModel(slide.action || {})) {
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
-        const isIndustryProposal = action.team === 'industry';
         const recipientLabel = viewModel.recipientTeam === 'red'
             ? 'Red Team'
             : (viewModel.recipientTeam === 'blue' ? 'Blue Team' : 'Not specified');
-        const formatList = (value) => Array.isArray(value) && value.length
-            ? value.join(', ')
-            : (value || 'Not specified');
 
         return `
             <article class="scribe-action-slide scribe-own-proposal-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
@@ -2999,17 +2988,7 @@ export class ScribeController {
                             <h3 class="scribe-action-slide-section-title">Full proposal details</h3>
                         </div>
                         <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
-                            ${renderActionSlideGlanceCard({ label: 'Originator(s)', value: formatList(viewModel.originators) })}
-                            ${renderActionSlideGlanceCard({
-                                label: isIndustryProposal || viewModel.instruments.length
-                                    ? 'Instrument of Power'
-                                    : 'Category',
-                                value: formatList(viewModel.instruments.length ? viewModel.instruments : viewModel.category)
-                            })}
-                            ${renderActionSlideGlanceCard({ label: 'Intended Partner(s)', value: viewModel.intendedPartners || 'Not specified' })}
-                            ${renderActionSlideGlanceCard({ label: 'Focus Sector(s)', value: formatList(viewModel.focusSector) })}
-                            ${renderActionSlideGlanceCard({ label: 'Delivery', value: viewModel.delivery || 'Not specified' })}
-                            ${renderActionSlideGlanceCard({ label: 'Timing & Conditions', value: viewModel.timingAndConditions || 'Not specified' })}
+                            ${viewModel.artifactDetails.map((field) => renderActionSlideGlanceCard(field)).join('')}
                         </div>
                     </section>
 
@@ -3522,24 +3501,10 @@ export class ScribeController {
         }
 
         const actionViewModel = slide.actionViewModel || getBlueActionViewModel(action);
-        const targets = formatBlueActionSelection(actionViewModel.focusCountries);
-        const instruments = formatBlueActionSelection(
-            actionViewModel.instruments,
-            actionViewModel.instrumentOfPower || action.mechanism || 'Not specified'
-        );
-        const levers = formatBlueActionSelection(actionViewModel.levers, actionViewModel.lever || 'Not specified');
-        const sectors = formatBlueActionSelection(actionViewModel.sectors, actionViewModel.sector || action.sector || 'Not specified');
-        const legislativeOptions = formatBlueActionSelection(actionViewModel.legislativeOptions, 'None selected');
         const isDraftPreview = isDraftAction(action);
         const decisionBrief = actionViewModel.objective || 'No objective provided.';
         const expectedEffect = actionViewModel.expectedOutcomes || '';
         const showExpectedEffect = hasDistinctActionText(decisionBrief, expectedEffect);
-        const implementationLabel = actionViewModel.implementation || 'Not specified';
-        const supplyChainValue = actionViewModel.supplyChainFocusDecision
-            ? formatStatus(actionViewModel.supplyChainFocusDecision)
-            : (actionViewModel.supplyChainActionAngles.length || actionViewModel.supplyChainAreas.length ? 'Yes' : 'Not specified');
-        const supplyChainAngles = formatBlueActionSelection(actionViewModel.supplyChainActionAngles, 'Not specified');
-        const supplyChainAreas = formatBlueActionSelection(actionViewModel.supplyChainAreas, 'Not specified');
         const legacyNotes = actionViewModel.legacyNotes
             ? `
                 <section class="scribe-action-slide-note-card scribe-action-slide-note-card-secondary" aria-label="Supporting note">
@@ -3605,42 +3570,7 @@ export class ScribeController {
                                 <h3 class="scribe-action-slide-section-title">Selected action components</h3>
                             </div>
                             <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components scribe-action-slide-glance-grid--action-components">
-                                ${renderActionSlideGlanceCard({
-                label: 'Instrument of power',
-                value: instruments,
-                support: levers !== 'Not specified' ? `Levers: ${levers}` : ''
-            })}
-                                ${renderActionSlideGlanceCard({
-                label: 'Focus countries',
-                value: targets
-            })}
-                                ${renderActionSlideGlanceCard({
-                label: 'Sectors',
-                value: sectors
-            })}
-                                ${renderActionSlideGlanceCard({
-                label: 'Implementation',
-                value: implementationLabel,
-                support: actionViewModel.implementation === 'Legislative'
-                    ? `Legislative route: ${legislativeOptions}`
-                    : ''
-            })}
-                                <article class="scribe-action-slide-glance-card scribe-action-slide-glance-card--supply-chain">
-                                    <div class="scribe-action-slide-glance-card-lead">
-                                        <p class="scribe-action-slide-glance-label">Supply chain focus</p>
-                                        <p class="scribe-action-slide-glance-value">${escapeHtml(supplyChainValue)}</p>
-                                    </div>
-                                    <dl class="scribe-action-slide-component-details">
-                                        <div>
-                                            <dt>Action angle</dt>
-                                            <dd>${escapeHtml(supplyChainAngles)}</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Area</dt>
-                                            <dd>${escapeHtml(supplyChainAreas)}</dd>
-                                        </div>
-                                    </dl>
-                                </article>
+                                ${actionViewModel.artifactDetails.map((field) => renderActionSlideGlanceCard(field)).join('')}
                             </div>
                         </section>
 

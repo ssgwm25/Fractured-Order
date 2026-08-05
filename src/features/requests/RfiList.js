@@ -6,7 +6,7 @@
  */
 
 import { requestsStore, REQUEST_STATUS } from '../../stores/index.js';
-import { createStatusBadge } from '../../components/ui/Badge.js';
+import { createArtifactLifecycleBadge } from '../../components/ui/Badge.js';
 import { showInlineLoader } from '../../components/ui/Loader.js';
 import { formatRelativeTime } from '../../utils/formatting.js';
 import { createLogger } from '../../utils/logger.js';
@@ -209,7 +209,7 @@ function createRfiCard(rfi, options = {}) {
     card.className = 'card card-bordered rfi-card';
     card.dataset.rfiId = rfi.id;
 
-    const statusBadge = createStatusBadge(rfi.status);
+    const statusBadge = createArtifactLifecycleBadge(rfi);
 
     const queryText = rfi.query || rfi.question || '';
     card.innerHTML = `

@@ -4,6 +4,7 @@ import {
     parseTeamRole,
     ROLE_SURFACES
 } from '../../core/teamContext.js';
+import { getArtifactLifecycleViewModel } from '../../features/actions/artifactLifecycle.js';
 
 /**
  * Badge Component
@@ -55,23 +56,23 @@ export function createBadge({
 }
 
 /**
- * Create a status badge based on action status
- * @param {string} status - Action status ('draft', 'submitted', 'adjudicated', 'abandoned')
+ * Create a lifecycle badge from a full artifact record or historical status.
+ * @param {Object|string} artifactOrState - Artifact record, workflow state, or legacy status
+ * @param {Object} options - Optional badge presentation overrides
  * @returns {HTMLElement} Badge element
  */
-export function createStatusBadge(status) {
-    const statusConfig = {
-        draft: { text: 'Draft', variant: 'default' },
-        submitted: { text: 'Submitted', variant: 'primary' },
-        adjudicated: { text: 'Deliberation Underway', variant: 'warning' },
-        abandoned: { text: 'Abandoned', variant: 'error' },
-        pending: { text: 'Pending', variant: 'warning' },
-        answered: { text: 'Answered', variant: 'success' },
-        withdrawn: { text: 'Withdrawn', variant: 'default' }
-    };
+export function createArtifactLifecycleBadge(artifactOrState, options = {}) {
+    const lifecycle = getArtifactLifecycleViewModel(artifactOrState);
+    return createBadge({
+        text: lifecycle.label,
+        variant: lifecycle.variant,
+        rounded: true,
+        ...options
+    });
+}
 
-    const config = statusConfig[status] || { text: status, variant: 'default' };
-    return createBadge({ ...config, rounded: true });
+export function createStatusBadge(statusOrArtifact) {
+    return createArtifactLifecycleBadge(statusOrArtifact);
 }
 
 /**
@@ -227,6 +228,7 @@ function escapeHtml(str) {
 
 export default {
     create: createBadge,
+    lifecycle: createArtifactLifecycleBadge,
     status: createStatusBadge,
     priority: createPriorityBadge,
     outcome: createOutcomeBadge,

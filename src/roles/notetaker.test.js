@@ -353,7 +353,7 @@ describe('Notetaker move-scoped view state', () => {
         expect(markup).toContain('Sector:</strong> Energy');
         expect(markup).toContain('Exposure:</strong> Covert');
         expect(markup).toContain('Ally Contingencies:</strong> Use regional lenders as guarantors.');
-        expect(markup).toContain('Deliberation Underway');
+        expect(markup).toContain('Completed');
         expect(markup).toContain('Submitted:</strong>');
         expect(markup).toContain('White Cell Notes:</strong> White Cell requires tighter sanctions mitigation.');
     });

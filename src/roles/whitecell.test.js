@@ -1977,9 +1977,9 @@ describe('White Cell DOM contract', () => {
         expect(controller.proposalTeamProposals.map((proposal) => proposal.team)).toEqual(['green', 'industry']);
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Coordinate biotech export alignment');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Coordinate industrial surge alignment');
-        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Deliberation Underway');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Completed');
         expect(fakeDocument.elements.proposalsList.innerHTML).not.toContain('Adjudicated');
-        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Outcome:</strong> SUCCESS');
+        expect(fakeDocument.elements.proposalsList.innerHTML).not.toMatch(/Outcome:<\/strong>|SUCCESS|PARTIAL_SUCCESS|BACKFIRE/);
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Notes:</strong> Forwarded to Blue Team for review.');
         expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Notes:</strong> Forwarded to Red Team for review.');
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(true);
@@ -2259,12 +2259,18 @@ describe('White Cell DOM contract', () => {
             expected_outcomes: 'Reduce leverage over critical production nodes.',
             ally_contingencies: serializeBlueActionDetails({
                 objective: 'Constrain upstream dependency before the next move.',
+                instruments: ['Economic', 'Information', 'Military'],
                 levers: ['Investment Screening', 'Industrial Policy'],
                 sectors: ['Biotechnology', 'Agriculture'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Build resilience for Blue', 'Disrupt Red'],
+                supplyChainAreas: ['Refinement', 'Advanced Manufacturing'],
                 implementation: 'Legislative',
                 legislativeOptions: ['Existing legislation/policy', 'Proposing new legislation/policy'],
                 enforcementTimeline: '12 months',
+                coordinatedDecision: 'Yes',
                 coordinated: ['Legislative'],
+                informedEngagedDecision: 'Yes',
                 informed: ['Allies']
             })
         };
@@ -2275,19 +2281,28 @@ describe('White Cell DOM contract', () => {
         });
 
         expect(markup).toContain('Objective:</strong> Constrain upstream dependency before the next move.');
+        expect(markup).toContain('Instrument of Power:</strong> Economic, Information, Military');
         expect(markup).toContain('Levers:</strong> Investment Screening, Industrial Policy');
+        expect(markup).toContain('Supply Chain Decision:</strong> Yes');
+        expect(markup).toContain('Action Angles:</strong> Build resilience for Blue, Disrupt Red');
+        expect(markup).toContain('Supply Chain Areas:</strong> Refinement, Advanced Manufacturing');
         expect(markup).toContain('Sectors:</strong> Biotechnology, Agriculture');
         expect(markup).toContain('Legislative Route:</strong> Existing legislation/policy, Proposing new legislation/policy');
         expect(markup).toContain('Focus Countries:</strong> PRC, Japan');
-        expect(markup).toContain('Timeline:</strong> 12 months');
-        expect(markup).toContain('Coordinated:</strong> Legislative');
-        expect(markup).toContain('Informed/Engaged:</strong> Allies');
+        expect(markup).toContain('Enforcement Timeline:</strong> 12 months');
+        expect(markup).toContain('Coordination Decision:</strong> Yes');
+        expect(markup).toContain('Coordination Selections:</strong> Legislative');
+        expect(markup).toContain('Informed/Engaged Decision:</strong> Yes');
+        expect(markup).toContain('Informed/Engaged Selections:</strong> Allies');
         expect(markup).toContain('Blue Team | Move 2 | Action 2 &middot; Phase 2');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Objective: Constrain upstream dependency before the next move.');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Instrument of Power: Economic, Information, Military');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Levers: Investment Screening, Industrial Policy');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Action Angles: Build resilience for Blue, Disrupt Red');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Supply Chain Areas: Refinement, Advanced Manufacturing');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Legislative Route: Existing legislation/policy, Proposing new legislation/policy');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Enforcement Timeline: 12 months');
-        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Informed/Engaged: Allies');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Informed/Engaged Selections: Allies');
     });
 
     it('opens the White Cell deliberation modal with the action supply-chain focus', async () => {
@@ -2327,7 +2342,7 @@ describe('White Cell DOM contract', () => {
         expect(modalConfig?.title).toBe('Record Deliberation');
         expect(modalButtonLabels).toContain('Record Deliberation');
         expect(modalButtonLabels).not.toContain('Send to Red Team');
-        expect(modalConfig?.content?.innerHTML).toContain('<strong>Supply Chain Focus:</strong> Advanced Manufacturing');
+        expect(modalConfig?.content?.innerHTML).toContain('<strong>Supply Chain Areas:</strong> Advanced Manufacturing');
         expect(modalConfig?.content?.innerHTML).toContain('id="outcomeSelect"');
         expect(modalConfig?.content?.innerHTML).toContain('id="adjudicationNotes"');
     });

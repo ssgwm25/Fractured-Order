@@ -20,7 +20,7 @@ import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 import { showToast } from '../components/ui/Toast.js';
-import { createBadge, createStatusBadge, createPriorityBadge } from '../components/ui/Badge.js';
+import { createArtifactLifecycleBadge, createBadge, createPriorityBadge } from '../components/ui/Badge.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { debounce } from '../utils/debounce.js';
 import { navigateToApp } from '../core/navigation.js';
@@ -726,7 +726,7 @@ export class NotetakerController {
                         <p class="text-xs text-gray-500">${this.escapeHtml(action.mechanism || 'No mechanism')} • Move ${action.move || 1} • Phase ${action.phase || 1}</p>
                     </div>
                     <div style="display: flex; gap: var(--space-2);">
-                        ${createStatusBadge(action.status || 'draft').outerHTML}
+                        ${createArtifactLifecycleBadge(action).outerHTML}
                         ${createPriorityBadge(action.priority || 'NORMAL').outerHTML}
                     </div>
                 </div>

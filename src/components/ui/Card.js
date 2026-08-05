@@ -3,6 +3,8 @@
  * Container cards for content
  */
 
+import { getArtifactLifecycleViewModel } from '../../features/actions/artifactLifecycle.js';
+
 /**
  * Create a card element
  * @param {Object} options - Card options
@@ -146,10 +148,11 @@ export function createActionCard({
     onDelete = null,
     onView = null
 } = {}) {
+    const lifecycle = getArtifactLifecycleViewModel({ status });
     const headerContent = `
         <div class="action-card-header-content">
             <span class="action-card-mechanism">${escapeHtml(mechanism)}</span>
-            <span class="action-card-status badge badge-${getStatusVariant(status)} badge-rounded">${escapeHtml(status)}</span>
+            <span class="action-card-status badge badge-${lifecycle.variant} badge-rounded">${escapeHtml(lifecycle.label)}</span>
         </div>
     `;
 
@@ -258,23 +261,6 @@ function appendContent(parent, content) {
     } else if (content instanceof HTMLElement) {
         parent.appendChild(content);
     }
-}
-
-/**
- * Get status variant for badges
- * @param {string} status - Status string
- * @returns {string} Variant name
- */
-function getStatusVariant(status) {
-    const variants = {
-        draft: 'default',
-        submitted: 'primary',
-        adjudicated: 'success',
-        abandoned: 'error',
-        pending: 'warning',
-        answered: 'success'
-    };
-    return variants[status] || 'default';
 }
 
 /**

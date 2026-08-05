@@ -5,7 +5,7 @@
  * Displays a single action with status, details, and available actions.
  */
 
-import { createStatusBadge, createPriorityBadge, createOutcomeBadge } from '../../components/ui/Badge.js';
+import { createArtifactLifecycleBadge, createPriorityBadge } from '../../components/ui/Badge.js';
 import { formatRelativeTime } from '../../utils/formatting.js';
 import { ENUMS } from '../../core/enums.js';
 
@@ -43,7 +43,7 @@ export function createActionCard(action, options = {}) {
     card.className = 'card card-bordered card-hoverable action-card';
     card.dataset.actionId = action.id;
 
-    const statusBadge = createStatusBadge(action.status || 'draft');
+    const statusBadge = createArtifactLifecycleBadge(action);
     const priorityBadge = createPriorityBadge(action.priority || 'NORMAL');
     const goal = action.goal || action.title || 'Untitled action';
     const expectedOutcomes = action.expected_outcomes || action.description || 'No expected outcomes';
@@ -53,12 +53,6 @@ export function createActionCard(action, options = {}) {
     const targetLabel = targets.length ? targets.join(', ') : 'Not specified';
     const exposureType = action.exposure_type || 'Not specified';
 
-    let outcomeBadgeHtml = '';
-    if (action.outcome) {
-        const outcomeBadge = createOutcomeBadge(action.outcome);
-        outcomeBadgeHtml = outcomeBadge.outerHTML;
-    }
-
     card.innerHTML = `
         <div class="action-card-header">
             <div class="action-card-title-row">
@@ -66,7 +60,6 @@ export function createActionCard(action, options = {}) {
                 <div class="action-card-badges">
                     ${statusBadge.outerHTML}
                     ${priorityBadge.outerHTML}
-                    ${outcomeBadgeHtml}
                 </div>
             </div>
             <p class="action-card-meta">
@@ -188,7 +181,7 @@ export function createCompactActionCard(action, options = {}) {
     card.className = 'action-card-compact';
     card.dataset.actionId = action.id;
 
-    const statusBadge = createStatusBadge(action.status || 'draft');
+    const statusBadge = createArtifactLifecycleBadge(action);
 
     const compactTitle = action.goal || action.title || 'Untitled action';
 

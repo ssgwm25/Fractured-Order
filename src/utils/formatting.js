@@ -1,4 +1,5 @@
 import { getRoleDisplayName } from '../core/teamContext.js';
+import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 
 /**
  * Formatting Utilities
@@ -178,8 +179,23 @@ export function toTitleCase(str) {
  */
 export function formatStatus(status) {
     if (!status) return '';
-    if (String(status).trim().toLowerCase() === 'adjudicated') {
-        return 'Deliberation Underway';
+    const normalizedStatus = String(status).trim().toLowerCase();
+    if ([
+        'draft',
+        'forwarded_to_facilitator',
+        'submitted',
+        'submitted_to_white_cell',
+        'returned_to_team',
+        'returned_to_blue',
+        'resubmitted',
+        'completed',
+        'adjudicated',
+        'abandoned',
+        'pending',
+        'answered',
+        'withdrawn'
+    ].includes(normalizedStatus)) {
+        return getArtifactLifecycleViewModel(normalizedStatus).label;
     }
     return toTitleCase(status.replace(/_/g, ' '));
 }
