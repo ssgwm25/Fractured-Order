@@ -3,6 +3,8 @@
 -- Apply only through the ordered hardening path in docs/supabase-setup.md.
 -- This compatibility patch is not a replacement for dated RLS, role,
 -- workflow-integrity, research, plugin, or storage migrations.
+-- Apply data/2026-08-05_team_neutral_artifact_review.sql after this patch and
+-- the ordered July workflow migrations for the current White Cell review API.
 --
 -- Purpose:
 -- 1) Align the schema with the currently shipped frontend build.

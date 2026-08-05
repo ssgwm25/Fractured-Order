@@ -241,6 +241,235 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(smeAuthorization.data.role).toBe('sme_econ');
     });
 
+    it('mirrors team-neutral action, orientation, and RFI review transitions', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [{ id: 'session-1', status: 'active', name: 'Review contract' }],
+                actions: [
+                    {
+                        id: 'action-blue',
+                        session_id: 'session-1',
+                        team: 'blue',
+                        artifact_type: 'action',
+                        status: 'submitted',
+                        workflow_state: 'submitted_to_white_cell',
+                        revision_number: 1,
+                        row_version: 4,
+                        submitted_at: '2026-08-05T12:00:00.000Z',
+                        outcome: null,
+                        is_deleted: false
+                    },
+                    {
+                        id: 'action-red',
+                        session_id: 'session-1',
+                        team: 'red',
+                        artifact_type: 'move_response',
+                        status: 'submitted',
+                        workflow_state: 'resubmitted',
+                        revision_number: 2,
+                        row_version: 7,
+                        submitted_at: '2026-08-05T12:05:00.000Z',
+                        outcome: null,
+                        is_deleted: false
+                    },
+                    {
+                        id: 'orientation-green',
+                        session_id: 'session-1',
+                        team: 'green',
+                        artifact_type: 'strategic_orientation_forecast',
+                        status: 'submitted',
+                        workflow_state: 'submitted_to_white_cell',
+                        revision_number: 1,
+                        row_version: 2,
+                        submitted_at: '2026-08-05T12:10:00.000Z',
+                        outcome: null,
+                        is_deleted: false
+                    }
+                ],
+                requests: [{
+                    id: 'rfi-industry',
+                    session_id: 'session-1',
+                    team: 'industry',
+                    status: 'pending',
+                    workflow_state: 'submitted_to_white_cell',
+                    revision_number: 3,
+                    query: 'What time horizon applies?'
+                }],
+                pli_adjudications: [{
+                    id: 'pli-blue',
+                    action_id: 'action-blue',
+                    session_id: 'session-1',
+                    status: 'pending'
+                }]
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        const authorization = await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_lead',
+            requested_operator_name: 'White Cell Lead'
+        });
+        expect(authorization.error).toBeNull();
+
+        const blueReturn = await mockClient.rpc('operator_review_artifact', {
+            requested_artifact_kind: 'action',
+            requested_artifact_id: 'action-blue',
+            requested_review_decision: 'return_to_team',
+            requested_team: 'blue',
+            requested_expected_revision: 1,
+            requested_reviewer_notes: 'Add implementation detail.'
+        });
+        const redReturn = await mockClient.rpc('operator_review_artifact', {
+            requested_artifact_kind: 'action',
+            requested_artifact_id: 'action-red',
+            requested_review_decision: 'return_to_team',
+            requested_team: 'red',
+            requested_expected_revision: 2,
+            requested_reviewer_notes: 'Clarify the response sequence.'
+        });
+        const orientationCompletion = await mockClient.rpc('operator_review_artifact', {
+            requested_artifact_kind: 'strategic_orientation',
+            requested_artifact_id: 'orientation-green',
+            requested_review_decision: 'complete',
+            requested_team: 'green',
+            requested_expected_revision: 1,
+            requested_reviewer_notes: null
+        });
+        const rfiReturn = await mockClient.rpc('operator_review_artifact', {
+            requested_artifact_kind: 'rfi',
+            requested_artifact_id: 'rfi-industry',
+            requested_review_decision: 'return_for_clarification',
+            requested_team: 'industry',
+            requested_expected_revision: 3,
+            requested_reviewer_notes: 'State the requested time horizon.'
+        });
+
+        expect(blueReturn.error).toBeNull();
+        expect(blueReturn.data.artifact).toMatchObject({
+            team: 'blue',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 2,
+            outcome: null
+        });
+        expect(redReturn.error).toBeNull();
+        expect(redReturn.data.artifact).toMatchObject({
+            team: 'red',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 3,
+            outcome: null
+        });
+        expect(orientationCompletion.error).toBeNull();
+        expect(orientationCompletion.data.artifact).toMatchObject({
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            outcome: null,
+            revision_number: 1
+        });
+        expect(rfiReturn.error).toBeNull();
+        expect(rfiReturn.data.artifact).toMatchObject({
+            status: 'pending',
+            workflow_state: 'returned_to_team',
+            revision_number: 4,
+            review_notes: 'State the requested time horizon.'
+        });
+
+        const snapshot = globalThis.__ESG_E2E_BACKEND__.dump();
+        expect(snapshot.tables.artifact_workflow_reviews).toHaveLength(4);
+        expect(snapshot.tables.artifact_workflow_reviews[0]).toMatchObject({
+            artifact_id: 'action-blue',
+            revision_number: 1,
+            next_revision_number: 2,
+            prior_workflow_state: 'submitted_to_white_cell',
+            workflow_state_to: 'returned_to_team',
+            reviewer_role: 'whitecell_lead'
+        });
+        expect(snapshot.tables.pli_adjudications).toEqual([]);
+    });
+
+    it('fails closed for unauthorized, cross-team, stale, and completed mock reviews', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [{ id: 'session-1', status: 'active' }],
+                actions: [{
+                    id: 'action-red',
+                    session_id: 'session-1',
+                    team: 'red',
+                    artifact_type: 'action',
+                    status: 'submitted',
+                    workflow_state: 'submitted_to_white_cell',
+                    revision_number: 5,
+                    is_deleted: false
+                }]
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        const reviewParams = {
+            requested_artifact_kind: 'action',
+            requested_artifact_id: 'action-red',
+            requested_review_decision: 'return_to_team',
+            requested_team: 'red',
+            requested_expected_revision: 5,
+            requested_reviewer_notes: 'Revise.'
+        };
+
+        const unauthorized = await mockClient.rpc('operator_review_artifact', reviewParams);
+        expect(unauthorized.error?.message).toBe('White Cell operator authorization is required.');
+
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_support'
+        });
+        const crossTeam = await mockClient.rpc('operator_review_artifact', {
+            ...reviewParams,
+            requested_team: 'blue'
+        });
+        const stale = await mockClient.rpc('operator_review_artifact', {
+            ...reviewParams,
+            requested_expected_revision: 4
+        });
+        const completed = await mockClient.rpc('operator_review_artifact', {
+            ...reviewParams,
+            requested_review_decision: 'complete',
+            requested_reviewer_notes: null
+        });
+        const completedRetry = await mockClient.rpc('operator_review_artifact', {
+            ...reviewParams,
+            requested_review_decision: 'complete',
+            requested_reviewer_notes: null
+        });
+
+        expect(crossTeam.error?.message).toBe(
+            'Requested team does not match the artifact submitting team.'
+        );
+        expect(stale.error?.message).toContain('Stale artifact revision.');
+        expect(completed.error).toBeNull();
+        expect(completed.data.artifact.outcome).toBeNull();
+        expect(completedRetry.error?.message).toBe('Completed artifacts are immutable.');
+        expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.artifact_workflow_reviews).toHaveLength(1);
+    });
+
     it('routes shared-state RPC and table writes through a browser-wide lock', async () => {
         const requestedLocks = [];
         installBrowserRuntime({

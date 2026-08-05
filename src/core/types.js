@@ -61,7 +61,11 @@
  * @property {string} expected_outcomes - Expected outcomes description
  * @property {string} ally_contingencies - Ally contingency plans
  * @property {'action'|'strategic_orientation_selection'|'strategic_orientation_forecast'|'proposal'|'move_response'} artifact_type - First-class artifact discriminator
- * @property {'draft'|'forwarded_to_facilitator'|'submitted_to_white_cell'|'adjudicated'|'abandoned'|'changes_requested'|'rejected'|'forwarded_to_recipient'} workflow_state - Server-owned workflow state
+ * @property {'draft'|'forwarded_to_facilitator'|'submitted_to_white_cell'|'returned_to_team'|'resubmitted'|'completed'|'returned_to_blue'|'adjudicated'|'abandoned'|'changes_requested'|'rejected'|'forwarded_to_recipient'} workflow_state - Server-owned workflow state; returned_to_blue is historical compatibility only
+ * @property {string} canonical_workflow_state - Team-neutral workflow label used by new clients
+ * @property {'persisted'|'legacy_status'|'legacy_returned_to_blue'} workflow_state_origin - Provenance for the workflow label
+ * @property {number} revision_number - Submission revision, normalized to 1 for untouched historical rows
+ * @property {'persisted'|'legacy_default'} revision_number_origin - Whether the revision was persisted or compatibility-derived
  * @property {Object} artifact_payload - Structured artifact snapshot
  * @property {Object[]} forecast_targets - Structured forecast targets
  * @property {'blue'|'red'|null} proposal_recipient_team - Persisted proposal recipient
@@ -97,6 +101,8 @@
  * @property {string} query - The actual question/request
  * @property {string} context - Additional context
  * @property {string} status - Request status (pending, answered, withdrawn)
+ * @property {'draft'|'forwarded_to_facilitator'|'submitted_to_white_cell'|'returned_to_team'|'resubmitted'|'completed'} workflow_state - Rich RFI lifecycle
+ * @property {number} revision_number - RFI submission revision
  * @property {string|null} answered_at - ISO timestamp when answered
  * @property {number|null} response_time_seconds - Time to response in seconds
  * @property {string} created_at - ISO timestamp of creation

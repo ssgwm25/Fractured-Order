@@ -275,6 +275,55 @@ function normalizeParticipantSeatRecord(record = null) {
     };
 }
 
+export function normalizeArtifactWorkflowRecord(record = null, artifactKind = 'action') {
+    if (!record || typeof record !== 'object') {
+        return record;
+    }
+
+    const persistedWorkflowState = record.workflow_state ?? null;
+    const isLegacyReturnedToBlue = persistedWorkflowState
+        === ENUMS.ARTIFACT_WORKFLOW_STATE.LEGACY_RETURNED_TO_BLUE;
+    const derivedLegacyState = artifactKind === 'rfi'
+        ? (record.status === 'pending'
+            ? ENUMS.ARTIFACT_WORKFLOW_STATE.SUBMITTED_TO_WHITE_CELL
+            : ENUMS.ARTIFACT_WORKFLOW_STATE.COMPLETED)
+        : (record.status === ENUMS.ACTION_STATUS.SUBMITTED
+            ? ENUMS.ARTIFACT_WORKFLOW_STATE.SUBMITTED_TO_WHITE_CELL
+            : record.status === ENUMS.ACTION_STATUS.ADJUDICATED
+                ? 'adjudicated'
+                : record.status === 'abandoned'
+                    ? 'abandoned'
+                    : ENUMS.ARTIFACT_WORKFLOW_STATE.DRAFT);
+
+    return {
+        ...record,
+        workflow_state: persistedWorkflowState ?? derivedLegacyState,
+        canonical_workflow_state: isLegacyReturnedToBlue
+            ? ENUMS.ARTIFACT_WORKFLOW_STATE.RETURNED_TO_TEAM
+            : (persistedWorkflowState ?? derivedLegacyState),
+        workflow_state_origin: isLegacyReturnedToBlue
+            ? 'legacy_returned_to_blue'
+            : (persistedWorkflowState ? 'persisted' : 'legacy_status'),
+        revision_number: Number.isInteger(record.revision_number)
+            ? record.revision_number
+            : 1,
+        revision_number_origin: Number.isInteger(record.revision_number)
+            ? 'persisted'
+            : 'legacy_default'
+    };
+}
+
+function normalizeArtifactReviewResult(result = null, artifactKind = 'action') {
+    if (!result || typeof result !== 'object') {
+        return result;
+    }
+
+    return {
+        ...result,
+        artifact: normalizeArtifactWorkflowRecord(result.artifact, artifactKind)
+    };
+}
+
 function normalizeSeatClaimRole(role = '') {
     if (role === null || role === undefined) {
         return role ?? '';
@@ -1205,7 +1254,7 @@ export const database = {
         }
 
         logger.info('Action created:', data.id);
-        return data;
+        return normalizeArtifactWorkflowRecord(data, 'action');
     },
 
     /**
@@ -1244,7 +1293,7 @@ export const database = {
             throw fromSupabaseError(error, 'fetchActions');
         }
 
-        return data || [];
+        return (data || []).map((action) => normalizeArtifactWorkflowRecord(action, 'action'));
     },
 
     /**
@@ -1267,7 +1316,7 @@ export const database = {
             throw fromSupabaseError(error, 'getAction');
         }
 
-        return data;
+        return normalizeArtifactWorkflowRecord(data, 'action');
     },
 
     /**
@@ -1316,7 +1365,7 @@ export const database = {
             throw fromSupabaseError(error, 'updateAction');
         }
 
-        return data;
+        return normalizeArtifactWorkflowRecord(data, 'action');
     },
 
     /**
@@ -1392,7 +1441,91 @@ export const database = {
             throw fromSupabaseError(error, 'adjudicateAction');
         }
 
-        return data;
+        return normalizeArtifactWorkflowRecord(data, 'action');
+    },
+
+    /**
+     * Atomically apply a White Cell workflow decision to an Action, Strategic
+     * Orientation, or RFI with optimistic revision enforcement.
+     * @param {'action'|'strategic_orientation'|'rfi'} artifactKind
+     * @param {string} artifactId
+     * @param {Object} review
+     * @returns {Promise<{artifact: Object, review: Object}>}
+     */
+    async reviewArtifact(artifactKind, artifactId, review = {}) {
+        const normalizedKind = String(artifactKind || '').trim().toLowerCase();
+        const normalizedDecision = String(review.decision || '').trim().toLowerCase();
+        const normalizedTeam = String(review.team || '').trim().toLowerCase();
+        const normalizedNotes = String(review.notes || '').trim();
+        const expectedRevision = Number(review.expectedRevision);
+        const returnDecisions = new Set([
+            ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM,
+            ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_FOR_CLARIFICATION
+        ]);
+
+        if (!['action', 'strategic_orientation', 'rfi'].includes(normalizedKind)) {
+            throw new DatabaseError('Unsupported artifact kind', 'reviewArtifact');
+        }
+        if (!artifactId) {
+            throw new DatabaseError('Artifact ID is required', 'reviewArtifact');
+        }
+        if (!Object.values(ENUMS.ARTIFACT_REVIEW_DECISION).includes(normalizedDecision)) {
+            throw new DatabaseError('Unsupported artifact review decision', 'reviewArtifact');
+        }
+        if (!['blue', 'red', 'green', 'industry'].includes(normalizedTeam)) {
+            throw new DatabaseError('Submitting team is required', 'reviewArtifact');
+        }
+        if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
+            throw new DatabaseError('Expected revision number is required', 'reviewArtifact');
+        }
+        if (returnDecisions.has(normalizedDecision) && !normalizedNotes) {
+            throw new DatabaseError('Reviewer notes are required for every return', 'reviewArtifact');
+        }
+
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('operator_review_artifact', {
+            requested_artifact_kind: normalizedKind,
+            requested_artifact_id: artifactId,
+            requested_review_decision: normalizedDecision,
+            requested_team: normalizedTeam,
+            requested_expected_revision: expectedRevision,
+            requested_reviewer_notes: normalizedNotes || null
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'reviewArtifact');
+        }
+
+        return normalizeArtifactReviewResult(data, normalizedKind === 'rfi' ? 'rfi' : 'action');
+    },
+
+    async completeArtifact(artifactKind, artifactId, {
+        team,
+        expectedRevision,
+        notes = ''
+    } = {}) {
+        return this.reviewArtifact(artifactKind, artifactId, {
+            decision: ENUMS.ARTIFACT_REVIEW_DECISION.COMPLETE,
+            team,
+            expectedRevision,
+            notes
+        });
+    },
+
+    async returnArtifactToTeam(artifactKind, artifactId, {
+        team,
+        expectedRevision,
+        notes
+    } = {}) {
+        const normalizedKind = String(artifactKind || '').trim().toLowerCase();
+        return this.reviewArtifact(normalizedKind, artifactId, {
+            decision: normalizedKind === 'rfi'
+                ? ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_FOR_CLARIFICATION
+                : ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM,
+            team,
+            expectedRevision,
+            notes
+        });
     },
 
     /**
@@ -1402,7 +1535,7 @@ export const database = {
      * @param {{ notes?: string }} options
      * @returns {Promise<Object>} Updated action
      */
-    async returnActionToBlue(actionId, { notes } = {}) {
+    async returnActionToBlue(actionId, { notes, expectedRevision = null } = {}) {
         const trimmed = String(notes || '').trim();
         if (!actionId) {
             throw new DatabaseError('Action ID is required', 'returnActionToBlue');
@@ -1411,17 +1544,14 @@ export const database = {
             throw new DatabaseError('Return notes are required', 'returnActionToBlue');
         }
 
-        await ensureAuthenticatedBrowser();
-        const { data, error } = await supabase.rpc('operator_return_action_to_blue', {
-            requested_action_id: actionId,
-            requested_return_notes: trimmed
+        const action = await this.getAction(actionId);
+        const result = await this.returnArtifactToTeam('action', actionId, {
+            team: 'blue',
+            expectedRevision: expectedRevision ?? action.revision_number,
+            notes: trimmed
         });
 
-        if (error) {
-            throw fromSupabaseError(error, 'returnActionToBlue');
-        }
-
-        return data;
+        return result.artifact;
     },
 
     /**
@@ -1513,7 +1643,7 @@ export const database = {
         }
 
         logger.info('Request created:', data.id);
-        return data;
+        return normalizeArtifactWorkflowRecord(data, 'rfi');
     },
 
     /**
@@ -1547,7 +1677,7 @@ export const database = {
             throw fromSupabaseError(error, 'fetchRequests');
         }
 
-        return data || [];
+        return (data || []).map((request) => normalizeArtifactWorkflowRecord(request, 'rfi'));
     },
 
     /**
@@ -1570,7 +1700,7 @@ export const database = {
                 throw fromSupabaseError(error, 'updateRequest');
             }
 
-            return data;
+            return normalizeArtifactWorkflowRecord(data, 'rfi');
         }
 
         const { data, error } = await supabase
@@ -1584,7 +1714,7 @@ export const database = {
             throw fromSupabaseError(error, 'updateRequest');
         }
 
-        return data;
+        return normalizeArtifactWorkflowRecord(data, 'rfi');
     },
 
     // ==================== COMMUNICATIONS ====================

@@ -2412,7 +2412,9 @@ export class FacilitatorController {
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
         const status = action.status || ENUMS.ACTION_STATUS.DRAFT;
         const isReturnedToBlue = (
-            String(action.workflow_state || '').trim() === 'returned_to_blue'
+            ['returned_to_team', 'returned_to_blue'].includes(
+                String(action.workflow_state || '').trim()
+            )
             || action.adjudication?.returned_to_blue === true
         );
         const canManageDraft = !this.isReadOnly && !isStrategicOrientationFlow && canEditAction(action);

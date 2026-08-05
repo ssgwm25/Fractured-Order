@@ -22,6 +22,7 @@ const MOCK_TABLES = [
     'session_participants',
     'actions',
     'requests',
+    'artifact_workflow_reviews',
     'communications',
     'timeline',
     'notetaker_data',
@@ -523,6 +524,13 @@ function normalizeInsertRow(tableName, payload, state) {
                 ...baseRow,
                 targets: [],
                 is_deleted: false,
+                revision_number: 1,
+                prior_workflow_state: null,
+                reviewed_at: null,
+                reviewed_by_auth_user_id: null,
+                reviewed_by_role: null,
+                review_notes: null,
+                completed_at: null,
                 ...cloneValue(payload),
                 created_at: timestamp,
                 row_version: 1,
@@ -537,7 +545,21 @@ function normalizeInsertRow(tableName, payload, state) {
                 ...baseRow,
                 categories: [],
                 status: 'pending',
+                workflow_state: 'submitted_to_white_cell',
+                revision_number: 1,
+                prior_workflow_state: null,
+                reviewed_at: null,
+                reviewed_by_auth_user_id: null,
+                reviewed_by_role: null,
+                review_notes: null,
+                completed_at: null,
                 updated_at: timestamp,
+                ...cloneValue(payload)
+            };
+        case 'artifact_workflow_reviews':
+            return {
+                ...baseRow,
+                reviewed_at: timestamp,
                 ...cloneValue(payload)
             };
         case 'communications':
@@ -865,7 +887,8 @@ function canReadTableRow(state, tableName, row, authUserId) {
 
     if (tableName === 'session_participants' || tableName === 'game_state' || tableName === 'actions'
         || tableName === 'requests' || tableName === 'communications' || tableName === 'timeline'
-        || tableName === 'notetaker_data' || tableName === 'sme_handoffs') {
+        || tableName === 'notetaker_data' || tableName === 'sme_handoffs'
+        || tableName === 'artifact_workflow_reviews') {
         return liveDemoCanReadSession(state, authUserId, row.session_id)
             || liveDemoHasOperatorGrant(state, authUserId, 'sme', row.session_id)
             || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
@@ -940,6 +963,8 @@ function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
             return (
                 liveDemoCanWriteTeamSession(state, authUserId, currentRow.session_id, currentRow.team, ['facilitator', 'scribe'])
                 && liveDemoCanWriteTeamSession(state, authUserId, nextRow.session_id, nextRow.team, ['facilitator', 'scribe'])
+                && currentRow.workflow_state !== 'completed'
+                && nextRow.workflow_state !== 'completed'
                 && nextRow.status !== 'answered'
             );
         case 'notetaker_data':
@@ -1656,54 +1681,268 @@ function operatorAdjudicateAction(state, params) {
     };
 }
 
-function operatorReturnActionToBlue(state, params) {
+function operatorReviewArtifact(state, params) {
     const authUserId = getCurrentAuthUserId();
     const grant = getOperatorGrant(state, authUserId, 'whitecell');
-    const action = state.tables.actions.find((entry) => (
-        entry.id === params?.requested_action_id && entry.is_deleted !== true
-    ));
-    const notes = String(params?.requested_return_notes || '').trim();
+    const kind = String(params?.requested_artifact_kind || '').trim().toLowerCase();
+    const decision = String(params?.requested_review_decision || '').trim().toLowerCase();
+    const team = String(params?.requested_team || '').trim().toLowerCase();
+    const notes = String(params?.requested_reviewer_notes || '').trim();
+    const expectedRevision = Number(params?.requested_expected_revision);
 
+    if (!['action', 'strategic_orientation', 'rfi'].includes(kind)) {
+        return { data: null, error: { message: 'Unsupported artifact kind.' } };
+    }
+    if (!['complete', 'return_to_team', 'return_for_clarification'].includes(decision)) {
+        return { data: null, error: { message: 'Unsupported artifact review decision.' } };
+    }
+    if (!['blue', 'red', 'green', 'industry'].includes(team)) {
+        return { data: null, error: { message: 'A valid submitting team is required.' } };
+    }
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
+        return { data: null, error: { message: 'Expected revision number is required.' } };
+    }
+    if (['return_to_team', 'return_for_clarification'].includes(decision) && !notes) {
+        return { data: null, error: { message: 'Reviewer notes are required for every return.' } };
+    }
+
+    if (kind === 'rfi') {
+        const request = state.tables.requests.find((entry) => (
+            entry.id === params?.requested_artifact_id
+        ));
+
+        if (!request) {
+            return { data: null, error: { message: 'RFI not found.' } };
+        }
+        if (!grant || grant.session_id !== request.session_id) {
+            return { data: null, error: { message: 'White Cell operator authorization is required.' } };
+        }
+        if (String(request.team || '').trim().toLowerCase() !== team) {
+            return { data: null, error: { message: 'Requested team does not match the RFI submitting team.' } };
+        }
+        if (decision !== 'return_for_clarification') {
+            return { data: null, error: { message: 'RFIs use return_for_clarification.' } };
+        }
+
+        const priorWorkflowState = request.workflow_state
+            || (request.status === 'pending' ? 'submitted_to_white_cell' : 'completed');
+        if (['answered', 'withdrawn'].includes(request.status) || priorWorkflowState === 'completed') {
+            return { data: null, error: { message: 'Completed artifacts are immutable.' } };
+        }
+        if (!['submitted_to_white_cell', 'resubmitted'].includes(priorWorkflowState)) {
+            return { data: null, error: { message: 'Only submitted RFIs can be returned for clarification.' } };
+        }
+
+        const revisionNumber = Number.isInteger(request.revision_number)
+            ? request.revision_number
+            : 1;
+        if (revisionNumber !== expectedRevision) {
+            return {
+                data: null,
+                error: { message: `Stale artifact revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
+            };
+        }
+
+        const timestamp = getTimestamp();
+        const updatedRequest = {
+            ...request,
+            status: 'pending',
+            workflow_state: 'returned_to_team',
+            revision_number: revisionNumber + 1,
+            prior_workflow_state: priorWorkflowState,
+            reviewed_at: timestamp,
+            reviewed_by_auth_user_id: authUserId,
+            reviewed_by_role: grant.role,
+            review_notes: notes,
+            completed_at: null,
+            response: null,
+            responded_at: null,
+            answered_at: null,
+            response_time_seconds: null,
+            updated_at: timestamp
+        };
+        const review = normalizeInsertRow('artifact_workflow_reviews', {
+            session_id: request.session_id,
+            artifact_kind: 'rfi',
+            artifact_id: request.id,
+            artifact_type: 'rfi',
+            team,
+            decision,
+            revision_number: revisionNumber,
+            next_revision_number: revisionNumber + 1,
+            prior_status: request.status,
+            status_to: updatedRequest.status,
+            prior_workflow_state: priorWorkflowState,
+            workflow_state_to: updatedRequest.workflow_state,
+            reviewer_auth_user_id: authUserId,
+            reviewer_role: grant.role,
+            reviewer_notes: notes,
+            reviewed_at: timestamp,
+            prior_state: cloneValue(request),
+            new_state: cloneValue(updatedRequest)
+        }, state);
+
+        state.tables.requests = state.tables.requests.map((entry) => (
+            entry.id === updatedRequest.id ? updatedRequest : entry
+        ));
+        state.tables.artifact_workflow_reviews.push(review);
+
+        return {
+            data: { artifact: cloneValue(updatedRequest), review: cloneValue(review) },
+            error: null
+        };
+    }
+
+    const action = state.tables.actions.find((entry) => (
+        entry.id === params?.requested_artifact_id && entry.is_deleted !== true
+    ));
     if (!action) {
-        return { data: null, error: { message: 'Action not found.' } };
+        return { data: null, error: { message: 'Artifact not found.' } };
     }
     if (!grant || grant.session_id !== action.session_id) {
         return { data: null, error: { message: 'White Cell operator authorization is required.' } };
     }
-    if (!notes) {
-        return { data: null, error: { message: 'Return notes are required.' } };
-    }
-    if (String(action.team || '').toLowerCase() !== 'blue') {
-        return { data: null, error: { message: 'Only Blue Team actions can be returned to Blue.' } };
-    }
-    if (!['submitted', 'adjudicated'].includes(action.status)) {
-        return { data: null, error: { message: 'Only submitted or adjudicated actions can be returned to Blue.' } };
+    if (String(action.team || '').trim().toLowerCase() !== team) {
+        return { data: null, error: { message: 'Requested team does not match the artifact submitting team.' } };
     }
 
-    const updated = {
+    const artifactType = action.artifact_type || 'action';
+    if (
+        kind === 'action'
+        && (!['action', 'move_response'].includes(artifactType) || !['blue', 'red'].includes(team))
+    ) {
+        return { data: null, error: { message: 'Only Blue or Red action artifacts can use the action review path.' } };
+    }
+    if (
+        kind === 'strategic_orientation'
+        && !['strategic_orientation_selection', 'strategic_orientation_forecast'].includes(artifactType)
+    ) {
+        return { data: null, error: { message: 'Artifact kind does not match the stored Strategic Orientation type.' } };
+    }
+    if (decision === 'return_for_clarification') {
+        return { data: null, error: { message: 'Action artifacts use return_to_team.' } };
+    }
+    if (action.workflow_state === 'completed') {
+        return { data: null, error: { message: 'Completed artifacts are immutable.' } };
+    }
+
+    const revisionNumber = Number.isInteger(action.revision_number)
+        ? action.revision_number
+        : 1;
+    if (revisionNumber !== expectedRevision) {
+        return {
+            data: null,
+            error: { message: `Stale artifact revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
+        };
+    }
+    if (
+        decision === 'complete'
+        && (action.status !== 'submitted'
+            || !['submitted_to_white_cell', 'resubmitted'].includes(action.workflow_state))
+    ) {
+        return { data: null, error: { message: 'Only submitted artifacts can be completed.' } };
+    }
+    if (decision === 'return_to_team' && !['submitted', 'adjudicated'].includes(action.status)) {
+        return { data: null, error: { message: 'Only submitted artifacts can be returned to their team.' } };
+    }
+
+    const timestamp = getTimestamp();
+    const isReturn = decision === 'return_to_team';
+    const nextRevision = isReturn ? revisionNumber + 1 : revisionNumber;
+    const adjudication = { ...(action.adjudication || {}) };
+    delete adjudication.outcome;
+    Object.assign(adjudication, {
+        artifact_review_decision: decision,
+        artifact_reviewed_at: timestamp,
+        artifact_reviewed_by_role: grant.role,
+        artifact_reviewed_by_auth_user_id: authUserId,
+        artifact_review_revision: revisionNumber,
+        prior_status: action.status,
+        prior_workflow_state: action.workflow_state
+    });
+    if (notes) adjudication.artifact_review_notes = notes;
+
+    const updatedAction = {
         ...action,
-        status: 'draft',
-        workflow_state: 'returned_to_blue',
+        status: isReturn ? 'draft' : 'adjudicated',
+        workflow_state: isReturn ? 'returned_to_team' : 'completed',
+        revision_number: nextRevision,
+        prior_workflow_state: action.workflow_state,
+        reviewed_at: timestamp,
+        reviewed_by_auth_user_id: authUserId,
+        reviewed_by_role: grant.role,
+        review_notes: notes || null,
+        completed_at: isReturn ? null : timestamp,
         outcome: null,
-        submitted_at: null,
-        adjudicated_at: null,
-        adjudication_notes: `Returned to Blue: ${notes}`,
-        updated_at: getTimestamp()
+        submitted_at: isReturn ? null : action.submitted_at,
+        adjudicated_at: isReturn ? null : timestamp,
+        adjudication_notes: notes || null,
+        adjudication,
+        row_version: (Number.isInteger(action.row_version) ? action.row_version : 1) + 1,
+        updated_at: timestamp
     };
+    const review = normalizeInsertRow('artifact_workflow_reviews', {
+        session_id: action.session_id,
+        artifact_kind: kind,
+        artifact_id: action.id,
+        artifact_type: artifactType,
+        team,
+        decision,
+        revision_number: revisionNumber,
+        next_revision_number: nextRevision,
+        prior_status: action.status,
+        status_to: updatedAction.status,
+        prior_workflow_state: action.workflow_state,
+        workflow_state_to: updatedAction.workflow_state,
+        reviewer_auth_user_id: authUserId,
+        reviewer_role: grant.role,
+        reviewer_notes: notes || null,
+        reviewed_at: timestamp,
+        prior_state: cloneValue(action),
+        new_state: cloneValue(updatedAction)
+    }, state);
 
     state.tables.actions = state.tables.actions.map((entry) => (
-        entry.id === updated.id ? updated : entry
+        entry.id === updatedAction.id ? updatedAction : entry
     ));
-    if (Array.isArray(state.tables.pli_adjudications)) {
+    if (isReturn) {
         state.tables.pli_adjudications = state.tables.pli_adjudications.filter((row) => (
-            row.action_id !== updated.id
+            row.action_id !== updatedAction.id
         ));
     }
+    state.tables.artifact_workflow_reviews.push(review);
 
     return {
-        data: cloneValue(updated),
+        data: { artifact: cloneValue(updatedAction), review: cloneValue(review) },
         error: null
     };
+}
+
+function operatorReturnActionToBlue(state, params) {
+    const action = state.tables.actions.find((entry) => (
+        entry.id === params?.requested_action_id && entry.is_deleted !== true
+    ));
+    if (!action) {
+        return { data: null, error: { message: 'Action not found.' } };
+    }
+    if (String(action.team || '').trim().toLowerCase() !== 'blue') {
+        return { data: null, error: { message: 'Only Blue Team actions can use the legacy return wrapper.' } };
+    }
+
+    const result = operatorReviewArtifact(state, {
+        requested_artifact_kind: 'action',
+        requested_artifact_id: action.id,
+        requested_review_decision: 'return_to_team',
+        requested_team: 'blue',
+        requested_expected_revision: Number.isInteger(action.revision_number)
+            ? action.revision_number
+            : 1,
+        requested_reviewer_notes: params?.requested_return_notes
+    });
+
+    return result.error
+        ? result
+        : { data: result.data.artifact, error: null };
 }
 
 function readLegacyActionDetail(details = '', label = '') {
@@ -1914,11 +2153,23 @@ function operatorAnswerRequest(state, params) {
         return { data: null, error: { message: 'White Cell operator authorization is required.' } };
     }
 
+    if (['answered', 'withdrawn'].includes(request.status) || request.workflow_state === 'completed') {
+        return { data: null, error: { message: 'Completed artifacts are immutable.' } };
+    }
+
     const respondedAt = params?.requested_responded_at ?? getTimestamp();
     const updated = {
         ...request,
         response: params?.requested_response ?? '',
-        status: request.status === 'withdrawn' ? request.status : 'answered',
+        status: 'answered',
+        workflow_state: 'completed',
+        revision_number: Number.isInteger(request.revision_number) ? request.revision_number : 1,
+        prior_workflow_state: request.workflow_state || 'submitted_to_white_cell',
+        reviewed_at: respondedAt,
+        reviewed_by_auth_user_id: authUserId,
+        reviewed_by_role: grant.role,
+        review_notes: null,
+        completed_at: respondedAt,
         responded_at: respondedAt,
         answered_at: respondedAt,
         updated_at: getTimestamp()
@@ -2207,7 +2458,37 @@ class MockQueryBuilder {
                     nextRow.row_version = (Number.isInteger(row.row_version) ? row.row_version : 1) + 1;
                     if (row.status === 'draft' && nextRow.status === 'submitted') {
                         nextRow.submitted_at = timestamp;
-                        nextRow.workflow_state = 'submitted_to_white_cell';
+                        nextRow.workflow_state = ['returned_to_team', 'returned_to_blue'].includes(row.workflow_state)
+                            ? 'resubmitted'
+                            : 'submitted_to_white_cell';
+                    }
+                }
+
+                if (
+                    this.tableName === 'requests'
+                    && nextRow.status === 'pending'
+                ) {
+                    const requestContentChanged = [
+                        'session_id',
+                        'move',
+                        'phase',
+                        'team',
+                        'priority',
+                        'categories',
+                        'query'
+                    ].some((field) => (
+                        Object.prototype.hasOwnProperty.call(this.payload || {}, field)
+                        && !compareValues(row[field], nextRow[field])
+                    ));
+
+                    if (requestContentChanged) {
+                        nextRow.workflow_state = 'resubmitted';
+                        nextRow.revision_number = row.workflow_state === 'returned_to_team'
+                            ? (Number.isInteger(row.revision_number) ? row.revision_number : 1)
+                            : (Number.isInteger(row.revision_number) ? row.revision_number : 1) + 1;
+                    } else {
+                        nextRow.workflow_state = row.workflow_state;
+                        nextRow.revision_number = row.revision_number;
                     }
                 }
 
@@ -2427,6 +2708,10 @@ export function createE2EMockSupabaseClient() {
 
             if (functionName === 'operator_return_action_to_blue') {
                 return mutateMockState((state) => operatorReturnActionToBlue(state, params));
+            }
+
+            if (functionName === 'operator_review_artifact') {
+                return mutateMockState((state) => operatorReviewArtifact(state, params));
             }
 
             if (functionName === 'operator_review_proposal') {

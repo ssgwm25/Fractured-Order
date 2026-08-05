@@ -254,6 +254,93 @@ describe('database privileged write contracts', () => {
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });
 
+    it('routes team-neutral artifact reviews through one revision-aware RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                artifact: {
+                    id: 'action-red-1',
+                    team: 'red',
+                    status: 'draft',
+                    workflow_state: 'returned_to_team',
+                    revision_number: 3
+                },
+                review: {
+                    decision: 'return_to_team',
+                    revision_number: 2,
+                    next_revision_number: 3
+                }
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        const result = await database.returnArtifactToTeam('action', 'action-red-1', {
+            team: 'red',
+            expectedRevision: 2,
+            notes: 'Clarify the implementation sequence.'
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('operator_review_artifact', {
+            requested_artifact_kind: 'action',
+            requested_artifact_id: 'action-red-1',
+            requested_review_decision: 'return_to_team',
+            requested_team: 'red',
+            requested_expected_revision: 2,
+            requested_reviewer_notes: 'Clarify the implementation sequence.'
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalled();
+        expect(result.artifact).toMatchObject({
+            workflow_state: 'returned_to_team',
+            canonical_workflow_state: 'returned_to_team',
+            revision_number: 3
+        });
+    });
+
+    it('routes outcome-free completion and RFI clarification through the same RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                artifact: {
+                    id: 'orientation-1',
+                    status: 'adjudicated',
+                    workflow_state: 'completed',
+                    outcome: null,
+                    revision_number: 1
+                },
+                review: { decision: 'complete', revision_number: 1 }
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.completeArtifact('strategic_orientation', 'orientation-1', {
+            team: 'blue',
+            expectedRevision: 1,
+            notes: 'Review complete.'
+        });
+        await database.returnArtifactToTeam('rfi', 'rfi-1', {
+            team: 'industry',
+            expectedRevision: 4,
+            notes: 'Specify the requested time horizon.'
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenNthCalledWith(1, 'operator_review_artifact', {
+            requested_artifact_kind: 'strategic_orientation',
+            requested_artifact_id: 'orientation-1',
+            requested_review_decision: 'complete',
+            requested_team: 'blue',
+            requested_expected_revision: 1,
+            requested_reviewer_notes: 'Review complete.'
+        });
+        expect(mockSupabase.rpc).toHaveBeenNthCalledWith(2, 'operator_review_artifact', {
+            requested_artifact_kind: 'rfi',
+            requested_artifact_id: 'rfi-1',
+            requested_review_decision: 'return_for_clarification',
+            requested_team: 'industry',
+            requested_expected_revision: 4,
+            requested_reviewer_notes: 'Specify the requested time horizon.'
+        });
+    });
+
     it('routes proposal review and forwarding through one transactional RPC', async () => {
         mockSupabase.rpc.mockResolvedValue({
             data: {

@@ -61,6 +61,10 @@ const INDUSTRY_SUBMISSION_PERMISSIONS_PATH = new URL(
     '../../data/2026-07-29_industry_submission_permissions.sql',
     import.meta.url
 );
+const TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH = new URL(
+    '../../data/2026-08-05_team_neutral_artifact_review.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -69,6 +73,11 @@ const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
 );
+const CONSOLIDATED_SCHEMA_PATHS = [
+    new URL('../../data/COMPLETE_SCHEMA.sql', import.meta.url),
+    new URL('../../data/updated_supabase_schema.sql', import.meta.url),
+    new URL('../../data/updated_supabase_migration.sql', import.meta.url)
+];
 
 function normalizeLineEndings(value) {
     return value.replace(/\r\n/g, '\n');
@@ -76,14 +85,14 @@ function normalizeLineEndings(value) {
 
 function extractFunctionBody(sql, functionName) {
     const functionPattern = new RegExp(
-        `CREATE OR REPLACE FUNCTION public\\.${functionName}\\([\\s\\S]*?AS \\\$\\$([\\s\\S]*?)\\$\\$;`,
+        `CREATE OR REPLACE FUNCTION public\\.${functionName}\\([\\s\\S]*?AS \\$([A-Za-z0-9_]*)\\$([\\s\\S]*?)\\$\\1\\$;`,
         'm'
     );
     const match = sql.match(functionPattern);
 
     expect(match, `Expected SQL contract for ${functionName} to exist.`).not.toBeNull();
 
-    return normalizeLineEndings(match[1]);
+    return normalizeLineEndings(match[2]);
 }
 
 describe('database migration contracts', () => {
@@ -446,6 +455,90 @@ describe('database migration contracts', () => {
         expect(reviewProposalBody).toContain('INSERT INTO public.timeline');
         expect(reviewProposalBody).toContain("'idempotent_replay', true");
         expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_review_proposal(UUID, TEXT, TEXT, TEXT) TO authenticated;');
+    });
+
+    it('adds team-neutral workflow metadata without backfilling historical rows', () => {
+        const sql = readFileSync(TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH, 'utf8');
+        const schemaSection = sql.split('-- 2. ACTION WORKFLOW NORMALIZATION')[0];
+
+        expect(schemaSection).toContain('ADD COLUMN IF NOT EXISTS revision_number BIGINT');
+        expect(schemaSection).toContain('ADD COLUMN IF NOT EXISTS workflow_state TEXT');
+        expect(schemaSection).toContain('CREATE TABLE IF NOT EXISTS public.artifact_workflow_reviews');
+        expect(schemaSection).toContain("'draft'");
+        expect(schemaSection).toContain("'forwarded_to_facilitator'");
+        expect(schemaSection).toContain("'submitted_to_white_cell'");
+        expect(schemaSection).toContain("'returned_to_team'");
+        expect(schemaSection).toContain("'resubmitted'");
+        expect(schemaSection).toContain("'completed'");
+        expect(schemaSection).toContain("'returned_to_blue'");
+        expect(schemaSection).not.toMatch(/UPDATE\s+public\.(actions|requests)\s+SET/i);
+        expect(schemaSection).toContain('ALTER COLUMN revision_number SET DEFAULT 1');
+        expect(schemaSection).toContain('Historical NULL revision_number values are');
+    });
+
+    it('uses one fail-closed White Cell review contract for Blue and Red artifacts', () => {
+        const sql = readFileSync(TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH, 'utf8');
+        const reviewBody = extractFunctionBody(sql, 'operator_review_artifact');
+        const requestWorkflowBody = extractFunctionBody(sql, 'normalize_request_workflow_write');
+
+        expect(reviewBody).toContain("normalized_kind NOT IN ('action', 'strategic_orientation', 'rfi')");
+        expect(reviewBody).toContain("normalized_team NOT IN ('blue', 'red', 'green', 'industry')");
+        expect(reviewBody).toContain("action_row.artifact_type IN ('action', 'move_response')");
+        expect(reviewBody).toContain("normalized_team IN ('blue', 'red')");
+        expect(reviewBody).toContain("'strategic_orientation_selection'");
+        expect(reviewBody).toContain("'strategic_orientation_forecast'");
+        expect(reviewBody).toContain("normalized_decision <> 'return_for_clarification'");
+        expect(reviewBody).toContain("normalized_decision IN ('return_to_team', 'return_for_clarification')");
+        expect(reviewBody).toContain('Reviewer notes are required for every return.');
+        expect(reviewBody).toContain('Requested team does not match the artifact submitting team.');
+        expect(reviewBody).toContain('White Cell operator authorization is required.');
+        expect(reviewBody).toContain('Stale artifact revision. Expected %, current %.');
+        expect(reviewBody).toContain("action_row.workflow_state = 'completed'");
+        expect(reviewBody).toContain("request_row.status IN ('answered', 'withdrawn')");
+        expect(reviewBody).toContain("effective_workflow_state NOT IN ('submitted_to_white_cell', 'resubmitted')");
+        expect(requestWorkflowBody).toContain("OLD.status IN ('answered', 'withdrawn')");
+        expect(requestWorkflowBody).toContain('Completed artifacts are immutable.');
+        expect(requestWorkflowBody).toContain('content_changed');
+        expect(requestWorkflowBody).toContain("OLD.workflow_state = 'returned_to_team'");
+        expect(requestWorkflowBody).toContain("NEW.workflow_state := 'resubmitted'");
+        expect(sql).toContain('CREATE TRIGGER normalize_request_workflow_write');
+    });
+
+    it('completes without outcomes and atomically records review provenance', () => {
+        const sql = readFileSync(TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH, 'utf8');
+        const reviewBody = extractFunctionBody(sql, 'operator_review_artifact');
+        const legacyWrapperBody = extractFunctionBody(sql, 'operator_return_action_to_blue');
+
+        expect(reviewBody).toContain("WHEN normalized_decision = 'complete' THEN 'adjudicated'");
+        expect(reviewBody).toContain("WHEN normalized_decision = 'complete' THEN 'completed'");
+        expect(reviewBody).toContain('outcome = NULL');
+        expect(reviewBody).toContain("COALESCE(a.adjudication, '{}'::jsonb) - 'outcome'");
+        expect(reviewBody).toContain('revision_number = next_revision');
+        expect(reviewBody).toContain('prior_workflow_state = action_row.workflow_state');
+        expect(reviewBody).toContain('reviewed_by_role = reviewer_role');
+        expect(reviewBody).toContain('INSERT INTO public.artifact_workflow_reviews');
+        expect(reviewBody).toContain('prior_state');
+        expect(reviewBody).toContain('new_state');
+        expect(reviewBody).toContain("to_regclass('public.pli_adjudications')");
+        expect(legacyWrapperBody).toContain('public.operator_review_artifact');
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_review_artifact(TEXT, UUID, TEXT, TEXT, BIGINT, TEXT)');
+    });
+
+    it('keeps consolidated schema artifacts aligned with the richer workflow shape', () => {
+        CONSOLIDATED_SCHEMA_PATHS.forEach((schemaPath) => {
+            const sql = readFileSync(schemaPath, 'utf8');
+
+            expect(sql).toContain("workflow_state TEXT NOT NULL DEFAULT 'draft'");
+            expect(sql).toContain("workflow_state TEXT DEFAULT 'submitted_to_white_cell'");
+            expect(sql).toContain('revision_number BIGINT DEFAULT 1');
+            expect(sql).toContain("'returned_to_team'");
+            expect(sql).toContain("'resubmitted'");
+            expect(sql).toContain("'completed'");
+            expect(sql).toContain("'returned_to_blue'");
+            expect(sql).toContain('CREATE TABLE IF NOT EXISTS artifact_workflow_reviews');
+            expect(sql).toContain('prior_state JSONB NOT NULL');
+            expect(sql).toContain('new_state JSONB NOT NULL');
+        });
     });
 
     it('gates research-table reads through session access and keeps the identity map out of normal reads', () => {

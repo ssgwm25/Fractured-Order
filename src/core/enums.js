@@ -101,6 +101,24 @@ export const ENUMS = {
         ADJUDICATED: 'adjudicated'
     },
 
+    // Rich artifact lifecycle. The legacy status column remains the coarse
+    // compatibility contract; workflow_state carries review/revision meaning.
+    ARTIFACT_WORKFLOW_STATE: {
+        DRAFT: 'draft',
+        FORWARDED_TO_FACILITATOR: 'forwarded_to_facilitator',
+        SUBMITTED_TO_WHITE_CELL: 'submitted_to_white_cell',
+        RETURNED_TO_TEAM: 'returned_to_team',
+        RESUBMITTED: 'resubmitted',
+        COMPLETED: 'completed',
+        LEGACY_RETURNED_TO_BLUE: 'returned_to_blue'
+    },
+
+    ARTIFACT_REVIEW_DECISION: {
+        COMPLETE: 'complete',
+        RETURN_TO_TEAM: 'return_to_team',
+        RETURN_FOR_CLARIFICATION: 'return_for_clarification'
+    },
+
     // RFI (Request for Information) statuses
     REQUEST_STATUS: ['pending', 'answered', 'withdrawn'],
 

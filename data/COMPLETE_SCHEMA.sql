@@ -664,12 +664,55 @@ CREATE TABLE IF NOT EXISTS actions (
     goal TEXT,
     expected_outcomes TEXT,
     ally_contingencies TEXT,
+
+    -- First-class artifact workflow (legacy status remains compatible)
+    artifact_type TEXT NOT NULL DEFAULT 'action' CHECK (
+        artifact_type IN (
+            'action',
+            'strategic_orientation_selection',
+            'strategic_orientation_forecast',
+            'proposal',
+            'move_response'
+        )
+    ),
+    workflow_state TEXT NOT NULL DEFAULT 'draft' CHECK (
+        workflow_state IN (
+            'draft',
+            'forwarded_to_facilitator',
+            'submitted_to_white_cell',
+            'returned_to_team',
+            'resubmitted',
+            'completed',
+            'returned_to_blue',
+            'adjudicated',
+            'abandoned',
+            'changes_requested',
+            'rejected',
+            'forwarded_to_recipient'
+        )
+    ),
+    artifact_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    forecast_targets JSONB NOT NULL DEFAULT '[]'::jsonb,
+    proposal_recipient_team TEXT,
+    idempotency_key TEXT,
+    row_version BIGINT NOT NULL DEFAULT 1,
+    revision_number BIGINT DEFAULT 1,
+    prior_workflow_state TEXT,
+    reviewed_at TIMESTAMPTZ,
+    reviewed_by_auth_user_id UUID,
+    reviewed_by_role TEXT,
+    review_notes TEXT,
+    completed_at TIMESTAMPTZ,
     
     -- Status tracking
-    status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('draft', 'submitted', 'adjudicated', 'abandoned')),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'adjudicated', 'abandoned')),
     
     -- Adjudication data (stored as JSONB)
     adjudication JSONB,
+    outcome TEXT CHECK (
+        outcome IS NULL OR outcome IN ('SUCCESS', 'PARTIAL_SUCCESS', 'FAIL', 'BACKFIRE')
+    ),
+    adjudication_notes TEXT,
     
     -- RESEARCH: Action lifecycle timestamps
     submitted_at TIMESTAMPTZ,
@@ -754,6 +797,25 @@ CREATE TABLE IF NOT EXISTS requests (
     
     -- Status tracking
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'answered', 'withdrawn')),
+    workflow_state TEXT DEFAULT 'submitted_to_white_cell' CHECK (
+        workflow_state IN (
+            'draft',
+            'forwarded_to_facilitator',
+            'submitted_to_white_cell',
+            'returned_to_team',
+            'resubmitted',
+            'completed'
+        )
+    ),
+    revision_number BIGINT DEFAULT 1 CHECK (revision_number IS NULL OR revision_number >= 1),
+    prior_workflow_state TEXT,
+    reviewed_at TIMESTAMPTZ,
+    reviewed_by_auth_user_id UUID,
+    reviewed_by_role TEXT,
+    review_notes TEXT,
+    completed_at TIMESTAMPTZ,
+    response TEXT,
+    responded_at TIMESTAMPTZ,
     
     -- RESEARCH: RFI response time tracking
     answered_at TIMESTAMPTZ,
@@ -774,6 +836,41 @@ CREATE POLICY "Allow all operations on requests"
     ON requests FOR ALL
     USING (true)
     WITH CHECK (true);
+
+-- White Cell review history. Dated hardening migrations enable RLS and grant
+-- append authority only through operator_review_artifact.
+CREATE TABLE IF NOT EXISTS artifact_workflow_reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    artifact_kind TEXT NOT NULL CHECK (artifact_kind IN ('action', 'strategic_orientation', 'rfi')),
+    artifact_id UUID NOT NULL,
+    artifact_type TEXT NOT NULL,
+    team TEXT NOT NULL CHECK (LOWER(team) IN ('blue', 'red', 'green', 'industry')),
+    decision TEXT NOT NULL CHECK (
+        decision IN ('complete', 'return_to_team', 'return_for_clarification')
+    ),
+    revision_number BIGINT NOT NULL CHECK (revision_number >= 1),
+    next_revision_number BIGINT NOT NULL CHECK (next_revision_number >= revision_number),
+    prior_status TEXT NOT NULL,
+    status_to TEXT NOT NULL,
+    prior_workflow_state TEXT,
+    workflow_state_to TEXT NOT NULL,
+    reviewer_auth_user_id UUID NOT NULL,
+    reviewer_role TEXT NOT NULL,
+    reviewer_notes TEXT,
+    reviewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    prior_state JSONB NOT NULL,
+    new_state JSONB NOT NULL,
+    CONSTRAINT artifact_workflow_reviews_return_notes_check CHECK (
+        decision = 'complete' OR NULLIF(BTRIM(reviewer_notes), '') IS NOT NULL
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifact_workflow_reviews_artifact
+    ON artifact_workflow_reviews (artifact_kind, artifact_id, revision_number);
+CREATE INDEX IF NOT EXISTS idx_artifact_workflow_reviews_session
+    ON artifact_workflow_reviews (session_id, reviewed_at DESC);
+ALTER TABLE artifact_workflow_reviews ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 8. COMMUNICATIONS TABLE
@@ -1299,7 +1396,8 @@ AND table_name IN (
     'actions', 'action_logs', 'requests', 'communications', 
     'timeline', 'notetaker_data', 'reports', 'move_completions',
     'game_state_transitions', 'participant_activity', 'operator_grants',
-    'data_completeness_checks', 'action_relationships', 'rfi_action_links'
+    'data_completeness_checks', 'action_relationships', 'rfi_action_links',
+    'artifact_workflow_reviews'
 )
 ORDER BY table_name;
 
@@ -1312,7 +1410,8 @@ AND tablename IN (
     'actions', 'action_logs', 'requests', 'communications', 
     'timeline', 'notetaker_data', 'reports', 'move_completions',
     'game_state_transitions', 'participant_activity', 'operator_grants',
-    'data_completeness_checks', 'action_relationships', 'rfi_action_links'
+    'data_completeness_checks', 'action_relationships', 'rfi_action_links',
+    'artifact_workflow_reviews'
 )
 ORDER BY tablename;
 

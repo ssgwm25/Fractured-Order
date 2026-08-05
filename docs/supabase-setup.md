@@ -20,7 +20,7 @@ The anon key is safe-to-expose browser configuration. It is stored as a GitHub r
 - Realtime broadcast enabled for the session-scoped Intercom channel used by the operator Intercom plugin.
 - Private Storage bucket `intercom-announcements` available for Intercom clips larger than the inline broadcast threshold.
 - Session Recorder does not require a Supabase Storage bucket; it records a local browser audio download and stores only artifact metadata/reference rows for research export.
-- RLS enabled on session, participant, game-state, action, request, communication, timeline, notetaker, operator-grant, and research tables.
+- RLS enabled on session, participant, game-state, action, request, artifact-workflow-review, communication, timeline, notetaker, operator-grant, and research tables.
 - Privileged operator writes kept behind RPCs.
 
 ## SQL Setup Order
@@ -28,11 +28,9 @@ The anon key is safe-to-expose browser configuration. It is stored as a GitHub r
 Use the current hardening path for live environments:
 
 1. Apply the complete/current schema baseline used for this repository.
-2. Apply dated hardening migrations in order.
-3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, and `data/2026-07-29_industry_submission_permissions.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration is required for existing projects where Industry Scribes or Facilitators receive RLS errors while creating Strategic Orientation forecasts, proposals, or RFIs, or while submitting a forwarded orientation or proposal.
-4. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the current build requires it.
-5. For PLI (Petrihos Lever Index) White Cell SME review, apply `data/2026-07-17_pli_adjudications.sql` after the live-demo RLS helpers exist (`data/2026-04-08_live_demo_rls_hardening.sql`). This creates `pli_adjudications` with multi-track `record` JSON and per-seat `seat_reviews`.
-6. Verify RPCs and RLS policies before a demo.
+2. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the selected baseline requires its compatibility columns.
+3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, `data/2026-07-29_industry_submission_permissions.sql`, `data/2026-07-29_return_action_to_blue.sql`, and `data/2026-08-05_team_neutral_artifact_review.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration is required for existing projects where Industry Scribes or Facilitators receive RLS errors while creating Strategic Orientation forecasts, proposals, or RFIs, or while submitting a forwarded orientation or proposal. The August migration supersedes the Blue-only return implementation but retains its RPC as a compatibility wrapper.
+4. Verify RPCs and RLS policies before a demo.
 
 ## Intercom Storage
 
@@ -119,6 +117,48 @@ order by tablename, policyname;
 
 Pass: seven action columns, three unique indexes, two action triggers, and four Industry submission policies are returned. A proposal review performed through the UI produces one adjudicated proposal, at most one forwarded communication, the matching timeline rows, action-log revisions, and hash-chained research audit events.
 
+## Team-Neutral Artifact Review Workflow
+
+Apply `data/2026-08-05_team_neutral_artifact_review.sql` after the July workflow, PLI, Industry-permission, and Blue-return migrations. It adds workflow/revision metadata without updating historical `actions` or `requests` rows. Untouched rows therefore retain their original database values: historical `returned_to_blue` remains stored as `returned_to_blue`, and NULL revision metadata is exposed by the client as a labeled legacy default rather than a fabricated database history.
+
+New White Cell review code must call `operator_review_artifact` with the persisted submitting team and the revision currently displayed to the reviewer. The same authorization and transaction handle Blue and Red action returns, Strategic Orientation completion/return, and RFI clarification returns. Returns require notes. A revision mismatch, team mismatch, missing White Cell grant, or completed artifact fails without a partial artifact, PLI, or review-log write. Completion maps the compatibility `status` to `adjudicated`, sets `workflow_state` to `completed`, and deliberately leaves `outcome` NULL.
+
+For operational reversal, follow `docs/supabase-rollback.md`. Do not drop additive metadata or review history after the RPC has accepted a write.
+
+Verify the contract after applying the migration:
+
+```sql
+select table_name, column_name, column_default, is_nullable
+from information_schema.columns
+where table_schema = 'public'
+  and (
+    (table_name = 'actions' and column_name in (
+      'workflow_state', 'revision_number', 'prior_workflow_state',
+      'reviewed_at', 'reviewed_by_role', 'review_notes', 'completed_at'
+    ))
+    or
+    (table_name = 'requests' and column_name in (
+      'workflow_state', 'revision_number', 'prior_workflow_state',
+      'reviewed_at', 'reviewed_by_role', 'review_notes', 'completed_at'
+    ))
+  )
+order by table_name, column_name;
+
+select proname, proacl
+from pg_proc
+join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
+where nspname = 'public'
+  and proname in ('operator_review_artifact', 'operator_return_action_to_blue')
+order by proname;
+
+select tablename, policyname, cmd
+from pg_policies
+where schemaname = 'public'
+  and tablename = 'artifact_workflow_reviews';
+```
+
+Pass: fourteen metadata columns are returned; both RPCs exist with authenticated execution; and `artifact_workflow_reviews` has a SELECT policy but no authenticated INSERT, UPDATE, or DELETE policy. A transactional rehearsal should additionally show one review row with matching prior/new snapshots and no outcome for a completed Action or Strategic Orientation.
+
 ## Session Recorder Artifact Metadata
 
 The Session Recorder plugin records longer White Cell or Game Master session audio with browser `getUserMedia` and `MediaRecorder`. The actual audio remains a local browser Blob/download and must be kept with the post-game ZIP by the operator. The research archive stores reference metadata in `session_recording_artifacts.csv` and `session_recording_artifacts.json`, and `report.html` includes a Session Recordings section so reviewers can see that a recording exists.
@@ -147,6 +187,7 @@ and proname in (
   'list_active_session_participants',
   'operator_update_game_state',
   'operator_adjudicate_action',
+  'operator_review_artifact',
   'operator_review_proposal',
   'operator_answer_request',
   'operator_send_communication',
@@ -184,6 +225,7 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - the Industry Scribe can create same-team Strategic Orientation forecasts, proposals, and RFIs while cross-team inserts still fail
 - same-team Facilitators, currently stored as legacy `*_scribe` seats, can submit Scribe-forwarded actions, Strategic Orientation drafts, and proposals to White Cell
 - action artifacts have a first-class type, workflow state, monotonic row version, structured snapshot, and server-owned transition timestamps
+- Blue and Red action returns, Strategic Orientation review, and RFI clarification returns use one revision-aware White Cell RPC; completed artifacts reject further review writes
 - each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication
 - White Cell proposal review, adjudication, forwarding, and timeline records commit atomically through `operator_review_proposal`
 - every action creation, revision, handoff, submission, deletion, and adjudication is represented in action logs and the research audit chain

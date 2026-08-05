@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ENUMS } from '../core/enums.js';
 import { DatabaseError } from '../core/errors.js';
-import { database } from './database.js';
+import { database, normalizeArtifactWorkflowRecord } from './database.js';
 
 describe('database action lifecycle transitions', () => {
     afterEach(() => {
@@ -98,5 +98,51 @@ describe('database action lifecycle transitions', () => {
         await expect(database.updateDraftAction('action-4', {
             goal: 'Late edit'
         })).rejects.toBeInstanceOf(DatabaseError);
+    });
+
+    it('requires notes and a positive revision before returning any artifact', async () => {
+        await expect(database.returnArtifactToTeam('action', 'action-5', {
+            team: 'red',
+            expectedRevision: 2,
+            notes: '   '
+        })).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'Reviewer notes are required for every return'
+        });
+
+        await expect(database.completeArtifact('action', 'action-5', {
+            team: 'red',
+            expectedRevision: 0
+        })).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'Expected revision number is required'
+        });
+    });
+
+    it('preserves and explicitly labels legacy workflow metadata', () => {
+        expect(normalizeArtifactWorkflowRecord({
+            id: 'legacy-blue-return',
+            status: 'draft',
+            workflow_state: 'returned_to_blue',
+            revision_number: null
+        })).toMatchObject({
+            workflow_state: 'returned_to_blue',
+            canonical_workflow_state: 'returned_to_team',
+            workflow_state_origin: 'legacy_returned_to_blue',
+            revision_number: 1,
+            revision_number_origin: 'legacy_default'
+        });
+
+        expect(normalizeArtifactWorkflowRecord({
+            id: 'legacy-rfi',
+            status: 'answered',
+            workflow_state: null,
+            revision_number: null
+        }, 'rfi')).toMatchObject({
+            workflow_state: 'completed',
+            canonical_workflow_state: 'completed',
+            workflow_state_origin: 'legacy_status',
+            revision_number_origin: 'legacy_default'
+        });
     });
 });
