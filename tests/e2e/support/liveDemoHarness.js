@@ -555,7 +555,7 @@ export async function submitActionFromScribe(page, goal, {
     await submitButton.click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
     await expect(panel).toHaveCount(0);
-    await expect(actionSlideLink).toContainText('Submitted to White Cell');
+    await expect(actionSlideLink).toContainText('Deliberation Underway');
     await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
 }
 
@@ -582,14 +582,13 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
     await panel.getByRole('button', { name: 'Submit to White Cell' }).click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
     await expect(panel).toHaveCount(0);
-    await expect(actionSlideLink).toContainText('Submitted to White Cell');
+    await expect(actionSlideLink).toContainText('Deliberation Underway');
     await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
 }
 
 export async function adjudicateAction(page, {
     goal,
     section = 'actions',
-    outcome = 'SUCCESS',
     notes = 'Validated through the live-demo topology suite.'
 } = {}) {
     const queueSelector = {
@@ -603,7 +602,7 @@ export async function adjudicateAction(page, {
     await openSidebarSection(page, section);
 
     const adjudicationCard = page.locator(
-        `${queueSelector} .tab-panel:not([hidden]) .entity-card, #adjudicationQueue .entity-card`
+        `${queueSelector} .tab-panel:not([hidden]) .entity-card`
     ).filter({
         has: page.getByRole('heading', { name: goal, exact: true })
     }).first();
@@ -611,17 +610,15 @@ export async function adjudicateAction(page, {
     await adjudicationCard.locator('.adjudicate-btn').click();
 
     const modal = page.locator('.modal-overlay');
-    await modal.locator('#outcomeSelect').selectOption(outcome);
-    await modal.locator('#adjudicationNotes').fill(notes);
-    await modal.getByRole('button', { name: /^(Record Deliberation|Submit Adjudication)$/ }).click();
+    await modal.locator('#artifactReviewNotes').fill(notes);
+    await modal.getByRole('button', { name: 'Accept as Complete' }).click();
     await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('Deliberation recorded');
+    await expect(page.locator('#toast-container')).toContainText('accepted as complete');
 }
 
 export async function reviewStrategicOrientation(page, {
     goal,
     team,
-    outcome = 'SUCCESS',
     notes = 'Validated Strategic Orientation through the live-demo topology suite.'
 } = {}) {
     await openSidebarSection(page, 'strategicOrientation');
@@ -643,11 +640,10 @@ export async function reviewStrategicOrientation(page, {
     await orientationCard.locator('.adjudicate-btn').click();
 
     const modal = page.locator('.modal-overlay');
-    await modal.locator('#outcomeSelect').selectOption(outcome);
-    await modal.locator('#adjudicationNotes').fill(notes);
-    await modal.getByRole('button', { name: 'Record Review' }).click();
+    await modal.locator('#artifactReviewNotes').fill(notes);
+    await modal.getByRole('button', { name: 'Accept as Complete' }).click();
     await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('Deliberation recorded');
+    await expect(page.locator('#toast-container')).toContainText('accepted as complete');
 }
 
 export function getWhiteCellStrategicOrientationTitle(goal, team = '') {

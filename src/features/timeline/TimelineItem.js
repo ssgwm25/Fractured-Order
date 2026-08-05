@@ -21,6 +21,8 @@ const EVENT_CONFIG = {
     [EVENT_TYPES.ACTION_CREATED]: { color: 'info', icon: '📝' },
     [EVENT_TYPES.ACTION_SUBMITTED]: { color: 'info', icon: '📤' },
     [EVENT_TYPES.ACTION_ADJUDICATED]: { color: 'success', icon: '⚖️' },
+    [EVENT_TYPES.ARTIFACT_COMPLETED]: { color: 'success', icon: '✓' },
+    [EVENT_TYPES.ARTIFACT_RETURNED_TO_TEAM]: { color: 'warning', icon: '↩' },
     [EVENT_TYPES.INJECT]: { color: 'warning', icon: '💉' },
     [EVENT_TYPES.ANNOUNCEMENT]: { color: 'primary', icon: '📢' },
     [EVENT_TYPES.GUIDANCE]: { color: 'info', icon: '📋' },

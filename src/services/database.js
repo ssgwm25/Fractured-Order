@@ -1529,6 +1529,41 @@ export const database = {
     },
 
     /**
+     * Fetch immutable White Cell workflow review records for a session.
+     * These rows retain returned revisions after the live artifact moves on.
+     * @param {string} sessionId
+     * @param {Object} filters
+     * @returns {Promise<Object[]>}
+     */
+    async fetchArtifactWorkflowReviews(sessionId, filters = {}) {
+        if (!sessionId) {
+            throw new DatabaseError('Session ID is required', 'fetchArtifactWorkflowReviews');
+        }
+
+        let query = supabase
+            .from('artifact_workflow_reviews')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('reviewed_at', { ascending: false });
+
+        if (Array.isArray(filters.artifactKinds) && filters.artifactKinds.length > 0) {
+            query = query.in('artifact_kind', filters.artifactKinds);
+        }
+
+        if (Array.isArray(filters.decisions) && filters.decisions.length > 0) {
+            query = query.in('decision', filters.decisions);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            throw fromSupabaseError(error, 'fetchArtifactWorkflowReviews');
+        }
+
+        return data || [];
+    },
+
+    /**
      * Return a submitted/adjudicated Blue action to an editable draft for rewrite.
      * Deletes linked PLI adjudications so the next WC-complete re-intakes the action.
      * @param {string} actionId

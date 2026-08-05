@@ -2131,16 +2131,14 @@ describe('White Cell DOM contract', () => {
             submitted_at: '2026-04-08T10:00:00.000Z'
         };
         const markup = controller.renderActionCard(blueAction, {
-            showAdjudicateAction: true,
-            includeOutcome: false
+            showAdjudicateAction: true
         });
         const greenMarkup = controller.renderActionCard({
             ...blueAction,
             id: 'action-78',
             team: 'green'
         }, {
-            showAdjudicateAction: true,
-            includeOutcome: false
+            showAdjudicateAction: true
         });
 
         expect(markup).toContain('Blue Team | Move 2 | Action 2 &middot; Phase 3');
@@ -2188,6 +2186,14 @@ describe('White Cell DOM contract', () => {
         expect(showModal.mock.calls.at(-1)?.[0]?.content?.innerHTML).toContain(
             '<h4 class="font-semibold">Blue Team Strategic Orientation Selection: Pressure</h4>'
         );
+        const modalConfig = showModal.mock.calls.at(-1)?.[0];
+        expect(modalConfig?.buttons?.map((button) => button.label)).toEqual([
+            'Cancel',
+            'Send Back for Improvement',
+            'Accept as Complete'
+        ]);
+        expect(modalConfig?.content?.innerHTML).not.toContain('outcomeSelect');
+        expect(modalConfig?.content?.innerHTML).not.toMatch(/Outcome \*/);
     });
 
     it('uses a distinct token-backed source badge for every submission team', async () => {
@@ -2276,8 +2282,7 @@ describe('White Cell DOM contract', () => {
         };
 
         const markup = controller.renderActionCard(blueAction, {
-            showAdjudicateAction: true,
-            includeOutcome: false
+            showAdjudicateAction: true
         });
 
         expect(markup).toContain('Objective:</strong> Constrain upstream dependency before the next move.');
@@ -2305,7 +2310,7 @@ describe('White Cell DOM contract', () => {
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Informed/Engaged Selections: Allies');
     });
 
-    it('opens the White Cell deliberation modal with the action supply-chain focus', async () => {
+    it('opens Review Action without an outcome control and with the two review decisions', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
         global.document = createFakeDocument();
@@ -2339,12 +2344,364 @@ describe('White Cell DOM contract', () => {
 
         const modalConfig = showModal.mock.calls.at(-1)?.[0];
         const modalButtonLabels = modalConfig?.buttons?.map((button) => button.label) || [];
-        expect(modalConfig?.title).toBe('Record Deliberation');
-        expect(modalButtonLabels).toContain('Record Deliberation');
+        expect(modalConfig?.title).toBe('Review Action');
+        expect(modalButtonLabels).toContain('Accept as Complete');
+        expect(modalButtonLabels).toContain('Send Back for Improvement');
         expect(modalButtonLabels).not.toContain('Send to Red Team');
         expect(modalConfig?.content?.innerHTML).toContain('<strong>Supply Chain Areas:</strong> Advanced Manufacturing');
-        expect(modalConfig?.content?.innerHTML).toContain('id="outcomeSelect"');
-        expect(modalConfig?.content?.innerHTML).toContain('id="adjudicationNotes"');
+        expect(modalConfig?.content?.innerHTML).not.toContain('id="outcomeSelect"');
+        expect(modalConfig?.content?.innerHTML).not.toMatch(/Outcome \*/);
+        expect(modalConfig?.content?.innerHTML).toContain('id="artifactReviewNotes"');
+        expect(modalConfig?.content?.innerHTML).toContain('Required when sending back for improvement; optional when accepting as complete.');
+    });
+
+    it('returns a Red action to Red with team-aware review and timeline language', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const notes = 'Clarify which Red lever owns execution.';
+        global.document = createFakeDocument(['artifactReviewNotes', 'returnedRevisionHistoryList']);
+        global.document.elements.artifactReviewNotes.value = notes;
+
+        const action = {
+            id: 'red-action-return-1',
+            artifact_type: 'action',
+            team: 'red',
+            status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            revision_number: 3,
+            move: 2,
+            phase: 1,
+            goal: 'Disrupt refinery access'
+        };
+        const returned = {
+            ...action,
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 4,
+            outcome: null
+        };
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-red-return');
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        const returnArtifact = vi.spyOn(database, 'returnArtifactToTeam').mockResolvedValue({
+            artifact: returned,
+            review: {
+                id: 'review-red-return-1',
+                artifact_kind: 'action',
+                artifact_id: action.id,
+                team: 'red',
+                decision: 'return_to_team',
+                revision_number: 3,
+                next_revision_number: 4,
+                reviewer_role: 'whitecell_lead',
+                reviewer_notes: notes,
+                reviewed_at: '2026-08-05T18:00:00.000Z',
+                prior_state: action
+            }
+        });
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({ id: 'timeline-red-return-1' });
+        const actionUpdate = vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
+        const timelineUpdate = vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        const modal = { close: vi.fn() };
+
+        await controller.handleArtifactReview(modal, action, 'return_to_team');
+
+        expect(returnArtifact).toHaveBeenCalledWith('action', action.id, {
+            team: 'red',
+            expectedRevision: 3,
+            notes
+        });
+        expect(actionUpdate).toHaveBeenCalledWith('UPDATE', returned);
+        expect(database.createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'ARTIFACT_RETURNED_TO_TEAM',
+            content: expect.stringContaining('Red Team action revision 3 sent back for improvement'),
+            metadata: expect.objectContaining({ submitting_team: 'red', revision_number: 3 })
+        }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', { id: 'timeline-red-return-1' });
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Red Team action sent back for improvement.',
+            type: 'success'
+        });
+        expect(modal.close).toHaveBeenCalled();
+    });
+
+    it('returns Strategic Orientation to its submitting team and requires notes', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const action = {
+            ...buildStrategicOrientationAction('industry'),
+            revision_number: 2,
+            workflow_state: 'submitted_to_white_cell'
+        };
+        global.document = createFakeDocument(['artifactReviewNotes', 'returnedRevisionHistoryList']);
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        const returnArtifact = vi.spyOn(database, 'returnArtifactToTeam').mockResolvedValue(null);
+
+        await controller.handleArtifactReview({ close: vi.fn() }, action, 'return_to_team');
+
+        expect(returnArtifact).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Notes are required to send the Industry Team Strategic Orientation back for improvement.',
+            type: 'error'
+        });
+
+        global.document.elements.artifactReviewNotes.value = 'Align the forecast rationale to the selected posture.';
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({ id: 'timeline-so-return-1' });
+        returnArtifact.mockResolvedValue({
+            artifact: {
+                ...action,
+                status: 'draft',
+                workflow_state: 'returned_to_team',
+                revision_number: 3,
+                outcome: null
+            },
+            review: {
+                id: 'review-so-return-1',
+                artifact_kind: 'strategic_orientation',
+                artifact_id: action.id,
+                team: 'industry',
+                decision: 'return_to_team',
+                revision_number: 2,
+                next_revision_number: 3,
+                reviewer_role: 'whitecell_lead',
+                reviewer_notes: global.document.elements.artifactReviewNotes.value,
+                reviewed_at: '2026-08-05T18:05:00.000Z',
+                prior_state: action
+            }
+        });
+
+        await controller.handleArtifactReview({ close: vi.fn() }, action, 'return_to_team');
+
+        expect(returnArtifact).toHaveBeenLastCalledWith('strategic_orientation', action.id, {
+            team: 'industry',
+            expectedRevision: 2,
+            notes: 'Align the forecast rationale to the selected posture.'
+        });
+        expect(database.createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            content: expect.stringContaining('Industry Team Strategic Orientation revision 2 sent back for improvement')
+        }));
+    });
+
+    it('rejects a stale review revision without closing the modal or changing local state', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        global.document = createFakeDocument(['artifactReviewNotes']);
+        global.document.elements.artifactReviewNotes.value = 'Return revision two.';
+        const action = {
+            id: 'action-stale-review-1',
+            artifact_type: 'action',
+            team: 'blue',
+            status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            revision_number: 2
+        };
+        vi.spyOn(database, 'returnArtifactToTeam').mockRejectedValue(
+            new Error('Stale artifact revision. Expected 2, current 3.')
+        );
+        const actionUpdate = vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
+        const modal = { close: vi.fn() };
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        await controller.handleArtifactReview(modal, action, 'return_to_team');
+
+        expect(database.returnArtifactToTeam).toHaveBeenCalledWith('action', action.id, expect.objectContaining({
+            team: 'blue',
+            expectedRevision: 2
+        }));
+        expect(actionUpdate).not.toHaveBeenCalled();
+        expect(modal.close).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'The Blue Team action changed while you were reviewing it. Refresh and review the latest revision.',
+            type: 'error'
+        });
+    });
+
+    it('accepts an action as complete without assigning an outcome', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        global.document = createFakeDocument(['artifactReviewNotes']);
+        const action = {
+            id: 'red-action-complete-1',
+            artifact_type: 'action',
+            team: 'red',
+            status: 'submitted',
+            workflow_state: 'resubmitted',
+            revision_number: 5,
+            move: 3,
+            phase: 2
+        };
+        const completed = {
+            ...action,
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            outcome: null
+        };
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue(null);
+        const completeArtifact = vi.spyOn(database, 'completeArtifact').mockResolvedValue({
+            artifact: completed,
+            review: {
+                id: 'review-complete-1',
+                artifact_kind: 'action',
+                decision: 'complete',
+                revision_number: 5
+            }
+        });
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({ id: 'timeline-complete-1' });
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        await controller.handleArtifactReview({ close: vi.fn() }, action, 'complete');
+
+        expect(completeArtifact).toHaveBeenCalledWith('action', action.id, {
+            team: 'red',
+            expectedRevision: 5,
+            notes: ''
+        });
+        expect(completeArtifact.mock.calls[0][2]).not.toHaveProperty('outcome');
+        expect(database.createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'ARTIFACT_COMPLETED',
+            content: 'Red Team action revision 5 accepted as complete by White Cell.'
+        }));
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Red Team action accepted as complete.',
+            type: 'success'
+        });
+    });
+
+    it('retains returned revisions with team, reviewer, notes, timestamp, and complete action fields', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const fakeDocument = createFakeDocument(['returnedRevisionHistoryList']);
+        global.document = fakeDocument;
+        vi.spyOn(actionsStore, 'getPending').mockReturnValue([]);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([{
+            id: 'red-history-action-1',
+            team: 'red',
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            revision_number: 3
+        }, {
+            ...buildStrategicOrientationAction('green', { status: 'adjudicated' }),
+            workflow_state: 'completed',
+            revision_number: 4
+        }]);
+        const returnedRevision = {
+            id: 'red-history-action-1',
+            artifact_type: 'action',
+            team: 'red',
+            status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            revision_number: 2,
+            goal: 'Apply coordinated Red pressure',
+            targets: ['U.S'],
+            expected_outcomes: 'Delay Blue production recovery.',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Disrupt production recovery.',
+                instruments: ['Economic', 'Information'],
+                levers: ['Export Controls', 'Financial Restrictions'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Disrupt Red'],
+                supplyChainAreas: ['Extraction', 'Distribution']
+            })
+        };
+        const controller = new WhiteCellController();
+        controller.returnedRevisionHistory = [
+            {
+                id: 'history-review-1',
+                artifact_kind: 'action',
+                artifact_id: returnedRevision.id,
+                team: 'red',
+                decision: 'return_to_team',
+                revision_number: 2,
+                reviewer_role: 'whitecell_support',
+                reviewer_notes: 'Identify the lead Red lever and tighten sequencing.',
+                reviewed_at: '2026-08-05T18:10:00.000Z',
+                prior_state: returnedRevision
+            },
+            {
+                id: 'history-review-so-1',
+                artifact_kind: 'strategic_orientation',
+                artifact_id: 'strategic-orientation-green',
+                team: 'green',
+                decision: 'return_to_team',
+                revision_number: 3,
+                reviewer_role: 'whitecell_lead',
+                reviewer_notes: 'Explain the forecast posture before resubmitting.',
+                reviewed_at: '2026-08-05T18:12:00.000Z',
+                prior_state: {
+                    ...buildStrategicOrientationAction('green'),
+                    revision_number: 3,
+                    ally_contingencies: serializeStrategicOrientationDetails({
+                        artifactType: 'forecast',
+                        team: 'green',
+                        orientation: 'pressure',
+                        rationale: 'Forecast rationale retained in history.'
+                    })
+                }
+            }
+        ];
+
+        controller.syncActionsFromStore();
+
+        const markup = fakeDocument.elements.returnedRevisionHistoryList.innerHTML;
+        expect(controller.returnedRevisionHistory).toHaveLength(2);
+        expect(markup).toContain('Red Team');
+        expect(markup).toContain('Revision:</strong> 2');
+        expect(markup).toContain('White Cell Support');
+        expect(markup).toContain('Identify the lead Red lever and tighten sequencing.');
+        expect(markup).toContain('Instrument of Power:</strong> Economic, Information');
+        expect(markup).toContain('Levers:</strong> Export Controls, Financial Restrictions');
+        expect(markup).toContain('Action Angles:</strong> Disrupt Red');
+        expect(markup).toContain('Supply Chain Areas:</strong> Extraction, Distribution');
+        expect(markup).toContain('Returned At:</strong>');
+        expect(markup).toContain('Green Team');
+        expect(markup).toContain('Strategic Orientation');
+        expect(markup).toContain('Forecast rationale retained in history.');
+        expect(markup).toContain('Explain the forecast posture before resubmitting.');
+    });
+
+    it('loads only returned action and Strategic Orientation revisions for the active session', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        global.document = createFakeDocument(['returnedRevisionHistoryList']);
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-history-1');
+        const fetchHistory = vi.spyOn(database, 'fetchArtifactWorkflowReviews').mockResolvedValue([{
+            id: 'history-fetch-1',
+            artifact_kind: 'action',
+            artifact_id: 'action-history-fetch-1',
+            team: 'blue',
+            decision: 'return_to_team',
+            revision_number: 1,
+            reviewer_role: 'whitecell_lead',
+            reviewer_notes: 'Add an implementation owner.',
+            reviewed_at: '2026-08-05T19:00:00.000Z',
+            prior_state: {
+                id: 'action-history-fetch-1',
+                artifact_type: 'action',
+                team: 'blue',
+                goal: 'History-loaded action'
+            }
+        }]);
+        const controller = new WhiteCellController();
+
+        await controller.loadReturnedRevisionHistory();
+
+        expect(fetchHistory).toHaveBeenCalledWith('session-history-1', {
+            artifactKinds: ['action', 'strategic_orientation'],
+            decisions: ['return_to_team']
+        });
+        expect(global.document.elements.returnedRevisionHistoryList.innerHTML).toContain('History-loaded action');
+        expect(global.document.elements.returnedRevisionHistoryList.innerHTML).toContain('Add an implementation owner.');
     });
 
     it('renders structured Green proposal details for White Cell review', async () => {
@@ -2390,8 +2747,7 @@ describe('White Cell DOM contract', () => {
         };
 
         const markup = controller.renderActionCard(proposal, {
-            showAdjudicateAction: true,
-            includeOutcome: false
+            showAdjudicateAction: true
         });
 
         expect(markup).toContain('Proposal Overview');

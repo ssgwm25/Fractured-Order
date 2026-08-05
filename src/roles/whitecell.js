@@ -147,7 +147,7 @@ const WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE = 'scribe_deck_assignment';
 const WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY = 'whitecell:notifications-muted';
 export const WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS = 10000;
 const WHITE_CELL_REVIEW_GROUP_RENDER_LIMIT = 40;
-const WHITE_CELL_ADJUDICATION_RENDER_LIMIT = 50;
+const WHITE_CELL_RETURN_HISTORY_RENDER_LIMIT = 80;
 export const WHITE_CELL_RFI_RENDER_LIMIT = 50;
 const WHITE_CELL_TRIBE_STREET_JOURNAL_RENDER_LIMIT = 60;
 const WHITE_CELL_VERBA_AI_RENDER_LIMIT = 60;
@@ -183,6 +183,8 @@ const WHITE_CELL_TIMELINE_ACTIVITY_TYPE_ORDER = Object.freeze([
     'ACTION_CREATED',
     'ACTION_SUBMITTED',
     'ACTION_ADJUDICATED',
+    'ARTIFACT_COMPLETED',
+    'ARTIFACT_RETURNED_TO_TEAM',
     'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
     'STRATEGIC_ORIENTATION_SUBMITTED',
     'PROPOSAL_SUBMITTED',
@@ -351,8 +353,8 @@ export const WHITE_CELL_DOM_IDS = [
     'actionsList',
     'responsesList',
     'proposalsList',
+    'returnedRevisionHistoryList',
     'tribeStreetJournalEmbed',
-    'adjudicationQueue',
     'rfiBadge',
     'rfiQueue',
     'commForm',
@@ -785,6 +787,8 @@ export function getWhiteCellTimelineActivityTypeLabel(activityType = null) {
         ACTION_CREATED: 'Action Created',
         ACTION_SUBMITTED: 'Action Submitted',
         ACTION_ADJUDICATED: 'Deliberation Update',
+        ARTIFACT_COMPLETED: 'Artifact Completed',
+        ARTIFACT_RETURNED_TO_TEAM: 'Returned for Improvement',
         ACTION_RETURNED_TO_BLUE: 'Returned to Blue',
         PLI_SENT_BACK: 'PLI Sent Back',
         STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE: 'Strategic Orientation Forwarded',
@@ -812,13 +816,20 @@ export function canShareActionToRedTeam(action = {}) {
     return action?.team === 'blue' && !isStrategicOrientationAction(action);
 }
 
-/** Blue strategic actions White Cell Lead may reopen for rewrite. */
-export function canReturnActionToBlue(action = {}) {
-    if (!action || action.team !== 'blue') return false;
-    if (isStrategicOrientationAction(action)) return false;
-    const artifact = String(action.artifact_type || '').trim().toLowerCase();
-    if (artifact === 'proposal' || artifact === 'move_response') return false;
-    return canAdjudicateAction(action) || isAdjudicatedAction(action);
+export function getArtifactReviewKind(action = {}) {
+    return isStrategicOrientationAction(action) ? 'strategic_orientation' : 'action';
+}
+
+/** Team actions and Strategic Orientations currently awaiting White Cell review. */
+export function canReviewArtifact(action = {}) {
+    if (!action || !canAdjudicateAction(action)) return false;
+    if (isStrategicOrientationAction(action)) {
+        return ['blue', 'red', 'green', 'industry'].includes(action.team);
+    }
+
+    const artifact = String(action.artifact_type || 'action').trim().toLowerCase();
+    return ['blue', 'red'].includes(action.team)
+        && ['action', 'move_response'].includes(artifact);
 }
 
 export function buildSharedActionCommunicationContent(action = {}) {
@@ -1150,6 +1161,9 @@ export class WhiteCellController {
         this.greenTeamProposals = [];
         this.proposalTeamProposals = this.greenTeamProposals;
         this.redTeamResponses = [];
+        this.returnedRevisionHistory = [];
+        this.returnedRevisionHistoryLoading = false;
+        this.returnedRevisionHistoryError = null;
         this.reviewActiveTabs = {
             strategicOrientation: 'pending',
             actions: 'pending',
@@ -1256,6 +1270,7 @@ export class WhiteCellController {
         await syncService.initialize(sessionId, {
             participantId: sessionStore.getSessionParticipantId?.() || null
         });
+        await this.loadReturnedRevisionHistory();
         this.configureTeamLabels();
         await this.loadResearchExportRuntime();
         this.renderNotificationsMuteControl();
@@ -1438,7 +1453,7 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Review Blue actions',
-                    body: 'Actions is the Blue Team queue. Review submitted actions, record White Cell rulings, and share approved actions forward when needed.',
+                    body: 'Actions is the Blue Team queue. Accept complete submissions or send them back with improvement notes, and share completed actions forward when needed.',
                     highlight: navTarget('actions')
                 },
                 {
@@ -1589,6 +1604,7 @@ export class WhiteCellController {
         const timelineActivityTypeFilter = document.getElementById('timelineActivityTypeFilter');
         const tribeStreetJournalList = document.getElementById('tribeStreetJournalList');
         const verbaAiComposeButton = document.getElementById('newVerbaAiUpdateBtn');
+        const returnedRevisionHistoryList = document.getElementById('returnedRevisionHistoryList');
 
         if (this.isLeadOperator()) {
             startTimerBtn?.addEventListener('click', () => this.startTimer());
@@ -1807,6 +1823,12 @@ export class WhiteCellController {
             });
         });
 
+        returnedRevisionHistoryList?.addEventListener('click', (event) => {
+            const retryButton = event.target.closest?.('[data-review-history-retry]');
+            if (!retryButton || !returnedRevisionHistoryList.contains?.(retryButton)) return;
+            this.loadReturnedRevisionHistory({ announceError: true });
+        });
+
         document.querySelectorAll?.('.sidebar-link[data-section]')?.forEach((link) => {
             link.addEventListener('click', () => {
                 if (link.dataset.section === 'strategicOrientation') {
@@ -1856,6 +1878,9 @@ export class WhiteCellController {
                 this.syncActionsFromStore({
                     announce: event === 'created' || event === 'updated'
                 });
+                if (event === 'updated') {
+                    this.loadReturnedRevisionHistory().catch(() => {});
+                }
                 this.flushQueueArrivalAnnouncement();
             })
         );
@@ -2722,8 +2747,8 @@ export class WhiteCellController {
         this.strategicOrientationArtifacts = allActions.filter((action) => (
             isStrategicOrientationAction(action) && !isDraftAction(action)
         ));
-        // Keep both awaiting-review and already-deliberated items so each review
-        // section can split them across "Awaiting Review" / "Deliberated" tabs.
+        // Keep both awaiting-review and completed items so each review section
+        // can split them across "Awaiting Review" / "Completed" tabs.
         this.blueTeamActions = allActions.filter((action) => (
             action?.team === 'blue'
             && !isDraftAction(action)
@@ -2759,7 +2784,7 @@ export class WhiteCellController {
         this.renderActionReview();
         this.renderMoveResponses();
         this.renderProposals();
-        this.renderAdjudicationQueue();
+        this.renderReturnedRevisionHistory();
         const gameState = this.getCurrentGameState();
         this.updateGameStateDisplay(gameState);
         this.updateTimerAllocationControls();
@@ -2771,8 +2796,51 @@ export class WhiteCellController {
         this.updateSidebarBadge('responsesBadge', pendingRedTeamResponses.length);
     }
 
-    getPendingActions() {
-        return this.actions.filter((action) => canAdjudicateAction(action));
+    async loadReturnedRevisionHistory({ announceError = false } = {}) {
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            this.returnedRevisionHistory = [];
+            this.returnedRevisionHistoryError = null;
+            this.renderReturnedRevisionHistory();
+            return [];
+        }
+
+        this.returnedRevisionHistoryLoading = true;
+        this.returnedRevisionHistoryError = null;
+        this.renderReturnedRevisionHistory();
+
+        try {
+            this.returnedRevisionHistory = (await database.fetchArtifactWorkflowReviews(sessionId, {
+                artifactKinds: ['action', 'strategic_orientation'],
+                decisions: [ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM]
+            })) || [];
+            return this.returnedRevisionHistory;
+        } catch (error) {
+            this.returnedRevisionHistoryError = error;
+            logger.error('Failed to load returned artifact revision history:', error);
+            if (announceError) {
+                showToast({ message: getUserMessage(error), type: 'error' });
+            }
+            return [];
+        } finally {
+            this.returnedRevisionHistoryLoading = false;
+            this.renderReturnedRevisionHistory();
+        }
+    }
+
+    retainWorkflowReview(review = null) {
+        if (!review || review.decision !== ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM) return;
+
+        const reviewKey = review.id
+            || `${review.artifact_kind}:${review.artifact_id}:${review.revision_number}:${review.decision}`;
+        const withoutDuplicate = this.returnedRevisionHistory.filter((candidate) => {
+            const candidateKey = candidate.id
+                || `${candidate.artifact_kind}:${candidate.artifact_id}:${candidate.revision_number}:${candidate.decision}`;
+            return candidateKey !== reviewKey;
+        });
+        this.returnedRevisionHistory = [review, ...withoutDuplicate]
+            .sort((left, right) => new Date(right.reviewed_at || 0) - new Date(left.reviewed_at || 0));
+        this.renderReturnedRevisionHistory();
     }
 
     updateSidebarBadge(badgeId, count) {
@@ -2876,28 +2944,24 @@ export class WhiteCellController {
                 newSet: this.newStrategicOrientationIds,
                 rerender: () => {
                     this.renderStrategicOrientationReview();
-                    this.renderAdjudicationQueue();
                 }
             },
             actions: {
                 newSet: this.newBlueActionIds,
                 rerender: () => {
                     this.renderActionReview();
-                    this.renderAdjudicationQueue();
                 }
             },
             proposals: {
                 newSet: this.newGreenProposalIds,
                 rerender: () => {
                     this.renderProposals();
-                    this.renderAdjudicationQueue();
                 }
             },
             responses: {
                 newSet: this.newRedResponseIds,
                 rerender: () => {
                     this.renderMoveResponses();
-                    this.renderAdjudicationQueue();
                 }
             }
         };
@@ -3236,8 +3300,8 @@ export class WhiteCellController {
             },
             {
                 key: 'deliberated',
-                label: 'Deliberated',
-                emptyHint: 'No items have been deliberated yet.',
+                label: 'Completed',
+                emptyHint: 'No items have been accepted as complete yet.',
                 items: items.filter((action) => isAdjudicatedAction(action))
             }
         ];
@@ -3271,8 +3335,6 @@ export class WhiteCellController {
             const body = group.items.length
                 ? visibleItems.map((action) => this.renderActionCard(action, {
                     showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
-                    showReturnToBlueAction: this.isLeadOperator() && canReturnActionToBlue(action),
-                    includeOutcome: true,
                     isNew: newIds?.has(action.id)
                 })).join('')
                 : `<p class="text-sm text-gray-500" style="margin: 0;">${group.emptyHint}</p>`;
@@ -3316,38 +3378,6 @@ export class WhiteCellController {
         });
     }
 
-    renderAdjudicationQueue() {
-        const container = document.getElementById('adjudicationQueue');
-        if (!container) return;
-
-        const pendingActions = this.getPendingActions();
-
-        if (pendingActions.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No actions are waiting for White Cell deliberation.</p>';
-            return;
-        }
-
-        const visiblePendingActions = pendingActions.slice(0, WHITE_CELL_ADJUDICATION_RENDER_LIMIT);
-        const hiddenCount = Math.max(0, pendingActions.length - visiblePendingActions.length);
-
-        container.innerHTML = `
-            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_ADJUDICATION_RENDER_LIMIT} of ${pendingActions.length} pending records.</p>` : ''}
-            ${visiblePendingActions.map((action) =>
-            this.renderActionCard(action, {
-                showAdjudicateAction: this.isLeadOperator(),
-                showReturnToBlueAction: this.isLeadOperator() && canReturnActionToBlue(action),
-                includeOutcome: false,
-                isNew: this.newBlueActionIds.has(action.id)
-                    || this.newStrategicOrientationIds.has(action.id)
-                    || this.newGreenProposalIds.has(action.id)
-                    || this.newRedResponseIds.has(action.id)
-            })
-        ).join('')}
-        `;
-
-        this.bindActionCardButtons(container);
-    }
-
     renderDetailGrid(fields = []) {
         const items = fields
             .filter((field) => field && field.value != null && String(field.value).trim() !== '')
@@ -3359,10 +3389,125 @@ export class WhiteCellController {
         return items ? `<div class="detail-grid">${items}</div>` : '';
     }
 
+    renderReturnedRevisionHistory() {
+        const container = document.getElementById('returnedRevisionHistoryList');
+        if (!container) return;
+
+        if (this.returnedRevisionHistoryLoading && this.returnedRevisionHistory.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">Loading returned artifact history...</p>';
+            return;
+        }
+
+        if (this.returnedRevisionHistoryError && this.returnedRevisionHistory.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state" role="status">
+                    <p class="text-sm text-gray-500">Returned artifact history could not be loaded.</p>
+                    <button type="button" class="btn btn-secondary btn-sm" data-review-history-retry>Retry</button>
+                </div>
+            `;
+            return;
+        }
+
+        if (this.returnedRevisionHistory.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-500">No actions or Strategic Orientation artifacts have been returned for improvement.</p>';
+            return;
+        }
+
+        const visibleReviews = this.returnedRevisionHistory.slice(0, WHITE_CELL_RETURN_HISTORY_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, this.returnedRevisionHistory.length - visibleReviews.length);
+        container.innerHTML = `
+            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the latest ${WHITE_CELL_RETURN_HISTORY_RENDER_LIMIT} of ${this.returnedRevisionHistory.length} returned revisions.</p>` : ''}
+            ${visibleReviews.map((review) => this.renderReturnedRevisionHistoryCard(review)).join('')}
+        `;
+    }
+
+    renderReturnedRevisionHistoryCard(review = {}) {
+        let artifact = review.prior_state || {};
+        if (typeof artifact === 'string') {
+            try {
+                artifact = JSON.parse(artifact);
+            } catch (_error) {
+                artifact = {};
+            }
+        }
+
+        const isOrientation = review.artifact_kind === 'strategic_orientation'
+            || isStrategicOrientationAction(artifact);
+        const team = review.team || artifact.team;
+        const teamLabel = this.formatTeamLabel(team);
+        const revisionNumber = review.revision_number || artifact.revision_number || 1;
+        const reviewerLabel = getRoleDisplayName(review.reviewer_role)
+            || review.reviewer_role
+            || 'White Cell';
+        const reviewedAt = review.reviewed_at
+            ? formatDateTime(review.reviewed_at)
+            : 'Timestamp unavailable';
+        const orientation = getStrategicOrientationViewModel(artifact);
+        const action = getBlueActionViewModel(artifact);
+        const title = isOrientation
+            ? this.getStrategicOrientationReviewTitle(artifact, orientation)
+            : action.title;
+        const sourceTeamId = typeof team === 'string' ? team.trim().toLowerCase() : '';
+        const sourceTeamBadge = createBadge({
+            text: teamLabel,
+            variant: 'primary',
+            size: 'sm',
+            rounded: true,
+            className: [
+                'badge-source-team',
+                SOURCE_TEAM_BADGE_CLASS_BY_ID[sourceTeamId]
+            ].filter(Boolean).join(' ')
+        }).outerHTML;
+        const orientationDetails = isOrientation
+            ? [
+                ...(orientation.isForecast
+                    ? orientation.forecastTargets.map((forecast) => ({
+                        label: `${forecast.label} Forecast`,
+                        value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
+                        wide: true
+                    }))
+                    : [{
+                        label: 'Selected Orientation',
+                        value: `${orientation.orientationLabel}: ${orientation.orientationTag}`,
+                        wide: true
+                    }]),
+                ...(orientation.primaryLevers.length
+                    ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(orientation.primaryLevers) }]
+                    : []),
+                ...(orientation.acceptedCosts.length
+                    ? [{ label: 'Accepted Costs', value: formatStrategicOrientationSelection(orientation.acceptedCosts) }]
+                    : []),
+                ...(orientation.posture ? [{ label: 'Posture', value: orientation.posture }] : []),
+                ...(orientation.rationale ? [{ label: 'Team Rationale', value: orientation.rationale, wide: true }] : [])
+            ]
+            : action.artifactDetails;
+
+        return `
+            <article class="entity-card entity-card--submitted" data-review-id="${this.escapeHtml(review.id || '')}">
+                <div class="entity-card__head">
+                    <div>
+                        <p class="entity-card__eyebrow">${isOrientation ? 'Strategic Orientation' : 'Action'} &middot; Returned revision ${this.escapeHtml(String(revisionNumber))}</p>
+                        <h3 class="entity-card__title">${this.escapeHtml(title)}</h3>
+                    </div>
+                    <div class="entity-card__badges">
+                        ${sourceTeamBadge}
+                        ${createBadge({ text: 'Returned for Improvement', variant: 'warning', size: 'sm', rounded: true }).outerHTML}
+                    </div>
+                </div>
+                ${this.renderDetailGrid([
+                    { label: 'Submitting Team', value: teamLabel },
+                    { label: 'Revision', value: revisionNumber },
+                    { label: 'Reviewer', value: reviewerLabel },
+                    { label: 'Returned At', value: reviewedAt }
+                ])}
+                <p class="entity-card__note"><strong>Return Notes:</strong> ${this.escapeHtml(review.reviewer_notes || 'No return notes recorded.')}</p>
+                ${this.renderDetailGrid(orientationDetails)}
+            </article>
+        `;
+    }
+
     renderActionCard(action, {
         showAdjudicateAction = false,
-        showReturnToBlueAction = false,
-        includeOutcome = false,
         isNew = false
     } = {}) {
         const strategicOrientation = getStrategicOrientationViewModel(action);
@@ -3382,8 +3527,9 @@ export class WhiteCellController {
         const submittedMarkup = action.submitted_at
             ? `<p class="entity-card__note"><strong>Submitted:</strong> ${this.escapeHtml(formatDateTime(action.submitted_at))}</p>`
             : '';
-        const notesMarkup = includeOutcome && action.adjudication_notes
-            ? `<p class="entity-card__note"><strong>Notes:</strong> ${this.escapeHtml(action.adjudication_notes)}</p>`
+        const reviewNotes = action.review_notes || action.adjudication_notes;
+        const notesMarkup = reviewNotes
+            ? `<p class="entity-card__note"><strong>Notes:</strong> ${this.escapeHtml(reviewNotes)}</p>`
             : '';
         const secondaryBadge = isStrategicOrientationFlow
             ? createBadge({
@@ -3461,11 +3607,7 @@ export class WhiteCellController {
         const actionButtons = [];
 
         if (showAdjudicateAction) {
-            actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Record Deliberation')}</button>`);
-        }
-
-        if (showReturnToBlueAction && canReturnActionToBlue(action)) {
-            actionButtons.push(`<button class="btn btn-secondary btn-sm return-to-blue-btn" data-action-id="${action.id}">Send Back</button>`);
+            actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Strategic Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Review Action')}</button>`);
         }
 
         return `
@@ -3509,128 +3651,6 @@ export class WhiteCellController {
                     this.showAdjudicateModal(action);
                 }
             });
-        });
-
-        container.querySelectorAll('.return-to-blue-btn').forEach((button) => {
-            button.addEventListener('click', () => {
-                const actionId = button.dataset.actionId;
-                const action = this.actions.find((candidate) => candidate.id === actionId);
-                if (action) {
-                    this.showReturnToBlueModal(action).catch((err) => {
-                        logger.error('Failed to open Return to Blue modal:', err);
-                    });
-                }
-            });
-        });
-    }
-
-    /**
-     * QC path: reopen Blue action as draft (workflow Sent Back).
-     * @param {Object} action
-     * @param {string} notes
-     * @param {{ timelinePrefix?: string }} [options]
-     */
-    async performReturnActionToBlue(action, notes, { timelinePrefix = 'Returned to Blue for rewrite:' } = {}) {
-        if (!this.isLeadOperator()) {
-            throw new Error('Only White Cell Lead can return actions to Blue.');
-        }
-        if (!canReturnActionToBlue(action)) {
-            throw new Error('This action cannot be returned to Blue.');
-        }
-        const trimmed = String(notes || '').trim();
-        if (!trimmed) {
-            throw new Error('Notes are required');
-        }
-
-        const updated = await database.returnActionToBlue(action.id, { notes: trimmed });
-        actionsStore.updateFromServer('UPDATE', updated);
-
-        const gameState = this.getCurrentGameState();
-        const timelineEvent = await database.createTimelineEvent({
-            session_id: sessionStore.getSessionId(),
-            type: 'ACTION_RETURNED_TO_BLUE',
-            content: `${timelinePrefix} ${trimmed}`,
-            metadata: {
-                related_id: action.id,
-                action_id: action.id,
-                role: this.getTimelineActorRole(),
-                return_notes: trimmed,
-                incomplete_qc: /incomplete/i.test(timelinePrefix)
-            },
-            team: 'white_cell',
-            move: gameState.move ?? 1,
-            phase: gameState.phase ?? 1
-        });
-        timelineStore.updateFromServer('INSERT', timelineEvent);
-
-        this.pliMacroReview?.refresh?.();
-        this.pliDiplomacyInfoReview?.refresh?.();
-        this.pliNiEscalationReview?.refresh?.();
-        this.renderActionReview?.();
-        this.renderAdjudicationQueue?.();
-
-        return updated;
-    }
-
-    async showReturnToBlueModal(action) {
-        if (!this.isLeadOperator()) {
-            showToast({ message: 'Only White Cell Lead can return actions to Blue.', type: 'warning' });
-            return;
-        }
-        if (!canReturnActionToBlue(action)) {
-            showToast({ message: 'This action cannot be returned to Blue.', type: 'warning' });
-            return;
-        }
-
-        const content = document.createElement('div');
-        content.innerHTML = `
-            <p class="text-sm text-gray-600" style="margin-bottom: var(--space-3);">
-                Send this action back to Blue as an editable draft (Action Complete → No). Linked PLI adjudications will be cleared so the pipeline can re-run after Blue resubmits.
-            </p>
-            <label class="form-label" for="returnToBlueNotes">Notes for Blue (required)</label>
-            <textarea id="returnToBlueNotes" class="form-input form-textarea" rows="4"
-                placeholder="What should Blue fix before resubmitting?"></textarea>
-        `;
-
-        const modalRef = { current: null };
-        modalRef.current = showModal({
-            title: 'Send Back',
-            content,
-            size: 'md',
-            buttons: [
-                {
-                    label: 'Cancel',
-                    variant: 'secondary',
-                    onClick: () => {}
-                },
-                {
-                    label: 'Send Back',
-                    variant: 'primary',
-                    onClick: () => {
-                        const notes = document.getElementById('returnToBlueNotes')?.value?.trim() || '';
-                        if (!notes) {
-                            showToast({ message: 'Notes are required', type: 'error' });
-                            return false;
-                        }
-                        const loader = showLoader({ message: 'Sending action back to Blue...' });
-                        this.performReturnActionToBlue(action, notes, {
-                            timelinePrefix: 'Sent back — incomplete:'
-                        }).then(() => {
-                            showToast({ message: 'Action sent back to Blue', type: 'success' });
-                            modalRef.current?.close?.();
-                        }).catch((err) => {
-                            logger.error('Failed to return action to Blue:', err);
-                            showToast({
-                                message: err?.message || 'Failed to send action back to Blue',
-                                type: 'error'
-                            });
-                        }).finally(() => {
-                            hideLoader();
-                        });
-                        return false;
-                    }
-                }
-            ]
         });
     }
 
@@ -3701,7 +3721,7 @@ export class WhiteCellController {
 
     showAdjudicateModal(action) {
         if (!this.isLeadOperator()) {
-            showToast({ message: 'White Cell support cannot record deliberation.', type: 'warning' });
+            showToast({ message: 'White Cell support cannot review artifacts.', type: 'warning' });
             return;
         }
 
@@ -3714,10 +3734,6 @@ export class WhiteCellController {
             this.showStrategicOrientationReviewModal(action);
             return;
         }
-
-        const outcomeOptions = ENUMS.OUTCOMES
-            .map((value) => `<option value="${value}">${value}</option>`)
-            .join('');
 
         const content = document.createElement('div');
         const blueAction = getBlueActionViewModel(action);
@@ -3746,29 +3762,20 @@ export class WhiteCellController {
                 <p class="text-sm mt-2">${this.escapeHtml(blueAction.expectedOutcomes || '')}</p>
             </div>
 
-            <form id="adjudicateForm">
+            <form id="artifactReviewForm">
                 <div class="form-group">
-                    <label class="form-label" for="outcomeSelect">Outcome *</label>
-                    <select id="outcomeSelect" class="form-select" required>
-                        <option value="">Select outcome</option>
-                        ${outcomeOptions}
-                    </select>
+                    <label class="form-label" for="artifactReviewNotes">Review Notes</label>
+                    <textarea id="artifactReviewNotes" class="form-input form-textarea" rows="4"
+                        aria-describedby="artifactReviewNotesHint"
+                        placeholder="Describe any improvements the submitting team should make..."></textarea>
+                    <p class="form-hint" id="artifactReviewNotesHint">Required when sending back for improvement; optional when accepting as complete.</p>
                 </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="adjudicationNotes">Notes</label>
-                    <textarea id="adjudicationNotes" class="form-input form-textarea" rows="4"
-                        placeholder="Explain the outcome — or what Blue must fix if sending back incomplete..."></textarea>
-                </div>
-                <p class="text-xs text-gray-500" style="margin: 0;">
-                    Action complete? Choose <strong>Record Deliberation</strong> (Yes) or <strong>Send Back (incomplete)</strong> (No).
-                </p>
             </form>
         `;
 
         const modalRef = { current: null };
         modalRef.current = showModal({
-            title: 'Record Deliberation',
+            title: 'Review Action',
             content,
             size: 'md',
             buttons: [
@@ -3778,42 +3785,29 @@ export class WhiteCellController {
                     onClick: () => {}
                 },
                 {
-                    label: 'Send Back (incomplete)',
+                    label: 'Send Back for Improvement',
                     variant: 'secondary',
                     onClick: () => {
-                        if (!canReturnActionToBlue(action)) {
-                            showToast({ message: 'This action cannot be sent back to Blue.', type: 'warning' });
-                            return false;
-                        }
-                        const notes = document.getElementById('adjudicationNotes')?.value?.trim() || '';
-                        if (!notes) {
-                            showToast({ message: 'Notes are required to send back incomplete actions', type: 'error' });
-                            return false;
-                        }
-                        const loader = showLoader({ message: 'Sending action back to Blue...' });
-                        this.performReturnActionToBlue(action, notes, {
-                            timelinePrefix: 'Sent back — incomplete:'
-                        }).then(() => {
-                            showToast({ message: 'Action sent back to Blue (incomplete)', type: 'success' });
-                            modalRef.current?.close?.();
-                        }).catch((err) => {
-                            logger.error('Failed to send incomplete action back to Blue:', err);
-                            showToast({
-                                message: err?.message || 'Failed to send action back to Blue',
-                                type: 'error'
-                            });
-                        }).finally(() => {
-                            hideLoader();
+                        this.handleArtifactReview(
+                            modalRef.current,
+                            action,
+                            ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM
+                        ).catch((err) => {
+                            logger.error('Failed to return action for improvement:', err);
                         });
                         return false;
                     }
                 },
                 {
-                    label: 'Record Deliberation',
+                    label: 'Accept as Complete',
                     variant: 'primary',
                     onClick: () => {
-                        this.handleAdjudicate(modalRef.current, action.id).catch((err) => {
-                            logger.error('Failed to submit adjudication:', err);
+                        this.handleArtifactReview(
+                            modalRef.current,
+                            action,
+                            ENUMS.ARTIFACT_REVIEW_DECISION.COMPLETE
+                        ).catch((err) => {
+                            logger.error('Failed to accept action as complete:', err);
                         });
                         return false;
                     }
@@ -3823,9 +3817,6 @@ export class WhiteCellController {
     }
 
     showStrategicOrientationReviewModal(action) {
-        const outcomeOptions = ENUMS.OUTCOMES
-            .map((value) => `<option value="${value}">${value}</option>`)
-            .join('');
         const viewModel = getStrategicOrientationViewModel(action);
         const reviewTitle = this.getStrategicOrientationReviewTitle(action, viewModel);
         const content = document.createElement('div');
@@ -3866,18 +3857,13 @@ export class WhiteCellController {
     ])}
             </div>
 
-            <form id="adjudicateForm">
+            <form id="artifactReviewForm">
                 <div class="form-group">
-                    <label class="form-label" for="outcomeSelect">Outcome *</label>
-                    <select id="outcomeSelect" class="form-select" required>
-                        <option value="">Select outcome</option>
-                        ${outcomeOptions}
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="adjudicationNotes">Notes</label>
-                    <textarea id="adjudicationNotes" class="form-input form-textarea" rows="4" placeholder="Record White Cell notes on the pre-Move-1 artifact..."></textarea>
+                    <label class="form-label" for="artifactReviewNotes">Review Notes</label>
+                    <textarea id="artifactReviewNotes" class="form-input form-textarea" rows="4"
+                        aria-describedby="artifactReviewNotesHint"
+                        placeholder="Describe any improvements the submitting team should make..."></textarea>
+                    <p class="form-hint" id="artifactReviewNotesHint">Required when sending back for improvement; optional when accepting as complete.</p>
                 </div>
             </form>
         `;
@@ -3894,11 +3880,29 @@ export class WhiteCellController {
                     onClick: () => {}
                 },
                 {
-                    label: 'Record Review',
+                    label: 'Send Back for Improvement',
+                    variant: 'secondary',
+                    onClick: () => {
+                        this.handleArtifactReview(
+                            modalRef.current,
+                            action,
+                            ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM
+                        ).catch((err) => {
+                            logger.error('Failed to return Strategic Orientation for improvement:', err);
+                        });
+                        return false;
+                    }
+                },
+                {
+                    label: 'Accept as Complete',
                     variant: 'primary',
                     onClick: () => {
-                        this.handleAdjudicate(modalRef.current, action.id).catch((err) => {
-                            logger.error('Failed to submit Strategic Orientation review:', err);
+                        this.handleArtifactReview(
+                            modalRef.current,
+                            action,
+                            ENUMS.ARTIFACT_REVIEW_DECISION.COMPLETE
+                        ).catch((err) => {
+                            logger.error('Failed to accept Strategic Orientation as complete:', err);
                         });
                         return false;
                     }
@@ -3982,67 +3986,117 @@ export class WhiteCellController {
         });
     }
 
-    async handleAdjudicate(modal, actionId) {
-        const outcome = document.getElementById('outcomeSelect')?.value;
-        const notes = document.getElementById('adjudicationNotes')?.value?.trim();
+    async handleArtifactReview(modal, action, decision) {
+        const notes = document.getElementById('artifactReviewNotes')?.value?.trim() || '';
+        const isReturn = decision === ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM;
+        const isComplete = decision === ENUMS.ARTIFACT_REVIEW_DECISION.COMPLETE;
+        const artifactKind = getArtifactReviewKind(action);
+        const isOrientation = artifactKind === 'strategic_orientation';
+        const artifactLabel = isOrientation ? 'Strategic Orientation' : 'action';
+        const teamLabel = this.formatTeamLabel(action?.team);
+        const expectedRevision = Number(action?.revision_number || 1);
 
-        if (!outcome) {
-            showToast({ message: 'Please select an outcome', type: 'error' });
+        if (!isReturn && !isComplete) {
+            showToast({ message: 'Choose a supported review decision.', type: 'error' });
+            return;
+        }
+        if (!canReviewArtifact(action)) {
+            showToast({ message: `This ${teamLabel} ${artifactLabel} is no longer awaiting review.`, type: 'warning' });
+            return;
+        }
+        if (isReturn && !notes) {
+            showToast({ message: `Notes are required to send the ${teamLabel} ${artifactLabel} back for improvement.`, type: 'error' });
             return;
         }
 
-        const loader = showLoader({ message: 'Recording deliberation...' });
+        const loader = showLoader({
+            message: `${isReturn ? 'Sending back' : 'Accepting'} ${teamLabel} ${artifactLabel}...`
+        });
 
         try {
-            const updatedAction = await database.adjudicateAction(actionId, {
-                outcome,
-                adjudication_notes: notes || null,
-                adjudicated_at: new Date().toISOString()
-            });
+            const reviewResult = isReturn
+                ? await database.returnArtifactToTeam(artifactKind, action.id, {
+                    team: action.team,
+                    expectedRevision,
+                    notes
+                })
+                : await database.completeArtifact(artifactKind, action.id, {
+                    team: action.team,
+                    expectedRevision,
+                    notes
+                });
+            const updatedAction = reviewResult?.artifact;
+            if (!updatedAction) {
+                throw new Error('Artifact review did not return the updated artifact.');
+            }
+
             actionsStore.updateFromServer('UPDATE', updatedAction);
+            this.retainWorkflowReview(reviewResult.review);
 
             const gameState = this.getCurrentGameState();
             const timelineEvent = await database.createTimelineEvent({
                 session_id: sessionStore.getSessionId(),
-                type: 'ACTION_ADJUDICATED',
-                content: `White Cell deliberation recorded: ${outcome}`,
+                type: isReturn ? 'ARTIFACT_RETURNED_TO_TEAM' : 'ARTIFACT_COMPLETED',
+                content: isReturn
+                    ? `${teamLabel} ${artifactLabel} revision ${expectedRevision} sent back for improvement by White Cell: ${notes}`
+                    : `${teamLabel} ${artifactLabel} revision ${expectedRevision} accepted as complete by White Cell.`,
                 metadata: {
-                    related_id: actionId,
-                    role: this.getTimelineActorRole()
+                    related_id: action.id,
+                    action_id: action.id,
+                    artifact_kind: artifactKind,
+                    submitting_team: action.team,
+                    review_decision: decision,
+                    revision_number: expectedRevision,
+                    next_revision_number: reviewResult.review?.next_revision_number
+                        || updatedAction.revision_number,
+                    role: this.getTimelineActorRole(),
+                    ...(isReturn ? { return_notes: notes } : {})
                 },
                 team: 'white_cell',
-                move: gameState.move ?? 1,
-                phase: gameState.phase ?? 1
+                move: action.move ?? gameState.move ?? 1,
+                phase: action.phase ?? gameState.phase ?? 1
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            // Open TSJ + Verba external handoff queues immediately on Blue action-complete.
-            if (canShareActionToRedTeam(updatedAction)) {
+            if (isComplete && canShareActionToRedTeam(updatedAction)) {
                 try {
-                    await database.ensureSmeHandoffs(sessionStore.getSessionId(), actionId);
+                    await database.ensureSmeHandoffs(sessionStore.getSessionId(), action.id);
                 } catch (handoffError) {
                     logger.warn('Failed to open SME TSJ/Verba handoffs (migration may be pending)', handoffError);
                 }
             }
 
-            // Kick PLI Adjudication immediately (schedule remains backup). Do not block UI.
-            const sessionIdForPli = sessionStore.getSessionId();
-            if (sessionIdForPli) {
-                database.triggerPliAdjudication(sessionIdForPli).catch((triggerError) => {
-                    logger.warn('Failed to trigger PLI adjudication workflow', triggerError);
-                    showToast({
-                        message: 'Deliberation recorded, but PLI auto-trigger failed — cron or Actions dispatch is backup.',
-                        type: 'warning'
+            if (isComplete) {
+                const sessionIdForPli = sessionStore.getSessionId();
+                if (sessionIdForPli) {
+                    database.triggerPliAdjudication(sessionIdForPli).catch((triggerError) => {
+                        logger.warn('Failed to trigger PLI adjudication workflow', triggerError);
+                        showToast({
+                            message: `${teamLabel} ${artifactLabel} was accepted as complete, but the PLI auto-trigger failed — cron or Actions dispatch is backup.`,
+                            type: 'warning'
+                        });
                     });
-                });
+                }
             }
 
-            showToast({ message: 'Deliberation recorded', type: 'success' });
+            showToast({
+                message: isReturn
+                    ? `${teamLabel} ${artifactLabel} sent back for improvement.`
+                    : `${teamLabel} ${artifactLabel} accepted as complete.`,
+                type: 'success'
+            });
             modal?.close();
         } catch (err) {
-            logger.error('Failed to adjudicate action:', err);
-            showToast({ message: 'Failed to record deliberation', type: 'error' });
+            logger.error(`Failed to ${isReturn ? 'return' : 'complete'} ${teamLabel} ${artifactLabel}:`, err);
+            const staleRevision = /stale artifact revision/i.test(String(err?.message || ''));
+            showToast({
+                message: staleRevision
+                    ? `The ${teamLabel} ${artifactLabel} changed while you were reviewing it. Refresh and review the latest revision.`
+                    : `Failed to ${isReturn ? 'send back' : 'accept'} the ${teamLabel} ${artifactLabel}. ${getUserMessage(err)}`,
+                type: 'error'
+            });
         } finally {
+            loader?.hide?.();
             hideLoader();
         }
     }

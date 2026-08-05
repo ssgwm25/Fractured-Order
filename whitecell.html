@@ -295,6 +295,16 @@
                             <span class="sidebar-badge" id="responsesBadge" hidden>0</span>
                         </a>
                     </li>
+                    <li class="sidebar-menu-item">
+                        <a href="#reviewHistory" class="sidebar-link" data-section="reviewHistory">
+                            <span class="sidebar-icon">
+                                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
+                                    <path fill-rule="evenodd" d="M10 2a8 8 0 106.32 3.094V3a1 1 0 112 0v5a1 1 0 01-1 1h-5a1 1 0 110-2h2.572A6 6 0 1110 4a1 1 0 110-2zm0 4a1 1 0 011 1v2.586l1.707 1.707a1 1 0 01-1.414 1.414l-2-2A1 1 0 019 10V7a1 1 0 011-1z" clip-rule="evenodd"/>
+                                </svg>
+                            </span>
+                            <span class="sidebar-label">Returned / Revision History</span>
+                        </a>
+                    </li>
                     <li class="sidebar-divider"></li>
                     <li class="sidebar-menu-item">
                         <a href="#pliAdjudication" class="sidebar-link" data-section="pliAdjudication">
@@ -638,7 +648,7 @@
                     <div class="section-header">
                         <div class="section-title-wrapper">
                             <h2 class="section-title">Strategic Orientation</h2>
-                            <p class="section-description">Pre-Move 1 Blue selection and Green/Red forecasts submitted by Scribes</p>
+                            <p class="section-description">Pre-Move 1 selections and forecasts submitted by participating teams</p>
                         </div>
                     </div>
 
@@ -681,18 +691,18 @@
                     </div>
                 </section>
 
-                <!-- Deliberation Section -->
-                <section id="adjudicationSection" class="content-section" style="display: none;">
+                <!-- Returned / Revision History Section -->
+                <section id="reviewHistorySection" class="content-section" style="display: none;">
                     <div class="section-header">
                         <div class="section-title-wrapper">
-                            <h2 class="section-title">Deliberation Queue</h2>
-                            <p class="section-description">Review action outcomes while White Cell deliberation is underway</p>
+                            <h2 class="section-title">Returned / Revision History</h2>
+                            <p class="section-description">Immutable White Cell return records retained after artifacts leave the pending queue</p>
                         </div>
                     </div>
 
                     <div class="section-body">
-                        <div id="adjudicationQueue" aria-live="polite">
-                            <!-- Pending White Cell deliberation items will appear here -->
+                        <div id="returnedRevisionHistoryList" class="card-list" aria-live="polite">
+                            <p class="text-sm text-gray-500">Returned action and Strategic Orientation revisions will appear here.</p>
                         </div>
                     </div>
                 </section>

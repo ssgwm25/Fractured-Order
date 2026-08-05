@@ -21,7 +21,7 @@ playthrough. It covers:
 - Strategic Orientation from Scribe to Facilitator to White Cell for all teams
 - orientation gating of White Cell move controls
 - timer synchronization through White Cell Lead controls
-- multi-actor Blue and Red action submission and White Cell adjudication,
+- multi-actor Blue and Red action submission and outcome-free White Cell completion review,
   concurrent on the hosted real backend
 - stable Facilitator finalization controls during unchanged live-data refreshes,
   preserving in-progress Coordinated and Informed/Engaged choices

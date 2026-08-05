@@ -294,6 +294,7 @@ const DATABASE_OPERATION_MESSAGES = {
     updateAction: 'Could not update the action. Refresh and try again.',
     adjudicateAction: 'Could not record the deliberation. Refresh and try again.',
     reviewArtifact: 'Could not record the artifact review. Refresh the artifact revision and try again.',
+    fetchArtifactWorkflowReviews: 'Could not load returned and revision history. Refresh and try again.',
     returnActionToBlue: 'Could not return the action. Refresh the artifact revision and try again.',
     deleteAction: 'Could not delete the draft action. Refresh and try again.',
     createRequest: 'Could not submit the RFI. Check the form and try again.',

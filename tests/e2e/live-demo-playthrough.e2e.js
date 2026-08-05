@@ -366,8 +366,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await adjudicateAction(actors.whiteCellLead, {
                 goal: actionTitles.red,
                 section: 'responses',
-                outcome: 'PARTIAL_SUCCESS',
-                notes: 'Red action recorded with partial success during the professional playthrough.'
+                notes: 'Red action accepted as complete during the professional playthrough.'
             });
         });
 

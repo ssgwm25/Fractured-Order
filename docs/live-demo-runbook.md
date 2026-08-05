@@ -108,7 +108,10 @@ White Cell:
 - start/pause/reset the Strategic Orientation timer as lead while the pre-Move-1 gate is still incomplete
 - advance/regress phase and move after the Strategic Orientation gate clears
 - confirm advancing or regressing moves pauses the timer and loads the target move allocation
-- deliberate submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues; confirm the Blue action modal includes its recorded supply-chain focus and the action review/adjudication cards do not offer a `Send to Red Team` control
+- review submitted Strategic Orientation artifacts from the Strategic Orientation queue, then Blue actions, proposals, and Red actions from their role-specific queues; confirm action review is titled `Review Action`, action and Strategic Orientation reviews have only `Accept as Complete` and `Send Back for Improvement` decisions with no outcome selector, return notes are required while acceptance notes are optional, and the action review cards show every recorded field including instruments of power, action angles, supply-chain areas, and Red levers
+- send one Blue action, one Red action, and one Strategic Orientation artifact back for improvement; confirm each submitting team receives its own returned artifact and notes, the White Cell loader, error, success, and timeline language names the submitting team, and no generic control claims a Red or Strategic Orientation return is going to Blue
+- open `Returned / Revision History` after the returned artifacts leave their pending queues, then resubmit or complete at least one of them; confirm every return remains visible with the submitting team, returned revision number, return notes, reviewer, timestamp, and the full artifact fields from that returned revision
+- accept an action and a Strategic Orientation artifact as complete with no notes; confirm each moves to `Completed`, `outcome` remains null, and neither the card nor timeline assigns `SUCCESS`, `PARTIAL_SUCCESS`, `FAIL`, or `BACKFIRE`; open the same revision in two White Cell sessions and confirm the second review is rejected as stale after the first review commits
 - answer RFIs
 - send direct communications and section updates
 - review participant roster filters; select multiple seats, remove them in one confirmation, and confirm each successful removal disappears immediately without a page refresh
@@ -283,7 +286,7 @@ If realtime degrades:
 - users should see a persistent live-updates warning
 - retry should be available for error states
 - deterministic writes should still use the existing Supabase/RPC path
-- Scribe and White Cell operators should refresh before time-sensitive adjudication
+- Scribe and White Cell operators should refresh before time-sensitive artifact review; a stale-revision rejection must leave the newer revision unchanged and require the reviewer to refresh
 
 ## Export/AAR Check
 
@@ -302,6 +305,6 @@ Pause the demo and switch to Scribe narrative if:
 - hosted source serves raw source files
 - Supabase anonymous auth fails
 - role seats cannot be claimed
-- White Cell cannot record deliberation
+- White Cell cannot review or return an artifact
 - timeline or action lists become unusable under the rehearsal dataset
 - export fails for the active session

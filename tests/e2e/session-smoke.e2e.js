@@ -113,7 +113,7 @@ test('@smoke session creation, Scribe handoff, Facilitator action submit, and Wh
         await submitActionFromScribe(page, actionGoal);
     });
 
-    await test.step('rejoin as White Cell and adjudicate the submitted action', async () => {
+    await test.step('rejoin as White Cell and accept the submitted action as complete', async () => {
         await logoutCurrentUser(page);
         await page.waitForURL(LANDING_URL_PATTERN);
 
@@ -128,12 +128,12 @@ test('@smoke session creation, Scribe handoff, Facilitator action submit, and Wh
             notes: 'Approved in smoke test to verify the live submitted-to-adjudicated flow.'
         });
 
-        const pendingAction = page.locator('#adjudicationQueue .entity-card').filter({ hasText: actionGoal });
+        const pendingAction = page.locator('#actionsList [data-review-panel="pending"] .entity-card').filter({ hasText: actionGoal });
         await expect(pendingAction).toHaveCount(0);
 
         await page.locator('.sidebar-link[data-section="timeline"]').click();
-        await expect(page.locator('#timelineList')).toContainText('ACTION_ADJUDICATED');
-        await expect(page.locator('#timelineList')).toContainText('White Cell deliberation recorded: SUCCESS');
+        await expect(page.locator('#timelineList')).toContainText('ARTIFACT_COMPLETED');
+        await expect(page.locator('#timelineList')).toContainText('Blue Team action revision 1 accepted as complete by White Cell.');
     });
 
     await test.step('verify the mock backend reflects the completed lifecycle', async () => {
@@ -143,7 +143,8 @@ test('@smoke session creation, Scribe handoff, Facilitator action submit, and Wh
         expect(actionRecord).toBeTruthy();
         expect(actionRecord.goal).toBe(actionGoal);
         expect(actionRecord.status).toBe('adjudicated');
-        expect(actionRecord.outcome).toBe('SUCCESS');
+        expect(actionRecord.workflow_state).toBe('completed');
+        expect(actionRecord.outcome).toBeNull();
         expect(actionRecord.submitted_at).toBeTruthy();
         expect(actionRecord.adjudicated_at).toBeTruthy();
     });

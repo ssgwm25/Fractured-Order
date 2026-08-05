@@ -119,6 +119,16 @@ describe('database action lifecycle transitions', () => {
         });
     });
 
+    it('fails closed when returned revision history has no session scope', async () => {
+        await expect(database.fetchArtifactWorkflowReviews('', {
+            artifactKinds: ['action', 'strategic_orientation'],
+            decisions: ['return_to_team']
+        })).rejects.toMatchObject({
+            name: 'DatabaseError',
+            message: 'Session ID is required'
+        });
+    });
+
     it('preserves and explicitly labels legacy workflow metadata', () => {
         expect(normalizeArtifactWorkflowRecord({
             id: 'legacy-blue-return',
