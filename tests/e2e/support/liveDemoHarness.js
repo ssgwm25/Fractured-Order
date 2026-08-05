@@ -513,22 +513,45 @@ export async function recordStrategicOrientationFromScribe(page, {
     return goal;
 }
 
+export async function openFacilitatorActionSlide(page, goal) {
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+
+    const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]')
+        .filter({ hasText: goal })
+        .first();
+    const actionMarkRail = page.locator('#scribeSectionList [data-action-mark-navigation]').first();
+
+    if (await actionMarkRail.count()) {
+        await expect(actionSlideLink).toHaveCount(1, { timeout: 20000 });
+        if (!await actionSlideLink.isVisible()) {
+            const markKey = await actionSlideLink.evaluate((button) => (
+                button.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
+            ));
+            expect(markKey).not.toBe('');
+            const markTab = actionMarkRail.locator(`[data-action-mark-tab="${markKey}"]`);
+            await expect(markTab).toBeVisible({ timeout: 20000 });
+            await markTab.click();
+        }
+    } else {
+        const actionsSectionTrigger = page.locator('#scribeSectionList .scribe-section-trigger[data-section-label="Actions"]').first();
+        await expect(actionsSectionTrigger).toBeVisible({ timeout: 20000 });
+        if (await actionsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+            await actionsSectionTrigger.click();
+        }
+    }
+
+    await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
+    await actionSlideLink.click();
+    return actionSlideLink;
+}
+
 export async function submitActionFromScribe(page, goal, {
     coordinated = ['Executive'],
     informed = ['Allies']
 } = {}) {
-    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
-        timeout: 20000
-    });
-    const actionsSectionTrigger = page.locator('#scribeSectionList .scribe-section-trigger[data-section-label="Actions"]').first();
-    await expect(actionsSectionTrigger).toBeVisible({ timeout: 20000 });
-    if (await actionsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
-        await actionsSectionTrigger.click();
-    }
-
-    const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]').filter({ hasText: goal }).first();
-    await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
-    await actionSlideLink.click();
+    const actionSlideLink = await openFacilitatorActionSlide(page, goal);
 
     const actionFrame = page.locator('#deckActionFrame');
     const detailsToggle = actionFrame.locator('[data-scribe-action-toggle]');
@@ -555,23 +578,12 @@ export async function submitActionFromScribe(page, goal, {
     await submitButton.click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
     await expect(panel).toHaveCount(0);
-    await expect(actionSlideLink).toContainText('Deliberation Underway');
+    await expect(actionSlideLink).toContainText('Submitted to White Cell');
     await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
 }
 
 export async function submitStrategicOrientationFromScribe(page, goal) {
-    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
-        timeout: 20000
-    });
-    const actionsSectionTrigger = page.locator('#scribeSectionList .scribe-section-trigger[data-section-label="Actions"]').first();
-    await expect(actionsSectionTrigger).toBeVisible({ timeout: 20000 });
-    if (await actionsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
-        await actionsSectionTrigger.click();
-    }
-
-    const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]').filter({ hasText: goal }).first();
-    await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
-    await actionSlideLink.click();
+    const actionSlideLink = await openFacilitatorActionSlide(page, goal);
 
     const actionFrame = page.locator('#deckActionFrame');
     const orientationSlide = actionFrame.locator('.scribe-orientation-slide');
@@ -582,7 +594,7 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
     await panel.getByRole('button', { name: 'Submit to White Cell' }).click();
     await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
     await expect(panel).toHaveCount(0);
-    await expect(actionSlideLink).toContainText('Deliberation Underway');
+    await expect(actionSlideLink).toContainText('Submitted to White Cell');
     await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
 }
 
@@ -601,11 +613,36 @@ export async function adjudicateAction(page, {
 
     await openSidebarSection(page, section);
 
-    const adjudicationCard = page.locator(
-        `${queueSelector} .tab-panel:not([hidden]) .entity-card`
-    ).filter({
-        has: page.getByRole('heading', { name: goal, exact: true })
-    }).first();
+    const cardHeading = page.getByRole('heading', {
+        name: goal,
+        exact: true,
+        includeHidden: true
+    });
+    let adjudicationCard;
+    if (section === 'actions') {
+        const actionCard = page.locator(`${queueSelector} [data-action-mark-panel] .entity-card`).filter({
+            has: cardHeading
+        }).first();
+        await expect(actionCard).toHaveCount(1, { timeout: 20000 });
+
+        if (!await actionCard.isVisible()) {
+            const markKey = await actionCard.evaluate((card) => (
+                card.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
+            ));
+            expect(markKey).not.toBe('');
+            const markTab = page.locator(`${queueSelector} [data-action-mark-tab="${markKey}"]`);
+            await expect(markTab).toBeVisible({ timeout: 20000 });
+            await markTab.click();
+        }
+
+        adjudicationCard = page.locator(
+            `${queueSelector} [data-action-mark-panel]:not([hidden]) .entity-card`
+        ).filter({ has: cardHeading }).first();
+    } else {
+        adjudicationCard = page.locator(
+            `${queueSelector} .tab-panel:not([hidden]) .entity-card`
+        ).filter({ has: cardHeading }).first();
+    }
     await expect(adjudicationCard).toContainText(goal);
     await adjudicationCard.locator('.adjudicate-btn').click();
 

@@ -7,8 +7,10 @@ import {
 
 describe('artifact lifecycle view model', () => {
     it.each([
-        ['submitted_to_white_cell', 'Deliberation Underway'],
-        ['resubmitted', 'Deliberation Underway'],
+        ['forwarded_to_facilitator', 'Forwarded to Facilitator'],
+        ['submitted_to_white_cell', 'Submitted to White Cell'],
+        ['deliberation_underway', 'Deliberation Underway'],
+        ['resubmitted', 'Resubmitted'],
         ['returned_to_team', 'Returned by White Cell'],
         ['returned_to_blue', 'Returned by White Cell'],
         ['completed', 'Completed']
@@ -23,7 +25,7 @@ describe('artifact lifecycle view model', () => {
     it('normalizes historical statuses without consulting historical outcomes', () => {
         expect(resolveArtifactWorkflowState({ status: 'adjudicated', outcome: 'BACKFIRE' })).toBe('completed');
         expect(getArtifactLifecycleViewModel({ status: 'adjudicated', outcome: 'BACKFIRE' }).label).toBe('Completed');
-        expect(getArtifactLifecycleViewModel({ status: 'submitted', outcome: 'SUCCESS' }).label).toBe('Deliberation Underway');
+        expect(getArtifactLifecycleViewModel({ status: 'submitted', outcome: 'SUCCESS' }).label).toBe('Submitted to White Cell');
         expect(getArtifactLifecycleViewModel({
             status: 'draft',
             adjudication: { returned_to_blue: true }

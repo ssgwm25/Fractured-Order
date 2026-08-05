@@ -1193,7 +1193,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(actionsList.innerHTML.indexOf('Newest Move 1 action')).toBeLessThan(actionsList.innerHTML.indexOf('Older Move 1 action'));
         expect(actionsList.innerHTML).toContain('entity-card__toggle-state');
         expect(actionsList.innerHTML).toContain('Draft');
-        expect(actionsList.innerHTML).toContain('Deliberation Underway');
+        expect(actionsList.innerHTML).toContain('Submitted to White Cell');
     });
 
     it('renders proposal-team simulation marks as White Cell-style category tabs', async () => {
@@ -1544,6 +1544,12 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(bluePageThreeMarkup).toContain('for="actionImplementation"');
         expect(bluePageThreeMarkup).toContain('id="actionFocusCountriesLabel"');
         expect(bluePageThreeMarkup).toContain('for="actionExpectedOutcomes"');
+        expect(bluePageThreeMarkup).toContain('Teams to inform');
+        expect(bluePageThreeMarkup).toContain('data-blue-action-notification-team');
+        expect(bluePageThreeMarkup).toContain('value="Green"');
+        expect(bluePageThreeMarkup).toContain('value="Industry"');
+        expect(bluePageThreeMarkup).toContain('id="actionNotificationNote"');
+        expect(bluePageThreeMarkup).toContain('This is separate from the Facilitator\'s Informed/Engaged decision.');
         expect(bluePageThreeMarkup).toContain('Select one or more countries.');
         expect(bluePageThreeMarkup).toContain("What you anticipate will actually happen as a result, including effects you don't control.");
         expect(bluePageThreeMarkup.indexOf('for="actionImplementation"')).toBeLessThan(
@@ -1611,6 +1617,91 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(redWizardMarkup).not.toContain('data-blue-action-page="2"');
         expect(redPageTwoMarkup).toContain('id="actionFocusCountriesLabel"');
         expect(redPageTwoMarkup).toContain('for="actionExpectedOutcomes"');
+        expect(redPageTwoMarkup).toContain('data-blue-action-notification-team');
+        expect(redPageTwoMarkup).toContain('id="actionNotificationNote"');
+    });
+
+    it('renders returned Scribe cards with White Cell notes, revision, and editing controls', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        global.document = createFakeDocument();
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        const action = {
+            id: 'returned-scribe-action-3',
+            team: 'blue',
+            move: 3,
+            phase: 1,
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 3,
+            review_notes: 'Clarify who sends the notification and when.',
+            adjudication_notes: 'Clarify who sends the notification and when.',
+            goal: 'Revise the notification plan',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Revise the notification plan.',
+                scribeHandoff: 'Forwarded',
+                notificationTeams: ['Green', 'Industry'],
+                notificationNote: 'Notify both teams after the revision is accepted.'
+            })
+        };
+
+        const markup = controller.renderActionCard(action);
+
+        expect(markup).toContain('Returned by White Cell');
+        expect(markup).toContain('Clarify who sends the notification and when.');
+        expect(markup).toContain('<strong>Revision:</strong> 3');
+        expect(markup).toContain('Edit Returned Action');
+        expect(markup).toContain('Teams to Inform:</strong> Green, Industry');
+        expect(markup).toContain('Notification Note:</strong> Notify both teams after the revision is accepted.');
+    });
+
+    it('requires a clarifying note when Blue or Red selects teams to inform', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+        const finalPage = {
+            implementation: 'Executive Order',
+            implementationSelectValue: 'Executive Order',
+            implementationOther: '',
+            legislativeOptions: [],
+            focusCountries: ['Kenya'],
+            selectedFocusCountryValues: ['Kenya'],
+            focusCountryOther: '',
+            expectedOutcomes: 'Green can prepare a diplomatic readout.',
+            notificationTeams: ['Green'],
+            notificationNote: ''
+        };
+
+        expect(controller.validateBlueActionWizardPage(finalPage, 2)).toBe(
+            'Add a clarifying note for the selected teams to inform.'
+        );
+        expect(controller.validateBlueActionWizardPage({
+            ...finalPage,
+            notificationTeams: ['Green', 'Industry'],
+            notificationNote: 'Inform both teams after Facilitator review.'
+        }, 2)).toBeNull();
+    });
+
+    it('rehydrates notification teams and notes when an action is edited', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        global.document = createFakeDocument();
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+
+        const markup = controller.createBlueActionWizardContent({
+            ally_contingencies: serializeBlueActionDetails({
+                notificationTeams: ['Green', 'Industry'],
+                notificationNote: 'Coordinate the notice before resubmission.'
+            })
+        }).innerHTML;
+
+        expect(markup).toMatch(/value="Green"\s+checked/);
+        expect(markup).toMatch(/value="Industry"\s+checked/);
+        expect(markup).toContain('required aria-required="true"');
+        expect(markup).toContain('Coordinate the notice before resubmission.');
     });
 
     it('reopens a custom Blue instrument as Other with the saved value preserved', async () => {
@@ -3096,7 +3187,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             phase: 1
         });
 
-        expect(markup).toContain('Deliberation Underway');
+        expect(markup).toContain('Submitted to White Cell');
         expect(markup).toContain('Expected Effect &amp; System Impact:</strong> Preserve throughput and deny escalation payoff.');
         expect(markup).toContain('Strategic Assessment:</strong> Blue is tightening maritime leverage.');
         expect(markup).toContain('Response Strategy:</strong> Exploit alternate port relationships.');

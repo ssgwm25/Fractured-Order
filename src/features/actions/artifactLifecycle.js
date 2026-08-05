@@ -7,8 +7,9 @@
 export const ARTIFACT_LIFECYCLE = Object.freeze({
     draft: Object.freeze({ label: 'Draft', variant: 'default' }),
     forwarded_to_facilitator: Object.freeze({ label: 'Forwarded to Facilitator', variant: 'primary' }),
-    submitted_to_white_cell: Object.freeze({ label: 'Deliberation Underway', variant: 'warning' }),
-    resubmitted: Object.freeze({ label: 'Deliberation Underway', variant: 'warning' }),
+    submitted_to_white_cell: Object.freeze({ label: 'Submitted to White Cell', variant: 'warning' }),
+    deliberation_underway: Object.freeze({ label: 'Deliberation Underway', variant: 'warning' }),
+    resubmitted: Object.freeze({ label: 'Resubmitted', variant: 'warning' }),
     returned_to_team: Object.freeze({ label: 'Returned by White Cell', variant: 'warning' }),
     returned_to_blue: Object.freeze({ label: 'Returned by White Cell', variant: 'warning' }),
     completed: Object.freeze({ label: 'Completed', variant: 'success' }),

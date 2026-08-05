@@ -26,6 +26,7 @@ import {
     BLUE_ACTION_IMPLEMENTATIONS,
     BLUE_ACTION_INSTRUMENTS,
     BLUE_ACTION_LEGISLATIVE_OPTIONS,
+    BLUE_ACTION_NOTIFICATION_TEAMS,
     BLUE_ACTION_SCRIBE_HANDOFF,
     BLUE_ACTION_SECTORS,
     BLUE_ACTION_SUPPLY_CHAIN_ANGLES,
@@ -38,6 +39,7 @@ import {
     getNextActionSequenceNumber,
     serializeBlueActionDetails
 } from '../features/actions/blueActionDetails.js';
+import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 import {
     PROPOSAL_ACTION_MECHANISM,
     PROPOSAL_ORIGINATORS,
@@ -2405,20 +2407,32 @@ export class FacilitatorController {
             : this.isTeamActionWizardEnabled(action)
             ? this.getBlueActionSequenceContext(action).label
             : `Move ${action.move || 1} | Phase ${action.phase || 1}`;
-        const isReturnedToBlue = (
-            ['returned_to_team', 'returned_to_blue'].includes(
-                String(action.workflow_state || '').trim()
-            )
-            || action.adjudication?.returned_to_blue === true
-        );
-        const canManageDraft = !this.isReadOnly && !isStrategicOrientationFlow && canEditAction(action);
+        const rawLifecycle = getArtifactLifecycleViewModel(action);
+        const isReturnedToBlue = rawLifecycle.isReturned;
+        const isForwardedDraft = isDraftAction(action)
+            && !isReturnedToBlue
+            && (
+                blueAction.scribeHandoff === BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
+                || strategicOrientation.scribeHandoff === STRATEGIC_ORIENTATION_SCRIBE_HANDOFF.FORWARDED
+                || proposal?.scribeHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            );
+        const lifecycleArtifact = isForwardedDraft
+            ? { ...action, canonical_workflow_state: 'forwarded_to_facilitator' }
+            : action;
+        const lifecycle = getArtifactLifecycleViewModel(lifecycleArtifact);
+        const canManageDraft = !this.isReadOnly
+            && canEditAction(action)
+            && (!isStrategicOrientationFlow || isReturnedToBlue);
         const canSubmitDraft = !this.isReadOnly && canSubmitAction(action);
         const canRemoveDraft = !this.isReadOnly && !isStrategicOrientationFlow && canDeleteAction(action);
         const forwardedProposalCommunication = isGreenProposalFlow
             ? this.getForwardedProposalCommunication(action)
             : null;
         const shouldHideWhiteCellReviewDetails = Boolean(isGreenProposalFlow && forwardedProposalCommunication);
-        const statusBadge = createArtifactLifecycleBadge(action, { size: 'sm' }).outerHTML;
+        const statusBadge = createArtifactLifecycleBadge(lifecycleArtifact, { size: 'sm' }).outerHTML;
+        const deliberationBadge = lifecycle.isAwaitingWhiteCell
+            ? createBadge({ text: 'Deliberation Underway', variant: 'warning', size: 'sm', rounded: true }).outerHTML
+            : '';
         const proposalResponseArrivalBadge = isGreenProposalFlow
             && this.newProposalResponseActionIds.has(action.id)
             ? createBadge({
@@ -2511,6 +2525,10 @@ export class FacilitatorController {
         const objectivePreview = isGreenProposalFlow
             ? (proposal.objective || 'Not specified')
             : (blueAction.objective || 'Not specified');
+        const revisionNumber = Number.isInteger(action.revision_number)
+            ? action.revision_number
+            : null;
+        const reviewNotes = action.review_notes || action.adjudication_notes || '';
 
         let lifecycleMessage = `
             <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
@@ -2526,10 +2544,18 @@ export class FacilitatorController {
             </p>
         `;
 
-        if (isSubmittedAction(action)) {
+        if (isReturnedToBlue) {
             lifecycleMessage = `
                 <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
-                    ${isStrategicOrientationFlow
+                    Returned by White Cell${revisionNumber ? ` as revision ${revisionNumber}` : ''}. Correct the artifact and send it to the Facilitator for resubmission.
+                </p>
+            `;
+        } else if (isSubmittedAction(action)) {
+            lifecycleMessage = `
+                <p class="text-xs text-gray-500" style="margin-top: var(--space-3);">
+                    ${lifecycle.state === 'resubmitted'
+                        ? 'Resubmitted to White Cell'
+                        : isStrategicOrientationFlow
                         ? 'Submitted to White Cell'
                         : isGreenProposalFlow
                         ? 'Sent to White Cell'
@@ -2599,6 +2625,7 @@ export class FacilitatorController {
                         <div class="entity-card__badges">
                             ${proposalResponseArrivalBadge}
                             ${statusBadge}
+                            ${deliberationBadge}
                             ${secondaryBadge}
                         </div>
                     </div>
@@ -2612,13 +2639,16 @@ export class FacilitatorController {
                     </p>
                     ${detailsMarkup}
                     ${isGreenProposalFlow ? this.renderProposalRecipientState(action) : ''}
-                    ${action.adjudication_notes && (!shouldHideWhiteCellReviewDetails || isReturnedToBlue) ? `
+                    ${reviewNotes && (!shouldHideWhiteCellReviewDetails || isReturnedToBlue) ? `
                         <p class="entity-card__note"${isReturnedToBlue ? ' style="border-left: 3px solid var(--color-warning, #b45309); padding-left: var(--space-2);"' : ''}>
                             <strong>${isReturnedToBlue ? 'Send-back notes from White Cell:' : 'White Cell Notes:'}</strong>
-                            ${this.escapeHtml(action.adjudication_notes)}
+                            ${this.escapeHtml(reviewNotes)}
                         </p>
                     ` : ''}
-                    ${isReturnedToBlue && isDraftAction(action) && !action.adjudication_notes ? `
+                    ${isReturnedToBlue && revisionNumber ? `
+                        <p class="entity-card__note"><strong>Revision:</strong> ${revisionNumber}</p>
+                    ` : ''}
+                    ${isReturnedToBlue && isDraftAction(action) && !reviewNotes ? `
                         <p class="entity-card__note" style="border-left: 3px solid var(--color-warning, #b45309); padding-left: var(--space-2);">
                             <strong>Returned by White Cell.</strong> Edit this draft and resubmit when complete.
                         </p>
@@ -2629,7 +2659,9 @@ export class FacilitatorController {
                         <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
                             ${canManageDraft ? `
                                 <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
-                                    ${isGreenProposalFlow ? 'Edit Proposal' : 'Edit Draft'}
+                                    ${isReturnedToBlue
+                                        ? (isStrategicOrientationFlow ? 'Edit Returned Orientation' : 'Edit Returned Action')
+                                        : (isGreenProposalFlow ? 'Edit Proposal' : 'Edit Draft')}
                                 </button>
                             ` : ''}
                             ${canSubmitDraft && !isStrategicOrientationFlow && !isGreenProposalFlow ? `
@@ -4324,6 +4356,7 @@ export class FacilitatorController {
             ...blueAction.focusCountries.filter((value) => builtInCountryValues.includes(value)),
             ...(customCountryValue || blueAction.focusCountries.includes('Other') ? ['Other'] : [])
         ];
+        const selectedNotificationTeams = blueAction.notificationTeams || [];
         const implementationIsCustom = Boolean(blueAction.implementation)
             && !BLUE_ACTION_IMPLEMENTATIONS.includes(blueAction.implementation);
         const implementationValue = implementationIsCustom
@@ -4436,6 +4469,35 @@ export class FacilitatorController {
                         >${this.escapeHtml(action.expected_outcomes || '')}</textarea>
                         <p class="form-hint" id="actionExpectedOutcomesHint">What you anticipate will actually happen as a result, including effects you don't control.</p>
                     </div>
+
+                    <fieldset class="form-group action-notification-fields">
+                        <legend class="form-label">Teams to inform</legend>
+                        <div
+                            class="form-check-grid"
+                            role="group"
+                            aria-describedby="actionNotificationTeamsHint"
+                        >
+                            ${renderCheckboxOptions({
+                                values: BLUE_ACTION_NOTIFICATION_TEAMS,
+                                selectedValues: selectedNotificationTeams,
+                                dataAttribute: 'data-blue-action-notification-team',
+                                group: 'team',
+                                idPrefix: 'actionNotificationTeam'
+                            })}
+                        </div>
+                        <p class="form-hint" id="actionNotificationTeamsHint">Optionally notify Green, Industry, or both. This is separate from the Facilitator's Informed/Engaged decision.</p>
+
+                        <label class="form-label" for="actionNotificationNote">Clarifying note</label>
+                        <textarea
+                            id="actionNotificationNote"
+                            class="form-input form-textarea"
+                            rows="3"
+                            maxlength="1000"
+                            aria-describedby="actionNotificationNoteHint"
+                            ${selectedNotificationTeams.length ? 'required aria-required="true"' : 'aria-required="false"'}
+                        >${this.escapeHtml(blueAction.notificationNote || '')}</textarea>
+                        <p class="form-hint" id="actionNotificationNoteHint">Required when one or more teams are selected.</p>
+                    </fieldset>
         `;
 
         content.innerHTML = `
@@ -4847,6 +4909,17 @@ export class FacilitatorController {
             }
         };
 
+        const updateActionNotificationRequirement = () => {
+            const hasNotificationTeam = Boolean(
+                form.querySelector('[data-blue-action-notification-team]:checked')
+            );
+            const note = form.querySelector('#actionNotificationNote');
+            if (!note) return;
+
+            note.required = hasNotificationTeam;
+            note.setAttribute('aria-required', String(hasNotificationTeam));
+        };
+
         form.querySelectorAll('[data-blue-action-checkbox="sector"]').forEach((checkbox) => {
             checkbox.addEventListener('change', updateSectorOtherField);
         });
@@ -4861,6 +4934,9 @@ export class FacilitatorController {
         });
         form.querySelector('#actionImplementation')?.addEventListener('change', () => {
             updateImplementationDependentFields();
+        });
+        form.querySelectorAll('[data-blue-action-notification-team]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateActionNotificationRequirement);
         });
         content.querySelector('[data-blue-action-nav="cancel"]')?.addEventListener('click', () => {
             modal?.close();
@@ -4902,6 +4978,7 @@ export class FacilitatorController {
         });
 
         updateSupplyChainFocusDetails();
+        updateActionNotificationRequirement();
         renderPage();
     }
 
@@ -4954,6 +5031,7 @@ export class FacilitatorController {
             : supplyChainAreas;
         const selectedLegislativeOptions = getCheckedValues(form, '[data-blue-action-checkbox="legislative"]');
         const selectedFocusCountryValues = getCheckedValues(form, '[data-blue-action-checkbox="country"]');
+        const notificationTeams = getCheckedValues(form, '[data-blue-action-notification-team]');
         const coordinatedControlsExist = Boolean(form?.querySelector?.('[data-blue-action-checkbox="coordinated"]'));
         const informedControlsExist = Boolean(form?.querySelector?.('[data-blue-action-checkbox="informed"]'));
         const coordinated = coordinatedControlsExist
@@ -5020,6 +5098,8 @@ export class FacilitatorController {
             focusCountries,
             enforcementTimeline: form?.dataset?.blueActionEnforcementTimeline || '',
             expectedOutcomes: form.querySelector('#actionExpectedOutcomes')?.value?.trim() || '',
+            notificationTeams,
+            notificationNote: form.querySelector('#actionNotificationNote')?.value?.trim() || '',
             coordinated,
             informed
         };
@@ -5046,6 +5126,8 @@ export class FacilitatorController {
             || wizardData.legislativeOptions.length
             || wizardData.focusCountries.length
             || wizardData.expectedOutcomes
+            || wizardData.notificationTeams?.length
+            || wizardData.notificationNote
         );
     }
 
@@ -5120,6 +5202,9 @@ export class FacilitatorController {
                 }
             }
             if (!wizardData.expectedOutcomes) return 'Expected Outcomes is required.';
+            if (wizardData.notificationTeams?.length && !wizardData.notificationNote) {
+                return 'Add a clarifying note for the selected teams to inform.';
+            }
         }
 
         return null;
@@ -5150,7 +5235,9 @@ export class FacilitatorController {
                 enforcementTimeline: wizardData.enforcementTimeline,
                 scribeHandoff,
                 coordinated: wizardData.coordinated,
-                informed: wizardData.informed
+                informed: wizardData.informed,
+                notificationTeams: wizardData.notificationTeams,
+                notificationNote: wizardData.notificationNote
             })
         };
     }
@@ -5178,7 +5265,9 @@ export class FacilitatorController {
                 coordinatedDecision: actionViewModel.coordinatedDecision,
                 coordinated: actionViewModel.coordinated,
                 informedEngagedDecision: actionViewModel.informedEngagedDecision,
-                informed: actionViewModel.informed
+                informed: actionViewModel.informed,
+                notificationTeams: actionViewModel.notificationTeams,
+                notificationNote: actionViewModel.notificationNote
             })
         };
     }

@@ -23,13 +23,17 @@ describe('blue action details helpers', () => {
             coordinatedDecision: 'Yes',
             coordinated: ['Executive'],
             informedEngagedDecision: 'Yes',
-            informed: ['Industry', 'Allies']
+            informed: ['Industry', 'Allies'],
+            notificationTeams: ['Green', 'Industry'],
+            notificationNote: 'Share the licensing timeline before the move closes.'
         });
 
         expect(serialized).toContain('Blue Team Action Details');
         expect(serialized).toContain('Scribe Handoff: Forwarded');
         expect(serialized).toContain('Coordinated Decision: Yes');
         expect(serialized).toContain('Informed/Engaged Decision: Yes');
+        expect(serialized).toContain('Notification Teams: ["Green","Industry"]');
+        expect(serialized).toContain('Notification Note: Share the licensing timeline before the move closes.');
         expect(serialized).toContain('Supply Chain Focus Decision: Yes');
         expect(serialized).toContain('Supply Chain Action Angles: ["Build resilience for Blue","Disrupt Red"]');
         expect(serialized).toContain('Supply Chain Areas: ["Extraction","Advanced Manufacturing"]');
@@ -54,7 +58,9 @@ describe('blue action details helpers', () => {
             coordinatedDecision: 'Yes',
             coordinated: ['Executive'],
             informedEngagedDecision: 'Yes',
-            informed: ['Industry', 'Allies']
+            informed: ['Industry', 'Allies'],
+            notificationTeams: ['Green', 'Industry'],
+            notificationNote: 'Share the licensing timeline before the move closes.'
         });
     });
 
@@ -91,7 +97,9 @@ describe('blue action details helpers', () => {
             coordinatedDecision: '',
             coordinated: ['Executive'],
             informedEngagedDecision: '',
-            informed: ['Corporate', 'Allied']
+            informed: ['Corporate', 'Allied'],
+            notificationTeams: [],
+            notificationNote: ''
         });
     });
 
@@ -147,7 +155,9 @@ describe('blue action details helpers', () => {
                 coordinatedDecision: 'Yes',
                 coordinated: ['Legislative'],
                 informedEngagedDecision: 'Yes',
-                informed: ['Allies']
+                informed: ['Allies'],
+                notificationTeams: ['Green'],
+                notificationNote: 'Green should prepare the diplomatic readout.'
             })
         };
 
@@ -174,7 +184,9 @@ describe('blue action details helpers', () => {
             coordinatedDecision: 'Yes',
             coordinated: ['Legislative'],
             informedEngagedDecision: 'Yes',
-            informed: ['Allies']
+            informed: ['Allies'],
+            notificationTeams: ['Green'],
+            notificationNote: 'Green should prepare the diplomatic readout.'
         });
 
         expect(getBlueActionViewModel(action).artifactDetails).toEqual([
@@ -192,8 +204,26 @@ describe('blue action details helpers', () => {
             { label: 'Coordination Selections', value: 'Legislative' },
             { label: 'Informed/Engaged Decision', value: 'Yes' },
             { label: 'Informed/Engaged Selections', value: 'Allies' },
+            { label: 'Teams to Inform', value: 'Green' },
+            { label: 'Notification Note', value: 'Green should prepare the diplomatic readout.' },
             { label: 'Enforcement Timeline', value: '12 months' },
             { label: 'Expected Outcomes', value: 'Shift supply-chain leverage before the next move.' }
         ]);
+    });
+
+    it('keeps action notifications distinct from Facilitator informed and engaged decisions', () => {
+        const parsed = parseBlueActionDetails(serializeBlueActionDetails({
+            informedEngagedDecision: 'No',
+            informed: [],
+            notificationTeams: ['Green', 'Industry', 'Allies'],
+            notificationNote: 'Inform both teams after the action is approved.'
+        }));
+
+        expect(parsed).toMatchObject({
+            informedEngagedDecision: 'No',
+            informed: [],
+            notificationTeams: ['Green', 'Industry'],
+            notificationNote: 'Inform both teams after the action is approved.'
+        });
     });
 });

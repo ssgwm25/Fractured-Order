@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
+import { serializeBlueActionDetails } from '../features/actions/blueActionDetails.js';
 import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
 const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
@@ -224,6 +225,56 @@ describe('White Cell DOM contract', () => {
         const { WHITE_CELL_DOM_IDS } = await loadWhiteCellModule();
 
         expect(WHITE_CELL_DOM_IDS.filter((id) => !htmlIds.has(id))).toEqual([]);
+    });
+
+    it('renders a fixed Blue action mark rail with zero counts and newest records first', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        global.document = createFakeDocument();
+        const container = createFakeElement('actionsList');
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        controller.renderBlueActionMarkQueue(container, [{
+            id: 'move-1-old',
+            team: 'blue',
+            move: 1,
+            status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            goal: 'Older Move 1 action',
+            updated_at: '2026-08-05T10:00:00.000Z'
+        }, {
+            id: 'move-1-new',
+            team: 'blue',
+            move: 1,
+            status: 'submitted',
+            workflow_state: 'resubmitted',
+            revision_number: 2,
+            goal: 'Newer Move 1 action',
+            ally_contingencies: serializeBlueActionDetails({
+                notificationTeams: ['Green', 'Industry'],
+                notificationNote: 'Inform both teams after White Cell completes review.'
+            }),
+            updated_at: '2026-08-05T11:00:00.000Z'
+        }, {
+            ...buildStrategicOrientationAction('blue'),
+            workflow_state: 'submitted_to_white_cell',
+            updated_at: '2026-08-05T09:00:00.000Z'
+        }]);
+
+        expect(container.innerHTML).toContain('role="tablist"');
+        expect(container.innerHTML).toContain('aria-label="Strategic Orientation, 1 record"');
+        expect(container.innerHTML).toContain('aria-label="Move 1, 2 records"');
+        expect(container.innerHTML).toContain('aria-label="Move 2, 0 records"');
+        expect(container.innerHTML).toContain('aria-label="Move 3, 0 records"');
+        expect(container.innerHTML).toContain('No records for Move 2.');
+        expect(container.innerHTML.indexOf('Newer Move 1 action')).toBeLessThan(
+            container.innerHTML.indexOf('Older Move 1 action')
+        );
+        expect(container.innerHTML).toContain('Resubmitted');
+        expect(container.innerHTML).toContain('Deliberation Underway');
+        expect(container.innerHTML).toContain('Teams to Inform:</strong> Green, Industry');
+        expect(container.innerHTML).toContain('Notification Note:</strong> Inform both teams after White Cell completes review.');
+        expect(controller.blueActionMarkActiveKey).toBe('move-1');
     });
 
     it('binds the shipped White Cell controls to controller handlers', async () => {

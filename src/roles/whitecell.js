@@ -30,6 +30,10 @@ import {
     getBlueActionViewModel
 } from '../features/actions/blueActionDetails.js';
 import {
+    ACTION_MARKS,
+    groupActionRecordsByMark
+} from '../features/actions/actionMarkRail.js';
+import {
     formatStrategicOrientationSelection,
     getStrategicOrientationCompletion,
     getStrategicOrientationViewModel,
@@ -1170,6 +1174,7 @@ export class WhiteCellController {
             responses: 'pending',
             proposals: 'pending'
         };
+        this.blueActionMarkActiveKey = '';
         this.rfis = [];
         this.communications = [];
         this.tribeStreetJournalEntries = [];
@@ -1702,10 +1707,20 @@ export class WhiteCellController {
         ].forEach(([elementId, section]) => {
             const queueEl = document.getElementById(elementId);
             queueEl?.addEventListener('click', (event) => {
+                const markButton = event.target.closest('[data-action-mark-tab]');
+                if (markButton && queueEl.contains(markButton)) {
+                    this.setBlueActionMark(markButton.dataset.actionMarkTab, queueEl);
+                    return;
+                }
                 const tabButton = event.target.closest('.tab-button[data-review-tab]');
                 if (!tabButton || !queueEl.contains(tabButton)) return;
                 this.setReviewActiveTab(section, tabButton.dataset.reviewTab, queueEl);
             });
+            if (elementId === 'actionsList') {
+                queueEl?.addEventListener('keydown', (event) => {
+                    this.handleBlueActionMarkKeydown(event, queueEl);
+                });
+            }
         });
 
         const participantsList = document.getElementById('participantsList');
@@ -3257,12 +3272,116 @@ export class WhiteCellController {
     }
 
     renderActionReview() {
-        this.renderReviewQueue(document.getElementById('actionsList'), this.blueTeamActions, {
-            section: 'actions',
-            newIds: this.newBlueActionIds,
-            ariaLabel: 'Blue Team action review',
-            emptyMessage: 'No Blue Team actions are awaiting White Cell review.'
+        const blueStrategicOrientation = this.strategicOrientationArtifacts.filter((action) => (
+            action?.team === 'blue'
+        ));
+        this.renderBlueActionMarkQueue(
+            document.getElementById('actionsList'),
+            [...blueStrategicOrientation, ...this.blueTeamActions]
+        );
+    }
+
+    renderBlueActionMarkQueue(container, items = []) {
+        if (!container) return;
+
+        const groups = groupActionRecordsByMark(items);
+        if (!ACTION_MARKS.some((mark) => mark.key === this.blueActionMarkActiveKey)) {
+            this.blueActionMarkActiveKey = [...groups].reverse().find((mark) => mark.count > 0)?.key
+                || ACTION_MARKS[0].key;
+        }
+
+        const tabs = groups.map((mark) => {
+            const isActive = mark.key === this.blueActionMarkActiveKey;
+            return `
+                <button
+                    type="button"
+                    id="white-cell-action-mark-tab-${mark.key}"
+                    class="action-mark-tab${isActive ? ' is-active' : ''}"
+                    data-action-mark-tab="${mark.key}"
+                    role="tab"
+                    aria-selected="${isActive ? 'true' : 'false'}"
+                    aria-controls="white-cell-action-mark-panel-${mark.key}"
+                    aria-label="${this.escapeHtml(`${mark.label}, ${mark.count} ${mark.count === 1 ? 'record' : 'records'}`)}"
+                    tabindex="${isActive ? '0' : '-1'}"
+                >
+                    <span>${this.escapeHtml(mark.label)}</span>
+                    <span class="action-mark-count" aria-hidden="true">${mark.count}</span>
+                </button>
+            `;
+        }).join('');
+
+        const panels = groups.map((mark) => {
+            const isActive = mark.key === this.blueActionMarkActiveKey;
+            const visibleItems = mark.records.slice(0, WHITE_CELL_REVIEW_GROUP_RENDER_LIMIT);
+            return `
+                <section
+                    id="white-cell-action-mark-panel-${mark.key}"
+                    class="action-mark-panel"
+                    data-action-mark-panel="${mark.key}"
+                    role="tabpanel"
+                    aria-labelledby="white-cell-action-mark-tab-${mark.key}"
+                    ${isActive ? '' : 'hidden'}
+                >
+                    ${visibleItems.length
+                        ? visibleItems.map((action) => this.renderActionCard(action, {
+                            showAdjudicateAction: this.isLeadOperator() && canAdjudicateAction(action),
+                            isNew: this.newBlueActionIds.has(action.id) || this.newStrategicOrientationIds.has(action.id)
+                        })).join('')
+                        : `<p class="action-mark-empty">No records for ${this.escapeHtml(mark.label)}.</p>`}
+                    ${mark.count > visibleItems.length
+                        ? `<p class="action-sequence-overflow">Showing the newest ${visibleItems.length} of ${mark.count} records for this mark.</p>`
+                        : ''}
+                </section>
+            `;
+        }).join('');
+
+        container.innerHTML = `
+            <div class="action-mark-navigation" data-action-mark-navigation>
+                <div class="action-mark-rail" role="tablist" aria-label="Blue Team records by simulation mark">
+                    ${tabs}
+                </div>
+                <p class="action-mark-help">Use Left and Right Arrow keys to move between marks. Records are newest first.</p>
+                ${panels}
+            </div>
+        `;
+        this.bindActionCardButtons(container);
+    }
+
+    setBlueActionMark(markKey = '', container = document.getElementById('actionsList')) {
+        if (!ACTION_MARKS.some((mark) => mark.key === markKey)) return;
+        this.blueActionMarkActiveKey = markKey;
+        if (!container?.querySelectorAll) return;
+
+        container.querySelectorAll('[data-action-mark-tab]').forEach((button) => {
+            const isActive = button.dataset.actionMarkTab === markKey;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-selected', String(isActive));
+            button.setAttribute('tabindex', isActive ? '0' : '-1');
         });
+        container.querySelectorAll('[data-action-mark-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.actionMarkPanel !== markKey;
+        });
+    }
+
+    handleBlueActionMarkKeydown(event, container = document.getElementById('actionsList')) {
+        const currentTab = event.target?.closest?.('[data-action-mark-tab]');
+        if (!currentTab || !container?.contains?.(currentTab)) return;
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+        event.preventDefault();
+        const tabs = [...container.querySelectorAll('[data-action-mark-tab]')];
+        const currentIndex = tabs.indexOf(currentTab);
+        if (currentIndex < 0) return;
+        const nextIndex = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+            ? tabs.length - 1
+            : event.key === 'ArrowLeft'
+            ? (currentIndex - 1 + tabs.length) % tabs.length
+            : (currentIndex + 1) % tabs.length;
+        const nextTab = tabs[nextIndex];
+        this.setBlueActionMark(nextTab?.dataset?.actionMarkTab || '', container);
+        nextTab?.focus?.();
     }
 
     renderMoveResponses() {
@@ -3531,6 +3650,9 @@ export class WhiteCellController {
         const notesMarkup = reviewNotes
             ? `<p class="entity-card__note"><strong>Notes:</strong> ${this.escapeHtml(reviewNotes)}</p>`
             : '';
+        const revisionMarkup = Number.isInteger(action.revision_number)
+            ? `<p class="entity-card__note"><strong>Revision:</strong> ${this.escapeHtml(String(action.revision_number))}</p>`
+            : '';
         const secondaryBadge = isStrategicOrientationFlow
             ? createBadge({
                 text: strategicOrientation.isForecast ? 'Forecast' : 'Selection',
@@ -3605,6 +3727,9 @@ export class WhiteCellController {
             ].filter(Boolean).join(' ')
         }).outerHTML;
         const actionButtons = [];
+        const deliberationBadgeMarkup = canAdjudicateAction(action)
+            ? createBadge({ text: 'Deliberation Underway', variant: 'warning', size: 'sm', rounded: true }).outerHTML
+            : '';
 
         if (showAdjudicateAction) {
             actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Strategic Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Review Action')}</button>`);
@@ -3621,6 +3746,7 @@ export class WhiteCellController {
                         ${arrivalBadgeMarkup}
                         ${sourceTeamBadgeMarkup}
                         ${createArtifactLifecycleBadge(action, { size: 'sm' }).outerHTML}
+                        ${deliberationBadgeMarkup}
                         ${secondaryBadge}
                     </div>
                 </div>
@@ -3628,6 +3754,7 @@ export class WhiteCellController {
                 ${detailsMarkup}
                 ${proposalRecipientStateMarkup}
                 ${submittedMarkup}
+                ${revisionMarkup}
                 ${notesMarkup}
                 ${actionButtons.length ? `
                     <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">

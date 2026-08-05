@@ -14,6 +14,7 @@ import {
     getWhiteCellStrategicOrientationTitle,
     joinPublicParticipant,
     logoutCurrentUser,
+    openFacilitatorActionSlide,
     openSidebarSection,
     recordStrategicOrientationFromScribe,
     reviewStrategicOrientation,
@@ -145,14 +146,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         await expect(orientationSlide).toContainText(orientationRationale);
         await expect(scribe.locator('#newActionBtn')).toHaveCount(0);
 
-        const actionsSectionTrigger = scribe.locator('#scribeSectionList .scribe-section-trigger').first();
-        await expect(actionsSectionTrigger).toContainText('Actions');
-        await actionsSectionTrigger.click();
-
-        const actionSlideLink = scribe.locator('#scribeSectionList button[data-slide-key^="action-"]').first();
-        await expect(actionSlideLink).toBeVisible();
-        await expect(actionSlideLink).toContainText(orientationGoal);
-        await actionSlideLink.click();
+        const actionSlideLink = await openFacilitatorActionSlide(scribe, orientationGoal);
         await expect(scribe.locator('#deckActionFrame')).toBeVisible();
         await expect(orientationSlide).toContainText(orientationRationale);
 
@@ -168,7 +162,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         );
 
         await expect(scribe.locator('#nextSlideBtn')).toBeVisible();
-        await expect(actionSlideLink).toContainText('White Cell Reviewed');
+        await expect(actionSlideLink).toContainText('Completed');
         await expect(orientationSlide).toContainText(orientationRationale);
         await expect(orientationSlide).not.toContainText(orientationReviewNotes);
     });

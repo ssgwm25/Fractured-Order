@@ -34,7 +34,8 @@ afterEach(() => {
 
 describe('artifact lifecycle badges', () => {
     it.each([
-        [{ workflow_state: 'submitted_to_white_cell', outcome: 'SUCCESS' }, 'Deliberation Underway', 'badge-warning'],
+        [{ workflow_state: 'submitted_to_white_cell', outcome: 'SUCCESS' }, 'Submitted to White Cell', 'badge-warning'],
+        [{ workflow_state: 'resubmitted' }, 'Resubmitted', 'badge-warning'],
         [{ workflow_state: 'returned_to_team', outcome: 'PARTIAL_SUCCESS' }, 'Returned by White Cell', 'badge-warning'],
         [{ workflow_state: 'completed', outcome: 'BACKFIRE' }, 'Completed', 'badge-success']
     ])('renders the workflow label instead of an outcome badge', (artifact, label, variantClass) => {

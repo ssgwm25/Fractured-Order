@@ -91,6 +91,11 @@ export const BLUE_ACTION_INFORMED_OPTIONS = Object.freeze([
     'Allies'
 ]);
 
+export const BLUE_ACTION_NOTIFICATION_TEAMS = Object.freeze([
+    'Green',
+    'Industry'
+]);
+
 const ScribeDecisionValues = Object.freeze({
     YES: 'Yes',
     NO: 'No',
@@ -198,6 +203,8 @@ function buildBlueActionArtifactDetails(viewModel = {}) {
         { label: 'Coordination Selections', value: formatDetailSelection(viewModel.coordinated) },
         { label: 'Informed/Engaged Decision', value: viewModel.informedEngagedDecision },
         { label: 'Informed/Engaged Selections', value: formatDetailSelection(viewModel.informed) },
+        { label: 'Teams to Inform', value: formatDetailSelection(viewModel.notificationTeams) },
+        { label: 'Notification Note', value: viewModel.notificationNote },
         { label: 'Enforcement Timeline', value: viewModel.enforcementTimeline },
         { label: 'Expected Outcomes', value: viewModel.expectedOutcomes },
         { label: 'Legacy Notes', value: viewModel.legacyNotes }
@@ -239,6 +246,11 @@ export function serializeBlueActionDetails(details = {}) {
     const legislativeOptions = normalizeStringList(details.legislativeOptions);
     const coordinated = normalizeStringList(details.coordinated);
     const informed = normalizeStringList(details.informed);
+    const notificationTeams = normalizeStringList(details.notificationTeams)
+        .filter((team) => BLUE_ACTION_NOTIFICATION_TEAMS.includes(team));
+    const notificationNote = notificationTeams.length
+        ? normalizeString(details.notificationNote)
+        : '';
     const coordinatedDecision = normalizeScribeDecision(details.coordinatedDecision);
     const informedEngagedDecision = normalizeScribeDecision(
         details.informedEngagedDecision || details.informedDecision
@@ -263,7 +275,9 @@ export function serializeBlueActionDetails(details = {}) {
         `Coordinated Decision: ${coordinatedDecision || ScribeDecisionValues.NOT_SELECTED}`,
         `Coordinated: ${serializeStringList(coordinated)}`,
         `Informed/Engaged Decision: ${informedEngagedDecision || ScribeDecisionValues.NOT_SELECTED}`,
-        `Informed: ${serializeStringList(informed)}`
+        `Informed: ${serializeStringList(informed)}`,
+        `Notification Teams: ${serializeStringList(notificationTeams)}`,
+        `Notification Note: ${notificationNote}`
     ].join('\n');
 }
 
@@ -313,6 +327,11 @@ export function parseBlueActionDetails(value = '') {
         const legislativeOptions = parseStringList(parsed['Legislative Options']);
         const coordinated = parseStringList(parsed.Coordinated);
         const informed = parseStringList(parsed.Informed);
+        const notificationTeams = parseStringList(parsed['Notification Teams'])
+            .filter((team) => BLUE_ACTION_NOTIFICATION_TEAMS.includes(team));
+        const notificationNote = notificationTeams.length
+            ? normalizeString(parsed['Notification Note'])
+            : '';
         const coordinatedDecision = normalizeScribeDecision(parsed['Coordinated Decision']);
         const informedEngagedDecision = normalizeScribeDecision(
             parsed['Informed/Engaged Decision'] || parsed['Informed Decision']
@@ -340,7 +359,9 @@ export function parseBlueActionDetails(value = '') {
             coordinatedDecision,
             coordinated,
             informedEngagedDecision,
-            informed
+            informed,
+            notificationTeams,
+            notificationNote
         };
     } catch (_error) {
         return null;
@@ -401,6 +422,8 @@ export function getBlueActionViewModel(action = {}) {
         coordinated: details?.coordinated || [],
         informedEngagedDecision: details?.informedEngagedDecision || '',
         informed: details?.informed || [],
+        notificationTeams: details?.notificationTeams || [],
+        notificationNote: details?.notificationNote || '',
         legacyNotes: details ? '' : normalizeString(action.ally_contingencies)
     };
 

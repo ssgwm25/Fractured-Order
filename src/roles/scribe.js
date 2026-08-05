@@ -17,6 +17,12 @@ import {
 } from '../core/enums.js';
 import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
 import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
+import { createArtifactLifecycleBadge, createBadge } from '../components/ui/Badge.js';
+import {
+    ACTION_MARKS,
+    getActionMarkKey,
+    groupActionRecordsByMark
+} from '../features/actions/actionMarkRail.js';
 import {
     BLUE_ACTION_COORDINATED_OPTIONS,
     BLUE_ACTION_INFORMED_OPTIONS,
@@ -312,11 +318,13 @@ function buildActionPlaceholderSlide({
 }
 
 function getActionSlideLifecycleLabel(action = {}) {
-    return getArtifactLifecycleViewModel(
-        isDraftAction(action) && !action.workflow_state && !action.canonical_workflow_state
-            ? { ...action, canonical_workflow_state: 'forwarded_to_facilitator' }
-            : action
-    ).label;
+    return getArtifactLifecycleViewModel(getActionSlideLifecycleArtifact(action)).label;
+}
+
+function getActionSlideLifecycleArtifact(action = {}) {
+    return isDraftAction(action) && !action.workflow_state && !action.canonical_workflow_state
+        ? { ...action, canonical_workflow_state: 'forwarded_to_facilitator' }
+        : action;
 }
 
 function isScribeVisibleAction(action = {}) {
@@ -756,6 +764,7 @@ export class ScribeController {
         this.currentSlideIndex = 0;
         this.activeSectionIndex = 0;
         this.lastDeckSlideKey = '';
+        this.actionMarkActiveKey = '';
         this.storeUnsubscribers = [];
         // Navbar activity feed (visible even in presentation mode)
         this.notifications = [];
@@ -1002,6 +1011,12 @@ export class ScribeController {
 
         const sectionListEl = document.getElementById('scribeSectionList');
         sectionListEl?.addEventListener('click', (event) => {
+            const markButton = event.target.closest('[data-action-mark-tab]');
+            if (markButton) {
+                this.selectActionMark(markButton.dataset.actionMarkTab || '');
+                return;
+            }
+
             const slideButton = event.target.closest('[data-slide-key]');
             if (slideButton) {
                 this.setSlideByKey(slideButton.dataset.slideKey || '');
@@ -1021,6 +1036,9 @@ export class ScribeController {
                 }
                 this.toggleSection(sectionIndex);
             }
+        });
+        sectionListEl?.addEventListener('keydown', (event) => {
+            this.handleActionMarkKeydown(event, sectionListEl);
         });
 
         // Section-rail tooltips (collapsed desktop only).
@@ -1983,6 +2001,12 @@ export class ScribeController {
             }
 
             const sectionKind = section.id === PROPOSALS_SECTION_ID ? 'proposals' : 'actions';
+            if (sectionKind === 'actions' && this.teamId === 'blue') {
+                sectionGroups.actions.push(
+                    this.renderActionMarkNavigation(section, currentSlideKey)
+                );
+                return;
+            }
             const sectionKey = this.getSectionExpansionKey(section, sectionIndex);
             const isExpanded = this.expandedSectionIds.has(sectionKey);
             const containsCurrentSlide = section.slides.some((slide) => getSlideKey(slide) === currentSlideKey);
@@ -2072,6 +2096,144 @@ export class ScribeController {
             renderRegion('actions', 'Actions', 'Live team decisions'),
             renderRegion('proposals', 'Proposals', 'Received from other teams')
         ].join('');
+    }
+
+    renderActionMarkNavigation(section = {}, currentSlideKey = '') {
+        const slidesByActionId = new Map(
+            (section.slides || [])
+                .filter((slide) => slide?.action?.id)
+                .map((slide) => [slide.action.id, slide])
+        );
+        const groups = groupActionRecordsByMark(
+            (section.slides || []).map((slide) => slide.action).filter(Boolean)
+        ).map((mark) => ({
+            ...mark,
+            slides: mark.records.map((record) => slidesByActionId.get(record.id)).filter(Boolean)
+        }));
+        const currentSlide = (section.slides || []).find((slide) => getSlideKey(slide) === currentSlideKey);
+        const currentMarkKey = getActionMarkKey(currentSlide?.action);
+        if (currentMarkKey) {
+            this.actionMarkActiveKey = currentMarkKey;
+        }
+        if (!ACTION_MARKS.some((mark) => mark.key === this.actionMarkActiveKey)) {
+            this.actionMarkActiveKey = [...groups].reverse().find((mark) => mark.count > 0)?.key
+                || ACTION_MARKS[0].key;
+        }
+
+        const tabs = groups.map((mark) => {
+            const isActive = mark.key === this.actionMarkActiveKey;
+            return `
+                <button
+                    type="button"
+                    id="facilitator-action-mark-tab-${mark.key}"
+                    class="action-mark-tab${isActive ? ' is-active' : ''}"
+                    data-action-mark-tab="${mark.key}"
+                    role="tab"
+                    aria-selected="${isActive ? 'true' : 'false'}"
+                    aria-controls="facilitator-action-mark-panel-${mark.key}"
+                    aria-label="${escapeHtml(`${mark.label}, ${mark.count} ${mark.count === 1 ? 'record' : 'records'}`)}"
+                    tabindex="${isActive ? '0' : '-1'}"
+                >
+                    <span>${escapeHtml(mark.label)}</span>
+                    <span class="action-mark-count" aria-hidden="true">${mark.count}</span>
+                </button>
+            `;
+        }).join('');
+
+        const panels = groups.map((mark) => {
+            const isActive = mark.key === this.actionMarkActiveKey;
+            const records = mark.slides.map((slide, slideIndex) => {
+                const isActiveSlide = getSlideKey(slide) === currentSlideKey;
+                return `
+                    <li>
+                        <button
+                            type="button"
+                            class="scribe-slide-link${isActiveSlide ? ' is-active' : ''}${getLiveSlideTypeClass(slide)}"
+                            data-slide-key="${escapeHtml(getSlideKey(slide))}"
+                            data-slide-type="${escapeHtml(slide.slideType || 'action')}"
+                            ${isActiveSlide ? 'aria-current="true"' : ''}
+                        >
+                            <span class="scribe-slide-link-number">${escapeHtml(String(slide.sidebarOrdinal || slideIndex + 1))}</span>
+                            <span class="scribe-slide-link-text">
+                                <span class="scribe-slide-link-kicker">${escapeHtml(slide.sidebarKicker || `Record ${slideIndex + 1}`)}</span>
+                                <span class="scribe-slide-link-title">${escapeHtml(slide.title)}</span>
+                            </span>
+                        </button>
+                    </li>
+                `;
+            }).join('');
+
+            return `
+                <section
+                    id="facilitator-action-mark-panel-${mark.key}"
+                    class="action-mark-panel"
+                    data-action-mark-panel="${mark.key}"
+                    role="tabpanel"
+                    aria-labelledby="facilitator-action-mark-tab-${mark.key}"
+                    ${isActive ? '' : 'hidden'}
+                >
+                    ${records
+                        ? `<ol class="scribe-slide-list">${records}</ol>`
+                        : `<p class="action-mark-empty">No records for ${escapeHtml(mark.label)}.</p>`}
+                </section>
+            `;
+        }).join('');
+
+        return `
+            <div class="action-mark-navigation" data-action-mark-navigation>
+                <div class="action-mark-rail" role="tablist" aria-label="Team actions by simulation mark">
+                    ${tabs}
+                </div>
+                <p class="action-mark-help">Use Left and Right Arrow keys to move between marks. Records are newest first.</p>
+                ${panels}
+            </div>
+        `;
+    }
+
+    selectActionMark(markKey = '') {
+        if (!ACTION_MARKS.some((mark) => mark.key === markKey)) return;
+        this.actionMarkActiveKey = markKey;
+        const actionSection = this.sections.find((section) => section.id === ACTIONS_SECTION_ID);
+        const targetSlide = actionSection?.slides?.find((slide) => getActionMarkKey(slide.action) === markKey);
+        if (targetSlide) {
+            this.setSlideByKey(getSlideKey(targetSlide));
+        } else {
+            const container = document.getElementById('scribeSectionList');
+            container?.querySelectorAll?.('[data-action-mark-tab]').forEach((button) => {
+                const isActive = button.dataset.actionMarkTab === markKey;
+                button.classList.toggle('is-active', isActive);
+                button.setAttribute('aria-selected', String(isActive));
+                button.setAttribute('tabindex', isActive ? '0' : '-1');
+            });
+            container?.querySelectorAll?.('[data-action-mark-panel]').forEach((panel) => {
+                panel.hidden = panel.dataset.actionMarkPanel !== markKey;
+            });
+        }
+    }
+
+    handleActionMarkKeydown(event, container = document.getElementById('scribeSectionList')) {
+        const currentTab = event.target?.closest?.('[data-action-mark-tab]');
+        if (!currentTab || !container?.contains?.(currentTab)) return;
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+        event.preventDefault();
+        event.stopPropagation?.();
+        const tabs = [...container.querySelectorAll('[data-action-mark-tab]')];
+        const currentIndex = tabs.indexOf(currentTab);
+        if (currentIndex < 0) return;
+        const nextIndex = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+            ? tabs.length - 1
+            : event.key === 'ArrowLeft'
+            ? (currentIndex - 1 + tabs.length) % tabs.length
+            : (currentIndex + 1) % tabs.length;
+        const nextTab = tabs[nextIndex];
+        const nextMarkKey = nextTab?.dataset?.actionMarkTab || '';
+        this.selectActionMark(nextMarkKey);
+        const renderedNextTab = [...container.querySelectorAll('[data-action-mark-tab]')]
+            .find((tab) => tab.dataset.actionMarkTab === nextMarkKey);
+        renderedNextTab?.focus?.();
     }
 
     renderSlide() {
@@ -2170,6 +2332,8 @@ export class ScribeController {
         const isOrientation = isStrategicOrientationAction(action);
         const isProposal = isProposalAction(action);
         const isEditableDraft = isDraftAction(action);
+        const lifecycle = getArtifactLifecycleViewModel(getActionSlideLifecycleArtifact(action));
+        const isReturned = lifecycle.isReturned;
         const actionControlsDisabled = isOrientation || isProposal || !isEditableDraft;
         const showsCollaborationGroups = this.teamId === 'blue';
         const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
@@ -2197,7 +2361,9 @@ export class ScribeController {
             || this.isPresentationActionSelectionsComplete(presentationSelections);
         const statusId = buildScribeControlId(actionId, 'presentation-toolbar', 'status');
         const toolbarStatus = !isEditableDraft
-            ? 'Submitted to White Cell.'
+            ? `${lifecycle.label}.`
+            : isReturned
+            ? `Returned by White Cell. Correct revision ${action.revision_number || 1} and resubmit it once.`
             : (isProposal
                 ? 'Review the proposal with the room, then forward to White Cell.'
                 : (isOrientation
@@ -2279,7 +2445,7 @@ export class ScribeController {
                         data-action-id="${escapeHtml(actionId)}"
                         aria-describedby="${escapeHtml(statusId)}"
                         ${isEditableDraft && isComplete ? '' : 'disabled'}
-                    >Forward to White Cell</button>
+                    >${isReturned ? 'Resubmit to White Cell' : 'Forward to White Cell'}</button>
                 </div>
             </footer>
         `;
@@ -2463,6 +2629,7 @@ export class ScribeController {
         }
 
         const actionId = String(action.id || '');
+        const lifecycle = getArtifactLifecycleViewModel(getActionSlideLifecycleArtifact(action));
 
         return `
             <section
@@ -2474,7 +2641,7 @@ export class ScribeController {
                 <div class="scribe-action-slide-submit-head">
                     <div>
                         <p class="scribe-action-slide-section-label">Facilitator-to-White Cell handoff</p>
-                        <h3 class="scribe-action-slide-submit-title">Project orientation, then send to White Cell</h3>
+                        <h3 class="scribe-action-slide-submit-title">${lifecycle.isReturned ? 'Correct and resubmit orientation' : 'Project orientation, then send to White Cell'}</h3>
                     </div>
                     <button
                         type="button"
@@ -2494,7 +2661,7 @@ export class ScribeController {
                         class="btn btn-primary"
                         data-scribe-action-submit
                         data-action-id="${escapeHtml(actionId)}"
-                    >Submit to White Cell</button>
+                    >${lifecycle.isReturned ? 'Resubmit to White Cell' : 'Submit to White Cell'}</button>
                 </div>
             </section>
         `;
@@ -2517,6 +2684,7 @@ export class ScribeController {
         }
 
         const actionId = String(action.id || '');
+        const lifecycle = getArtifactLifecycleViewModel(getActionSlideLifecycleArtifact(action));
         const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
         const informedEngagedDecision = normalizeScribeDecision(actionViewModel.informedEngagedDecision);
         const coordinatedValues = actionViewModel.coordinated || [];
@@ -2539,7 +2707,7 @@ export class ScribeController {
                 <div class="scribe-action-slide-submit-head">
                     <div>
                         <p class="scribe-action-slide-section-label">Facilitator finalization</p>
-                        <h3 class="scribe-action-slide-submit-title">Project, coordinate, and submit</h3>
+                        <h3 class="scribe-action-slide-submit-title">${lifecycle.isReturned ? 'Correct and resubmit' : 'Project, coordinate, and submit'}</h3>
                     </div>
                     <button
                         type="button"
@@ -2616,7 +2784,7 @@ export class ScribeController {
                         data-scribe-action-submit
                         data-action-id="${escapeHtml(actionId)}"
                         ${isComplete ? '' : 'hidden disabled aria-hidden="true"'}
-                    >Submit to White Cell</button>
+                    >${lifecycle.isReturned ? 'Resubmit to White Cell' : 'Submit to White Cell'}</button>
                 </div>
             </section>
         `;
@@ -2717,7 +2885,9 @@ export class ScribeController {
             coordinatedDecision: formatScribeDecision(selections.coordinatedDecision),
             coordinated: selections.coordinatedValues || [],
             informedEngagedDecision: formatScribeDecision(selections.informedEngagedDecision),
-            informed: selections.informedValues || []
+            informed: selections.informedValues || [],
+            notificationTeams: actionViewModel.notificationTeams,
+            notificationNote: actionViewModel.notificationNote
         });
     }
 
@@ -2741,9 +2911,11 @@ export class ScribeController {
         }
 
         if (!isDraftAction(action)) {
-            showToast({ message: 'Only scribe-forwarded draft actions can be submitted by the facilitator.', type: 'error' });
+            showToast({ message: 'This revision has already been submitted and is read-only.', type: 'error' });
             return;
         }
+
+        const isReturned = getArtifactLifecycleViewModel(action).isReturned;
 
         if (isStrategicOrientationAction(action)) {
             if (!isStrategicOrientationForwardedToScribe(action)) {
@@ -2754,8 +2926,8 @@ export class ScribeController {
             const viewModel = getStrategicOrientationViewModel(action);
             const confirmed = await confirmModal({
                 title: 'Submit Strategic Orientation to White Cell',
-                message: `Submit ${viewModel.title} to White Cell? The artifact will become read-only for Scribe and Facilitator seats.`,
-                confirmLabel: 'Submit',
+                message: `${isReturned ? 'Resubmit' : 'Submit'} ${viewModel.title} to White Cell? The artifact will become read-only for Scribe and Facilitator seats.`,
+                confirmLabel: isReturned ? 'Resubmit' : 'Submit',
                 variant: 'primary'
             });
 
@@ -2803,8 +2975,8 @@ export class ScribeController {
 
         const confirmed = await confirmModal({
             title: 'Submit Action to White Cell',
-            message: 'Submit this completed action to White Cell? The action will become read-only for Scribe and Facilitator seats.',
-            confirmLabel: 'Submit',
+            message: `${isReturned ? 'Resubmit this corrected' : 'Submit this completed'} action to White Cell? The action will become read-only for Scribe and Facilitator seats.`,
+            confirmLabel: isReturned ? 'Resubmit' : 'Submit',
             variant: 'primary'
         });
 
@@ -2816,6 +2988,7 @@ export class ScribeController {
     }
 
     async submitScribeAction(action = {}, selections = {}) {
+        const wasReturned = getArtifactLifecycleViewModel(action).isReturned;
         if (isStrategicOrientationAction(action)) {
             await this.submitScribeStrategicOrientation(action);
             return;
@@ -2852,6 +3025,8 @@ export class ScribeController {
                     role: this.role || this.teamContext.scribeRole,
                     submitted_by: 'facilitator',
                     legacy_submitted_by: 'scribe',
+                    revision_number: submittedAction.revision_number || action.revision_number || 1,
+                    workflow_state: submittedAction.workflow_state || null,
                     ...buildScribeSubmissionMetadata(selections)
                 },
                 team: this.teamId,
@@ -2860,7 +3035,10 @@ export class ScribeController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            showToast({ message: 'Action submitted to White Cell', type: 'success' });
+            showToast({
+                message: wasReturned ? 'Action resubmitted to White Cell' : 'Action submitted to White Cell',
+                type: 'success'
+            });
         } catch (error) {
             logger.error('Failed to submit facilitator action:', error);
             showToast({ message: 'Failed to submit action. Refresh the facilitator view and try again.', type: 'error' });
@@ -2922,6 +3100,7 @@ export class ScribeController {
         }
 
         const viewModel = getStrategicOrientationViewModel(action);
+        const wasReturned = getArtifactLifecycleViewModel(action).isReturned;
         const loader = showLoader({ message: 'Submitting Strategic Orientation to White Cell...' });
 
         try {
@@ -2940,7 +3119,9 @@ export class ScribeController {
                     strategic_orientation: true,
                     period: STRATEGIC_ORIENTATION_PERIOD,
                     artifact_type: viewModel.artifactType,
-                    orientation: viewModel.orientation
+                    orientation: viewModel.orientation,
+                    revision_number: submittedAction.revision_number || action.revision_number || 1,
+                    workflow_state: submittedAction.workflow_state || null
                 },
                 team: this.teamId,
                 move: submittedAction.move ?? action.move ?? 1,
@@ -2948,7 +3129,12 @@ export class ScribeController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            showToast({ message: 'Strategic Orientation submitted to White Cell', type: 'success' });
+            showToast({
+                message: wasReturned
+                    ? 'Strategic Orientation resubmitted to White Cell'
+                    : 'Strategic Orientation submitted to White Cell',
+                type: 'success'
+            });
         } catch (error) {
             logger.error('Failed to submit Strategic Orientation:', error);
             showToast({ message: 'Failed to submit Strategic Orientation. Refresh the facilitator view and try again.', type: 'error' });
@@ -3143,6 +3329,9 @@ export class ScribeController {
     renderStrategicOrientationSlide(slide, viewModel = getStrategicOrientationViewModel(slide.action || {})) {
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
+        const lifecycleArtifact = getActionSlideLifecycleArtifact(action);
+        const lifecycle = getArtifactLifecycleViewModel(lifecycleArtifact);
+        const returnNotes = action.review_notes || action.adjudication_notes || '';
         const forecastRows = viewModel.isForecast
             ? (viewModel.forecastTargets.length
                 ? viewModel.forecastTargets
@@ -3163,6 +3352,12 @@ export class ScribeController {
                     <div>
                         <p class="scribe-action-slide-eyebrow">${escapeHtml(viewModel.teamLabel)}</p>
                         <h2 class="scribe-action-slide-title">${viewModel.isForecast ? 'Strategic Orientation Forecast' : 'Strategic Orientation'}</h2>
+                    </div>
+                    <div class="scribe-action-slide-status">
+                        ${createArtifactLifecycleBadge(lifecycleArtifact, { size: 'sm' }).outerHTML}
+                        ${lifecycle.isAwaitingWhiteCell
+                            ? createBadge({ text: 'Deliberation Underway', variant: 'warning', size: 'sm', rounded: true }).outerHTML
+                            : ''}
                     </div>
                 </header>
 
@@ -3208,6 +3403,13 @@ export class ScribeController {
                         <p class="scribe-action-slide-section-label">Team rationale</p>
                         <p class="scribe-action-slide-body">${escapeHtml(viewModel.rationale || 'No rationale provided.')}</p>
                     </section>
+
+                    ${lifecycle.isReturned ? `
+                        <section class="scribe-action-slide-return" aria-label="White Cell return details">
+                            <p><strong>White Cell notes:</strong> ${escapeHtml(returnNotes || 'No return notes recorded.')}</p>
+                            <p><strong>Revision:</strong> ${escapeHtml(String(action.revision_number || 1))}</p>
+                        </section>
+                    ` : ''}
 
                     ${scribeSubmissionControls}
                 </section>
@@ -3502,6 +3704,9 @@ export class ScribeController {
 
         const actionViewModel = slide.actionViewModel || getBlueActionViewModel(action);
         const isDraftPreview = isDraftAction(action);
+        const lifecycleArtifact = getActionSlideLifecycleArtifact(action);
+        const lifecycle = getArtifactLifecycleViewModel(lifecycleArtifact);
+        const returnNotes = action.review_notes || action.adjudication_notes || '';
         const decisionBrief = actionViewModel.objective || 'No objective provided.';
         const expectedEffect = actionViewModel.expectedOutcomes || '';
         const showExpectedEffect = hasDistinctActionText(decisionBrief, expectedEffect);
@@ -3549,6 +3754,12 @@ export class ScribeController {
                             <p class="scribe-action-slide-eyebrow">${escapeHtml(this.teamLabel)} Action</p>
                             <h2 class="scribe-action-slide-title">${escapeHtml(actionViewModel.title)}</h2>
                         </div>
+                        <div class="scribe-action-slide-status">
+                            ${createArtifactLifecycleBadge(lifecycleArtifact, { size: 'sm' }).outerHTML}
+                            ${lifecycle.isAwaitingWhiteCell
+                                ? createBadge({ text: 'Deliberation Underway', variant: 'warning', size: 'sm', rounded: true }).outerHTML
+                                : ''}
+                        </div>
                     </header>
 
                     <section class="scribe-action-slide-panel">
@@ -3575,6 +3786,12 @@ export class ScribeController {
                         </section>
 
                         ${legacyNotes}
+                        ${lifecycle.isReturned ? `
+                            <section class="scribe-action-slide-return" aria-label="White Cell return details">
+                                <p><strong>White Cell notes:</strong> ${escapeHtml(returnNotes || 'No return notes recorded.')}</p>
+                                <p><strong>Revision:</strong> ${escapeHtml(String(action.revision_number || 1))}</p>
+                            </section>
+                        ` : ''}
                         ${scribeSubmissionControls}
                     </section>
                 </div>

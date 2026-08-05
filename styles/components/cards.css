@@ -990,6 +990,115 @@
     margin-bottom: 0;
 }
 
+/* Fixed exercise-mark navigation shared by Facilitator and White Cell action views. */
+.action-mark-navigation {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.action-mark-rail {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-2);
+    width: 100%;
+    max-width: 100%;
+    padding: var(--space-1);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline proximity;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+}
+
+.action-mark-tab {
+    display: inline-flex;
+    flex: 1 0 max-content;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    scroll-snap-align: start;
+}
+
+.action-mark-tab:hover {
+    border-color: var(--color-primary-200);
+    background: var(--color-primary-100);
+    color: var(--color-primary-700);
+}
+
+.action-mark-tab:focus-visible {
+    outline: 3px solid var(--color-focus-ring, var(--color-primary-500));
+    outline-offset: 2px;
+}
+
+.action-mark-tab.is-active,
+.action-mark-tab[aria-selected="true"] {
+    border-color: var(--color-primary-500);
+    background: var(--color-primary-100);
+    color: var(--color-primary-700);
+}
+
+.action-mark-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--space-6);
+    min-height: var(--space-6);
+    padding-inline: var(--space-1);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+}
+
+.action-mark-help {
+    margin: var(--space-2) var(--space-1) var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+}
+
+.action-mark-panel {
+    display: grid;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.action-mark-panel[hidden] {
+    display: none;
+}
+
+.action-mark-empty {
+    margin: 0;
+    padding: var(--space-4);
+    border: var(--border-width) dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+}
+
+@media (max-width: 768px) {
+    .action-mark-rail {
+        padding-bottom: var(--space-2);
+    }
+
+    .action-mark-tab {
+        flex: 0 0 auto;
+    }
+}
+
 .badge:not(.badge-dot):not(.badge-count).badge-source-team::before {
     content: none;
 }

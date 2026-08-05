@@ -673,7 +673,7 @@ body::before {
     margin-top: 2px;
 }
 
-/* Keep Team Action Review in one top-to-bottom reading sequence. */
+/* Records stay vertical inside the selected horizontal exercise mark. */
 .scribe-section-card--actions .scribe-slide-list {
     display: flex;
     flex-direction: column;
@@ -1431,6 +1431,21 @@ body::before {
     border-color: rgba(17, 87, 64, 0.14);
 }
 
+.scribe-action-slide-return {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    border-inline-start: var(--space-1) solid var(--color-warning-500, var(--color-warning));
+    border-radius: var(--radius-md);
+    background: var(--color-warning-50, var(--color-surface-alt));
+    color: var(--color-text-primary);
+}
+
+.scribe-action-slide-return p {
+    margin: 0;
+}
+
 .scribe-action-slide-note-label {
     margin: 0;
     color: var(--color-team-blue);
@@ -1772,6 +1787,11 @@ body[data-scribe-presentation="active"] .scribe-action-slide-submit-panel {
     display: none !important;
 }
 
+body[data-scribe-presentation="active"] .scribe-action-slide-status,
+body[data-scribe-presentation="active"] .scribe-action-slide-return {
+    display: none !important;
+}
+
 body[data-scribe-presentation="active"] .scribe-presentation-toolbar {
     position: fixed;
     z-index: var(--z-fixed);
@@ -1942,6 +1962,7 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
 /* Strip the rail down to just the numbered badges. */
 #sidebar.sidebar-collapsed .scribe-section-region-heading,
 #sidebar.sidebar-collapsed .scribe-slide-group,
+#sidebar.sidebar-collapsed .action-mark-navigation,
 #sidebar.sidebar-collapsed .scribe-section-trigger-text,
 #sidebar.sidebar-collapsed .scribe-section-trigger-meta,
 #sidebar.sidebar-collapsed .scribe-view-switch,
@@ -2046,6 +2067,15 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
 
     .scribe-section-nav {
         padding-top: var(--space-4);
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .scribe-section-region--actions,
+    .scribe-section-region--actions .action-mark-navigation,
+    .scribe-section-region--actions .action-mark-rail {
+        max-width: 100%;
+        min-width: 0;
     }
 
     .sidebar-overlay.sidebar-overlay-visible {

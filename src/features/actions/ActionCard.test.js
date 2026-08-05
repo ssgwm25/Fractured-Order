@@ -47,7 +47,7 @@ describe('proposal action cards', () => {
             })
         }, { showActions: false });
 
-        expect(card.innerHTML).toContain('Deliberation Underway');
+        expect(card.innerHTML).toContain('Submitted to White Cell');
         expect(card.innerHTML).not.toMatch(/Success|Partial Success|Fail|Backfire|SUCCESS|PARTIAL_SUCCESS|BACKFIRE/);
     });
 });

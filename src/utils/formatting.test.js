@@ -8,6 +8,6 @@ describe('formatStatus', () => {
     });
 
     it('preserves the default title-cased mapping for other statuses', () => {
-        expect(formatStatus('submitted')).toBe('Deliberation Underway');
+        expect(formatStatus('submitted')).toBe('Submitted to White Cell');
     });
 });
