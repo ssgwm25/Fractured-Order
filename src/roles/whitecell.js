@@ -23,6 +23,7 @@ import {
     createRoleBadge,
     createPriorityBadge
 } from '../components/ui/Badge.js';
+import { resolveArtifactWorkflowState } from '../features/actions/artifactLifecycle.js';
 import {
     formatActionSequenceLabel,
     formatBlueActionSelection,
@@ -146,6 +147,16 @@ import {
 import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
 
 const logger = createLogger('WhiteCell');
+const WHITE_CELL_RFI_REVIEW_STATES = new Set(['submitted_to_white_cell', 'resubmitted']);
+
+export function isRfiAwaitingWhiteCellResponse(rfi = {}) {
+    return rfi.status === 'pending'
+        && WHITE_CELL_RFI_REVIEW_STATES.has(resolveArtifactWorkflowState(rfi));
+}
+
+export function isCompletedArtifactImmutabilityError(error) {
+    return String(error?.message || '').includes('Completed artifacts are immutable.');
+}
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
 const WHITE_CELL_RED_TEAM_RECIPIENT = 'red';
 const WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE = 'scribe_deck_assignment';
@@ -4370,7 +4381,7 @@ export class WhiteCellController {
     }
 
     syncRfisFromStore() {
-        this.rfis = requestsStore.getPending();
+        this.rfis = requestsStore.getPending().filter(isRfiAwaitingWhiteCellResponse);
 
         this.renderRfiQueue();
 
@@ -4478,6 +4489,26 @@ export class WhiteCellController {
         const loader = showLoader({ message: 'Sending response...' });
 
         try {
+            let latestRequest = null;
+            try {
+                await requestsStore.loadRequests();
+                latestRequest = requestsStore.getById(rfiId) || null;
+                this.syncRfisFromStore();
+            } catch (refreshError) {
+                logger.warn('Could not refresh the RFI before responding; the protected RPC will verify it:', refreshError);
+            }
+
+            if (latestRequest && !isRfiAwaitingWhiteCellResponse(latestRequest)) {
+                showToast({
+                    message: latestRequest.status === 'answered'
+                        ? 'This RFI was already answered. The queue has been refreshed.'
+                        : 'This RFI is already completed and can no longer be changed. The queue has been refreshed.',
+                    type: 'warning'
+                });
+                modal?.close();
+                return;
+            }
+
             const updatedRequest = await database.updateRequest(rfiId, {
                 response,
                 status: 'answered',
@@ -4504,6 +4535,25 @@ export class WhiteCellController {
             showToast({ message: 'Response sent', type: 'success' });
             modal?.close();
         } catch (err) {
+            if (isCompletedArtifactImmutabilityError(err)) {
+                logger.warn('RFI response skipped because the record was already completed; refreshing the queue.');
+                try {
+                    await requestsStore.loadRequests();
+                } catch (refreshError) {
+                    logger.warn('Could not refresh the RFI queue after a completed-record conflict:', refreshError);
+                }
+                this.rfis = requestsStore.getPending()
+                    .filter(isRfiAwaitingWhiteCellResponse)
+                    .filter((rfi) => rfi.id !== rfiId);
+                this.renderRfiQueue();
+                this.updateSidebarBadge('rfiBadge', this.rfis.length);
+                showToast({
+                    message: 'This RFI was already completed. The queue has been refreshed.',
+                    type: 'warning'
+                });
+                modal?.close();
+                return;
+            }
             logger.error('Failed to respond to RFI:', err);
             showToast({ message: 'Failed to send response', type: 'error' });
         } finally {

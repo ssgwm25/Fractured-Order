@@ -17,7 +17,6 @@ const GREEN_SCRIBE_HTML_PATH = new URL('../../teams/green/scribe.html', import.m
 const INDUSTRY_SCRIBE_HTML_PATH = new URL('../../teams/industry/scribe.html', import.meta.url);
 const RED_SCRIBE_HTML_PATH = new URL('../../teams/red/scribe.html', import.meta.url);
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
-const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
 const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
 const {
@@ -876,13 +875,14 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         );
     });
 
-    it('keeps the live decision mark rail available after deck details leave the sidebar', async () => {
+    it('keeps four vertical action sections available for non-Blue scribe interfaces', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
         global.document = fakeDocument;
 
         const controller = new ScribeController();
+        controller.teamId = 'red';
         controller.sections = [{
             id: 'actions',
             label: 'Actions',
@@ -909,15 +909,17 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         controller.sectionExpansionInitialized = true;
 
         controller.renderSections();
-        expect(sectionList.innerHTML).toContain('data-action-mark-navigation');
-        expect(sectionList.innerHTML).toContain('aria-label="Move 1, 1 record"');
-        expect(sectionList.innerHTML).toMatch(/data-action-mark-tab="move-1"[\s\S]*?aria-selected="true"/);
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark-stack');
+        expect(sectionList.innerHTML).toContain('<h2 class="scribe-section-region-title">Actions</h2>');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="strategic-orientation"');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="move-1"');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="move-2"');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="move-3"');
+        expect(sectionList.innerHTML).toMatch(/data-scribe-action-mark="move-1"[\s\S]*?aria-current="true"/);
+        expect(sectionList.innerHTML).not.toContain('role="tablist"');
+        expect(sectionList.innerHTML).not.toContain('hidden');
         expect(sectionList.innerHTML).not.toContain('Overview');
 
-        controller.selectActionMark('move-2');
-
-        expect(controller.actionMarkActiveKey).toBe('move-2');
-        expect(sectionList.innerHTML).not.toContain('Overview');
         expect(controller.activeSectionIndex).toBe(0);
         expect(controller.getCurrentSlideKey()).toBe('action-live-1');
     });
@@ -958,9 +960,10 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         expect(sectionList.innerHTML).toContain('scribe-section-region--actions');
         expect(sectionList.innerHTML).toContain('Live team decisions');
-        expect(sectionList.innerHTML).toContain('data-action-mark-navigation');
-        expect(sectionList.innerHTML).toContain('aria-label="Strategic Orientation, 0 records"');
-        expect(sectionList.innerHTML).toContain('aria-label="Move 1, 0 records"');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark-stack');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="strategic-orientation"');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="move-1"');
+        expect(sectionList.innerHTML).toContain('aria-label="0 records"');
         expect(sectionList.innerHTML).toContain('No records for Strategic Orientation.');
         expect(sectionList.innerHTML).not.toContain('scribe-section-region--deck');
         expect(sectionList.innerHTML).not.toContain('Support slides');
@@ -2837,71 +2840,22 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(css).not.toContain('box-shadow: inset 3px 0 0 var(--color-team-blue);');
     });
 
-    it('keeps action records vertical inside a horizontally scrollable mobile mark rail', () => {
+    it('lays out action marks and their records as vertical scribe sections', () => {
         const pageCss = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
-        const cardCss = normalizeLineEndings(readFileSync(CARDS_CSS_PATH, 'utf8'));
 
-        expect(pageCss).toContain('.scribe-section-card--actions .scribe-slide-list {\n    display: flex;\n    flex-direction: column;\n    gap: var(--space-1);');
-        expect(pageCss).toContain('.scribe-section-region--actions .action-mark-rail {\n        max-width: 100%;\n        min-width: 0;');
+        expect(pageCss).toContain('.scribe-action-mark-stack {\n    display: grid;');
+        expect(pageCss).toContain('.scribe-action-mark-section {\n    display: grid;');
+        expect(pageCss).toContain('.scribe-action-mark-heading {\n    display: flex;');
+        expect(pageCss).toContain('.scribe-action-mark-section .scribe-slide-list {\n    display: flex;\n    flex-direction: column;\n    gap: var(--space-1);');
+        expect(pageCss).toContain('.scribe-action-mark-stack,\n    .scribe-action-mark-section {\n        max-width: 100%;\n        min-width: 0;');
         expect(pageCss).toContain('overflow-x: hidden;');
-        expect(cardCss).toContain('.action-mark-rail {\n    display: flex;');
-        expect(cardCss).toContain('overflow-x: auto;');
-        expect(cardCss).toContain('overflow-y: hidden;');
-        expect(cardCss).toContain('overscroll-behavior-inline: contain;');
-        expect(cardCss).toContain('scroll-snap-type: inline proximity;');
-        expect(cardCss).toContain('.action-mark-tab:focus-visible {');
-        expect(cardCss).toContain('@media (max-width: 768px)');
-        expect(cardCss).toContain('flex: 0 0 auto;');
+        expect(pageCss).toContain('#sidebar.sidebar-collapsed .scribe-action-mark-stack,');
     });
 
-    it('moves mark-rail focus with Arrow, Home, and End keys', async () => {
+    it('renders every action mark vertically with each action beneath its heading', async () => {
         const { ScribeController } = await loadScribeModule();
         const controller = new ScribeController();
-        const keys = ['strategic-orientation', 'move-1', 'move-2', 'move-3'];
-        const tabs = keys.map((key) => ({
-            dataset: { actionMarkTab: key },
-            closest: vi.fn(function closest() { return this; }),
-            focus: vi.fn()
-        }));
-        const container = {
-            contains: (tab) => tabs.includes(tab),
-            querySelectorAll: () => tabs
-        };
-        const selectActionMark = vi.spyOn(controller, 'selectActionMark').mockImplementation(() => {});
-        const rightEvent = {
-            key: 'ArrowRight',
-            target: tabs[1],
-            preventDefault: vi.fn(),
-            stopPropagation: vi.fn()
-        };
-
-        controller.handleActionMarkKeydown(rightEvent, container);
-        expect(rightEvent.preventDefault).toHaveBeenCalled();
-        expect(rightEvent.stopPropagation).toHaveBeenCalled();
-        expect(selectActionMark).toHaveBeenLastCalledWith('move-2');
-        expect(tabs[2].focus).toHaveBeenCalled();
-
-        controller.handleActionMarkKeydown({
-            key: 'End',
-            target: tabs[0],
-            preventDefault: vi.fn(),
-            stopPropagation: vi.fn()
-        }, container);
-        expect(selectActionMark).toHaveBeenLastCalledWith('move-3');
-
-        controller.handleActionMarkKeydown({
-            key: 'Home',
-            target: tabs[3],
-            preventDefault: vi.fn(),
-            stopPropagation: vi.fn()
-        }, container);
-        expect(selectActionMark).toHaveBeenLastCalledWith('strategic-orientation');
-    });
-
-    it('opens the latest populated action mark and renders every zero-count mark', async () => {
-        const { ScribeController } = await loadScribeModule();
-        const controller = new ScribeController();
-        const markup = controller.renderActionMarkNavigation({
+        const markup = controller.renderVerticalActionMarkSections({
             id: 'actions',
             slides: [{
                 slideKey: 'action-move-1',
@@ -2916,12 +2870,18 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             }]
         });
 
-        expect(controller.actionMarkActiveKey).toBe('move-3');
-        expect(markup).toContain('aria-label="Strategic Orientation, 0 records"');
-        expect(markup).toContain('aria-label="Move 1, 1 record"');
-        expect(markup).toContain('aria-label="Move 2, 0 records"');
-        expect(markup).toContain('aria-label="Move 3, 1 record"');
-        expect(markup).toMatch(/data-action-mark-tab="move-3"[\s\S]*?aria-selected="true"/);
+        expect(markup).toContain('data-scribe-action-mark-stack');
+        expect(markup).toContain('<h3 id="scribe-action-mark-heading-strategic-orientation"');
+        expect(markup).toContain('<h3 id="scribe-action-mark-heading-move-3"');
+        expect(markup).toMatch(/data-scribe-action-mark="strategic-orientation"[\s\S]*?No records for Strategic Orientation\./);
+        expect(markup).toMatch(/data-scribe-action-mark="move-1"[\s\S]*?Move 1 action/);
+        expect(markup).toMatch(/data-scribe-action-mark="move-2"[\s\S]*?No records for Move 2\./);
+        expect(markup).toMatch(/data-scribe-action-mark="move-3"[\s\S]*?Move 3 action/);
+        expect(markup.indexOf('Strategic Orientation')).toBeLessThan(markup.indexOf('Move 1'));
+        expect(markup.indexOf('Move 1')).toBeLessThan(markup.indexOf('Move 2'));
+        expect(markup.indexOf('Move 2')).toBeLessThan(markup.indexOf('Move 3'));
+        expect(markup).not.toContain('role="tablist"');
+        expect(markup).not.toContain('hidden');
         expect(markup).toContain('No records for Move 2.');
     });
 

@@ -498,6 +498,7 @@ body::before {
 }
 
 .scribe-section-region-title {
+    margin: 0;
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
     color: var(--color-text-muted);
@@ -532,6 +533,40 @@ body::before {
 
 .scribe-section-region--proposals {
     margin-top: var(--space-5);
+}
+
+.scribe-action-mark-stack {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+    padding: 0 var(--space-3);
+}
+
+.scribe-action-mark-section {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-3);
+    border: var(--border-width) solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.scribe-action-mark-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-bottom: var(--space-2);
+    border-bottom: var(--border-width) solid var(--color-border-light);
+}
+
+.scribe-action-mark-title {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-snug);
 }
 
 .scribe-section-card {
@@ -673,20 +708,20 @@ body::before {
     margin-top: 2px;
 }
 
-/* Records stay vertical inside the selected horizontal exercise mark. */
-.scribe-section-card--actions .scribe-slide-list {
+/* Records stay vertical beneath each exercise-mark heading. */
+.scribe-action-mark-section .scribe-slide-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
 }
 
-.scribe-section-card--actions .scribe-slide-list > li {
+.scribe-action-mark-section .scribe-slide-list > li {
     flex: 0 1 auto;
     min-width: 0;
     width: 100%;
 }
 
-.scribe-section-card--actions .scribe-slide-list > li + li {
+.scribe-action-mark-section .scribe-slide-list > li + li {
     margin-top: 0;
 }
 
@@ -1962,7 +1997,7 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
 /* Strip the rail down to just the numbered badges. */
 #sidebar.sidebar-collapsed .scribe-section-region-heading,
 #sidebar.sidebar-collapsed .scribe-slide-group,
-#sidebar.sidebar-collapsed .action-mark-navigation,
+#sidebar.sidebar-collapsed .scribe-action-mark-stack,
 #sidebar.sidebar-collapsed .scribe-section-trigger-text,
 #sidebar.sidebar-collapsed .scribe-section-trigger-meta,
 #sidebar.sidebar-collapsed .scribe-view-switch,
@@ -2072,8 +2107,8 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
     }
 
     .scribe-section-region--actions,
-    .scribe-section-region--actions .action-mark-navigation,
-    .scribe-section-region--actions .action-mark-rail {
+    .scribe-action-mark-stack,
+    .scribe-action-mark-section {
         max-width: 100%;
         min-width: 0;
     }

@@ -857,7 +857,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
     });
 
-    it('styles facilitator response cards inside reusable horizontal tabs', () => {
+    it('styles facilitator action marks with the shared White Cell rail', () => {
         const cardsCss = readFileSync(CARDS_CSS_PATH, 'utf8');
         const gridCss = readFileSync(GRID_CSS_PATH, 'utf8');
 
@@ -865,11 +865,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(gridCss).toContain('.tab-button {');
         expect(gridCss).toContain('.tab-panel[hidden] {');
         expect(gridCss).toContain('@media (prefers-reduced-motion: no-preference)');
-        expect(cardsCss).toContain('.action-sequence-tabs .tab-list {\n    display: flex;\n    flex-direction: row;\n    flex-wrap: nowrap;');
-        expect(cardsCss).toContain('.action-sequence-tabs .tab-list > .tab-button {\n    display: inline-flex;\n    flex: 0 0 auto;\n    width: auto;');
-        expect(cardsCss).toContain('.action-sequence-tabs__help {');
-        expect(cardsCss).toContain('.action-sequence-panel {');
-        expect(cardsCss).toContain('.action-sequence-empty {');
+        expect(cardsCss).toContain('.action-mark-rail {\n    display: flex;');
+        expect(cardsCss).toContain('overflow-x: auto;');
+        expect(cardsCss).toContain('.action-mark-tab:focus-visible {');
+        expect(cardsCss).toContain('.action-mark-panel[hidden] {');
+        expect(cardsCss).toContain('.action-mark-empty {');
         expect(cardsCss).toContain('.response-type-group {');
         expect(cardsCss).toContain('.response-type-group__header {');
         expect(cardsCss).toContain('.response-type-group__count {');
@@ -1007,11 +1007,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         controller.renderActionsList();
 
-        expect(actionsList.innerHTML).toContain('aria-label="Proposal records by simulation move"');
-        expect(actionsList.innerHTML).toContain('data-action-sequence-tab="strategic-orientation"');
-        expect(actionsList.innerHTML).toContain('data-action-sequence-tab="move-3"');
-        expect(actionsList.innerHTML).toContain('No Strategic Orientation record has been noted yet.');
-        expect(actionsList.innerHTML).toContain('No proposals have been noted for Move 1.');
+        expect(actionsList.innerHTML).toContain('aria-label="Green Team records by simulation mark"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="strategic-orientation"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="move-3"');
+        expect(actionsList.innerHTML).toContain('No records for Strategic Orientation.');
+        expect(actionsList.innerHTML).toContain('No records for Move 1.');
         expect(actionsList.innerHTML).not.toContain('No Actions Yet');
         expect(actionsList.innerHTML).not.toContain('strategic action');
     });
@@ -1035,11 +1035,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         controller.renderActionsList();
 
-        expect(actionsList.innerHTML).toContain('aria-label="Proposal records by simulation move"');
-        expect(actionsList.innerHTML).toContain('data-action-sequence-tab="strategic-orientation"');
-        expect(actionsList.innerHTML).toContain('data-action-sequence-tab="move-3"');
-        expect(actionsList.innerHTML).toContain('No Strategic Orientation record has been noted yet.');
-        expect(actionsList.innerHTML).toContain('No proposals have been noted for Move 1.');
+        expect(actionsList.innerHTML).toContain('aria-label="Industry Team records by simulation mark"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="strategic-orientation"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="move-3"');
+        expect(actionsList.innerHTML).toContain('No records for Strategic Orientation.');
+        expect(actionsList.innerHTML).toContain('No records for Move 1.');
         expect(actionsList.innerHTML).not.toContain('No Actions Yet');
         expect(actionsList.innerHTML).not.toContain('strategic action');
     });
@@ -1147,7 +1147,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         timelineGetAll.mockRestore();
     });
 
-    it('renders action-specific empty-state copy for the Red facilitator queue', async () => {
+    it('keeps the shared White Cell action marks visible in an empty Red facilitator queue', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         controller.teamId = 'red';
@@ -1166,8 +1166,12 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         controller.renderActionsList();
 
-        expect(actionsList.innerHTML).toContain('No Actions Yet');
-        expect(actionsList.innerHTML).toContain('Create your first action to start the White Cell review flow.');
+        expect(actionsList.innerHTML).toContain('aria-label="Red Team records by simulation mark"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="strategic-orientation"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="move-3"');
+        expect(actionsList.innerHTML).toContain('No records for Strategic Orientation.');
+        expect(actionsList.innerHTML).toContain('No records for Move 1.');
+        expect(actionsList.innerHTML).not.toContain('No Actions Yet');
         expect(actionsList.innerHTML).not.toContain('strategic action');
     });
 
@@ -1189,7 +1193,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(markup).not.toContain('Send to Red Team');
     });
 
-    it('sequences Strategic Orientation before move actions and shows newest actions first within a move', async () => {
+    it('uses the White Cell mark rail for Blue and shows newest actions first within a move', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const actionsList = createFakeElement('actionsList');
         global.document = {
@@ -1251,18 +1255,19 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         controller.renderActionsList();
 
-        expect(actionsList.innerHTML).not.toContain('data-actions-tabs');
-        expect(actionsList.innerHTML).toContain('aria-label="Submissions in exercise sequence"');
-        expect(actionsList.innerHTML.indexOf('Strategic Orientation')).toBeLessThan(actionsList.innerHTML.indexOf('Move 1 Actions'));
-        expect(actionsList.innerHTML.indexOf('Move 1 Actions')).toBeLessThan(actionsList.innerHTML.indexOf('Move 2 Actions'));
-        expect(actionsList.innerHTML.indexOf('Move 2 Actions')).toBeLessThan(actionsList.innerHTML.indexOf('Move 3 Actions'));
+        expect(actionsList.innerHTML).toContain('data-action-mark-navigation');
+        expect(actionsList.innerHTML).toContain('aria-label="Blue Team records by simulation mark"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="strategic-orientation"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="move-1"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="move-2"');
+        expect(actionsList.innerHTML).toContain('data-action-mark-tab="move-3"');
         expect(actionsList.innerHTML.indexOf('Newest Move 1 action')).toBeLessThan(actionsList.innerHTML.indexOf('Older Move 1 action'));
         expect(actionsList.innerHTML).toContain('entity-card__toggle-state');
         expect(actionsList.innerHTML).toContain('Draft');
         expect(actionsList.innerHTML).toContain('Submitted to White Cell');
     });
 
-    it('renders proposal-team simulation marks as White Cell-style category tabs', async () => {
+    it('renders proposal-team simulation marks with the shared White Cell tabs', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         global.document = createFakeDocument();
         const controller = new FacilitatorController();
@@ -1274,27 +1279,19 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             await createStrategicOrientationAction({ id: 'strategic-orientation-green', team: 'green' }),
             { id: 'proposal-move-1', team: 'green', move: 1, mechanism: 'Proposal' }
         ];
-        const groups = controller.getActionSequenceGroups(controller.actions);
         const markup = controller.renderGroupedActionList();
 
-        expect(groups.map((group) => group.title)).toEqual([
-            'Strategic Orientation',
-            'Move 1 Proposals',
-            'Move 2 Proposals'
-        ]);
-        expect(markup).toContain('data-action-sequence-tabs');
+        expect(markup).toContain('data-action-mark-navigation');
         expect(markup).toContain('role="tablist"');
-        expect(markup).toContain('aria-label="Proposal records by simulation move"');
-        expect(markup).toContain('data-action-sequence-tab="strategic-orientation"');
-        expect(markup).toContain('data-action-sequence-tab="move-1"');
-        expect(markup).toContain('data-action-sequence-tab="move-2"');
-        expect(markup).toContain('data-action-sequence-tab="move-3"');
-        expect(markup).toContain('aria-label="Move 3, 0 proposals"');
-        expect(markup).toContain('No proposals have been noted for Move 3.');
-        expect(markup).toContain('see exactly what the Scribe noted for that part of the simulation');
+        expect(markup).toContain('aria-label="Green Team records by simulation mark"');
+        expect(markup).toContain('data-action-mark-tab="strategic-orientation"');
+        expect(markup).toContain('data-action-mark-tab="move-1"');
+        expect(markup).toContain('data-action-mark-tab="move-2"');
+        expect(markup).toContain('data-action-mark-tab="move-3"');
+        expect(markup).toContain('aria-label="Move 3, 0 records"');
+        expect(markup).toContain('No records for Move 3.');
+        expect(markup).toContain('Records are newest first.');
         expect(markup).toContain('role="tabpanel"');
-        expect(markup).toContain('Move 1 Proposals');
-        expect(markup).toContain('Move 2 Proposals');
         expect(markup.indexOf('proposal-move-1')).toBeLessThan(markup.indexOf('proposal-move-2'));
     });
 
@@ -1327,11 +1324,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(actionsDescription.textContent).toContain('conditional supply-chain details');
     });
 
-    it('switches proposal category tabs with arrow-key navigation', async () => {
+    it('switches facilitator action marks with arrow-key navigation', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const createTab = (key) => {
             const tab = {
-                dataset: { actionSequenceTab: key },
+                dataset: { actionMarkTab: key },
                 classList: { toggle: vi.fn() },
                 setAttribute: vi.fn(),
                 focus: vi.fn()
@@ -1341,13 +1338,13 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         };
         const tabs = ['strategic-orientation', 'move-1', 'move-2', 'move-3'].map(createTab);
         const panels = tabs.map((tab) => ({
-            dataset: { actionSequencePanel: tab.dataset.actionSequenceTab },
+            dataset: { actionMarkPanel: tab.dataset.actionMarkTab },
             hidden: false
         }));
         const actionsList = {
             contains: vi.fn(() => true),
             querySelectorAll: vi.fn((selector) => (
-                selector.includes('data-action-sequence-tab') ? tabs : panels
+                selector.includes('data-action-mark-tab') ? tabs : panels
             ))
         };
         global.document = {
@@ -1364,15 +1361,15 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             preventDefault: vi.fn()
         };
 
-        controller.handleActionSequenceTabKeydown(event, actionsList);
+        controller.handleActionMarkKeydown(event, actionsList);
 
         expect(event.preventDefault).toHaveBeenCalledTimes(1);
-        expect(controller.actionSequenceActiveTab).toBe('move-2');
+        expect(controller.actionMarkActiveKey).toBe('move-2');
         expect(tabs[2].setAttribute).toHaveBeenCalledWith('aria-selected', 'true');
         expect(tabs[2].setAttribute).toHaveBeenCalledWith('tabindex', '0');
         expect(tabs[2].focus).toHaveBeenCalledTimes(1);
-        expect(panels.find((panel) => panel.dataset.actionSequencePanel === 'move-2').hidden).toBe(false);
-        expect(panels.find((panel) => panel.dataset.actionSequencePanel === 'move-1').hidden).toBe(true);
+        expect(panels.find((panel) => panel.dataset.actionMarkPanel === 'move-2').hidden).toBe(false);
+        expect(panels.find((panel) => panel.dataset.actionMarkPanel === 'move-1').hidden).toBe(true);
     });
 
     it('renders Green and Industry proposal records as proposals instead of generic action cards', async () => {

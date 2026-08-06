@@ -3528,6 +3528,103 @@ describe('White Cell DOM contract', () => {
         expect(showToast).toHaveBeenCalledWith({ message: 'Research archive is ready.', type: 'success' });
     });
 
+    it('only exposes submitted and resubmitted pending RFIs for White Cell response', async () => {
+        const { isRfiAwaitingWhiteCellResponse } = await loadWhiteCellModule();
+
+        expect(isRfiAwaitingWhiteCellResponse({ status: 'pending' })).toBe(true);
+        expect(isRfiAwaitingWhiteCellResponse({
+            status: 'pending',
+            workflow_state: 'resubmitted'
+        })).toBe(true);
+        expect(isRfiAwaitingWhiteCellResponse({
+            status: 'pending',
+            workflow_state: 'returned_to_team'
+        })).toBe(false);
+        expect(isRfiAwaitingWhiteCellResponse({
+            status: 'pending',
+            workflow_state: 'completed'
+        })).toBe(false);
+        expect(isRfiAwaitingWhiteCellResponse({
+            status: 'answered',
+            workflow_state: 'completed'
+        })).toBe(false);
+    });
+
+    it('refreshes and removes a stale RFI when completion wins the response race', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { requestsStore } = await import('../stores/requests.js');
+        const fakeDocument = createFakeDocument(['rfiResponse', 'rfiQueue', 'rfiBadge']);
+        fakeDocument.elements.rfiResponse.value = 'White Cell response.';
+        global.document = fakeDocument;
+
+        const pendingRequest = {
+            id: 'rfi-stale-1',
+            status: 'pending',
+            workflow_state: 'submitted_to_white_cell',
+            team: 'blue'
+        };
+        vi.spyOn(requestsStore, 'loadRequests').mockResolvedValue();
+        vi.spyOn(requestsStore, 'getById').mockReturnValue(pendingRequest);
+        vi.spyOn(requestsStore, 'getPending')
+            .mockReturnValueOnce([pendingRequest])
+            .mockReturnValueOnce([]);
+        const updateRequest = vi.spyOn(database, 'updateRequest').mockRejectedValue(
+            new Error('Completed artifacts are immutable.')
+        );
+        const createTimelineEvent = vi.spyOn(database, 'createTimelineEvent');
+        const modal = { close: vi.fn() };
+        const controller = new WhiteCellController();
+
+        await controller.handleRfiResponse(modal, pendingRequest.id);
+
+        expect(updateRequest).toHaveBeenCalledWith(pendingRequest.id, expect.objectContaining({
+            response: 'White Cell response.',
+            status: 'answered'
+        }));
+        expect(requestsStore.loadRequests).toHaveBeenCalledTimes(2);
+        expect(controller.rfis).toEqual([]);
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('No pending RFIs.');
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'This RFI was already completed. The queue has been refreshed.',
+            type: 'warning'
+        });
+        expect(modal.close).toHaveBeenCalledTimes(1);
+        expect(createTimelineEvent).not.toHaveBeenCalled();
+    });
+
+    it('does not call the answer RPC when the preflight refresh finds an answered RFI', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { requestsStore } = await import('../stores/requests.js');
+        const fakeDocument = createFakeDocument(['rfiResponse', 'rfiQueue', 'rfiBadge']);
+        fakeDocument.elements.rfiResponse.value = 'Stale replacement response.';
+        global.document = fakeDocument;
+
+        const answeredRequest = {
+            id: 'rfi-answered-1',
+            status: 'answered',
+            workflow_state: 'completed',
+            team: 'blue',
+            response: 'Authoritative White Cell response.'
+        };
+        vi.spyOn(requestsStore, 'loadRequests').mockResolvedValue();
+        vi.spyOn(requestsStore, 'getById').mockReturnValue(answeredRequest);
+        vi.spyOn(requestsStore, 'getPending').mockReturnValue([]);
+        const updateRequest = vi.spyOn(database, 'updateRequest');
+        const modal = { close: vi.fn() };
+        const controller = new WhiteCellController();
+
+        await controller.handleRfiResponse(modal, answeredRequest.id);
+
+        expect(updateRequest).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'This RFI was already answered. The queue has been refreshed.',
+            type: 'warning'
+        });
+        expect(modal.close).toHaveBeenCalledTimes(1);
+    });
+
     it('bounds the pending RFI queue for large exercise datasets', async () => {
         const { WHITE_CELL_RFI_RENDER_LIMIT, WhiteCellController } = await loadWhiteCellModule();
         const fakeDocument = createFakeDocument(['rfiQueue']);

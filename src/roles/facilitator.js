@@ -39,6 +39,10 @@ import {
     getNextActionSequenceNumber,
     serializeBlueActionDetails
 } from '../features/actions/blueActionDetails.js';
+import {
+    ACTION_MARKS,
+    groupActionRecordsByMark
+} from '../features/actions/actionMarkRail.js';
 import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 import {
     PROPOSAL_ACTION_MECHANISM,
@@ -258,7 +262,7 @@ export class FacilitatorController {
         this.responses = [];
         this.receivedProposals = [];
         this.expandedActionCardIds = new Set();
-        this.actionSequenceActiveTab = null;
+        this.actionMarkActiveKey = '';
         this.rfiActiveTab = getRfiCategoryKey(ENUMS.RFI_CATEGORIES[0]);
         this.responsesActiveTab = 'communication';
         this.proposalsActiveTab = 'unread';
@@ -580,12 +584,12 @@ export class FacilitatorController {
 
         const actionsListEl = document.getElementById('actionsList');
         actionsListEl?.addEventListener('click', (event) => {
-            const tabButton = event.target.closest('.tab-button[data-action-sequence-tab]');
+            const tabButton = event.target.closest('[data-action-mark-tab]');
             if (!tabButton || !actionsListEl.contains(tabButton)) return;
-            this.setActionSequenceActiveTab(tabButton.dataset.actionSequenceTab);
+            this.setActionMark(tabButton.dataset.actionMarkTab);
         });
         actionsListEl?.addEventListener('keydown', (event) => {
-            this.handleActionSequenceTabKeydown(event, actionsListEl);
+            this.handleActionMarkKeydown(event, actionsListEl);
         });
 
         const rfiListEl = document.getElementById('rfiList');
@@ -1996,38 +2000,6 @@ export class FacilitatorController {
     renderActionsList() {
         const actionsList = document.getElementById('actionsList');
         if (!actionsList) return;
-        const isGreenProposalFlow = this.isProposalTeam();
-        const isRedTeamActionFlow = this.teamId === 'red';
-        const emptyStateTitle = isGreenProposalFlow
-            ? 'No Proposals Yet'
-            : 'No Actions Yet';
-        const emptyStateMessage = this.isReadOnly
-            ? (isGreenProposalFlow
-                ? 'No team proposals have been created yet.'
-                : isRedTeamActionFlow
-                ? 'No team actions have been created yet.'
-                : 'No scribe actions have been created yet.')
-            : (isGreenProposalFlow
-                ? 'Create your first proposal to start the Facilitator review flow.'
-                : isRedTeamActionFlow
-                ? 'Create your first action to start the White Cell review flow.'
-                : 'Create your first action to start the scribe-to-facilitator review flow.');
-
-        if (this.actions.length === 0 && !isGreenProposalFlow) {
-            actionsList.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">
-                        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
-                            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-                        </svg>
-                    </div>
-                    <h3 class="empty-state-title">${emptyStateTitle}</h3>
-                    <p class="empty-state-message">${emptyStateMessage}</p>
-                </div>
-            `;
-            return;
-        }
-
         actionsList.innerHTML = this.renderGroupedActionList();
 
         actionsList.querySelectorAll('.toggle-action-card-btn').forEach((button) => {
@@ -2082,115 +2054,32 @@ export class FacilitatorController {
         return 'other';
     }
 
-    getActionMoveNumber(action = {}) {
-        const move = Number.parseInt(action.move, 10);
-        return Number.isFinite(move) && move > 0 ? move : 1;
-    }
-
-    sortActionsByExerciseSequence(actions = []) {
-        return [...actions].sort((left, right) => {
-            const leftIsOrientation = isStrategicOrientationAction(left);
-            const rightIsOrientation = isStrategicOrientationAction(right);
-            if (leftIsOrientation !== rightIsOrientation) {
-                return leftIsOrientation ? -1 : 1;
-            }
-
-            const moveDifference = this.getActionMoveNumber(left) - this.getActionMoveNumber(right);
-            if (moveDifference !== 0) return moveDifference;
-
-            const leftCreatedAt = Date.parse(left.created_at || '') || 0;
-            const rightCreatedAt = Date.parse(right.created_at || '') || 0;
-            if (leftCreatedAt !== rightCreatedAt) return rightCreatedAt - leftCreatedAt;
-
-            return String(left.id || '').localeCompare(String(right.id || ''));
-        });
-    }
-
-    getActionSequenceGroups(actions = []) {
-        const itemNoun = this.isProposalTeam() ? 'Proposals' : 'Actions';
-        const groups = new Map();
-
-        this.sortActionsByExerciseSequence(actions).forEach((action) => {
-            const isOrientation = isStrategicOrientationAction(action);
-            const move = this.getActionMoveNumber(action);
-            const key = isOrientation ? 'strategic-orientation' : `move-${move}`;
-
-            if (!groups.has(key)) {
-                groups.set(key, {
-                    key,
-                    title: isOrientation ? 'Strategic Orientation' : `Move ${move} ${itemNoun}`,
-                    context: isOrientation ? 'Pre-Move 1' : '',
-                    items: []
-                });
-            }
-
-            groups.get(key).items.push(action);
-        });
-
-        return [...groups.values()];
-    }
-
-    getProposalSequenceCategories(actions = []) {
-        const populatedGroups = this.getActionSequenceGroups(actions);
-        const groupsByKey = new Map(populatedGroups.map((group) => [group.key, group]));
-        const fixedCategories = [
-            {
-                key: 'strategic-orientation',
-                title: 'Strategic Orientation',
-                tabLabel: 'Strategic Orientation',
-                context: 'Pre-Move 1',
-                items: []
-            },
-            ...[1, 2, 3].map((move) => ({
-                key: `move-${move}`,
-                title: `Move ${move} Proposals`,
-                tabLabel: `Move ${move}`,
-                context: '',
-                items: []
-            }))
-        ];
-        const fixedKeys = new Set(fixedCategories.map((group) => group.key));
-        const laterMoveCategories = populatedGroups
-            .filter((group) => !fixedKeys.has(group.key))
-            .map((group) => ({
-                ...group,
-                tabLabel: group.title.replace(/\s+Proposals$/u, '')
-            }));
-
-        return [...fixedCategories, ...laterMoveCategories].map((category) => ({
-            ...category,
-            ...(groupsByKey.get(category.key) || {}),
-            tabLabel: category.tabLabel
-        }));
-    }
-
-    setActionSequenceActiveTab(tab) {
-        const normalizedTab = String(tab || '');
-        const categories = this.getProposalSequenceCategories(this.actions);
-        if (!categories.some((category) => category.key === normalizedTab)) {
+    setActionMark(markKey) {
+        const normalizedMarkKey = String(markKey || '');
+        if (!ACTION_MARKS.some((mark) => mark.key === normalizedMarkKey)) {
             return;
         }
 
-        this.actionSequenceActiveTab = normalizedTab;
+        this.actionMarkActiveKey = normalizedMarkKey;
         const container = document.getElementById('actionsList');
         if (!container || typeof container.querySelectorAll !== 'function') return;
 
-        container.querySelectorAll('.tab-button[data-action-sequence-tab]').forEach((button) => {
-            const isActive = button.dataset.actionSequenceTab === normalizedTab;
-            button.classList.toggle('tab-button-active', isActive);
+        container.querySelectorAll('[data-action-mark-tab]').forEach((button) => {
+            const isActive = button.dataset.actionMarkTab === normalizedMarkKey;
+            button.classList.toggle('is-active', isActive);
             button.setAttribute('aria-selected', isActive ? 'true' : 'false');
             button.setAttribute('tabindex', isActive ? '0' : '-1');
         });
-        container.querySelectorAll('.tab-panel[data-action-sequence-panel]').forEach((panel) => {
-            panel.hidden = panel.dataset.actionSequencePanel !== normalizedTab;
+        container.querySelectorAll('[data-action-mark-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.actionMarkPanel !== normalizedMarkKey;
         });
     }
 
-    handleActionSequenceTabKeydown(event, container = document.getElementById('actionsList')) {
-        const currentTab = event.target?.closest?.('.tab-button[data-action-sequence-tab]');
+    handleActionMarkKeydown(event, container = document.getElementById('actionsList')) {
+        const currentTab = event.target?.closest?.('[data-action-mark-tab]');
         if (!currentTab || !container?.contains?.(currentTab)) return;
 
-        const tabs = [...container.querySelectorAll('.tab-button[data-action-sequence-tab]')];
+        const tabs = [...container.querySelectorAll('[data-action-mark-tab]')];
         const currentIndex = tabs.indexOf(currentTab);
         if (currentIndex < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
 
@@ -2203,148 +2092,70 @@ export class FacilitatorController {
             ? (currentIndex - 1 + tabs.length) % tabs.length
             : (currentIndex + 1) % tabs.length;
         const nextTab = tabs[nextIndex];
-        this.setActionSequenceActiveTab(nextTab?.dataset?.actionSequenceTab);
+        this.setActionMark(nextTab?.dataset?.actionMarkTab);
         nextTab?.focus?.();
     }
 
     renderGroupedActionList() {
-        const sortedActions = this.sortActionsByExerciseSequence(this.actions);
-        if (this.isProposalTeam()) {
-            return this.renderTabbedProposalSequenceList(sortedActions);
+        const groups = groupActionRecordsByMark(this.actions);
+        if (!ACTION_MARKS.some((mark) => mark.key === this.actionMarkActiveKey)) {
+            this.actionMarkActiveKey = [...groups].reverse().find((mark) => mark.count > 0)?.key
+                || ACTION_MARKS[0].key;
         }
 
-        const hiddenCount = Math.max(0, sortedActions.length - ACTION_GROUP_RENDER_LIMIT);
-        const listAriaLabel = 'Submissions in exercise sequence';
-        let remainingRenderSlots = ACTION_GROUP_RENDER_LIMIT;
-        const sequenceGroups = this.getActionSequenceGroups(sortedActions)
-            .map((group) => {
-                const visibleItems = group.items.slice(0, remainingRenderSlots);
-                remainingRenderSlots = Math.max(0, remainingRenderSlots - visibleItems.length);
-                return { ...group, visibleItems };
-            })
-            .filter((group) => group.visibleItems.length > 0);
-
-        return `
-            <div class="action-sequence-list" aria-label="${listAriaLabel}">
-                ${sequenceGroups.map((group) => {
-                    const headingId = `action-sequence-${group.key}`;
-                    const itemNoun = group.key === 'strategic-orientation'
-                        ? 'Strategic Orientation artifact'
-                        : (this.isProposalTeam() ? 'proposal' : 'action');
-                    const itemLabel = `${itemNoun}${group.items.length === 1 ? '' : 's'}`;
-                    return `
-                        <section class="action-sequence-group" aria-labelledby="${headingId}">
-                            <div class="action-sequence-header">
-                                <div>
-                                    <h3 id="${headingId}" class="action-sequence-heading">${this.escapeHtml(group.title)}</h3>
-                                    ${group.context ? `<p class="action-sequence-context">${this.escapeHtml(group.context)}</p>` : ''}
-                                </div>
-                                <span class="action-sequence-count" aria-label="${group.items.length} ${itemLabel}">${group.items.length}</span>
-                            </div>
-                            <div class="card-list">
-                                ${group.visibleItems.map((action) => this.renderActionCard(action)).join('')}
-                            </div>
-                        </section>
-                    `;
-                }).join('')}
-                ${hiddenCount
-                    ? `<p class="action-sequence-overflow">Showing the first ${ACTION_GROUP_RENDER_LIMIT} of ${sortedActions.length} submissions in exercise order.</p>`
-                    : ''}
-            </div>
-        `;
-    }
-
-    renderTabbedProposalSequenceList(sortedActions = []) {
-        const hiddenCount = Math.max(0, sortedActions.length - ACTION_GROUP_RENDER_LIMIT);
-        let remainingRenderSlots = ACTION_GROUP_RENDER_LIMIT;
-        const categories = this.getProposalSequenceCategories(sortedActions).map((category) => {
-            const visibleItems = category.items.slice(0, remainingRenderSlots);
-            remainingRenderSlots = Math.max(0, remainingRenderSlots - visibleItems.length);
-            return { ...category, visibleItems };
+        const visibleGroups = groups.map((mark) => {
+            const visibleItems = mark.records.slice(0, ACTION_GROUP_RENDER_LIMIT);
+            return { ...mark, visibleItems };
         });
-        const requestedCategory = categories.find((category) => category.key === this.actionSequenceActiveTab);
-        const activeCategory = requestedCategory
-            || categories.find((category) => category.items.length > 0)
-            || categories[0];
-        this.actionSequenceActiveTab = activeCategory?.key || null;
 
-        const tabs = categories.map((category) => {
-            const isActive = category.key === this.actionSequenceActiveTab;
-            const itemNoun = category.key === 'strategic-orientation'
-                ? 'Strategic Orientation record'
-                : 'proposal';
-            const itemLabel = `${itemNoun}${category.items.length === 1 ? '' : 's'}`;
+        const tabs = visibleGroups.map((mark) => {
+            const isActive = mark.key === this.actionMarkActiveKey;
             return `
                 <button
                     type="button"
-                    id="proposal-sequence-tab-${category.key}"
-                    class="tab-button${isActive ? ' tab-button-active' : ''}"
-                    data-action-sequence-tab="${category.key}"
+                    id="facilitator-action-mark-tab-${mark.key}"
+                    class="action-mark-tab${isActive ? ' is-active' : ''}"
+                    data-action-mark-tab="${mark.key}"
                     role="tab"
                     aria-selected="${isActive ? 'true' : 'false'}"
-                    aria-controls="proposal-sequence-panel-${category.key}"
-                    aria-label="${this.escapeHtml(`${category.tabLabel}, ${category.items.length} ${itemLabel}`)}"
+                    aria-controls="facilitator-action-mark-panel-${mark.key}"
+                    aria-label="${this.escapeHtml(`${mark.label}, ${mark.count} ${mark.count === 1 ? 'record' : 'records'}`)}"
                     tabindex="${isActive ? '0' : '-1'}"
                 >
-                    ${this.escapeHtml(category.tabLabel)}
-                    <span class="tab-badge" aria-hidden="true">${category.items.length}</span>
+                    <span>${this.escapeHtml(mark.label)}</span>
+                    <span class="action-mark-count" aria-hidden="true">${mark.count}</span>
                 </button>
             `;
         }).join('');
 
-        const panels = categories.map((category) => {
-            const isActive = category.key === this.actionSequenceActiveTab;
-            const headingId = `proposal-sequence-${category.key}-heading`;
-            const itemNoun = category.key === 'strategic-orientation'
-                ? 'Strategic Orientation record'
-                : 'proposal';
-            const itemLabel = `${itemNoun}${category.items.length === 1 ? '' : 's'}`;
-            const emptyMessage = category.key === 'strategic-orientation'
-                ? 'No Strategic Orientation record has been noted yet.'
-                : `No proposals have been noted for ${category.tabLabel}.`;
-
+        const panels = visibleGroups.map((mark) => {
+            const isActive = mark.key === this.actionMarkActiveKey;
             return `
                 <section
-                    id="proposal-sequence-panel-${category.key}"
-                    class="tab-panel action-sequence-panel"
-                    data-action-sequence-panel="${category.key}"
+                    id="facilitator-action-mark-panel-${mark.key}"
+                    class="action-mark-panel"
+                    data-action-mark-panel="${mark.key}"
                     role="tabpanel"
-                    aria-labelledby="proposal-sequence-tab-${category.key}"
+                    aria-labelledby="facilitator-action-mark-tab-${mark.key}"
                     ${isActive ? '' : 'hidden'}
                 >
-                    <div class="action-sequence-header">
-                        <div>
-                            <h3 id="${headingId}" class="action-sequence-heading">${this.escapeHtml(category.title)}</h3>
-                            ${category.context ? `<p class="action-sequence-context">${this.escapeHtml(category.context)}</p>` : ''}
-                        </div>
-                        <span class="action-sequence-count" aria-label="${category.items.length} ${itemLabel}">${category.items.length}</span>
-                    </div>
-                    ${category.visibleItems.length
-                        ? `<div class="card-list">${category.visibleItems.map((action) => this.renderActionCard(action)).join('')}</div>`
-                        : category.items.length
-                        ? `<p class="action-sequence-empty">This category has recorded items outside the first ${ACTION_GROUP_RENDER_LIMIT} submissions shown. Review the count above and use the research export for the complete record.</p>`
-                        : `<p class="action-sequence-empty">${this.escapeHtml(emptyMessage)}</p>`}
+                    ${mark.visibleItems.length
+                        ? `<div class="card-list">${mark.visibleItems.map((action) => this.renderActionCard(action)).join('')}</div>`
+                        : `<p class="action-mark-empty">No records for ${this.escapeHtml(mark.label)}.</p>`}
+                    ${mark.count > mark.visibleItems.length
+                        ? `<p class="action-sequence-overflow">Showing the newest ${mark.visibleItems.length} of ${mark.count} records for this mark.</p>`
+                        : ''}
                 </section>
             `;
         }).join('');
 
         return `
-            <div class="action-sequence-tabs tabbed-section" data-action-sequence-tabs>
-                <div
-                    class="tab-list"
-                    role="tablist"
-                    aria-label="Proposal records by simulation move"
-                    aria-describedby="proposalSequenceTabHelp"
-                >
+            <div class="action-mark-navigation" data-action-mark-navigation>
+                <div class="action-mark-rail" role="tablist" aria-label="${this.escapeHtml(`${this.teamLabel} records by simulation mark`)}">
                     ${tabs}
                 </div>
-                <p class="action-sequence-tabs__help" id="proposalSequenceTabHelp">
-                    Choose Strategic Orientation or a move to see exactly what the Scribe noted for that part of the simulation.
-                </p>
+                <p class="action-mark-help">Use Left and Right Arrow keys to move between marks. Records are newest first.</p>
                 ${panels}
-                ${hiddenCount
-                    ? `<p class="action-sequence-overflow">Showing the first ${ACTION_GROUP_RENDER_LIMIT} of ${sortedActions.length} submissions in exercise order.</p>`
-                    : ''}
             </div>
         `;
     }

@@ -18,11 +18,7 @@ import {
 import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
 import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 import { createArtifactLifecycleBadge, createBadge } from '../components/ui/Badge.js';
-import {
-    ACTION_MARKS,
-    getActionMarkKey,
-    groupActionRecordsByMark
-} from '../features/actions/actionMarkRail.js';
+import { groupActionRecordsByMark } from '../features/actions/actionMarkRail.js';
 import {
     BLUE_ACTION_COORDINATED_OPTIONS,
     BLUE_ACTION_INFORMED_OPTIONS,
@@ -765,7 +761,6 @@ export class ScribeController {
         this.currentSlideIndex = 0;
         this.activeSectionIndex = 0;
         this.lastDeckSlideKey = '';
-        this.actionMarkActiveKey = '';
         this.storeUnsubscribers = [];
         // Navbar activity feed (visible even in presentation mode)
         this.notifications = [];
@@ -1012,12 +1007,6 @@ export class ScribeController {
 
         const sectionListEl = document.getElementById('scribeSectionList');
         sectionListEl?.addEventListener('click', (event) => {
-            const markButton = event.target.closest('[data-action-mark-tab]');
-            if (markButton) {
-                this.selectActionMark(markButton.dataset.actionMarkTab || '');
-                return;
-            }
-
             const slideButton = event.target.closest('[data-slide-key]');
             if (slideButton) {
                 this.setSlideByKey(slideButton.dataset.slideKey || '');
@@ -1038,10 +1027,6 @@ export class ScribeController {
                 this.toggleSection(sectionIndex);
             }
         });
-        sectionListEl?.addEventListener('keydown', (event) => {
-            this.handleActionMarkKeydown(event, sectionListEl);
-        });
-
         // Section-rail tooltips (collapsed desktop only).
         sectionListEl?.addEventListener('pointerover', (event) => {
             const trigger = event.target.closest('.scribe-section-trigger');
@@ -2002,9 +1987,9 @@ export class ScribeController {
             }
 
             const sectionKind = section.id === PROPOSALS_SECTION_ID ? 'proposals' : 'actions';
-            if (sectionKind === 'actions' && this.teamId === 'blue') {
+            if (sectionKind === 'actions') {
                 sectionGroups.actions.push(
-                    this.renderActionMarkNavigation(section, currentSlideKey)
+                    this.renderVerticalActionMarkSections(section, currentSlideKey)
                 );
                 return;
             }
@@ -2083,7 +2068,7 @@ export class ScribeController {
             return `
                 <div class="scribe-section-region scribe-section-region--${kind}" role="group" aria-label="${label}">
                     <div class="scribe-section-region-heading">
-                        <span class="scribe-section-region-title">${label}</span>
+                        <h2 class="scribe-section-region-title">${label}</h2>
                         <span class="scribe-section-region-summary">${summary}</span>
                     </div>
                     <div class="scribe-section-region-list">
@@ -2099,7 +2084,7 @@ export class ScribeController {
         ].join('');
     }
 
-    renderActionMarkNavigation(section = {}, currentSlideKey = '') {
+    renderVerticalActionMarkSections(section = {}, currentSlideKey = '') {
         const slidesByActionId = new Map(
             (section.slides || [])
                 .filter((slide) => slide?.action?.id)
@@ -2111,38 +2096,7 @@ export class ScribeController {
             ...mark,
             slides: mark.records.map((record) => slidesByActionId.get(record.id)).filter(Boolean)
         }));
-        const currentSlide = (section.slides || []).find((slide) => getSlideKey(slide) === currentSlideKey);
-        const currentMarkKey = getActionMarkKey(currentSlide?.action);
-        if (currentMarkKey) {
-            this.actionMarkActiveKey = currentMarkKey;
-        }
-        if (!ACTION_MARKS.some((mark) => mark.key === this.actionMarkActiveKey)) {
-            this.actionMarkActiveKey = [...groups].reverse().find((mark) => mark.count > 0)?.key
-                || ACTION_MARKS[0].key;
-        }
-
-        const tabs = groups.map((mark) => {
-            const isActive = mark.key === this.actionMarkActiveKey;
-            return `
-                <button
-                    type="button"
-                    id="facilitator-action-mark-tab-${mark.key}"
-                    class="action-mark-tab${isActive ? ' is-active' : ''}"
-                    data-action-mark-tab="${mark.key}"
-                    role="tab"
-                    aria-selected="${isActive ? 'true' : 'false'}"
-                    aria-controls="facilitator-action-mark-panel-${mark.key}"
-                    aria-label="${escapeHtml(`${mark.label}, ${mark.count} ${mark.count === 1 ? 'record' : 'records'}`)}"
-                    tabindex="${isActive ? '0' : '-1'}"
-                >
-                    <span>${escapeHtml(mark.label)}</span>
-                    <span class="action-mark-count" aria-hidden="true">${mark.count}</span>
-                </button>
-            `;
-        }).join('');
-
-        const panels = groups.map((mark) => {
-            const isActive = mark.key === this.actionMarkActiveKey;
+        const sections = groups.map((mark) => {
             const records = mark.slides.map((slide, slideIndex) => {
                 const isActiveSlide = getSlideKey(slide) === currentSlideKey;
                 return `
@@ -2166,13 +2120,14 @@ export class ScribeController {
 
             return `
                 <section
-                    id="facilitator-action-mark-panel-${mark.key}"
-                    class="action-mark-panel"
-                    data-action-mark-panel="${mark.key}"
-                    role="tabpanel"
-                    aria-labelledby="facilitator-action-mark-tab-${mark.key}"
-                    ${isActive ? '' : 'hidden'}
+                    class="scribe-action-mark-section"
+                    data-scribe-action-mark="${mark.key}"
+                    aria-labelledby="scribe-action-mark-heading-${mark.key}"
                 >
+                    <div class="scribe-action-mark-heading">
+                        <h3 id="scribe-action-mark-heading-${mark.key}" class="scribe-action-mark-title">${escapeHtml(mark.label)}</h3>
+                        <span class="action-mark-count" aria-label="${escapeHtml(`${mark.count} ${mark.count === 1 ? 'record' : 'records'}`)}">${mark.count}</span>
+                    </div>
                     ${records
                         ? `<ol class="scribe-slide-list">${records}</ol>`
                         : `<p class="action-mark-empty">No records for ${escapeHtml(mark.label)}.</p>`}
@@ -2181,60 +2136,10 @@ export class ScribeController {
         }).join('');
 
         return `
-            <div class="action-mark-navigation" data-action-mark-navigation>
-                <div class="action-mark-rail" role="tablist" aria-label="Team actions by simulation mark">
-                    ${tabs}
-                </div>
-                <p class="action-mark-help">Use Left and Right Arrow keys to move between marks. Records are newest first.</p>
-                ${panels}
+            <div class="scribe-action-mark-stack" data-scribe-action-mark-stack role="group" aria-label="Team actions by simulation mark">
+                ${sections}
             </div>
         `;
-    }
-
-    selectActionMark(markKey = '') {
-        if (!ACTION_MARKS.some((mark) => mark.key === markKey)) return;
-        this.actionMarkActiveKey = markKey;
-        const actionSection = this.sections.find((section) => section.id === ACTIONS_SECTION_ID);
-        const targetSlide = actionSection?.slides?.find((slide) => getActionMarkKey(slide.action) === markKey);
-        if (targetSlide) {
-            this.setSlideByKey(getSlideKey(targetSlide));
-        } else {
-            const container = document.getElementById('scribeSectionList');
-            container?.querySelectorAll?.('[data-action-mark-tab]').forEach((button) => {
-                const isActive = button.dataset.actionMarkTab === markKey;
-                button.classList.toggle('is-active', isActive);
-                button.setAttribute('aria-selected', String(isActive));
-                button.setAttribute('tabindex', isActive ? '0' : '-1');
-            });
-            container?.querySelectorAll?.('[data-action-mark-panel]').forEach((panel) => {
-                panel.hidden = panel.dataset.actionMarkPanel !== markKey;
-            });
-        }
-    }
-
-    handleActionMarkKeydown(event, container = document.getElementById('scribeSectionList')) {
-        const currentTab = event.target?.closest?.('[data-action-mark-tab]');
-        if (!currentTab || !container?.contains?.(currentTab)) return;
-        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-
-        event.preventDefault();
-        event.stopPropagation?.();
-        const tabs = [...container.querySelectorAll('[data-action-mark-tab]')];
-        const currentIndex = tabs.indexOf(currentTab);
-        if (currentIndex < 0) return;
-        const nextIndex = event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-            ? tabs.length - 1
-            : event.key === 'ArrowLeft'
-            ? (currentIndex - 1 + tabs.length) % tabs.length
-            : (currentIndex + 1) % tabs.length;
-        const nextTab = tabs[nextIndex];
-        const nextMarkKey = nextTab?.dataset?.actionMarkTab || '';
-        this.selectActionMark(nextMarkKey);
-        const renderedNextTab = [...container.querySelectorAll('[data-action-mark-tab]')]
-            .find((tab) => tab.dataset.actionMarkTab === nextMarkKey);
-        renderedNextTab?.focus?.();
     }
 
     renderSlide() {
