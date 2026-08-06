@@ -1065,6 +1065,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(content.innerHTML).not.toContain('Proposal Category');
         expect(content.innerHTML).not.toContain('id="proposalCategory"');
         expect(content.innerHTML).not.toContain('id="proposalDelivery"');
+        expect(content.innerHTML).not.toContain('data-proposal-action-angle="true"');
+        expect(content.innerHTML).toContain('data-proposal-supply-chain-area="true"');
     });
 
     it('uses independent partner and focus-sector checkbox groups in the Green proposal modal', async () => {
@@ -1080,7 +1082,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             ally_contingencies: serializeProposalDetails({
                 recipientTeams: ['blue', 'red'],
                 focusSectors: ['Biotechnology', 'Custom fabrication'],
-                supplyChainFocusDecision: 'No'
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Build resilience for Blue'],
+                supplyChainAreas: ['Advanced Manufacturing']
             })
         });
 
@@ -1089,8 +1093,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(content.innerHTML).toContain('data-proposal-sector="true"');
         expect(content.innerHTML).toContain('name="proposalHasSupplyChainFocus" value="Yes"');
         expect(content.innerHTML).toContain('name="proposalHasSupplyChainFocus" value="No"');
-        expect(content.innerHTML).toContain('data-proposal-action-angle="true"');
+        expect(content.innerHTML).not.toContain('data-proposal-action-angle="true"');
         expect(content.innerHTML).toContain('data-proposal-supply-chain-area="true"');
+        expect(content.innerHTML).toContain('A Yes answer requires at least one supply-chain area.');
         expect(content.innerHTML).toContain('id="proposalSectorOptionOther"');
         expect(content.innerHTML).toContain('id="proposalFocusSectorOther"');
         expect(content.innerHTML).toContain('value="Custom fabrication"');
@@ -2569,12 +2574,12 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(controller.validateGreenProposal({ ...valid, recipientTeams: [] })).toBe('Select at least one intended partner.');
         expect(controller.validateGreenProposal({ ...valid, selectedSectorValues: [] })).toBe('Select at least one focus sector.');
         expect(controller.validateGreenProposal({ ...valid, supplyChainFocusDecision: '' })).toBe('Select Yes or No for the supply chain focus question.');
-        expect(controller.validateGreenProposal({ ...valid, supplyChainFocusDecision: 'Yes' })).toBe('Select at least one action angle.');
+        expect(controller.validateGreenProposal({ ...valid, supplyChainFocusDecision: 'Yes' })).toBe('Select at least one supply chain area.');
         expect(controller.validateGreenProposal({
             ...valid,
             supplyChainFocusDecision: 'Yes',
-            supplyChainActionAngles: ['Disrupt Red']
-        })).toBe('Select at least one supply chain area.');
+            supplyChainAreas: ['Distribution']
+        })).toBeNull();
     });
 
     it('shows forwarded proposals in both the received proposals inbox and the responses feed', async () => {

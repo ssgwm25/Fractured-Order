@@ -350,7 +350,11 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await runActorOperations(['blue', 'red'].map((team) => async () => {
                 await createDraftAction(actors.teams[team].scribe, {
                     goal: actionTitles[team],
-                    focusCountries: team === 'red' ? ['U.S', 'PRC'] : ['PRC', 'Japan']
+                    focusCountries: team === 'red' ? ['U.S', 'PRC'] : ['PRC', 'Japan'],
+                    notificationTeams: team === 'blue' ? ['Green', 'Industry'] : [],
+                    notificationNote: team === 'blue'
+                        ? 'Notify Green and Industry after White Cell accepts the action.'
+                        : ''
                 });
                 await forwardActionToScribe(actors.teams[team].scribe, actionTitles[team]);
             }), { concurrent: actorPool.useIndependentContexts });
@@ -358,6 +362,16 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await runActorOperations(['blue', 'red'].map((team) => () => (
                 submitActionFromScribe(actors.teams[team].facilitator, actionTitles[team])
             )), { concurrent: actorPool.useIndependentContexts });
+
+            const blueReviewCard = actors.whiteCellLead
+                .locator('#actionsList .entity-card')
+                .filter({ hasText: actionTitles.blue })
+                .first();
+            await expect(blueReviewCard).toContainText('Team notification request');
+            await expect(blueReviewCard).toContainText('Teams to Inform: Green, Industry');
+            await expect(blueReviewCard).toContainText(
+                'Notification Note: Notify Green and Industry after White Cell accepts the action.'
+            );
 
             await adjudicateAction(actors.whiteCellLead, {
                 goal: actionTitles.blue,
@@ -378,7 +392,6 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 recipientTeams: ['blue', 'red'],
                 focusSectors: ['Biotechnology', 'Agriculture'],
                 supplyChainFocusDecision: 'Yes',
-                supplyChainActionAngles: ['Build resilience for Blue'],
                 supplyChainAreas: ['Advanced Manufacturing'],
                 review: 'forward_to_recipient',
                 response: 'negotiate'
@@ -396,7 +409,6 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                     recipientTeams: proposal.recipientTeams,
                     focusSectors: proposal.focusSectors,
                     supplyChainFocusDecision: proposal.supplyChainFocusDecision,
-                    supplyChainActionAngles: proposal.supplyChainActionAngles,
                     supplyChainAreas: proposal.supplyChainAreas
                 });
                 await submitForwardedProposalFromFacilitator(actors.teams[proposal.owner].facilitator, {

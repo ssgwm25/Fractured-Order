@@ -2328,7 +2328,9 @@ describe('White Cell DOM contract', () => {
                 coordinatedDecision: 'Yes',
                 coordinated: ['Legislative'],
                 informedEngagedDecision: 'Yes',
-                informed: ['Allies']
+                informed: ['Allies'],
+                notificationTeams: ['Green', 'Industry'],
+                notificationNote: 'Notify both teams after White Cell accepts the action.'
             })
         };
 
@@ -2350,6 +2352,9 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Coordination Selections:</strong> Legislative');
         expect(markup).toContain('Informed/Engaged Decision:</strong> Yes');
         expect(markup).toContain('Informed/Engaged Selections:</strong> Allies');
+        expect(markup).toContain('aria-label="Blue Team notification request"');
+        expect(markup).toContain('Teams to Inform:</strong> Green, Industry');
+        expect(markup).toContain('Notification Note:</strong> Notify both teams after White Cell accepts the action.');
         expect(markup).toContain('Blue Team | Move 2 | Action 2 &middot; Phase 2');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Objective: Constrain upstream dependency before the next move.');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Instrument of Power: Economic, Information, Military');
@@ -2359,6 +2364,8 @@ describe('White Cell DOM contract', () => {
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Legislative Route: Existing legislation/policy, Proposing new legislation/policy');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Enforcement Timeline: 12 months');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Informed/Engaged Selections: Allies');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Teams to Inform: Green, Industry');
+        expect(buildSharedActionCommunicationContent(blueAction)).toContain('Notification Note: Notify both teams after White Cell accepts the action.');
     });
 
     it('opens Review Action without an outcome control and with the two review decisions', async () => {
@@ -2389,7 +2396,9 @@ describe('White Cell DOM contract', () => {
                 implementation: 'Executive Order',
                 enforcementTimeline: '6 months',
                 coordinated: ['Executive'],
-                informed: ['Allies']
+                informed: ['Allies'],
+                notificationTeams: ['Green'],
+                notificationNote: 'Notify Green after White Cell accepts the action.'
             })
         });
 
@@ -2400,6 +2409,9 @@ describe('White Cell DOM contract', () => {
         expect(modalButtonLabels).toContain('Send Back for Improvement');
         expect(modalButtonLabels).not.toContain('Send to Red Team');
         expect(modalConfig?.content?.innerHTML).toContain('<strong>Supply Chain Areas:</strong> Advanced Manufacturing');
+        expect(modalConfig?.content?.innerHTML).toContain('aria-label="Blue Team notification request"');
+        expect(modalConfig?.content?.innerHTML).toContain('Teams to Inform:</strong> Green');
+        expect(modalConfig?.content?.innerHTML).toContain('Notification Note:</strong> Notify Green after White Cell accepts the action.');
         expect(modalConfig?.content?.innerHTML).not.toContain('id="outcomeSelect"');
         expect(modalConfig?.content?.innerHTML).not.toMatch(/Outcome \*/);
         expect(modalConfig?.content?.innerHTML).toContain('id="artifactReviewNotes"');

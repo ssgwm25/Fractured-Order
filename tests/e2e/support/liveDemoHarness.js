@@ -380,7 +380,9 @@ export async function createDraftAction(page, {
     implementation = DEFAULT_ACTION_PAYLOAD.implementation,
     legislativeOptions = DEFAULT_ACTION_PAYLOAD.legislativeOptions,
     focusCountries = DEFAULT_ACTION_PAYLOAD.focusCountries,
-    expectedOutcomes = DEFAULT_ACTION_PAYLOAD.expectedOutcomes
+    expectedOutcomes = DEFAULT_ACTION_PAYLOAD.expectedOutcomes,
+    notificationTeams = [],
+    notificationNote = ''
 } = {}) {
     const builtInInstruments = new Set(['Economic', 'Diplomacy', 'Information', 'Military', 'Other']);
     const builtInFocusCountries = new Set(['U.S', 'PRC', 'Russia', 'EU', 'France', 'UK', 'BRICS+', 'ROK', 'ASEAN', 'Japan', 'Other']);
@@ -456,6 +458,12 @@ export async function createDraftAction(page, {
         }
     }
     await modal.locator('#actionExpectedOutcomes').fill(expectedOutcomes);
+    for (const notificationTeam of notificationTeams) {
+        await modal.locator(`[data-blue-action-notification-team][value="${notificationTeam}"]`).check();
+    }
+    if (notificationTeams.length) {
+        await modal.locator('#actionNotificationNote').fill(notificationNote);
+    }
     await modal.getByRole('button', { name: 'Save Draft' }).click();
 
     await expect(page.locator('#actionsList')).toContainText(goal);
@@ -705,7 +713,6 @@ export async function createProposal(page, {
     focusSectors = ['Biotechnology'],
     customFocusSector = null,
     supplyChainFocusDecision = 'No',
-    supplyChainActionAngles = [],
     supplyChainAreas = [],
     industryFocus = 'Advanced manufacturing',
     countryFocus = 'United States and selected partners',
@@ -746,9 +753,6 @@ export async function createProposal(page, {
     }
     await modal.locator(`input[name="proposalHasSupplyChainFocus"][value="${supplyChainFocusDecision}"]`).check();
     if (supplyChainFocusDecision === 'Yes') {
-        for (const angle of supplyChainActionAngles) {
-            await modal.locator(`[data-proposal-action-angle="true"][value="${angle}"]`).check();
-        }
         for (const area of supplyChainAreas) {
             await modal.locator(`[data-proposal-supply-chain-area="true"][value="${area}"]`).check();
         }

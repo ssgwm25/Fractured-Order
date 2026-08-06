@@ -3807,16 +3807,10 @@ export class FacilitatorController {
                             <span class="form-check-label">No</span>
                         </label>
                     </div>
-                    <p class="form-hint" id="proposalSupplyChainHint">A Yes answer requires at least one action angle and one supply-chain area.</p>
+                    <p class="form-hint" id="proposalSupplyChainHint">A Yes answer requires at least one supply-chain area.</p>
                 </fieldset>
 
                 <div id="proposalSupplyChainDetails" ${supplyChainFocusDecision === 'Yes' ? '' : 'hidden'}>
-                    <fieldset class="form-group">
-                        <legend class="form-label">Action Angle *</legend>
-                        <div class="form-check-grid">
-                            ${renderCheckboxOptions({ values: BLUE_ACTION_SUPPLY_CHAIN_ANGLES, selectedValues: viewModel.supplyChainActionAngles, dataAttribute: 'data-proposal-action-angle', group: 'true', idPrefix: 'proposalActionAngle' })}
-                        </div>
-                    </fieldset>
                     <fieldset class="form-group">
                         <legend class="form-label">Supply Chain Area *</legend>
                         <div class="form-check-grid">
@@ -3882,7 +3876,7 @@ export class FacilitatorController {
             const details = form.querySelector('#proposalSupplyChainDetails');
             if (details) details.hidden = decision !== 'Yes';
             if (decision !== 'Yes') {
-                form.querySelectorAll('[data-proposal-action-angle="true"], [data-proposal-supply-chain-area="true"]').forEach((checkbox) => {
+                form.querySelectorAll('[data-proposal-supply-chain-area="true"]').forEach((checkbox) => {
                     checkbox.checked = false;
                 });
             }
@@ -3956,9 +3950,6 @@ export class FacilitatorController {
             focusSector: focusSectors[0] || '',
             focusSectors,
             supplyChainFocusDecision,
-            supplyChainActionAngles: supplyChainFocusDecision === 'Yes'
-                ? getCheckedValues(form, '[data-proposal-action-angle="true"]')
-                : [],
             supplyChainAreas: supplyChainFocusDecision === 'Yes'
                 ? getCheckedValues(form, '[data-proposal-supply-chain-area="true"]')
                 : [],
@@ -3984,9 +3975,6 @@ export class FacilitatorController {
         if (!data.selectedSectorValues.length) return 'Select at least one focus sector.';
         if (data.selectedSectorValues.includes('Other') && !data.sectorOther) return 'Please enter the custom sector.';
         if (!data.supplyChainFocusDecision) return 'Select Yes or No for the supply chain focus question.';
-        if (data.supplyChainFocusDecision === 'Yes' && !data.supplyChainActionAngles.length) {
-            return 'Select at least one action angle.';
-        }
         if (data.supplyChainFocusDecision === 'Yes' && !data.supplyChainAreas.length) {
             return 'Select at least one supply chain area.';
         }

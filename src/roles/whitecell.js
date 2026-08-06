@@ -3510,6 +3510,40 @@ export class WhiteCellController {
         return items ? `<div class="detail-grid">${items}</div>` : '';
     }
 
+    getActionReviewDetailFields(blueAction = {}) {
+        const notificationLabels = new Set(['Teams to Inform', 'Notification Note']);
+        return (blueAction.artifactDetails || []).filter(
+            (field) => !notificationLabels.has(field?.label)
+        );
+    }
+
+    renderActionNotificationRequest(action = {}, blueAction = getBlueActionViewModel(action)) {
+        const notificationTeams = Array.isArray(blueAction.notificationTeams)
+            ? blueAction.notificationTeams
+            : [];
+        const notificationNote = String(blueAction.notificationNote || '').trim();
+        if (!notificationTeams.length && !notificationNote) {
+            return '';
+        }
+
+        const sourceTeamLabel = this.formatTeamLabel(action.team);
+        return `
+            <section
+                class="card card-bordered"
+                aria-label="${this.escapeHtml(`${sourceTeamLabel} notification request`)}"
+                style="margin-top: var(--space-3); padding: var(--space-3);"
+            >
+                <h4 class="font-semibold" style="margin: 0 0 var(--space-2);">Team notification request</h4>
+                <p class="text-sm" style="margin: 0 0 var(--space-2);">
+                    <strong>Teams to Inform:</strong> ${this.escapeHtml(formatBlueActionSelection(notificationTeams, 'None selected'))}
+                </p>
+                <p class="text-sm" style="margin: 0;">
+                    <strong>Notification Note:</strong> ${this.escapeHtml(notificationNote || 'No clarifying note provided.')}
+                </p>
+            </section>
+        `;
+    }
+
     renderReturnedRevisionHistory() {
         const container = document.getElementById('returnedRevisionHistoryList');
         if (!container) return;
@@ -3703,7 +3737,7 @@ export class WhiteCellController {
             ? this.renderProposalDetails(action)
             : this.renderDetailGrid(
                 blueAction.hasBlueActionDetails
-                    ? blueAction.artifactDetails
+                    ? this.getActionReviewDetailFields(blueAction)
                     : [
                         ...(action.ally_contingencies ? [{ label: 'Ally Contingencies', value: action.ally_contingencies, wide: true }] : []),
                         { label: 'Targets', value: targetLabel },
@@ -3711,6 +3745,9 @@ export class WhiteCellController {
                         { label: 'Exposure', value: action.exposure_type || 'Not specified' }
                     ]
             );
+        const notificationRequestMarkup = !isStrategicOrientationFlow && !proposalViewModel.hasProposalDetails
+            ? this.renderActionNotificationRequest(action, blueAction)
+            : '';
         const proposalRecipientStateMarkup = proposalViewModel.hasProposalDetails && !isStrategicOrientationFlow
             ? this.renderProposalRecipientState(action)
             : '';
@@ -3756,6 +3793,7 @@ export class WhiteCellController {
                 </div>
                 ${proposalViewModel.hasProposalDetails && !isStrategicOrientationFlow ? '' : `<p class="card-summary">${this.escapeHtml(expectedOutcomes || 'No expected outcomes recorded.')}</p>`}
                 ${detailsMarkup}
+                ${notificationRequestMarkup}
                 ${proposalRecipientStateMarkup}
                 ${submittedMarkup}
                 ${revisionMarkup}
@@ -3884,7 +3922,8 @@ export class WhiteCellController {
                     </p>
                 ` : ''}
                 ${blueAction.hasBlueActionDetails ? `
-                    ${this.renderDetailGrid(blueAction.artifactDetails)}
+                    ${this.renderDetailGrid(this.getActionReviewDetailFields(blueAction))}
+                    ${this.renderActionNotificationRequest(action, blueAction)}
                 ` : action.ally_contingencies ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                         <strong>Ally Contingencies:</strong> ${this.escapeHtml(action.ally_contingencies)}
