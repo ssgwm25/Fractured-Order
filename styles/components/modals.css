@@ -59,6 +59,12 @@
         transform 0.44s var(--ease-apple);
 }
 
+@supports (height: 100dvh) {
+    .modal {
+        max-height: calc(100dvh - var(--space-8));
+    }
+}
+
 .modal-visible .modal {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -95,6 +101,7 @@
 /* Modal header */
 .modal-header {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: space-between;
     padding: var(--space-4) var(--space-6);
@@ -136,12 +143,16 @@
 .modal-content {
     padding: var(--space-6);
     overflow-y: auto;
-    flex: 1;
+    overscroll-behavior: contain;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 /* Modal footer */
 .modal-footer {
     display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: var(--space-3);
     padding: var(--space-4) var(--space-6);

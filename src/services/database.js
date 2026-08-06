@@ -29,6 +29,9 @@ import {
     parseStrategicOrientationDetails
 } from '../features/actions/strategicOrientationDetails.js';
 import {
+    parseBlueActionDetails
+} from '../features/actions/blueActionDetails.js';
+import {
     annotateObservationTimelineEntries,
     buildNotetakerParticipantContext,
     mergeObservationTimeline,
@@ -443,6 +446,16 @@ function resolveStructuredArtifactFields(actionData = {}) {
             proposal_recipient_team: null,
             artifact_payload: { strategic_orientation: strategicOrientationDetails },
             forecast_targets: strategicOrientationDetails.forecastTargets || []
+        };
+    }
+
+    const actionDetails = parseBlueActionDetails(actionData.ally_contingencies);
+    if (actionDetails) {
+        return {
+            artifact_type: 'action',
+            proposal_recipient_team: null,
+            artifact_payload: { action: actionDetails },
+            forecast_targets: []
         };
     }
 

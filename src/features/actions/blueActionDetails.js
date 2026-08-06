@@ -369,7 +369,10 @@ export function parseBlueActionDetails(value = '') {
 }
 
 export function getBlueActionViewModel(action = {}) {
-    const details = parseBlueActionDetails(action.ally_contingencies);
+    const structuredDetails = action?.artifact_payload?.action;
+    const details = structuredDetails && typeof structuredDetails === 'object' && !Array.isArray(structuredDetails)
+        ? structuredDetails
+        : parseBlueActionDetails(action.ally_contingencies);
     const instruments = details?.instruments?.length
         ? details.instruments
         : normalizeStringList(action.mechanism ? [action.mechanism] : []);

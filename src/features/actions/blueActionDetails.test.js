@@ -226,4 +226,41 @@ describe('blue action details helpers', () => {
             notificationNote: 'Inform both teams after the action is approved.'
         });
     });
+
+    it('hydrates White Cell notification fields from the structured action snapshot', () => {
+        const viewModel = getBlueActionViewModel({
+            team: 'blue',
+            goal: 'Coordinate allied semiconductor controls',
+            artifact_payload: {
+                action: {
+                    objective: 'Coordinate the allied response.',
+                    instruments: ['Economic'],
+                    sectors: ['Semiconductors'],
+                    supplyChainFocusDecision: 'No',
+                    supplyChainActionAngles: [],
+                    supplyChainAreas: [],
+                    legislativeOptions: [],
+                    coordinated: [],
+                    informed: [],
+                    notificationTeams: ['Green', 'Industry'],
+                    notificationNote: 'Notify both teams after White Cell accepts the action.',
+                    scribeHandoff: 'Forwarded'
+                }
+            },
+            // A stale compatibility envelope must not hide the structured snapshot.
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Older compatibility copy.'
+            })
+        });
+
+        expect(viewModel).toMatchObject({
+            hasBlueActionDetails: true,
+            notificationTeams: ['Green', 'Industry'],
+            notificationNote: 'Notify both teams after White Cell accepts the action.'
+        });
+        expect(viewModel.artifactDetails).toEqual(expect.arrayContaining([
+            { label: 'Teams to Inform', value: 'Green, Industry' },
+            { label: 'Notification Note', value: 'Notify both teams after White Cell accepts the action.' }
+        ]));
+    });
 });

@@ -230,6 +230,45 @@ describe('database action write contracts', () => {
         }));
     });
 
+    it('stores Blue notification requests in the structured action payload', async () => {
+        const { database } = await import('./database.js');
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        const { insert } = mockInsertChain();
+
+        await database.createAction({
+            session_id: 'session-1',
+            client_id: 'client-action-write-test',
+            move: 2,
+            phase: 3,
+            team: 'blue',
+            mechanism: 'Economic',
+            sector: 'Biotechnology',
+            exposure_type: 'Advanced Manufacturing',
+            targets: ['PRC'],
+            goal: 'Coordinate allied semiconductor controls',
+            expected_outcomes: 'Reduce upstream dependency.',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Coordinate the allied response.',
+                notificationTeams: ['Green', 'Industry'],
+                notificationNote: 'Notify both teams after White Cell accepts the action.',
+                scribeHandoff: 'Forwarded'
+            }),
+            priority: 'NORMAL',
+            status: 'draft'
+        });
+
+        expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+            artifact_type: 'action',
+            artifact_payload: {
+                action: expect.objectContaining({
+                    notificationTeams: ['Green', 'Industry'],
+                    notificationNote: 'Notify both teams after White Cell accepts the action.',
+                    scribeHandoff: 'Forwarded'
+                })
+            }
+        }));
+    });
+
     it('allows incomplete draft rows to persist with an empty mechanism', async () => {
         const { database } = await import('./database.js');
         const { insert } = mockInsertChain();

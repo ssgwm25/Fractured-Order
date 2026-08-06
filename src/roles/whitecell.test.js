@@ -7,6 +7,7 @@ import { serializeStrategicOrientationDetails } from '../features/actions/strate
 
 const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
 const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
+const MODALS_CSS_PATH = new URL('../../styles/components/modals.css', import.meta.url);
 const showToast = vi.fn();
 const showModal = vi.fn();
 const confirmModal = vi.fn();
@@ -2416,6 +2417,15 @@ describe('White Cell DOM contract', () => {
         expect(modalConfig?.content?.innerHTML).not.toMatch(/Outcome \*/);
         expect(modalConfig?.content?.innerHTML).toContain('id="artifactReviewNotes"');
         expect(modalConfig?.content?.innerHTML).toContain('Required when sending back for improvement; optional when accepting as complete.');
+    });
+
+    it('keeps the Review Action footer reachable while long modal content scrolls', () => {
+        const modalCss = readFileSync(MODALS_CSS_PATH, 'utf8');
+
+        expect(modalCss).toMatch(/\.modal-header\s*\{[^}]*flex:\s*0 0 auto;/s);
+        expect(modalCss).toMatch(/\.modal-content\s*\{[^}]*overflow-y:\s*auto;[^}]*flex:\s*1 1 auto;[^}]*min-height:\s*0;/s);
+        expect(modalCss).toMatch(/\.modal-footer\s*\{[^}]*flex:\s*0 0 auto;[^}]*flex-wrap:\s*wrap;/s);
+        expect(modalCss).toContain('max-height: calc(100dvh - var(--space-8));');
     });
 
     it('returns a Red action to Red with team-aware review and timeline language', async () => {
