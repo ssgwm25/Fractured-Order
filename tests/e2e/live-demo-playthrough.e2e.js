@@ -371,7 +371,18 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
         });
 
         const proposalCases = [
-            { owner: 'green', title: 'Green proposal for Blue negotiation', recipient: 'blue', review: 'forward_to_recipient', response: 'negotiate' },
+            {
+                owner: 'green',
+                title: 'Green proposal for Blue negotiation',
+                recipient: 'blue',
+                recipientTeams: ['blue', 'red'],
+                focusSectors: ['Biotechnology', 'Agriculture'],
+                supplyChainFocusDecision: 'Yes',
+                supplyChainActionAngles: ['Build resilience for Blue'],
+                supplyChainAreas: ['Advanced Manufacturing'],
+                review: 'forward_to_recipient',
+                response: 'negotiate'
+            },
             { owner: 'industry', title: 'Industry proposal for Red acceptance', recipient: 'red', review: 'forward_to_recipient', response: 'accept' },
             { owner: 'green', title: 'Green proposal for Red non-interest', recipient: 'red', review: 'forward_to_recipient', response: 'not_interested' },
             { owner: 'industry', title: 'Industry proposal requiring changes', recipient: 'blue', review: 'request_changes' },
@@ -381,7 +392,12 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             for (const proposal of proposalCases) {
                 await createProposal(actors.teams[proposal.owner].scribe, {
                     title: proposal.title,
-                    recipientTeam: proposal.recipient
+                    recipientTeam: proposal.recipient,
+                    recipientTeams: proposal.recipientTeams,
+                    focusSectors: proposal.focusSectors,
+                    supplyChainFocusDecision: proposal.supplyChainFocusDecision,
+                    supplyChainActionAngles: proposal.supplyChainActionAngles,
+                    supplyChainAreas: proposal.supplyChainAreas
                 });
                 await submitForwardedProposalFromFacilitator(actors.teams[proposal.owner].facilitator, {
                     title: proposal.title

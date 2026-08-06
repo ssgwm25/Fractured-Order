@@ -70,7 +70,7 @@ describe('database action write contracts', () => {
         vi.useRealTimers();
     });
 
-    it('derives the proposal mechanism before inserting a Green proposal row', async () => {
+    it('stores multi-recipient proposal approval state at the action write boundary', async () => {
         const { database } = await import('./database.js');
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
         const { insert } = mockInsertChain();
@@ -90,11 +90,11 @@ describe('database action write contracts', () => {
             ally_contingencies: serializeProposalDetails({
                 originators: ['EU'],
                 objective: 'Coordinate a joint line.',
-                category: 'Alignment',
-                intendedPartners: 'Blue Team',
-                delivery: 'Joint Statement',
+                intendedPartners: 'Blue Team, Red Team',
                 timingAndConditions: 'Next move',
-                recipientTeam: 'blue'
+                recipientTeams: ['blue', 'red'],
+                focusSectors: ['Biotechnology', 'Agriculture'],
+                supplyChainFocusDecision: 'No'
             }),
             priority: 'NORMAL',
             idempotency_key: 'proposal-command-1',
@@ -109,7 +109,13 @@ describe('database action write contracts', () => {
             artifact_payload: {
                 proposal: expect.objectContaining({
                     objective: 'Coordinate a joint line.',
-                    recipientTeam: 'blue'
+                    recipientTeam: 'blue',
+                    recipientTeams: ['blue', 'red'],
+                    recipientApprovalStates: {
+                        blue: 'pending_white_cell_approval',
+                        red: 'pending_white_cell_approval'
+                    },
+                    focusSectors: ['Biotechnology', 'Agriculture']
                 })
             }
         }));

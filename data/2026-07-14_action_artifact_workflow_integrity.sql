@@ -991,6 +991,7 @@ BEGIN
             'title', updated_action.goal,
             'originators', CASE
                 WHEN originators_text IS NULL OR originators_text = 'None selected' THEN '[]'::jsonb
+                WHEN originators_text ~ '^[[:space:]]*\[' THEN originators_text::jsonb
                 ELSE to_jsonb(regexp_split_to_array(originators_text, '[[:space:]]*,[[:space:]]*'))
             END,
             'objective', public.action_legacy_detail(updated_action.ally_contingencies, 'Objective'),
@@ -1001,7 +1002,39 @@ BEGIN
             END,
             'category', public.action_legacy_detail(updated_action.ally_contingencies, 'Category'),
             'intendedPartners', public.action_legacy_detail(updated_action.ally_contingencies, 'Intended Partners'),
+            'recipientTeams', CASE
+                WHEN public.action_legacy_detail(updated_action.ally_contingencies, 'Recipient Teams') IS NULL
+                    THEN to_jsonb(ARRAY[resolved_recipient])
+                WHEN public.action_legacy_detail(updated_action.ally_contingencies, 'Recipient Teams') ~ '^[[:space:]]*\['
+                    THEN public.action_legacy_detail(updated_action.ally_contingencies, 'Recipient Teams')::jsonb
+                ELSE to_jsonb(regexp_split_to_array(
+                    public.action_legacy_detail(updated_action.ally_contingencies, 'Recipient Teams'),
+                    '[[:space:]]*,[[:space:]]*'
+                ))
+            END,
             'focusSector', updated_action.sector,
+            'focusSectors', CASE
+                WHEN public.action_legacy_detail(updated_action.ally_contingencies, 'Focus Sectors') IS NULL
+                    THEN to_jsonb(ARRAY[updated_action.sector])
+                WHEN public.action_legacy_detail(updated_action.ally_contingencies, 'Focus Sectors') ~ '^[[:space:]]*\['
+                    THEN public.action_legacy_detail(updated_action.ally_contingencies, 'Focus Sectors')::jsonb
+                ELSE to_jsonb(regexp_split_to_array(
+                    public.action_legacy_detail(updated_action.ally_contingencies, 'Focus Sectors'),
+                    '[[:space:]]*,[[:space:]]*'
+                ))
+            END,
+            'supplyChainFocusDecision', public.action_legacy_detail(updated_action.ally_contingencies, 'Supply Chain Focus Decision'),
+            'supplyChainActionAngles', COALESCE(
+                NULLIF(public.action_legacy_detail(updated_action.ally_contingencies, 'Supply Chain Action Angles'), 'None selected')::jsonb,
+                '[]'::jsonb
+            ),
+            'supplyChainAreas', COALESCE(
+                NULLIF(public.action_legacy_detail(updated_action.ally_contingencies, 'Supply Chain Areas'), 'None selected')::jsonb,
+                '[]'::jsonb
+            ),
+            'industryFocus', public.action_legacy_detail(updated_action.ally_contingencies, 'Industry Focus'),
+            'countryFocus', public.action_legacy_detail(updated_action.ally_contingencies, 'Country Focus'),
+            'proposedActivity', public.action_legacy_detail(updated_action.ally_contingencies, 'Proposed Activity'),
             'delivery', public.action_legacy_detail(updated_action.ally_contingencies, 'Delivery'),
             'timingAndConditions', public.action_legacy_detail(updated_action.ally_contingencies, 'Timing And Conditions'),
             'expectedOutcomes', updated_action.expected_outcomes

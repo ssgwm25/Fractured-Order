@@ -47,6 +47,10 @@ describe('proposalDetails scribe handoff', () => {
             timingAndConditions: 'Before Move 2',
             recipientTeam: 'blue',
             recipientTeams: ['blue', 'red'],
+            recipientApprovalStates: {
+                blue: 'pending_white_cell_approval',
+                red: 'pending_white_cell_approval'
+            },
             focusSector: 'Biotechnology',
             focusSectors: ['Biotechnology', 'Telecommunications'],
             supplyChainFocusDecision: 'Yes',
@@ -75,7 +79,11 @@ describe('proposalDetails scribe handoff', () => {
         expect(viewModel.recipientTeams).toEqual(['blue', 'red']);
         expect(viewModel.focusSectors).toEqual(['Biotechnology', 'Telecommunications']);
         expect(viewModel.artifactDetails).toEqual(expect.arrayContaining([
-            { label: 'Recipient Teams', value: 'Blue Team, Red Team' },
+            { label: 'Intended Partners', value: 'Selected public and private partners' },
+            {
+                label: 'Proposed Recipient Approvals',
+                value: 'Blue Team: Awaiting separate White Cell approval; Red Team: Awaiting separate White Cell approval'
+            },
             { label: 'Focus Sectors', value: 'Biotechnology, Telecommunications' },
             { label: 'Supply Chain Decision', value: 'Yes' },
             { label: 'Action Angles', value: 'Build resilience for Blue, Disrupt Red' },
@@ -85,6 +93,23 @@ describe('proposalDetails scribe handoff', () => {
             { label: 'Proposed Activity', value: 'Stand up a joint capacity facility.' },
             { label: 'Revision', value: '3' }
         ]));
+    });
+
+    it('omits Category and Delivery from newly serialized proposal details', () => {
+        const serialized = serializeProposalDetails({
+            originators: ['EU'],
+            objective: 'Coordinate resilient supply.',
+            recipientTeams: ['blue', 'red'],
+            focusSectors: ['Biotechnology', 'Custom industrial capacity'],
+            supplyChainFocusDecision: 'No'
+        });
+
+        expect(serialized).not.toContain('\nCategory:');
+        expect(serialized).not.toContain('\nDelivery:');
+        expect(serialized).toContain('Recipient Teams: ["blue","red"]');
+        expect(serialized).toContain(
+            'Recipient Approval States: {"blue":"pending_white_cell_approval","red":"pending_white_cell_approval"}'
+        );
     });
 
     it('parses historical Category, Delivery, single-recipient, and single-sector fields', () => {
@@ -152,7 +177,7 @@ describe('proposalDetails scribe handoff', () => {
 
         expect(viewModel.artifactDetails).toEqual(expect.arrayContaining([
             { label: 'Instrument of Power', value: 'Partnership' },
-            { label: 'Recipient Teams', value: 'Blue Team' },
+            { label: 'Intended Partners', value: 'Blue Team' },
             { label: 'Focus Sectors', value: 'Critical minerals' }
         ]));
         expect(viewModel.artifactDetails).not.toContainEqual({

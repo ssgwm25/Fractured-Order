@@ -82,6 +82,20 @@ function recordLatency(samples, name, startedAt) {
     expect(elapsedMs, `${name} exceeded the ${REALTIME_SLO_MS}ms Realtime SLO`).toBeLessThanOrEqual(REALTIME_SLO_MS);
 }
 
+async function setActorConnectivity(actor, { online, hosted }) {
+    if (hosted) {
+        await actor.context.setOffline(!online);
+    }
+
+    // Chromium's network emulation does not guarantee that the corresponding
+    // DOM connectivity event reaches the page before the next assertion. Emit
+    // the browser signal explicitly after the real network toggle so the app's
+    // sync-state handler and reconciliation path are exercised deterministically.
+    await actor.page.evaluate((eventName) => {
+        window.dispatchEvent(new Event(eventName));
+    }, online ? 'online' : 'offline');
+}
+
 test('@realtime fanout, outage recovery, reconciliation, and isolation stay correct', async ({ browser }, testInfo) => {
     // Keep the end-to-end envelope separate from the 15-second fanout SLO.
     // Hosted operator grants and six independent browser bootstraps may be
@@ -236,11 +250,10 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
         });
 
         await test.step('surface an outage, reconcile the missed message, and avoid duplicate alerts', async () => {
-            if (actorPool.hosted) {
-                await blueFacilitator.context.setOffline(true);
-            } else {
-                await blueFacilitator.page.evaluate(() => window.dispatchEvent(new Event('offline')));
-            }
+            await setActorConnectivity(blueFacilitator, {
+                online: false,
+                hosted: actorPool.hosted
+            });
 
             await expect(blueFacilitator.page.locator('#syncStatusBanner')).toBeVisible();
             await expect(blueFacilitator.page.locator('#syncStatusBanner')).toContainText('Live updates paused');
@@ -250,11 +263,10 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
                 content: missedMessage
             });
 
-            if (actorPool.hosted) {
-                await blueFacilitator.context.setOffline(false);
-            } else {
-                await blueFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online')));
-            }
+            await setActorConnectivity(blueFacilitator, {
+                online: true,
+                hosted: actorPool.hosted
+            });
 
             await expect(blueFacilitator.page.locator('#syncStatusBanner')).toBeHidden({ timeout: 30000 });
             await expect(blueFacilitator.page.locator('#scribeAlertsBadge')).toHaveText('1', { timeout: 30000 });

@@ -35,6 +35,11 @@ export const PROPOSAL_SECTORS = Object.freeze([
     'Other'
 ]);
 
+export const PROPOSAL_RECIPIENT_TEAMS = Object.freeze(['blue', 'red']);
+export const PROPOSAL_RECIPIENT_APPROVAL_STATUS = Object.freeze({
+    PENDING: 'pending_white_cell_approval'
+});
+
 export const PROPOSAL_DELIVERIES = Object.freeze([
     'Diplomatic Engagement',
     'Joint Statement',
@@ -56,7 +61,31 @@ function normalizeString(value) {
 
 function normalizeStringList(values = []) {
     if (!Array.isArray(values)) return [];
-    return values.map((value) => normalizeString(value)).filter(Boolean);
+    return [...new Set(values.map((value) => normalizeString(value)).filter(Boolean))];
+}
+
+function normalizeRecipientTeams(values = []) {
+    return normalizeStringList(values)
+        .map((value) => value.toLowerCase())
+        .filter((value) => PROPOSAL_RECIPIENT_TEAMS.includes(value));
+}
+
+function normalizeRecipientApprovalStates(value = {}, recipientTeams = []) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return Object.fromEntries(normalizeRecipientTeams(recipientTeams).map((team) => [
+        team,
+        normalizeString(source[team]) || PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING
+    ]));
+}
+
+function parseRecipientApprovalStates(value = '', recipientTeams = []) {
+    if (!normalizeString(value)) return {};
+
+    try {
+        return normalizeRecipientApprovalStates(JSON.parse(value), recipientTeams);
+    } catch (_error) {
+        return {};
+    }
 }
 
 function serializeStringList(values = []) {
@@ -138,6 +167,19 @@ function formatRecipientTeams(values = []) {
     }).join(', ');
 }
 
+function formatRecipientApprovalStates(states = {}) {
+    return PROPOSAL_RECIPIENT_TEAMS
+        .filter((team) => states[team])
+        .map((team) => `${formatRecipientTeams([team])}: ${states[team] === PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING
+            ? 'Awaiting separate White Cell approval'
+            : states[team].replace(/_/g, ' ')}`)
+        .join('; ');
+}
+
+export function formatProposalRecipientTeams(values = [], fallback = 'Not specified') {
+    return formatRecipientTeams(values) || fallback;
+}
+
 function buildProposalArtifactDetails(viewModel = {}) {
     const revision = viewModel.revisionMetadata || {};
     const isIndustryProposal = viewModel.team === 'industry';
@@ -149,9 +191,15 @@ function buildProposalArtifactDetails(viewModel = {}) {
         { label: 'Proposal Objective', value: viewModel.objective },
         { label: 'Originators', value: formatDetailSelection(viewModel.originators) },
         { label: 'Instrument of Power', value: instrumentOfPower },
-        { label: 'Category', value: isIndustryProposal ? '' : viewModel.category },
-        { label: 'Intended Partners', value: viewModel.intendedPartners },
-        { label: 'Recipient Teams', value: formatRecipientTeams(viewModel.recipientTeams) },
+        { label: 'Category (historical)', value: isIndustryProposal ? '' : viewModel.category },
+        {
+            label: 'Intended Partners',
+            value: viewModel.intendedPartners || formatRecipientTeams(viewModel.recipientTeams)
+        },
+        {
+            label: 'Proposed Recipient Approvals',
+            value: formatRecipientApprovalStates(viewModel.recipientApprovalStates)
+        },
         { label: 'Focus Sectors', value: formatDetailSelection(viewModel.focusSectors) },
         { label: 'Supply Chain Decision', value: viewModel.supplyChainFocusDecision },
         { label: 'Action Angles', value: formatDetailSelection(viewModel.supplyChainActionAngles) },
@@ -159,7 +207,7 @@ function buildProposalArtifactDetails(viewModel = {}) {
         { label: 'Industry Focus', value: viewModel.industryFocus },
         { label: 'Country Focus', value: viewModel.countryFocus },
         { label: 'Proposed Activity', value: viewModel.proposedActivity },
-        { label: 'Delivery', value: viewModel.delivery },
+        { label: 'Delivery (historical)', value: viewModel.delivery },
         { label: 'Timing & Conditions', value: viewModel.timingAndConditions },
         { label: 'Expected Outcomes', value: viewModel.expectedOutcomes },
         { label: 'Revision', value: revision.revisionNumber === null ? '' : String(revision.revisionNumber) },
@@ -187,7 +235,7 @@ function normalizeScribeHandoff(value = '') {
 
 export function serializeProposalDetails(details = {}) {
     const originators = normalizeStringList(details.originators);
-    const recipientTeams = normalizeStringList(
+    const recipientTeams = normalizeRecipientTeams(
         Array.isArray(details.recipientTeams)
             ? details.recipientTeams
             : (details.recipientTeam ? [details.recipientTeam] : [])
@@ -202,6 +250,10 @@ export function serializeProposalDetails(details = {}) {
     const supplyChainFocusDecision = normalizeDecision(details.supplyChainFocusDecision)
         || (supplyChainActionAngles.length || supplyChainAreas.length ? 'Yes' : '');
     const revisionMetadata = normalizeRevisionMetadata(details.revisionMetadata || details);
+    const recipientApprovalStates = normalizeRecipientApprovalStates(
+        details.recipientApprovalStates,
+        recipientTeams
+    );
     const scribeHandoff = normalizeScribeHandoff(details.scribeHandoff)
         || PROPOSAL_SCRIBE_HANDOFF.DRAFT;
     return [
@@ -209,11 +261,12 @@ export function serializeProposalDetails(details = {}) {
         `Originators: ${serializeStringList(originators)}`,
         `Objective: ${normalizeString(details.objective)}`,
         `Instruments: ${serializeStringList(details.instruments)}`,
-        `Category: ${normalizeString(details.category)}`,
+        ...(normalizeString(details.category) ? [`Category: ${normalizeString(details.category)}`] : []),
         `Intended Partners: ${normalizeString(details.intendedPartners)}`,
-        `Delivery: ${normalizeString(details.delivery)}`,
+        ...(normalizeString(details.delivery) ? [`Delivery: ${normalizeString(details.delivery)}`] : []),
         `Timing And Conditions: ${normalizeString(details.timingAndConditions)}`,
         `Recipient Teams: ${serializeStringList(recipientTeams)}`,
+        `Recipient Approval States: ${JSON.stringify(recipientApprovalStates)}`,
         `Focus Sectors: ${serializeStringList(focusSectors)}`,
         `Supply Chain Focus Decision: ${supplyChainFocusDecision || 'Not selected'}`,
         `Supply Chain Action Angles: ${serializeStringList(supplyChainFocusDecision === 'No' ? [] : supplyChainActionAngles)}`,
@@ -251,7 +304,9 @@ export function parseProposalDetails(value = '') {
         );
 
         const originators = parseStringList(parsed.Originators);
-        const recipientTeams = parseStringList(parsed['Recipient Teams'] || parsed['Recipient Team']);
+        const recipientTeams = normalizeRecipientTeams(
+            parseStringList(parsed['Recipient Teams'] || parsed['Recipient Team'])
+        );
         const focusSectors = parseStringList(parsed['Focus Sectors'] || parsed['Focus Sector']);
         const parsedSupplyChainActionAngles = parseStringList(parsed['Supply Chain Action Angles']);
         const parsedSupplyChainAreas = parseStringList(parsed['Supply Chain Areas']);
@@ -270,6 +325,10 @@ export function parseProposalDetails(value = '') {
             timingAndConditions: normalizeString(parsed['Timing And Conditions']),
             recipientTeam: recipientTeams[0] || '',
             recipientTeams,
+            recipientApprovalStates: parseRecipientApprovalStates(
+                parsed['Recipient Approval States'],
+                recipientTeams
+            ),
             focusSector: focusSectors[0] || '',
             focusSectors,
             supplyChainFocusDecision,
@@ -320,6 +379,7 @@ export function getProposalViewModel(action = {}) {
         expectedOutcomes: action.expected_outcomes || '',
         recipientTeam: recipientTeams[0] || '',
         recipientTeams,
+        recipientApprovalStates: details?.recipientApprovalStates || {},
         supplyChainFocusDecision: details?.supplyChainFocusDecision || '',
         supplyChainActionAngles: details?.supplyChainActionAngles || [],
         supplyChainAreas: details?.supplyChainAreas || [],

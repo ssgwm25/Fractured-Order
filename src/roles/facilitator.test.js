@@ -961,13 +961,13 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(html).toContain('id="receivedProposalsList"');
     });
 
-    it('labels the Industry facilitator action trigger as New Proposal', () => {
+    it('labels the Industry facilitator action trigger as New US Industry Proposal', () => {
         const html = readFileSync(INDUSTRY_FACILITATOR_HTML_PATH, 'utf8');
 
         expect(html).toContain('body data-team="industry"');
         expect(html).toContain('id="newActionBtn"');
         expect(html).toContain('id="pageRefreshBtn"');
-        expect(html).toContain('New Proposal');
+        expect(html).toContain('New US Industry Proposal');
         expect(html).toContain('No Proposals Yet');
         expect(html).toContain('Create your first proposal to start the White Cell review flow.');
         expect(html).not.toContain('No Actions Yet');
@@ -1044,41 +1044,102 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(actionsList.innerHTML).not.toContain('strategic action');
     });
 
-    it('uses Blue Team instruments of power in the Industry proposal modal', async () => {
+    it('renders a distinct US Industry proposal form', async () => {
         global.document = createFakeDocument();
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         controller.teamId = 'industry';
 
-        const content = controller.createGreenProposalContent();
+        const content = controller.createIndustryProposalContent();
 
         expect(content.innerHTML).toContain('id="industryProposalForm"');
         expect(content.innerHTML).not.toContain('id="greenProposalForm"');
-        expect(content.innerHTML).toContain('id="proposalInstrumentsLabel">Instrument of Power *');
-        expect(content.innerHTML).toContain('data-proposal-instrument="true"');
-        expect(content.innerHTML).toContain('aria-required="true"');
-        expect(content.innerHTML).toContain('value="Economic"');
-        expect(content.innerHTML).toContain('value="Diplomacy"');
-        expect(content.innerHTML).toContain('value="Information"');
-        expect(content.innerHTML).toContain('value="Military"');
-        expect(content.innerHTML).toContain('value="Other"');
-        expect(content.innerHTML).toContain('Select one or more instruments of power.');
-        expect(content.innerHTML).toContain('id="proposalInstrumentOtherGroup"');
+        expect(content.innerHTML).toContain('id="proposalIndustryFocus"');
+        expect(content.innerHTML).toContain('Industry of Focus *');
+        expect(content.innerHTML).toContain('id="proposalCountryFocus"');
+        expect(content.innerHTML).toContain('Country of Focus *');
+        expect(content.innerHTML).toContain('id="proposalProposedActivity"');
+        expect(content.innerHTML).toContain('Proposed Activity *');
+        expect(content.innerHTML).not.toContain('id="proposalObjective"');
+        expect(content.innerHTML).not.toContain('data-proposal-originator="true"');
         expect(content.innerHTML).not.toContain('Proposal Category');
         expect(content.innerHTML).not.toContain('id="proposalCategory"');
+        expect(content.innerHTML).not.toContain('id="proposalDelivery"');
     });
 
-    it('keeps Proposal Category in the Green proposal modal', async () => {
+    it('uses independent partner and focus-sector checkbox groups in the Green proposal modal', async () => {
         global.document = createFakeDocument();
         const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
         const controller = new FacilitatorController();
         controller.teamId = 'green';
 
-        const content = controller.createGreenProposalContent();
+        const content = controller.createGreenProposalContent({
+            team: 'green',
+            mechanism: 'Proposal',
+            ally_contingencies: serializeProposalDetails({
+                recipientTeams: ['blue', 'red'],
+                focusSectors: ['Biotechnology', 'Custom fabrication'],
+                supplyChainFocusDecision: 'No'
+            })
+        });
 
-        expect(content.innerHTML).toContain('Proposal Category *');
-        expect(content.innerHTML).toContain('id="proposalCategory"');
-        expect(content.innerHTML).not.toContain('id="proposalInstrumentsLabel"');
+        expect(content.innerHTML).toContain('data-proposal-partner="true" value="blue"');
+        expect(content.innerHTML).toContain('data-proposal-partner="true" value="red"');
+        expect(content.innerHTML).toContain('data-proposal-sector="true"');
+        expect(content.innerHTML).toContain('name="proposalHasSupplyChainFocus" value="Yes"');
+        expect(content.innerHTML).toContain('name="proposalHasSupplyChainFocus" value="No"');
+        expect(content.innerHTML).toContain('data-proposal-action-angle="true"');
+        expect(content.innerHTML).toContain('data-proposal-supply-chain-area="true"');
+        expect(content.innerHTML).toContain('id="proposalSectorOptionOther"');
+        expect(content.innerHTML).toContain('id="proposalFocusSectorOther"');
+        expect(content.innerHTML).toContain('value="Custom fabrication"');
+        expect(content.innerHTML).not.toContain('Proposal Category');
+        expect(content.innerHTML).not.toContain('id="proposalCategory"');
+        expect(content.innerHTML).not.toContain('id="proposalDelivery"');
+    });
+
+    it('reopens a returned proposal with reviewer notes, identity, and revision history visible', async () => {
+        global.document = createFakeDocument();
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        const timelineGetAll = vi.spyOn(timelineStore, 'getAll').mockReturnValue([{
+            id: 'return-proposal-1',
+            type: 'ARTIFACT_RETURNED_TO_TEAM',
+            created_at: '2026-08-05T15:00:00.000Z',
+            metadata: {
+                related_id: 'proposal-returned-1',
+                revision_number: 1,
+                return_notes: 'Name the accountable delivery owner.'
+            }
+        }]);
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        const content = controller.createGreenProposalContent({
+            id: 'proposal-returned-1',
+            team: 'green',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 2,
+            review_notes: 'Name the accountable delivery owner.',
+            goal: 'Shared biotech capacity',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU'],
+                objective: 'Build shared capacity.',
+                recipientTeams: ['blue', 'red'],
+                focusSectors: ['Biotechnology'],
+                supplyChainFocusDecision: 'No',
+                scribeHandoff: 'Forwarded'
+            })
+        }, { isEdit: true });
+
+        expect(content.innerHTML).toContain('White Cell return and revision history');
+        expect(content.innerHTML).toContain('Name the accountable delivery owner.');
+        expect(content.innerHTML).toContain('proposal-returned-1');
+        expect(content.innerHTML).toContain('Current revision:</strong> 2');
+        expect(content.innerHTML).toContain('data-proposal-nav="saveChanges"');
+        timelineGetAll.mockRestore();
     });
 
     it('renders action-specific empty-state copy for the Red facilitator queue', async () => {
@@ -1232,13 +1293,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(markup.indexOf('proposal-move-1')).toBeLessThan(markup.indexOf('proposal-move-2'));
     });
 
-    it('ships proposal-category guidance on Green and Industry Scribe workspaces', () => {
+    it('ships role-specific proposal guidance on Green and Industry Scribe workspaces', () => {
         const greenHtml = readFileSync(GREEN_FACILITATOR_HTML_PATH, 'utf8');
         const industryHtml = readFileSync(INDUSTRY_FACILITATOR_HTML_PATH, 'utf8');
-        const expectedCopy = 'Use the Strategic Orientation and move tabs to see exactly what was noted for each part of the simulation.';
-
-        expect(greenHtml).toContain(expectedCopy);
-        expect(industryHtml).toContain(expectedCopy);
+        expect(greenHtml).toContain('independent Blue/Red partners');
+        expect(industryHtml).toContain('industry, country, proposed activity');
     });
 
     it('keeps proposal-category guidance after configuring the active Scribe mode', async () => {
@@ -1258,9 +1317,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         controller.configureAccessMode();
 
-        expect(actionsDescription.textContent).toContain('Strategic Orientation and move tabs');
-        expect(actionsDescription.textContent).toContain('exactly what was noted');
-        expect(actionsDescription.textContent).toContain('Draft proposals here');
+        expect(actionsDescription.textContent).toContain('independent Blue/Red intended partners');
+        expect(actionsDescription.textContent).toContain('focus sectors');
+        expect(actionsDescription.textContent).toContain('conditional supply-chain details');
     });
 
     it('switches proposal category tabs with arrow-key navigation', async () => {
@@ -2433,56 +2492,89 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             title: 'Align biotech export posture',
             originators: ['EU', 'Japan'],
             objective: 'Coordinate export controls across allied channels.',
-            category: 'Alignment',
-            intendedPartners: 'Blue Team',
-            focusSector: 'Biotechnology',
-            delivery: 'Joint Statement',
+            intendedPartners: 'Blue Team, Red Team',
+            recipientTeams: ['blue', 'red'],
+            focusSectors: ['Biotechnology', 'Telecommunications'],
+            supplyChainFocusDecision: 'No',
             timingAndConditions: 'Next move after White Cell approval.',
             expectedOutcomes: 'Reduce room for adversarial arbitrage.'
-        }, {
-            recipientTeam: 'blue'
         });
 
         expect(payload.mechanism).toBe('Proposal');
         expect(payload.ally_contingencies).toContain('Proposal Details');
-        expect(payload.ally_contingencies).toContain('Recipient Teams: ["blue"]');
+        expect(payload.ally_contingencies).toContain('Recipient Teams: ["blue","red"]');
+        expect(payload.ally_contingencies).not.toContain('\nCategory:');
+        expect(payload.ally_contingencies).not.toContain('\nDelivery:');
     });
 
-    it('persists Industry instruments of power in proposal details', async () => {
+    it('requires and persists the distinct US Industry proposal fields', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         controller.teamId = 'industry';
 
         const payload = controller.buildGreenProposalPayload({
             title: 'Align biotech export posture',
-            originators: ['EU', 'Japan'],
-            objective: 'Coordinate export controls across allied channels.',
-            instruments: ['Economic', 'Diplomacy'],
-            category: '',
-            intendedPartners: 'Blue Team',
-            focusSector: 'Biotechnology',
-            delivery: 'Joint Statement',
+            originators: ['US Industry'],
+            objective: 'Stand up a shared fabrication facility.',
+            intendedPartners: 'Blue Team, Red Team',
+            recipientTeams: ['blue', 'red'],
+            focusSectors: ['Biotechnology', 'Custom fabrication'],
+            supplyChainFocusDecision: 'Yes',
+            supplyChainActionAngles: ['Build resilience for Blue'],
+            supplyChainAreas: ['Advanced Manufacturing'],
+            industryFocus: 'Advanced biomanufacturing',
+            countryFocus: 'United States and Japan',
+            proposedActivity: 'Stand up a shared fabrication facility.',
             timingAndConditions: 'Next move after White Cell approval.',
             expectedOutcomes: 'Reduce room for adversarial arbitrage.'
-        }, {
-            recipientTeam: 'blue'
         });
 
-        expect(payload.ally_contingencies).toContain('Instruments: ["Economic","Diplomacy"]');
+        expect(payload.ally_contingencies).toContain('Industry Focus: Advanced biomanufacturing');
+        expect(payload.ally_contingencies).toContain('Country Focus: United States and Japan');
+        expect(payload.ally_contingencies).toContain('Proposed Activity: Stand up a shared fabrication facility.');
         expect(controller.validateGreenProposal({
             title: 'Align biotech export posture',
-            originators: ['EU'],
-            objective: 'Coordinate export controls.',
-            selectedInstrumentValues: ['Economic', 'Diplomacy'],
-            instrumentOther: '',
-            intendedPartners: 'Blue Team',
-            sectorSelect: 'Biotechnology',
+            industryFocus: 'Advanced biomanufacturing',
+            countryFocus: 'United States and Japan',
+            proposedActivity: 'Stand up a shared fabrication facility.',
+            recipientTeams: ['blue', 'red'],
+            selectedSectorValues: ['Biotechnology'],
             sectorOther: '',
-            deliverySelect: 'Joint Statement',
-            deliveryOther: '',
+            supplyChainFocusDecision: 'Yes',
+            supplyChainActionAngles: ['Build resilience for Blue'],
+            supplyChainAreas: ['Advanced Manufacturing'],
             timingAndConditions: 'Next move.',
             expectedOutcomes: 'Aligned posture.'
         })).toBeNull();
+    });
+
+    it('validates partner, sector, and conditional supply-chain proposal choices', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'green';
+        const valid = {
+            title: 'Resilient corridor',
+            originators: ['EU'],
+            objective: 'Coordinate the corridor.',
+            recipientTeams: ['blue'],
+            selectedSectorValues: ['Agriculture'],
+            sectorOther: '',
+            supplyChainFocusDecision: 'No',
+            supplyChainActionAngles: [],
+            supplyChainAreas: [],
+            timingAndConditions: 'This move.',
+            expectedOutcomes: 'Shared posture.'
+        };
+
+        expect(controller.validateGreenProposal({ ...valid, recipientTeams: [] })).toBe('Select at least one intended partner.');
+        expect(controller.validateGreenProposal({ ...valid, selectedSectorValues: [] })).toBe('Select at least one focus sector.');
+        expect(controller.validateGreenProposal({ ...valid, supplyChainFocusDecision: '' })).toBe('Select Yes or No for the supply chain focus question.');
+        expect(controller.validateGreenProposal({ ...valid, supplyChainFocusDecision: 'Yes' })).toBe('Select at least one action angle.');
+        expect(controller.validateGreenProposal({
+            ...valid,
+            supplyChainFocusDecision: 'Yes',
+            supplyChainActionAngles: ['Disrupt Red']
+        })).toBe('Select at least one supply chain area.');
     });
 
     it('shows forwarded proposals in both the received proposals inbox and the responses feed', async () => {

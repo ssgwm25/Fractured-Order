@@ -1809,9 +1809,12 @@ function operatorReviewArtifact(state, params) {
     const artifactType = action.artifact_type || 'action';
     if (
         kind === 'action'
-        && (!['action', 'move_response'].includes(artifactType) || !['blue', 'red'].includes(team))
+        && !(
+            (['action', 'move_response'].includes(artifactType) && ['blue', 'red'].includes(team))
+            || (artifactType === 'proposal' && ['green', 'industry'].includes(team))
+        )
     ) {
-        return { data: null, error: { message: 'Only Blue or Red action artifacts can use the action review path.' } };
+        return { data: null, error: { message: 'Artifact type and submitting team do not match the action review path.' } };
     }
     if (
         kind === 'strategic_orientation'
@@ -2097,7 +2100,15 @@ function operatorReviewProposal(state, params) {
                     instruments,
                     category: readLegacyActionDetail(updatedAction.ally_contingencies, 'Category'),
                     intendedPartners: readLegacyActionDetail(updatedAction.ally_contingencies, 'Intended Partners'),
+                    recipientTeams: readLegacyActionList(updatedAction.ally_contingencies, 'Recipient Teams'),
                     focusSector: updatedAction.sector || null,
+                    focusSectors: readLegacyActionList(updatedAction.ally_contingencies, 'Focus Sectors'),
+                    supplyChainFocusDecision: readLegacyActionDetail(updatedAction.ally_contingencies, 'Supply Chain Focus Decision'),
+                    supplyChainActionAngles: readLegacyActionList(updatedAction.ally_contingencies, 'Supply Chain Action Angles'),
+                    supplyChainAreas: readLegacyActionList(updatedAction.ally_contingencies, 'Supply Chain Areas'),
+                    industryFocus: readLegacyActionDetail(updatedAction.ally_contingencies, 'Industry Focus'),
+                    countryFocus: readLegacyActionDetail(updatedAction.ally_contingencies, 'Country Focus'),
+                    proposedActivity: readLegacyActionDetail(updatedAction.ally_contingencies, 'Proposed Activity'),
                     delivery: readLegacyActionDetail(updatedAction.ally_contingencies, 'Delivery'),
                     timingAndConditions: readLegacyActionDetail(updatedAction.ally_contingencies, 'Timing And Conditions'),
                     expectedOutcomes: updatedAction.expected_outcomes || null

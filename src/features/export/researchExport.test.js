@@ -117,11 +117,14 @@ function buildBundleFixture() {
                 ally_contingencies: serializeProposalDetails({
                     originators: ['EU'],
                     objective: 'Seek joint messaging',
-                    category: 'Alignment',
-                    intendedPartners: 'Blue Team',
-                    delivery: 'Joint Statement',
+                    intendedPartners: 'Blue Team, Red Team',
+                    recipientTeams: ['blue', 'red'],
+                    focusSectors: ['Agriculture', 'Biotechnology'],
+                    supplyChainFocusDecision: 'Yes',
+                    supplyChainActionAngles: ['Build resilience for Blue'],
+                    supplyChainAreas: ['Distribution'],
                     timingAndConditions: 'Before next move',
-                    recipientTeam: 'blue'
+                    revisionMetadata: { revisionNumber: 2 }
                 }),
                 status: 'adjudicated',
                 outcome: 'forwarded',
@@ -235,6 +238,23 @@ function buildBundleFixture() {
         ],
         timeline: [
             {
+                id: 'timeline-proposal-returned-1',
+                type: 'ARTIFACT_RETURNED_TO_TEAM',
+                team: 'white_cell',
+                move: 2,
+                phase: 2,
+                content: 'Green proposal revision 1 returned for changes.',
+                created_at: '2026-06-03T10:08:30.000Z',
+                metadata: {
+                    related_id: 'proposal-green-1',
+                    artifact_kind: 'proposal',
+                    revision_number: 1,
+                    next_revision_number: 2,
+                    role: 'whitecell_lead',
+                    return_notes: 'Clarify the timing conditions.'
+                }
+            },
+            {
                 id: 'timeline-1',
                 type: 'ACTION_SUBMITTED',
                 team: 'blue',
@@ -295,7 +315,7 @@ function buildBundleFixture() {
 }
 
 describe('research export builder', () => {
-    it('builds the full research archive dataset with the 1.6.0 dual-renderer file set', async () => {
+    it('builds the full research archive dataset with the 1.7.0 dual-renderer file set', async () => {
         const exportBundle = await buildResearchExportBundle(buildBundleFixture(), {
             generatedAtUtc: '2026-06-03T12:00:00.000Z',
             generatedByPseudonym: 'gm-1234abcd',
@@ -363,6 +383,23 @@ describe('research export builder', () => {
         });
         expect(exportBundle.proposalContent[0]).toMatchObject({
             proposal_id: 'proposal-green-1',
+            intended_recipient_teams: ['blue', 'red'],
+            recipient_approval_states: {
+                blue: 'pending_white_cell_approval',
+                red: 'pending_white_cell_approval'
+            },
+            focus_sectors: ['Agriculture', 'Biotechnology'],
+            supply_chain_focus_decision: 'Yes',
+            supply_chain_action_angles: ['Build resilience for Blue'],
+            supply_chain_areas: ['Distribution'],
+            revision_number: 2,
+            revision_history: [expect.objectContaining({
+                revision_number: 1,
+                next_revision_number: 2,
+                reviewer_role: 'whitecell_lead',
+                reviewer_notes: 'Clarify the timing conditions.',
+                returned_utc: '2026-06-03T10:08:30.000Z'
+            })],
             review_decision: 'forwarded',
             final_recipient_state: 'acknowledged'
         });
@@ -420,6 +457,13 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('ALPHA-R');
         expect(exportBundle.reportHtml).toContain('1h 30m');
         expect(exportBundle.reportHtml).toContain('Forwarded Green Team proposal.');
+        expect(exportBundle.reportHtml).toContain('Focus Sectors');
+        expect(exportBundle.reportHtml).toContain('Supply Chain Decision');
+        expect(exportBundle.reportHtml).toContain('Revision History');
+        expect(exportBundle.reportHtml).toContain('Clarify the timing conditions.');
+        expect(exportBundle.reportHtml).not.toContain('Delivery (historical)');
+        expect(exportBundle.reportLatex).toContain('Action angles');
+        expect(exportBundle.reportLatex).toContain('Revision history');
         expect(exportBundle.reportHtml).toContain('White Cell clarification changed the pacing.');
         expect(exportBundle.reportHtml).toContain('Notes Appendix');
         expect(exportBundle.dataQualitySummary).toMatchObject({

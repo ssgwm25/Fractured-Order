@@ -49,6 +49,7 @@ import {
     isProposalRecipientFinal
 } from '../features/actions/proposalRecipientState.js';
 import {
+    formatProposalRecipientTeams,
     getProposalViewModel,
     isProposalAction,
     isProposalForwardedToScribe
@@ -3054,7 +3055,8 @@ export class ScribeController {
         }
 
         const viewModel = getProposalViewModel(action);
-        const recipientLabel = viewModel.recipientTeam === 'red' ? 'Red Team' : 'Blue Team';
+        const recipientLabel = formatProposalRecipientTeams(viewModel.recipientTeams);
+        const wasReturned = getArtifactLifecycleViewModel(action).isReturned;
         const loader = showLoader({ message: 'Submitting proposal to White Cell...' });
 
         try {
@@ -3072,6 +3074,8 @@ export class ScribeController {
                     legacy_submitted_by: 'scribe',
                     proposal: true,
                     recipient_team: viewModel.recipientTeam || null,
+                    recipient_teams: viewModel.recipientTeams,
+                    revision_number: submittedAction.revision_number || action.revision_number || 1,
                     review_stage: 'white_cell_review'
                 },
                 team: this.teamId,
@@ -3082,7 +3086,9 @@ export class ScribeController {
 
             this.closePresentationEditPanel();
             showToast({
-                message: `Proposal submitted to White Cell. It will be forwarded to ${recipientLabel} once approved.`,
+                message: wasReturned
+                    ? `Proposal revision resubmitted to White Cell for ${recipientLabel}.`
+                    : `Proposal submitted to White Cell. Each selected recipient (${recipientLabel}) awaits White Cell approval.`,
                 type: 'success'
             });
         } catch (error) {
@@ -3146,9 +3152,9 @@ export class ScribeController {
     renderOwnProposalSlide(slide, viewModel = getProposalViewModel(slide.action || {})) {
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
-        const recipientLabel = viewModel.recipientTeam === 'red'
-            ? 'Red Team'
-            : (viewModel.recipientTeam === 'blue' ? 'Blue Team' : 'Not specified');
+        const lifecycle = getArtifactLifecycleViewModel(action);
+        const recipientLabel = formatProposalRecipientTeams(viewModel.recipientTeams);
+        const returnNotes = action.review_notes || action.adjudication_notes || '';
 
         return `
             <article class="scribe-action-slide scribe-own-proposal-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
@@ -3188,6 +3194,15 @@ export class ScribeController {
 
                     ${this.renderOwnProposalProcess(action, viewModel)}
 
+                    ${lifecycle.isReturned ? `
+                        <section class="scribe-action-slide-return" aria-label="White Cell proposal return details">
+                            <p><strong>Returned by White Cell.</strong> Edit this logical proposal and resubmit it after addressing the reviewer notes.</p>
+                            <p><strong>Reviewer notes:</strong> ${escapeHtml(returnNotes || 'No return notes recorded.')}</p>
+                            <p><strong>Revision:</strong> ${escapeHtml(String(action.revision_number || 1))}</p>
+                            <p><strong>Proposal ID:</strong> ${escapeHtml(String(action.id || 'Not available'))}</p>
+                        </section>
+                    ` : ''}
+
                     ${isDraftPreview ? `
                         <section
                             class="scribe-action-slide-submit-panel"
@@ -3212,7 +3227,7 @@ export class ScribeController {
                                         class="btn btn-primary"
                                         data-scribe-action-submit
                                         data-action-id="${escapeHtml(String(action.id || ''))}"
-                                    >Forward to White Cell</button>
+                                    >${lifecycle.isReturned ? 'Resubmit to White Cell' : 'Forward to White Cell'}</button>
                                 </div>
                             </div>
                         </section>
@@ -3232,12 +3247,17 @@ export class ScribeController {
         const statusId = `own-proposal-process-${String(action.id || 'proposal').replace(/[^a-z0-9]+/gi, '-')}`;
 
         if (!communication) {
+            const lifecycle = getArtifactLifecycleViewModel(action);
             const reviewed = isAdjudicatedAction(action);
             const submitted = isSubmittedAction(action);
-            const stageLabel = reviewed
+            const stageLabel = lifecycle.isReturned
+                ? 'Returned by White Cell'
+                : reviewed
                 ? 'White Cell review complete'
                 : (submitted ? 'With White Cell' : 'Ready for White Cell');
-            const detail = reviewed
+            const detail = lifecycle.isReturned
+                ? 'Address the reviewer notes, preserve this proposal ID, and resubmit the next revision.'
+                : reviewed
                 ? 'White Cell completed its review. No recipient handoff is recorded yet.'
                 : (submitted
                     ? 'White Cell is reviewing this proposal before it is forwarded to the intended recipient.'
@@ -3468,15 +3488,31 @@ export class ScribeController {
                         </div>
                         <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
                             ${renderActionSlideGlanceCard({ label: 'Originators', value: formatList(proposal.originators) })}
-                            ${renderActionSlideGlanceCard({
+                            ${(proposal.instruments?.length || proposal.category) ? renderActionSlideGlanceCard({
                                 label: sourceTeam === 'industry' || proposal.instruments?.length
                                     ? 'Instrument of Power'
-                                    : 'Category',
+                                    : 'Category (historical)',
                                 value: formatList(proposal.instruments?.length ? proposal.instruments : proposal.category)
+                            }) : ''}
+                            ${renderActionSlideGlanceCard({
+                                label: 'Intended partners',
+                                value: proposal.recipientTeams?.length
+                                    ? formatProposalRecipientTeams(proposal.recipientTeams)
+                                    : (proposal.intendedPartners || 'Not specified')
                             })}
-                            ${renderActionSlideGlanceCard({ label: 'Intended partners', value: proposal.intendedPartners || 'Not specified' })}
-                            ${renderActionSlideGlanceCard({ label: 'Focus sector', value: formatList(proposal.focusSector) })}
-                            ${renderActionSlideGlanceCard({ label: 'Delivery', value: proposal.delivery || 'Not specified' })}
+                            ${renderActionSlideGlanceCard({
+                                label: 'Focus sectors',
+                                value: formatList(proposal.focusSectors?.length
+                                    ? proposal.focusSectors
+                                    : (proposal.focusSector ? [proposal.focusSector] : []))
+                            })}
+                            ${proposal.supplyChainFocusDecision ? renderActionSlideGlanceCard({ label: 'Supply chain focus', value: proposal.supplyChainFocusDecision }) : ''}
+                            ${proposal.supplyChainActionAngles?.length ? renderActionSlideGlanceCard({ label: 'Action angles', value: formatList(proposal.supplyChainActionAngles) }) : ''}
+                            ${proposal.supplyChainAreas?.length ? renderActionSlideGlanceCard({ label: 'Supply chain areas', value: formatList(proposal.supplyChainAreas) }) : ''}
+                            ${proposal.industryFocus ? renderActionSlideGlanceCard({ label: 'Industry of focus', value: proposal.industryFocus }) : ''}
+                            ${proposal.countryFocus ? renderActionSlideGlanceCard({ label: 'Country of focus', value: proposal.countryFocus }) : ''}
+                            ${proposal.proposedActivity ? renderActionSlideGlanceCard({ label: 'Proposed activity', value: proposal.proposedActivity }) : ''}
+                            ${proposal.delivery ? renderActionSlideGlanceCard({ label: 'Delivery (historical)', value: proposal.delivery }) : ''}
                             ${renderActionSlideGlanceCard({ label: 'Timing and conditions', value: proposal.timingAndConditions || 'Not specified' })}
                         </div>
                     </section>

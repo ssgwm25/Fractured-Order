@@ -451,6 +451,14 @@ describe('database migration contracts', () => {
         expect(reviewProposalBody).toContain("'PROPOSAL_FORWARDED'");
         expect(reviewProposalBody).toContain("'instruments', CASE");
         expect(reviewProposalBody).toContain("'Instruments'");
+        expect(reviewProposalBody).toContain("'recipientTeams'");
+        expect(reviewProposalBody).toContain("'focusSectors'");
+        expect(reviewProposalBody).toContain("'supplyChainFocusDecision'");
+        expect(reviewProposalBody).toContain("'supplyChainActionAngles'");
+        expect(reviewProposalBody).toContain("'supplyChainAreas'");
+        expect(reviewProposalBody).toContain("'industryFocus'");
+        expect(reviewProposalBody).toContain("'countryFocus'");
+        expect(reviewProposalBody).toContain("'proposedActivity'");
         expect(reviewProposalBody).toContain('INSERT INTO public.communications');
         expect(reviewProposalBody).toContain('INSERT INTO public.timeline');
         expect(reviewProposalBody).toContain("'idempotent_replay', true");
@@ -476,7 +484,7 @@ describe('database migration contracts', () => {
         expect(schemaSection).toContain('Historical NULL revision_number values are');
     });
 
-    it('uses one fail-closed White Cell review contract for Blue and Red artifacts', () => {
+    it('uses one fail-closed White Cell review contract for actions, proposals, orientations, and RFIs', () => {
         const sql = readFileSync(TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH, 'utf8');
         const reviewBody = extractFunctionBody(sql, 'operator_review_artifact');
         const requestWorkflowBody = extractFunctionBody(sql, 'normalize_request_workflow_write');
@@ -485,6 +493,8 @@ describe('database migration contracts', () => {
         expect(reviewBody).toContain("normalized_team NOT IN ('blue', 'red', 'green', 'industry')");
         expect(reviewBody).toContain("action_row.artifact_type IN ('action', 'move_response')");
         expect(reviewBody).toContain("normalized_team IN ('blue', 'red')");
+        expect(reviewBody).toContain("action_row.artifact_type = 'proposal'");
+        expect(reviewBody).toContain("normalized_team IN ('green', 'industry')");
         expect(reviewBody).toContain("'strategic_orientation_selection'");
         expect(reviewBody).toContain("'strategic_orientation_forecast'");
         expect(reviewBody).toContain("normalized_decision <> 'return_for_clarification'");

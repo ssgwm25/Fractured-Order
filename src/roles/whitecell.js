@@ -40,7 +40,8 @@ import {
     isStrategicOrientationAction
 } from '../features/actions/strategicOrientationDetails.js';
 import {
-    getProposalViewModel
+    getProposalViewModel,
+    isProposalAction
 } from '../features/actions/proposalDetails.js';
 import {
     PROPOSAL_RECIPIENT_STATUSES,
@@ -3068,7 +3069,8 @@ export class WhiteCellController {
             'Originators',
             'Intended Partners',
             'Recipient Teams',
-            'Delivery',
+            'Proposed Recipient Approvals',
+            'Delivery (historical)',
             'Timing & Conditions',
             'Revision',
             'Prior Workflow State',
@@ -3083,7 +3085,7 @@ export class WhiteCellController {
         return `
             <div class="section-grid section-grid-2" style="gap: var(--space-3); margin-top: var(--space-3);">
                 ${this.renderSummaryCard('Proposal Overview', overviewDetails)}
-                ${this.renderSummaryCard('Routing & Delivery', routingDetails)}
+                ${this.renderSummaryCard('Routing & Review', routingDetails)}
             </div>
         `;
     }
@@ -3528,7 +3530,7 @@ export class WhiteCellController {
         }
 
         if (this.returnedRevisionHistory.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No actions or Strategic Orientation artifacts have been returned for improvement.</p>';
+            container.innerHTML = '<p class="text-sm text-gray-500">No actions, proposals, or Strategic Orientation artifacts have been returned for improvement.</p>';
             return;
         }
 
@@ -3552,6 +3554,7 @@ export class WhiteCellController {
 
         const isOrientation = review.artifact_kind === 'strategic_orientation'
             || isStrategicOrientationAction(artifact);
+        const isProposal = !isOrientation && isProposalAction(artifact);
         const team = review.team || artifact.team;
         const teamLabel = this.formatTeamLabel(team);
         const revisionNumber = review.revision_number || artifact.revision_number || 1;
@@ -3563,9 +3566,10 @@ export class WhiteCellController {
             : 'Timestamp unavailable';
         const orientation = getStrategicOrientationViewModel(artifact);
         const action = getBlueActionViewModel(artifact);
+        const proposal = getProposalViewModel(artifact);
         const title = isOrientation
             ? this.getStrategicOrientationReviewTitle(artifact, orientation)
-            : action.title;
+            : (isProposal ? proposal.title : action.title);
         const sourceTeamId = typeof team === 'string' ? team.trim().toLowerCase() : '';
         const sourceTeamBadge = createBadge({
             text: teamLabel,
@@ -3577,7 +3581,7 @@ export class WhiteCellController {
                 SOURCE_TEAM_BADGE_CLASS_BY_ID[sourceTeamId]
             ].filter(Boolean).join(' ')
         }).outerHTML;
-        const orientationDetails = isOrientation
+        const artifactDetails = isOrientation
             ? [
                 ...(orientation.isForecast
                     ? orientation.forecastTargets.map((forecast) => ({
@@ -3599,13 +3603,13 @@ export class WhiteCellController {
                 ...(orientation.posture ? [{ label: 'Posture', value: orientation.posture }] : []),
                 ...(orientation.rationale ? [{ label: 'Team Rationale', value: orientation.rationale, wide: true }] : [])
             ]
-            : action.artifactDetails;
+            : (isProposal ? proposal.artifactDetails : action.artifactDetails);
 
         return `
             <article class="entity-card entity-card--submitted" data-review-id="${this.escapeHtml(review.id || '')}">
                 <div class="entity-card__head">
                     <div>
-                        <p class="entity-card__eyebrow">${isOrientation ? 'Strategic Orientation' : 'Action'} &middot; Returned revision ${this.escapeHtml(String(revisionNumber))}</p>
+                        <p class="entity-card__eyebrow">${isOrientation ? 'Strategic Orientation' : (isProposal ? 'Proposal' : 'Action')} &middot; Returned revision ${this.escapeHtml(String(revisionNumber))}</p>
                         <h3 class="entity-card__title">${this.escapeHtml(title)}</h3>
                     </div>
                     <div class="entity-card__badges">
@@ -3620,7 +3624,7 @@ export class WhiteCellController {
                     { label: 'Returned At', value: reviewedAt }
                 ])}
                 <p class="entity-card__note"><strong>Return Notes:</strong> ${this.escapeHtml(review.reviewer_notes || 'No return notes recorded.')}</p>
-                ${this.renderDetailGrid(orientationDetails)}
+                ${this.renderDetailGrid(artifactDetails)}
             </article>
         `;
     }
@@ -4077,7 +4081,7 @@ export class WhiteCellController {
                         ${decisionMarkup}
                     </div>
                     <p class="form-hint" id="proposalReviewDecisionHint">
-                        Forward sends the proposal to ${this.escapeHtml(recipientLabel)}. Request Changes records White Cell feedback without forwarding; the submitting team must submit a new proposal if they want to continue this line.
+                        Forward sends the proposal to ${this.escapeHtml(recipientLabel)}. Request Changes returns this same logical proposal to the submitting team as the next editable revision; reviewer notes are required.
                     </p>
                 </fieldset>
 
@@ -4253,25 +4257,64 @@ export class WhiteCellController {
             return;
         }
 
+        if (selectedDecision === PROPOSAL_REVIEW_DECISIONS.REQUEST_CHANGES && !notes) {
+            showToast({ message: 'Reviewer notes are required when returning a proposal for changes', type: 'error' });
+            return;
+        }
+
         const loader = showLoader({ message: decision.loaderMessage });
 
         try {
-            const reviewResult = await database.reviewProposal(action.id, {
-                decision: selectedDecision,
-                recipient_team: reviewOptions.recipientTeam || null,
-                adjudication_notes: notes || null
-            });
-            const updatedAction = reviewResult?.action;
+            const isReturn = selectedDecision === PROPOSAL_REVIEW_DECISIONS.REQUEST_CHANGES;
+            const reviewResult = isReturn
+                ? await database.returnArtifactToTeam('action', action.id, {
+                    team: action.team,
+                    expectedRevision: Number(action.revision_number || 1),
+                    notes
+                })
+                : await database.reviewProposal(action.id, {
+                    decision: selectedDecision,
+                    recipient_team: reviewOptions.recipientTeam || null,
+                    adjudication_notes: notes || null
+                });
+            const updatedAction = isReturn ? reviewResult?.artifact : reviewResult?.action;
             if (!updatedAction) {
                 throw new Error('Proposal review did not return the updated proposal.');
             }
             actionsStore.updateFromServer('UPDATE', updatedAction);
 
-            if (reviewResult.communication) {
+            if (isReturn) {
+                this.retainWorkflowReview(reviewResult.review);
+                const gameState = this.getCurrentGameState();
+                const returnedTimelineEvent = await database.createTimelineEvent({
+                    session_id: sessionStore.getSessionId(),
+                    type: 'ARTIFACT_RETURNED_TO_TEAM',
+                    content: `${this.formatTeamLabel(action.team)} proposal revision ${action.revision_number || 1} returned for changes by White Cell: ${notes}`,
+                    metadata: {
+                        related_id: action.id,
+                        action_id: action.id,
+                        artifact_kind: 'proposal',
+                        submitting_team: action.team,
+                        recipient_scope: 'team',
+                        recipient_team: action.team,
+                        review_decision: ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM,
+                        revision_number: action.revision_number || 1,
+                        next_revision_number: reviewResult.review?.next_revision_number || updatedAction.revision_number,
+                        return_notes: notes,
+                        role: this.getTimelineActorRole()
+                    },
+                    team: 'white_cell',
+                    move: action.move ?? gameState.move ?? 1,
+                    phase: action.phase ?? gameState.phase ?? 1
+                });
+                timelineStore.updateFromServer('INSERT', returnedTimelineEvent);
+            }
+
+            if (!isReturn && reviewResult.communication) {
                 communicationsStore.updateFromServer('INSERT', reviewResult.communication);
             }
 
-            for (const timelineEvent of reviewResult.timeline_events || []) {
+            for (const timelineEvent of isReturn ? [] : (reviewResult.timeline_events || [])) {
                 if (timelineEvent) {
                     timelineStore.updateFromServer('INSERT', timelineEvent);
                 }

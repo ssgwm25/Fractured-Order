@@ -43,11 +43,9 @@ import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifec
 import {
     PROPOSAL_ACTION_MECHANISM,
     PROPOSAL_ORIGINATORS,
-    PROPOSAL_CATEGORIES,
     PROPOSAL_SECTORS,
-    PROPOSAL_DELIVERIES,
     PROPOSAL_SCRIBE_HANDOFF,
-    formatProposalSelection,
+    formatProposalRecipientTeams,
     serializeProposalDetails,
     getProposalViewModel
 } from '../features/actions/proposalDetails.js';
@@ -514,7 +512,9 @@ export class FacilitatorController {
                     actionsDescription.textContent = 'Passive observer view of scribe actions. Drafts are visible but cannot be created, edited, submitted, or deleted.';
                 }
             } else if (isGreenProposalFlow) {
-                actionsDescription.textContent = 'Use the Strategic Orientation and move tabs to see exactly what was noted for each part of the simulation. Draft proposals here and send them to the Blue or Red team.';
+                actionsDescription.textContent = this.teamId === 'industry'
+                    ? 'Draft US Industry proposals with an industry, country, proposed activity, intended partners, and focus sectors, then send them to the Facilitator.'
+                    : 'Draft Green proposals with independent Blue/Red intended partners, focus sectors, and conditional supply-chain details, then send them to the Facilitator.';
             } else if (this.teamId === 'red') {
                 actionsDescription.textContent = 'Draft actions, submit them to White Cell, and track deliberation after facilitator review.';
             } else if (isTeamActionFlow) {
@@ -1663,10 +1663,27 @@ export class FacilitatorController {
                     ${snapshot.objective ? `<p class="card-summary">${escape(snapshot.objective)}</p>` : ''}
                     ${this.renderDetailGrid([
                         { label: 'Originators', value: formatList(snapshot.originators) },
-                        { label: 'Category', value: snapshot.category || 'Not specified' },
-                        { label: 'Intended Partners', value: snapshot.intendedPartners || 'Not specified' },
-                        { label: 'Focus Sector', value: snapshot.focusSector || 'Not specified' },
-                        { label: 'Delivery', value: snapshot.delivery || 'Not specified' },
+                        ...(snapshot.instruments?.length ? [{ label: 'Instrument of Power', value: formatList(snapshot.instruments) }] : []),
+                        ...(snapshot.category ? [{ label: 'Category (historical)', value: snapshot.category }] : []),
+                        {
+                            label: 'Intended Partners',
+                            value: snapshot.recipientTeams?.length
+                                ? formatProposalRecipientTeams(snapshot.recipientTeams)
+                                : (snapshot.intendedPartners || 'Not specified')
+                        },
+                        {
+                            label: 'Focus Sectors',
+                            value: formatList(snapshot.focusSectors?.length
+                                ? snapshot.focusSectors
+                                : (snapshot.focusSector ? [snapshot.focusSector] : []))
+                        },
+                        ...(snapshot.supplyChainFocusDecision ? [{ label: 'Supply Chain Decision', value: snapshot.supplyChainFocusDecision }] : []),
+                        ...(snapshot.supplyChainActionAngles?.length ? [{ label: 'Action Angles', value: formatList(snapshot.supplyChainActionAngles) }] : []),
+                        ...(snapshot.supplyChainAreas?.length ? [{ label: 'Supply Chain Areas', value: formatList(snapshot.supplyChainAreas) }] : []),
+                        ...(snapshot.industryFocus ? [{ label: 'Industry of Focus', value: snapshot.industryFocus }] : []),
+                        ...(snapshot.countryFocus ? [{ label: 'Country of Focus', value: snapshot.countryFocus }] : []),
+                        ...(snapshot.proposedActivity ? [{ label: 'Proposed Activity', value: snapshot.proposedActivity, wide: true }] : []),
+                        ...(snapshot.delivery ? [{ label: 'Delivery (historical)', value: snapshot.delivery }] : []),
                         ...(snapshot.timingAndConditions ? [{ label: 'Timing & Conditions', value: snapshot.timingAndConditions, wide: true }] : []),
                         ...(snapshot.expectedOutcomes ? [{ label: 'Expected Outcomes', value: snapshot.expectedOutcomes, wide: true }] : [])
                     ])}
@@ -2660,7 +2677,9 @@ export class FacilitatorController {
                             ${canManageDraft ? `
                                 <button class="btn btn-secondary btn-sm edit-action-btn" data-action-id="${action.id}">
                                     ${isReturnedToBlue
-                                        ? (isStrategicOrientationFlow ? 'Edit Returned Orientation' : 'Edit Returned Action')
+                                        ? (isStrategicOrientationFlow
+                                            ? 'Edit Returned Orientation'
+                                            : (isGreenProposalFlow ? 'Edit Returned Proposal' : 'Edit Returned Action'))
                                         : (isGreenProposalFlow ? 'Edit Proposal' : 'Edit Draft')}
                                 </button>
                             ` : ''}
@@ -3593,11 +3612,16 @@ export class FacilitatorController {
 
     showGreenProposalModal(action = null) {
         const isEdit = Boolean(action?.id);
-        const content = this.createGreenProposalContent(action || {}, { isEdit });
+        const isIndustryProposal = this.teamId === 'industry';
+        const content = isIndustryProposal
+            ? this.createIndustryProposalContent(action || {}, { isEdit })
+            : this.createGreenProposalContent(action || {}, { isEdit });
         const modalRef = { current: null };
 
         modalRef.current = showModal({
-            title: isEdit ? 'Edit Proposal' : 'New Proposal',
+            title: isEdit
+                ? `Edit ${isIndustryProposal ? 'US Industry ' : ''}Proposal`
+                : `New ${isIndustryProposal ? 'US Industry ' : ''}Proposal`,
             content,
             size: 'xl'
         });
@@ -3609,38 +3633,65 @@ export class FacilitatorController {
     }
 
     createGreenProposalContent(action = {}, { isEdit = false } = {}) {
+        return this.createProposalContent(action, { isEdit, proposalKind: 'green' });
+    }
+
+    createIndustryProposalContent(action = {}, { isEdit = false } = {}) {
+        return this.createProposalContent(action, { isEdit, proposalKind: 'industry' });
+    }
+
+    getProposalRevisionHistory(action = {}) {
+        if (!action?.id) return [];
+
+        return timelineStore.getAll()
+            .filter((event) => (
+                event?.type === 'ARTIFACT_RETURNED_TO_TEAM'
+                && (event?.metadata?.related_id === action.id || event?.metadata?.action_id === action.id)
+            ))
+            .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
+    }
+
+    renderProposalRevisionContext(action = {}) {
+        const lifecycle = getArtifactLifecycleViewModel(action);
+        const history = this.getProposalRevisionHistory(action);
+        const reviewNotes = action.review_notes || action.adjudication_notes || '';
+        if (!lifecycle.isReturned && !history.length && !reviewNotes) return '';
+
+        return `
+            <section class="card card-bordered" aria-labelledby="proposalRevisionContextTitle" style="margin-bottom: var(--space-4); padding: var(--space-4);">
+                <h3 id="proposalRevisionContextTitle" class="font-semibold" style="margin: 0 0 var(--space-2);">White Cell return and revision history</h3>
+                ${reviewNotes ? `<p class="text-sm"><strong>Reviewer notes:</strong> ${this.escapeHtml(reviewNotes)}</p>` : ''}
+                <p class="text-sm"><strong>Current logical proposal:</strong> ${this.escapeHtml(String(action.id || 'Not available'))}</p>
+                <p class="text-sm"><strong>Current revision:</strong> ${this.escapeHtml(String(action.revision_number || 1))}</p>
+                ${history.length ? `
+                    <ol class="text-sm" style="margin: var(--space-3) 0 0; padding-left: var(--space-5);">
+                        ${history.map((event) => `
+                            <li>
+                                Revision ${this.escapeHtml(String(event.metadata?.revision_number || 1))}
+                                returned ${this.escapeHtml(formatDateTime(event.created_at))}:
+                                ${this.escapeHtml(event.metadata?.return_notes || event.content || 'No reviewer notes recorded.')}
+                            </li>
+                        `).join('')}
+                    </ol>
+                ` : ''}
+            </section>
+        `;
+    }
+
+    createProposalContent(action = {}, { isEdit = false, proposalKind = 'green' } = {}) {
         const content = document.createElement('div');
         const viewModel = getProposalViewModel(action);
-        const isIndustryProposal = this.teamId === 'industry';
-
-        const categoryIsCustom = Boolean(viewModel.category)
-            && !PROPOSAL_CATEGORIES.includes(viewModel.category);
-        const sectorIsCustom = Boolean(viewModel.focusSector)
-            && !PROPOSAL_SECTORS.includes(viewModel.focusSector);
-        const deliveryIsCustom = Boolean(viewModel.delivery)
-            && !PROPOSAL_DELIVERIES.includes(viewModel.delivery);
-
-        const categorySelectValue = categoryIsCustom ? 'Other' : (viewModel.category || '');
-        const sectorSelectValue = sectorIsCustom ? 'Other' : (viewModel.focusSector || '');
-        const deliverySelectValue = deliveryIsCustom ? 'Other' : (viewModel.delivery || '');
-        const builtInInstrumentValues = BLUE_ACTION_INSTRUMENTS.filter((value) => value !== 'Other');
-        const proposalInstruments = viewModel.instruments.length
-            ? viewModel.instruments
-            : (isIndustryProposal && viewModel.category ? [viewModel.category] : []);
-        const customInstrumentValue = proposalInstruments.find(
-            (value) => value && !builtInInstrumentValues.includes(value) && value !== 'Other'
+        const isIndustryProposal = proposalKind === 'industry';
+        const builtInSectorValues = PROPOSAL_SECTORS.filter((value) => value !== 'Other');
+        const customSectorValue = viewModel.focusSectors.find(
+            (value) => value && !builtInSectorValues.includes(value) && value !== 'Other'
         ) || '';
-        const selectedInstrumentValues = [
-            ...proposalInstruments.filter((value) => builtInInstrumentValues.includes(value)),
-            ...(customInstrumentValue || proposalInstruments.includes('Other') ? ['Other'] : [])
+        const selectedSectorValues = [
+            ...viewModel.focusSectors.filter((value) => builtInSectorValues.includes(value)),
+            ...(customSectorValue || viewModel.focusSectors.includes('Other') ? ['Other'] : [])
         ];
-
-        const renderOptions = (values, selectedValue = '', placeholder = 'Select an option') => `
-            <option value="">${placeholder}</option>
-            ${values.map((value) => `
-                <option value="${value}" ${selectedValue === value ? 'selected' : ''}>${value}</option>
-            `).join('')}
-        `;
+        const selectedRecipientTeams = viewModel.recipientTeams;
+        const supplyChainFocusDecision = viewModel.supplyChainFocusDecision;
 
         const renderOriginatorCheckbox = (value) => {
             const inputId = `proposalOriginator${value.replace(/[^a-z0-9]+/gi, '')}`;
@@ -3663,6 +3714,7 @@ export class FacilitatorController {
 
         content.innerHTML = `
             <form id="${this.escapeHtml(formId)}" novalidate>
+                ${this.renderProposalRevisionContext(action)}
                 <div class="form-group">
                     <label class="form-label" for="proposalTitle">Proposal Title *</label>
                     <input
@@ -3674,161 +3726,103 @@ export class FacilitatorController {
                     >
                 </div>
 
-                <div class="form-group">
-                    <span class="form-label">Originator *</span>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-2);">
-                        ${PROPOSAL_ORIGINATORS.map(renderOriginatorCheckbox).join('')}
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="proposalObjective">Objective *</label>
-                    <textarea
-                        id="proposalObjective"
-                        class="form-input form-textarea"
-                        rows="3"
-                    >${this.escapeHtml(viewModel.objective)}</textarea>
-                </div>
-
                 ${isIndustryProposal ? `
-                    <div class="form-group">
-                        <span class="form-label" id="proposalInstrumentsLabel">Instrument of Power *</span>
-                        <div
-                            class="form-check-grid"
-                            role="group"
-                            aria-labelledby="proposalInstrumentsLabel"
-                            aria-describedby="proposalInstrumentsHint"
-                            aria-required="true"
-                        >
-                            ${renderCheckboxOptions({
-                                values: BLUE_ACTION_INSTRUMENTS,
-                                selectedValues: selectedInstrumentValues,
-                                dataAttribute: 'data-proposal-instrument',
-                                group: 'true',
-                                idPrefix: 'proposalInstrumentOption'
-                            })}
-                        </div>
-                        <p class="form-hint" id="proposalInstrumentsHint">Select one or more instruments of power.</p>
-                    </div>
-
-                    <div
-                        class="form-group"
-                        id="proposalInstrumentOtherGroup"
-                        ${selectedInstrumentValues.includes('Other') ? '' : 'hidden'}
-                    >
-                        <label class="form-label" for="proposalInstrumentOther">Other Instrument of Power *</label>
-                        <input
-                            id="proposalInstrumentOther"
-                            class="form-input"
-                            type="text"
-                            value="${this.escapeHtml(customInstrumentValue)}"
-                            maxlength="120"
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="proposalIntendedPartners">Intended Partner(s) *</label>
-                        <input
-                            id="proposalIntendedPartners"
-                            class="form-input"
-                            type="text"
-                            placeholder="Country(s) or alliance(s)"
-                            value="${this.escapeHtml(viewModel.intendedPartners)}"
-                            maxlength="200"
-                        >
-                    </div>
-                ` : `
                     <div class="section-grid section-grid-2">
                         <div class="form-group">
-                            <label class="form-label" for="proposalCategory">Proposal Category *</label>
-                            <select
-                                id="proposalCategory"
-                                class="form-select"
-                                data-proposal-other-target="proposalCategoryOther"
-                            >
-                                ${renderOptions(PROPOSAL_CATEGORIES, categorySelectValue, 'Select category')}
-                            </select>
+                            <label class="form-label" for="proposalIndustryFocus">Industry of Focus *</label>
+                            <input id="proposalIndustryFocus" class="form-input" type="text" value="${this.escapeHtml(viewModel.industryFocus)}" maxlength="160">
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="proposalIntendedPartners">Intended Partner(s) *</label>
-                            <input
-                                id="proposalIntendedPartners"
-                                class="form-input"
-                                type="text"
-                                placeholder="Country(s) or alliance(s)"
-                                value="${this.escapeHtml(viewModel.intendedPartners)}"
-                                maxlength="200"
-                            >
+                            <label class="form-label" for="proposalCountryFocus">Country of Focus *</label>
+                            <input id="proposalCountryFocus" class="form-input" type="text" value="${this.escapeHtml(viewModel.countryFocus)}" maxlength="160">
                         </div>
                     </div>
-
-                    <div
-                        class="form-group"
-                        id="proposalCategoryOtherGroup"
-                        ${categorySelectValue === 'Other' ? '' : 'hidden'}
-                    >
-                        <label class="form-label" for="proposalCategoryOther">Other Category *</label>
-                        <input
-                            id="proposalCategoryOther"
-                            class="form-input"
-                            type="text"
-                            value="${this.escapeHtml(categoryIsCustom ? viewModel.category : '')}"
-                            maxlength="120"
-                        >
+                    <div class="form-group">
+                        <label class="form-label" for="proposalProposedActivity">Proposed Activity *</label>
+                        <textarea id="proposalProposedActivity" class="form-input form-textarea" rows="4">${this.escapeHtml(viewModel.proposedActivity || viewModel.objective)}</textarea>
+                    </div>
+                ` : `
+                    <fieldset class="form-group">
+                        <legend class="form-label">Originator *</legend>
+                        <div class="form-check-grid">
+                            ${PROPOSAL_ORIGINATORS.map(renderOriginatorCheckbox).join('')}
+                        </div>
+                    </fieldset>
+                    <div class="form-group">
+                        <label class="form-label" for="proposalObjective">Objective *</label>
+                        <textarea id="proposalObjective" class="form-input form-textarea" rows="3">${this.escapeHtml(viewModel.objective)}</textarea>
                     </div>
                 `}
 
-                <div class="section-grid section-grid-2">
-                    <div class="form-group">
-                        <label class="form-label" for="proposalFocusSector">Focus Sector(s) *</label>
-                        <select
-                            id="proposalFocusSector"
-                            class="form-select"
-                            data-proposal-other-target="proposalFocusSectorOther"
-                        >
-                            ${renderOptions(PROPOSAL_SECTORS, sectorSelectValue, 'Select sector')}
-                        </select>
+                <fieldset class="form-group" aria-describedby="proposalPartnersHint">
+                    <legend class="form-label">Intended Partners *</legend>
+                    <div class="form-check-grid">
+                        <label class="form-check form-check-card" for="proposalPartnerBlue">
+                            <input
+                                id="proposalPartnerBlue" class="form-checkbox" type="checkbox"
+                                data-proposal-partner="true" value="blue"
+                                ${selectedRecipientTeams.includes('blue') ? 'checked' : ''}
+                            >
+                            <span class="form-check-label">Blue</span>
+                        </label>
+                        <label class="form-check form-check-card" for="proposalPartnerRed">
+                            <input
+                                id="proposalPartnerRed" class="form-checkbox" type="checkbox"
+                                data-proposal-partner="true" value="red"
+                                ${selectedRecipientTeams.includes('red') ? 'checked' : ''}
+                            >
+                            <span class="form-check-label">Red</span>
+                        </label>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="proposalDelivery">Delivery *</label>
-                        <select
-                            id="proposalDelivery"
-                            class="form-select"
-                            data-proposal-other-target="proposalDeliveryOther"
-                        >
-                            ${renderOptions(PROPOSAL_DELIVERIES, deliverySelectValue, 'Select delivery')}
-                        </select>
-                    </div>
-                </div>
+                    <p class="form-hint" id="proposalPartnersHint">Select one or both. Each recipient awaits a separate White Cell approval.</p>
+                </fieldset>
 
-                <div
-                    class="form-group"
-                    id="proposalFocusSectorOtherGroup"
-                    ${sectorSelectValue === 'Other' ? '' : 'hidden'}
-                >
+                <fieldset class="form-group" aria-describedby="proposalFocusSectorsHint">
+                    <legend class="form-label">Focus Sectors *</legend>
+                    <div class="form-check-grid">
+                        ${renderCheckboxOptions({
+                            values: PROPOSAL_SECTORS,
+                            selectedValues: selectedSectorValues,
+                            dataAttribute: 'data-proposal-sector',
+                            group: 'true',
+                            idPrefix: 'proposalSectorOption'
+                        })}
+                    </div>
+                    <p class="form-hint" id="proposalFocusSectorsHint">Select one or more focus sectors.</p>
+                </fieldset>
+                <div class="form-group" id="proposalFocusSectorOtherGroup" ${selectedSectorValues.includes('Other') ? '' : 'hidden'}>
                     <label class="form-label" for="proposalFocusSectorOther">Other Sector *</label>
-                    <input
-                        id="proposalFocusSectorOther"
-                        class="form-input"
-                        type="text"
-                        value="${this.escapeHtml(sectorIsCustom ? viewModel.focusSector : '')}"
-                        maxlength="120"
-                    >
+                    <input id="proposalFocusSectorOther" class="form-input" type="text" value="${this.escapeHtml(customSectorValue)}" maxlength="120">
                 </div>
 
-                <div
-                    class="form-group"
-                    id="proposalDeliveryOtherGroup"
-                    ${deliverySelectValue === 'Other' ? '' : 'hidden'}
-                >
-                    <label class="form-label" for="proposalDeliveryOther">Other Delivery *</label>
-                    <input
-                        id="proposalDeliveryOther"
-                        class="form-input"
-                        type="text"
-                        value="${this.escapeHtml(deliveryIsCustom ? viewModel.delivery : '')}"
-                        maxlength="120"
-                    >
+                <fieldset class="form-group" aria-describedby="proposalSupplyChainHint">
+                    <legend class="form-label">Does this proposal have a supply chain focus? *</legend>
+                    <div class="form-check-grid">
+                        <label class="form-check form-check-card" for="proposalSupplyChainYes">
+                            <input id="proposalSupplyChainYes" class="form-radio" type="radio" name="proposalHasSupplyChainFocus" value="Yes" ${supplyChainFocusDecision === 'Yes' ? 'checked' : ''}>
+                            <span class="form-check-label">Yes</span>
+                        </label>
+                        <label class="form-check form-check-card" for="proposalSupplyChainNo">
+                            <input id="proposalSupplyChainNo" class="form-radio" type="radio" name="proposalHasSupplyChainFocus" value="No" ${supplyChainFocusDecision === 'No' ? 'checked' : ''}>
+                            <span class="form-check-label">No</span>
+                        </label>
+                    </div>
+                    <p class="form-hint" id="proposalSupplyChainHint">A Yes answer requires at least one action angle and one supply-chain area.</p>
+                </fieldset>
+
+                <div id="proposalSupplyChainDetails" ${supplyChainFocusDecision === 'Yes' ? '' : 'hidden'}>
+                    <fieldset class="form-group">
+                        <legend class="form-label">Action Angle *</legend>
+                        <div class="form-check-grid">
+                            ${renderCheckboxOptions({ values: BLUE_ACTION_SUPPLY_CHAIN_ANGLES, selectedValues: viewModel.supplyChainActionAngles, dataAttribute: 'data-proposal-action-angle', group: 'true', idPrefix: 'proposalActionAngle' })}
+                        </div>
+                    </fieldset>
+                    <fieldset class="form-group">
+                        <legend class="form-label">Supply Chain Area *</legend>
+                        <div class="form-check-grid">
+                            ${renderCheckboxOptions({ values: BLUE_ACTION_SUPPLY_CHAIN_AREAS, selectedValues: viewModel.supplyChainAreas, dataAttribute: 'data-proposal-supply-chain-area', group: 'true', idPrefix: 'proposalSupplyChainArea' })}
+                        </div>
+                    </fieldset>
                 </div>
 
                 <div class="form-group">
@@ -3858,8 +3852,7 @@ export class FacilitatorController {
                             <button type="button" class="btn btn-primary" data-proposal-nav="saveChanges">Save Changes</button>
                         ` : `
                             <button type="button" class="btn btn-secondary" data-proposal-nav="saveDraft">Save Draft</button>
-                            <button type="button" class="btn btn-primary" data-proposal-nav="forwardBlue">Forward to Facilitator (Blue)</button>
-                            <button type="button" class="btn btn-primary" data-proposal-nav="forwardRed">Forward to Facilitator (Red)</button>
+                            <button type="button" class="btn btn-primary" data-proposal-nav="forward">Forward to Facilitator</button>
                         `}
                     </div>
                 </div>
@@ -3871,49 +3864,39 @@ export class FacilitatorController {
 
     bindGreenProposalModal(content, modal, { actionId = null, isEdit = false } = {}) {
         const form = content.querySelector(`#${this.teamId}ProposalForm`);
+        if (!form) return;
 
-        const bindOtherToggle = (selectId, groupId, inputId) => {
-            const select = form.querySelector(`#${selectId}`);
-            const group = form.querySelector(`#${groupId}`);
-            const input = form.querySelector(`#${inputId}`);
-            if (!select || !group) return;
-
-            select.addEventListener('change', () => {
-                const showOther = select.value === 'Other';
-                group.hidden = !showOther;
-                if (!showOther && input) input.value = '';
-            });
+        const updateSectorOtherField = () => {
+            const group = form.querySelector('#proposalFocusSectorOtherGroup');
+            const input = form.querySelector('#proposalFocusSectorOther');
+            const showOther = Boolean(form.querySelector('#proposalSectorOptionOther')?.checked);
+            if (group) group.hidden = !showOther;
+            if (input && !showOther) input.value = '';
         };
+        form.querySelectorAll('[data-proposal-sector="true"]').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateSectorOtherField);
+        });
 
-        if (this.teamId === 'industry') {
-            const updateInstrumentOtherField = () => {
-                const group = form.querySelector('#proposalInstrumentOtherGroup');
-                const input = form.querySelector('#proposalInstrumentOther');
-                const showOther = Boolean(form.querySelector('#proposalInstrumentOptionOther')?.checked);
-
-                if (group) group.hidden = !showOther;
-                if (input && !showOther) input.value = '';
-            };
-
-            form.querySelectorAll('[data-proposal-instrument="true"]').forEach((checkbox) => {
-                checkbox.addEventListener('change', updateInstrumentOtherField);
-            });
-        } else {
-            bindOtherToggle('proposalCategory', 'proposalCategoryOtherGroup', 'proposalCategoryOther');
-        }
-        bindOtherToggle('proposalFocusSector', 'proposalFocusSectorOtherGroup', 'proposalFocusSectorOther');
-        bindOtherToggle('proposalDelivery', 'proposalDeliveryOtherGroup', 'proposalDeliveryOther');
+        const updateSupplyChainFields = () => {
+            const decision = form.querySelector('[name="proposalHasSupplyChainFocus"]:checked')?.value || '';
+            const details = form.querySelector('#proposalSupplyChainDetails');
+            if (details) details.hidden = decision !== 'Yes';
+            if (decision !== 'Yes') {
+                form.querySelectorAll('[data-proposal-action-angle="true"], [data-proposal-supply-chain-area="true"]').forEach((checkbox) => {
+                    checkbox.checked = false;
+                });
+            }
+        };
+        form.querySelectorAll('[name="proposalHasSupplyChainFocus"]').forEach((radio) => {
+            radio.addEventListener('change', updateSupplyChainFields);
+        });
 
         content.querySelector('[data-proposal-nav="cancel"]')?.addEventListener('click', () => {
             modal?.close();
         });
 
         content.querySelector('[data-proposal-nav="saveDraft"]')?.addEventListener('click', () => {
-            const recipientTeam = getProposalViewModel(
-                actionsStore.getById(actionId) || this.actions.find((candidate) => candidate?.id === actionId) || {}
-            ).recipientTeam || 'blue';
             this.saveGreenProposalDraft(modal, form, {
-                recipientTeam,
                 actionId,
                 isEdit,
                 scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.DRAFT
@@ -3923,12 +3906,7 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="saveChanges"]')?.addEventListener('click', () => {
-            const existing = actionsStore.getById(actionId)
-                || this.actions.find((candidate) => candidate?.id === actionId)
-                || {};
-            const recipientTeam = getProposalViewModel(existing).recipientTeam || 'blue';
             this.saveGreenProposalDraft(modal, form, {
-                recipientTeam,
                 actionId,
                 isEdit: true,
                 scribeHandoff: PROPOSAL_SCRIBE_HANDOFF.FORWARDED
@@ -3937,23 +3915,12 @@ export class FacilitatorController {
             });
         });
 
-        content.querySelector('[data-proposal-nav="forwardBlue"]')?.addEventListener('click', () => {
+        content.querySelector('[data-proposal-nav="forward"]')?.addEventListener('click', () => {
             this.forwardGreenProposalToFacilitator(modal, form, {
-                recipientTeam: 'blue',
                 actionId,
                 isEdit
             }).catch((err) => {
-                logger.error('Failed to forward proposal to Facilitator (Blue):', err);
-            });
-        });
-
-        content.querySelector('[data-proposal-nav="forwardRed"]')?.addEventListener('click', () => {
-            this.forwardGreenProposalToFacilitator(modal, form, {
-                recipientTeam: 'red',
-                actionId,
-                isEdit
-            }).catch((err) => {
-                logger.error('Failed to forward proposal to Facilitator (Red):', err);
+                logger.error('Failed to forward proposal to Facilitator:', err);
             });
         });
 
@@ -3964,37 +3931,40 @@ export class FacilitatorController {
         const originators = Array.from(
             form.querySelectorAll('[data-proposal-originator="true"]:checked')
         ).map((checkbox) => checkbox.value);
-
-        const selectedInstrumentValues = getCheckedValues(form, '[data-proposal-instrument="true"]');
-        const instrumentOther = form.querySelector('#proposalInstrumentOther')?.value?.trim() || '';
-        const instruments = [
-            ...selectedInstrumentValues.filter((value) => value !== 'Other'),
-            ...(selectedInstrumentValues.includes('Other') && instrumentOther ? [instrumentOther] : [])
-        ];
-        const categorySelect = form.querySelector('#proposalCategory')?.value || '';
-        const categoryOther = form.querySelector('#proposalCategoryOther')?.value?.trim() || '';
-        const sectorSelect = form.querySelector('#proposalFocusSector')?.value || '';
+        const recipientTeams = getCheckedValues(form, '[data-proposal-partner="true"]');
+        const selectedSectorValues = getCheckedValues(form, '[data-proposal-sector="true"]');
         const sectorOther = form.querySelector('#proposalFocusSectorOther')?.value?.trim() || '';
-        const deliverySelect = form.querySelector('#proposalDelivery')?.value || '';
-        const deliveryOther = form.querySelector('#proposalDeliveryOther')?.value?.trim() || '';
+        const focusSectors = [
+            ...selectedSectorValues.filter((value) => value !== 'Other'),
+            ...(selectedSectorValues.includes('Other') && sectorOther ? [sectorOther] : [])
+        ];
+        const supplyChainFocusDecision = form.querySelector(
+            '[name="proposalHasSupplyChainFocus"]:checked'
+        )?.value || '';
+        const industryFocus = form.querySelector('#proposalIndustryFocus')?.value?.trim() || '';
+        const countryFocus = form.querySelector('#proposalCountryFocus')?.value?.trim() || '';
+        const proposedActivity = form.querySelector('#proposalProposedActivity')?.value?.trim() || '';
 
         return {
             title: form.querySelector('#proposalTitle')?.value?.trim() || '',
-            originators,
-            objective: form.querySelector('#proposalObjective')?.value?.trim() || '',
-            selectedInstrumentValues,
-            instrumentOther,
-            instruments,
-            categorySelect,
-            categoryOther,
-            category: categorySelect === 'Other' ? categoryOther : categorySelect,
-            intendedPartners: form.querySelector('#proposalIntendedPartners')?.value?.trim() || '',
-            sectorSelect,
+            originators: this.teamId === 'industry' ? ['US Industry'] : originators,
+            objective: form.querySelector('#proposalObjective')?.value?.trim() || proposedActivity,
+            recipientTeams,
+            intendedPartners: formatProposalRecipientTeams(recipientTeams, ''),
+            selectedSectorValues,
             sectorOther,
-            focusSector: sectorSelect === 'Other' ? sectorOther : sectorSelect,
-            deliverySelect,
-            deliveryOther,
-            delivery: deliverySelect === 'Other' ? deliveryOther : deliverySelect,
+            focusSector: focusSectors[0] || '',
+            focusSectors,
+            supplyChainFocusDecision,
+            supplyChainActionAngles: supplyChainFocusDecision === 'Yes'
+                ? getCheckedValues(form, '[data-proposal-action-angle="true"]')
+                : [],
+            supplyChainAreas: supplyChainFocusDecision === 'Yes'
+                ? getCheckedValues(form, '[data-proposal-supply-chain-area="true"]')
+                : [],
+            industryFocus,
+            countryFocus,
+            proposedActivity,
             timingAndConditions: form.querySelector('#proposalTimingConditions')?.value?.trim() || '',
             expectedOutcomes: form.querySelector('#proposalExpectedOutcomes')?.value?.trim() || ''
         };
@@ -4002,22 +3972,24 @@ export class FacilitatorController {
 
     validateGreenProposal(data) {
         if (!data.title) return 'Proposal Title is required.';
-        if (!data.originators.length) return 'Select at least one Originator.';
-        if (!data.objective) return 'Objective is required.';
         if (this.teamId === 'industry') {
-            if (!data.selectedInstrumentValues.length) return 'Select at least one instrument of power.';
-            if (data.selectedInstrumentValues.includes('Other') && !data.instrumentOther) {
-                return 'Please enter the custom instrument of power.';
-            }
+            if (!data.industryFocus) return 'Industry of Focus is required.';
+            if (!data.countryFocus) return 'Country of Focus is required.';
+            if (!data.proposedActivity) return 'Proposed Activity is required.';
         } else {
-            if (!data.categorySelect) return 'Proposal Category is required.';
-            if (data.categorySelect === 'Other' && !data.categoryOther) return 'Please enter the custom category.';
+            if (!data.originators.length) return 'Select at least one Originator.';
+            if (!data.objective) return 'Objective is required.';
         }
-        if (!data.intendedPartners) return 'Intended Partner(s) is required.';
-        if (!data.sectorSelect) return 'Focus Sector is required.';
-        if (data.sectorSelect === 'Other' && !data.sectorOther) return 'Please enter the custom sector.';
-        if (!data.deliverySelect) return 'Delivery is required.';
-        if (data.deliverySelect === 'Other' && !data.deliveryOther) return 'Please enter the custom delivery.';
+        if (!data.recipientTeams.length) return 'Select at least one intended partner.';
+        if (!data.selectedSectorValues.length) return 'Select at least one focus sector.';
+        if (data.selectedSectorValues.includes('Other') && !data.sectorOther) return 'Please enter the custom sector.';
+        if (!data.supplyChainFocusDecision) return 'Select Yes or No for the supply chain focus question.';
+        if (data.supplyChainFocusDecision === 'Yes' && !data.supplyChainActionAngles.length) {
+            return 'Select at least one action angle.';
+        }
+        if (data.supplyChainFocusDecision === 'Yes' && !data.supplyChainAreas.length) {
+            return 'Select at least one supply chain area.';
+        }
         if (!data.timingAndConditions) return 'Timing & Conditions is required.';
         if (!data.expectedOutcomes) return 'Expected Outcome(s) is required.';
         return null;
@@ -4041,6 +4013,7 @@ export class FacilitatorController {
                 delivery: data.delivery,
                 timingAndConditions: data.timingAndConditions,
                 recipientTeams: data.recipientTeams?.length ? data.recipientTeams : [recipientTeam],
+                recipientApprovalStates: data.recipientApprovalStates,
                 focusSectors: data.focusSectors?.length ? data.focusSectors : [data.focusSector].filter(Boolean),
                 supplyChainFocusDecision: data.supplyChainFocusDecision,
                 supplyChainActionAngles: data.supplyChainActionAngles,
@@ -4084,7 +4057,7 @@ export class FacilitatorController {
     }
 
     async saveGreenProposalDraft(modal, form, {
-        recipientTeam = 'blue',
+        recipientTeam = null,
         actionId = null,
         isEdit = false,
         scribeHandoff = PROPOSAL_SCRIBE_HANDOFF.DRAFT
@@ -4147,7 +4120,8 @@ export class FacilitatorController {
                         related_id: action.id,
                         role: this.role || this.getCurrentLeadRole(),
                         proposal: true,
-                        recipient_team: recipientTeam
+                        recipient_team: data.recipientTeams[0] || null,
+                        recipient_teams: data.recipientTeams
                     },
                     team: this.teamId,
                     move: action.move ?? gameState.move ?? 1,
@@ -4175,7 +4149,7 @@ export class FacilitatorController {
     }
 
     async forwardGreenProposalToFacilitator(modal, form, {
-        recipientTeam = 'blue',
+        recipientTeam = null,
         actionId = null,
         isEdit = false
     } = {}) {
@@ -4194,7 +4168,7 @@ export class FacilitatorController {
             return;
         }
 
-        const recipientLabel = recipientTeam === 'blue' ? 'Blue Team' : 'Red Team';
+        const recipientLabel = formatProposalRecipientTeams(data.recipientTeams);
         const existingAction = (isEdit && actionId)
             ? (actionsStore.getById(actionId) || this.actions.find((candidate) => candidate?.id === actionId) || null)
             : null;
@@ -4234,7 +4208,8 @@ export class FacilitatorController {
                         related_id: action.id,
                         role: this.role || this.getCurrentLeadRole(),
                         proposal: true,
-                        recipient_team: recipientTeam
+                        recipient_team: data.recipientTeams[0] || null,
+                        recipient_teams: data.recipientTeams
                     },
                     team: this.teamId,
                     move: action.move ?? gameState.move ?? 1,
@@ -4251,7 +4226,8 @@ export class FacilitatorController {
                     related_id: action.id,
                     role: this.role || this.getCurrentLeadRole(),
                     proposal: true,
-                    recipient_team: recipientTeam,
+                    recipient_team: data.recipientTeams[0] || null,
+                    recipient_teams: data.recipientTeams,
                     next_step: 'facilitator_submit_to_white_cell'
                 },
                 team: this.teamId,

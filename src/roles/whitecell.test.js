@@ -2627,9 +2627,10 @@ describe('White Cell DOM contract', () => {
         });
     });
 
-    it('retains returned revisions with team, reviewer, notes, timestamp, and complete action fields', async () => {
+    it('retains returned revisions with proposal identity, reviewer notes, and complete artifact fields', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
         const { actionsStore } = await import('../stores/actions.js');
         const fakeDocument = createFakeDocument(['returnedRevisionHistoryList']);
         global.document = fakeDocument;
@@ -2698,13 +2699,39 @@ describe('White Cell DOM contract', () => {
                         rationale: 'Forecast rationale retained in history.'
                     })
                 }
+            },
+            {
+                id: 'history-review-proposal-1',
+                artifact_kind: 'action',
+                artifact_id: 'proposal-stable-history-1',
+                team: 'green',
+                decision: 'return_to_team',
+                revision_number: 2,
+                reviewer_role: 'whitecell_lead',
+                reviewer_notes: 'Name the accountable partner before resubmitting.',
+                reviewed_at: '2026-08-05T18:14:00.000Z',
+                prior_state: {
+                    id: 'proposal-stable-history-1',
+                    artifact_type: 'proposal',
+                    mechanism: 'Proposal',
+                    team: 'green',
+                    status: 'submitted',
+                    revision_number: 2,
+                    goal: 'Dual-recipient resilient supply proposal',
+                    ally_contingencies: serializeProposalDetails({
+                        objective: 'Coordinate resilient supply.',
+                        recipientTeams: ['blue', 'red'],
+                        focusSectors: ['Biotechnology'],
+                        supplyChainFocusDecision: 'No'
+                    })
+                }
             }
         ];
 
         controller.syncActionsFromStore();
 
         const markup = fakeDocument.elements.returnedRevisionHistoryList.innerHTML;
-        expect(controller.returnedRevisionHistory).toHaveLength(2);
+        expect(controller.returnedRevisionHistory).toHaveLength(3);
         expect(markup).toContain('Red Team');
         expect(markup).toContain('Revision:</strong> 2');
         expect(markup).toContain('White Cell Support');
@@ -2718,6 +2745,10 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Strategic Orientation');
         expect(markup).toContain('Forecast rationale retained in history.');
         expect(markup).toContain('Explain the forecast posture before resubmitting.');
+        expect(markup).toContain('Proposal &middot; Returned revision 2');
+        expect(markup).toContain('Dual-recipient resilient supply proposal');
+        expect(markup).toContain('Blue Team: Awaiting separate White Cell approval');
+        expect(markup).toContain('Name the accountable partner before resubmitting.');
     });
 
     it('loads only returned action and Strategic Orientation revisions for the active session', async () => {
@@ -2802,9 +2833,10 @@ describe('White Cell DOM contract', () => {
         });
 
         expect(markup).toContain('Proposal Overview');
-        expect(markup).toContain('Routing &amp; Delivery');
+        expect(markup).toContain('Routing &amp; Review');
         expect(markup).toContain('Originators');
-        expect(markup).toContain('Recipient Team');
+        expect(markup).toContain('Intended Partners');
+        expect(markup).toContain('Proposed Recipient Approvals');
         expect(markup).toContain('Blue Team');
         expect(markup).toContain('Review Proposal');
         expect(markup).not.toContain('Proposal Details');
@@ -2875,7 +2907,7 @@ describe('White Cell DOM contract', () => {
         expect(modalConfig?.content?.innerHTML).toContain('Forward to Blue Team');
         expect(modalConfig?.content?.innerHTML).toContain('Request Changes');
         expect(modalConfig?.content?.innerHTML).toContain('Reject Proposal');
-        expect(modalConfig?.content?.innerHTML).toContain('the submitting team must submit a new proposal');
+        expect(modalConfig?.content?.innerHTML).toContain('returns this same logical proposal');
         expect(modalConfig?.content?.innerHTML).toContain('Proposal Overview');
     });
 
@@ -3050,7 +3082,7 @@ describe('White Cell DOM contract', () => {
         expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'comm-proposal-3' }));
     });
 
-    it('records proposal change requests without forwarding them to another team', async () => {
+    it('returns proposal change requests as the next revision of the same logical proposal', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
         const { database } = await import('../services/database.js');
@@ -3078,15 +3110,27 @@ describe('White Cell DOM contract', () => {
 
         vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-12');
         vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
-        const reviewProposal = vi.spyOn(database, 'reviewProposal').mockResolvedValue({
-            action: {
+        const returnArtifact = vi.spyOn(database, 'returnArtifactToTeam').mockResolvedValue({
+            artifact: {
                 id: 'action-93',
                 team: 'green',
-                status: 'adjudicated',
-                outcome: 'PARTIAL_SUCCESS'
+                status: 'draft',
+                workflow_state: 'returned_to_team',
+                revision_number: 2,
+                outcome: null
             },
-            communication: null,
-            timeline_events: [{ id: 'timeline-proposal-2', type: 'ACTION_ADJUDICATED' }]
+            review: {
+                id: 'review-proposal-2',
+                artifact_kind: 'action',
+                artifact_id: 'action-93',
+                decision: 'return_to_team',
+                revision_number: 1,
+                next_revision_number: 2
+            }
+        });
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
+            id: 'timeline-proposal-2',
+            type: 'ARTIFACT_RETURNED_TO_TEAM'
         });
         const createCommunication = vi.spyOn(database, 'createCommunication').mockResolvedValue({
             id: 'comm-proposal-2'
@@ -3105,6 +3149,8 @@ describe('White Cell DOM contract', () => {
             move: 2,
             phase: 1,
             status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            revision_number: 1,
             goal: 'Coordinate biotech export alignment',
             mechanism: 'Proposal',
             sector: 'Biotechnology',
@@ -3120,15 +3166,18 @@ describe('White Cell DOM contract', () => {
             })
         });
 
-        expect(reviewProposal).toHaveBeenCalledWith('action-93', {
-            decision: 'request_changes',
-            recipient_team: 'blue',
-            adjudication_notes: 'Clarify the timing conditions before we forward this.'
+        expect(returnArtifact).toHaveBeenCalledWith('action', 'action-93', {
+            team: 'green',
+            expectedRevision: 1,
+            notes: 'Clarify the timing conditions before we forward this.'
         });
         expect(createCommunication).not.toHaveBeenCalled();
         expect(communicationsUpdate).not.toHaveBeenCalled();
         expect(actionsUpdate).toHaveBeenCalledWith('UPDATE', expect.objectContaining({ id: 'action-93' }));
-        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-proposal-2' }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'timeline-proposal-2',
+            type: 'ARTIFACT_RETURNED_TO_TEAM'
+        }));
         expect(showToast).toHaveBeenCalledWith({ message: 'Proposal review saved: changes requested', type: 'success' });
     });
 

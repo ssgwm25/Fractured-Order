@@ -700,8 +700,16 @@ export function getWhiteCellStrategicOrientationTitle(goal, team = '') {
 export async function createProposal(page, {
     title,
     recipientTeam = 'blue',
+    recipientTeams = null,
     objective = 'Coordinate a shared economic initiative with measurable delivery milestones.',
-    intendedPartners = 'Selected regional partners',
+    focusSectors = ['Biotechnology'],
+    customFocusSector = null,
+    supplyChainFocusDecision = 'No',
+    supplyChainActionAngles = [],
+    supplyChainAreas = [],
+    industryFocus = 'Advanced manufacturing',
+    countryFocus = 'United States and selected partners',
+    proposedActivity = 'Coordinate a shared industrial initiative with measurable delivery milestones.',
     timingAndConditions = 'Begin during the current move, subject to White Cell approval.',
     expectedOutcomes = 'Produce a durable joint position and a documented recipient response.'
 } = {}) {
@@ -714,28 +722,41 @@ export async function createProposal(page, {
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#proposalTitle') });
     await expect(modal).toBeVisible();
     await modal.locator('#proposalTitle').fill(title);
-    await modal.locator('[data-proposal-originator="true"]').first().check();
-    await modal.locator('#proposalObjective').fill(objective);
 
-    const industryInstrument = modal.locator(
-        '[data-proposal-instrument="true"][value="Economic"]'
-    );
-    if (await industryInstrument.count()) {
-        await industryInstrument.check();
+    const industryField = modal.locator('#proposalIndustryFocus');
+    if (await industryField.count()) {
+        await industryField.fill(industryFocus);
+        await modal.locator('#proposalCountryFocus').fill(countryFocus);
+        await modal.locator('#proposalProposedActivity').fill(proposedActivity);
     } else {
-        const proposalCategory = modal.locator('#proposalCategory');
-        await expect(proposalCategory).toBeVisible();
-        await proposalCategory.selectOption({ index: 1 });
+        await modal.locator('[data-proposal-originator="true"]').first().check();
+        await modal.locator('#proposalObjective').fill(objective);
     }
 
-    await modal.locator('#proposalIntendedPartners').fill(intendedPartners);
-    await modal.locator('#proposalFocusSector').selectOption({ index: 1 });
-    await modal.locator('#proposalDelivery').selectOption({ index: 1 });
+    const resolvedRecipientTeams = recipientTeams || [recipientTeam];
+    for (const team of resolvedRecipientTeams) {
+        await modal.locator(`[data-proposal-partner="true"][value="${team}"]`).check();
+    }
+    for (const sector of focusSectors) {
+        await modal.locator(`[data-proposal-sector="true"][value="${sector}"]`).check();
+    }
+    if (customFocusSector) {
+        await modal.locator('[data-proposal-sector="true"][value="Other"]').check();
+        await modal.locator('#proposalFocusSectorOther').fill(customFocusSector);
+    }
+    await modal.locator(`input[name="proposalHasSupplyChainFocus"][value="${supplyChainFocusDecision}"]`).check();
+    if (supplyChainFocusDecision === 'Yes') {
+        for (const angle of supplyChainActionAngles) {
+            await modal.locator(`[data-proposal-action-angle="true"][value="${angle}"]`).check();
+        }
+        for (const area of supplyChainAreas) {
+            await modal.locator(`[data-proposal-supply-chain-area="true"][value="${area}"]`).check();
+        }
+    }
     await modal.locator('#proposalTimingConditions').fill(timingAndConditions);
     await modal.locator('#proposalExpectedOutcomes').fill(expectedOutcomes);
 
-    const forwardTarget = recipientTeam === 'red' ? 'forwardRed' : 'forwardBlue';
-    await modal.locator(`[data-proposal-nav="${forwardTarget}"]`).click();
+    await modal.locator('[data-proposal-nav="forward"]').click();
     await expect(page.locator('#toast-container')).toContainText('Proposal forwarded to Facilitator');
     await expect(modal).toBeHidden();
     await expect(page.locator('#actionsList')).toContainText(title);

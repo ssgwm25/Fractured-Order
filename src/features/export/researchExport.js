@@ -32,8 +32,8 @@ import { SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
-export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.6.0';
-export const RESEARCH_EXPORT_FORMAT_REVISION = 7;
+export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.7.0';
+export const RESEARCH_EXPORT_FORMAT_REVISION = 8;
 
 const HASHED_EVENT_FIELDS = [
     'event_id',
@@ -200,6 +200,17 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'move_number',
         'title',
         'intended_recipient_team',
+        'intended_recipient_teams',
+        'recipient_approval_states',
+        'focus_sectors',
+        'supply_chain_focus_decision',
+        'supply_chain_action_angles',
+        'supply_chain_areas',
+        'industry_focus',
+        'country_focus',
+        'proposed_activity',
+        'revision_number',
+        'revision_history',
         'proposal_text',
         'requested_action',
         'rationale',
@@ -210,6 +221,7 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'reviewer_pseudonym',
         'reviewed_utc',
         'forwarded_to_team',
+        'forwarded_to_teams',
         'final_recipient_state'
     ],
     adjudication_content: [
@@ -1364,7 +1376,6 @@ function buildActionContent(bundle = {}, participantRegistry) {
             const viewModel = getBlueActionViewModel(action);
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
-
             if (isStrategicOrientation) {
                 const isForecast = strategicDetails?.artifactType === 'forecast';
                 const forecastTargets = safeArray(strategicDetails?.forecastTargets);
@@ -1473,6 +1484,24 @@ function buildProposalContent(bundle = {}, participantRegistry) {
                 || null;
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
+            const revisionHistory = safeArray(bundle.timeline)
+                .filter((event) => {
+                    const metadata = safeObject(event?.metadata);
+                    return (event?.type || event?.event_type) === 'ARTIFACT_RETURNED_TO_TEAM'
+                        && (metadata.related_id === action?.id || metadata.action_id === action?.id)
+                        && (!metadata.artifact_kind || metadata.artifact_kind === 'proposal');
+                })
+                .map((event) => {
+                    const metadata = safeObject(event?.metadata);
+                    return {
+                        revision_number: metadata.revision_number || 1,
+                        next_revision_number: metadata.next_revision_number || null,
+                        reviewer_role: metadata.role || 'whitecell_lead',
+                        reviewer_notes: metadata.return_notes || event?.content || null,
+                        returned_utc: asUtcIso(event?.created_at || event?.event_ts_utc)
+                    };
+                })
+                .sort((left, right) => String(left.returned_utc || '').localeCompare(String(right.returned_utc || '')));
 
             return {
                 proposal_id: action?.id || null,
@@ -1486,6 +1515,17 @@ function buildProposalContent(bundle = {}, participantRegistry) {
                 move_number: action?.move ?? null,
                 title: viewModel.title,
                 intended_recipient_team: viewModel.recipientTeam || null,
+                intended_recipient_teams: viewModel.recipientTeams,
+                recipient_approval_states: viewModel.recipientApprovalStates,
+                focus_sectors: viewModel.focusSectors,
+                supply_chain_focus_decision: viewModel.supplyChainFocusDecision || null,
+                supply_chain_action_angles: viewModel.supplyChainActionAngles,
+                supply_chain_areas: viewModel.supplyChainAreas,
+                industry_focus: viewModel.industryFocus || null,
+                country_focus: viewModel.countryFocus || null,
+                proposed_activity: viewModel.proposedActivity || null,
+                revision_number: action?.revision_number || viewModel.revisionMetadata?.revisionNumber || 1,
+                revision_history: revisionHistory,
                 proposal_text: viewModel.objective || null,
                 requested_action: viewModel.expectedOutcomes || null,
                 rationale: viewModel.timingAndConditions || null,
@@ -1500,6 +1540,13 @@ function buildProposalContent(bundle = {}, participantRegistry) {
                 reviewer_pseudonym: action?.adjudicated_at ? 'whitecell-operator' : null,
                 reviewed_utc: asUtcIso(action?.adjudicated_at),
                 forwarded_to_team: forwardedMetadata.recipient_team || viewModel.recipientTeam || null,
+                forwarded_to_teams: safeArray(bundle.communications)
+                    .filter((communication) => (
+                        communication?.type === 'PROPOSAL_FORWARDED'
+                        && safeObject(communication?.metadata).source_proposal_id === action?.id
+                    ))
+                    .map((communication) => safeObject(communication.metadata).recipient_team)
+                    .filter(Boolean),
                 final_recipient_state: finalRecipientState || null
             };
         });
@@ -2740,7 +2787,10 @@ function buildScenarioContext(bundle = {}, {
                 team: proposal.author_team,
                 title: proposal.title,
                 objective: proposal.proposal_text,
-                intended_recipient_team: proposal.intended_recipient_team
+                intended_recipient_team: proposal.intended_recipient_team,
+                intended_recipient_teams: proposal.intended_recipient_teams,
+                focus_sectors: proposal.focus_sectors,
+                revision_number: proposal.revision_number
             })),
             move_responses: moveResponseContent.map((response) => ({
                 move_response_id: response.move_response_id,
@@ -3343,7 +3393,7 @@ function buildPersonaReports(dataset = {}) {
     const proposalRows = safeArray(dataset.proposalContent).map((proposal) => [
         proposal.move_number,
         proposal.author_team,
-        proposal.intended_recipient_team,
+        formatReportValue(proposal.intended_recipient_teams, proposal.intended_recipient_team),
         proposal.review_decision,
         proposal.final_recipient_state,
         proposal.rationale
@@ -4430,8 +4480,11 @@ export function buildResearchReportHtml(dataset, {
             ],
             metadata: [
                 { label: 'Author', value: `${proposal.author_pseudonym || 'N/A'} / ${formatRoleForReport(proposal.author_role) || 'unknown'}` },
-                { label: 'Intended Recipient', value: proposal.intended_recipient_team },
-                { label: 'Forwarded To', value: proposal.forwarded_to_team },
+                { label: 'Intended Recipients', value: proposal.intended_recipient_teams?.length ? proposal.intended_recipient_teams : proposal.intended_recipient_team },
+                { label: 'Forwarded To', value: proposal.forwarded_to_teams?.length ? proposal.forwarded_to_teams : proposal.forwarded_to_team },
+                { label: 'Revision', value: proposal.revision_number },
+                { label: 'Revision History', value: proposal.revision_history },
+                { label: 'Proposed Recipient Approvals', value: proposal.recipient_approval_states },
                 { label: 'Submitted', value: formatReportTimestamp(proposal.submitted_utc) },
                 { label: 'Reviewed', value: formatReportTimestamp(proposal.reviewed_utc) }
             ],
@@ -4443,15 +4496,21 @@ export function buildResearchReportHtml(dataset, {
                         { label: 'Requested Action', value: proposal.requested_action },
                         { label: 'Rationale', value: proposal.rationale },
                         { label: 'Originators', value: details.originators },
-                        {
+                        ...(safeArray(details.instruments).length || details.category ? [{
                             label: proposal.author_team === 'industry' || safeArray(details.instruments).length
                                 ? 'Instrument of Power'
-                                : 'Category',
+                                : 'Category (historical)',
                             value: safeArray(details.instruments).length ? details.instruments : details.category
-                        },
+                        }] : []),
                         { label: 'Intended Partners', value: details.intendedPartners },
-                        { label: 'Focus Sector', value: details.focusSector || safeObject(proposal.full_content).focusSector },
-                        { label: 'Delivery', value: details.delivery },
+                        { label: 'Focus Sectors', value: proposal.focus_sectors?.length ? proposal.focus_sectors : details.focusSectors || details.focusSector },
+                        { label: 'Supply Chain Decision', value: proposal.supply_chain_focus_decision },
+                        { label: 'Action Angles', value: proposal.supply_chain_action_angles },
+                        { label: 'Supply Chain Areas', value: proposal.supply_chain_areas },
+                        { label: 'Industry of Focus', value: proposal.industry_focus },
+                        { label: 'Country of Focus', value: proposal.country_focus },
+                        { label: 'Proposed Activity', value: proposal.proposed_activity },
+                        ...(details.delivery ? [{ label: 'Delivery (historical)', value: details.delivery }] : []),
                         { label: 'Timing And Conditions', value: details.timingAndConditions },
                         { label: 'Expected Outcomes', value: safeObject(proposal.full_content).expected_outcomes }
                     ])
@@ -6228,19 +6287,28 @@ ${renderLatexDescription([
         { label: 'Author role', value: proposal.author_role },
         { label: 'Originators', value: details.originators },
         { label: 'Objective', value: proposal.proposal_text },
-        {
+        ...(safeArray(details.instruments).length || details.category ? [{
             label: proposal.author_team === 'industry' || safeArray(details.instruments).length
                 ? 'Instrument of Power'
-                : 'Category',
+                : 'Category (historical)',
             value: safeArray(details.instruments).length ? details.instruments : details.category
-        },
+        }] : []),
         { label: 'Intended partners', value: details.intendedPartners },
-        { label: 'Focus sector', value: details.focusSector },
-        { label: 'Delivery', value: details.delivery },
+        { label: 'Intended recipients', value: proposal.intended_recipient_teams?.length ? proposal.intended_recipient_teams : proposal.intended_recipient_team },
+        { label: 'Proposed recipient approvals', value: proposal.recipient_approval_states },
+        { label: 'Focus sectors', value: proposal.focus_sectors?.length ? proposal.focus_sectors : details.focusSectors || details.focusSector },
+        { label: 'Supply chain decision', value: proposal.supply_chain_focus_decision },
+        { label: 'Action angles', value: proposal.supply_chain_action_angles },
+        { label: 'Supply chain areas', value: proposal.supply_chain_areas },
+        { label: 'Industry of focus', value: proposal.industry_focus },
+        { label: 'Country of focus', value: proposal.country_focus },
+        { label: 'Proposed activity', value: proposal.proposed_activity },
+        ...(details.delivery ? [{ label: 'Delivery (historical)', value: details.delivery }] : []),
         { label: 'Timing and conditions', value: details.timingAndConditions || proposal.rationale },
         { label: 'Requested action / expected outcomes', value: proposal.requested_action },
-        { label: 'Intended recipient', value: proposal.intended_recipient_team },
-        { label: 'Forwarded to', value: proposal.forwarded_to_team },
+        { label: 'Revision', value: proposal.revision_number },
+        { label: 'Revision history', value: proposal.revision_history },
+        { label: 'Forwarded to', value: proposal.forwarded_to_teams?.length ? proposal.forwarded_to_teams : proposal.forwarded_to_team },
         { label: 'Review decision', value: proposal.review_decision },
         { label: 'Review reason', value: proposal.review_reason },
         { label: 'Reviewer pseudonym', value: proposal.reviewer_pseudonym },

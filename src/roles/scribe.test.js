@@ -2232,7 +2232,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Blue Team and ASEAN partners');
         expect(html).toContain('Focus Sectors');
         expect(html).toContain('Critical minerals and logistics');
-        expect(html).toContain('>Delivery</p>');
+        expect(html).toContain('>Delivery (historical)</p>');
         expect(html).toContain('Industry-led investment forum');
         expect(html).toContain('Timing &amp; Conditions');
         expect(html).toContain('Launch in Move 2 after White Cell approval.');
@@ -2242,6 +2242,109 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('data-scribe-action-edit');
         expect(html).toContain('Forward to White Cell');
         expect(html).not.toContain('Proposal Category');
+    });
+
+    it('presents a returned proposal as the same editable revision with reviewer notes', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+        const action = {
+            id: 'proposal-stable-1',
+            team: 'green',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 2,
+            review_notes: 'Clarify the accountable owner.',
+            mechanism: 'Proposal',
+            goal: 'Dual-partner capacity proposal',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU'],
+                objective: 'Build shared capacity.',
+                recipientTeams: ['blue', 'red'],
+                focusSectors: ['Biotechnology'],
+                supplyChainFocusDecision: 'No',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const html = controller.renderOwnProposalSlide({ action }, undefined);
+
+        expect(html).toContain('Intended recipient: Blue Team, Red Team');
+        expect(html).toContain('Returned by White Cell');
+        expect(html).toContain('Clarify the accountable owner.');
+        expect(html).toContain('<strong>Revision:</strong> 2');
+        expect(html).toContain('<strong>Proposal ID:</strong> proposal-stable-1');
+        expect(html).toContain('Resubmit to White Cell');
+    });
+
+    it('resubmits a returned proposal by updating its existing logical identity', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { database } = await import('../services/database.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        const { showToast } = await import('../components/ui/Toast.js');
+        global.document = createFakeDocument();
+        const submitAction = vi.spyOn(database, 'submitAction').mockResolvedValue({
+            id: 'proposal-stable-1',
+            session_id: 'session-proposal-revision',
+            team: 'green',
+            status: 'submitted',
+            workflow_state: 'resubmitted',
+            revision_number: 2,
+            goal: 'Dual-partner capacity proposal'
+        });
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
+            id: 'timeline-proposal-resubmitted',
+            type: 'PROPOSAL_SUBMITTED'
+        });
+        const actionUpdate = vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
+        const timelineUpdate = vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+        const controller = new ScribeController();
+        controller.teamId = 'green';
+        controller.teamLabel = 'Green Team';
+        const action = {
+            id: 'proposal-stable-1',
+            session_id: 'session-proposal-revision',
+            team: 'green',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 2,
+            mechanism: 'Proposal',
+            goal: 'Dual-partner capacity proposal',
+            ally_contingencies: serializeProposalDetails({
+                recipientTeams: ['blue', 'red'],
+                focusSectors: ['Biotechnology'],
+                supplyChainFocusDecision: 'No',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        await controller.submitScribeProposal(action);
+
+        expect(submitAction).toHaveBeenCalledWith('proposal-stable-1');
+        expect(actionUpdate).toHaveBeenCalledWith('UPDATE', expect.objectContaining({
+            id: 'proposal-stable-1',
+            revision_number: 2,
+            workflow_state: 'resubmitted'
+        }));
+        expect(database.createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            metadata: expect.objectContaining({
+                related_id: 'proposal-stable-1',
+                recipient_teams: ['blue', 'red'],
+                revision_number: 2
+            })
+        }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({
+            id: 'timeline-proposal-resubmitted'
+        }));
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Proposal revision resubmitted to White Cell for Blue Team, Red Team.',
+            type: 'success'
+        });
     });
 
     it('shows each selected Strategic Orientation component once without lifecycle repetition', async () => {

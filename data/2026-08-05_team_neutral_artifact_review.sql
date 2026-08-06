@@ -689,10 +689,16 @@ BEGIN
         END IF;
 
         IF normalized_kind = 'action' AND NOT (
-            action_row.artifact_type IN ('action', 'move_response')
-            AND normalized_team IN ('blue', 'red')
+            (
+                action_row.artifact_type IN ('action', 'move_response')
+                AND normalized_team IN ('blue', 'red')
+            )
+            OR (
+                action_row.artifact_type = 'proposal'
+                AND normalized_team IN ('green', 'industry')
+            )
         ) THEN
-            RAISE EXCEPTION 'Only Blue or Red action artifacts can use the action review path.'
+            RAISE EXCEPTION 'Artifact type and submitting team do not match the action review path.'
                 USING ERRCODE = '22023';
         END IF;
 
