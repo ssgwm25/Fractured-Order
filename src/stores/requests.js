@@ -4,7 +4,7 @@
  *
  * Centralized store for RFI management including:
  * - CRUD operations for requests
- * - Status tracking (pending, answered, withdrawn)
+ * - Workflow tracking (pending, returned, resubmitted, answered)
  * - Filtering by team and status
  * - Real-time synchronization
  */
@@ -25,16 +25,6 @@ export const REQUEST_STATUS = {
 };
 
 /**
- * Request priority constants
- * Schema: priority IN ('NORMAL', 'HIGH', 'URGENT')
- */
-export const REQUEST_PRIORITY = {
-    NORMAL: 'NORMAL',
-    HIGH: 'HIGH',
-    URGENT: 'URGENT'
-};
-
-/**
  * @typedef {Object} Request
  * @property {string} id - Request ID
  * @property {string} session_id - Session ID
@@ -42,8 +32,10 @@ export const REQUEST_PRIORITY = {
  * @property {number} move - Move number
  * @property {string} query - RFI query
  * @property {string[]} categories - Request categories
- * @property {string} priority - Priority level
  * @property {string} status - Request status
+ * @property {string} workflow_state - Revision-aware workflow state
+ * @property {number} revision_number - Current RFI revision
+ * @property {string|null} review_notes - White Cell clarification notes
  * @property {string} response - White Cell response
  * @property {string} responded_by - Responder identifier
  * @property {string} created_at - Creation timestamp
@@ -286,6 +278,31 @@ class RequestsStore {
             logger.error('Failed to respond to RFI:', err);
             throw err;
         }
+    }
+
+    /**
+     * Revise and resubmit an RFI returned by White Cell.
+     * The database trigger owns the workflow transition and revision identity.
+     * @param {string} id - Existing RFI ID
+     * @param {{query: string, categories: string[]}} updates
+     * @returns {Promise<Request>}
+     */
+    async resubmit(id, updates = {}) {
+        const existing = this.getById(id);
+        if (!existing || existing.status !== REQUEST_STATUS.PENDING || existing.workflow_state !== 'returned_to_team') {
+            throw new Error('Only an RFI returned for clarification can be resubmitted');
+        }
+
+        const data = await database.updateRequest(id, {
+            query: updates.query,
+            categories: updates.categories
+        });
+        const index = this.requests.findIndex((request) => request.id === id);
+        if (index !== -1) {
+            this.requests[index] = data;
+        }
+        this.notify('resubmitted', data);
+        return data;
     }
 
     /**

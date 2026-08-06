@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { exportSessionActionsCsv, exportSessionParticipantsCsv } from './exportCsv.js';
+import {
+    exportSessionActionsCsv,
+    exportSessionParticipantsCsv,
+    exportSessionRequestsCsv
+} from './exportCsv.js';
 import { buildJsonExportPayload } from './exportJson.js';
 import * as exportFeature from './index.js';
 
@@ -27,6 +31,26 @@ describe('admin export helpers', () => {
             timeline: [{ id: 't1' }],
             participants: [{ id: 'p1' }]
         });
+    });
+
+    it('removes Priority from current-run JSON RFIs while retaining legacy rows verbatim', () => {
+        const payload = buildJsonExportPayload({
+            requests: [
+                {
+                    id: 'current-rfi',
+                    workflow_state: 'submitted_to_white_cell',
+                    revision_number: 1,
+                    priority: 'HIGH'
+                },
+                {
+                    id: 'legacy-rfi',
+                    priority: 'URGENT'
+                }
+            ]
+        });
+
+        expect(payload.requests[0]).not.toHaveProperty('priority');
+        expect(payload.requests[1]).toMatchObject({ priority: 'URGENT' });
     });
 
     it('serializes current-schema actions and participants to CSV', () => {
@@ -57,6 +81,24 @@ describe('admin export helpers', () => {
         expect(actionsCsv).toContain('"Partner A; Partner B"');
         expect(participantsCsv).toContain('display_name');
         expect(participantsCsv).toContain('Alex');
+    });
+
+    it('exports revision-aware RFIs without the removed priority field', () => {
+        const requestsCsv = exportSessionRequestsCsv([{
+            id: 'rfi-1',
+            team: 'industry',
+            query: 'Which reporting period applies?',
+            workflow_state: 'returned_to_team',
+            revision_number: 2,
+            review_notes: 'Specify the requested horizon.',
+            status: 'pending'
+        }]);
+
+        expect(requestsCsv.split('\n')[0]).toBe(
+            'id,team,move,phase,categories,query,workflow_state,revision_number,review_notes,status,response,responded_by,responded_at,created_at'
+        );
+        expect(requestsCsv).not.toContain('priority');
+        expect(requestsCsv).toContain('returned_to_team');
     });
 
     it('exports JSON, CSV, and research archive helpers from the feature barrel', () => {

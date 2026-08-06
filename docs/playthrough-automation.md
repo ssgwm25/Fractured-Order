@@ -29,9 +29,10 @@ playthrough. It covers:
   creation through its Instrument of Power checkbox group
 - White Cell forward, request-changes, and reject decisions
 - recipient Accept, Not Interested, and Negotiate decisions
-- multi-team RFI submission, White Cell response, and team-only routing,
+- multi-team RFI submission from each Facilitator, White Cell response, and team-only routing,
   concurrent on the hosted real backend
-- direct communications, unread counts, ordering, and team isolation
+- Facilitator-to-White Cell direct text plus White Cell replies, unread counts,
+  ordering, and team/session isolation
 - capture from all eight Notetakers with team isolation, concurrent on the
   hosted real backend
 - representative role reload and persisted-state recovery without replaying

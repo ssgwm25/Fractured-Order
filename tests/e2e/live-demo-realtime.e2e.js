@@ -208,7 +208,7 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
 
             await openSidebarSection(whiteCell.page, 'requests');
             const requestStartedAt = Date.now();
-            await submitRfi(blueScribe.page, { question: rfiQuestion });
+            await submitRfi(blueFacilitator.page, { question: rfiQuestion });
             if (!actorPool.hosted) {
                 await whiteCell.page.reload();
                 await openSidebarSection(whiteCell.page, 'requests');

@@ -29,7 +29,7 @@ Use the current hardening path for live environments:
 
 1. Apply the complete/current schema baseline used for this repository.
 2. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the selected baseline requires its compatibility columns.
-3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, `data/2026-07-29_industry_submission_permissions.sql`, `data/2026-07-29_return_action_to_blue.sql`, and `data/2026-08-05_team_neutral_artifact_review.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration is required for existing projects where Industry Scribes or Facilitators receive RLS errors while creating Strategic Orientation forecasts, proposals, or RFIs, or while submitting a forwarded orientation or proposal. The August migration supersedes the Blue-only return implementation but retains its RPC as a compatibility wrapper. Projects that applied the July 14 and August 5 files before the multi-recipient proposal revision workflow must reapply July 14 first, then August 5, so proposal forwarding snapshots and Green/Industry return-to-team reviews use the current contracts.
+3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, `data/2026-07-29_industry_submission_permissions.sql`, `data/2026-07-29_return_action_to_blue.sql`, `data/2026-08-05_team_neutral_artifact_review.sql`, and `data/2026-08-06_facilitator_rfi_communications.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration normalizes Industry seats and draft/submission permissions. August 5 adds the revision-aware review workflow. August 6 supersedes the older RFI policies: the actual Facilitator (`*_scribe` compatibility seat) owns RFI creation/resubmission and direct text to White Cell, while the user-facing Scribe retains read-only RFI history. Projects that reapply July 14 or August 5 must reapply August 6 last.
 4. Verify RPCs and RLS policies before a demo.
 
 ## Intercom Storage
@@ -52,7 +52,7 @@ Do not treat legacy broad-policy files such as `data/updated_supabase_schema.sql
 
 Apply `data/2026-07-14_action_artifact_workflow_integrity.sql` to make action, proposal, Strategic Orientation, forecast, and move-response meaning explicit in the database. The migration deterministically classifies existing rows from the current legacy prefixes, adds structured payload and workflow fields, makes lifecycle timestamps server-owned, rejects status regression and post-submission content changes, and logs every action mutation. Draft updates and submission now filter on the returned `row_version`; a stale browser receives a refresh-before-save error instead of overwriting a newer revision.
 
-After the workflow-integrity migration, apply `data/2026-07-21_scribe_proposal_submit_policy.sql` and `data/2026-07-29_industry_submission_permissions.sql`. The first permits the legacy `*_scribe` Facilitator seat to submit a Scribe-forwarded proposal. The second normalizes existing Industry seat identities and reasserts Industry-only action, Strategic Orientation, proposal, and RFI permissions. It does not permit cross-team writes, Facilitator creation of new artifacts, or participant adjudication.
+After the workflow-integrity migration, apply `data/2026-07-21_scribe_proposal_submit_policy.sql` and `data/2026-07-29_industry_submission_permissions.sql`. The first permits the legacy `*_scribe` Facilitator seat to submit a Scribe-forwarded proposal. The second normalizes existing Industry seat identities and reasserts Industry draft/submission permissions. The later August 6 migration intentionally replaces its older RFI policies. None of these migrations permits cross-team writes or participant adjudication.
 
 The migration fails closed instead of guessing when it finds any of these conditions:
 
@@ -159,6 +159,30 @@ where schemaname = 'public'
 
 Pass: fourteen metadata columns are returned; both RPCs exist with authenticated execution; and `artifact_workflow_reviews` has a SELECT policy but no authenticated INSERT, UPDATE, or DELETE policy. A transactional rehearsal should additionally show one review row with matching prior/new snapshots and no outcome for a completed Action or Strategic Orientation.
 
+## Facilitator RFIs And Direct Communications
+
+Apply `data/2026-08-06_facilitator_rfi_communications.sql` after the team-neutral artifact-review migration. The compatibility identifiers remain inverted: the actual Facilitator is stored as `*_scribe`, and the user-facing Scribe is stored as `*_facilitator`. The migration therefore gives the `scribe` surface same-team RFI insert and returned-RFI resubmission authority, removes write authority from the `facilitator` surface, limits participant reads to their own team's RFIs, and allows session-scoped direct text between the actual Facilitator and White Cell. It also reasserts Industry Facilitator submission of forwarded Strategic Orientation and proposal drafts.
+
+Verify the current policies:
+
+```sql
+select tablename, policyname, cmd
+from pg_policies
+where schemaname = 'public'
+  and tablename in ('requests', 'communications', 'actions')
+  and policyname in (
+    'requests_live_demo_read',
+    'requests_live_demo_insert',
+    'requests_live_demo_update',
+    'communications_live_demo_read',
+    'communications_live_demo_insert',
+    'actions_industry_submission_update'
+  )
+order by tablename, policyname;
+```
+
+Pass: exactly six rows are returned. In a four-seat rehearsal, each actual Facilitator can create a same-team RFI and direct message; the paired Scribe cannot create an RFI; another team cannot read either record; White Cell can return the RFI only with notes; and the Facilitator resubmits the same RFI ID with the next revision. Current RFI forms, CSV exports, and JSON exports contain no Priority field; explicitly labeled legacy JSON rows may retain their historical value.
+
 ## Session Recorder Artifact Metadata
 
 The Session Recorder plugin records longer White Cell or Game Master session audio with browser `getUserMedia` and `MediaRecorder`. The actual audio remains a local browser Blob/download and must be kept with the post-game ZIP by the operator. The research archive stores reference metadata in `session_recording_artifacts.csv` and `session_recording_artifacts.json`, and `report.html` includes a Session Recordings section so reviewers can see that a recording exists.
@@ -222,8 +246,9 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - role seat limits are enforced by `claim_session_role_seat`
 - White Cell and Game Master actions require operator grants
 - stored participant roles are normalized before RLS derives write surface/team
-- the Industry Scribe can create same-team Strategic Orientation forecasts, proposals, and RFIs while cross-team inserts still fail
+- the Industry Scribe can create same-team Strategic Orientation forecasts and proposals while cross-team inserts still fail
 - same-team Facilitators, currently stored as legacy `*_scribe` seats, can submit Scribe-forwarded actions, Strategic Orientation drafts, and proposals to White Cell
+- same-team Facilitators can create/resubmit RFIs and send direct text to White Cell; Scribes retain read-only RFI history and other teams cannot read those records
 - action artifacts have a first-class type, workflow state, monotonic row version, structured snapshot, and server-owned transition timestamps
 - Blue and Red action returns, Strategic Orientation review, and RFI clarification returns use one revision-aware White Cell RPC; completed artifacts reject further review writes
 - each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication

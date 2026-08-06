@@ -1188,6 +1188,8 @@ export class WhiteCellController {
         };
         this.blueActionMarkActiveKey = '';
         this.rfis = [];
+        this.rfiHistory = [];
+        this.rfiActiveView = 'pending';
         this.communications = [];
         this.tribeStreetJournalEntries = [];
         this.verbaAiUpdates = [];
@@ -1495,7 +1497,7 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Answer RFIs',
-                    body: 'RFI collects questions from every team. Answer them here so the response is logged and routed back to the requester.',
+                    body: 'Pending collects Facilitator questions from every team. Answer one or return it with required clarification notes; completed and returned records remain in Answered / History.',
                     highlight: navTarget('requests')
                 },
                 {
@@ -4381,7 +4383,9 @@ export class WhiteCellController {
     }
 
     syncRfisFromStore() {
-        this.rfis = requestsStore.getPending().filter(isRfiAwaitingWhiteCellResponse);
+        const allRfis = requestsStore.getAll();
+        this.rfis = allRfis.filter(isRfiAwaitingWhiteCellResponse);
+        this.rfiHistory = allRfis.filter((rfi) => !isRfiAwaitingWhiteCellResponse(rfi));
 
         this.renderRfiQueue();
 
@@ -4392,38 +4396,63 @@ export class WhiteCellController {
         const container = document.getElementById('rfiQueue');
         if (!container) return;
 
-        if (this.rfis.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No pending RFIs.</p>';
-            return;
-        }
-
-        const visibleRfis = this.rfis.slice(0, WHITE_CELL_RFI_RENDER_LIMIT);
-        const hiddenCount = Math.max(0, this.rfis.length - visibleRfis.length);
-
-        container.innerHTML = `
-            ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_RFI_RENDER_LIMIT} of ${this.rfis.length} pending RFIs.</p>` : ''}
-            ${visibleRfis.map((rfi) => {
+        const activeRfis = this.rfiActiveView === 'history' ? this.rfiHistory : this.rfis;
+        const visibleRfis = activeRfis.slice(0, WHITE_CELL_RFI_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, activeRfis.length - visibleRfis.length);
+        const cards = visibleRfis.length ? visibleRfis.map((rfi) => {
             const queryText = rfi.query || rfi.question || '';
+            const isPending = isRfiAwaitingWhiteCellResponse(rfi);
             return `
                 <div class="card card-bordered" data-rfi-id="${rfi.id}" style="padding: var(--space-4); margin-bottom: var(--space-3);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-2); gap: var(--space-2);">
                         <span class="text-xs text-gray-500">${this.escapeHtml(this.formatTeamLabel(rfi.team))} | ${formatRelativeTime(rfi.created_at)}</span>
                         <div style="display: flex; gap: var(--space-2);">
                             ${createArtifactLifecycleBadge(rfi, { size: 'sm' }).outerHTML}
-                            ${createPriorityBadge(rfi.priority || 'NORMAL').outerHTML}
                         </div>
                     </div>
                     <p class="text-sm font-medium mb-2">${this.escapeHtml(queryText)}</p>
                     ${Array.isArray(rfi.categories) && rfi.categories.length ? `
                         <p class="text-xs text-gray-500"><strong>Categories:</strong> ${this.escapeHtml(rfi.categories.join(', '))}</p>
                     ` : ''}
+                    ${rfi.review_notes ? `<p class="text-sm"><strong>Clarification notes:</strong> ${this.escapeHtml(rfi.review_notes)}</p>` : ''}
+                    ${rfi.response ? `<p class="text-sm"><strong>Final response:</strong> ${this.escapeHtml(rfi.response)}</p>` : ''}
+                    <p class="text-xs text-gray-500"><strong>Revision:</strong> ${Number(rfi.revision_number) || 1}</p>
                     <div class="card-actions" style="margin-top: var(--space-3);">
-                        <button class="btn btn-primary btn-sm respond-rfi-btn" data-rfi-id="${rfi.id}">Respond</button>
+                        ${isPending ? `
+                            <button class="btn btn-primary btn-sm respond-rfi-btn" data-rfi-id="${rfi.id}">Respond</button>
+                            <button class="btn btn-secondary btn-sm return-rfi-btn" data-rfi-id="${rfi.id}">Return for Clarification</button>
+                        ` : ''}
                     </div>
                 </div>
             `;
-        }).join('')}
+        }).join('') : `<p class="text-sm text-gray-500">No ${this.rfiActiveView === 'history' ? 'answered or returned' : 'pending'} RFIs.</p>`;
+
+        container.innerHTML = `
+            <div class="tab-list" role="tablist" aria-label="RFI queue views">
+                <button type="button" id="rfiPendingTab" class="tab-button${this.rfiActiveView === 'pending' ? ' active' : ''}" role="tab" aria-controls="rfiQueuePanel" aria-selected="${this.rfiActiveView === 'pending'}" tabindex="${this.rfiActiveView === 'pending' ? '0' : '-1'}" data-rfi-view="pending">Pending <span class="tab-badge">${this.rfis.length}</span></button>
+                <button type="button" id="rfiHistoryTab" class="tab-button${this.rfiActiveView === 'history' ? ' active' : ''}" role="tab" aria-controls="rfiQueuePanel" aria-selected="${this.rfiActiveView === 'history'}" tabindex="${this.rfiActiveView === 'history' ? '0' : '-1'}" data-rfi-view="history">Answered / History <span class="tab-badge">${this.rfiHistory.length}</span></button>
+            </div>
+            <div id="rfiQueuePanel" role="tabpanel" aria-labelledby="${this.rfiActiveView === 'history' ? 'rfiHistoryTab' : 'rfiPendingTab'}" tabindex="0" style="margin-top: var(--space-3);">
+                ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_RFI_RENDER_LIMIT} of ${activeRfis.length} ${this.rfiActiveView === 'history' ? 'answered/history' : 'pending'} RFIs.</p>` : ''}
+                ${cards}
+            </div>
         `;
+
+        container.querySelectorAll('[data-rfi-view]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.rfiActiveView = button.dataset.rfiView === 'history' ? 'history' : 'pending';
+                this.renderRfiQueue();
+            });
+            button.addEventListener('keydown', (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                this.rfiActiveView = event.key === 'ArrowLeft' || event.key === 'Home'
+                    ? 'pending'
+                    : 'history';
+                this.renderRfiQueue();
+                document.getElementById(this.rfiActiveView === 'history' ? 'rfiHistoryTab' : 'rfiPendingTab')?.focus?.();
+            });
+        });
 
         container.querySelectorAll('.respond-rfi-btn').forEach((button) => {
             button.addEventListener('click', () => {
@@ -4434,6 +4463,90 @@ export class WhiteCellController {
                 }
             });
         });
+        container.querySelectorAll('.return-rfi-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                const rfi = this.rfis.find((candidate) => candidate.id === button.dataset.rfiId);
+                if (rfi) this.showReturnRfiModal(rfi);
+            });
+        });
+    }
+
+    showReturnRfiModal(rfi) {
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <p class="text-sm mb-3">${this.escapeHtml(rfi.query || rfi.question || '')}</p>
+            <form id="rfiReturnForm">
+                <div class="form-group">
+                    <label class="form-label" for="rfiReturnNotes">Clarification Notes *</label>
+                    <textarea id="rfiReturnNotes" class="form-input form-textarea" rows="4" required aria-describedby="rfiReturnNotesHint"></textarea>
+                    <p class="form-hint" id="rfiReturnNotesHint">Explain exactly what the Facilitator must clarify before resubmitting this same RFI.</p>
+                </div>
+            </form>
+        `;
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Return RFI for Clarification',
+            content,
+            size: 'md',
+            buttons: [
+                { label: 'Cancel', variant: 'secondary', onClick: () => {} },
+                {
+                    label: 'Return for Clarification',
+                    variant: 'primary',
+                    onClick: () => {
+                        const notes = content.querySelector('#rfiReturnNotes')?.value?.trim() || '';
+                        if (!notes) {
+                            showToast({ message: 'Clarification notes are required.', type: 'error' });
+                            content.querySelector('#rfiReturnNotes')?.focus?.();
+                            return false;
+                        }
+                        this.handleReturnRfi(rfi, notes, modalRef.current);
+                        return false;
+                    }
+                }
+            ]
+        });
+    }
+
+    async handleReturnRfi(rfi, notes, modal = null) {
+        const loader = showLoader({ message: `Returning ${this.formatTeamLabel(rfi.team)} RFI...` });
+        try {
+            const reviewResult = await database.returnArtifactToTeam('rfi', rfi.id, {
+                team: rfi.team,
+                expectedRevision: Number(rfi.revision_number) || 1,
+                notes
+            });
+            const updatedRequest = reviewResult?.artifact;
+            if (!updatedRequest) throw new Error('RFI return did not return an updated artifact.');
+            requestsStore.updateFromServer('UPDATE', updatedRequest);
+            this.retainWorkflowReview(reviewResult.review);
+
+            const gameState = this.getCurrentGameState();
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: updatedRequest.session_id || sessionStore.getSessionId(),
+                type: 'RFI_RETURNED_FOR_CLARIFICATION',
+                content: `${this.formatTeamLabel(rfi.team)} RFI returned for clarification by White Cell.`,
+                metadata: {
+                    related_id: rfi.id,
+                    submitting_team: rfi.team,
+                    return_notes: notes,
+                    revision_number: rfi.revision_number || 1,
+                    next_revision_number: updatedRequest.revision_number || 1,
+                    ...buildWhiteCellRecipientMetadata(rfi.team)
+                },
+                team: 'white_cell',
+                move: rfi.move ?? gameState.move ?? 1,
+                phase: rfi.phase ?? gameState.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+            showToast({ message: 'RFI returned for clarification', type: 'success' });
+            modal?.close?.();
+        } catch (error) {
+            logger.error('Failed to return RFI for clarification:', error);
+            showToast({ message: 'Failed to return the RFI. Refresh the queue and try again.', type: 'error' });
+        } finally {
+            hideLoader(loader);
+        }
     }
 
     showRespondRfiModal(rfi) {

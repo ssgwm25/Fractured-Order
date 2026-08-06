@@ -407,6 +407,11 @@ describe('research export builder', () => {
             move_response_id: 'move-response-red-1',
             posture: 'Hold'
         });
+        expect(exportBundle.rfiContent[0]).toMatchObject({
+            rfi_id: 'rfi-1',
+            requester_role: 'blue_facilitator',
+            requester_team: 'blue'
+        });
         expect(exportBundle.reportHtml).toContain('Post-Game Analysis Report');
         expect(exportBundle.reportLatex).toContain(String.raw`\documentclass[11pt,oneside]{article}`);
         expect(exportBundle.reportLatex).toContain(String.raw`\usepackage{fontspec}`);
@@ -453,7 +458,7 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Research Readiness');
         expect(exportBundle.reportHtml).toContain('Data Quality And Export Integrity');
         expect(exportBundle.reportHtml).toContain('Blue Team Scribe (blue_facilitator)');
-        expect(exportBundle.reportHtml).toContain('Question-and-answer exchanges between team scribes and White Cell.');
+        expect(exportBundle.reportHtml).toContain('Question-and-answer exchanges between team facilitators and White Cell.');
         expect(exportBundle.reportHtml).toContain('ALPHA-R');
         expect(exportBundle.reportHtml).toContain('1h 30m');
         expect(exportBundle.reportHtml).toContain('Forwarded Green Team proposal.');
@@ -586,6 +591,47 @@ describe('research export builder', () => {
         expect(checksumsFile.content).toContain('  report.tex');
         expect(checksumsFile.content).toContain('  latexmkrc');
         expect(checksumsFile.content).toContain('  LATEX_REPORT_README.md');
+    });
+
+    it('attributes current RFIs to the actual Facilitator while preserving legacy attribution', async () => {
+        const bundle = buildBundleFixture();
+        bundle.participants = [];
+        bundle.requests = [
+            {
+                id: 'rfi-current',
+                session_id: bundle.session.id,
+                team: 'industry',
+                query: 'Current Facilitator question',
+                status: 'pending',
+                workflow_state: 'submitted_to_white_cell',
+                revision_number: 1,
+                created_at: '2026-06-03T10:17:00.000Z'
+            },
+            {
+                id: 'rfi-legacy',
+                session_id: bundle.session.id,
+                team: 'industry',
+                query: 'Legacy Scribe question',
+                status: 'answered',
+                created_at: '2026-06-03T10:07:00.000Z'
+            }
+        ];
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z',
+            generatedByPseudonym: 'gm-1234abcd'
+        });
+
+        expect(exportBundle.rfiContent).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                rfi_id: 'rfi-current',
+                requester_role: 'industry_scribe'
+            }),
+            expect.objectContaining({
+                rfi_id: 'rfi-legacy',
+                requester_role: 'industry_facilitator'
+            })
+        ]));
     });
 
     it('renders the full action and strategic-orientation decision scope', async () => {

@@ -512,7 +512,9 @@ body::before {
 }
 
 .scribe-section-region--actions,
-.scribe-section-region--proposals {
+.scribe-section-region--proposals,
+.scribe-section-region--rfis,
+.scribe-section-region--communications {
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -520,18 +522,26 @@ body::before {
 }
 
 .scribe-section-region--actions .scribe-section-region-heading,
-.scribe-section-region--proposals .scribe-section-region-heading {
+.scribe-section-region--proposals .scribe-section-region-heading,
+.scribe-section-region--rfis .scribe-section-region-heading,
+.scribe-section-region--communications .scribe-section-region-heading {
     padding: 0 var(--space-3) var(--space-2);
 }
 
 .scribe-section-region--actions .scribe-section-region-title,
 .scribe-section-region--actions .scribe-section-region-summary,
 .scribe-section-region--proposals .scribe-section-region-title,
-.scribe-section-region--proposals .scribe-section-region-summary {
+.scribe-section-region--proposals .scribe-section-region-summary,
+.scribe-section-region--rfis .scribe-section-region-title,
+.scribe-section-region--rfis .scribe-section-region-summary,
+.scribe-section-region--communications .scribe-section-region-title,
+.scribe-section-region--communications .scribe-section-region-summary {
     color: var(--color-text-muted);
 }
 
-.scribe-section-region--proposals {
+.scribe-section-region--proposals,
+.scribe-section-region--rfis,
+.scribe-section-region--communications {
     margin-top: var(--space-5);
 }
 
@@ -1464,6 +1474,35 @@ body::before {
 .scribe-action-slide-note-card-secondary {
     background: rgba(17, 87, 64, 0.06);
     border-color: rgba(17, 87, 64, 0.14);
+}
+
+.scribe-slide-link.is-rfi,
+.scribe-slide-link.is-communication {
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-rfi:hover,
+.scribe-slide-link.is-rfi:focus-visible,
+.scribe-slide-link.is-communication:hover,
+.scribe-slide-link.is-communication:focus-visible {
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-rfi.is-active,
+.scribe-slide-link.is-communication.is-active {
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
+}
+
+.facilitator-workflow-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
 }
 
 .scribe-action-slide-return {

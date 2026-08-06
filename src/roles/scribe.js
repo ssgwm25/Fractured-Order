@@ -1,5 +1,7 @@
 import { sessionStore } from '../stores/session.js';
+import { gameStateStore } from '../stores/gameState.js';
 import { actionsStore } from '../stores/actions.js';
+import { requestsStore } from '../stores/requests.js';
 import { timelineStore } from '../stores/timeline.js';
 import { communicationsStore } from '../stores/communications.js';
 import { database } from '../services/database.js';
@@ -64,10 +66,20 @@ import {
 } from '../features/scribe/deckConfig.js';
 import { getUploadedScribeDeck } from '../features/scribe/deckStorage.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
+import { createRfiForm } from '../features/requests/RfiForm.js';
+import { getUserMessage } from '../core/errors.js';
 
 const logger = createLogger('Scribe');
 const ACTIONS_SECTION_ID = 'actions';
 const PROPOSALS_SECTION_ID = 'proposals';
+const RFIS_SECTION_ID = 'rfis';
+const COMMUNICATIONS_SECTION_ID = 'direct-communications';
+const LIVE_SECTION_IDS = Object.freeze([
+    ACTIONS_SECTION_ID,
+    PROPOSALS_SECTION_ID,
+    RFIS_SECTION_ID,
+    COMMUNICATIONS_SECTION_ID
+]);
 
 function serializeActionRenderState(value) {
     if (Array.isArray(value)) {
@@ -491,6 +503,132 @@ function buildProposalSection(communications = [], {
     };
 }
 
+function normalizeRecordTimestamp(record = {}) {
+    const parsed = new Date(record.updated_at || record.responded_at || record.created_at || '').getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function buildFacilitatorRfiSlides(requests = [], { teamId = '' } = {}) {
+    const rfis = [...(requests || [])]
+        .filter((request) => request?.team === teamId)
+        .sort((left, right) => (
+            normalizeRecordTimestamp(right) - normalizeRecordTimestamp(left)
+            || String(left?.id || '').localeCompare(String(right?.id || ''))
+        ));
+
+    if (!rfis.length) {
+        return {
+            slideCount: 0,
+            slides: [{
+                slideKey: 'rfis-placeholder',
+                slideType: 'rfi-placeholder',
+                title: 'No RFIs sent yet',
+                sidebarOrdinal: '0',
+                sidebarKicker: 'Ask White Cell',
+                summary: 'Submit a request for information when the team needs a ruling, clarification, or scenario detail.'
+            }]
+        };
+    }
+
+    return {
+        slideCount: rfis.length,
+        slides: rfis.map((request, index) => ({
+            slideKey: `rfi-${request.id}`,
+            slideType: 'rfi',
+            request,
+            title: request.query || request.question || `RFI ${index + 1}`,
+            sidebarOrdinal: String(index + 1),
+            sidebarKicker: request.workflow_state === 'returned_to_team'
+                ? 'Returned for clarification'
+                : request.status === 'answered'
+                    ? 'Answered'
+                    : request.workflow_state === 'resubmitted'
+                        ? 'Resubmitted'
+                        : 'Pending White Cell'
+        }))
+    };
+}
+
+function buildRfiSection(requests = [], { teamId = '' } = {}) {
+    const rfiSlides = buildFacilitatorRfiSlides(requests, { teamId });
+    return {
+        id: RFIS_SECTION_ID,
+        label: 'RFIs',
+        description: 'Facilitator-owned requests for information and their complete revision-aware history.',
+        slideCount: rfiSlides.slideCount,
+        slides: rfiSlides.slides
+    };
+}
+
+function isWhiteCellRole(role = '') {
+    const normalized = String(role || '').trim().toLowerCase();
+    return normalized === 'white_cell' || normalized === 'whitecell' || normalized.startsWith('whitecell_');
+}
+
+export function isFacilitatorDirectCommunication(communication = {}, teamContext = {}) {
+    const type = String(communication?.type || '').trim().toUpperCase();
+    if (type === 'PROPOSAL_FORWARDED' || type === 'PROPOSAL_RESPONSE') {
+        return false;
+    }
+
+    const isOutbound = communication?.from_role === teamContext.scribeRole
+        && String(communication?.to_role || '').trim().toLowerCase() === 'white_cell';
+    const isInbound = isWhiteCellRole(communication?.from_role)
+        && isWhiteCellCommunicationVisibleToScribe(communication, teamContext);
+
+    return isOutbound || isInbound;
+}
+
+export function buildFacilitatorCommunicationSlides(communications = [], {
+    teamContext = resolveTeamContext()
+} = {}) {
+    const messages = [...(communications || [])]
+        .filter((communication) => isFacilitatorDirectCommunication(communication, teamContext))
+        .sort((left, right) => (
+            normalizeRecordTimestamp(right) - normalizeRecordTimestamp(left)
+            || String(left?.id || '').localeCompare(String(right?.id || ''))
+        ));
+
+    if (!messages.length) {
+        return {
+            slideCount: 0,
+            slides: [{
+                slideKey: 'communications-placeholder',
+                slideType: 'communication-placeholder',
+                title: 'No direct communications yet',
+                sidebarOrdinal: '0',
+                sidebarKicker: 'Message White Cell',
+                summary: 'Send a direct text message to White Cell and keep the full inbound and outbound thread here.'
+            }]
+        };
+    }
+
+    return {
+        slideCount: messages.length,
+        slides: messages.map((communication, index) => ({
+            slideKey: `communication-${communication.id}`,
+            slideType: 'communication',
+            communication,
+            title: communication.title || communication.content || `Communication ${index + 1}`,
+            sidebarOrdinal: String(index + 1),
+            sidebarKicker: communication.from_role === teamContext.scribeRole
+                ? 'Sent to White Cell'
+                : 'From White Cell'
+        }))
+    };
+}
+
+function buildCommunicationSection(communications = [], { teamContext = resolveTeamContext() } = {}) {
+    const communicationSlides = buildFacilitatorCommunicationSlides(communications, { teamContext });
+    return {
+        id: COMMUNICATIONS_SECTION_ID,
+        label: 'Communications',
+        description: 'Session-scoped direct text history between this Facilitator and White Cell.',
+        slideCount: communicationSlides.slideCount,
+        slides: communicationSlides.slides
+    };
+}
+
 function formatTeamLabel(team = '') {
     switch (String(team || '').trim().toLowerCase()) {
     case 'blue': return 'Blue Team';
@@ -508,6 +646,14 @@ function getLiveSlideTypeClass(slide = {}) {
 
     if (slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder') {
         return ' is-proposal';
+    }
+
+    if (slide.slideType === 'rfi' || slide.slideType === 'rfi-placeholder') {
+        return ' is-rfi';
+    }
+
+    if (slide.slideType === 'communication' || slide.slideType === 'communication-placeholder') {
+        return ' is-communication';
     }
 
     return slide.slideType !== 'image' ? ' is-action' : '';
@@ -748,6 +894,8 @@ export class ScribeController {
         this.facilitatorDeckSlides = [];
         this.teamActions = [];
         this.receivedProposals = [];
+        this.teamRfis = [];
+        this.directCommunications = [];
         this.sections = [];
         this.deckSlides = [];
         this.expandedSectionIds = new Set();
@@ -822,6 +970,8 @@ export class ScribeController {
         this.primeNotifications();
         this.syncDeckAssignmentFromStore({ reload: false });
         this.syncProposalsFromStore();
+        this.syncRfisFromStore();
+        this.syncCommunicationsFromStore();
         await this.loadDeck();
         this.syncActionsFromStore();
         this.mountFollowAlongOnboarding();
@@ -853,6 +1003,16 @@ export class ScribeController {
                     title: 'Project and answer proposals',
                     body: 'Open Proposals below Actions to project proposals forwarded from other teams. Record one response for each proposal: Accept, Not Interested, or Negotiate.',
                     highlight: '.scribe-section-region--proposals'
+                },
+                {
+                    title: 'Ask White Cell with RFIs',
+                    body: 'Open RFIs to send a new question. If White Cell returns one for clarification, edit and resubmit the same revision here.',
+                    highlight: '.scribe-section-region--rfis'
+                },
+                {
+                    title: 'Message White Cell',
+                    body: 'Open Communications to send direct text to White Cell and review the isolated inbound and outbound history.',
+                    highlight: '.scribe-section-region--communications'
                 },
                 {
                     title: 'Watch activity',
@@ -963,6 +1123,27 @@ export class ScribeController {
             }
         });
         actionFrame?.addEventListener('click', (event) => {
+            const newRfiButton = event.target.closest('[data-facilitator-new-rfi]');
+            if (newRfiButton) {
+                this.showFacilitatorRfiModal();
+                return;
+            }
+
+            const editRfiButton = event.target.closest('[data-facilitator-edit-rfi]');
+            if (editRfiButton) {
+                const request = this.teamRfis.find((rfi) => rfi.id === editRfiButton.dataset.rfiId);
+                if (request) {
+                    this.showFacilitatorRfiModal(request);
+                }
+                return;
+            }
+
+            const newCommunicationButton = event.target.closest('[data-facilitator-new-communication]');
+            if (newCommunicationButton) {
+                this.showFacilitatorCommunicationModal();
+                return;
+            }
+
             const proposalButton = event.target.closest('[data-facilitator-proposal-decision]');
             if (proposalButton) {
                 this.handleFacilitatorProposalDecision(
@@ -1120,6 +1301,11 @@ export class ScribeController {
             })
         );
         this.storeUnsubscribers.push(
+            requestsStore.subscribe((event, data) => {
+                this.syncRfisFromStore({ event, data });
+            })
+        );
+        this.storeUnsubscribers.push(
             communicationsStore.subscribe((event, data) => {
                 this.processCommunicationNotifications(event);
                 this.syncDeckAssignmentFromStore({
@@ -1130,6 +1316,7 @@ export class ScribeController {
                         || event === 'reconciled'
                 });
                 this.syncProposalsFromStore({ event, data });
+                this.syncCommunicationsFromStore({ event, data });
             })
         );
     }
@@ -1384,6 +1571,45 @@ export class ScribeController {
                 : ''
         });
 
+        if (this.deckSlides.length) {
+            this.renderSlide();
+        }
+    }
+
+    syncRfisFromStore({ event = '', data = null } = {}) {
+        this.teamRfis = requestsStore.getByTeam(this.teamId);
+
+        if (!this.facilitatorDeckSlides.length && !this.sections.length) {
+            return;
+        }
+
+        const shouldFocusRfi = ['created', 'updated', 'resubmitted', 'responded'].includes(event)
+            && data?.team === this.teamId;
+        this.rebuildDeck({
+            preferredSlideKey: shouldFocusRfi ? `rfi-${data.id}` : this.getCurrentSlideKey(),
+            preferLiveSection: shouldFocusRfi ? RFIS_SECTION_ID : ''
+        });
+        if (this.deckSlides.length) {
+            this.renderSlide();
+        }
+    }
+
+    syncCommunicationsFromStore({ event = '', data = null } = {}) {
+        this.directCommunications = communicationsStore.getAll()
+            .filter((communication) => isFacilitatorDirectCommunication(communication, this.teamContext));
+
+        if (!this.facilitatorDeckSlides.length && !this.sections.length) {
+            return;
+        }
+
+        const shouldFocusCommunication = ['created', 'updated'].includes(event)
+            && isFacilitatorDirectCommunication(data, this.teamContext);
+        this.rebuildDeck({
+            preferredSlideKey: shouldFocusCommunication
+                ? `communication-${data.id}`
+                : this.getCurrentSlideKey(),
+            preferLiveSection: shouldFocusCommunication ? COMMUNICATIONS_SECTION_ID : ''
+        });
         if (this.deckSlides.length) {
             this.renderSlide();
         }
@@ -1869,12 +2095,17 @@ export class ScribeController {
         const proposalSection = buildProposalSection(this.receivedProposals, {
             teamContext: this.teamContext
         });
+        const rfiSection = buildRfiSection(this.teamRfis, { teamId: this.teamId });
+        const communicationSection = buildCommunicationSection(this.directCommunications, {
+            teamContext: this.teamContext
+        });
         const staticSections = expandScribeDeckSections(this.facilitatorDeckSlides)
-            .filter((section) => ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(section.id));
+            .filter((section) => !LIVE_SECTION_IDS.includes(section.id));
         const staticSlides = flattenScribeDeckSlides(staticSections);
 
-        this.sections = [actionSection, proposalSection, ...staticSections];
-        this.deckSlides = [...staticSlides, ...actionSection.slides, ...proposalSection.slides];
+        const liveSections = [actionSection, proposalSection, rfiSection, communicationSection];
+        this.sections = [...liveSections, ...staticSections];
+        this.deckSlides = [...staticSlides, ...liveSections.flatMap((section) => section.slides)];
 
         if (!this.deckSlides.length) {
             this.currentSlideIndex = 0;
@@ -1886,9 +2117,8 @@ export class ScribeController {
         if (preferredIndex >= 0) {
             this.currentSlideIndex = preferredIndex;
         } else if ((preferLiveSection || preferActionsSection) && actionSection.slides.length) {
-            const preferredSection = preferLiveSection === PROPOSALS_SECTION_ID
-                ? proposalSection
-                : actionSection;
+            const preferredSection = liveSections.find((section) => section.id === preferLiveSection)
+                || actionSection;
             this.currentSlideIndex = this.deckSlides.findIndex(
                 (slide) => getSlideKey(slide) === getSlideKey(preferredSection.slides[0])
             );
@@ -1977,16 +2207,19 @@ export class ScribeController {
             this.activeSectionIndex = resolvedSectionIndex;
         }
 
-        const sectionGroups = { actions: [], proposals: [] };
+        const sectionGroups = { actions: [], proposals: [], rfis: [], communications: [] };
+        const liveSectionIds = new Set(LIVE_SECTION_IDS);
 
         this.sections.forEach((section, sectionIndex) => {
             // Keep the assigned support deck in the main viewer, but do not
             // duplicate its section and slide details in the sidebar.
-            if (![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(section.id)) {
+            if (!liveSectionIds.has(section.id)) {
                 return;
             }
 
-            const sectionKind = section.id === PROPOSALS_SECTION_ID ? 'proposals' : 'actions';
+            const sectionKind = section.id === COMMUNICATIONS_SECTION_ID
+                ? 'communications'
+                : section.id;
             if (sectionKind === 'actions') {
                 sectionGroups.actions.push(
                     this.renderVerticalActionMarkSections(section, currentSlideKey)
@@ -1999,9 +2232,13 @@ export class ScribeController {
             const visibleSlideCount = Number.isFinite(section.slideCount)
                 ? section.slideCount
                 : section.slides.length;
-            const visibleDecisionLabel = sectionKind === 'proposals'
-                ? (visibleSlideCount === 1 ? 'proposal' : 'proposals')
-                : (visibleSlideCount === 1 ? 'live decision' : 'live decisions');
+            const itemLabels = {
+                proposals: ['proposal', 'proposals'],
+                rfis: ['RFI', 'RFIs'],
+                communications: ['message', 'messages']
+            };
+            const labels = itemLabels[sectionKind] || ['live decision', 'live decisions'];
+            const visibleDecisionLabel = visibleSlideCount === 1 ? labels[0] : labels[1];
             const slideGroupId = `scribe-section-${sectionIndex}-slides`;
 
             const slideMarkup = section.slides.map((slide, slideIndex) => {
@@ -2080,7 +2317,9 @@ export class ScribeController {
 
         sectionList.innerHTML = [
             renderRegion('actions', 'Actions', 'Live team decisions'),
-            renderRegion('proposals', 'Proposals', 'Received from other teams')
+            renderRegion('proposals', 'Proposals', 'Received from other teams'),
+            renderRegion('rfis', 'RFIs', 'Questions and responses'),
+            renderRegion('communications', 'Communications', 'Direct White Cell thread')
         ].join('');
     }
 
@@ -2167,7 +2406,7 @@ export class ScribeController {
 
         this.activeSectionIndex = activeSectionIndex;
 
-        const isLiveReviewSection = [ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(activeSection?.id);
+        const isLiveReviewSection = LIVE_SECTION_IDS.includes(activeSection?.id);
         const activeView = isLiveReviewSection ? 'actions' : 'deck';
         if (activeView === 'deck') {
             this.lastDeckSlideKey = getSlideKey(slide);
@@ -2193,7 +2432,11 @@ export class ScribeController {
             if (slide.slideType !== 'image') {
                 actionFrame.innerHTML = slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder'
                     ? this.renderProposalSlide(slide)
-                    : this.renderActionSlide(slide);
+                    : slide.slideType === 'rfi' || slide.slideType === 'rfi-placeholder'
+                        ? this.renderRfiSlide(slide)
+                        : slide.slideType === 'communication' || slide.slideType === 'communication-placeholder'
+                            ? this.renderCommunicationSlide(slide)
+                            : this.renderActionSlide(slide);
             }
         }
 
@@ -2202,6 +2445,10 @@ export class ScribeController {
                 ? `${activeSection.label}. ${slide.title}. Slide ${this.currentSlideIndex + 1} of ${this.deckSlides.length}.`
                 : slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder'
                     ? `${activeSection.label}. ${slide.title}. Proposal ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
+                    : slide.slideType === 'rfi' || slide.slideType === 'rfi-placeholder'
+                        ? `${activeSection.label}. ${slide.title}. RFI ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
+                        : slide.slideType === 'communication' || slide.slideType === 'communication-placeholder'
+                            ? `${activeSection.label}. ${slide.title}. Message ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
                     : `${activeSection.label}. ${slide.title}. ${getActionSlideAnnouncementLabel(slide.action)} ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
         }
 
@@ -3742,6 +3989,219 @@ export class ScribeController {
         `;
     }
 
+    renderRfiSlide(slide = {}) {
+        if (slide.slideType === 'rfi-placeholder') {
+            return `
+                <article class="scribe-action-slide scribe-action-slide-placeholder">
+                    <p class="scribe-action-slide-eyebrow">Facilitator RFIs</p>
+                    <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
+                    <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
+                    <button type="button" class="btn btn-primary" data-facilitator-new-rfi>New RFI</button>
+                </article>
+            `;
+        }
+
+        const request = slide.request || {};
+        const isReturned = request.workflow_state === 'returned_to_team';
+        const categories = Array.isArray(request.categories) ? request.categories : [];
+        return `
+            <article class="scribe-action-slide facilitator-rfi-slide" data-rfi-id="${escapeHtml(String(request.id || ''))}">
+                <header class="scribe-action-slide-header">
+                    <div>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(this.teamLabel)} RFI</p>
+                        <h2 class="scribe-action-slide-title">Request for Information</h2>
+                    </div>
+                    <div class="scribe-action-slide-status">
+                        ${createArtifactLifecycleBadge(request, { size: 'sm' }).outerHTML}
+                        ${createBadge({ text: `REV ${Number(request.revision_number) || 1}`, variant: 'info', size: 'sm', rounded: true }).outerHTML}
+                    </div>
+                </header>
+                <section class="scribe-action-slide-panel">
+                    <p class="scribe-action-slide-section-label">Question</p>
+                    <p class="scribe-action-slide-body">${escapeHtml(request.query || request.question || '')}</p>
+                    ${categories.length ? `<p class="scribe-action-slide-summary"><strong>Categories:</strong> ${escapeHtml(categories.join(', '))}</p>` : ''}
+                    ${isReturned ? `
+                        <section class="scribe-action-slide-return" role="status" aria-label="White Cell clarification request">
+                            <p><strong>Returned for clarification:</strong> ${escapeHtml(request.review_notes || 'No notes recorded.')}</p>
+                            <p>Edit and resubmit this same RFI revision.</p>
+                        </section>
+                    ` : ''}
+                    ${request.response ? `
+                        <section class="scribe-action-slide-note-card" aria-label="White Cell response">
+                            <p class="scribe-action-slide-note-label">White Cell response</p>
+                            <p class="scribe-action-slide-note-body">${escapeHtml(request.response)}</p>
+                        </section>
+                    ` : ''}
+                    <div class="scribe-action-slide-submit-actions facilitator-workflow-actions">
+                        <button type="button" class="btn btn-secondary" data-facilitator-new-rfi>New RFI</button>
+                        ${isReturned ? `<button type="button" class="btn btn-primary" data-facilitator-edit-rfi data-rfi-id="${escapeHtml(String(request.id || ''))}">Edit and Resubmit</button>` : ''}
+                    </div>
+                </section>
+            </article>
+        `;
+    }
+
+    renderCommunicationSlide(slide = {}) {
+        if (slide.slideType === 'communication-placeholder') {
+            return `
+                <article class="scribe-action-slide scribe-action-slide-placeholder">
+                    <p class="scribe-action-slide-eyebrow">Direct Communications</p>
+                    <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
+                    <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
+                    <button type="button" class="btn btn-primary" data-facilitator-new-communication>Message White Cell</button>
+                </article>
+            `;
+        }
+
+        const communication = slide.communication || {};
+        const isOutbound = communication.from_role === this.teamContext.scribeRole;
+        return `
+            <article class="scribe-action-slide facilitator-communication-slide">
+                <header class="scribe-action-slide-header">
+                    <div>
+                        <p class="scribe-action-slide-eyebrow">${isOutbound ? 'Sent to White Cell' : 'From White Cell'}</p>
+                        <h2 class="scribe-action-slide-title">Direct Communication</h2>
+                    </div>
+                    ${createBadge({ text: isOutbound ? 'OUTBOUND' : 'INBOUND', variant: isOutbound ? 'info' : 'warning', size: 'sm', rounded: true }).outerHTML}
+                </header>
+                <section class="scribe-action-slide-panel">
+                    <p class="scribe-action-slide-body">${escapeHtml(communication.content || '')}</p>
+                    <p class="scribe-action-slide-summary">${escapeHtml(formatRelativeTime(communication.created_at))}</p>
+                    <div class="scribe-action-slide-submit-actions facilitator-workflow-actions">
+                        <button type="button" class="btn btn-primary" data-facilitator-new-communication>Message White Cell</button>
+                    </div>
+                </section>
+            </article>
+        `;
+    }
+
+    showFacilitatorRfiModal(request = null) {
+        if (request && request.workflow_state !== 'returned_to_team') {
+            showToast({ message: 'Only an RFI returned for clarification can be edited.', type: 'error' });
+            return;
+        }
+
+        const modalRef = { current: null };
+        const form = createRfiForm({
+            team: this.teamId,
+            request,
+            onCancel: () => modalRef.current?.close?.(),
+            onSubmit: async (savedRequest) => {
+                const gameState = gameStateStore.getState();
+                const timelineEvent = await database.createTimelineEvent({
+                    session_id: savedRequest.session_id || sessionStore.getSessionId(),
+                    type: request ? 'RFI_RESUBMITTED' : 'RFI_CREATED',
+                    content: `${this.teamLabel} ${request ? 'resubmitted' : 'submitted'} an RFI to White Cell.`,
+                    metadata: {
+                        related_id: savedRequest.id,
+                        role: this.teamContext.scribeRole,
+                        revision_number: savedRequest.revision_number || 1
+                    },
+                    team: this.teamId,
+                    move: savedRequest.move ?? gameState?.move ?? 1,
+                    phase: savedRequest.phase ?? gameState?.phase ?? 1
+                });
+                timelineStore.updateFromServer('INSERT', timelineEvent);
+                modalRef.current?.close?.();
+            }
+        });
+
+        modalRef.current = showModal({
+            title: request ? 'Clarify and Resubmit RFI' : 'New Request for Information',
+            content: form,
+            size: 'md',
+            buttons: []
+        });
+    }
+
+    showFacilitatorCommunicationModal() {
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <form id="facilitatorCommunicationForm">
+                <div class="form-group">
+                    <label class="form-label" for="facilitatorCommunicationMessage">Message to White Cell *</label>
+                    <textarea id="facilitatorCommunicationMessage" class="form-input form-textarea" rows="5" required maxlength="2000" aria-describedby="facilitatorCommunicationHint"></textarea>
+                    <p class="form-hint" id="facilitatorCommunicationHint">This message is visible only within the current session to your Facilitator seat and White Cell.</p>
+                </div>
+            </form>
+        `;
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Message White Cell',
+            content,
+            size: 'md',
+            buttons: [
+                { label: 'Cancel', variant: 'secondary', onClick: () => {} },
+                {
+                    label: 'Send Message',
+                    variant: 'primary',
+                    onClick: () => {
+                        const message = content.querySelector('#facilitatorCommunicationMessage')?.value?.trim() || '';
+                        if (!message) {
+                            showToast({ message: 'Enter a message for White Cell.', type: 'error' });
+                            content.querySelector('#facilitatorCommunicationMessage')?.focus?.();
+                            return false;
+                        }
+                        this.sendFacilitatorCommunication(message, modalRef.current);
+                        return false;
+                    }
+                }
+            ]
+        });
+    }
+
+    async sendFacilitatorCommunication(content, modal = null) {
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No active session.', type: 'error' });
+            return;
+        }
+
+        const loader = showLoader({ message: 'Sending message to White Cell...' });
+        try {
+            const gameState = gameStateStore.getState();
+            const communication = await database.createCommunication({
+                session_id: sessionId,
+                type: 'direct',
+                from_role: this.teamContext.scribeRole,
+                to_role: 'white_cell',
+                content,
+                metadata: {
+                    source_team: this.teamId,
+                    source_role: this.teamContext.scribeRole,
+                    recipient: 'white_cell',
+                    recipient_scope: 'whitecell'
+                }
+            });
+            communicationsStore.updateFromServer('INSERT', communication);
+            const timelineEvent = await database.createTimelineEvent({
+                session_id: sessionId,
+                type: 'DIRECT_COMMUNICATION_SENT',
+                content: `${this.teamLabel} Facilitator sent a direct message to White Cell.`,
+                metadata: {
+                    communication_id: communication.id,
+                    recipient: 'white_cell',
+                    recipient_scope: 'whitecell',
+                    role: this.teamContext.scribeRole
+                },
+                team: this.teamId,
+                move: gameState?.move ?? 1,
+                phase: gameState?.phase ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', timelineEvent);
+            showToast({ message: 'Message sent to White Cell', type: 'success' });
+            modal?.close?.();
+        } catch (error) {
+            logger.error('Failed to send Facilitator communication:', error);
+            showToast({
+                message: getUserMessage(error, { fallback: 'Failed to send the message. Try again.' }),
+                type: 'error'
+            });
+        } finally {
+            hideLoader(loader);
+        }
+    }
+
     setSlideByIndex(index = 0) {
         if (!this.deckSlides.length) {
             return;
@@ -3794,7 +4254,7 @@ export class ScribeController {
         );
 
         if (
-            ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(this.sections[currentSectionIndex]?.id)
+            !LIVE_SECTION_IDS.includes(this.sections[currentSectionIndex]?.id)
             && currentSlide
         ) {
             this.lastDeckSlideKey = getSlideKey(currentSlide);
@@ -3806,11 +4266,11 @@ export class ScribeController {
         } else {
             targetSlide = this.deckSlides.find((slide) => (
                 getSlideKey(slide) === this.lastDeckSlideKey
-                && ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(
+                && !LIVE_SECTION_IDS.includes(
                     this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id
                 )
             )) || this.deckSlides.find((slide) => (
-                ![ACTIONS_SECTION_ID, PROPOSALS_SECTION_ID].includes(
+                !LIVE_SECTION_IDS.includes(
                     this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id
                 )
             )) || null;

@@ -22,6 +22,7 @@ import {
     respondToForwardedProposal,
     reviewProposal,
     reviewStrategicOrientation,
+    sendFacilitatorCommunication,
     sendWhiteCellCommunication,
     submitActionFromScribe,
     submitForwardedProposalFromFacilitator,
@@ -445,7 +446,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
         ]));
         const blueRfiResponse = 'White Cell confirms that implementation begins after the current review window.';
         await test.step('submit multi-team RFIs, answer one, and route the response only to its team', async () => {
-            await runActorOperations(TEAMS.map((team) => () => submitRfi(actors.teams[team].scribe, {
+            await runActorOperations(TEAMS.map((team) => () => submitRfi(actors.teams[team].facilitator, {
                 question: rfiQuestions[team]
             })), { concurrent: actorPool.useIndependentContexts });
 
@@ -454,11 +455,9 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 response: blueRfiResponse
             });
 
-            await openSidebarSection(actors.teams.blue.scribe, 'responses');
-            await expect(actors.teams.blue.scribe.locator('#responsesList')).toContainText(blueRfiResponse);
+            await expect(actors.teams.blue.facilitator.locator('#deckActionFrame')).toContainText(blueRfiResponse);
             for (const team of TEAMS.filter((team) => team !== 'blue')) {
-                await openSidebarSection(actors.teams[team].scribe, 'responses');
-                await expect(actors.teams[team].scribe.locator('#responsesList')).not.toContainText(blueRfiResponse);
+                await expect(actors.teams[team].facilitator.locator('#deckActionFrame')).not.toContainText(blueRfiResponse);
             }
         });
 
@@ -466,6 +465,15 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             'Blue Facilitator direct communication one',
             'Blue Facilitator direct communication two'
         ];
+        await test.step('persist an Industry Facilitator direct message to White Cell', async () => {
+            const facilitatorMessage = 'Industry Facilitator requests direct White Cell guidance.';
+            await sendFacilitatorCommunication(actors.teams.industry.facilitator, {
+                content: facilitatorMessage
+            });
+            await openSidebarSection(actors.whiteCellLead, 'communications');
+            await expect(actors.whiteCellLead.locator('#commHistory')).toContainText(facilitatorMessage);
+        });
+
         await test.step('deliver ordered direct communications with exact unread notification behavior', async () => {
             const blueAlertsBadge = actors.teams.blue.facilitator.locator('#scribeAlertsBadge');
             if (await blueAlertsBadge.isVisible()) {

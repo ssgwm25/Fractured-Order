@@ -25,12 +25,11 @@ const logger = createLogger('RfiForm');
  * @returns {HTMLElement}
  */
 export function createRfiForm(options = {}) {
-    const { team = 'blue', onSubmit, onCancel } = options;
+    const { team = 'blue', request = null, onSubmit, onCancel } = options;
     let isSubmitting = false;
-    const priorityOptions = ENUMS.PRIORITY
-        .map(value => `<option value="${value}">${value}</option>`)
-        .join('');
+    const isResubmission = request?.workflow_state === 'returned_to_team';
     const form = document.createElement('form');
+    form.id = 'rfiForm';
     form.className = 'rfi-form';
 
     form.innerHTML = `
@@ -42,9 +41,11 @@ export function createRfiForm(options = {}) {
                 rows="4"
                 placeholder="Enter your question for White Cell..."
                 required
-                maxlength="1000"
-            ></textarea>
-            <p class="form-hint">Be specific about what information you need</p>
+                minlength="10"
+                maxlength="2000"
+                aria-describedby="rfiQuestionHint"
+            >${escapeHtml(request?.query || request?.question || '')}</textarea>
+            <p class="form-hint" id="rfiQuestionHint">Be specific about what information you need</p>
         </div>
 
         <div class="form-group">
@@ -55,17 +56,18 @@ export function createRfiForm(options = {}) {
                 rows="3"
                 placeholder="Provide any relevant context or background..."
                 maxlength="500"
+                aria-describedby="rfiContextHint"
             ></textarea>
-            <p class="form-hint">Optional: Help White Cell understand why you need this information</p>
+            <p class="form-hint" id="rfiContextHint">Optional: help White Cell understand why the team needs this information.</p>
         </div>
 
-        <div class="form-group">
-            <label class="form-label" for="rfiPriority">Priority *</label>
-            <select id="rfiPriority" class="form-select" required>
-                <option value="">Select priority</option>
-                ${priorityOptions}
-            </select>
-        </div>
+        ${isResubmission ? `
+            <div class="card card-bordered" role="status" aria-label="White Cell clarification request">
+                <p class="form-label">White Cell clarification notes</p>
+                <p>${escapeHtml(request.review_notes || 'No clarification notes were recorded.')}</p>
+                <p class="form-hint">You are editing revision ${Number(request.revision_number) || 1}. Resubmission keeps this RFI identity.</p>
+            </div>
+        ` : ''}
 
         <div class="form-group">
             <span class="form-label" id="rfiCategoriesLabel">Categories *</span>
@@ -79,7 +81,8 @@ export function createRfiForm(options = {}) {
                     values: ENUMS.RFI_CATEGORIES,
                     dataAttribute: 'data-rfi-checkbox',
                     group: 'category',
-                    idPrefix: 'rfiCategory'
+                    idPrefix: 'rfiCategory',
+                    selectedValues: request?.categories || []
                 })}
             </div>
             <p class="form-hint" id="rfiCategoriesHint">Select all categories that apply.</p>
@@ -87,7 +90,7 @@ export function createRfiForm(options = {}) {
 
         <div class="form-actions" style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-4);">
             ${onCancel ? '<button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>' : ''}
-            <button type="submit" class="btn btn-primary">Submit RFI</button>
+            <button type="submit" class="btn btn-primary">${isResubmission ? 'Resubmit RFI' : 'Submit RFI'}</button>
         </div>
     `;
 
@@ -104,15 +107,19 @@ export function createRfiForm(options = {}) {
 
         const question = form.querySelector('#rfiQuestion').value.trim();
         const context = form.querySelector('#rfiContext').value.trim();
-        const priority = form.querySelector('#rfiPriority').value;
         const categories = getCheckedValues(form, '[data-rfi-checkbox="category"]');
 
         if (!question) {
             showToast({ message: 'Question is required', type: 'error' });
             return;
         }
-        if (!priority) {
-            showToast({ message: 'Priority is required', type: 'error' });
+        if (question.length < 10) {
+            showToast({ message: 'Question must be at least 10 characters', type: 'error' });
+            return;
+        }
+        const query = context ? `${question}\n\nContext: ${context}` : question;
+        if (query.length > 2000) {
+            showToast({ message: 'Question and context must be 2000 characters or fewer', type: 'error' });
             return;
         }
         if (!categories.length) {
@@ -123,24 +130,27 @@ export function createRfiForm(options = {}) {
         isSubmitting = true;
         setSubmitPending(form, true, 'Submitting...');
         try {
-            const query = context ? `${question}\n\nContext: ${context}` : question;
             const rfiData = {
                 query,
                 team,
                 move: gameStateStore.getCurrentMove(),
                 phase: gameStateStore.getCurrentPhase(),
                 client_id: sessionStore.getClientId(),
-                priority,
                 categories
             };
 
-            const result = await requestsStore.create(rfiData);
-            showToast({ message: 'RFI submitted successfully', type: 'success' });
+            const result = isResubmission
+                ? await requestsStore.resubmit(request.id, rfiData)
+                : await requestsStore.create(rfiData);
+            showToast({
+                message: isResubmission ? 'RFI resubmitted successfully' : 'RFI submitted successfully',
+                type: 'success'
+            });
 
             // Reset form
             form.reset();
 
-            if (onSubmit) onSubmit(result);
+            if (onSubmit) await onSubmit(result);
         } catch (err) {
             logger.error('Failed to submit RFI:', err);
             showToast({
@@ -165,7 +175,6 @@ export function createRfiForm(options = {}) {
  */
 export function createInlineRfiForm(options = {}) {
     const { team = 'blue', onSubmit } = options;
-    const defaultPriority = ENUMS.PRIORITY[0] || 'NORMAL';
     const defaultCategory = ENUMS.RFI_CATEGORIES[ENUMS.RFI_CATEGORIES.length - 1] || 'Other';
 
     const wrapper = document.createElement('div');
@@ -173,11 +182,14 @@ export function createInlineRfiForm(options = {}) {
 
     wrapper.innerHTML = `
         <div class="rfi-form-inline-input">
+            <label class="sr-only" for="inlineRfiQuestion">Question for White Cell</label>
             <textarea
                 class="form-input"
                 placeholder="Ask White Cell a question..."
                 rows="2"
                 id="inlineRfiQuestion"
+                minlength="10"
+                maxlength="2000"
             ></textarea>
         </div>
         <button class="btn btn-primary btn-sm" id="inlineRfiSubmit">Submit RFI</button>
@@ -195,6 +207,11 @@ export function createInlineRfiForm(options = {}) {
             showToast({ message: 'Please enter a question', type: 'error' });
             return;
         }
+        if (question.length < 10) {
+            showToast({ message: 'Question must be at least 10 characters', type: 'error' });
+            textarea.focus();
+            return;
+        }
 
         isSubmitting = true;
         setButtonPending(submitBtn, true, 'Submitting...');
@@ -206,7 +223,6 @@ export function createInlineRfiForm(options = {}) {
                 move: gameStateStore.getCurrentMove(),
                 phase: gameStateStore.getCurrentPhase(),
                 client_id: sessionStore.getClientId(),
-                priority: defaultPriority,
                 categories: [defaultCategory]
             });
 
@@ -237,6 +253,15 @@ export function createInlineRfiForm(options = {}) {
     });
 
     return wrapper;
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('\'', '&#39;');
 }
 
 function setSubmitPending(form, isPending, pendingLabel = 'Submitting...') {

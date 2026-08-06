@@ -470,6 +470,78 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.artifact_workflow_reviews).toHaveLength(1);
     });
 
+    it('mirrors Facilitator-owned RFI writes and team-isolated request reads', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true
+        });
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [{ id: 'session-1', status: 'active' }],
+                requests: [{
+                    id: 'blue-rfi',
+                    session_id: 'session-1',
+                    team: 'blue',
+                    status: 'pending',
+                    workflow_state: 'submitted_to_white_cell',
+                    query: 'Blue-only question'
+                }]
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        const facilitatorSeat = await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-1',
+            requested_role: 'industry_scribe',
+            requested_name: 'Industry Facilitator',
+            requested_client_id: 'industry-facilitator-client'
+        });
+        expect(facilitatorSeat.error).toBeNull();
+
+        const createdRfi = await mockClient.from('requests').insert({
+            session_id: 'session-1',
+            team: 'industry',
+            status: 'pending',
+            workflow_state: 'submitted_to_white_cell',
+            query: 'Which implementation window applies?',
+            categories: ['Other']
+        }).select().single();
+        const directMessage = await mockClient.from('communications').insert({
+            session_id: 'session-1',
+            type: 'direct',
+            from_role: 'industry_scribe',
+            to_role: 'white_cell',
+            content: 'Please clarify the implementation window.',
+            metadata: { source_team: 'industry' }
+        }).select().single();
+        const visibleRfis = await mockClient.from('requests').select('*').eq('session_id', 'session-1');
+
+        expect(createdRfi.error).toBeNull();
+        expect(createdRfi.data.priority).toBe('NORMAL');
+        expect(directMessage.error).toBeNull();
+        expect(visibleRfis.data.map((request) => request.team)).toEqual(['industry']);
+
+        const scribeSeat = await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-1',
+            requested_role: 'industry_facilitator',
+            requested_name: 'Industry Scribe',
+            requested_client_id: 'industry-scribe-client'
+        });
+        expect(scribeSeat.error).toBeNull();
+        const deniedScribeRfi = await mockClient.from('requests').insert({
+            session_id: 'session-1',
+            team: 'industry',
+            status: 'pending',
+            workflow_state: 'submitted_to_white_cell',
+            query: 'The Scribe must not submit this RFI.',
+            categories: ['Other']
+        }).select().single();
+
+        expect(deniedScribeRfi.error).toMatchObject({ code: '42501' });
+    });
+
     it('routes shared-state RPC and table writes through a browser-wide lock', async () => {
         const requestedLocks = [];
         installBrowserRuntime({

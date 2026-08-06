@@ -872,27 +872,33 @@ export async function respondToForwardedProposal(page, {
 }
 
 export async function submitRfi(page, {
-    question,
-    context = 'Submitted during the automated professional playthrough rehearsal.',
-    priority = 'NORMAL'
+    question
 } = {}) {
     if (!question) {
         throw new Error('submitRfi requires a question.');
     }
 
-    await openSidebarSection(page, 'requests');
-    await page.locator('#newRfiBtn').click();
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+    const rfiSectionTrigger = page.locator(
+        '#scribeSectionList .scribe-section-trigger[data-section-label="RFIs"]'
+    ).first();
+    await expect(rfiSectionTrigger).toBeVisible({ timeout: 20000 });
+    if (await rfiSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+        await rfiSectionTrigger.click();
+    }
+    await page.locator('#scribeSectionList button[data-slide-type^="rfi"]').first().click();
+    await page.locator('#deckActionFrame [data-facilitator-new-rfi]').click();
 
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiForm') });
     await expect(modal).toBeVisible();
     await modal.locator('#rfiQuestion').fill(question);
-    await modal.locator('#rfiPriority').selectOption(priority);
     await modal.locator('[data-rfi-checkbox="category"]').first().check();
-    await modal.locator('#rfiContext').fill(context);
     await modal.getByRole('button', { name: 'Submit RFI' }).click();
     await expect(page.locator('#toast-container')).toContainText('RFI submitted');
     await expect(modal).toBeHidden();
-    await expect(page.locator('#rfiList')).toContainText(question);
+    await expect(page.locator('#deckActionFrame')).toContainText(question);
 }
 
 export async function answerRfi(page, {
@@ -933,6 +939,35 @@ export async function sendWhiteCellCommunication(page, {
     await expect(page.locator('#commContent')).toHaveValue('');
     await expect(page.locator('#toast-container')).toContainText('Communication sent');
     await expect(page.locator('#commHistory')).toContainText(content);
+}
+
+export async function sendFacilitatorCommunication(page, { content } = {}) {
+    if (!content) {
+        throw new Error('sendFacilitatorCommunication requires content.');
+    }
+
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+    const communicationSectionTrigger = page.locator(
+        '#scribeSectionList .scribe-section-trigger[data-section-label="Communications"]'
+    ).first();
+    await expect(communicationSectionTrigger).toBeVisible({ timeout: 20000 });
+    if (await communicationSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+        await communicationSectionTrigger.click();
+    }
+    await page.locator('#scribeSectionList button[data-slide-type^="communication"]').first().click();
+    await page.locator('#deckActionFrame [data-facilitator-new-communication]').click();
+
+    const modal = page.locator('.modal-overlay').filter({
+        has: page.locator('#facilitatorCommunicationForm')
+    });
+    await expect(modal).toBeVisible();
+    await modal.locator('#facilitatorCommunicationMessage').fill(content);
+    await modal.getByRole('button', { name: 'Send Message' }).click();
+    await expect(page.locator('#toast-container')).toContainText('Message sent to White Cell');
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#deckActionFrame')).toContainText(content);
 }
 
 export async function appendNotetakerObservation(page, content) {
@@ -1126,10 +1161,11 @@ export async function seedLargeExerciseData(page, {
                 team,
                 move: ((index - 1) % 3) + 1,
                 phase: ((index - 1) % 5) + 1,
-                priority: index % 6 === 0 ? 'URGENT' : (index % 3 === 0 ? 'HIGH' : 'NORMAL'),
                 categories: index % 2 === 0 ? ['Alliance Response'] : ['Economic Impact'],
                 query: `${team.charAt(0).toUpperCase()}${team.slice(1)} RFI ${String(index).padStart(3, '0')}: clarify expected partner reaction and implementation timing.`,
                 status: answered ? 'answered' : 'pending',
+                workflow_state: answered ? 'completed' : 'submitted_to_white_cell',
+                revision_number: 1,
                 response: answered ? `White Cell answer for seeded RFI ${index}.` : null,
                 responded_by: answered ? 'white_cell' : null,
                 responded_at: answered ? timestamp(index - 1) : null,

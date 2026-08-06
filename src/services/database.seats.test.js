@@ -475,7 +475,7 @@ describe('database live-demo seat contract', () => {
         });
 
         setClientIdentity(sessionStore, 'client-red-fac');
-        await database.claimParticipantSeat(session.id, 'red_facilitator', 'Red Facilitator');
+        await database.claimParticipantSeat(session.id, 'red_scribe', 'Red Facilitator');
         const createdAction = await database.createAction({
             session_id: session.id,
             client_id: sessionStore.getClientId(),
@@ -498,7 +498,6 @@ describe('database live-demo seat contract', () => {
             client_id: sessionStore.getClientId(),
             move: 1,
             phase: 1,
-            priority: 'HIGH',
             categories: ['Economic Impact'],
             query: 'What is the latest assessment from White Cell?'
         });

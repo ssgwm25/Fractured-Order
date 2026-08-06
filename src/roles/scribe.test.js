@@ -365,6 +365,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             'Follow move, phase, and timer',
             'Navigate the support deck',
             'Project and answer proposals',
+            'Ask White Cell with RFIs',
+            'Message White Cell',
             'Watch activity',
             'Present to the room',
             'Revisit this guide'
@@ -374,6 +376,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             '#header-timer',
             '.scribe-view-switch',
             '.scribe-section-region--proposals',
+            '.scribe-section-region--rfis',
+            '.scribe-section-region--communications',
             '#scribeAlertsBtn',
             '#presentBtn',
             '.sidebar-session'
@@ -382,8 +386,89 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(guide.steps[2].body).toContain('Team Action Review and Deck');
         expect(guide.steps[2].body).toContain('restores the support slide you last viewed');
         expect(guide.steps[3].body).toContain('Accept, Not Interested, or Negotiate');
-        expect(guide.steps[5].body).toContain('facilitator toolbar');
-        expect(guide.steps[5].body).toContain('White Cell forwarding');
+        expect(guide.steps[4].body).toContain('edit and resubmit the same revision');
+        expect(guide.steps[5].body).toContain('isolated inbound and outbound history');
+        expect(guide.steps[7].body).toContain('facilitator toolbar');
+        expect(guide.steps[7].body).toContain('White Cell forwarding');
+    });
+
+    it('builds team-scoped Facilitator RFI slides with returned and answered workflow state', async () => {
+        const { buildFacilitatorRfiSlides } = await loadScribeModule();
+        const result = buildFacilitatorRfiSlides([
+            {
+                id: 'industry-returned',
+                team: 'industry',
+                query: 'Which reporting period applies?',
+                status: 'pending',
+                workflow_state: 'returned_to_team',
+                revision_number: 2,
+                updated_at: '2026-08-06T12:00:00.000Z'
+            },
+            {
+                id: 'industry-answered',
+                team: 'industry',
+                query: 'May the team use the published baseline?',
+                status: 'answered',
+                workflow_state: 'completed',
+                updated_at: '2026-08-06T11:00:00.000Z'
+            },
+            {
+                id: 'blue-hidden',
+                team: 'blue',
+                query: 'This must not cross teams.',
+                status: 'pending'
+            }
+        ], { teamId: 'industry' });
+
+        expect(result.slideCount).toBe(2);
+        expect(result.slides.map((slide) => slide.slideKey)).toEqual([
+            'rfi-industry-returned',
+            'rfi-industry-answered'
+        ]);
+        expect(result.slides.map((slide) => slide.sidebarKicker)).toEqual([
+            'Returned for clarification',
+            'Answered'
+        ]);
+        expect(JSON.stringify(result)).not.toContain('priority');
+        expect(JSON.stringify(result)).not.toContain('blue-hidden');
+    });
+
+    it('keeps Facilitator direct communications scoped to its exact role and White Cell recipients', async () => {
+        const { buildFacilitatorCommunicationSlides } = await loadScribeModule();
+        const teamContext = {
+            teamId: 'industry',
+            scribeRole: 'industry_scribe'
+        };
+        const result = buildFacilitatorCommunicationSlides([
+            {
+                id: 'outbound-industry',
+                type: 'direct',
+                from_role: 'industry_scribe',
+                to_role: 'white_cell',
+                content: 'Industry Facilitator message'
+            },
+            {
+                id: 'inbound-industry',
+                type: 'DIRECT',
+                from_role: 'white_cell',
+                to_role: 'industry_scribe',
+                content: 'White Cell reply'
+            },
+            {
+                id: 'blue-hidden',
+                type: 'direct',
+                from_role: 'blue_scribe',
+                to_role: 'white_cell',
+                content: 'Blue Facilitator message'
+            }
+        ], { teamContext });
+
+        expect(result.slideCount).toBe(2);
+        expect(result.slides.map((slide) => slide.slideKey).sort()).toEqual([
+            'communication-inbound-industry',
+            'communication-outbound-industry'
+        ]);
+        expect(JSON.stringify(result)).not.toContain('Blue Facilitator message');
     });
 
     it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {
@@ -2743,7 +2828,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('id="headerPhase"');
         expect(html).toContain('id="timerDisplay"');
         expect(html).toContain('id="scribeSectionList"');
-        expect(html).toContain('<nav class="scribe-section-nav" aria-label="Facilitator decisions">');
+        expect(html).toContain('<nav class="scribe-section-nav" aria-label="Facilitator decisions, RFIs, and communications">');
         expect(html).toContain('id="deckSlideImage"');
         expect(html).toContain('id="deckActionFrame"');
         expect(html).toContain('id="slideAnnouncement"');
@@ -2764,7 +2849,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             const html = readFileSync(path, 'utf8');
             expect(html).toContain('../../styles/components/cards.css');
 
-            expect(html).toContain('aria-label="Facilitator decisions"');
+            expect(html).toContain('aria-label="Facilitator decisions, RFIs, and communications"');
             expect(html).toContain('class="scribe-view-switch" role="group" aria-label="Facilitator view"');
             expect(html).toContain('id="teamActionReviewViewBtn" type="button" aria-pressed="false">Team Action Review</button>');
             expect(html).toContain('id="deckViewBtn" type="button" aria-pressed="true">Deck</button>');
@@ -2818,14 +2903,14 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
     it('styles the scribe section nav as a minimalist facilitator-style sidebar', () => {
         const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
-        expect(css).toContain('.scribe-section-region--actions,\n.scribe-section-region--proposals {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
+        expect(css).toContain('.scribe-section-region--actions,\n.scribe-section-region--proposals,\n.scribe-section-region--rfis,\n.scribe-section-region--communications {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
         expect(css).toContain('.scribe-view-switch {');
         expect(css).toContain('.scribe-view-switch-button:focus-visible {');
         expect(css).toContain('.scribe-view-switch-button[aria-pressed="true"] {');
         expect(css).toContain('#sidebar.sidebar-collapsed .scribe-view-switch');
         expect(css).not.toContain('.scribe-section-region--actions + .scribe-section-region--deck');
-        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary,\n.scribe-section-region--proposals .scribe-section-region-title,\n.scribe-section-region--proposals .scribe-section-region-summary');
-        expect(css).toContain('.scribe-section-region--proposals {\n    margin-top: var(--space-5);');
+        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary,\n.scribe-section-region--proposals .scribe-section-region-title,\n.scribe-section-region--proposals .scribe-section-region-summary,\n.scribe-section-region--rfis .scribe-section-region-title,\n.scribe-section-region--rfis .scribe-section-region-summary,\n.scribe-section-region--communications .scribe-section-region-title,\n.scribe-section-region--communications .scribe-section-region-summary');
+        expect(css).toContain('.scribe-section-region--proposals,\n.scribe-section-region--rfis,\n.scribe-section-region--communications {\n    margin-top: var(--space-5);');
         expect(css).toContain('.scribe-slide-link.is-proposal {');
         expect(css).toContain('.scribe-proposal-decision-actions {');
         expect(css).toContain('.scribe-section-card {\n    border: 0;\n    border-radius: var(--radius-md);\n    background: transparent;');

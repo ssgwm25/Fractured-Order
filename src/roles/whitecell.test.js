@@ -3550,6 +3550,42 @@ describe('White Cell DOM contract', () => {
         })).toBe(false);
     });
 
+    it('separates the actionable RFI queue from revision-aware history without priority UI', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument(['rfiQueue']);
+        global.document = fakeDocument;
+        const controller = new WhiteCellController();
+        controller.rfis = [{
+            id: 'rfi-pending',
+            team: 'industry',
+            query: 'Which implementation period applies?',
+            status: 'pending',
+            workflow_state: 'resubmitted',
+            revision_number: 2
+        }];
+        controller.rfiHistory = [{
+            id: 'rfi-returned',
+            team: 'industry',
+            query: 'What baseline applies?',
+            status: 'pending',
+            workflow_state: 'returned_to_team',
+            revision_number: 3,
+            review_notes: 'Name the requested reporting window.'
+        }];
+
+        controller.renderRfiQueue();
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('Pending');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('Answered / History');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('Return for Clarification');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).not.toContain('priority');
+
+        controller.rfiActiveView = 'history';
+        controller.renderRfiQueue();
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('What baseline applies?');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('Name the requested reporting window.');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).not.toContain('Respond</button>');
+    });
+
     it('refreshes and removes a stale RFI when completion wins the response race', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');
@@ -3635,7 +3671,8 @@ describe('White Cell DOM contract', () => {
             id: `rfi-${index + 1}`,
             team: 'blue',
             query: `RFI question ${index + 1}`,
-            priority: 'NORMAL',
+            status: 'pending',
+            workflow_state: 'submitted_to_white_cell',
             created_at: '2026-04-10T10:00:00.000Z'
         }));
 

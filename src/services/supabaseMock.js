@@ -544,6 +544,7 @@ function normalizeInsertRow(tableName, payload, state) {
             return {
                 ...baseRow,
                 categories: [],
+                priority: 'NORMAL',
                 status: 'pending',
                 workflow_state: 'submitted_to_white_cell',
                 revision_number: 1,
@@ -554,7 +555,8 @@ function normalizeInsertRow(tableName, payload, state) {
                 review_notes: null,
                 completed_at: null,
                 updated_at: timestamp,
-                ...cloneValue(payload)
+                ...cloneValue(payload),
+                priority: 'NORMAL'
             };
         case 'artifact_workflow_reviews':
             return {
@@ -885,8 +887,56 @@ function canReadTableRow(state, tableName, row, authUserId) {
         );
     }
 
+    if (tableName === 'requests') {
+        return (
+            liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
+            || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            || (
+                liveDemoCanReadSession(state, authUserId, row.session_id)
+                && getLiveDemoParticipantTeam(state, authUserId, row.session_id) === normalizeTeamId(row.team)
+            )
+        );
+    }
+
+    if (tableName === 'communications') {
+        const participantRole = String(getLiveDemoParticipantRole(state, authUserId, row.session_id) || '')
+            .trim()
+            .toLowerCase();
+        const participantTeam = getLiveDemoParticipantTeam(state, authUserId, row.session_id);
+        const fromRole = normalizeSeatRole(String(row.from_role || '').trim()).toLowerCase();
+        const toRole = normalizeSeatRole(String(row.to_role || '').trim()).toLowerCase();
+        const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+        const isWhiteCellSender = ['white_cell', 'whitecell', 'whitecell_lead', 'whitecell_support']
+            .includes(fromRole);
+
+        return (
+            liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
+            || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            || (
+                liveDemoCanReadSession(state, authUserId, row.session_id)
+                && (
+                    fromRole === participantRole
+                    || (
+                        String(row.type || '').trim().toUpperCase() === 'PROPOSAL_FORWARDED'
+                        && normalizeTeamId(metadata.source_team) === participantTeam
+                    )
+                    || (
+                        isWhiteCellSender
+                        && (
+                            toRole === 'all'
+                            || toRole === participantTeam
+                            || toRole === participantRole
+                            || normalizeTeamId(metadata.recipient_team) === participantTeam
+                            || normalizeSeatRole(String(metadata.recipient_role || '')).toLowerCase() === participantRole
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     if (tableName === 'session_participants' || tableName === 'game_state' || tableName === 'actions'
-        || tableName === 'requests' || tableName === 'communications' || tableName === 'timeline'
+        || tableName === 'timeline'
         || tableName === 'notetaker_data' || tableName === 'sme_handoffs'
         || tableName === 'artifact_workflow_reviews') {
         return liveDemoCanReadSession(state, authUserId, row.session_id)
@@ -917,15 +967,25 @@ function canInsertTableRow(state, tableName, row, authUserId) {
                 ['facilitator', 'scribe']
             );
         case 'requests':
-            return liveDemoCanWriteTeamSession(
+            return (
+                liveDemoCanWriteTeamSession(
                 state,
                 authUserId,
                 row.session_id,
                 row.team,
-                ['facilitator', 'scribe']
+                ['scribe']
+                )
+                && String(row.status || 'pending').toLowerCase() === 'pending'
+                && String(row.workflow_state || 'submitted_to_white_cell').toLowerCase() === 'submitted_to_white_cell'
+                && (row.response === null || row.response === undefined)
+                && (row.responded_by === null || row.responded_by === undefined)
+                && (row.responded_at === null || row.responded_at === undefined)
+                && (row.review_notes === null || row.review_notes === undefined)
+                && Boolean(String(row.query || '').trim())
             );
         case 'communications':
-            return canInsertProposalResponseCommunication(state, row, authUserId);
+            return canInsertFacilitatorDirectCommunication(state, row, authUserId)
+                || canInsertProposalResponseCommunication(state, row, authUserId);
         case 'timeline':
             return liveDemoCanWriteSession(state, authUserId, row.session_id);
         case 'notetaker_data':
@@ -961,11 +1021,19 @@ function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
             );
         case 'requests':
             return (
-                liveDemoCanWriteTeamSession(state, authUserId, currentRow.session_id, currentRow.team, ['facilitator', 'scribe'])
-                && liveDemoCanWriteTeamSession(state, authUserId, nextRow.session_id, nextRow.team, ['facilitator', 'scribe'])
-                && currentRow.workflow_state !== 'completed'
-                && nextRow.workflow_state !== 'completed'
-                && nextRow.status !== 'answered'
+                liveDemoCanWriteTeamSession(state, authUserId, currentRow.session_id, currentRow.team, ['scribe'])
+                && liveDemoCanWriteTeamSession(state, authUserId, nextRow.session_id, nextRow.team, ['scribe'])
+                && currentRow.status === 'pending'
+                && currentRow.workflow_state === 'returned_to_team'
+                && nextRow.status === 'pending'
+                && nextRow.workflow_state === 'resubmitted'
+                && nextRow.revision_number === currentRow.revision_number
+                && compareValues(nextRow.priority, currentRow.priority)
+                && compareValues(nextRow.review_notes, currentRow.review_notes)
+                && compareValues(nextRow.response, currentRow.response)
+                && compareValues(nextRow.responded_at, currentRow.responded_at)
+                && compareValues(nextRow.reviewed_at, currentRow.reviewed_at)
+                && Boolean(String(nextRow.query || '').trim())
             );
         case 'notetaker_data':
             return (
@@ -1921,6 +1989,23 @@ function operatorReviewArtifact(state, params) {
     };
 }
 
+function canInsertFacilitatorDirectCommunication(state, row, authUserId) {
+    const participantRole = String(getLiveDemoParticipantRole(state, authUserId, row?.session_id) || '')
+        .trim()
+        .toLowerCase();
+    const participantTeam = getLiveDemoParticipantTeam(state, authUserId, row?.session_id);
+    const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+
+    return (
+        liveDemoCanWriteSessionSurface(state, authUserId, row?.session_id, ['scribe'])
+        && String(row?.type || '').trim().toLowerCase() === 'direct'
+        && String(row?.to_role || '').trim().toLowerCase() === 'white_cell'
+        && normalizeSeatRole(String(row?.from_role || '').trim()).toLowerCase() === participantRole
+        && normalizeTeamId(metadata.source_team) === participantTeam
+        && Boolean(String(row?.content || '').trim())
+    );
+}
+
 function operatorReturnActionToBlue(state, params) {
     const action = state.tables.actions.find((entry) => (
         entry.id === params?.requested_action_id && entry.is_deleted !== true
@@ -2484,7 +2569,6 @@ class MockQueryBuilder {
                         'move',
                         'phase',
                         'team',
-                        'priority',
                         'categories',
                         'query'
                     ].some((field) => (

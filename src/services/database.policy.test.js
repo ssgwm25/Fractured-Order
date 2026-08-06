@@ -124,7 +124,6 @@ function buildRequestPayload(sessionId, clientId, team = 'blue') {
         client_id: clientId,
         move: 1,
         phase: 1,
-        priority: 'high',
         categories: ['intel'],
         query: 'What is the latest red-team posture?'
     };
@@ -196,14 +195,21 @@ describe('database live-demo policy enforcement', () => {
         });
     });
 
-    it('denies facilitator writes outside the participant team scope', async () => {
+    it('allows the actual Facilitator to create only same-team RFIs', async () => {
         const { sessionStore, database } = await loadModules();
 
         setClientIdentity(sessionStore, 'client-gm');
         const session = await createProtectedSession(database, 'Team Scope Session', 'TEAM2026');
 
         setClientIdentity(sessionStore, 'client-blue-fac');
-        await database.claimParticipantSeat(session.id, 'blue_facilitator', 'Alex');
+        await database.claimParticipantSeat(session.id, 'blue_scribe', 'Alex');
+
+        await expect(database.createRequest(
+            buildRequestPayload(session.id, sessionStore.getClientId(), 'blue')
+        )).resolves.toMatchObject({
+            team: 'blue',
+            query: 'What is the latest red-team posture?'
+        });
 
         await expect(database.createRequest(
             buildRequestPayload(session.id, sessionStore.getClientId(), 'red')

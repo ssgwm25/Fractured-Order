@@ -896,7 +896,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 id: 'rfi-political-1',
                 team: 'blue',
                 status: 'pending',
-                priority: 'HIGH',
                 query: 'Can Blue secure cabinet support?',
                 categories: ['Political Feasibility'],
                 created_at: '2026-04-09T10:08:00.000Z'
@@ -905,7 +904,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 id: 'rfi-alliance-political-1',
                 team: 'blue',
                 status: 'answered',
-                priority: 'NORMAL',
                 query: 'Will allies support a joint inspection?',
                 categories: ['Alliance Response', 'Political Feasibility'],
                 response: 'White Cell confirms limited ally support.',
@@ -915,7 +913,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 id: 'rfi-legacy-1',
                 team: 'blue',
                 status: 'pending',
-                priority: 'LOW',
                 query: 'Legacy RFI without category metadata.',
                 categories: [],
                 created_at: '2026-04-09T10:05:00.000Z'
@@ -945,6 +942,20 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(rfiList.innerHTML).toContain('Will allies support a joint inspection?');
         expect(rfiList.innerHTML).toContain('White Cell confirms limited ally support.');
         expect(rfiList.innerHTML).toContain('Legacy RFI without category metadata.');
+        expect(rfiList.innerHTML).not.toContain('priority');
+    });
+
+    it('keeps the user-facing Scribe RFI surface read-only on every team route', () => {
+        for (const path of [
+            FACILITATOR_HTML_PATH,
+            GREEN_FACILITATOR_HTML_PATH,
+            INDUSTRY_FACILITATOR_HTML_PATH,
+            RED_FACILITATOR_HTML_PATH
+        ]) {
+            const html = readFileSync(path, 'utf8');
+            expect(html).not.toContain('id="newRfiBtn"');
+            expect(html).toContain('The Facilitator owns submission and resubmission.');
+        }
     });
 
     it('labels the Green facilitator action trigger as New Proposal', () => {
@@ -1625,12 +1636,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(actionFormMarkup).toContain('Select one or more targets.');
         expect(actionFormMarkup).not.toContain('Hold Ctrl');
 
-        controller.showCreateRfiModal();
-
-        const rfiModalConfig = showModal.mock.calls.at(-1)?.[0];
-        expect(rfiModalConfig?.content?.innerHTML).toContain('data-rfi-checkbox="category"');
-        expect(rfiModalConfig?.content?.innerHTML).toContain('Select all categories that apply.');
-        expect(rfiModalConfig?.content?.innerHTML).not.toContain('Hold Ctrl');
     });
 
     it('renders the Red Team action wizard with DIME checkboxes, PRC focus, and no implementation controls', async () => {

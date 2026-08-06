@@ -1678,7 +1678,6 @@ export const database = {
                 client_id: requestData.client_id,
                 move: requestData.move,
                 phase: requestData.phase,
-                priority: requestData.priority,
                 categories: requestData.categories,
                 query,
                 status: 'pending'

@@ -168,13 +168,6 @@ export function validateRequest(request) {
     const errors = [];
 
     try {
-        validateRequired(request.priority, 'priority');
-        validateEnum(request.priority, ENUMS.PRIORITY, 'priority');
-    } catch (e) {
-        errors.push(e.message);
-    }
-
-    try {
         validateRequired(request.categories, 'categories');
         validateEnumArray(request.categories, ENUMS.RFI_CATEGORIES, 'categories');
     } catch (e) {

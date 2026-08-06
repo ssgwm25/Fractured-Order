@@ -531,7 +531,7 @@ export class FacilitatorController {
         if (requestsDescription) {
             requestsDescription.textContent = this.isReadOnly
                 ? 'Passive observer view of RFIs by category. Request submission is disabled in observer mode.'
-                : 'Submit questions to White Cell and use category tabs to monitor response status.';
+                : 'Review team RFIs by category and monitor White Cell response status. The Facilitator owns submission and resubmission.';
         }
 
         if (responsesDescription) {
@@ -579,7 +579,6 @@ export class FacilitatorController {
     bindEventListeners() {
         const newActionBtn = document.getElementById('newActionBtn');
         const strategicOrientationBtn = document.getElementById('strategicOrientationBtn');
-        const newRfiBtn = document.getElementById('newRfiBtn');
         const captureForm = document.getElementById('captureForm');
 
         const actionsListEl = document.getElementById('actionsList');
@@ -609,7 +608,6 @@ export class FacilitatorController {
         if (this.isReadOnly) {
             newActionBtn?.setAttribute('aria-disabled', 'true');
             strategicOrientationBtn?.setAttribute('aria-disabled', 'true');
-            newRfiBtn?.setAttribute('aria-disabled', 'true');
             captureForm?.querySelectorAll?.('button, input, select, textarea').forEach((control) => {
                 control.disabled = true;
                 control.setAttribute('aria-disabled', 'true');
@@ -619,7 +617,6 @@ export class FacilitatorController {
 
         newActionBtn?.addEventListener('click', () => this.showCreateActionModal());
         strategicOrientationBtn?.addEventListener('click', () => this.showStrategicOrientationModal());
-        newRfiBtn?.addEventListener('click', () => this.showCreateRfiModal());
         captureForm?.addEventListener('submit', (event) => this.handleCaptureSubmit(event));
 
         const receivedProposalsList = document.getElementById('receivedProposalsList');
@@ -5666,7 +5663,6 @@ export class FacilitatorController {
                     <span class="text-sm font-semibold">${this.escapeHtml(queryText)}</span>
                     <div style="display: flex; gap: var(--space-2);">
                         ${createArtifactLifecycleBadge(rfi, { size: 'sm' }).outerHTML}
-                        ${createPriorityBadge(rfi.priority || 'NORMAL').outerHTML}
                     </div>
                 </div>
                 ${categories.length ? `
@@ -5762,147 +5758,6 @@ export class FacilitatorController {
                 ${panels}
             </div>
         `;
-    }
-
-    showCreateRfiModal() {
-        if (!this.requireWriteAccess()) return;
-
-        const content = document.createElement('div');
-        const priorityOptions = ENUMS.PRIORITY
-            .map((value) => `<option value="${value}">${value}</option>`)
-            .join('');
-        content.innerHTML = `
-            <form id="rfiForm">
-                <div class="form-group">
-                    <label class="form-label" for="rfiQuestion">Question *</label>
-                    <textarea id="rfiQuestion" class="form-input form-textarea" rows="4" required></textarea>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="rfiPriority">Priority *</label>
-                    <select id="rfiPriority" class="form-select" required>
-                        <option value="">Select priority</option>
-                        ${priorityOptions}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <span class="form-label" id="rfiCategoriesLabel">Categories *</span>
-                    <div
-                        class="form-check-grid"
-                        role="group"
-                        aria-labelledby="rfiCategoriesLabel"
-                        aria-describedby="rfiCategoriesHint"
-                    >
-                        ${renderCheckboxOptions({
-                            values: ENUMS.RFI_CATEGORIES,
-                            dataAttribute: 'data-rfi-checkbox',
-                            group: 'category',
-                            idPrefix: 'rfiCategory'
-                        })}
-                    </div>
-                    <p class="form-hint" id="rfiCategoriesHint">Select all categories that apply.</p>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="rfiContext">Context</label>
-                    <textarea id="rfiContext" class="form-input form-textarea" rows="3"></textarea>
-                </div>
-            </form>
-        `;
-
-        const modalRef = { current: null };
-        modalRef.current = showModal({
-            title: 'Submit Request for Information',
-            content,
-            size: 'md',
-            buttons: [
-                {
-                    label: 'Cancel',
-                    variant: 'secondary',
-                    onClick: () => {}
-                },
-                {
-                    label: 'Submit RFI',
-                    variant: 'primary',
-                    onClick: () => {
-                        this.handleCreateRfi(modalRef.current).catch((err) => {
-                            logger.error('Failed to submit RFI:', err);
-                        });
-                        return false;
-                    }
-                }
-            ]
-        });
-    }
-
-    async handleCreateRfi(modal) {
-        if (!this.requireWriteAccess()) return;
-
-        const question = document.getElementById('rfiQuestion')?.value?.trim();
-        const context = document.getElementById('rfiContext')?.value?.trim();
-        const priority = document.getElementById('rfiPriority')?.value;
-        const categories = getCheckedValues(document, '[data-rfi-checkbox="category"]');
-
-        if (!question) {
-            showToast({ message: 'Question is required', type: 'error' });
-            return;
-        }
-
-        if (!priority) {
-            showToast({ message: 'Priority is required', type: 'error' });
-            return;
-        }
-
-        if (!categories.length) {
-            showToast({ message: 'Select at least one category', type: 'error' });
-            return;
-        }
-
-        const sessionId = sessionStore.getSessionId();
-        if (!sessionId) return;
-
-        const loader = showLoader({ message: 'Submitting RFI...' });
-
-        try {
-            const gameState = this.getCurrentGameState();
-            const query = context ? `${question}\n\nContext: ${context}` : question;
-            const rfi = await database.createRequest({
-                session_id: sessionId,
-                team: this.teamId,
-                client_id: sessionStore.getClientId(),
-                query,
-                priority,
-                categories,
-                move: gameState.move ?? 1,
-                phase: gameState.phase ?? 1
-            });
-            requestsStore.updateFromServer('INSERT', rfi);
-
-            const timelineEvent = await database.createTimelineEvent({
-                session_id: sessionId,
-                type: 'RFI_CREATED',
-                content: `${this.teamLabel} submitted an RFI to White Cell.`,
-                metadata: {
-                    related_id: rfi.id,
-                    role: this.role || this.getCurrentLeadRole()
-                },
-                team: this.teamId,
-                move: rfi.move ?? 1,
-                phase: rfi.phase ?? 1
-            });
-            timelineStore.updateFromServer('INSERT', timelineEvent);
-
-            showToast({ message: 'RFI submitted successfully', type: 'success' });
-            modal?.close();
-        } catch (err) {
-            logger.error('Failed to submit RFI:', err);
-            showToast({
-                message: getUserMessage(err, {
-                    fallback: 'Failed to submit RFI. Check the form and try again.'
-                }),
-                type: 'error'
-            });
-        } finally {
-            hideLoader();
-        }
     }
 
     renderResponsesList() {

@@ -980,7 +980,7 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
     });
 
     safeArray(bundle.requests).forEach((request) => {
-        const actorRole = request?.team ? `${request.team}_facilitator` : null;
+        const actorRole = resolveRequestAuthorRole(bundle, request);
         const actorTeam = inferTeamFromRole(actorRole, request?.team);
         const actorPseudonym = resolvePseudonym(participantRegistry, {
             clientId: request?.client_id,
@@ -1149,6 +1149,24 @@ function isProposalAction(action = {}) {
 
 function isMoveResponseAction(action = {}) {
     return action?.mechanism === MOVE_RESPONSE_ACTION_MECHANISM || Boolean(parseMoveResponseDetails(action?.ally_contingencies));
+}
+
+function resolveRequestAuthorRole(bundle = {}, request = {}) {
+    const participantRole = safeArray(bundle.participants).find((participant) => (
+        request?.client_id
+        && participant?.client_id === request.client_id
+    ))?.role;
+    if (participantRole) return participantRole;
+    if (!request?.team) return null;
+
+    const isLegacyRequest = (
+        !request.workflow_state && !request.revision_number
+    ) || request.workflow_state_origin === 'legacy_status'
+        || request.revision_number_origin === 'legacy_default';
+
+    return isLegacyRequest
+        ? `${request.team}_facilitator`
+        : `${request.team}_scribe`;
 }
 
 function isStrategicOrientationContentRow(action = {}) {
@@ -1627,7 +1645,7 @@ function buildRfiContent(bundle = {}, participantRegistry) {
     }
 
     return safeArray(bundle.requests).map((request) => {
-        const requesterRole = request?.team ? `${request.team}_facilitator` : null;
+        const requesterRole = resolveRequestAuthorRole(bundle, request);
         const requesterTeam = inferTeamFromRole(requesterRole, request?.team);
 
         return {
@@ -4705,7 +4723,7 @@ export function buildResearchReportHtml(dataset, {
         },
         {
             title: 'Requests For Information',
-            description: 'Question-and-answer exchanges between team scribes and White Cell.'
+            description: 'Question-and-answer exchanges between team facilitators and White Cell.'
         },
         {
             title: 'Communications And Interaction Summary',
@@ -5933,7 +5951,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Requests For Information</h2>
-                    <p class="report-section-intro">Question-and-answer exchanges between team scribes and White Cell.</p>
+                    <p class="report-section-intro">Question-and-answer exchanges between team facilitators and White Cell.</p>
                 </div>
             </div>
             ${renderReportEntityCollection(rfiCards, 'No RFI records were captured for this export.')}

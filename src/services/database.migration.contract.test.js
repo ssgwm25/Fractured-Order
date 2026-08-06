@@ -65,6 +65,10 @@ const TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH = new URL(
     '../../data/2026-08-05_team_neutral_artifact_review.sql',
     import.meta.url
 );
+const FACILITATOR_RFI_COMMUNICATIONS_PATH = new URL(
+    '../../data/2026-08-06_facilitator_rfi_communications.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -532,6 +536,21 @@ describe('database migration contracts', () => {
         expect(reviewBody).toContain("to_regclass('public.pli_adjudications')");
         expect(legacyWrapperBody).toContain('public.operator_review_artifact');
         expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_review_artifact(TEXT, UUID, TEXT, TEXT, BIGINT, TEXT)');
+    });
+
+    it('assigns RFIs and direct White Cell text to the actual Facilitator seat with team isolation', () => {
+        const sql = readFileSync(FACILITATOR_RFI_COMMUNICATIONS_PATH, 'utf8');
+
+        expect(sql).toContain("ARRAY['scribe']::TEXT[]");
+        expect(sql).toContain("workflow_state = 'submitted_to_white_cell'");
+        expect(sql).toContain("workflow_state = 'returned_to_team'");
+        expect(sql).toContain("LOWER(BTRIM(team)) = public.live_demo_participant_team(session_id)");
+        expect(sql).toContain("LOWER(BTRIM(type)) = 'direct'");
+        expect(sql).toContain("LOWER(BTRIM(to_role)) = 'white_cell'");
+        expect(sql).toContain("metadata ->> 'source_team'");
+        expect(sql).toContain("artifact_type IN ('strategic_orientation_forecast', 'proposal')");
+        expect(sql).toContain('CREATE TRIGGER zz_guard_facilitator_request_write');
+        expect(sql).toContain('Facilitators may only revise RFI question and category content.');
     });
 
     it('keeps consolidated schema artifacts aligned with the richer workflow shape', () => {

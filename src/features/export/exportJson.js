@@ -5,6 +5,18 @@
 
 import { actionsStore, requestsStore, timelineStore, gameStateStore, participantsStore } from '../../stores/index.js';
 
+function serializeRequestForCurrentExport(request = {}) {
+    if (!request || typeof request !== 'object') return request;
+    if (
+        (!request.workflow_state && !request.revision_number)
+        || request.workflow_state_origin === 'legacy_status'
+        || request.revision_number_origin === 'legacy_default'
+    ) return request;
+
+    const { priority: _legacyPriority, ...currentRequest } = request;
+    return currentRequest;
+}
+
 export function buildJsonExportPayload({
     session = null,
     gameState = null,
@@ -21,7 +33,9 @@ export function buildJsonExportPayload({
         session,
         gameState,
         actions,
-        requests,
+        requests: Array.isArray(requests)
+            ? requests.map(serializeRequestForCurrentExport)
+            : [],
         timeline,
         participants
     };
@@ -76,7 +90,7 @@ export function exportToJson(options = {}) {
     }
 
     if (includeRequests) {
-        exportData.requests = requestsStore.getAll();
+        exportData.requests = requestsStore.getAll().map(serializeRequestForCurrentExport);
     }
 
     if (includeTimeline) {
@@ -115,7 +129,7 @@ export function exportSubset(dataType) {
             data = actionsStore.getAll();
             break;
         case 'requests':
-            data = requestsStore.getAll();
+            data = requestsStore.getAll().map(serializeRequestForCurrentExport);
             break;
         case 'timeline':
             data = timelineStore.getAll();
