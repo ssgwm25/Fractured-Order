@@ -363,7 +363,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(guide.steps.map((step) => step.title)).toEqual([
             'Blue Team Facilitator',
             'Follow move, phase, and timer',
-            'Navigate the support deck',
+            'Choose a facilitator workspace',
             'Project and answer proposals',
             'Ask White Cell with RFIs',
             'Message White Cell',
@@ -376,15 +376,15 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             '#header-timer',
             '.scribe-view-switch',
             '.scribe-section-region--proposals',
-            '.scribe-section-region--rfis',
-            '.scribe-section-region--communications',
+            '#rfiViewBtn',
+            '#communicationsViewBtn',
             '#scribeAlertsBtn',
             '#presentBtn',
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[2].body).toContain('Team Action Review and Deck');
-        expect(guide.steps[2].body).toContain('restores the support slide you last viewed');
+        expect(guide.steps[2].body).toContain('Team Action Review, Deck, RFIs, and Communications');
+        expect(guide.steps[2].body).toContain('restores the record or support slide you last viewed');
         expect(guide.steps[3].body).toContain('Accept, Not Interested, or Negotiate');
         expect(guide.steps[4].body).toContain('edit and resubmit the same revision');
         expect(guide.steps[5].body).toContain('isolated inbound and outbound history');
@@ -469,6 +469,70 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             'communication-outbound-industry'
         ]);
         expect(JSON.stringify(result)).not.toContain('Blue Facilitator message');
+    });
+
+    it('renders an RFI as a compact workspace with stable actions and revision context', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamLabel = 'Industry Team';
+
+        const html = controller.renderRfiSlide({
+            slideType: 'rfi',
+            request: {
+                id: 'industry-rfi-1',
+                team: 'industry',
+                query: 'Which reporting period applies?',
+                categories: ['Reporting', 'Compliance'],
+                workflow_state: 'returned_to_team',
+                revision_number: 2,
+                review_notes: 'Specify whether this concerns the current or next move.',
+                created_at: '2026-08-06T10:00:00.000Z'
+            }
+        });
+
+        expect(html).toContain('class="facilitator-workspace facilitator-rfi-workspace"');
+        expect(html).toContain('Which reporting period applies?');
+        expect(html).toContain('Reporting | Compliance');
+        expect(html).toContain('Returned for clarification');
+        expect(html).toContain('REV 2');
+        expect(html).toContain('data-facilitator-new-rfi');
+        expect(html).toContain('data-facilitator-edit-rfi');
+        expect(html).not.toContain('class="scribe-action-slide facilitator-rfi-slide"');
+    });
+
+    it('renders direct communications as one chronological inbound and outbound thread', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamLabel = 'Industry Team';
+        controller.teamContext = { teamId: 'industry', scribeRole: 'industry_scribe' };
+        controller.directCommunications = [{
+            id: 'outbound-later',
+            from_role: 'industry_scribe',
+            to_role: 'white_cell',
+            content: 'Facilitator follow-up',
+            created_at: '2026-08-06T11:00:00.000Z'
+        }, {
+            id: 'inbound-earlier',
+            from_role: 'white_cell',
+            to_role: 'industry_scribe',
+            content: 'White Cell guidance',
+            created_at: '2026-08-06T10:00:00.000Z'
+        }];
+
+        const html = controller.renderCommunicationSlide({
+            slideType: 'communication',
+            communication: controller.directCommunications[0]
+        });
+
+        expect(html).toContain('class="facilitator-workspace facilitator-communications-workspace"');
+        expect(html).toContain('role="log"');
+        expect(html.indexOf('White Cell guidance')).toBeLessThan(html.indexOf('Facilitator follow-up'));
+        expect(html).toContain('facilitator-thread-message is-inbound');
+        expect(html).toContain('facilitator-thread-message is-outbound is-selected');
+        expect(html.match(/data-facilitator-new-communication/g)).toHaveLength(1);
+        expect(html).not.toContain('Direct Communication</h2>');
     });
 
     it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {
@@ -1009,7 +1073,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(controller.getCurrentSlideKey()).toBe('action-live-1');
     });
 
-    it('keeps live actions in the sidebar without rendering support deck details', async () => {
+    it('scopes the sidebar to the active deck workspace without duplicating live actions', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
@@ -1043,16 +1107,10 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         controller.renderSections();
 
-        expect(sectionList.innerHTML).toContain('scribe-section-region--actions');
-        expect(sectionList.innerHTML).toContain('Live team decisions');
-        expect(sectionList.innerHTML).toContain('data-scribe-action-mark-stack');
-        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="strategic-orientation"');
-        expect(sectionList.innerHTML).toContain('data-scribe-action-mark="move-1"');
-        expect(sectionList.innerHTML).toContain('aria-label="0 records"');
-        expect(sectionList.innerHTML).toContain('No records for Strategic Orientation.');
-        expect(sectionList.innerHTML).not.toContain('scribe-section-region--deck');
-        expect(sectionList.innerHTML).not.toContain('Support slides');
-        expect(sectionList.innerHTML).not.toContain('data-section-kind="deck"');
+        expect(sectionList.innerHTML).toContain('scribe-workspace-rail-summary');
+        expect(sectionList.innerHTML).toContain('Support deck');
+        expect(sectionList.innerHTML).not.toContain('scribe-section-region--actions');
+        expect(sectionList.innerHTML).not.toContain('data-scribe-action-mark-stack');
         expect(sectionList.innerHTML).not.toContain('Overview slide');
         expect(controller.deckSlides).toContain(controller.sections[1].slides[0]);
     });
@@ -1120,6 +1178,50 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(sectionList.innerHTML).toContain('Received from other teams');
         expect(sectionList.innerHTML).toContain('From Green Team | Unread');
         expect(sectionButtonMarkup(sectionList.innerHTML, 'Proposals')).toContain('aria-label="Proposals, 1 proposal"');
+    });
+
+    it('scopes RFI navigation and the communication summary to their selected workspaces', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
+        global.document = fakeDocument;
+        const actionSlide = { slideKey: 'action-one', slideType: 'action', title: 'Action one' };
+        const rfiSlide = { slideKey: 'rfi-one', slideType: 'rfi', title: 'Reporting period' };
+        const communicationSlide = {
+            slideKey: 'communication-one',
+            slideType: 'communication',
+            title: 'White Cell guidance'
+        };
+        const controller = new ScribeController();
+        controller.sections = [{ id: 'actions', label: 'Actions', slides: [actionSlide] }, {
+            id: 'rfis',
+            label: 'RFIs',
+            slideCount: 1,
+            slides: [rfiSlide]
+        }, {
+            id: 'direct-communications',
+            label: 'Communications',
+            slideCount: 1,
+            slides: [communicationSlide]
+        }];
+        controller.deckSlides = [actionSlide, rfiSlide, communicationSlide];
+        controller.directCommunications = [{ id: 'communication-one' }];
+        controller.currentSlideIndex = 1;
+        controller.expandedSectionIds = new Set(['rfis']);
+
+        controller.renderSections();
+        expect(sectionList.innerHTML).toContain('scribe-section-region--rfis');
+        expect(sectionList.innerHTML).toContain('RFI history');
+        expect(sectionList.innerHTML).toContain('Reporting period');
+        expect(sectionList.innerHTML).not.toContain('scribe-section-region--actions');
+        expect(sectionList.innerHTML).not.toContain('White Cell guidance');
+
+        controller.currentSlideIndex = 2;
+        controller.renderSections();
+        expect(sectionList.innerHTML).toContain('scribe-workspace-rail-summary');
+        expect(sectionList.innerHTML).toContain('A private, session-scoped thread');
+        expect(sectionList.innerHTML).toContain('1 message');
+        expect(sectionList.innerHTML).not.toContain('Reporting period');
     });
 
     it('renders every received proposal for projection with exactly the required response options', async () => {
@@ -1375,11 +1477,16 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(timelineUpdateSpy).toHaveBeenCalledWith('INSERT', { id: 'timeline-proposal-negotiation-1' });
     });
 
-    it('switches between team action review and the last viewed deck slide', async () => {
+    it('switches among four accessible workspaces and restores the last deck slide', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const actionReviewButton = fakeDocument.register(createFakeElement('teamActionReviewViewBtn', '', 'button'));
         const deckButton = fakeDocument.register(createFakeElement('deckViewBtn', '', 'button'));
+        const rfiButton = fakeDocument.register(createFakeElement('rfiViewBtn', '', 'button'));
+        const communicationsButton = fakeDocument.register(createFakeElement('communicationsViewBtn', '', 'button'));
+        const rfiCount = fakeDocument.register(createFakeElement('rfiViewCount'));
+        const communicationsCount = fakeDocument.register(createFakeElement('communicationsViewCount'));
+        const workspacePanel = fakeDocument.register(createFakeElement('facilitatorWorkspacePanel'));
         global.document = fakeDocument;
 
         const controller = new ScribeController();
@@ -1388,6 +1495,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             slideType: 'action',
             title: 'Live decision'
         };
+        const rfiSlide = { slideKey: 'rfi-live-1', slideType: 'rfi', title: 'Clarify the reporting period' };
+        const communicationSlide = { slideKey: 'communication-live-1', slideType: 'communication', title: 'White Cell reply' };
         const firstDeckSlide = { n: 1, title: 'Overview', src: 'data:image/png;base64,one' };
         const lastViewedDeckSlide = { n: 2, title: 'Schedule', src: 'data:image/png;base64,two' };
         controller.sections = [{
@@ -1398,15 +1507,31 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             id: 'overview',
             label: 'Overview',
             slides: [firstDeckSlide, lastViewedDeckSlide]
+        }, {
+            id: 'rfis',
+            label: 'RFIs',
+            slides: [rfiSlide]
+        }, {
+            id: 'direct-communications',
+            label: 'Communications',
+            slides: [communicationSlide]
         }];
-        controller.deckSlides = [firstDeckSlide, lastViewedDeckSlide, actionSlide];
+        controller.deckSlides = [firstDeckSlide, lastViewedDeckSlide, actionSlide, rfiSlide, communicationSlide];
         controller.currentSlideIndex = 1;
+        controller.teamRfis = [{ id: 'rfi-live-1' }];
+        controller.directCommunications = [{ id: 'communication-live-1' }];
         controller.setSlideByKey = vi.fn();
         controller.closeMobileSidebar = vi.fn();
 
         controller.updateFacilitatorViewSwitch('deck');
-        expect(actionReviewButton.getAttribute('aria-pressed')).toBe('false');
-        expect(deckButton.getAttribute('aria-pressed')).toBe('true');
+        expect(actionReviewButton.getAttribute('aria-selected')).toBe('false');
+        expect(deckButton.getAttribute('aria-selected')).toBe('true');
+        expect(rfiButton.getAttribute('aria-selected')).toBe('false');
+        expect(communicationsButton.getAttribute('aria-selected')).toBe('false');
+        expect(rfiCount.textContent).toBe('1');
+        expect(communicationsCount.textContent).toBe('1');
+        expect(workspacePanel.getAttribute('aria-labelledby')).toBe('deckViewBtn');
+        expect(fakeDocument.body.dataset.facilitatorWorkspace).toBe('deck');
 
         controller.setFacilitatorView('actions');
         expect(controller.lastDeckSlideKey).toBe('deck-2');
@@ -1414,9 +1539,19 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         controller.currentSlideIndex = 2;
         controller.setSlideByKey.mockClear();
+        controller.setFacilitatorView('rfis');
+        expect(controller.setSlideByKey).toHaveBeenCalledWith('rfi-live-1');
+
+        controller.currentSlideIndex = 3;
+        controller.setSlideByKey.mockClear();
+        controller.setFacilitatorView('communications');
+        expect(controller.setSlideByKey).toHaveBeenCalledWith('communication-live-1');
+
+        controller.currentSlideIndex = 4;
+        controller.setSlideByKey.mockClear();
         controller.setFacilitatorView('deck');
         expect(controller.setSlideByKey).toHaveBeenCalledWith('deck-2');
-        expect(controller.closeMobileSidebar).toHaveBeenCalledTimes(2);
+        expect(controller.closeMobileSidebar).toHaveBeenCalledTimes(4);
     });
 
     it('builds live scribe action slides from forwarded drafts and submitted actions instead of deck images', async () => {
@@ -2828,7 +2963,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('id="headerPhase"');
         expect(html).toContain('id="timerDisplay"');
         expect(html).toContain('id="scribeSectionList"');
-        expect(html).toContain('<nav class="scribe-section-nav" aria-label="Facilitator decisions, RFIs, and communications">');
+        expect(html).toContain('<nav class="scribe-section-nav" aria-label="Facilitator workspace navigation">');
+        expect(html).toContain('id="facilitatorWorkspacePanel" role="tabpanel" aria-labelledby="deckViewBtn" tabindex="0"');
         expect(html).toContain('id="deckSlideImage"');
         expect(html).toContain('id="deckActionFrame"');
         expect(html).toContain('id="slideAnnouncement"');
@@ -2839,7 +2975,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).not.toContain('scribe-section-trigger-description');
     });
 
-    it('labels every facilitator sidebar as decisions rather than deck sections', () => {
+    it('ships four accessible facilitator workspace tabs on every team shell', () => {
         for (const path of [
             BLUE_SCRIBE_HTML_PATH,
             GREEN_SCRIBE_HTML_PATH,
@@ -2849,10 +2985,14 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             const html = readFileSync(path, 'utf8');
             expect(html).toContain('../../styles/components/cards.css');
 
-            expect(html).toContain('aria-label="Facilitator decisions, RFIs, and communications"');
-            expect(html).toContain('class="scribe-view-switch" role="group" aria-label="Facilitator view"');
-            expect(html).toContain('id="teamActionReviewViewBtn" type="button" aria-pressed="false">Team Action Review</button>');
-            expect(html).toContain('id="deckViewBtn" type="button" aria-pressed="true">Deck</button>');
+            expect(html).toContain('aria-label="Facilitator workspace navigation"');
+            expect(html).toContain('class="scribe-view-switch" role="tablist" aria-label="Facilitator workspace"');
+            expect(html).toContain('id="teamActionReviewViewBtn" type="button" role="tab" aria-selected="false"');
+            expect(html).toContain('id="deckViewBtn" type="button" role="tab" aria-selected="true"');
+            expect(html).toContain('id="rfiViewBtn" type="button" role="tab" aria-selected="false"');
+            expect(html).toContain('id="communicationsViewBtn" type="button" role="tab" aria-selected="false"');
+            expect(html).toContain('id="rfiViewCount" aria-hidden="true">0</span>');
+            expect(html).toContain('id="communicationsViewCount" aria-hidden="true">0</span>');
             expect(html).not.toContain('aria-label="Facilitator deck sections"');
         }
     });
@@ -2906,11 +3046,15 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(css).toContain('.scribe-section-region--actions,\n.scribe-section-region--proposals,\n.scribe-section-region--rfis,\n.scribe-section-region--communications {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
         expect(css).toContain('.scribe-view-switch {');
         expect(css).toContain('.scribe-view-switch-button:focus-visible {');
-        expect(css).toContain('.scribe-view-switch-button[aria-pressed="true"] {');
+        expect(css).toContain('.scribe-view-switch-button[aria-selected="true"] {');
+        expect(css).toContain('.scribe-view-switch-count {');
         expect(css).toContain('#sidebar.sidebar-collapsed .scribe-view-switch');
         expect(css).not.toContain('.scribe-section-region--actions + .scribe-section-region--deck');
         expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary,\n.scribe-section-region--proposals .scribe-section-region-title,\n.scribe-section-region--proposals .scribe-section-region-summary,\n.scribe-section-region--rfis .scribe-section-region-title,\n.scribe-section-region--rfis .scribe-section-region-summary,\n.scribe-section-region--communications .scribe-section-region-title,\n.scribe-section-region--communications .scribe-section-region-summary');
-        expect(css).toContain('.scribe-section-region--proposals,\n.scribe-section-region--rfis,\n.scribe-section-region--communications {\n    margin-top: var(--space-5);');
+        expect(css).toContain('.scribe-section-region--proposals {\n    margin-top: var(--space-5);');
+        expect(css).toContain('.facilitator-workspace {\n    width: 100%;');
+        expect(css).toContain('.facilitator-thread-message.is-outbound {');
+        expect(css).toContain('body[data-facilitator-workspace="rfis"] .scribe-stage-nav');
         expect(css).toContain('.scribe-slide-link.is-proposal {');
         expect(css).toContain('.scribe-proposal-decision-actions {');
         expect(css).toContain('.scribe-section-card {\n    border: 0;\n    border-radius: var(--radius-md);\n    background: transparent;');

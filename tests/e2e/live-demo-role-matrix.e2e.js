@@ -87,7 +87,12 @@ async function expectRoleSurface(page, roleCase) {
         await expect(page.locator('#sessionRoleLabel')).toHaveText('Facilitator');
         await expect(page.locator('body')).toHaveAttribute('data-role-surface', 'scribe');
         await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready');
-        await expect(page.locator('#scribeSectionList')).toContainText('Actions');
+        await expect(page.locator('.scribe-view-switch')).toHaveAttribute('role', 'tablist');
+        await expect(page.locator('#teamActionReviewViewBtn')).toBeVisible();
+        await expect(page.locator('#deckViewBtn')).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#rfiViewBtn')).toBeVisible();
+        await expect(page.locator('#communicationsViewBtn')).toBeVisible();
+        await expect(page.locator('#scribeSectionList')).toContainText('Support deck');
         await expect(page.locator('#deckSlideImage')).toBeVisible();
         await expect(page.locator('#newActionBtn')).toHaveCount(0);
         return;

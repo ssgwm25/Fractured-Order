@@ -80,6 +80,20 @@ const LIVE_SECTION_IDS = Object.freeze([
     RFIS_SECTION_ID,
     COMMUNICATIONS_SECTION_ID
 ]);
+const FACILITATOR_VIEW_IDS = Object.freeze(['actions', 'deck', 'rfis', 'communications']);
+const FACILITATOR_VIEW_BUTTON_IDS = Object.freeze({
+    actions: 'teamActionReviewViewBtn',
+    deck: 'deckViewBtn',
+    rfis: 'rfiViewBtn',
+    communications: 'communicationsViewBtn'
+});
+
+function getFacilitatorViewForSectionId(sectionId = '') {
+    if (sectionId === RFIS_SECTION_ID) return 'rfis';
+    if (sectionId === COMMUNICATIONS_SECTION_ID) return 'communications';
+    if (sectionId === ACTIONS_SECTION_ID || sectionId === PROPOSALS_SECTION_ID) return 'actions';
+    return 'deck';
+}
 
 function serializeActionRenderState(value) {
     if (Array.isArray(value)) {
@@ -908,7 +922,9 @@ export class ScribeController {
         this.activeDeckAssignmentId = null;
         this.currentSlideIndex = 0;
         this.activeSectionIndex = 0;
+        this.activeFacilitatorView = 'deck';
         this.lastDeckSlideKey = '';
+        this.lastSlideKeyByView = new Map();
         this.storeUnsubscribers = [];
         // Navbar activity feed (visible even in presentation mode)
         this.notifications = [];
@@ -995,8 +1011,8 @@ export class ScribeController {
                     highlight: liveTrackerHighlights
                 },
                 {
-                    title: 'Navigate the support deck',
-                    body: 'Switch between Team Action Review and Deck. Actions appear first in the sidebar, followed by a persistent Proposals section for received proposals. Returning to Deck restores the support slide you last viewed.',
+                    title: 'Choose a facilitator workspace',
+                    body: 'Switch among Team Action Review, Deck, RFIs, and Communications. Each workspace restores the record or support slide you last viewed.',
                     highlight: '.scribe-view-switch'
                 },
                 {
@@ -1007,12 +1023,12 @@ export class ScribeController {
                 {
                     title: 'Ask White Cell with RFIs',
                     body: 'Open RFIs to send a new question. If White Cell returns one for clarification, edit and resubmit the same revision here.',
-                    highlight: '.scribe-section-region--rfis'
+                    highlight: '#rfiViewBtn'
                 },
                 {
                     title: 'Message White Cell',
                     body: 'Open Communications to send direct text to White Cell and review the isolated inbound and outbound history.',
-                    highlight: '.scribe-section-region--communications'
+                    highlight: '#communicationsViewBtn'
                 },
                 {
                     title: 'Watch activity',
@@ -1036,6 +1052,7 @@ export class ScribeController {
     configureShell() {
         document.body.dataset.roleSurface = 'scribe';
         document.body.dataset.scribeDeckState = 'loading';
+        document.body.dataset.facilitatorWorkspace = 'deck';
         setScribePresentationMode({ isActive: false });
         this.restoreSidebarState();
 
@@ -1060,12 +1077,30 @@ export class ScribeController {
             this.setSlideByIndex(this.currentSlideIndex + 1);
         });
 
-        document.getElementById('teamActionReviewViewBtn')?.addEventListener('click', () => {
-            this.setFacilitatorView('actions');
-        });
+        const workspaceButtons = FACILITATOR_VIEW_IDS
+            .map((view) => document.getElementById(FACILITATOR_VIEW_BUTTON_IDS[view]))
+            .filter(Boolean);
+        workspaceButtons.forEach((button, buttonIndex) => {
+            button.addEventListener('click', () => {
+                this.setFacilitatorView(button.dataset.facilitatorView || 'deck');
+            });
+            button.addEventListener('keydown', (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+                    return;
+                }
 
-        document.getElementById('deckViewBtn')?.addEventListener('click', () => {
-            this.setFacilitatorView('deck');
+                event.preventDefault();
+                event.stopPropagation();
+                const previous = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+                const nextIndex = event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                        ? workspaceButtons.length - 1
+                        : (buttonIndex + (previous ? -1 : 1) + workspaceButtons.length) % workspaceButtons.length;
+                const nextButton = workspaceButtons[nextIndex];
+                this.setFacilitatorView(nextButton?.dataset.facilitatorView || 'deck');
+                nextButton?.focus?.();
+            });
         });
 
         document.getElementById('presentBtn')?.addEventListener('click', () => {
@@ -1244,6 +1279,10 @@ export class ScribeController {
 
         document.addEventListener('keydown', (event) => {
             if (isEditableTarget(event.target)) {
+                return;
+            }
+
+            if (this.activeFacilitatorView === 'rfis' || this.activeFacilitatorView === 'communications') {
                 return;
             }
 
@@ -2206,6 +2245,9 @@ export class ScribeController {
         if (resolvedSectionIndex >= 0) {
             this.activeSectionIndex = resolvedSectionIndex;
         }
+        const activeSection = this.sections[this.activeSectionIndex];
+        const activeView = getFacilitatorViewForSectionId(activeSection?.id);
+        this.activeFacilitatorView = activeView;
 
         const sectionGroups = { actions: [], proposals: [], rfis: [], communications: [] };
         const liveSectionIds = new Set(LIVE_SECTION_IDS);
@@ -2220,6 +2262,10 @@ export class ScribeController {
             const sectionKind = section.id === COMMUNICATIONS_SECTION_ID
                 ? 'communications'
                 : section.id;
+            const sectionView = getFacilitatorViewForSectionId(section.id);
+            if (sectionView !== activeView) {
+                return;
+            }
             if (sectionKind === 'actions') {
                 sectionGroups.actions.push(
                     this.renderVerticalActionMarkSections(section, currentSlideKey)
@@ -2315,12 +2361,43 @@ export class ScribeController {
             `;
         };
 
-        sectionList.innerHTML = [
-            renderRegion('actions', 'Actions', 'Live team decisions'),
-            renderRegion('proposals', 'Proposals', 'Received from other teams'),
-            renderRegion('rfis', 'RFIs', 'Questions and responses'),
-            renderRegion('communications', 'Communications', 'Direct White Cell thread')
-        ].join('');
+        const workspaceSummary = (title, summary, countLabel = '') => `
+            <section class="scribe-workspace-rail-summary" aria-labelledby="scribe-workspace-rail-title">
+                <p class="scribe-workspace-rail-eyebrow">Current workspace</p>
+                <h2 id="scribe-workspace-rail-title" class="scribe-workspace-rail-title">${escapeHtml(title)}</h2>
+                <p class="scribe-workspace-rail-copy">${escapeHtml(summary)}</p>
+                ${countLabel ? `<p class="scribe-workspace-rail-count">${escapeHtml(countLabel)}</p>` : ''}
+            </section>
+        `;
+
+        if (activeView === 'actions') {
+            sectionList.innerHTML = [
+                renderRegion('actions', 'Actions', 'Live team decisions'),
+                renderRegion('proposals', 'Proposals', 'Received from other teams')
+            ].join('');
+            return;
+        }
+
+        if (activeView === 'rfis') {
+            sectionList.innerHTML = renderRegion('rfis', 'RFI history', 'Questions and responses');
+            return;
+        }
+
+        if (activeView === 'communications') {
+            const messageCount = this.directCommunications.length;
+            sectionList.innerHTML = workspaceSummary(
+                'Communications',
+                'A private, session-scoped thread between this Facilitator and White Cell.',
+                `${messageCount} ${messageCount === 1 ? 'message' : 'messages'}`
+            );
+            return;
+        }
+
+        sectionList.innerHTML = workspaceSummary(
+            'Support deck',
+            this.activeDeckLabel || DEFAULT_SCRIBE_DECK_LABEL,
+            `${this.facilitatorDeckSlides.length} ${this.facilitatorDeckSlides.length === 1 ? 'slide' : 'slides'}`
+        );
     }
 
     renderVerticalActionMarkSections(section = {}, currentSlideKey = '') {
@@ -2406,8 +2483,9 @@ export class ScribeController {
 
         this.activeSectionIndex = activeSectionIndex;
 
-        const isLiveReviewSection = LIVE_SECTION_IDS.includes(activeSection?.id);
-        const activeView = isLiveReviewSection ? 'actions' : 'deck';
+        const activeView = getFacilitatorViewForSectionId(activeSection?.id);
+        this.activeFacilitatorView = activeView;
+        this.lastSlideKeyByView.set(activeView, getSlideKey(slide));
         if (activeView === 'deck') {
             this.lastDeckSlideKey = getSlideKey(slide);
         }
@@ -2448,7 +2526,7 @@ export class ScribeController {
                     : slide.slideType === 'rfi' || slide.slideType === 'rfi-placeholder'
                         ? `${activeSection.label}. ${slide.title}. RFI ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
                         : slide.slideType === 'communication' || slide.slideType === 'communication-placeholder'
-                            ? `${activeSection.label}. ${slide.title}. Message ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
+                            ? `${activeSection.label}. Direct message thread. ${activeSection.slideCount || 0} ${activeSection.slideCount === 1 ? 'message' : 'messages'}.`
                     : `${activeSection.label}. ${slide.title}. ${getActionSlideAnnouncementLabel(slide.action)} ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
         }
 
@@ -3992,11 +4070,19 @@ export class ScribeController {
     renderRfiSlide(slide = {}) {
         if (slide.slideType === 'rfi-placeholder') {
             return `
-                <article class="scribe-action-slide scribe-action-slide-placeholder">
-                    <p class="scribe-action-slide-eyebrow">Facilitator RFIs</p>
-                    <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
-                    <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
-                    <button type="button" class="btn btn-primary" data-facilitator-new-rfi>New RFI</button>
+                <article class="facilitator-workspace facilitator-rfi-workspace" aria-labelledby="facilitator-rfi-workspace-title">
+                    <header class="facilitator-workspace-header">
+                        <div>
+                            <p class="facilitator-workspace-eyebrow">White Cell workflow</p>
+                            <h2 id="facilitator-rfi-workspace-title" class="facilitator-workspace-title">RFIs</h2>
+                            <p class="facilitator-workspace-summary">Questions, responses, and revision history for ${escapeHtml(this.teamLabel)}.</p>
+                        </div>
+                        <button type="button" class="btn btn-primary" data-facilitator-new-rfi>New RFI</button>
+                    </header>
+                    <section class="facilitator-workspace-empty" aria-label="No RFIs">
+                        <h3>${escapeHtml(slide.title)}</h3>
+                        <p>${escapeHtml(slide.summary || '')}</p>
+                    </section>
                 </article>
             `;
         }
@@ -4005,71 +4091,90 @@ export class ScribeController {
         const isReturned = request.workflow_state === 'returned_to_team';
         const categories = Array.isArray(request.categories) ? request.categories : [];
         return `
-            <article class="scribe-action-slide facilitator-rfi-slide" data-rfi-id="${escapeHtml(String(request.id || ''))}">
-                <header class="scribe-action-slide-header">
+            <article class="facilitator-workspace facilitator-rfi-workspace" data-rfi-id="${escapeHtml(String(request.id || ''))}" aria-labelledby="facilitator-rfi-title">
+                <header class="facilitator-workspace-header">
                     <div>
-                        <p class="scribe-action-slide-eyebrow">${escapeHtml(this.teamLabel)} RFI</p>
-                        <h2 class="scribe-action-slide-title">Request for Information</h2>
+                        <p class="facilitator-workspace-eyebrow">${escapeHtml(this.teamLabel)} | White Cell workflow</p>
+                        <h2 id="facilitator-rfi-title" class="facilitator-workspace-title">Request for Information</h2>
+                        <p class="facilitator-workspace-summary">Updated ${escapeHtml(formatRelativeTime(request.updated_at || request.created_at))}</p>
                     </div>
-                    <div class="scribe-action-slide-status">
-                        ${createArtifactLifecycleBadge(request, { size: 'sm' }).outerHTML}
-                        ${createBadge({ text: `REV ${Number(request.revision_number) || 1}`, variant: 'info', size: 'sm', rounded: true }).outerHTML}
+                    <div class="facilitator-workspace-header-actions">
+                        <div class="facilitator-workspace-status">
+                            ${createArtifactLifecycleBadge(request, { size: 'sm' }).outerHTML}
+                            ${createBadge({ text: `REV ${Number(request.revision_number) || 1}`, variant: 'info', size: 'sm', rounded: true }).outerHTML}
+                        </div>
+                        <button type="button" class="btn btn-secondary" data-facilitator-new-rfi>New RFI</button>
                     </div>
                 </header>
-                <section class="scribe-action-slide-panel">
-                    <p class="scribe-action-slide-section-label">Question</p>
-                    <p class="scribe-action-slide-body">${escapeHtml(request.query || request.question || '')}</p>
-                    ${categories.length ? `<p class="scribe-action-slide-summary"><strong>Categories:</strong> ${escapeHtml(categories.join(', '))}</p>` : ''}
+                <section class="facilitator-rfi-detail">
+                    <section class="facilitator-rfi-question" aria-labelledby="facilitator-rfi-question-title">
+                        <h3 id="facilitator-rfi-question-title">Question</h3>
+                        <p>${escapeHtml(request.query || request.question || '')}</p>
+                        ${categories.length ? `<p class="facilitator-rfi-categories"><strong>Categories:</strong> ${escapeHtml(categories.join(' | '))}</p>` : ''}
+                    </section>
                     ${isReturned ? `
-                        <section class="scribe-action-slide-return" role="status" aria-label="White Cell clarification request">
-                            <p><strong>Returned for clarification:</strong> ${escapeHtml(request.review_notes || 'No notes recorded.')}</p>
-                            <p>Edit and resubmit this same RFI revision.</p>
+                        <section class="facilitator-rfi-response facilitator-rfi-response--returned" role="status" aria-labelledby="facilitator-rfi-return-title">
+                            <h3 id="facilitator-rfi-return-title">Returned for clarification</h3>
+                            <p>${escapeHtml(request.review_notes || 'No notes recorded.')}</p>
+                            <p class="facilitator-rfi-response-hint">Edit and resubmit this same RFI record.</p>
                         </section>
                     ` : ''}
                     ${request.response ? `
-                        <section class="scribe-action-slide-note-card" aria-label="White Cell response">
-                            <p class="scribe-action-slide-note-label">White Cell response</p>
-                            <p class="scribe-action-slide-note-body">${escapeHtml(request.response)}</p>
+                        <section class="facilitator-rfi-response" aria-labelledby="facilitator-rfi-response-title">
+                            <h3 id="facilitator-rfi-response-title">White Cell response</h3>
+                            <p>${escapeHtml(request.response)}</p>
                         </section>
                     ` : ''}
-                    <div class="scribe-action-slide-submit-actions facilitator-workflow-actions">
-                        <button type="button" class="btn btn-secondary" data-facilitator-new-rfi>New RFI</button>
-                        ${isReturned ? `<button type="button" class="btn btn-primary" data-facilitator-edit-rfi data-rfi-id="${escapeHtml(String(request.id || ''))}">Edit and Resubmit</button>` : ''}
-                    </div>
                 </section>
+                ${isReturned ? `
+                    <footer class="facilitator-workspace-footer">
+                        <button type="button" class="btn btn-primary" data-facilitator-edit-rfi data-rfi-id="${escapeHtml(String(request.id || ''))}">Edit and Resubmit</button>
+                    </footer>
+                ` : ''}
             </article>
         `;
     }
 
     renderCommunicationSlide(slide = {}) {
-        if (slide.slideType === 'communication-placeholder') {
-            return `
-                <article class="scribe-action-slide scribe-action-slide-placeholder">
-                    <p class="scribe-action-slide-eyebrow">Direct Communications</p>
-                    <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
-                    <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
-                    <button type="button" class="btn btn-primary" data-facilitator-new-communication>Message White Cell</button>
-                </article>
+        const selectedCommunicationId = slide.communication?.id || '';
+        const messages = [...this.directCommunications].sort((left, right) => (
+            normalizeRecordTimestamp(left) - normalizeRecordTimestamp(right)
+            || String(left?.id || '').localeCompare(String(right?.id || ''))
+        ));
+        const thread = messages.length
+            ? messages.map((communication) => {
+                const isOutbound = communication.from_role === this.teamContext.scribeRole;
+                const timestamp = communication.created_at || '';
+                const isSelected = communication.id === selectedCommunicationId;
+                return `
+                    <article class="facilitator-thread-message ${isOutbound ? 'is-outbound' : 'is-inbound'}${isSelected ? ' is-selected' : ''}"${isSelected ? ' aria-current="true"' : ''}>
+                        <header class="facilitator-thread-message-meta">
+                            <span>${isOutbound ? 'You | to White Cell' : 'White Cell'}</span>
+                            <time datetime="${escapeHtml(timestamp)}">${escapeHtml(formatRelativeTime(timestamp))}</time>
+                        </header>
+                        <p>${escapeHtml(communication.content || '')}</p>
+                    </article>
+                `;
+            }).join('')
+            : `
+                <section class="facilitator-workspace-empty" aria-label="No direct communications">
+                    <h3>${escapeHtml(slide.title || 'No direct communications yet')}</h3>
+                    <p>${escapeHtml(slide.summary || 'Send a private message to White Cell for this session.')}</p>
+                </section>
             `;
-        }
 
-        const communication = slide.communication || {};
-        const isOutbound = communication.from_role === this.teamContext.scribeRole;
         return `
-            <article class="scribe-action-slide facilitator-communication-slide">
-                <header class="scribe-action-slide-header">
+            <article class="facilitator-workspace facilitator-communications-workspace" aria-labelledby="facilitator-communications-title">
+                <header class="facilitator-workspace-header">
                     <div>
-                        <p class="scribe-action-slide-eyebrow">${isOutbound ? 'Sent to White Cell' : 'From White Cell'}</p>
-                        <h2 class="scribe-action-slide-title">Direct Communication</h2>
+                        <p class="facilitator-workspace-eyebrow">Private session thread</p>
+                        <h2 id="facilitator-communications-title" class="facilitator-workspace-title">Communications</h2>
+                        <p class="facilitator-workspace-summary">Direct messages between ${escapeHtml(this.teamLabel)} Facilitator and White Cell.</p>
                     </div>
-                    ${createBadge({ text: isOutbound ? 'OUTBOUND' : 'INBOUND', variant: isOutbound ? 'info' : 'warning', size: 'sm', rounded: true }).outerHTML}
+                    <button type="button" class="btn btn-primary" data-facilitator-new-communication>Message White Cell</button>
                 </header>
-                <section class="scribe-action-slide-panel">
-                    <p class="scribe-action-slide-body">${escapeHtml(communication.content || '')}</p>
-                    <p class="scribe-action-slide-summary">${escapeHtml(formatRelativeTime(communication.created_at))}</p>
-                    <div class="scribe-action-slide-submit-actions facilitator-workflow-actions">
-                        <button type="button" class="btn btn-primary" data-facilitator-new-communication>Message White Cell</button>
-                    </div>
+                <section class="facilitator-thread" role="log" aria-label="White Cell direct-message history" aria-live="polite">
+                    ${thread}
                 </section>
             </article>
         `;
@@ -4229,54 +4334,70 @@ export class ScribeController {
     }
 
     updateFacilitatorViewSwitch(activeView = 'deck') {
-        const actionReviewButton = document.getElementById('teamActionReviewViewBtn');
-        const deckButton = document.getElementById('deckViewBtn');
+        const normalizedView = FACILITATOR_VIEW_IDS.includes(activeView) ? activeView : 'deck';
+        this.activeFacilitatorView = normalizedView;
+        document.body.dataset.facilitatorWorkspace = normalizedView;
 
-        [
-            [actionReviewButton, activeView === 'actions'],
-            [deckButton, activeView === 'deck']
-        ].forEach(([button, isActive]) => {
+        FACILITATOR_VIEW_IDS.forEach((view) => {
+            const button = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS[view]);
             if (!button) {
                 return;
             }
 
+            const isActive = view === normalizedView;
             button.classList.toggle('is-active', isActive);
-            button.setAttribute('aria-pressed', String(isActive));
+            button.setAttribute('aria-selected', String(isActive));
+            button.setAttribute('tabindex', isActive ? '0' : '-1');
         });
+
+        const rfiCount = this.teamRfis.length;
+        const messageCount = this.directCommunications.length;
+        const rfiCountElement = document.getElementById('rfiViewCount');
+        const messageCountElement = document.getElementById('communicationsViewCount');
+        const rfiButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.rfis);
+        const communicationsButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.communications);
+        const workspacePanel = document.getElementById('facilitatorWorkspacePanel');
+
+        if (rfiCountElement) rfiCountElement.textContent = String(rfiCount);
+        if (messageCountElement) messageCountElement.textContent = String(messageCount);
+        rfiButton?.setAttribute('aria-label', `RFIs, ${rfiCount} ${rfiCount === 1 ? 'record' : 'records'}`);
+        communicationsButton?.setAttribute(
+            'aria-label',
+            `Communications, ${messageCount} ${messageCount === 1 ? 'message' : 'messages'}`
+        );
+        workspacePanel?.setAttribute('aria-labelledby', FACILITATOR_VIEW_BUTTON_IDS[normalizedView]);
     }
 
     setFacilitatorView(view = 'deck') {
-        const normalizedView = view === 'actions' ? 'actions' : 'deck';
+        const normalizedView = FACILITATOR_VIEW_IDS.includes(view) ? view : 'deck';
         const currentSlide = this.deckSlides[this.currentSlideIndex];
         const currentSectionIndex = getSectionIndexForSlideKey(
             this.sections,
             getSlideKey(currentSlide)
         );
+        const currentView = getFacilitatorViewForSectionId(this.sections[currentSectionIndex]?.id);
+        if (currentSlide) {
+            this.lastSlideKeyByView.set(currentView, getSlideKey(currentSlide));
+        }
 
-        if (
-            !LIVE_SECTION_IDS.includes(this.sections[currentSectionIndex]?.id)
-            && currentSlide
-        ) {
+        if (currentView === 'deck' && currentSlide) {
             this.lastDeckSlideKey = getSlideKey(currentSlide);
         }
 
-        let targetSlide = null;
-        if (normalizedView === 'actions') {
-            targetSlide = this.sections.find((section) => section.id === ACTIONS_SECTION_ID)?.slides?.[0] || null;
-        } else {
-            targetSlide = this.deckSlides.find((slide) => (
-                getSlideKey(slide) === this.lastDeckSlideKey
-                && !LIVE_SECTION_IDS.includes(
-                    this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id
-                )
-            )) || this.deckSlides.find((slide) => (
-                !LIVE_SECTION_IDS.includes(
-                    this.sections[getSectionIndexForSlideKey(this.sections, getSlideKey(slide))]?.id
-                )
-            )) || null;
-        }
+        const slideMatchesView = (slide) => {
+            const sectionIndex = getSectionIndexForSlideKey(this.sections, getSlideKey(slide));
+            return getFacilitatorViewForSectionId(this.sections[sectionIndex]?.id) === normalizedView;
+        };
+        const rememberedSlideKey = normalizedView === 'deck'
+            ? this.lastDeckSlideKey || this.lastSlideKeyByView.get('deck')
+            : this.lastSlideKeyByView.get(normalizedView);
+        const targetSlide = this.deckSlides.find((slide) => (
+            getSlideKey(slide) === rememberedSlideKey && slideMatchesView(slide)
+        )) || this.deckSlides.find(slideMatchesView) || null;
 
         if (!targetSlide) {
+            this.updateFacilitatorViewSwitch(normalizedView);
+            this.renderSections();
             return;
         }
 

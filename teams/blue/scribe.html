@@ -90,10 +90,12 @@
                     </svg>
                 </button>
 
-                <nav class="scribe-section-nav" aria-label="Facilitator decisions, RFIs, and communications">
-                    <div class="scribe-view-switch" role="group" aria-label="Facilitator view">
-                        <button class="scribe-view-switch-button" id="teamActionReviewViewBtn" type="button" aria-pressed="false">Team Action Review</button>
-                        <button class="scribe-view-switch-button is-active" id="deckViewBtn" type="button" aria-pressed="true">Deck</button>
+                <nav class="scribe-section-nav" aria-label="Facilitator workspace navigation">
+                    <div class="scribe-view-switch" role="tablist" aria-label="Facilitator workspace">
+                        <button class="scribe-view-switch-button" id="teamActionReviewViewBtn" type="button" role="tab" aria-selected="false" aria-controls="facilitatorWorkspacePanel" tabindex="-1" data-facilitator-view="actions">Team Action Review</button>
+                        <button class="scribe-view-switch-button is-active" id="deckViewBtn" type="button" role="tab" aria-selected="true" aria-controls="facilitatorWorkspacePanel" tabindex="0" data-facilitator-view="deck">Deck</button>
+                        <button class="scribe-view-switch-button" id="rfiViewBtn" type="button" role="tab" aria-selected="false" aria-controls="facilitatorWorkspacePanel" aria-label="RFIs, 0 records" tabindex="-1" data-facilitator-view="rfis"><span>RFIs</span><span class="scribe-view-switch-count" id="rfiViewCount" aria-hidden="true">0</span></button>
+                        <button class="scribe-view-switch-button" id="communicationsViewBtn" type="button" role="tab" aria-selected="false" aria-controls="facilitatorWorkspacePanel" aria-label="Communications, 0 messages" tabindex="-1" data-facilitator-view="communications"><span>Communications</span><span class="scribe-view-switch-count" id="communicationsViewCount" aria-hidden="true">0</span></button>
                     </div>
                     <div id="scribeSectionList"></div>
                 </nav>
@@ -106,7 +108,7 @@
             <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
             <main class="scribe-main" id="main-content">
-                <section class="scribe-stage-card" aria-label="Facilitator support deck viewer">
+                <section class="scribe-stage-card" id="facilitatorWorkspacePanel" role="tabpanel" aria-labelledby="deckViewBtn" tabindex="0">
                     <div class="scribe-stage-frame">
                         <button class="scribe-stage-nav scribe-stage-nav--prev" id="prevSlideBtn" type="button" aria-label="Previous slide">
                             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
