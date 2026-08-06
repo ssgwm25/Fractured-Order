@@ -5,6 +5,7 @@ const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
 const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
 const E2E_MOCK_STATE_WRITE_LOCK = 'esg-e2e-backend-state-write';
 const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+let mockAnonymousAuthSequence = 0;
 const DEFAULT_TIMER_ALLOCATIONS = Object.freeze({
     strategic_orientation: 5400,
     move_1: 5400,
@@ -908,6 +909,9 @@ function canReadTableRow(state, tableName, row, authUserId) {
         const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
         const isWhiteCellSender = ['white_cell', 'whitecell', 'whitecell_lead', 'whitecell_support']
             .includes(fromRole);
+        const isProposalThread = ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE']
+            .includes(String(row.type || '').trim().toUpperCase())
+            && Boolean(String(metadata.thread_id || '').trim());
 
         return (
             liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
@@ -916,6 +920,11 @@ function canReadTableRow(state, tableName, row, authUserId) {
                 liveDemoCanReadSession(state, authUserId, row.session_id)
                 && (
                     fromRole === participantRole
+                    || (
+                        isProposalThread
+                        && [normalizeTeamId(metadata.source_team), normalizeTeamId(metadata.recipient_team)]
+                            .includes(participantTeam)
+                    )
                     || (
                         String(row.type || '').trim().toUpperCase() === 'PROPOSAL_FORWARDED'
                         && normalizeTeamId(metadata.source_team) === participantTeam
@@ -1099,6 +1108,11 @@ function normalizeProposalRecipientStatus(status) {
 }
 
 function canInsertProposalResponseCommunication(state, row, authUserId) {
+    // Thread rounds are written only through append_proposal_thread_message.
+    // Retain the function boundary so old direct-insert callers fail closed.
+    if (row?.metadata?.thread_id || row?.type === 'PROPOSAL_RESPONSE') {
+        return false;
+    }
     const normalizedType = String(row?.type || '').trim().toUpperCase();
     const normalizedToRole = String(row?.to_role || '').trim().toLowerCase();
     const normalizedFromRole = normalizeSeatRole(String(row?.from_role || '').trim()).toLowerCase();
@@ -2056,82 +2070,126 @@ function readLegacyActionList(details = '', label = '') {
     return value.split(',').map((entry) => entry.trim()).filter(Boolean);
 }
 
-function operatorReviewProposal(state, params) {
+function operatorReviewProposalThreaded(state, params) {
+    const authUserId = getCurrentAuthUserId();
     const action = state.tables.actions.find((entry) => (
         entry.id === params?.requested_action_id && entry.is_deleted !== true
     ));
     const decision = String(params?.requested_review_decision || '').trim().toLowerCase();
-    const persistedRecipient = String(
-        action?.proposal_recipient_team
-        || readLegacyActionDetail(action?.ally_contingencies, 'Recipient Team')
-        || ''
-    ).trim().toLowerCase();
-    const recipientTeam = String(params?.requested_recipient_team || persistedRecipient).trim().toLowerCase();
+    const recipientTeam = normalizeTeamId(params?.requested_recipient_team);
+    const expectedRevision = params?.requested_expected_revision == null
+        ? null
+        : Number(params.requested_expected_revision);
+    const grant = action ? getOperatorGrant(state, authUserId, 'whitecell', action.session_id) : null;
 
-    if (!action) {
-        return { data: null, error: { message: 'Proposal action not found.' } };
+    if (!action) return { data: null, error: { message: 'Proposal action not found.' } };
+    if (action.artifact_type !== 'proposal') {
+        return { data: null, error: { message: 'Only proposal artifacts can use operator_review_proposal.' } };
+    }
+    if (!grant) return { data: null, error: { message: 'White Cell operator authorization is required.' } };
+    if (decision !== 'forward_to_recipient') {
+        return { data: null, error: { message: 'Recipient approvals only support forward_to_recipient.' } };
+    }
+    if (!['blue', 'red'].includes(recipientTeam)) {
+        return { data: null, error: { message: 'A Blue or Red recipient is required.' } };
     }
 
-    if (!['forward_to_recipient', 'request_changes', 'reject'].includes(decision)) {
-        return { data: null, error: { message: 'Unsupported proposal review decision.' } };
+    const revisionNumber = Number.isInteger(action.revision_number) ? action.revision_number : 1;
+    if (expectedRevision !== null && expectedRevision !== revisionNumber) {
+        return {
+            data: null,
+            error: { message: `Stale proposal revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
+        };
     }
 
-    if (decision === 'forward_to_recipient' && !['blue', 'red'].includes(recipientTeam)) {
-        return { data: null, error: { message: 'Forwarded proposals require a Blue or Red recipient.' } };
+    const payloadProposal = action?.artifact_payload?.proposal || {};
+    const intendedRecipients = [...new Set((
+        Array.isArray(payloadProposal.recipientTeams) && payloadProposal.recipientTeams.length
+            ? payloadProposal.recipientTeams
+            : readLegacyActionList(action.ally_contingencies, 'Recipient Teams')
+    ).map(normalizeTeamId).filter((team) => ['blue', 'red'].includes(team)))];
+    if (!intendedRecipients.length && action.proposal_recipient_team) {
+        intendedRecipients.push(normalizeTeamId(action.proposal_recipient_team));
+    }
+    if (!intendedRecipients.includes(recipientTeam)) {
+        return { data: null, error: { message: 'Requested recipient is not an intended proposal partner.' } };
     }
 
-    if (action.status === 'adjudicated') {
-        if (action.adjudication?.proposal_review_decision !== decision) {
-            return { data: null, error: { message: 'This proposal already has a different final review decision.' } };
-        }
-
-        const existingCommunication = state.tables.communications.find((entry) => (
-            entry.type === 'PROPOSAL_FORWARDED'
-            && entry.metadata?.source_proposal_id === action.id
-        )) || null;
-        const existingTimelineEvents = state.tables.timeline.filter((entry) => (
-            entry.metadata?.related_id === action.id
-            && ['ACTION_ADJUDICATED', 'PROPOSAL_FORWARDED'].includes(entry.type)
-        ));
-
+    const existingCommunication = state.tables.communications.find((entry) => (
+        entry.type === 'PROPOSAL_FORWARDED'
+        && entry.metadata?.source_proposal_id === action.id
+        && normalizeTeamId(entry.metadata?.recipient_team) === recipientTeam
+    ));
+    if (existingCommunication) {
         return {
             data: {
                 action: cloneValue(action),
                 communication: cloneValue(existingCommunication),
-                timeline_events: cloneValue(existingTimelineEvents),
+                timeline_events: [],
+                recipient_team: recipientTeam,
                 idempotent_replay: true
             },
             error: null
         };
     }
-
-    const outcome = {
-        forward_to_recipient: 'SUCCESS',
-        request_changes: 'PARTIAL_SUCCESS',
-        reject: 'FAIL'
-    }[decision];
-    const adjudicationResult = operatorAdjudicateAction(state, {
-        requested_action_id: action.id,
-        requested_outcome: outcome,
-        requested_adjudication_notes: params?.requested_adjudication_notes || null
-    });
-    if (adjudicationResult.error) return adjudicationResult;
+    if (
+        action.status !== 'submitted'
+        || !['submitted_to_white_cell', 'resubmitted'].includes(action.workflow_state)
+    ) {
+        return { data: null, error: { message: 'Only a submitted proposal with pending recipients can be approved.' } };
+    }
 
     const timestamp = getTimestamp();
-    const updatedAction = {
-        ...adjudicationResult.data,
-        artifact_type: 'proposal',
-        proposal_recipient_team: persistedRecipient || recipientTeam || null,
-        workflow_state: {
-            forward_to_recipient: 'forwarded_to_recipient',
-            request_changes: 'changes_requested',
-            reject: 'rejected'
-        }[decision],
-        adjudication: {
-            ...(adjudicationResult.data.adjudication || {}),
-            outcome,
-            proposal_review_decision: decision,
-            proposal_recipient_team: persistedRecipient || recipientTeam || null
+    const threadId = nextId(state, 'proposal_threads');
+    const proposalSnapshot = {
+        ...cloneValue(payloadProposal),
+        title: action.goal || null,
+        expectedOutcomes: action.expected_outcomes || null,
+        recipientTeams: intendedRecipients
+    };
+    const communication = normalizeInsertRow('communications', {
+        session_id: action.session_id,
+        move: action.move,
+        from_role: 'white_cell',
+        to_role: recipientTeam,
+        type: 'PROPOSAL_FORWARDED',
+        title: action.goal || null,
+        content: `White Cell approved and forwarded the ${action.team} Team proposal: ${action.goal || 'Untitled proposal'}`,
+        client_id: authUserId,
+        metadata: {
+            thread_id: threadId,
+            recipient_team: recipientTeam,
+            round_number: 0,
+            parent_message_id: null,
+            source_proposal_id: action.id,
+            source_revision: revisionNumber,
+            source_team: normalizeTeamId(action.team),
+            sender_team: 'white_cell',
+            sender_role: grant.role,
+            sent_at: timestamp,
+            message_type: 'proposal_forwarded',
+            proposal: proposalSnapshot,
+            review_decision: 'forward_to_recipient',
+            review_stage: 'approved_forwarded'
+        }
+    }, state);
+    state.tables.communications.push(communication);
+
+    const recipientReviews = {
+        ...(action?.artifact_payload?.proposal_recipient_reviews || {}),
+        [recipientTeam]: {
+            status: 'approved_forwarded',
+            thread_id: threadId,
+            communication_id: communication.id,
+            approved_at: timestamp,
+            approved_by_role: grant.role
+        }
+    };
+    let updatedAction = {
+        ...action,
+        artifact_payload: {
+            ...(action.artifact_payload || {}),
+            proposal_recipient_reviews: recipientReviews
         },
         updated_at: timestamp
     };
@@ -2139,101 +2197,158 @@ function operatorReviewProposal(state, params) {
         entry.id === updatedAction.id ? updatedAction : entry
     ));
 
-    const reviewLabel = {
-        forward_to_recipient: `Forwarded to ${recipientTeam.charAt(0).toUpperCase()}${recipientTeam.slice(1)} Team`,
-        request_changes: 'Changes requested',
-        reject: 'Rejected'
-    }[decision];
-    const reviewTimeline = normalizeInsertRow('timeline', {
-        session_id: updatedAction.session_id,
-        move: updatedAction.move,
-        phase: updatedAction.phase,
+    const timeline = normalizeInsertRow('timeline', {
+        session_id: action.session_id,
+        move: action.move,
+        phase: action.phase,
         team: 'white_cell',
-        type: 'ACTION_ADJUDICATED',
-        content: `Proposal review recorded: ${reviewLabel}`,
+        type: 'PROPOSAL_FORWARDED',
+        content: `${action.team} Team proposal independently approved for ${recipientTeam} Team.`,
+        client_id: authUserId,
         metadata: {
-            related_id: updatedAction.id,
-            proposal_review_decision: decision,
-            proposal_recipient_team: persistedRecipient || recipientTeam || null,
+            related_id: action.id,
+            source_team: action.team,
+            recipient_team: recipientTeam,
+            thread_id: threadId,
+            source_revision: revisionNumber,
+            review_decision: 'forward_to_recipient',
+            review_stage: 'approved_forwarded',
             proposal: true
         }
     }, state);
-    state.tables.timeline.push(reviewTimeline);
+    state.tables.timeline.push(timeline);
 
-    let communication = null;
-    const timelineEvents = [reviewTimeline];
-    if (decision === 'forward_to_recipient') {
-        const originators = readLegacyActionList(updatedAction.ally_contingencies, 'Originators');
-        const instruments = readLegacyActionList(updatedAction.ally_contingencies, 'Instruments');
-        const communicationResult = operatorSendCommunication(state, {
-            requested_session_id: updatedAction.session_id,
-            requested_to_role: recipientTeam,
-            requested_type: 'PROPOSAL_FORWARDED',
-            requested_title: updatedAction.goal || null,
-            requested_content: `Forwarded ${updatedAction.team} Team proposal after White Cell review: ${updatedAction.goal || 'Untitled proposal'}`,
-            requested_metadata: {
-                source_proposal_id: updatedAction.id,
-                source_team: updatedAction.team,
-                recipient_team: recipientTeam,
-                outcome,
-                review_decision: decision,
-                review_stage: 'forwarded_to_recipient',
-                proposal: {
-                    title: updatedAction.goal || null,
-                    originators,
-                    objective: readLegacyActionDetail(updatedAction.ally_contingencies, 'Objective'),
-                    instruments,
-                    category: readLegacyActionDetail(updatedAction.ally_contingencies, 'Category'),
-                    intendedPartners: readLegacyActionDetail(updatedAction.ally_contingencies, 'Intended Partners'),
-                    recipientTeams: readLegacyActionList(updatedAction.ally_contingencies, 'Recipient Teams'),
-                    focusSector: updatedAction.sector || null,
-                    focusSectors: readLegacyActionList(updatedAction.ally_contingencies, 'Focus Sectors'),
-                    supplyChainFocusDecision: readLegacyActionDetail(updatedAction.ally_contingencies, 'Supply Chain Focus Decision'),
-                    supplyChainActionAngles: readLegacyActionList(updatedAction.ally_contingencies, 'Supply Chain Action Angles'),
-                    supplyChainAreas: readLegacyActionList(updatedAction.ally_contingencies, 'Supply Chain Areas'),
-                    industryFocus: readLegacyActionDetail(updatedAction.ally_contingencies, 'Industry Focus'),
-                    countryFocus: readLegacyActionDetail(updatedAction.ally_contingencies, 'Country Focus'),
-                    proposedActivity: readLegacyActionDetail(updatedAction.ally_contingencies, 'Proposed Activity'),
-                    delivery: readLegacyActionDetail(updatedAction.ally_contingencies, 'Delivery'),
-                    timingAndConditions: readLegacyActionDetail(updatedAction.ally_contingencies, 'Timing And Conditions'),
-                    expectedOutcomes: updatedAction.expected_outcomes || null
-                },
-                proposal_recipient_state: { status: 'unread', updated_at: timestamp }
-            }
+    const approvedRecipients = new Set(state.tables.communications
+        .filter((entry) => (
+            entry.type === 'PROPOSAL_FORWARDED'
+            && entry.metadata?.source_proposal_id === action.id
+        ))
+        .map((entry) => normalizeTeamId(entry.metadata?.recipient_team)));
+    if (intendedRecipients.every((team) => approvedRecipients.has(team))) {
+        const completion = operatorReviewArtifact(state, {
+            requested_artifact_kind: 'action',
+            requested_artifact_id: action.id,
+            requested_review_decision: 'complete',
+            requested_team: normalizeTeamId(action.team),
+            requested_expected_revision: revisionNumber,
+            requested_reviewer_notes: params?.requested_adjudication_notes || null
         });
-        if (communicationResult.error) return communicationResult;
-        communication = communicationResult.data;
-
-        const forwardTimeline = normalizeInsertRow('timeline', {
-            session_id: updatedAction.session_id,
-            move: updatedAction.move,
-            phase: updatedAction.phase,
-            team: 'white_cell',
-            type: 'PROPOSAL_FORWARDED',
-            content: `${updatedAction.team} Team proposal forwarded to ${recipientTeam} Team after White Cell approval: ${updatedAction.goal || 'Untitled proposal'}`,
-            metadata: {
-                related_id: updatedAction.id,
-                source_team: updatedAction.team,
-                recipient_team: recipientTeam,
-                outcome,
-                review_decision: decision,
-                review_stage: 'forwarded_to_recipient',
-                proposal: true
-            }
-        }, state);
-        state.tables.timeline.push(forwardTimeline);
-        timelineEvents.push(forwardTimeline);
+        if (completion.error) return completion;
+        updatedAction = completion.data.artifact;
     }
 
     return {
         data: {
             action: cloneValue(updatedAction),
             communication: cloneValue(communication),
-            timeline_events: cloneValue(timelineEvents),
+            timeline_events: [cloneValue(timeline)],
+            recipient_team: recipientTeam,
             idempotent_replay: false
         },
         error: null
     };
+}
+
+function appendProposalThreadMessage(state, params) {
+    const authUserId = getCurrentAuthUserId();
+    const parent = state.tables.communications.find((entry) => (
+        entry.id === params?.requested_parent_message_id
+    ));
+    const content = String(params?.requested_content || '').trim();
+    const messageType = String(params?.requested_message_type || '').trim().toLowerCase();
+    const facilitatorDecision = String(params?.requested_facilitator_decision || '').trim().toLowerCase() || null;
+    const clientMessageId = String(params?.requested_client_message_id || '').trim() || null;
+
+    if (!parent || !parent.metadata?.thread_id) {
+        return { data: null, error: { message: 'Proposal thread parent message not found.' } };
+    }
+    if (!content) return { data: null, error: { message: 'Parent message and content are required.' } };
+    if (!['recipient_response', 'negotiation_message', 'thread_closed'].includes(messageType)) {
+        return { data: null, error: { message: 'Unsupported proposal thread message type.' } };
+    }
+    if (facilitatorDecision && !['accept', 'not_interested', 'negotiate'].includes(facilitatorDecision)) {
+        return { data: null, error: { message: 'Unsupported proposal response decision.' } };
+    }
+
+    const participantTeam = getLiveDemoParticipantTeam(state, authUserId, parent.session_id);
+    const participantRole = getLiveDemoParticipantRole(state, authUserId, parent.session_id);
+    const participantSurface = getLiveDemoParticipantSurface(state, authUserId, parent.session_id);
+    const sourceTeam = normalizeTeamId(parent.metadata.source_team);
+    const recipientTeam = normalizeTeamId(parent.metadata.recipient_team);
+    const senderTeam = normalizeTeamId(parent.metadata.sender_team);
+    if (
+        !authUserId
+        || !['facilitator', 'scribe'].includes(participantSurface)
+        || ![sourceTeam, recipientTeam].includes(participantTeam)
+    ) {
+        return { data: null, error: { message: 'Proposal thread access is restricted to its two teams.' } };
+    }
+    if (clientMessageId) {
+        const existing = state.tables.communications.find((entry) => (
+            entry.metadata?.client_message_id === clientMessageId
+        ));
+        if (existing) {
+            if (
+                existing.metadata.thread_id !== parent.metadata.thread_id
+                || normalizeTeamId(existing.metadata.sender_team) !== participantTeam
+            ) {
+                return { data: null, error: { message: 'Client message ID belongs to another proposal thread.' } };
+            }
+            return { data: cloneValue(existing), error: null };
+        }
+    }
+    if (participantTeam === senderTeam) {
+        return { data: null, error: { message: 'The other thread participant must answer the latest round.' } };
+    }
+
+    const messages = state.tables.communications
+        .filter((entry) => (
+            entry.metadata?.thread_id === parent.metadata.thread_id
+            && normalizeTeamId(entry.metadata?.recipient_team) === recipientTeam
+        ))
+        .sort((left, right) => Number(right.metadata.round_number) - Number(left.metadata.round_number));
+    const latest = messages[0];
+    if (latest?.id !== parent.id) {
+        return { data: null, error: { message: 'A newer proposal thread round already exists.' } };
+    }
+    if (latest.metadata.message_type === 'thread_closed') {
+        return { data: null, error: { message: 'Closed proposal threads are immutable.' } };
+    }
+    if (Number(parent.metadata.round_number) === 0 && participantTeam !== recipientTeam) {
+        return { data: null, error: { message: 'The addressed recipient must send the first response.' } };
+    }
+    if (participantTeam === sourceTeam && messageType === 'recipient_response') {
+        return { data: null, error: { message: 'The proposing team must use a negotiation follow-up or close the thread.' } };
+    }
+
+    const timestamp = getTimestamp();
+    const communication = normalizeInsertRow('communications', {
+        session_id: parent.session_id,
+        move: parent.move,
+        from_role: participantRole,
+        to_role: participantTeam === sourceTeam ? recipientTeam : sourceTeam,
+        type: 'PROPOSAL_RESPONSE',
+        title: parent.title || null,
+        content,
+        client_id: authUserId,
+        metadata: {
+            thread_id: parent.metadata.thread_id,
+            recipient_team: recipientTeam,
+            round_number: Number(parent.metadata.round_number) + 1,
+            parent_message_id: parent.id,
+            source_proposal_id: parent.metadata.source_proposal_id,
+            source_revision: Number(parent.metadata.source_revision),
+            source_team: sourceTeam,
+            sender_team: participantTeam,
+            sender_role: participantRole,
+            sent_at: timestamp,
+            message_type: messageType,
+            facilitator_decision: facilitatorDecision,
+            client_message_id: clientMessageId
+        }
+    }, state);
+    state.tables.communications.push(communication);
+    return { data: cloneValue(communication), error: null };
 }
 
 function operatorAnswerRequest(state, params) {
@@ -2342,6 +2457,9 @@ function updateProposalRecipientStatus(state, params) {
 
     if (communication.type !== 'PROPOSAL_FORWARDED') {
         return { data: null, error: { message: 'Only forwarded proposals can update recipient state.' } };
+    }
+    if (communication.metadata?.thread_id) {
+        return { data: null, error: { message: 'Proposal threads are append-only; append a new message instead.' } };
     }
 
     const participantSurface = getLiveDemoParticipantSurface(state, authUserId, communication.session_id);
@@ -2810,7 +2928,11 @@ export function createE2EMockSupabaseClient() {
             }
 
             if (functionName === 'operator_review_proposal') {
-                return mutateMockState((state) => operatorReviewProposal(state, params));
+                return mutateMockState((state) => operatorReviewProposalThreaded(state, params));
+            }
+
+            if (functionName === 'append_proposal_thread_message') {
+                return mutateMockState((state) => appendProposalThreadMessage(state, params));
             }
 
             if (functionName === 'operator_answer_request') {
@@ -2903,13 +3025,14 @@ export function createE2EMockSupabaseClient() {
             },
             async signInAnonymously(credentials = {}) {
                 const timestamp = Date.now();
+                const authSequence = ++mockAnonymousAuthSequence;
                 const session = {
-                    access_token: `mock_access_${timestamp}`,
-                    refresh_token: `mock_refresh_${timestamp}`,
+                    access_token: `mock_access_${timestamp}_${authSequence}`,
+                    refresh_token: `mock_refresh_${timestamp}_${authSequence}`,
                     expires_at: Math.floor(timestamp / 1000) + 3600,
                     token_type: 'bearer',
                     user: {
-                        id: `anon_${timestamp}`,
+                        id: `anon_${timestamp}_${authSequence}`,
                         is_anonymous: true,
                         user_metadata: cloneValue(credentials?.options?.data || {})
                     }
@@ -2924,6 +3047,10 @@ export function createE2EMockSupabaseClient() {
                     },
                     error: null
                 };
+            },
+            async signOut() {
+                writeMockAuthSession(null);
+                return { error: null };
             }
         }
     };

@@ -41,16 +41,23 @@ import {
     isStrategicOrientationAction
 } from '../features/actions/strategicOrientationDetails.js';
 import {
+    PROPOSAL_RECIPIENT_APPROVAL_STATUS,
     getProposalViewModel,
     isProposalAction
 } from '../features/actions/proposalDetails.js';
 import {
     PROPOSAL_RECIPIENT_STATUSES,
+    getLatestProposalThreadMessage,
+    getProposalThreadForRecipient,
+    getProposalThreadMessageKey,
+    getProposalThreadMetadata,
+    getProposalThreadStatus,
     formatProposalRecipientStatus,
     getProposalRecipientEntry,
     getProposalRecipientStatus,
     getProposalResponseEntry,
-    isProposalNegotiationRequest
+    isProposalNegotiationRequest,
+    isProposalThreadMessage
 } from '../features/actions/proposalRecipientState.js';
 import {
     buildJsonExportPayload,
@@ -1191,6 +1198,8 @@ export class WhiteCellController {
         this.rfiHistory = [];
         this.rfiActiveView = 'pending';
         this.communications = [];
+        this.seenProposalThreadRoundKeys = new Set();
+        this.hasHydratedProposalThreadRounds = false;
         this.tribeStreetJournalEntries = [];
         this.verbaAiUpdates = [];
         this.scribeDeckAssignments = buildWhiteCellScribeDeckAssignments();
@@ -1921,9 +1930,12 @@ export class WhiteCellController {
         );
 
         this.storeUnsubscribers.push(
-            communicationsStore.subscribe(() => {
+            communicationsStore.subscribe((event, payload) => {
                 this.syncActionsFromStore();
-                this.syncCommunicationsFromStore();
+                this.syncCommunicationsFromStore({
+                    announceThreadRounds: event === 'created' || event === 'reconciled',
+                    changedCommunications: Array.isArray(payload) ? payload : [payload]
+                });
             })
         );
 
@@ -3103,7 +3115,7 @@ export class WhiteCellController {
         `;
     }
 
-    getForwardedProposalCommunication(action = null) {
+    getForwardedProposalCommunication(action = null, recipientTeam = '') {
         if (!action?.id) {
             return null;
         }
@@ -3112,6 +3124,7 @@ export class WhiteCellController {
             .filter((communication) => (
                 communication?.type === 'PROPOSAL_FORWARDED'
                 && communication?.metadata?.source_proposal_id === action.id
+                && (!recipientTeam || communication?.metadata?.recipient_team === recipientTeam)
             ))
             .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))[0] || null;
     }
@@ -3138,7 +3151,7 @@ export class WhiteCellController {
         );
     }
 
-    renderProposalRecipientState(action = null) {
+    renderLegacyProposalRecipientState(action = null) {
         const forwardedCommunication = this.getForwardedProposalCommunication(action);
         if (!forwardedCommunication) {
             return '';
@@ -3206,51 +3219,101 @@ export class WhiteCellController {
         `;
     }
 
+    renderProposalRecipientState(action = null) {
+        const proposal = getProposalViewModel(action || {});
+        const recipients = proposal.recipientTeams?.length
+            ? proposal.recipientTeams
+            : (proposal.recipientTeam ? [proposal.recipientTeam] : []);
+
+        if (!recipients.length) {
+            return '<p class="text-sm text-gray-500" style="margin-top: var(--space-3);">No intended recipient is recorded.</p>';
+        }
+
+        const legacyForwarded = this.getForwardedProposalCommunication(action);
+        if (legacyForwarded && !isProposalThreadMessage(legacyForwarded)) {
+            return this.renderLegacyProposalRecipientState(action);
+        }
+
+        return recipients.map((recipientTeam) => {
+            const recipientLabel = this.formatProposalRecipientTeamLabel(recipientTeam);
+            const messages = getProposalThreadForRecipient(
+                communicationsStore.getAll(),
+                action?.id,
+                recipientTeam
+            );
+            const persistedApproval = proposal.recipientApprovalStates?.[recipientTeam];
+            const status = messages.length
+                ? getProposalThreadStatus(messages)
+                : persistedApproval && persistedApproval !== PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING
+                    ? PROPOSAL_RECIPIENT_STATUSES.APPROVED_FORWARDED
+                    : PROPOSAL_RECIPIENT_STATUSES.PENDING_APPROVAL;
+            const statusLabel = formatProposalRecipientStatus(status);
+            const latest = getLatestProposalThreadMessage(messages);
+            const latestMetadata = getProposalThreadMetadata(latest);
+            const messageList = messages.length ? `
+                <ol class="proposal-thread-list" aria-label="${this.escapeHtml(`${recipientLabel} proposal thread`)}">
+                    ${messages.map((message) => {
+                        const thread = getProposalThreadMetadata(message);
+                        const senderLabel = this.formatProposalRecipientTeamLabel(thread.senderTeam);
+                        return `
+                            <li class="proposal-thread-message" data-thread-id="${this.escapeHtml(thread.threadId)}" data-thread-round="${thread.roundNumber}">
+                                <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
+                                    <strong>Round ${thread.roundNumber}</strong> &middot; ${this.escapeHtml(senderLabel)} &middot; ${this.escapeHtml(formatDateTime(thread.sentAt))}
+                                </p>
+                                <p class="text-sm" style="margin: 0;">${this.escapeHtml(message.content || '')}</p>
+                            </li>
+                        `;
+                    }).join('')}
+                </ol>
+            ` : status === PROPOSAL_RECIPIENT_STATUSES.APPROVED_FORWARDED
+                ? '<p class="text-sm text-gray-500" style="margin: var(--space-2) 0 0;">Approval is recorded; the recipient thread is synchronizing.</p>'
+                : '<p class="text-sm text-gray-500" style="margin: var(--space-2) 0 0;">White Cell has not approved this recipient yet.</p>';
+
+            return `
+                <section class="card card-bordered proposal-recipient-thread" style="margin-top: var(--space-3); padding: var(--space-3);" aria-labelledby="proposal-recipient-${this.escapeHtml(String(action?.id || 'proposal'))}-${this.escapeHtml(recipientTeam)}">
+                    <div style="display: flex; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;">
+                        <h4 id="proposal-recipient-${this.escapeHtml(String(action?.id || 'proposal'))}-${this.escapeHtml(recipientTeam)}" class="font-semibold" style="margin: 0;">${this.escapeHtml(recipientLabel)}</h4>
+                        <span class="text-xs font-semibold">${this.escapeHtml(statusLabel)}</span>
+                    </div>
+                    ${latestMetadata?.facilitatorDecision ? `<p class="text-xs text-gray-500" style="margin: var(--space-1) 0 0;"><strong>Latest decision:</strong> ${this.escapeHtml(latestMetadata.facilitatorDecision.replace(/_/g, ' '))}</p>` : ''}
+                    ${messageList}
+                </section>
+            `;
+        }).join('');
+    }
+
     getProposalReviewOptions(action = {}) {
         const proposalViewModel = getProposalViewModel(action);
-        const recipientTeam = ['blue', 'red'].includes(proposalViewModel.recipientTeam)
-            ? proposalViewModel.recipientTeam
-            : null;
-        const recipientLabel = recipientTeam
-            ? this.formatCommunicationRecipient(recipientTeam)
-            : 'the intended partner';
+        const recipientTeams = (proposalViewModel.recipientTeams?.length
+            ? proposalViewModel.recipientTeams
+            : [proposalViewModel.recipientTeam])
+            .filter((team) => ['blue', 'red'].includes(team));
+        const recipients = recipientTeams.map((team) => {
+            const messages = getProposalThreadForRecipient(
+                communicationsStore.getAll(),
+                action?.id,
+                team
+            );
+            const persistedApproval = proposalViewModel.recipientApprovalStates?.[team];
+            const approved = messages.length > 0
+                || (persistedApproval && persistedApproval !== PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING);
+            return {
+                team,
+                label: this.formatCommunicationRecipient(team),
+                status: messages.length
+                    ? getProposalThreadStatus(messages)
+                    : approved
+                        ? PROPOSAL_RECIPIENT_STATUSES.APPROVED_FORWARDED
+                        : PROPOSAL_RECIPIENT_STATUSES.PENDING_APPROVAL,
+                approved,
+                messages
+            };
+        });
 
         return {
             proposalViewModel,
-            recipientTeam,
-            recipientLabel,
-            decisions: [
-                {
-                    value: PROPOSAL_REVIEW_DECISIONS.FORWARD_TO_RECIPIENT,
-                    label: recipientTeam ? `Forward to ${recipientLabel}` : 'Forward to Intended Partner',
-                    outcome: 'SUCCESS',
-                    loaderMessage: recipientTeam
-                        ? `Forwarding proposal to ${recipientLabel}...`
-                        : 'Forwarding proposal...',
-                    timelineLabel: recipientTeam
-                        ? `Forwarded to ${recipientLabel}`
-                        : 'Forwarded to intended partner',
-                    successToast: recipientTeam
-                        ? `Proposal forwarded to ${recipientLabel}`
-                        : 'Proposal forwarded'
-                },
-                {
-                    value: PROPOSAL_REVIEW_DECISIONS.REQUEST_CHANGES,
-                    label: 'Request Changes',
-                    outcome: 'PARTIAL_SUCCESS',
-                    loaderMessage: 'Saving proposal review...',
-                    timelineLabel: 'Changes requested',
-                    successToast: 'Proposal review saved: changes requested'
-                },
-                {
-                    value: PROPOSAL_REVIEW_DECISIONS.REJECT,
-                    label: 'Reject Proposal',
-                    outcome: 'FAIL',
-                    loaderMessage: 'Saving proposal review...',
-                    timelineLabel: 'Rejected',
-                    successToast: 'Proposal rejected'
-                }
-            ]
+            recipients,
+            pendingRecipients: recipients.filter((recipient) => !recipient.approved)
         };
     }
 
@@ -4094,7 +4157,7 @@ export class WhiteCellController {
         });
     }
 
-    showProposalReviewModal(action) {
+    showLegacyProposalReviewModal(action) {
         const { proposalViewModel, recipientLabel, decisions } = this.getProposalReviewOptions(action);
         const content = document.createElement('div');
         const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
@@ -4161,6 +4224,79 @@ export class WhiteCellController {
                     onClick: () => {
                         this.handleProposalReview(modalRef.current, action).catch((err) => {
                             logger.error('Failed to submit proposal review:', err);
+                        });
+                        return false;
+                    }
+                }
+            ]
+        });
+    }
+
+    showProposalReviewModal(action) {
+        const { proposalViewModel, recipients, pendingRecipients } = this.getProposalReviewOptions(action);
+        const content = document.createElement('div');
+        const sequenceLabel = this.getBlueTeamActionSequenceLabel(action);
+        const recipientControls = recipients.map((recipient) => {
+            const inputId = `proposalRecipientApproval-${recipient.team}`;
+            return `
+                <div class="card card-bordered" style="padding: var(--space-3);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+                        <div>
+                            <p class="font-semibold" style="margin: 0;">${this.escapeHtml(recipient.label)}</p>
+                            <p class="text-xs text-gray-500" style="margin: var(--space-1) 0 0;">${this.escapeHtml(formatProposalRecipientStatus(recipient.status))}</p>
+                        </div>
+                        <label class="form-check" for="${inputId}">
+                            <input id="${inputId}" type="checkbox" name="proposalRecipientApproval" value="${recipient.team}" ${recipient.approved ? 'checked disabled' : ''}>
+                            <span class="form-check-label">${recipient.approved ? 'Already approved' : `Approve and forward to ${this.escapeHtml(recipient.label)}`}</span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        content.innerHTML = `
+            <div class="mb-4">
+                <h4 class="font-semibold">${this.escapeHtml(proposalViewModel.title)}</h4>
+                <p class="text-sm text-gray-500">${this.escapeHtml(action.mechanism || 'Proposal')} | ${this.escapeHtml(sequenceLabel)} | Phase ${action.phase || 1}</p>
+                ${this.renderProposalDetails(action)}
+                ${this.renderProposalRecipientState(action)}
+            </div>
+            <form id="proposalReviewForm">
+                <fieldset class="form-group" aria-describedby="proposalRecipientApprovalHint">
+                    <legend class="form-label">Independent recipient approvals</legend>
+                    <div style="display: grid; gap: var(--space-2);">${recipientControls}</div>
+                    <p class="form-hint" id="proposalRecipientApprovalHint">Each checked recipient is approved independently. Unchecked recipients remain pending and receive no communication.</p>
+                </fieldset>
+                <div class="form-group">
+                    <label class="form-label" for="adjudicationNotes">White Cell notes</label>
+                    <textarea id="adjudicationNotes" class="form-input form-textarea" rows="4" placeholder="Optional approval notes, or required notes when returning for changes."></textarea>
+                </div>
+            </form>
+        `;
+
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Review Proposal Recipients',
+            content,
+            size: 'lg',
+            buttons: [
+                { label: 'Cancel', variant: 'secondary', onClick: () => {} },
+                ...(pendingRecipients.length ? [{
+                    label: 'Send Back for Improvement',
+                    variant: 'secondary',
+                    onClick: () => {
+                        this.handleProposalReview(modalRef.current, action, { returnForChanges: true }).catch((error) => {
+                            logger.error('Failed to return proposal for changes:', error);
+                        });
+                        return false;
+                    }
+                }] : []),
+                {
+                    label: 'Apply Recipient Approvals',
+                    variant: 'primary',
+                    onClick: () => {
+                        this.handleProposalReview(modalRef.current, action).catch((error) => {
+                            logger.error('Failed to approve proposal recipients:', error);
                         });
                         return false;
                     }
@@ -4284,7 +4420,7 @@ export class WhiteCellController {
         }
     }
 
-    async handleProposalReview(modal, action) {
+    async handleLegacyProposalReview(modal, action) {
         const selectedDecision = document.querySelector('input[name="proposalReviewDecision"]:checked')?.value;
         const notes = document.getElementById('adjudicationNotes')?.value?.trim();
 
@@ -4379,6 +4515,83 @@ export class WhiteCellController {
             showToast({ message: 'Failed to submit proposal review', type: 'error' });
         } finally {
             hideLoader();
+        }
+    }
+
+    async handleProposalReview(modal, action, { returnForChanges = false } = {}) {
+        const notes = document.getElementById('adjudicationNotes')?.value?.trim() || '';
+        const reviewOptions = this.getProposalReviewOptions(action);
+
+        if (returnForChanges) {
+            if (!notes) {
+                showToast({ message: 'Reviewer notes are required when returning a proposal', type: 'error' });
+                return;
+            }
+            if (reviewOptions.recipients.some((recipient) => recipient.approved)) {
+                showToast({ message: 'A proposal already forwarded to a recipient cannot be returned for revision.', type: 'error' });
+                return;
+            }
+
+            const loader = showLoader({ message: 'Returning proposal for improvement...' });
+            try {
+                const result = await database.returnArtifactToTeam('action', action.id, {
+                    team: action.team,
+                    expectedRevision: Number(action.revision_number || 1),
+                    notes
+                });
+                actionsStore.updateFromServer('UPDATE', result.artifact);
+                this.retainWorkflowReview(result.review);
+                showToast({ message: 'Proposal sent back for improvement', type: 'success' });
+                modal?.close();
+            } catch (error) {
+                logger.error('Failed to return proposal for improvement:', error);
+                showToast({ message: `Failed to return proposal. ${getUserMessage(error)}`, type: 'error' });
+            } finally {
+                hideLoader(loader);
+            }
+            return;
+        }
+
+        const selectedRecipients = Array.from(
+            document.querySelectorAll('input[name="proposalRecipientApproval"]:checked:not(:disabled)') || []
+        ).map((input) => input.value).filter((team) => ['blue', 'red'].includes(team));
+        if (!selectedRecipients.length) {
+            showToast({ message: 'Select at least one pending recipient to approve', type: 'error' });
+            return;
+        }
+
+        const loader = showLoader({ message: 'Applying independent recipient approvals...' });
+        try {
+            const results = [];
+            for (const recipientTeam of selectedRecipients) {
+                const result = await database.reviewProposal(action.id, {
+                    decision: PROPOSAL_REVIEW_DECISIONS.FORWARD_TO_RECIPIENT,
+                    recipient_team: recipientTeam,
+                    adjudication_notes: notes || null,
+                    expected_revision: Number(action.revision_number || 1)
+                });
+                results.push(result);
+                if (result?.communication) {
+                    communicationsStore.updateFromServer('INSERT', result.communication);
+                }
+                (result?.timeline_events || []).forEach((event) => {
+                    if (event) timelineStore.updateFromServer('INSERT', event);
+                });
+            }
+
+            const updatedAction = results.at(-1)?.action;
+            if (updatedAction) actionsStore.updateFromServer('UPDATE', updatedAction);
+            const labels = selectedRecipients.map((team) => this.formatCommunicationRecipient(team));
+            showToast({
+                message: `Proposal approved and forwarded to ${labels.join(' and ')}.`,
+                type: 'success'
+            });
+            modal?.close();
+        } catch (error) {
+            logger.error('Failed to approve proposal recipient:', error);
+            showToast({ message: `Failed to approve recipient. ${getUserMessage(error)}`, type: 'error' });
+        } finally {
+            hideLoader(loader);
         }
     }
 
@@ -4862,8 +5075,14 @@ export class WhiteCellController {
         }
     }
 
-    syncCommunicationsFromStore() {
+    syncCommunicationsFromStore({
+        announceThreadRounds = false,
+        changedCommunications = []
+    } = {}) {
         this.communications = communicationsStore.getAll();
+        this.captureProposalThreadRoundNotifications(changedCommunications, {
+            announce: announceThreadRounds
+        });
         this.scribeDeckAssignments = buildWhiteCellScribeDeckAssignments(this.communications);
         this.verbaAiUpdates = this.communications
             .filter((communication) => (
@@ -4874,6 +5093,41 @@ export class WhiteCellController {
         this.renderCommunicationHistory();
         this.renderScribeDeckSettings();
         this.renderVerbaAiList();
+    }
+
+    captureProposalThreadRoundNotifications(changedCommunications = [], { announce = false } = {}) {
+        const allRounds = this.communications.filter((communication) => {
+            const thread = getProposalThreadMetadata(communication);
+            return thread && thread.roundNumber > 0;
+        });
+        const changedKeys = new Set((changedCommunications || [])
+            .map((message) => getProposalThreadMessageKey(message))
+            .filter(Boolean));
+
+        if (!this.hasHydratedProposalThreadRounds) {
+            this.seenProposalThreadRoundKeys = new Set(allRounds
+                .map((message) => getProposalThreadMessageKey(message))
+                .filter((key) => key && (!announce || !changedKeys.has(key))));
+            this.hasHydratedProposalThreadRounds = true;
+            if (!announce) return;
+        }
+
+        allRounds.forEach((message) => {
+            const roundKey = getProposalThreadMessageKey(message);
+            if (!roundKey || this.seenProposalThreadRoundKeys.has(roundKey)) return;
+            this.seenProposalThreadRoundKeys.add(roundKey);
+            if (!announce || (changedKeys.size && !changedKeys.has(roundKey))) return;
+
+            const thread = getProposalThreadMetadata(message);
+            const senderLabel = this.formatProposalRecipientTeamLabel(thread.senderTeam);
+            if (!this.notificationsMuted) {
+                showToast({
+                    message: `New proposal thread round ${thread.roundNumber} from ${senderLabel} for ${this.formatProposalRecipientTeamLabel(thread.recipientTeam)}.`,
+                    type: 'warning',
+                    duration: 10000
+                });
+            }
+        });
     }
 
     syncParticipantsFromStore() {
@@ -5876,6 +6130,7 @@ export class WhiteCellController {
             ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_COMMUNICATION_RENDER_LIMIT} of ${this.communications.length} communications.</p>` : ''}
             ${visibleCommunications.map((communication) => {
             const isOutbound = communication.from_role === 'white_cell';
+            const thread = getProposalThreadMetadata(communication);
             const isNegotiationRequest = isProposalNegotiationRequest(communication);
             const counterpartLabel = isOutbound
                 ? `To ${this.formatCommunicationRecipient(communication.to_role)}`
@@ -5888,9 +6143,9 @@ export class WhiteCellController {
                             <p class="text-sm font-semibold">${this.escapeHtml(counterpartLabel)}</p>
                             <p class="text-xs text-gray-500">${formatRelativeTime(communication.created_at)}</p>
                         </div>
-                        ${createBadge({ text: isNegotiationRequest ? 'NEGOTIATION REQUESTED' : (communication.type || 'MESSAGE'), size: 'sm' }).outerHTML}
+                        ${createBadge({ text: thread ? `THREAD ROUND ${thread.roundNumber}` : (isNegotiationRequest ? 'NEGOTIATION REQUESTED' : (communication.type || 'MESSAGE')), size: 'sm' }).outerHTML}
                     </div>
-                    ${isNegotiationRequest ? '<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">Negotiation terms</p>' : ''}
+                    ${thread ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">${this.escapeHtml(this.formatProposalRecipientTeamLabel(thread.recipientTeam))} thread &middot; ${this.escapeHtml(thread.messageType.replace(/_/g, ' '))}</p>` : (isNegotiationRequest ? '<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">Negotiation terms</p>' : '')}
                     <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
                 </div>
             `;

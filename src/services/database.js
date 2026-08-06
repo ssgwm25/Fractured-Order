@@ -1613,13 +1613,49 @@ export const database = {
         await ensureAuthenticatedBrowser();
         const { data, error } = await supabase.rpc('operator_review_proposal', {
             requested_action_id: actionId,
-            requested_review_decision: review.decision,
+            requested_review_decision: review.decision || 'forward_to_recipient',
             requested_recipient_team: review.recipient_team || null,
-            requested_adjudication_notes: review.adjudication_notes || null
+            requested_adjudication_notes: review.adjudication_notes || null,
+            requested_expected_revision: review.expected_revision || null
         });
 
         if (error) {
             throw fromSupabaseError(error, 'reviewProposal');
+        }
+
+        return data;
+    },
+
+    /**
+     * Append one immutable round to a recipient-scoped proposal thread.
+     * The RPC derives all routing and source fields from the locked parent row.
+     */
+    async appendProposalThreadMessage(parentMessageId, {
+        content,
+        messageType,
+        facilitatorDecision = null,
+        clientMessageId = null
+    } = {}) {
+        const normalizedContent = String(content || '').trim();
+        const normalizedMessageType = String(messageType || '').trim().toLowerCase();
+        if (!parentMessageId) {
+            throw new DatabaseError('Proposal thread parent message is required', 'appendProposalThreadMessage');
+        }
+        if (!normalizedContent) {
+            throw new DatabaseError('Proposal thread message content is required', 'appendProposalThreadMessage');
+        }
+
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('append_proposal_thread_message', {
+            requested_parent_message_id: parentMessageId,
+            requested_content: normalizedContent,
+            requested_message_type: normalizedMessageType,
+            requested_facilitator_decision: facilitatorDecision || null,
+            requested_client_message_id: clientMessageId || null
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'appendProposalThreadMessage');
         }
 
         return data;

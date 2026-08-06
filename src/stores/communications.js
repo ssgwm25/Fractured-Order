@@ -9,9 +9,29 @@
  */
 
 import { database } from '../services/database.js';
+import { getProposalThreadMessageKey } from '../features/actions/proposalRecipientState.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('CommunicationsStore');
+
+function getCommunicationIdentity(communication = {}) {
+    return getProposalThreadMessageKey(communication)
+        || (communication?.id ? `communication:${communication.id}` : null);
+}
+
+function deduplicateCommunications(communications = []) {
+    const byIdentity = new Map();
+    (communications || []).forEach((communication) => {
+        const identity = getCommunicationIdentity(communication);
+        if (!identity) return;
+
+        const existing = byIdentity.get(identity);
+        if (!existing || String(communication.id || '').localeCompare(String(existing.id || '')) < 0) {
+            byIdentity.set(identity, communication);
+        }
+    });
+    return Array.from(byIdentity.values());
+}
 
 class CommunicationsStore {
     constructor() {
@@ -64,7 +84,7 @@ class CommunicationsStore {
 
         try {
             const data = await database.fetchCommunications(this.sessionId);
-            this.communications = (data || []).sort(
+            this.communications = deduplicateCommunications(data || []).sort(
                 (left, right) => new Date(right.created_at) - new Date(left.created_at)
             );
             this.notify('loaded', this.getAll());
@@ -93,14 +113,14 @@ class CommunicationsStore {
         try {
             const communicationsAtQueryStart = new Map(
                 this.communications
-                    .filter((communication) => communication?.id)
-                    .map((communication) => [communication.id, communication])
+                    .filter((communication) => getCommunicationIdentity(communication))
+                    .map((communication) => [getCommunicationIdentity(communication), communication])
             );
             const fetchedCommunications = await database.fetchCommunications(this.sessionId) || [];
             const reconciledById = new Map(
-                fetchedCommunications
-                    .filter((communication) => communication?.id)
-                    .map((communication) => [communication.id, communication])
+                deduplicateCommunications(fetchedCommunications)
+                    .filter((communication) => getCommunicationIdentity(communication))
+                    .map((communication) => [getCommunicationIdentity(communication), communication])
             );
 
             // Preserve rows inserted or replaced by realtime while the query
@@ -109,16 +129,19 @@ class CommunicationsStore {
                 if (
                     communication?.id
                     && (
-                        !reconciledById.has(communication.id)
-                        || communicationsAtQueryStart.get(communication.id) !== communication
+                        !reconciledById.has(getCommunicationIdentity(communication))
+                        || communicationsAtQueryStart.get(getCommunicationIdentity(communication)) !== communication
                     )
                 ) {
-                    reconciledById.set(communication.id, communication);
+                    reconciledById.set(getCommunicationIdentity(communication), communication);
                 }
             });
 
             const discovered = fetchedCommunications.filter(
-                (communication) => communication?.id && !communicationsAtQueryStart.has(communication.id)
+                (communication) => (
+                    getCommunicationIdentity(communication)
+                    && !communicationsAtQueryStart.has(getCommunicationIdentity(communication))
+                )
             );
 
             this.communications = Array.from(reconciledById.values()).sort((left, right) => (
@@ -163,7 +186,10 @@ class CommunicationsStore {
     updateFromServer(eventType, communication) {
         switch (eventType) {
             case 'INSERT':
-                if (!this.communications.find((entry) => entry.id === communication.id)) {
+                if (!this.communications.find((entry) => (
+                    entry.id === communication.id
+                    || getCommunicationIdentity(entry) === getCommunicationIdentity(communication)
+                ))) {
                     this.communications.unshift(communication);
                     this.communications.sort((left, right) => new Date(right.created_at) - new Date(left.created_at));
                     this.notify('created', communication);

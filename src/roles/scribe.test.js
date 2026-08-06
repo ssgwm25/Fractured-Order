@@ -21,6 +21,7 @@ const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
 
 const {
     mockConfirmModal,
+    mockAppendProposalThreadMessage,
     mockCreateCommunication,
     mockCreateTimelineEvent,
     mockHideLoader,
@@ -32,6 +33,7 @@ const {
     mockUpdateProposalRecipientStatus
 } = vi.hoisted(() => ({
     mockConfirmModal: vi.fn(),
+    mockAppendProposalThreadMessage: vi.fn(),
     mockCreateCommunication: vi.fn(),
     mockCreateTimelineEvent: vi.fn(),
     mockHideLoader: vi.fn(),
@@ -82,6 +84,7 @@ vi.mock('../components/ui/Modal.js', () => ({
 vi.mock('../services/database.js', () => ({
     database: {
         createCommunication: mockCreateCommunication,
+        appendProposalThreadMessage: mockAppendProposalThreadMessage,
         updateDraftAction: mockUpdateDraftAction,
         updateProposalRecipientStatus: mockUpdateProposalRecipientStatus,
         submitAction: mockSubmitAction,
@@ -1319,27 +1322,39 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(getFacilitatorProposalDecisionContract(
             FACILITATOR_PROPOSAL_DECISIONS.ACCEPT
         )).toEqual({
-            status: 'responded',
             label: 'Accepted',
             responseContent: 'Accepted',
-            timelineType: 'PROPOSAL_RESPONDED'
+            messageType: 'recipient_response'
         });
         expect(getFacilitatorProposalDecisionContract(
             FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED
         )).toEqual({
-            status: 'declined',
             label: 'Not Interested',
             responseContent: 'Not Interested',
-            timelineType: 'PROPOSAL_DECLINED'
+            messageType: 'recipient_response'
         });
         expect(getFacilitatorProposalDecisionContract(
             FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE,
             '  Add a six-month review clause.  '
         )).toEqual({
-            status: 'responded',
             label: 'Negotiation requested',
             responseContent: 'Add a six-month review clause.',
-            timelineType: 'PROPOSAL_RESPONDED'
+            messageType: 'negotiation_message'
+        });
+        expect(getFacilitatorProposalDecisionContract(
+            FACILITATOR_PROPOSAL_DECISIONS.REPLY,
+            '  The proposing team accepts the checkpoint.  '
+        )).toEqual({
+            label: 'Follow-up sent',
+            responseContent: 'The proposing team accepts the checkpoint.',
+            messageType: 'negotiation_message'
+        });
+        expect(getFacilitatorProposalDecisionContract(
+            FACILITATOR_PROPOSAL_DECISIONS.CLOSE
+        )).toEqual({
+            label: 'Thread closed',
+            responseContent: 'Proposal thread closed.',
+            messageType: 'thread_closed'
         });
         expect(getFacilitatorProposalDecisionContract('unsupported')).toBeNull();
     });
@@ -1349,14 +1364,28 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             FACILITATOR_PROPOSAL_DECISIONS,
             ScribeController
         } = await loadScribeModule();
+        const { communicationsStore } = await import('../stores/communications.js');
         global.document = createFakeDocument();
         const communication = {
             id: 'proposal-direct-response-1',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-08-06T12:00:00.000Z',
             metadata: {
                 proposal: { title: 'Direct Response Proposal' },
-                proposal_recipient_state: { status: 'unread' }
+                thread_id: 'thread-direct-1',
+                recipient_team: 'blue',
+                round_number: 0,
+                parent_message_id: null,
+                source_proposal_id: 'source-proposal-1',
+                source_revision: 1,
+                source_team: 'green',
+                sender_team: 'white_cell',
+                sender_role: 'whitecell_lead',
+                sent_at: '2026-08-06T12:00:00.000Z',
+                message_type: 'proposal_forwarded'
             }
         };
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([communication]);
         const controller = new ScribeController();
         controller.receivedProposals = [communication];
         controller.submitFacilitatorProposalDecision = vi.fn().mockResolvedValue(true);
@@ -1411,30 +1440,24 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             to_role: 'blue',
             metadata: {
                 source_proposal_id: 'source-proposal-1',
+                source_revision: 1,
                 source_team: 'green',
                 recipient_team: 'blue',
+                thread_id: 'thread-blue-1',
+                round_number: 0,
+                parent_message_id: null,
+                sender_team: 'white_cell',
+                sender_role: 'whitecell_lead',
+                sent_at: '2026-08-06T12:00:00.000Z',
+                message_type: 'proposal_forwarded',
                 proposal: { title: 'Regional Logistics Compact' },
-                proposal_recipient_state: { status: 'unread' }
             }
         };
         const responseCommunication = { id: 'proposal-response-1', type: 'PROPOSAL_RESPONSE' };
-        const updatedProposal = {
-            ...communication,
-            metadata: {
-                ...communication.metadata,
-                proposal_recipient_state: {
-                    status: 'responded',
-                    facilitator_decision: 'negotiate',
-                    response_content: 'Add a six-month review clause.'
-                }
-            }
-        };
         vi.spyOn(communicationsStore, 'getAll').mockReturnValue([communication]);
         const communicationsUpdateSpy = vi.spyOn(communicationsStore, 'updateFromServer');
         const timelineUpdateSpy = vi.spyOn(timelineStore, 'updateFromServer');
-        mockCreateCommunication.mockResolvedValue(responseCommunication);
-        mockUpdateProposalRecipientStatus.mockResolvedValue(updatedProposal);
-        mockCreateTimelineEvent.mockResolvedValue({ id: 'timeline-proposal-negotiation-1' });
+        mockAppendProposalThreadMessage.mockResolvedValue(responseCommunication);
         const controller = new ScribeController();
         controller.role = 'blue_scribe';
         controller.teamId = 'blue';
@@ -1446,35 +1469,15 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         );
 
         expect(saved).toBe(true);
-        expect(mockCreateCommunication).toHaveBeenCalledWith(expect.objectContaining({
-            session_id: 'session-proposal-1',
-            from_role: 'blue_scribe',
-            to_role: 'white_cell',
-            type: 'PROPOSAL_RESPONSE',
+        expect(mockAppendProposalThreadMessage).toHaveBeenCalledWith('proposal-negotiation-1', expect.objectContaining({
             content: 'Add a six-month review clause.',
-            metadata: expect.objectContaining({
-                source_proposal_id: 'source-proposal-1',
-                source_communication_id: 'proposal-negotiation-1',
-                facilitator_decision: 'negotiate'
-            })
-        }));
-        expect(mockUpdateProposalRecipientStatus).toHaveBeenCalledWith(
-            'proposal-negotiation-1',
-            'responded',
-            expect.objectContaining({
-                facilitator_decision: 'negotiate',
-                response_content: 'Add a six-month review clause.',
-                response_communication_id: 'proposal-response-1'
-            })
-        );
-        expect(mockCreateTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
-            type: 'PROPOSAL_RESPONDED',
-            content: 'Negotiation requested proposal: Regional Logistics Compact',
-            metadata: expect.objectContaining({ facilitator_decision: 'negotiate' })
+            messageType: 'negotiation_message',
+            facilitatorDecision: 'negotiate',
+            clientMessageId: expect.any(String)
         }));
         expect(communicationsUpdateSpy).toHaveBeenCalledWith('INSERT', responseCommunication);
-        expect(communicationsUpdateSpy).toHaveBeenCalledWith('UPDATE', updatedProposal);
-        expect(timelineUpdateSpy).toHaveBeenCalledWith('INSERT', { id: 'timeline-proposal-negotiation-1' });
+        expect(mockUpdateProposalRecipientStatus).not.toHaveBeenCalled();
+        expect(timelineUpdateSpy).not.toHaveBeenCalled();
     });
 
     it('switches among four accessible workspaces and restores the last deck slide', async () => {

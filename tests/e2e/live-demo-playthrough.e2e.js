@@ -17,8 +17,10 @@ import {
     getActiveSeatCounts,
     getSessionFromState,
     joinPublicParticipant,
+    openFacilitatorActionSlide,
     openSidebarSection,
     recordStrategicOrientationFromScribe,
+    replyToProposalThread,
     respondToForwardedProposal,
     reviewProposal,
     reviewStrategicOrientation,
@@ -399,8 +401,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             },
             { owner: 'industry', title: 'Industry proposal for Red acceptance', recipient: 'red', review: 'forward_to_recipient', response: 'accept' },
             { owner: 'green', title: 'Green proposal for Red non-interest', recipient: 'red', review: 'forward_to_recipient', response: 'not_interested' },
-            { owner: 'industry', title: 'Industry proposal requiring changes', recipient: 'blue', review: 'request_changes' },
-            { owner: 'green', title: 'Green proposal rejected by White Cell', recipient: 'red', review: 'reject' }
+            { owner: 'industry', title: 'Industry proposal requiring changes', recipient: 'blue', review: 'request_changes' }
         ];
         await test.step('cover all White Cell proposal decisions and all recipient response options', async () => {
             for (const proposal of proposalCases) {
@@ -421,8 +422,21 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 await reviewProposal(actors.whiteCellLead, {
                     title: proposal.title,
                     decision: proposal.review,
+                    recipientTeams: proposal.review === 'forward_to_recipient'
+                        ? [proposal.recipient]
+                        : [],
                     notes: `${proposal.review} exercised by the automated playthrough.`
                 });
+                if (proposal.recipientTeams?.includes('red') && proposal.recipient !== 'red') {
+                    await openSidebarSection(actors.whiteCellLead, 'proposals');
+                    await expect(actors.whiteCellLead.locator('#proposalsList')).toContainText('Red Team');
+                    await expect(actors.whiteCellLead.locator('#proposalsList')).toContainText('Pending approval');
+                    await reviewProposal(actors.whiteCellLead, {
+                        title: proposal.title,
+                        recipientTeams: ['red'],
+                        notes: 'Red recipient independently approved after Blue.'
+                    });
+                }
             }
 
             for (const proposal of proposalCases.filter((entry) => entry.response)) {
@@ -433,9 +447,12 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 });
             }
 
-            await openSidebarSection(actors.teams.green.scribe, 'actions');
-            await expect(actors.teams.green.scribe.locator('#actionsList')).toContainText('Negotiation requested');
-            await expect(actors.teams.green.scribe.locator('#actionsList')).toContainText('Add a six-month review clause');
+            await openFacilitatorActionSlide(
+                actors.teams.green.facilitator,
+                'Green proposal for Blue negotiation'
+            );
+            await expect(actors.teams.green.facilitator.locator('#deckActionFrame')).toContainText('Negotiation underway');
+            await expect(actors.teams.green.facilitator.locator('#deckActionFrame')).toContainText('Add a six-month review clause');
             await openSidebarSection(actors.whiteCellLead, 'communications');
             await expect(actors.whiteCellLead.locator('#commHistory')).toContainText('Add a six-month review clause');
         });
@@ -459,6 +476,13 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             for (const team of TEAMS.filter((team) => team !== 'blue')) {
                 await expect(actors.teams[team].facilitator.locator('#deckActionFrame')).not.toContainText(blueRfiResponse);
             }
+
+            await replyToProposalThread(actors.teams.green.facilitator, {
+                title: 'Green proposal for Blue negotiation',
+                message: 'Green accepts the six-month checkpoint and proposes a joint implementation review.'
+            });
+            await openSidebarSection(actors.whiteCellLead, 'communications');
+            await expect(actors.whiteCellLead.locator('#commHistory')).toContainText('Green accepts the six-month checkpoint');
         });
 
         const communicationMessages = [

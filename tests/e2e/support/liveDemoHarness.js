@@ -470,7 +470,22 @@ export async function createDraftAction(page, {
 }
 
 export async function forwardActionToScribe(page, goal) {
-    const actionCard = page.locator('#actionsList .entity-card').filter({ hasText: goal }).first();
+    const actionCard = page.locator('#actionsList [data-action-mark-panel] .entity-card')
+        .filter({ hasText: goal })
+        .first();
+    await expect(actionCard).toHaveCount(1, { timeout: 20000 });
+
+    if (!await actionCard.isVisible()) {
+        const markKey = await actionCard.evaluate((card) => (
+            card.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
+        ));
+        expect(markKey).not.toBe('');
+
+        const markTab = page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`);
+        await expect(markTab).toBeVisible({ timeout: 20000 });
+        await markTab.click();
+    }
+
     await expect(actionCard).toBeVisible();
 
     const detailsToggle = actionCard.locator('.toggle-action-card-btn');
@@ -521,10 +536,24 @@ export async function recordStrategicOrientationFromScribe(page, {
     return goal;
 }
 
+async function selectFacilitatorWorkspace(page, viewButtonId) {
+    const viewButton = page.locator(`#${viewButtonId}`);
+    if (!await viewButton.count()) {
+        return;
+    }
+
+    await expect(viewButton).toBeVisible({ timeout: 20000 });
+    if (await viewButton.getAttribute('aria-selected') !== 'true') {
+        await viewButton.click();
+    }
+    await expect(viewButton).toHaveAttribute('aria-selected', 'true');
+}
+
 export async function openFacilitatorActionSlide(page, goal) {
     await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
         timeout: 20000
     });
+    await selectFacilitatorWorkspace(page, 'teamActionReviewViewBtn');
 
     const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]')
         .filter({ hasText: goal })
@@ -544,9 +573,15 @@ export async function openFacilitatorActionSlide(page, goal) {
         }
     } else {
         const actionsSectionTrigger = page.locator('#scribeSectionList .scribe-section-trigger[data-section-label="Actions"]').first();
-        await expect(actionsSectionTrigger).toBeVisible({ timeout: 20000 });
-        if (await actionsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
-            await actionsSectionTrigger.click();
+        if (await actionsSectionTrigger.count()) {
+            await expect(actionsSectionTrigger).toBeVisible({ timeout: 20000 });
+            if (await actionsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+                await actionsSectionTrigger.click();
+            }
+        } else {
+            await expect(page.locator('#scribeSectionList .scribe-section-region--actions')).toBeVisible({
+                timeout: 20000
+            });
         }
     }
 
@@ -794,6 +829,7 @@ export async function submitForwardedProposalFromFacilitator(page, { title } = {
 export async function reviewProposal(page, {
     title,
     decision = 'forward_to_recipient',
+    recipientTeams = [],
     notes = 'Reviewed during the automated professional playthrough rehearsal.'
 } = {}) {
     if (!title) {
@@ -807,15 +843,20 @@ export async function reviewProposal(page, {
 
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#proposalReviewForm') });
     await expect(modal).toBeVisible();
-    await modal.locator(`input[name="proposalReviewDecision"][value="${decision}"]`).check();
     await modal.locator('#adjudicationNotes').fill(notes);
-    await modal.getByRole('button', { name: 'Submit Proposal Review' }).click();
+    if (decision === 'request_changes') {
+        await modal.getByRole('button', { name: 'Send Back for Improvement' }).click();
+    } else {
+        const approvals = recipientTeams.length ? recipientTeams : ['blue'];
+        for (const team of approvals) {
+            await modal.locator(`input[name="proposalRecipientApproval"][value="${team}"]`).check();
+        }
+        await modal.getByRole('button', { name: 'Apply Recipient Approvals' }).click();
+    }
 
-    const expectedToast = {
-        forward_to_recipient: /Proposal forwarded to/,
-        request_changes: 'Proposal review saved: changes requested',
-        reject: 'Proposal rejected'
-    }[decision];
+    const expectedToast = decision === 'request_changes'
+        ? 'Proposal sent back for improvement'
+        : /Proposal approved and forwarded to/;
     await expect(page.locator('#toast-container')).toContainText(expectedToast);
     await expect(modal).toBeHidden();
 }
@@ -832,6 +873,7 @@ export async function respondToForwardedProposal(page, {
     await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
         timeout: 20000
     });
+    await selectFacilitatorWorkspace(page, 'teamActionReviewViewBtn');
     const proposalsSectionTrigger = page.locator(
         '#scribeSectionList .scribe-section-trigger[data-section-label="Proposals"]'
     ).first();
@@ -867,8 +909,23 @@ export async function respondToForwardedProposal(page, {
     const expectedLabel = decision === 'negotiate'
         ? 'Negotiation requested'
         : (decision === 'not_interested' ? 'Not Interested' : 'Accepted');
-    await expect(page.locator('#toast-container')).toContainText(`Proposal response recorded: ${expectedLabel}`);
-    await expect(proposalFrame).toContainText(`Recorded response: ${expectedLabel}`);
+    await expect(page.locator('#toast-container')).toContainText(`Proposal thread updated: ${expectedLabel}`);
+    await expect(proposalFrame).toContainText(decision === 'negotiate' ? 'Negotiation underway' : 'Response received');
+}
+
+export async function replyToProposalThread(page, {
+    title,
+    message = 'The proposing team accepts the checkpoint and proposes a joint review after the next move.'
+} = {}) {
+    if (!title) throw new Error('replyToProposalThread requires a title.');
+    await openFacilitatorActionSlide(page, title);
+    const frame = page.locator('#deckActionFrame');
+    await frame.getByRole('button', { name: 'Reply with next round' }).click();
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#facilitatorProposalNegotiationForm') });
+    await modal.locator('#facilitatorProposalNegotiationTerms').fill(message);
+    await modal.getByRole('button', { name: 'Send Follow-up' }).click();
+    await expect(page.locator('#toast-container')).toContainText('Proposal thread updated: Follow-up sent');
+    await expect(frame).toContainText(message);
 }
 
 export async function submitRfi(page, {
@@ -881,6 +938,7 @@ export async function submitRfi(page, {
     await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
         timeout: 20000
     });
+    await selectFacilitatorWorkspace(page, 'rfiViewBtn');
     const rfiSectionTrigger = page.locator(
         '#scribeSectionList .scribe-section-trigger[data-section-label="RFIs"]'
     ).first();
@@ -949,6 +1007,7 @@ export async function sendFacilitatorCommunication(page, { content } = {}) {
     await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
         timeout: 20000
     });
+    await selectFacilitatorWorkspace(page, 'communicationsViewBtn');
     const communicationSectionTrigger = page.locator(
         '#scribeSectionList .scribe-section-trigger[data-section-label="Communications"]'
     ).first();

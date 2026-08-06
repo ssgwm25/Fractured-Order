@@ -168,11 +168,16 @@ function formatRecipientTeams(values = []) {
 }
 
 function formatRecipientApprovalStates(states = {}) {
+    const labels = {
+        [PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING]: 'Awaiting separate White Cell approval',
+        approved_forwarded: 'Approved and forwarded',
+        response_received: 'Response received',
+        negotiation_underway: 'Negotiation underway',
+        closed: 'Closed'
+    };
     return PROPOSAL_RECIPIENT_TEAMS
         .filter((team) => states[team])
-        .map((team) => `${formatRecipientTeams([team])}: ${states[team] === PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING
-            ? 'Awaiting separate White Cell approval'
-            : states[team].replace(/_/g, ' ')}`)
+        .map((team) => `${formatRecipientTeams([team])}: ${labels[states[team]] || states[team].replace(/_/g, ' ')}`)
         .join('; ');
 }
 
@@ -361,6 +366,16 @@ export function getProposalViewModel(action = {}) {
             ? [details.focusSector]
             : (action.sector ? [action.sector] : []));
     const revisionMetadata = mergeRevisionMetadata(action, details?.revisionMetadata);
+    const persistedRecipientReviews = action?.artifact_payload?.proposal_recipient_reviews
+        && typeof action.artifact_payload.proposal_recipient_reviews === 'object'
+        ? action.artifact_payload.proposal_recipient_reviews
+        : {};
+    const recipientApprovalStates = Object.fromEntries(recipientTeams.map((team) => [
+        team,
+        normalizeString(persistedRecipientReviews?.[team]?.status)
+            || details?.recipientApprovalStates?.[team]
+            || PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING
+    ]));
 
     const viewModel = {
         hasProposalDetails: Boolean(details),
@@ -379,7 +394,7 @@ export function getProposalViewModel(action = {}) {
         expectedOutcomes: action.expected_outcomes || '',
         recipientTeam: recipientTeams[0] || '',
         recipientTeams,
-        recipientApprovalStates: details?.recipientApprovalStates || {},
+        recipientApprovalStates,
         supplyChainFocusDecision: details?.supplyChainFocusDecision || '',
         supplyChainActionAngles: details?.supplyChainActionAngles || [],
         supplyChainAreas: details?.supplyChainAreas || [],

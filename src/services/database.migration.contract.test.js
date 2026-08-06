@@ -69,6 +69,10 @@ const FACILITATOR_RFI_COMMUNICATIONS_PATH = new URL(
     '../../data/2026-08-06_facilitator_rfi_communications.sql',
     import.meta.url
 );
+const PROPOSAL_RECIPIENT_THREADS_PATH = new URL(
+    '../../data/2026-08-06_proposal_recipient_threads.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -602,5 +606,27 @@ describe('database migration contracts', () => {
         expect(claimBody).toContain("SME seats require operator authorization.");
         expect(surfaceBody).toContain("RETURN 'sme'");
         expect(sql).toContain("ARRAY['whitecell', 'gamemaster', 'sme']::TEXT[]");
+    });
+
+    it('supersedes the one-shot proposal response lock with recipient-isolated append-only threads', () => {
+        const sql = readFileSync(PROPOSAL_RECIPIENT_THREADS_PATH, 'utf8');
+        const approvalBody = extractFunctionBody(sql, 'operator_review_proposal');
+        const appendBody = extractFunctionBody(sql, 'append_proposal_thread_message');
+
+        expect(sql).toContain('communications_proposal_thread_round_unique');
+        expect(sql).toContain('communications_proposal_client_message_unique');
+        expect(sql).toContain('guard_proposal_thread_message_immutability');
+        expect(approvalBody).toContain("normalized_decision <> 'forward_to_recipient'");
+        expect(approvalBody).toContain("'recipient_team', normalized_recipient");
+        expect(approvalBody).toContain("'round_number', 0");
+        expect(approvalBody).toContain("'message_type', 'proposal_forwarded'");
+        expect(approvalBody).not.toContain('operator_adjudicate_action');
+        expect(appendBody).toContain("parent_round + 1");
+        expect(appendBody).toContain("'parent_message_id', parent_row.id");
+        expect(appendBody).toContain("participant_team NOT IN (source_team, recipient_team)");
+        expect(appendBody).toContain("Closed proposal threads are immutable.");
+        expect(sql).toContain("type IN ('PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE')");
+        expect(sql).toContain("public.live_demo_participant_team(session_id) IN (");
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.append_proposal_thread_message');
     });
 });

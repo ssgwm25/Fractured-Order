@@ -81,7 +81,8 @@ import {
     formatProposalRecipientStatus,
     getProposalRecipientStatus,
     isProposalNegotiationRequest,
-    isProposalRecipientFinal
+    isProposalRecipientFinal,
+    isProposalThreadMessage
 } from '../features/actions/proposalRecipientState.js';
 import {
     WHITE_CELL_UPDATE_KINDS,
@@ -1507,6 +1508,7 @@ export class FacilitatorController {
         }
 
         const statusOrder = [
+            PROPOSAL_RECIPIENT_STATUSES.APPROVED_FORWARDED,
             PROPOSAL_RECIPIENT_STATUSES.UNREAD,
             PROPOSAL_RECIPIENT_STATUSES.ACKNOWLEDGED,
             PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
@@ -1597,6 +1599,7 @@ export class FacilitatorController {
             const sourceLabel = this.formatProposalRecipientTeamLabel(sourceTeam);
             const receivedAt = communication.created_at;
             const status = getProposalRecipientStatus(communication);
+            const isThreadBacked = isProposalThreadMessage(communication);
             const isNegotiationRequest = isProposalNegotiationRequest(communication);
             const statusLabel = isNegotiationRequest
                 ? 'Negotiation requested'
@@ -1604,10 +1607,10 @@ export class FacilitatorController {
             const isNewArrival = this.newReceivedProposalIds.has(communication.id);
             const cardId = escape(communication.id);
             const responseEntry = getProposalResponseEntry(communication);
-            const showAcknowledge = status === PROPOSAL_RECIPIENT_STATUSES.UNREAD;
-            const showRespond = !isProposalRecipientFinal(communication);
-            const showDecline = !isProposalRecipientFinal(communication);
-            const showIgnore = !isProposalRecipientFinal(communication);
+            const showAcknowledge = !isThreadBacked && status === PROPOSAL_RECIPIENT_STATUSES.UNREAD;
+            const showRespond = !isThreadBacked && !isProposalRecipientFinal(communication);
+            const showDecline = !isThreadBacked && !isProposalRecipientFinal(communication);
+            const showIgnore = !isThreadBacked && !isProposalRecipientFinal(communication);
             const actionSummaryMarkup = responseEntry?.responseContent ? `
                 <div style="margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface-alt);">
                     <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
@@ -1620,7 +1623,9 @@ export class FacilitatorController {
             const readOnlyResponseMessage = isNegotiationRequest
                 ? `This negotiation request is locked and is now being shown to ${escape(sourceLabel)}.`
                 : `This proposal response is locked and is now being shown back to ${escape(sourceLabel)}.`;
-            const readOnlyStateMarkup = status === PROPOSAL_RECIPIENT_STATUSES.RESPONDED
+            const readOnlyStateMarkup = isThreadBacked
+                ? '<p class="text-xs text-gray-500" style="margin: 0;">Proposal thread responses are managed in the Facilitator workspace.</p>'
+                : status === PROPOSAL_RECIPIENT_STATUSES.RESPONDED
                 ? `
                     <p class="text-xs text-gray-500" style="margin: 0;">
                         ${readOnlyResponseMessage}

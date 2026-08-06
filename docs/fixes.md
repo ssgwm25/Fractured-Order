@@ -147,6 +147,8 @@ Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
 
+## Completed: 8/6/2026
+
 [ ] Step 7 — Move communications and RFI authority to the actual Facilitator
 Prompt:
 Read the role-routing compatibility note in README.md, all four teams/*/facilitator.html and teams/*/scribe.html files, src/roles/facilitator.js, src/roles/scribe.js, request-store code, communications targeting, database/RLS policies, and related tests.

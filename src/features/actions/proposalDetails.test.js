@@ -95,6 +95,33 @@ describe('proposalDetails scribe handoff', () => {
         ]));
     });
 
+    it('overlays independently persisted recipient approvals without changing pending recipients', () => {
+        const viewModel = getProposalViewModel({
+            goal: 'Dual recipient proposal',
+            ally_contingencies: serializeProposalDetails({
+                objective: 'Coordinate two independent partner discussions.',
+                recipientTeams: ['blue', 'red']
+            }),
+            artifact_payload: {
+                proposal_recipient_reviews: {
+                    blue: {
+                        status: 'approved_forwarded',
+                        thread_id: 'thread-blue-1'
+                    }
+                }
+            }
+        });
+
+        expect(viewModel.recipientApprovalStates).toEqual({
+            blue: 'approved_forwarded',
+            red: 'pending_white_cell_approval'
+        });
+        expect(viewModel.artifactDetails).toContainEqual({
+            label: 'Proposed Recipient Approvals',
+            value: 'Blue Team: Approved and forwarded; Red Team: Awaiting separate White Cell approval'
+        });
+    });
+
     it('omits Category and Delivery from newly serialized proposal details', () => {
         const serialized = serializeProposalDetails({
             originators: ['EU'],

@@ -356,14 +356,43 @@ describe('database privileged write contracts', () => {
         await database.reviewProposal('action-1', {
             decision: 'forward_to_recipient',
             recipient_team: 'blue',
-            adjudication_notes: 'Forward after review.'
+            adjudication_notes: 'Forward after review.',
+            expected_revision: 2
         });
 
         expect(mockSupabase.rpc).toHaveBeenCalledWith('operator_review_proposal', {
             requested_action_id: 'action-1',
             requested_review_decision: 'forward_to_recipient',
             requested_recipient_team: 'blue',
-            requested_adjudication_notes: 'Forward after review.'
+            requested_adjudication_notes: 'Forward after review.',
+            requested_expected_revision: 2
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+
+    it('appends proposal thread messages through the protected RPC', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                id: 'round-2',
+                type: 'PROPOSAL_RESPONSE',
+                metadata: { round_number: 2 }
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        await database.appendProposalThreadMessage('round-1', {
+            content: 'The proposing team accepts the checkpoint.',
+            messageType: 'negotiation_message',
+            clientMessageId: 'thread-blue-round-2'
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('append_proposal_thread_message', {
+            requested_parent_message_id: 'round-1',
+            requested_content: 'The proposing team accepts the checkpoint.',
+            requested_message_type: 'negotiation_message',
+            requested_facilitator_decision: null,
+            requested_client_message_id: 'thread-blue-round-2'
         });
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });

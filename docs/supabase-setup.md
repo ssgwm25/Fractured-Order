@@ -29,7 +29,7 @@ Use the current hardening path for live environments:
 
 1. Apply the complete/current schema baseline used for this repository.
 2. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the selected baseline requires its compatibility columns.
-3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, `data/2026-07-29_industry_submission_permissions.sql`, `data/2026-07-29_return_action_to_blue.sql`, `data/2026-08-05_team_neutral_artifact_review.sql`, and `data/2026-08-06_facilitator_rfi_communications.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration normalizes Industry seats and draft/submission permissions. August 5 adds the revision-aware review workflow. August 6 supersedes the older RFI policies: the actual Facilitator (`*_scribe` compatibility seat) owns RFI creation/resubmission and direct text to White Cell, while the user-facing Scribe retains read-only RFI history. Projects that reapply July 14 or August 5 must reapply August 6 last.
+3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, `data/2026-07-29_industry_submission_permissions.sql`, `data/2026-07-29_return_action_to_blue.sql`, `data/2026-08-05_team_neutral_artifact_review.sql`, `data/2026-08-06_facilitator_rfi_communications.sql`, and `data/2026-08-06_proposal_recipient_threads.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration normalizes Industry seats and draft/submission permissions. August 5 adds the revision-aware review workflow. Apply the Facilitator RFI/communications migration before the proposal-thread migration; the latter is the final owner of current communications RLS. Projects that reapply July 14, August 5, or the earlier August 6 policy migration must reapply the proposal-thread migration last.
 4. Verify RPCs and RLS policies before a demo.
 
 ## Intercom Storage
@@ -63,7 +63,7 @@ The migration fails closed instead of guessing when it finds any of these condit
 
 Resolve the cited row IDs as an explicit data-repair operation, then reapply the migration. Do not delete or relabel a legitimate artifact merely to make the migration pass.
 
-White Cell proposal review now calls `operator_review_proposal`. The RPC adjudicates the proposal and writes its review timeline, forwarding communication, and forwarding timeline in one transaction. Its forwarded proposal snapshot preserves the Industry Instrument of Power selections recorded in the proposal details. Repeating the same completed decision returns the committed records with `idempotent_replay = true`; a conflicting second decision fails.
+The July migration originally made `operator_review_proposal` a proposal-wide final decision. After all dated migrations are applied, `data/2026-08-06_proposal_recipient_threads.sql` replaces that signature: each call approves one intended recipient, creates only that recipient's round-zero thread, and leaves every other recipient unchanged. A same-recipient retry returns the committed root; a later round uses `append_proposal_thread_message` and never updates an earlier response.
 
 After applying the migration, verify the operational contract:
 
@@ -163,6 +163,8 @@ Pass: fourteen metadata columns are returned; both RPCs exist with authenticated
 
 Apply `data/2026-08-06_facilitator_rfi_communications.sql` after the team-neutral artifact-review migration. The compatibility identifiers remain inverted: the actual Facilitator is stored as `*_scribe`, and the user-facing Scribe is stored as `*_facilitator`. The migration therefore gives the `scribe` surface same-team RFI insert and returned-RFI resubmission authority, removes write authority from the `facilitator` surface, limits participant reads to their own team's RFIs, and allows session-scoped direct text between the actual Facilitator and White Cell. It also reasserts Industry Facilitator submission of forwarded Strategic Orientation and proposal drafts.
 
+Apply `data/2026-08-06_proposal_recipient_threads.sql` last. It supersedes the June final-response lock and the earlier August communications policy without rewriting historical rows. New White Cell reviews approve one intended recipient at a time and create an independent round-zero thread; later messages may be written only through `append_proposal_thread_message`. Pass conditions are: the round and client-message unique indexes exist, thread rows reject update/delete, direct `PROPOSAL_RESPONSE` inserts fail, Blue/Red and cross-session access fail closed, and completing all intended approvals leaves `outcome` null.
+
 Verify the current policies:
 
 ```sql
@@ -213,6 +215,7 @@ and proname in (
   'operator_adjudicate_action',
   'operator_review_artifact',
   'operator_review_proposal',
+  'append_proposal_thread_message',
   'operator_answer_request',
   'operator_send_communication',
   'update_proposal_recipient_status',
@@ -251,8 +254,9 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - same-team Facilitators can create/resubmit RFIs and send direct text to White Cell; Scribes retain read-only RFI history and other teams cannot read those records
 - action artifacts have a first-class type, workflow state, monotonic row version, structured snapshot, and server-owned transition timestamps
 - Blue and Red action returns, Strategic Orientation review, and RFI clarification returns use one revision-aware White Cell RPC; completed artifacts reject further review writes
-- each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication
-- White Cell proposal review, adjudication, forwarding, and timeline records commit atomically through `operator_review_proposal`
+- each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication per intended recipient
+- each `operator_review_proposal` call atomically records one recipient approval, round-zero communication, and recipient-specific timeline row; completing the final intended approval closes the artifact workflow without creating an outcome
+- each `append_proposal_thread_message` call atomically creates one immutable next round, and stale parents, duplicate client IDs, cross-team access, and cross-session access fail closed
 - every action creation, revision, handoff, submission, deletion, and adjudication is represented in action logs and the research audit chain
 - White Cell can persist timer allocations for Strategic Orientation and Moves 1-3 through `operator_update_game_state`
 - White Cell can persist Intercom and Session Recorder plugin enablement plus bounded Session Recorder runtime notice fields in `game_state.plugin_state` through `operator_update_game_state`

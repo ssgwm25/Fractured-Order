@@ -66,4 +66,31 @@ describe('communicationsStore realtime reconciliation', () => {
         expect(communicationsStore.getAll()).toEqual([realtimeRow, snapshotRow]);
         expect(listener).toHaveBeenCalledWith('reconciled', [snapshotRow]);
     });
+
+    it('deduplicates the same proposal thread round across realtime and reconciliation', async () => {
+        const threadMetadata = {
+            thread_id: 'thread-blue-1',
+            recipient_team: 'blue',
+            round_number: 1,
+            parent_message_id: 'round-0',
+            source_proposal_id: 'proposal-1',
+            source_revision: 1,
+            source_team: 'green',
+            sender_team: 'blue',
+            sender_role: 'blue_scribe',
+            sent_at: '2026-08-06T12:00:00.000Z',
+            message_type: 'recipient_response'
+        };
+        const realtimeRow = { id: 'round-realtime', type: 'PROPOSAL_RESPONSE', content: 'Accepted', created_at: threadMetadata.sent_at, metadata: threadMetadata };
+        const duplicateServerRow = { ...realtimeRow, id: 'round-duplicate' };
+        mockDatabase.fetchCommunications.mockResolvedValue([duplicateServerRow]);
+
+        const { communicationsStore } = await loadCommunicationsStore();
+        communicationsStore.sessionId = 'session-1';
+        communicationsStore.updateFromServer('INSERT', realtimeRow);
+
+        await expect(communicationsStore.reconcileCommunications()).resolves.toEqual([]);
+        expect(communicationsStore.getAll()).toHaveLength(1);
+        expect(communicationsStore.getAll()[0].metadata).toEqual(threadMetadata);
+    });
 });

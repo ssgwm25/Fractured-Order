@@ -176,9 +176,13 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             await expect(whiteCell.page.locator('#participantsList')).not.toContainText('Isolation Blue Facilitator');
 
             await openWhiteCellSettingsTab(whiteCell.page, 'gameControls');
-            const timerStartedAt = Date.now();
+            let timerStartedAt = Date.now();
             await whiteCell.page.locator('#startTimerBtn').click({ timeout: 20000 });
             if (!actorPool.hosted) {
+                // The deterministic mock has no websocket fanout. Measure its
+                // reconciliation from the committed write, excluding the
+                // sender-side control interaction that hosted Realtime includes.
+                timerStartedAt = Date.now();
                 await blueFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online')));
                 await redFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online')));
             }
@@ -195,10 +199,11 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             if (!actorPool.hosted) {
                 await blueFacilitator.page.reload();
             }
-            const actionStartedAt = Date.now();
+            let actionStartedAt = Date.now();
             await submitStrategicOrientationFromScribe(blueFacilitator.page, orientationGoal);
             if (!actorPool.hosted) {
-                await whiteCell.page.reload();
+                actionStartedAt = Date.now();
+                await whiteCell.page.evaluate(() => window.dispatchEvent(new Event('online')));
             }
             await openSidebarSection(whiteCell.page, 'strategicOrientation');
             await expect(whiteCell.page.locator('#strategicOrientationList')).toContainText(
@@ -207,10 +212,11 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             recordLatency(latencySamples, 'actions fanout', actionStartedAt);
 
             await openSidebarSection(whiteCell.page, 'requests');
-            const requestStartedAt = Date.now();
+            let requestStartedAt = Date.now();
             await submitRfi(blueFacilitator.page, { question: rfiQuestion });
             if (!actorPool.hosted) {
-                await whiteCell.page.reload();
+                requestStartedAt = Date.now();
+                await whiteCell.page.evaluate(() => window.dispatchEvent(new Event('online')));
                 await openSidebarSection(whiteCell.page, 'requests');
             }
             await expect(whiteCell.page.locator('#rfiQueue')).toContainText(rfiQuestion);
@@ -223,12 +229,13 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
                 await expect(blueAlertsBadge).toBeHidden();
             }
 
-            const communicationStartedAt = Date.now();
+            let communicationStartedAt = Date.now();
             await sendWhiteCellCommunication(whiteCell.page, {
                 recipient: 'blue_scribe',
                 content: directMessage
             });
             if (!actorPool.hosted) {
+                communicationStartedAt = Date.now();
                 await Promise.all([
                     blueFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online'))),
                     redFacilitator.page.evaluate(() => window.dispatchEvent(new Event('online'))),

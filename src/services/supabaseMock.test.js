@@ -470,6 +470,176 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.artifact_workflow_reviews).toHaveLength(1);
     });
 
+    it('mirrors independent recipient approvals and append-only isolated proposal rounds', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [
+                    { id: 'session-1', status: 'active' },
+                    { id: 'session-2', status: 'active' }
+                ],
+                actions: [{
+                    id: 'proposal-1',
+                    session_id: 'session-1',
+                    team: 'green',
+                    artifact_type: 'proposal',
+                    artifact_payload: { proposal: { recipientTeams: ['blue', 'red'] } },
+                    status: 'submitted',
+                    workflow_state: 'submitted_to_white_cell',
+                    revision_number: 1,
+                    outcome: null,
+                    goal: 'Dual recipient proposal',
+                    is_deleted: false
+                }]
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_lead'
+        });
+        const approveBlue = await mockClient.rpc('operator_review_proposal', {
+            requested_action_id: 'proposal-1',
+            requested_review_decision: 'forward_to_recipient',
+            requested_recipient_team: 'blue',
+            requested_expected_revision: 1
+        });
+        expect(approveBlue.error).toBeNull();
+        expect(approveBlue.data.action.status).toBe('submitted');
+        expect(approveBlue.data.action.artifact_payload.proposal_recipient_reviews).toEqual({
+            blue: expect.objectContaining({ status: 'approved_forwarded' })
+        });
+        expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.communications).toHaveLength(1);
+
+        const approveRed = await mockClient.rpc('operator_review_proposal', {
+            requested_action_id: 'proposal-1',
+            requested_review_decision: 'forward_to_recipient',
+            requested_recipient_team: 'red',
+            requested_expected_revision: 1
+        });
+        expect(approveRed.error).toBeNull();
+        expect(approveRed.data.action).toMatchObject({
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            outcome: null
+        });
+
+        await mockClient.auth.signOut();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-1',
+            requested_role: 'blue_scribe',
+            requested_name: 'Blue Facilitator',
+            requested_client_id: 'blue-client'
+        });
+        const blueRoot = globalThis.__ESG_E2E_BACKEND__.dump().tables.communications.find((row) => (
+            row.metadata?.recipient_team === 'blue' && row.metadata?.round_number === 0
+        ));
+        const blueResponse = await mockClient.rpc('append_proposal_thread_message', {
+            requested_parent_message_id: blueRoot.id,
+            requested_content: 'Add an implementation checkpoint.',
+            requested_message_type: 'negotiation_message',
+            requested_facilitator_decision: 'negotiate',
+            requested_client_message_id: '00000000-0000-4000-8000-000000000001'
+        });
+        expect(blueResponse.error).toBeNull();
+        expect(blueResponse.data.metadata).toMatchObject({
+            thread_id: blueRoot.metadata.thread_id,
+            recipient_team: 'blue',
+            round_number: 1,
+            parent_message_id: blueRoot.id,
+            source_proposal_id: 'proposal-1',
+            source_revision: 1,
+            sender_team: 'blue',
+            sender_role: 'blue_scribe',
+            message_type: 'negotiation_message'
+        });
+        const idempotentRetry = await mockClient.rpc('append_proposal_thread_message', {
+            requested_parent_message_id: blueRoot.id,
+            requested_content: 'Add an implementation checkpoint.',
+            requested_message_type: 'negotiation_message',
+            requested_facilitator_decision: 'negotiate',
+            requested_client_message_id: '00000000-0000-4000-8000-000000000001'
+        });
+        expect(idempotentRetry.data.id).toBe(blueResponse.data.id);
+        const overwriteAttempt = await mockClient
+            .from('communications')
+            .update({ content: 'Overwrite the prior response.' })
+            .eq('id', blueResponse.data.id)
+            .select('*');
+        expect(overwriteAttempt.error?.code).toBe('42501');
+
+        await mockClient.auth.signOut();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-1',
+            requested_role: 'green_scribe',
+            requested_name: 'Green Facilitator',
+            requested_client_id: 'green-client'
+        });
+        const greenFollowUp = await mockClient.rpc('append_proposal_thread_message', {
+            requested_parent_message_id: blueResponse.data.id,
+            requested_content: 'Green accepts the checkpoint and proposes a joint review.',
+            requested_message_type: 'negotiation_message',
+            requested_client_message_id: '00000000-0000-4000-8000-000000000004'
+        });
+        expect(greenFollowUp.error).toBeNull();
+        expect(greenFollowUp.data.metadata).toMatchObject({
+            thread_id: blueRoot.metadata.thread_id,
+            recipient_team: 'blue',
+            round_number: 2,
+            parent_message_id: blueResponse.data.id,
+            sender_team: 'green'
+        });
+        expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.communications
+            .filter((row) => row.metadata?.thread_id === blueRoot.metadata.thread_id)
+            .map((row) => row.metadata.round_number)
+            .sort()).toEqual([0, 1, 2]);
+
+        await mockClient.auth.signOut();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-1',
+            requested_role: 'red_scribe',
+            requested_name: 'Red Facilitator',
+            requested_client_id: 'red-client'
+        });
+        const crossTeam = await mockClient.rpc('append_proposal_thread_message', {
+            requested_parent_message_id: greenFollowUp.data.id,
+            requested_content: 'Red must not enter the Blue thread.',
+            requested_message_type: 'negotiation_message',
+            requested_client_message_id: '00000000-0000-4000-8000-000000000002'
+        });
+        expect(crossTeam.error?.message).toBe('Proposal thread access is restricted to its two teams.');
+        const redVisible = await mockClient.from('communications').select('*').eq('session_id', 'session-1');
+        expect(redVisible.data.every((row) => row.metadata?.recipient_team === 'red')).toBe(true);
+
+        await mockClient.auth.signOut();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-2',
+            requested_role: 'blue_scribe',
+            requested_name: 'Other-session Blue',
+            requested_client_id: 'blue-session-2'
+        });
+        const crossSession = await mockClient.rpc('append_proposal_thread_message', {
+            requested_parent_message_id: blueResponse.data.id,
+            requested_content: 'Cross-session write',
+            requested_message_type: 'negotiation_message',
+            requested_client_message_id: '00000000-0000-4000-8000-000000000003'
+        });
+        expect(crossSession.error?.message).toBe('Proposal thread access is restricted to its two teams.');
+    });
+
     it('mirrors Facilitator-owned RFI writes and team-isolated request reads', async () => {
         const { localStorage } = installBrowserRuntime({
             hostname: '127.0.0.1',

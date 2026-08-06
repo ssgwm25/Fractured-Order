@@ -1998,7 +1998,7 @@ describe('White Cell DOM contract', () => {
                 intendedPartners: 'Blue Team',
                 delivery: 'Joint Statement',
                 timingAndConditions: 'Immediately after White Cell review.',
-                recipientTeam: 'blue'
+                recipientTeams: ['blue', 'red']
             })
         };
         const industryProposal = {
@@ -2144,6 +2144,53 @@ describe('White Cell DOM contract', () => {
         expect(syncActionsFromStore).toHaveBeenCalled();
 
         controller.destroy();
+    });
+
+    it('notifies White Cell exactly once for each newly reconciled proposal round', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const controller = new WhiteCellController();
+        const roundOne = {
+            id: 'thread-round-1',
+            type: 'PROPOSAL_RESPONSE',
+            metadata: {
+                thread_id: 'thread-blue-1',
+                recipient_team: 'blue',
+                round_number: 1,
+                parent_message_id: 'thread-root-blue',
+                source_proposal_id: 'proposal-1',
+                source_revision: 1,
+                source_team: 'green',
+                sender_team: 'blue',
+                sender_role: 'blue_scribe',
+                sent_at: '2026-08-06T12:01:00.000Z',
+                message_type: 'negotiation_message'
+            }
+        };
+        const roundTwo = {
+            id: 'thread-round-2',
+            type: 'PROPOSAL_RESPONSE',
+            metadata: {
+                ...roundOne.metadata,
+                round_number: 2,
+                parent_message_id: roundOne.id,
+                sender_team: 'green',
+                sender_role: 'green_scribe',
+                sent_at: '2026-08-06T12:02:00.000Z'
+            }
+        };
+
+        controller.communications = [roundOne];
+        controller.captureProposalThreadRoundNotifications([], { announce: false });
+        expect(showToast).not.toHaveBeenCalled();
+
+        controller.communications = [roundOne, roundTwo];
+        controller.captureProposalThreadRoundNotifications([roundTwo], { announce: true });
+        controller.captureProposalThreadRoundNotifications([roundTwo], { announce: true });
+
+        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(showToast).toHaveBeenCalledWith(expect.objectContaining({
+            message: 'New proposal thread round 2 from Green Team for Blue Team.'
+        }));
     });
 
     it('renders facilitator action details without a Red Team send control in White Cell adjudication', async () => {
@@ -2919,17 +2966,17 @@ describe('White Cell DOM contract', () => {
                 intendedPartners: 'Blue Team',
                 delivery: 'Joint Statement',
                 timingAndConditions: 'Immediately after White Cell review.',
-                recipientTeam: 'blue'
+                recipientTeams: ['blue', 'red']
             })
         });
 
         const modalConfig = showModal.mock.calls.at(-1)?.[0];
-        expect(modalConfig?.title).toBe('Review Proposal');
-        expect(modalConfig?.buttons?.[1]?.label).toBe('Submit Proposal Review');
-        expect(modalConfig?.content?.innerHTML).toContain('Forward to Blue Team');
-        expect(modalConfig?.content?.innerHTML).toContain('Request Changes');
-        expect(modalConfig?.content?.innerHTML).toContain('Reject Proposal');
-        expect(modalConfig?.content?.innerHTML).toContain('returns this same logical proposal');
+        expect(modalConfig?.title).toBe('Review Proposal Recipients');
+        expect(modalConfig?.buttons?.at(-1)?.label).toBe('Apply Recipient Approvals');
+        expect(modalConfig?.content?.innerHTML).toContain('Approve and forward to Blue Team');
+        expect(modalConfig?.content?.innerHTML).toContain('Approve and forward to Red Team');
+        expect(modalConfig?.content?.innerHTML).toContain('Each checked recipient is approved independently');
+        expect(modalConfig?.content?.innerHTML).not.toContain('Reject Proposal');
         expect(modalConfig?.content?.innerHTML).toContain('Proposal Overview');
     });
 
@@ -2943,13 +2990,7 @@ describe('White Cell DOM contract', () => {
         const { timelineStore } = await import('../stores/timeline.js');
 
         global.document = {
-            querySelector(selector) {
-                if (selector === 'input[name="proposalReviewDecision"]:checked') {
-                    return { value: 'forward_to_recipient' };
-                }
-
-                return null;
-            },
+            querySelectorAll: vi.fn(() => [{ value: 'blue' }]),
             getElementById(id) {
                 if (id === 'adjudicationNotes') {
                     return { value: 'Forward for Blue Team consideration.' };
@@ -2967,18 +3008,16 @@ describe('White Cell DOM contract', () => {
                 team: 'industry',
                 move: 2,
                 phase: 1,
-                status: 'adjudicated',
-                outcome: 'SUCCESS'
+                status: 'submitted',
+                workflow_state: 'submitted_to_white_cell',
+                outcome: null
             },
             communication: {
                 id: 'comm-proposal-1',
                 to_role: 'blue',
                 type: 'PROPOSAL_FORWARDED'
             },
-            timeline_events: [
-                { id: 'timeline-proposal-review-1', type: 'ACTION_ADJUDICATED' },
-                { id: 'timeline-proposal-forward-1', type: 'PROPOSAL_FORWARDED' }
-            ]
+            timeline_events: [{ id: 'timeline-proposal-forward-1', type: 'PROPOSAL_FORWARDED' }]
         });
         const actionsUpdate = vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
         const communicationsUpdate = vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
@@ -2995,6 +3034,8 @@ describe('White Cell DOM contract', () => {
             move: 2,
             phase: 1,
             status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            revision_number: 1,
             goal: 'Coordinate biotech export alignment',
             mechanism: 'Proposal',
             sector: 'Biotechnology',
@@ -3006,7 +3047,7 @@ describe('White Cell DOM contract', () => {
                 intendedPartners: 'Blue Team',
                 delivery: 'Joint Statement',
                 timingAndConditions: 'Immediately after White Cell review.',
-                recipientTeam: 'blue'
+                recipientTeams: ['blue', 'red']
             })
         };
 
@@ -3015,13 +3056,13 @@ describe('White Cell DOM contract', () => {
         expect(reviewProposal).toHaveBeenCalledWith('action-92', {
             decision: 'forward_to_recipient',
             recipient_team: 'blue',
-            adjudication_notes: 'Forward for Blue Team consideration.'
+            adjudication_notes: 'Forward for Blue Team consideration.',
+            expected_revision: 1
         });
         expect(actionsUpdate).toHaveBeenCalledWith('UPDATE', expect.objectContaining({ id: 'action-92' }));
         expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'comm-proposal-1' }));
-        expect(timelineUpdate).toHaveBeenNthCalledWith(1, 'INSERT', expect.objectContaining({ id: 'timeline-proposal-review-1' }));
-        expect(timelineUpdate).toHaveBeenNthCalledWith(2, 'INSERT', expect.objectContaining({ id: 'timeline-proposal-forward-1' }));
-        expect(showToast).toHaveBeenCalledWith({ message: 'Proposal forwarded to Blue Team', type: 'success' });
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'timeline-proposal-forward-1' }));
+        expect(showToast).toHaveBeenCalledWith({ message: 'Proposal approved and forwarded to Blue Team.', type: 'success' });
         expect(modal.close).toHaveBeenCalled();
     });
 
@@ -3035,13 +3076,7 @@ describe('White Cell DOM contract', () => {
         const { timelineStore } = await import('../stores/timeline.js');
 
         global.document = {
-            querySelector(selector) {
-                if (selector === 'input[name="proposalReviewDecision"]:checked') {
-                    return { value: 'forward_to_recipient' };
-                }
-
-                return null;
-            },
+            querySelectorAll: vi.fn(() => [{ value: 'blue' }]),
             getElementById(id) {
                 if (id === 'adjudicationNotes') {
                     return { value: 'Forward using the approved recipient.' };
@@ -3058,7 +3093,8 @@ describe('White Cell DOM contract', () => {
                 id: 'action-94',
                 team: 'green',
                 status: 'adjudicated',
-                outcome: 'SUCCESS'
+                workflow_state: 'completed',
+                outcome: null
             },
             communication: {
                 id: 'comm-proposal-3',
@@ -3114,13 +3150,7 @@ describe('White Cell DOM contract', () => {
         const { timelineStore } = await import('../stores/timeline.js');
 
         global.document = {
-            querySelector(selector) {
-                if (selector === 'input[name="proposalReviewDecision"]:checked') {
-                    return { value: 'request_changes' };
-                }
-
-                return null;
-            },
+            querySelectorAll: vi.fn(() => []),
             getElementById(id) {
                 if (id === 'adjudicationNotes') {
                     return { value: 'Clarify the timing conditions before we forward this.' };
@@ -3149,10 +3179,6 @@ describe('White Cell DOM contract', () => {
                 revision_number: 1,
                 next_revision_number: 2
             }
-        });
-        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({
-            id: 'timeline-proposal-2',
-            type: 'ARTIFACT_RETURNED_TO_TEAM'
         });
         const createCommunication = vi.spyOn(database, 'createCommunication').mockResolvedValue({
             id: 'comm-proposal-2'
@@ -3186,7 +3212,7 @@ describe('White Cell DOM contract', () => {
                 timingAndConditions: 'Immediately after White Cell review.',
                 recipientTeam: 'blue'
             })
-        });
+        }, { returnForChanges: true });
 
         expect(returnArtifact).toHaveBeenCalledWith('action', 'action-93', {
             team: 'green',
@@ -3196,11 +3222,8 @@ describe('White Cell DOM contract', () => {
         expect(createCommunication).not.toHaveBeenCalled();
         expect(communicationsUpdate).not.toHaveBeenCalled();
         expect(actionsUpdate).toHaveBeenCalledWith('UPDATE', expect.objectContaining({ id: 'action-93' }));
-        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({
-            id: 'timeline-proposal-2',
-            type: 'ARTIFACT_RETURNED_TO_TEAM'
-        }));
-        expect(showToast).toHaveBeenCalledWith({ message: 'Proposal review saved: changes requested', type: 'success' });
+        expect(timelineUpdate).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith({ message: 'Proposal sent back for improvement', type: 'success' });
     });
 
     it('sends Blue team actions to the Red team as White Cell communications', async () => {

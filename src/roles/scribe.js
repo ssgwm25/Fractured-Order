@@ -40,11 +40,17 @@ import {
 } from '../features/actions/strategicOrientationDetails.js';
 import {
     PROPOSAL_RECIPIENT_STATUSES,
+    PROPOSAL_THREAD_MESSAGE_TYPES,
     formatProposalRecipientStatus,
+    getLatestProposalThreadMessage,
+    getProposalThreadForRecipient,
+    getProposalThreadMetadata,
+    getProposalThreadStatus,
     getProposalRecipientEntry,
     getProposalRecipientStatus,
     isProposalNegotiationRequest,
-    isProposalRecipientFinal
+    isProposalRecipientFinal,
+    isProposalThreadMessage
 } from '../features/actions/proposalRecipientState.js';
 import {
     formatProposalRecipientTeams,
@@ -119,28 +125,37 @@ function serializeTeamActionRenderState(actions = []) {
 export const FACILITATOR_PROPOSAL_DECISIONS = Object.freeze({
     ACCEPT: 'accept',
     NOT_INTERESTED: 'not_interested',
-    NEGOTIATE: 'negotiate'
+    NEGOTIATE: 'negotiate',
+    REPLY: 'reply',
+    CLOSE: 'close'
 });
 
 export function getFacilitatorProposalDecisionContract(decision = '', negotiationTerms = '') {
     return {
         [FACILITATOR_PROPOSAL_DECISIONS.ACCEPT]: {
-            status: PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
             label: 'Accepted',
             responseContent: 'Accepted',
-            timelineType: 'PROPOSAL_RESPONDED'
+            messageType: PROPOSAL_THREAD_MESSAGE_TYPES.RECIPIENT_RESPONSE
         },
         [FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED]: {
-            status: PROPOSAL_RECIPIENT_STATUSES.DECLINED,
             label: 'Not Interested',
             responseContent: 'Not Interested',
-            timelineType: 'PROPOSAL_DECLINED'
+            messageType: PROPOSAL_THREAD_MESSAGE_TYPES.RECIPIENT_RESPONSE
         },
         [FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE]: {
-            status: PROPOSAL_RECIPIENT_STATUSES.RESPONDED,
             label: 'Negotiation requested',
             responseContent: String(negotiationTerms || '').trim(),
-            timelineType: 'PROPOSAL_RESPONDED'
+            messageType: PROPOSAL_THREAD_MESSAGE_TYPES.NEGOTIATION_MESSAGE
+        },
+        [FACILITATOR_PROPOSAL_DECISIONS.REPLY]: {
+            label: 'Follow-up sent',
+            responseContent: String(negotiationTerms || '').trim(),
+            messageType: PROPOSAL_THREAD_MESSAGE_TYPES.NEGOTIATION_MESSAGE
+        },
+        [FACILITATOR_PROPOSAL_DECISIONS.CLOSE]: {
+            label: 'Thread closed',
+            responseContent: String(negotiationTerms || '').trim() || 'Proposal thread closed.',
+            messageType: PROPOSAL_THREAD_MESSAGE_TYPES.THREAD_CLOSED
         }
     }[decision] || null;
 }
@@ -490,7 +505,13 @@ export function buildFacilitatorProposalSlides(communications = [], {
         slideCount: proposals.length,
         slides: proposals.map((communication, index) => {
             const snapshot = getProposalSnapshot(communication);
-            const status = getProposalRecipientStatus(communication);
+            const status = isProposalThreadMessage(communication)
+                ? getProposalThreadStatus(getProposalThreadForRecipient(
+                    communications,
+                    snapshot.metadata.source_proposal_id,
+                    snapshot.metadata.recipient_team
+                ))
+                : getProposalRecipientStatus(communication);
             return {
                 slideKey: `proposal-${communication.id}`,
                 slideType: 'proposal',
@@ -1748,6 +1769,31 @@ export class ScribeController {
         const metadata = communication?.metadata && typeof communication.metadata === 'object'
             ? communication.metadata
             : {};
+        const thread = getProposalThreadMetadata(communication);
+
+        if (
+            thread
+            && thread.roundNumber > 0
+            && thread.senderTeam !== this.teamId
+            && [thread.sourceTeam, thread.recipientTeam].includes(this.teamId)
+        ) {
+            const senderLabel = this.getTeamLabel(thread.senderTeam);
+            const proposal = this.teamActions.find((action) => action?.id === thread.sourceProposalId);
+            return {
+                kind: 'proposal',
+                tone: 'proposal',
+                title: `Proposal round ${thread.roundNumber} from ${senderLabel}`,
+                detail: proposal?.goal || communication.title || 'Open the proposal thread to respond.',
+                slideKey: thread.sourceTeam === this.teamId
+                    ? `action-${thread.sourceProposalId}`
+                    : `proposal-${getProposalThreadForRecipient(
+                        communicationsStore.getAll(),
+                        thread.sourceProposalId,
+                        thread.recipientTeam
+                    )[0]?.id || ''}`,
+                at: thread.sentAt
+            };
+        }
 
         // A Green/other-team proposal forwarded to this team by White Cell
         if (communication?.type === 'PROPOSAL_FORWARDED' && metadata.recipient_team === this.teamId) {
@@ -3469,7 +3515,7 @@ export class ScribeController {
         `;
     }
 
-    renderOwnProposalProcess(action = {}, viewModel = getProposalViewModel(action)) {
+    renderLegacyOwnProposalProcess(action = {}, viewModel = getProposalViewModel(action)) {
         const communication = this.getAuthoredProposalCommunication(action);
         const recipientLabel = this.getTeamLabel(
             communication?.metadata?.recipient_team || viewModel.recipientTeam || ''
@@ -3571,6 +3617,61 @@ export class ScribeController {
                             ${escapeHtml(responseContent)}
                         </p>
                     ` : ''}
+                </div>
+            </section>
+        `;
+    }
+
+    renderOwnProposalProcess(action = {}, viewModel = getProposalViewModel(action)) {
+        const legacyCommunication = this.getAuthoredProposalCommunication(action);
+        if (legacyCommunication && !isProposalThreadMessage(legacyCommunication)) {
+            return this.renderLegacyOwnProposalProcess(action, viewModel);
+        }
+        const recipients = viewModel.recipientTeams?.length
+            ? viewModel.recipientTeams
+            : (viewModel.recipientTeam ? [viewModel.recipientTeam] : []);
+        const allCommunications = communicationsStore.getAll();
+        const lifecycle = getArtifactLifecycleViewModel(action);
+
+        return `
+            <section class="scribe-proposal-decision-panel scribe-own-proposal-process" aria-label="Proposal recipient threads">
+                <div>
+                    <p class="scribe-action-slide-section-label">Proposal threads</p>
+                    ${recipients.map((recipientTeam) => {
+                        const recipientLabel = this.getTeamLabel(recipientTeam);
+                        const messages = getProposalThreadForRecipient(allCommunications, action.id, recipientTeam);
+                        const status = getProposalThreadStatus(messages);
+                        const latest = getLatestProposalThreadMessage(messages);
+                        const latestMetadata = getProposalThreadMetadata(latest);
+                        const canReply = latestMetadata
+                            && latestMetadata.senderTeam !== this.teamId
+                            && status !== PROPOSAL_RECIPIENT_STATUSES.CLOSED;
+                        const pendingDetail = lifecycle.isReturned
+                            ? 'Returned by White Cell for revision.'
+                            : lifecycle.isAwaitingWhiteCell
+                                ? 'Awaiting this recipient\'s separate White Cell approval.'
+                                : 'No recipient thread has been opened.';
+
+                        return `
+                            <section class="proposal-thread-panel" aria-labelledby="own-proposal-thread-${escapeHtml(String(action.id))}-${escapeHtml(recipientTeam)}">
+                                <h3 id="own-proposal-thread-${escapeHtml(String(action.id))}-${escapeHtml(recipientTeam)}" class="scribe-proposal-decision-status">${escapeHtml(recipientLabel)} &middot; ${escapeHtml(formatProposalRecipientStatus(status))}</h3>
+                                ${messages.length ? `
+                                    <ol class="proposal-thread-list">
+                                        ${messages.map((message) => {
+                                            const thread = getProposalThreadMetadata(message);
+                                            return `<li class="proposal-thread-message"><strong>Round ${thread.roundNumber} &middot; ${escapeHtml(this.getTeamLabel(thread.senderTeam))}:</strong> ${escapeHtml(message.content || '')}</li>`;
+                                        }).join('')}
+                                    </ol>
+                                ` : `<p class="scribe-proposal-negotiation-terms">${escapeHtml(pendingDetail)}</p>`}
+                                ${canReply ? `
+                                    <div class="scribe-proposal-decision-actions" role="group" aria-label="${escapeHtml(`${recipientLabel} thread actions`)}">
+                                        <button type="button" class="btn btn-primary" data-facilitator-proposal-decision="reply" data-proposal-communication-id="${escapeHtml(String(latest.id))}">Reply with next round</button>
+                                        <button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="close" data-proposal-communication-id="${escapeHtml(String(latest.id))}">Close thread</button>
+                                    </div>
+                                ` : ''}
+                            </section>
+                        `;
+                    }).join('')}
                 </div>
             </section>
         `;
@@ -3682,15 +3783,31 @@ export class ScribeController {
 
         const communication = slide.communication || {};
         const { metadata, proposal, title, sourceTeam } = getProposalSnapshot(communication);
-        const recipientEntry = getProposalRecipientEntry(communication);
-        const status = getProposalRecipientStatus(communication);
-        const isFinal = isProposalRecipientFinal(communication);
-        const decision = recipientEntry?.facilitator_decision || '';
-        const decisionLabel = {
-            [FACILITATOR_PROPOSAL_DECISIONS.ACCEPT]: 'Accepted',
-            [FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED]: 'Not Interested',
-            [FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE]: 'Negotiation requested'
-        }[decision] || formatProposalRecipientStatus(status);
+        const isThreadBacked = isProposalThreadMessage(communication);
+        const messages = getProposalThreadForRecipient(
+            communicationsStore.getAll(),
+            metadata.source_proposal_id,
+            metadata.recipient_team
+        );
+        const legacyEntry = getProposalRecipientEntry(communication);
+        const legacyDecision = legacyEntry?.facilitator_decision || '';
+        const status = isThreadBacked
+            ? getProposalThreadStatus(messages)
+            : getProposalRecipientStatus(communication);
+        const latestMessage = getLatestProposalThreadMessage(messages) || communication;
+        const latestMetadata = getProposalThreadMetadata(latestMessage);
+        const isClosed = isThreadBacked
+            ? status === PROPOSAL_RECIPIENT_STATUSES.CLOSED
+            : isProposalRecipientFinal(communication);
+        const awaitingThisTeam = isThreadBacked
+            ? latestMetadata?.senderTeam !== this.teamId && !isClosed
+            : !isClosed;
+        const isFirstResponse = isThreadBacked ? latestMetadata?.roundNumber === 0 : true;
+        const legacyDecisionLabel = {
+            accept: 'Accepted',
+            not_interested: 'Not Interested',
+            negotiate: 'Negotiation requested'
+        }[legacyDecision] || formatProposalRecipientStatus(status);
         const decisionStatusId = `proposal-decision-status-${String(communication.id || 'proposal').replace(/[^a-z0-9]+/gi, '-')}`;
         const formatList = (value) => Array.isArray(value) && value.length
             ? value.join(', ')
@@ -3756,19 +3873,27 @@ export class ScribeController {
 
                     <section class="scribe-proposal-decision-panel" aria-labelledby="${escapeHtml(decisionStatusId)}">
                         <div>
-                            <p class="scribe-action-slide-section-label">Facilitator response</p>
+                            <p class="scribe-action-slide-section-label">Recipient-isolated thread</p>
                             <p id="${escapeHtml(decisionStatusId)}" class="scribe-proposal-decision-status" role="status" aria-live="polite">
-                                ${isFinal ? `Recorded response: ${escapeHtml(decisionLabel)}` : 'Choose one response. It will be shared with White Cell and the proposing team.'}
+                                ${isThreadBacked ? escapeHtml(formatProposalRecipientStatus(status)) : (isClosed ? `Recorded response: ${escapeHtml(legacyDecisionLabel)}` : 'Choose one response. It will be shared with White Cell and the proposing team.')}
                             </p>
-                            ${decision === FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE && recipientEntry?.response_content
-                ? `<p class="scribe-proposal-negotiation-terms"><strong>Negotiation terms:</strong> ${escapeHtml(recipientEntry.response_content)}</p>`
-                : ''}
+                            ${isThreadBacked ? `<ol class="proposal-thread-list" aria-label="Ordered proposal messages">
+                                ${messages.map((message) => {
+                                    const thread = getProposalThreadMetadata(message);
+                                    return `<li class="proposal-thread-message"><strong>Round ${thread.roundNumber} &middot; ${escapeHtml(formatTeamLabel(thread.senderTeam))}:</strong> ${escapeHtml(message.content || '')}</li>`;
+                                }).join('')}
+                            </ol>` : (legacyDecision === 'negotiate' && legacyEntry?.response_content ? `<p class="scribe-proposal-negotiation-terms"><strong>Negotiation terms:</strong> ${escapeHtml(legacyEntry.response_content)}</p>` : '')}
                         </div>
-                        <div class="scribe-proposal-decision-actions" role="group" aria-label="Proposal response options">
-                            <button type="button" class="btn btn-primary" data-facilitator-proposal-decision="accept" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isFinal ? 'disabled' : ''}>Accept</button>
-                            <button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="not_interested" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isFinal ? 'disabled' : ''}>Not Interested</button>
-                            <button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="negotiate" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isFinal ? 'disabled' : ''}>Negotiate</button>
-                        </div>
+                        ${(awaitingThisTeam || !isThreadBacked) ? `
+                            <div class="scribe-proposal-decision-actions" role="group" aria-label="Proposal response options">
+                                ${isFirstResponse ? `
+                                    <button type="button" class="btn btn-primary" data-facilitator-proposal-decision="accept" data-proposal-communication-id="${escapeHtml(String(latestMessage.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isClosed ? 'disabled' : ''}>Accept</button>
+                                    <button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="not_interested" data-proposal-communication-id="${escapeHtml(String(latestMessage.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isClosed ? 'disabled' : ''}>Not Interested</button>
+                                ` : ''}
+                                <button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="negotiate" data-proposal-communication-id="${escapeHtml(String(latestMessage.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}" ${isClosed ? 'disabled' : ''}>${isFirstResponse ? 'Negotiate' : 'Reply with next round'}</button>
+                                ${isFirstResponse ? '' : `<button type="button" class="btn btn-secondary" data-facilitator-proposal-decision="close" data-proposal-communication-id="${escapeHtml(String(latestMessage.id || ''))}" aria-describedby="${escapeHtml(decisionStatusId)}">Close thread</button>`}
+                            </div>
+                        ` : ''}
                     </section>
                 </section>
             </article>
@@ -3776,19 +3901,40 @@ export class ScribeController {
     }
 
     async handleFacilitatorProposalDecision(communicationId = '', decision = '') {
-        const communication = this.receivedProposals.find((entry) => entry?.id === communicationId);
+        const communication = communicationsStore.getAll().find((entry) => entry?.id === communicationId);
         if (!communication) {
             showToast({ message: 'Proposal not found. Refresh the facilitator view and try again.', type: 'error' });
             return;
         }
 
-        if (isProposalRecipientFinal(communication)) {
-            showToast({ message: 'This proposal response is already recorded.', type: 'error' });
+        const threadMetadata = getProposalThreadMetadata(communication);
+        const threadMessages = threadMetadata
+            ? getProposalThreadForRecipient(
+                communicationsStore.getAll(),
+                threadMetadata.sourceProposalId,
+                threadMetadata.recipientTeam
+            )
+            : [];
+        if (getProposalThreadStatus(threadMessages) === PROPOSAL_RECIPIENT_STATUSES.CLOSED) {
+            showToast({ message: 'This proposal thread is closed.', type: 'error' });
             return;
         }
 
-        if (decision === FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE) {
-            this.showProposalNegotiationModal(communication);
+        if ([FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE, FACILITATOR_PROPOSAL_DECISIONS.REPLY].includes(decision)) {
+            this.showProposalNegotiationModal(communication, { decision });
+            return;
+        }
+
+        if (decision === FACILITATOR_PROPOSAL_DECISIONS.CLOSE) {
+            const confirmed = await confirmModal({
+                title: 'Close Proposal Thread',
+                message: 'Close this recipient thread? Existing rounds remain visible and no new rounds can be added.',
+                confirmLabel: 'Close thread',
+                variant: 'secondary'
+            });
+            if (confirmed) {
+                await this.submitFacilitatorProposalDecision(communication, decision, 'Proposal thread closed.');
+            }
             return;
         }
 
@@ -3804,7 +3950,7 @@ export class ScribeController {
 
         const confirmed = await confirmModal({
             title: `${decisionLabel} Proposal`,
-            message: `Record "${decisionLabel}" for ${getProposalSnapshot(communication).title}? This response is final and will be shared with White Cell and the proposing team.`,
+            message: `Record "${decisionLabel}" for ${getProposalSnapshot(communication).title}? This creates the next immutable thread round and can be answered by the proposing Facilitator.`,
             confirmLabel: decisionLabel,
             variant: decision === FACILITATOR_PROPOSAL_DECISIONS.ACCEPT ? 'primary' : 'secondary'
         });
@@ -3814,29 +3960,30 @@ export class ScribeController {
         }
     }
 
-    showProposalNegotiationModal(communication = {}) {
+    showProposalNegotiationModal(communication = {}, { decision = FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE } = {}) {
         const proposalTitle = getProposalSnapshot(communication).title;
+        const isReply = decision === FACILITATOR_PROPOSAL_DECISIONS.REPLY;
         const content = document.createElement('div');
         content.innerHTML = `
             <form id="facilitatorProposalNegotiationForm" novalidate>
-                <p class="form-help">Describe the terms or changes ${this.teamLabel} wants to negotiate for <strong>${escapeHtml(proposalTitle)}</strong>.</p>
+                <p class="form-help">${isReply ? 'Write the proposing team\'s next-round answer' : `Describe the terms or changes ${this.teamLabel} wants to negotiate`} for <strong>${escapeHtml(proposalTitle)}</strong>.</p>
                 <div class="form-group">
-                    <label class="form-label" for="facilitatorProposalNegotiationTerms">Negotiation terms *</label>
+                    <label class="form-label" for="facilitatorProposalNegotiationTerms">${isReply ? 'Follow-up message' : 'Negotiation terms'} *</label>
                     <textarea id="facilitatorProposalNegotiationTerms" class="form-input form-textarea" rows="5" aria-describedby="facilitatorProposalNegotiationHelp" required></textarea>
-                    <p class="form-help" id="facilitatorProposalNegotiationHelp">This response is final and will be shared with White Cell and the proposing team.</p>
+                    <p class="form-help" id="facilitatorProposalNegotiationHelp">This adds one immutable round to this recipient-only thread and notifies White Cell.</p>
                 </div>
             </form>
         `;
 
         const modalRef = { current: null };
         modalRef.current = showModal({
-            title: 'Negotiate Proposal',
+            title: isReply ? 'Reply to Proposal Thread' : 'Negotiate Proposal',
             content,
             size: 'md',
             buttons: [
                 { label: 'Cancel', variant: 'secondary', onClick: () => {} },
                 {
-                    label: 'Send Negotiation',
+                    label: isReply ? 'Send Follow-up' : 'Send Negotiation',
                     variant: 'primary',
                     onClick: () => {
                         const terms = content.querySelector('#facilitatorProposalNegotiationTerms')?.value?.trim() || '';
@@ -3846,7 +3993,7 @@ export class ScribeController {
                         }
                         void this.submitFacilitatorProposalDecision(
                             communication,
-                            FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE,
+                            decision,
                             terms
                         ).then((saved) => {
                             if (saved) {
@@ -3861,7 +4008,7 @@ export class ScribeController {
         content.querySelector('#facilitatorProposalNegotiationTerms')?.focus?.();
     }
 
-    async submitFacilitatorProposalDecision(communication = {}, decision = '', negotiationTerms = '') {
+    async submitLegacyFacilitatorProposalDecision(communication = {}, decision = '', negotiationTerms = '') {
         const sessionId = sessionStore.getSessionId();
         const latestCommunication = communicationsStore.getAll()
             .find((entry) => entry?.id === communication?.id) || communication;
@@ -3940,6 +4087,47 @@ export class ScribeController {
         } catch (error) {
             logger.error('Failed to save facilitator proposal decision:', error);
             showToast({ message: 'Failed to record the proposal response. Refresh proposals and try again.', type: 'error' });
+            return false;
+        } finally {
+            hideLoader(loader);
+        }
+    }
+
+    async submitFacilitatorProposalDecision(communication = {}, decision = '', negotiationTerms = '') {
+        const sessionId = sessionStore.getSessionId();
+        const latestParent = communicationsStore.getAll().find((entry) => entry?.id === communication?.id) || communication;
+        const threadMetadata = getProposalThreadMetadata(latestParent);
+        if (!sessionId || !latestParent?.id || !threadMetadata) {
+            showToast({ message: 'No active proposal thread was found.', type: 'error' });
+            return false;
+        }
+
+        const decisionContract = getFacilitatorProposalDecisionContract(decision, negotiationTerms);
+        if (!decisionContract || !decisionContract.responseContent) {
+            showToast({ message: 'A valid proposal thread message is required.', type: 'error' });
+            return false;
+        }
+
+        const loader = showLoader({ message: 'Adding proposal thread round...' });
+        try {
+            const clientMessageId = globalThis.crypto?.randomUUID?.()
+                || `${threadMetadata.threadId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            const responseCommunication = await database.appendProposalThreadMessage(latestParent.id, {
+                content: decisionContract.responseContent,
+                messageType: decisionContract.messageType,
+                facilitatorDecision: [
+                    FACILITATOR_PROPOSAL_DECISIONS.ACCEPT,
+                    FACILITATOR_PROPOSAL_DECISIONS.NOT_INTERESTED,
+                    FACILITATOR_PROPOSAL_DECISIONS.NEGOTIATE
+                ].includes(decision) ? decision : null,
+                clientMessageId
+            });
+            communicationsStore.updateFromServer('INSERT', responseCommunication);
+            showToast({ message: `Proposal thread updated: ${decisionContract.label}`, type: 'success' });
+            return true;
+        } catch (error) {
+            logger.error('Failed to append proposal thread round:', error);
+            showToast({ message: 'Failed to add the proposal thread round. Refresh and try again.', type: 'error' });
             return false;
         } finally {
             hideLoader(loader);
