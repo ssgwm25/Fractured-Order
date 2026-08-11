@@ -94,6 +94,7 @@ END $$;
 
 ALTER TABLE public.requests
     ADD COLUMN IF NOT EXISTS response TEXT,
+    ADD COLUMN IF NOT EXISTS responded_by TEXT,
     ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
 
 UPDATE public.requests

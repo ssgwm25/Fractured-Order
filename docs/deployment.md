@@ -5,9 +5,9 @@ This project deploys as a root-level Vite multi-page app through GitHub Pages.
 ## Migration-First Release Order
 
 Rehearse every release in a dedicated, non-production Supabase project. Apply
-database changes first, in the 32-step dated order documented in
+database changes first, in the 33-step dated order documented in
 `docs/supabase-setup.md`, ending at
-`data/2026-08-06_proposal_recipient_threads.sql`. Record the project reference,
+`data/2026-08-11_requests_responded_by_schema_repair.sql`. Record the project reference,
 final migration identifier, operator, and UTC completion time. Verify RPCs,
 RLS, append-only review/thread records, RFI history, and research-export
 reconciliation before advancing.
@@ -31,7 +31,7 @@ following from the candidate head:
 - the clean source commit SHA and the deployed frontend commit SHA, which must
   match
 - the verified final migration identifier
-  `2026-08-06_proposal_recipient_threads`
+  `2026-08-11_requests_responded_by_schema_repair`
 - the dedicated rehearsal deployment URL, unique run ID, UTC start/end times,
   and operator
 - mock and live-Supabase results produced from the same commit and migration

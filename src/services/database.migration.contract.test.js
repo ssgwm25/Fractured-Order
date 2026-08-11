@@ -73,6 +73,10 @@ const PROPOSAL_RECIPIENT_THREADS_PATH = new URL(
     '../../data/2026-08-06_proposal_recipient_threads.sql',
     import.meta.url
 );
+const REQUESTS_RESPONDED_BY_SCHEMA_REPAIR_PATH = new URL(
+    '../../data/2026-08-11_requests_responded_by_schema_repair.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -634,6 +638,17 @@ describe('database migration contracts', () => {
         expect(sql).toContain("artifact_type IN ('strategic_orientation_forecast', 'proposal')");
         expect(sql).toContain('CREATE TRIGGER zz_guard_facilitator_request_write');
         expect(sql).toContain('Facilitators may only revise RFI question and category content.');
+    });
+
+    it('repairs the responder field required by the Facilitator RFI insert guard without rewriting history', () => {
+        const repairSql = readFileSync(REQUESTS_RESPONDED_BY_SCHEMA_REPAIR_PATH, 'utf8');
+        const currentBuildPatch = readFileSync(CURRENT_BUILD_SUPABASE_PATCH_PATH, 'utf8');
+
+        expect(repairSql).toContain('ALTER TABLE public.requests');
+        expect(repairSql).toContain('ADD COLUMN IF NOT EXISTS responded_by TEXT');
+        expect(repairSql).not.toMatch(/\bUPDATE\s+public\.requests\b/i);
+        expect(repairSql).not.toMatch(/\bDROP\s+(?:COLUMN|TABLE|TRIGGER|POLICY)\b/i);
+        expect(currentBuildPatch).toContain('ADD COLUMN IF NOT EXISTS responded_by TEXT');
     });
 
     it('marks obsolete consolidated SQL artifacts as non-installable', () => {

@@ -1,308 +1,157 @@
+Plan
+Implement team-specific Strategic Orientation modals that capture each team’s catalogue selections, forecasts, and required free-text strategy. Persist the expanded data compatibly and expose it through Facilitator, White Cell, projection, and export workflows.
+Scope
+In:Blue, Red, Green, and Industry Strategic Orientation modals.
+Strategic Orientation serialization, parsing, display, export, tests, and documentation.
+Existing separate Green (Asian Pacific) and Green (Europe) forecast targets.
+
+Out:Normal actions, proposals, RFIs, database/RLS changes, team topology, and the four-team pre-Move-1 gate.
+
 Action items
-[ ] Step 1 — Establish the lifecycle and database contract
-Prompt:
-Read AGENTS.md, README.md, the current action/request/communication schema, data/2026-07-29_return_action_to_blue.sql, data/2026-06-03_proposal_response_finalization_lock.sql, src/core/enums.js, src/services/database.js, and the migration contract tests before editing.
-Add an additive migration establishing team-neutral artifact workflow metadata without rewriting historical rows. Support draft, forwarded_to_facilitator, submitted_to_white_cell, returned_to_team, resubmitted, and completed states. Keep existing database status values compatible and use workflow_state for the richer lifecycle.
-Replace the Blue-only return operation with an artifact-aware White Cell review RPC that can:
-complete an action or Strategic Orientation without recording an outcome;
-return Blue or Red actions to their submitting team;
-return Strategic Orientation artifacts;
-return RFIs for clarification;
-require reviewer notes for every return;
-record revision number, reviewer role, timestamps, and prior state;
-reject cross-team, unauthorized, stale-revision, and completed-artifact writes.
-Preserve compatibility with historical returned_to_blue rows and, if needed, retain the old RPC as a wrapper. Update src/services/database.js, src/services/supabaseMock.js, consolidated schema files, migration contract tests, Supabase setup documentation, and rollback documentation. Do not run migrations or tests; provide the exact human-run verification commands and expected results.
+[ ] Define the final team workflow matrix in [strategicOrientationDetails.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/features/actions/strategicOrientationDetails.js).
+Blue:Choose Blue’s orientation from the catalogue.
+Forecast Red’s orientation from the catalogue.
+Describe what Red is expected to do.
 
-Acceptance criteria:
-Blue and Red returns use one authorization contract.
-Completion does not require or mint an outcome.
-Return notes and revision metadata are persisted atomically.
-Legacy rows remain readable and labeled accurately.
-The deterministic mock mirrors live Supabase behavior.
+Red:Choose Red’s orientation from the catalogue.
+Describe/rationalize Red’s orientation in free text.
+Forecast Blue’s orientation.
+Forecast Green (Asian Pacific).
+Forecast Green (Europe).
 
-Remaining implementation:
-The dated migration, live database service, deterministic mock, and focused migration tests already implement the artifact-aware review contract. Do not replace or weaken them.
-Bring data/COMPLETE_SCHEMA.sql, data/updated_supabase_schema.sql, and data/updated_supabase_migration.sql into operational parity with the dated migration, including the review RPC, compatibility wrapper, normalization triggers, review-table RLS policies, grants, and comments. If these files are intentionally historical rather than installable schemas, deprecate them explicitly in their headers and setup documentation so no operator can treat them as a complete current install path.
-Strengthen migration contract tests to assert the operational functions, triggers, authorization predicates, stale-revision checks, completed-artifact rejection, atomic review insert, RLS policies, and grants rather than only column and table shape.
-Update Supabase setup and rollback documentation to name one authoritative migration order and to explain the non-destructive treatment of additive workflow objects and legacy returned_to_blue rows.
+Green:Forecast Blue’s orientation.
+Choose Green’s orientation.
+Describe Green’s strategy, in its own terms, given the Blue forecast.
 
-## Completed: 8/10/2026
+Industry:Forecast Blue’s orientation.
+Choose Industry’s orientation.
+Describe Industry’s strategy, in its own terms, given the Blue forecast.
 
-[x] Step 2 — Centralize artifact lifecycle, detail, and badge rendering
-Prompt:
-Read the shared action, proposal, request, badge, and role-card helpers before editing. Create or extend shared view models so every role renders the same lifecycle labels and artifact details.
-Update src/features/actions/blueActionDetails.js and its tests so White Cell receives every recorded field, including all instruments of power, Red levers, supply-chain decision, action angles, supply-chain areas, sectors, countries, coordination, and informed/engaged selections.
-Update the proposal serializer/parser to support:
-recipientTeams[];
-focusSectors[];
-supply-chain decision, angles, and areas;
-Industry focus;
-country focus;
-proposed activity;
-revision metadata.
-Continue parsing historical Category, Delivery, single-recipient, and single-sector records.
-Centralize lifecycle badges. Proposal cards must never render SUCCESS, PARTIAL_SUCCESS, FAIL, or BACKFIRE. A submitted proposal awaiting White Cell action should show “Deliberation Underway”; recipient-specific approval states should be shown separately; returned artifacts should show “Returned by White Cell”; completed artifacts should show “Completed.” Historical outcome values must remain available to exports but not to current entity cards.
-Add narrow unit tests proving exact fields and badges. Do not run tests.
+Implement this as a declarative profile keyed by team ID, defining ordered sections, forecast targets, required fields, labels, help text, and submit copy.
+Add Red to the forecast-target registry while retaining the three existing Red forecast targets: Blue, Green (Asian Pacific), and Green (Europe).
+[ ] Extend the persisted Strategic Orientation contract additively.
+Add an explicit contract version.
+Store independent fields for:ownOrientation.
+forecastTargets.
+orientationRationale.
+forecastActionDescription.
+strategyDescription.
 
-Acceptance criteria:
-All roles derive labels from the same workflow-state mapping.
-Proposal cards cannot accidentally fall back to outcome badges.
-New proposal data round-trips without losing multi-select fields.
-Historical serialized artifacts still render safely.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
+Store each selected catalogue value with its stable ID, label, and tag.
+Store Blue’s Red-action description alongside the Red forecast target.
+Retain deterministic forecast ordering.
+Reject unknown or duplicate targets during normalization.
+Preserve the existing parser for legacy selection-only and forecast-only artifacts.
+Update the view model to expose independent capabilities such as hasOwnOrientation, hasForecasts, hasOrientationRationale, and hasStrategyDescription instead of treating selection and forecast as mutually exclusive.
+Leave getStrategicOrientationCompletion() unchanged: one submitted artifact from each of the four teams still clears the gate.
+[ ] Refactor the modal implementation in [facilitator.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/roles/facilitator.js).
+Generate each modal from the team profile.
+Render numbered or clearly separated sections in the exact workflow order.
+Give every catalogue selection its own <fieldset>, unique legend, and radio group.
+Use purpose-specific textarea labels:Describe what you expect Red to do
+Describe and explain Red’s strategic orientation
+Describe your strategy given this forecast
 
-## Completed: 8/5/2026
+Maintain structured modal state for own orientation, forecast selections, rationale, expected actions, and strategy description.
+Require every team-specific field and reject whitespace-only narratives.
+Disable confirmation until all required catalogue choices are present; validate narrative fields on submission and show field-level errors plus an accessible error summary.
+Restore all values when editing a returned artifact.
+Ensure resubmission changes only the intended revision and retains untouched fields.
+Generate titles and timeline summaries from the team’s own orientation while listing forecasts separately.
+[ ] Update buttons, copy, and modal styling.
+Rename the orientation controls in the four teams/*/facilitator.html pages to Strategic Orientation, avoiding incomplete labels such as Forecast Blue and Forecast Teams.
+Update [modals.css](/C:/Users/ssnguna/Local Sites/Fractured-Order/styles/components/modals.css) for:Section separation and headings.
+Compact catalogue cards.
+Responsive single-column layout.
+Modal-body scrolling at short viewport heights.
+A footer that remains visible and keyboard reachable at 200% zoom.
 
-[X] Step 3 — Replace White Cell action and Strategic Orientation adjudication
-Prompt:
-Read whitecell.html, src/roles/whitecell.js, its unit tests, action-store behavior, timeline behavior, and the new workflow RPC from Step 1.
-Rename “Record Deliberation” to “Review Action.” Remove the outcome selector and offer only:
-“Accept as Complete”;
-“Send Back for Improvement.”
-Require notes for send-back and make notes optional for acceptance. Use submitting-team-aware language rather than “Blue” in generic controls, loaders, errors, timeline events, and success messages. Apply the same decision model to “Review Strategic Orientation.”
-Add a White Cell Returned/Revision History view so returned actions and Strategic Orientation artifacts remain visible after leaving the pending queue. Show the submitting team, revision number, return notes, reviewer, and timestamp. Ensure White Cell sees all action fields from Step 2, especially action angles, supply-chain areas, instruments of power, and Red levers.
-Update unit tests that currently expect “Record Deliberation,” an outcome selector, or Blue-only returns. Add tests for Red returns, Strategic Orientation returns, stale-revision rejection, completion without outcome, and retained history. Update relevant runbook instructions. Do not run tests.
+Preserve arrow-key radio navigation, visible focus, focus trapping, Escape/Cancel behavior, screen-reader labels, and reduced-motion behavior.
+[ ] Update every Strategic Orientation presentation surface.
+Update originating-team cards in [facilitator.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/roles/facilitator.js) to show:Own orientation.
+Orientation rationale or strategy description.
+Every forecast.
+Blue’s expected Red actions.
 
-Acceptance criteria:
-Action and SO review contains no outcome control.
-Blue and Red receive correct team-specific send-back behavior.
-Returned artifacts remain visible to White Cell.
-Accepting marks the artifact complete without assigning success or failure.
+Update Facilitator slides and projection mode in [scribe.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/roles/scribe.js) with the same ordered fields.
+Update White Cell queue cards, returned history, and review dialogs in [whitecell.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/roles/whitecell.js).
+Replace exclusive Selection/Forecast badges for new records with an accurate label such as Orientation & Forecast.
+Continue rendering legacy records with their original selection-only or forecast-only labels.
+Never infer a missing orientation, forecast, description, or rationale.
+[ ] Update research exports in [researchExport.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/features/export/researchExport.js).
+Include the new fields in canonical JSON/CSV projections.
+Add own orientation, forecasts, rationale, strategy description, and expected target actions to HTML and LaTeX reports.
+Preserve stable target ordering: Red, Blue, Green (Asian Pacific), and Green (Europe) where applicable to the artifact.
+Keep legacy records exportable without retroactively minting new fields.
+Update export reconciliation so persisted values must match their rendered report values.
+[ ] Add unit and contract tests.
+In [strategicOrientationDetails.test.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/features/actions/strategicOrientationDetails.test.js), add:Round-trip coverage for all four team profiles.
+Red’s own catalogue selection and rationale.
+Red’s three deterministically ordered forecasts.
+Blue’s Red forecast and expected-action description.
+Green and Industry strategy descriptions.
+Unknown/duplicate target rejection.
+Legacy artifact compatibility.
 
-Remaining implementation:
-The active White Cell controller already uses Review Action/Review Strategic Orientation, the revision-aware review RPC, outcome-free completion, team-aware returns, retained history, and full action detail rendering. Preserve that implementation.
-Retire or rewrite src/features/actions/ActionReview.js, which remains publicly exported and still renders an outcome selector, “Record Deliberation,” legacy adjudication writes, and outcome timeline entries. No exported or reachable shared component may provide an alternate path that can mint a current action or Strategic Orientation outcome.
-Add a regression test over src/features/actions/index.js and ActionReview.js that fails if the legacy adjudication control, actionsStore.adjudicate call, or current-workflow outcome choices are reintroduced. Update any component documentation that still advertises that contract.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
+In [facilitator.test.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/roles/facilitator.test.js), pin:Exact section order and labels per team.
+Required choice and narrative validation.
+Whitespace-only rejection.
+Submit-button state.
+Keyboard behavior.
+Edit/resubmit prepopulation.
+Exact serialized payload and timeline metadata.
 
-## Completed: 8/10/2026
+Update [scribe.test.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/roles/scribe.test.js), [whitecell.test.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/roles/whitecell.test.js), and [researchExport.test.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/src/features/export/researchExport.test.js) to assert complete, nonduplicated rendering.
+Update repository documentation-contract assertions that currently describe Blue as the only team choosing an orientation.
+[ ] Update E2E rehearsal coverage.
+Refactor [liveDemoHarness.js](/C:/Users/ssnguna/Local Sites/Fractured-Order/tests/e2e/support/liveDemoHarness.js) so the orientation helper accepts:ownOrientation
+Target-specific forecasts
+orientationRationale
+forecastActionDescription
+strategyDescription
 
-[x] Step 4 — Complete the action return, layout, and informed-team experience
-Prompt:
-Read src/roles/facilitator.js, src/roles/scribe.js, their tests, the four team HTML surfaces, styles/pages/scribe.css, and the shared action serializers. Remember that teams/*/facilitator.html is the user-facing Scribe workspace and teams/*/scribe.html is the actual Facilitator workspace; preserve these legacy identifiers.
-Add a distinct action field allowing Blue and Red to select Green, Industry, or both as teams to inform. When at least one is selected, require a clarifying note. Do not overload the existing Facilitator Informed/Engaged Industry/Allies decision fields; persist this as separate action-notification metadata.
-On Scribe and Facilitator cards, show:
-forwarded to Facilitator;
-submitted to White Cell;
-deliberation underway;
-returned by White Cell;
-resubmitted;
-completed.
-Returned artifacts must show White Cell notes and revision number and become editable and resubmittable. Completed artifacts must remain read-only.
-Replace the current vertical action navigation with an accessible horizontal mark rail for Strategic Orientation and existing Moves 1–3 on the Blue Facilitator and White Cell surfaces. Give every mark a count and zero state; show newest records first within a mark; allow keyboard navigation; and use horizontal scrolling on narrow screens without page-level overflow.
-Add unit tests for action metadata, lifecycle cards, return editing, rail grouping, keyboard behavior, and responsive CSS contracts. Update the live-demo runbook. Do not run tests.
+Update smoke and playthrough fixtures for all four teams.
+Assert:Each modal shows only its required fields in the correct order.
+Incomplete records cannot be submitted.
+All entered values reach Facilitator and White Cell unchanged.
+Returned artifacts reopen with every field populated.
+Corrected artifacts resubmit without data loss.
+All four artifacts still clear the pre-Move-1 gate.
+Keyboard-only, mobile, short-viewport, and 200%-zoom flows remain usable.
+Legacy fixtures render without console errors.
 
-Acceptance criteria:
-Green/Industry notification selections and notes survive edit and review.
-Returned actions can be corrected and resubmitted exactly once per revision.
-The latest mark is accessible without scrolling to the bottom of the page.
-The rail remains keyboard and mobile accessible.
-Remaining implementation:
-Action notification metadata, return notes, revision editing/resubmission, lifecycle cards, and the White Cell horizontal mark rail are already present. Do not duplicate those paths.
-Implement the accessible horizontal Strategic Orientation/Move 1–3 rail on the actual Blue Facilitator surface, teams/blue/scribe.html backed by src/roles/scribe.js. The current implementation there still calls the vertical mark-section renderer; the horizontal rail in src/roles/facilitator.js belongs to the legacy user-facing Scribe workspace and does not close this requirement.
-Give every mark a count and zero state, sort newest first within the active mark, support arrow-key navigation and focus management, and constrain narrow-screen overflow to the rail rather than the page.
-Add focused src/roles/scribe.js and styles/pages/scribe.css contract tests for grouping, counts, keyboard behavior, active-tab semantics, and mobile overflow. Remove the live-demo runbook instruction that still describes a vertical Facilitator action stack and retain one unambiguous horizontal-rail instruction.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
+[ ] Align documentation with the new runtime behavior.
+Update [README.md](/C:/Users/ssnguna/Local Sites/Fractured-Order/README.md) with the four-team workflow matrix.
+Update [live-demo-runbook.md](/C:/Users/ssnguna/Local Sites/Fractured-Order/docs/live-demo-runbook.md) with exact manual checks for every field, handoff, return, and resubmission.
+Update [playthrough-automation.md](/C:/Users/ssnguna/Local Sites/Fractured-Order/docs/playthrough-automation.md) and the functionality walkthrough to remove the old selection-versus-forecast model.
+Document that no database migration is required because the new fields remain in the existing additive Strategic Orientation envelope.
+[ ] Treat the implementation as complete only when:
+Every team’s modal matches the approved order and terminology.
 
-## Completed: 8/10/2026
+Red selects an orientation, describes it, and forecasts Blue plus both Green delegations.
 
-[x] Step 5 — Rebuild Green and Industry proposal forms
-Prompt:
-Read the current proposal form, serializer, view model, tests, export mappings, and Green/Industry role surfaces before editing.
-Remove Proposal Category and Delivery from all new Green and Industry proposal forms. Preserve them only when rendering historical records.
-Add:
-Blue and Red intended-partner checkboxes;
-separate multi-select focus-sector checkboxes;
-supply-chain Yes/No;
-conditional action-angle checkboxes;
-conditional supply-chain-area checkboxes.
-Give Industry a distinct US-industry form containing industry of focus, country of focus, and proposed activity. Do not render the Green form under an Industry label.
-Support selecting both Blue and Red, but store each as a proposed recipient awaiting separate White Cell approval. Validate at least one intended partner and one focus sector. Preserve custom “Other” values where the existing design system supports them.
-Allow a proposal returned by White Cell to reopen in edit mode with reviewer notes and revision history visible. Resubmission must update the logical proposal revision rather than creating an unrelated proposal.
-Update proposal parser, serializer, cards, presentation view, unit tests, E2E helpers, exports, and operator documentation. Do not run tests.
+Blue selects its orientation, forecasts Red, and describes Red’s expected actions.
 
-Acceptance criteria:
-New proposals contain no Category or Delivery controls.
-Partner and sector selections are independent checkbox groups.
-Industry has the required industry, country, and activity fields.
-Historical proposal fields remain readable.
-Returned proposals retain identity and revision history.
-Remaining implementation:
-The current Green and Industry forms, serializer/parser, cards, and unit coverage already implement the new partner, sector, supply-chain, Industry, and revision fields while retaining historical parsing. Do not reintroduce Category or Delivery into new-entry forms.
-Update docs/live-demo-runbook.md so its proposal checks require the current fields and distinguish the Green and Industry forms; remove its stale Category, Delivery, and Industry Instrument of Power requirements.
-Update docs/playthrough-automation.md so it no longer instructs Green to use a Proposal Category selector and instead verifies intended partners, focus sectors, conditional supply-chain fields, and the distinct Industry fields.
-Add or extend documentation contract tests so those retired new-entry labels cannot return while historical export/parser references remain allowed and explicitly labeled.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
+Green and Industry each forecast Blue, choose their own orientation, and describe their strategy given the forecast.
 
-## Completed: 8/10/2026
+All required fields are validated before persistence.
 
-[x] Step 6 — Add per-recipient White Cell approval and multi-round proposal threads
-Prompt:
-Read the White Cell proposal review code, proposal recipient-state helpers, communications store, Realtime synchronization, data/2026-06-03_proposal_response_finalization_lock.sql, RLS policies, the mock backend, and existing proposal-response tests before editing.
-Replace one proposal-wide approval with independent recipient approval. If Blue and Red were selected, White Cell must see separate controls for each. Approving Blue must not forward to Red or alter Red’s state. Each recipient should independently support pending approval, approved/forwarded, response received, negotiation underway, and closed.
-Replace the one-shot final-response contract with append-only proposal threads. Every message must include a stable thread ID, recipient team, round number, parent message ID, source proposal ID, source revision, sender team/role, timestamp, and message type. Do not overwrite prior responses.
-Allow the proposing Facilitator to answer a recipient response, producing another round. Notify White Cell on every new round. Keep Blue and Red threads isolated even when they originate from the same proposal.
-Remove proposal outcome badges and stop translating new proposal review decisions into success/failure presentation states. Retain historical outcome data for export compatibility.
-Update live RLS/RPC behavior, mock parity, Realtime reconciliation, deduplication, White Cell UI, Facilitator UI, unit tests, E2E helpers, and runbooks. Do not run tests.
+Create, edit, return, resubmit, projection, White Cell review, and export preserve identical structured values.
 
-Acceptance criteria:
-White Cell separately approves each recipient.
-One recipient can be approved while the other remains pending.
-Multiple response rounds remain ordered and immutable.
-Every new round notifies White Cell exactly once.
-Cross-team and cross-session thread access fails closed.
-Remaining implementation:
-The additive migration, recipient-state helpers, append-only thread RPC, RLS, live service, deterministic mock, White Cell/Facilitator controllers, and focused unit tests already implement independent recipient approval and multi-round threads. Preserve their immutable and fail-closed behavior.
-Align docs/playthrough-automation.md and any remaining operator text with the actual route: the originating Scribe creates the proposal, the actual Facilitator submits it to White Cell, White Cell approves each recipient independently, and each recipient has an isolated append-only response thread. Remove the stale one-shot/direct-to-White-Cell description.
-Add a documentation contract test for the per-recipient and multi-round model. Authoritative export projection remains Step 9, and full dual-thread integrated verification remains Step 10.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
+Legacy records remain readable and clearly labelled.
 
-## Completed: 8/10/2026
+The one-artifact-per-team behavior and pre-Move-1 gate are unchanged.
 
-[x] Step 7 — Move communications and RFI authority to the actual Facilitator
-Prompt:
-Read the role-routing compatibility note in README.md, all four teams/*/facilitator.html and teams/*/scribe.html files, src/roles/facilitator.js, src/roles/scribe.js, request-store code, communications targeting, database/RLS policies, and related tests.
-Add Communications and RFI sections to the actual user-facing Facilitator surface implemented by teams/*/scribe.html and src/roles/scribe.js. Do not rename legacy routes, role IDs, or storage keys.
-Communications must let the Facilitator send a direct text message to White Cell and retain inbound and outbound history. Enforce session and team isolation.
-Move RFI creation authority from the user-facing Scribe workspace to the actual Facilitator. Remove Priority from the UI, validation, payload, test helpers, and current-run exports. Historical priority values may remain in legacy exports.
-Add RFI states for pending, returned for clarification, resubmitted, and answered. White Cell must be able to return an RFI with required notes. The Facilitator must see those notes, edit the same RFI, and resubmit it. White Cell must have separate Pending and Answered/History views so the question and final response remain visible after answering.
-Update HTML, controllers, stores, RPC/RLS behavior, mock backend, tests, exports, README, and runbooks. Do not run tests.
+Accessibility and responsive checks pass.
 
-Acceptance criteria:
-Only the actual Facilitator can create or resubmit an RFI.
-The RFI form has no Priority field.
-Returned RFIs retain notes and revision identity.
-Answered RFIs remain visible to White Cell.
-Facilitator-to-White Cell communication is persisted and isolated.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
-
-## Audited as implemented: 8/10/2026
-
-[x] Step 8 — Make inbound workflow notifications persist until dismissed
-Prompt:
-Read src/components/ui/Toast.js, notification tests, Facilitator activity-bell logic, White Cell arrival cues, communications synchronization, and Realtime reconciliation before editing.
-Keep normal save confirmations, validation errors, and operational feedback timed. Make only inbound workflow notifications persistent until explicitly dismissed:
-an artifact returned by White Cell;
-a new artifact submitted to White Cell;
-a proposal response or follow-up round;
-an RFI return or answer;
-a direct White Cell/Facilitator communication.
-Use persisted communication or event IDs for deduplication. Do not announce records loaded during initial synchronization as new. Ensure missed-event reconciliation produces exactly one notification after reconnection.
-Every durable notification must identify the source, artifact, and required action and provide a keyboard-accessible dismissal control plus a way to navigate or focus the relevant record. Keep unread badges and NEW indicators until the destination item is opened.
-Add unit tests for timed versus persistent behavior, manual dismissal, deduplication, startup suppression, reconnection, focus behavior, reduced motion, and accessible announcements. Update runbook notification checks. Do not run tests.
-
-Acceptance criteria:
-Inbound workflow notices never auto-dismiss.
-Ordinary success/error feedback retains its current timing.
-Startup does not replay historical notices.
-Reconnect does not duplicate notices.
-Dismissal and navigation work by keyboard and screen reader.
-Remaining implementation:
-The current inbound workflow cues still use timed Toast durations, including 5000 ms on the actual Facilitator surface and 10000 ms on White Cell queue/thread paths. They therefore do not satisfy durable-until-dismissed behavior.
-Introduce an explicit durable notification path using persisted event or communication IDs; do not make all toasts permanent. Include source, artifact, required action, keyboard dismissal, and destination navigation/focus in the durable model.
-Persist read/dismissed state appropriately, suppress the initial synchronization snapshot, and deduplicate both Realtime delivery and missed-event reconciliation after reconnect. Cover artifact submissions/returns, proposal responses and follow-up rounds, RFI returns/answers, and direct Facilitator/White Cell communications.
-Add focused tests for each event family, timed-versus-durable behavior, manual dismissal, unread clearing only when opened, startup suppression, reconnect deduplication, accessible announcements, reduced motion, and focus transfer. Update the live-demo notification checks.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
-
-## Completed: 8/10/2026
-
-[x] Step 9 — Align exports, audit evidence, and documentation
-Prompt:
-Read all research export builders and tests, the current schema version, README, Supabase setup guide, live-demo runbook, playthrough automation guide, deployment guide, and rollback guide.
-Extend exports to include:
-workflow state and revision number;
-return notes, reviewer, and timestamps;
-informed Green/Industry audiences and note;
-proposal recipient approvals;
-proposal response thread and round metadata;
-new Green/Industry proposal fields;
-RFI revision and answer history.
-Preserve historical outcome fields in JSON, CSV, HTML, and LaTeX evidence. Label them as historical/legacy adjudication data when applicable. Do not show those values as current proposal workflow badges or infer new outcomes for completed artifacts.
-Increment the research export schema version if the exported contract changes. Update manifest validation and deterministic reconstruction logic.
-Remove stale documentation that requires Proposal Category, Delivery, RFI Priority, one-shot proposal responses, outcome-based action/SO review, Blue-only return, or vertical action navigation. Document the per-recipient approval model and migration/rollback order.
-Add export and documentation contract tests. Do not run tests.
-
-Acceptance criteria:
-Historical outcomes remain reproducible in exports.
-Current UI workflow states are not represented as adjudication outcomes.
-New revision and thread data reconcile across UI and exports.
-Operator documentation matches the implemented runtime.
-Remaining implementation:
-The current export is already schema version 1.7.0/revision 8 and includes the new proposal form fields. Preserve those fields and increment the version only once for the remaining contract changes.
-Fetch artifact_workflow_reviews in the research export bundle and project authoritative revision/return/reviewer history rather than reconstructing it only from timeline text. Add workflow state, revision, notification audiences/note, and review history to action records; add recipient approval and immutable thread/round metadata to proposal records; add workflow, revision, return, resubmission, answer, and answer-history data to RFI records.
-Carry the same contract through JSON, CSV, HTML, and LaTeX. Replace the current unqualified “Review Outcome” presentation with explicit historical/legacy adjudication labeling, while retaining the historical values needed for replay. Do not infer outcomes for current completed artifacts.
-Update manifest validation, the codebook, deterministic reconstruction checks, and export tests to reconcile review counts, proposal threads/rounds, RFI revisions, and UI-visible workflow data.
-Update README.md, which still advertises export schema 1.6.0, and reconcile the Supabase setup, live-demo, playthrough, deployment, and rollback guides. Remove stale Category/Delivery, RFI Priority, one-shot response, outcome-review, Blue-only return, and vertical-navigation instructions; document migration-first deployment and frontend-first rollback.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
-
-## Completed: 8/11/2026
-
-[ ] Step 10 — Add integrated gates and prepare the staged rollout
-Prompt:
-Read the completed changes from Steps 1–9 and update the professional playthrough without weakening existing role, isolation, Realtime, or scale gates.
-Add end-to-end coverage for:
-Blue action return, edit, and resubmission;
-Red action return, edit, and resubmission;
-Strategic Orientation return and completion without outcome;
-full White Cell action-field visibility;
-Green and Industry proposal creation with the new fields;
-a dual-recipient proposal where Blue is approved before Red;
-independent Blue and Red response threads;
-multiple proposal negotiation rounds;
-proposal cards without outcome badges;
-Facilitator-to-White Cell communication;
-returned RFI editing and resubmission;
-answered RFI retention;
-persistent inbound notifications;
-startup and reconnect deduplication;
-export reconciliation.
-Keep deployment additive: apply the database/RLS migration to a dedicated rehearsal environment before deploying the frontend. Roll back the frontend first if necessary and leave additive schema and historical records intact.
-Do not execute commands. Return the exact commands the human must run and the pass criteria:
-npm test -- --run
+The human runs:
+npm test -- --run src/features/actions/strategicOrientationDetails.test.js src/roles/facilitator.test.js src/roles/scribe.test.js src/roles/whitecell.test.js src/features/export/researchExport.test.js tests/unit/repo-docs-contract.test.js
 npm run build
 npm run test:e2e:smoke
 npm run test:e2e:playthrough
-npm run test:e2e:realtime
-npm run test:e2e:rehearsal
-Treat missing evidence, stale deployment assets, cross-team leakage, duplicate notifications, disappearing RFI history, missing return notes, or outcome badges on current proposals as release blockers.
 
-Acceptance criteria:
-All unit, build, smoke, playthrough, Realtime, and rehearsal gates pass from the same commit and migration state.
-No console or page errors occur.
-Database and deterministic mock results agree.
-Export counts and revision/thread histories reconcile with the UI.
-Rollback instructions are reproducible and non-destructive.
-Remaining implementation:
-The package scripts and baseline playthrough already cover normal Blue/Red completion, sequential approval of a dual-recipient proposal, one Blue negotiation response/follow-up, direct Facilitator communication, a simple RFI answer, unread counts, and basic export names/counts. Extend that suite rather than replacing it.
-Add integrated Blue and Red return/edit/resubmit scenarios; Strategic Orientation return followed by outcome-free completion; assertions for every action field in the White Cell detail modal; explicit absence of current outcome badges; independent Blue and Red threads from the same proposal with multiple immutable rounds; returned-RFI edit/resubmit and answered-history retention; persistent notification dismissal; and startup/reconnect deduplication for every inbound event family.
-Replace the current basic export count assertions with reconciliation of workflow states, revisions, return notes/reviewers/timestamps, recipient approvals, both proposal threads and rounds, notification metadata, and RFI return/answer history.
-Run the complete matrix against both live Supabase and the deterministic mock from the same commit and migration state. Capture current-head evidence without claiming historical runs as current.
-Finish the staged rollout documentation: migration-first rehearsal in a dedicated environment, frontend deployment second, frontend-first rollback, additive schema preservation, current-head artifact requirements, and explicit release blockers.
-Tests:
-Provide the commands for testing the updates
-Commit:
-Provide the commit title and description
+Pass means every command exits successfully, the browser reports no console errors, and the E2E assertions verify field equality across the complete handoff/review workflow.
+
+[ ] Commit the completed change with:
+Title: feat: expand strategic orientation workflows by team
+Description: Replace the generic Strategic Orientation modal with ordered, team-specific workflows for Blue, Red, Green, and Industry. Persist each team’s own catalogue orientation, target-specific forecasts, rationale, expected actions, and strategy description with legacy compatibility, then expose the complete artifact across Facilitator, White Cell, projection, export, documentation, and automated tests.

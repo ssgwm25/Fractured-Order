@@ -824,6 +824,7 @@ CREATE TABLE IF NOT EXISTS requests (
     review_notes TEXT,
     completed_at TIMESTAMPTZ,
     response TEXT,
+    responded_by TEXT,
     responded_at TIMESTAMPTZ,
     
     -- RESEARCH: RFI response time tracking

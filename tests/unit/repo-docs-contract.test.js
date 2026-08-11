@@ -76,7 +76,8 @@ describe('repository operator docs contract', () => {
             'data/2026-07-29_return_action_to_blue.sql',
             'data/2026-08-05_team_neutral_artifact_review.sql',
             'data/2026-08-06_facilitator_rfi_communications.sql',
-            'data/2026-08-06_proposal_recipient_threads.sql'
+            'data/2026-08-06_proposal_recipient_threads.sql',
+            'data/2026-08-11_requests_responded_by_schema_repair.sql'
         ];
 
         let priorIndex = -1;

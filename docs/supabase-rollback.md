@@ -2,7 +2,7 @@
 
 Database migrations in this repository are forward-only once live workflow records exist. Roll back the application first; preserve additive schema and review history unless a database owner has verified that the migration never accepted a production write.
 
-The sole authoritative forward migration order is the 32-step dated ledger in
+The sole authoritative forward migration order is the 33-step dated ledger in
 `docs/supabase-setup.md`. There is no reverse SQL order and the deprecated
 `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
 `data/updated_supabase_migration.sql` snapshots are never rollback inputs. A
@@ -40,6 +40,13 @@ when the older frontend does not call them.
 For `data/2026-08-06_facilitator_rfi_communications.sql`, roll back the application first and stop new team RFI/direct-message writes. Export affected `requests`, `communications`, `actions`, `artifact_workflow_reviews`, and timeline rows before changing policy state. Keep all accepted RFI revisions, review notes, answers, and direct messages intact.
 
 For `data/2026-08-06_proposal_recipient_threads.sql`, roll back the frontend first and stop proposal approval/message writes. Do not drop the thread indexes, immutability trigger, or append-only rows after any thread has been created. Export `actions`, `communications`, `artifact_workflow_reviews`, and proposal timeline rows, including metadata, then prefer a forward fix. Reapplying the June finalization lock or the earlier August communications policy would restore superseded proposal-wide mutable responses and is not a safe live rollback.
+
+For `data/2026-08-11_requests_responded_by_schema_repair.sql`, keep the nullable
+`requests.responded_by` column in place. Older clients ignore it, while the
+current Facilitator RFI guard requires the row field even for unanswered
+inserts. Do not drop the column or remove the guard as rollback; contain with
+the prior frontend and use a forward fix if responder attribution behavior is
+incorrect.
 
 Do not reapply the July 29 policies as a live rollback: doing so restores the superseded Scribe-side RFI authority and broader request access. Prefer a forward policy fix. If the frontend must temporarily revert, treat every `returned_to_team` RFI as an operator-managed blocker until the corrected Facilitator surface returns. A database owner may restore older policies only in an isolated pre-write development project after verifying that no RFI or direct communication was created under the August 6 contract.
 
