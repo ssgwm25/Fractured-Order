@@ -1027,7 +1027,7 @@ describe('research export builder', () => {
         ));
         expect(strategicLeaderBrief.content).toContain('Strategic Orientation Portfolio');
         expect(strategicLeaderBrief.content).toContain('Blue: Pressure');
-        expect(strategicLeaderBrief.content).toContain('Near-term economic friction');
+        expect(strategicLeaderBrief.content).toContain('Industry will preserve optionality while Blue applies pressure.');
         expect(exportBundle.personaReports.map((file) => file.content).join('\n')).not.toContain(
             'The United States systematically reallocates economic exposure away from China'
         );

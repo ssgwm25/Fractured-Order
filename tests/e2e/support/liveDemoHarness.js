@@ -581,18 +581,19 @@ export async function openFacilitatorActionSlide(page, goal) {
     const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]')
         .filter({ hasText: goal })
         .first();
-    const actionMarkRail = page.locator('#scribeSectionList [data-action-mark-navigation]').first();
+    const actionMarkRail = page.locator('#scribeSectionList [data-scribe-action-mark-navigation]').first();
 
     if (await actionMarkRail.count()) {
         await expect(actionSlideLink).toHaveCount(1, { timeout: 20000 });
         if (!await actionSlideLink.isVisible()) {
             const markKey = await actionSlideLink.evaluate((button) => (
-                button.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
+                button.closest('[data-scribe-action-mark-panel]')?.dataset.scribeActionMarkPanel || ''
             ));
             expect(markKey).not.toBe('');
-            const markTab = actionMarkRail.locator(`[data-action-mark-tab="${markKey}"]`);
+            const markTab = actionMarkRail.locator(`[data-scribe-action-mark-tab="${markKey}"]`);
             await expect(markTab).toBeVisible({ timeout: 20000 });
             await markTab.click();
+            await expect(markTab).toHaveAttribute('aria-selected', 'true', { timeout: 20000 });
         }
     } else {
         const actionsSectionTrigger = page.locator('#scribeSectionList .scribe-section-trigger[data-section-label="Actions"]').first();
