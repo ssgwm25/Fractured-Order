@@ -1026,7 +1026,7 @@ describe('research export builder', () => {
             file.path === 'reports/strategic_leader_brief.html'
         ));
         expect(strategicLeaderBrief.content).toContain('Strategic Orientation Portfolio');
-        expect(strategicLeaderBrief.content).toContain('Green (Asian Pacific): Stabilization');
+        expect(strategicLeaderBrief.content).toContain('Blue: Pressure');
         expect(strategicLeaderBrief.content).toContain('Near-term economic friction');
         expect(exportBundle.personaReports.map((file) => file.content).join('\n')).not.toContain(
             'The United States systematically reallocates economic exposure away from China'

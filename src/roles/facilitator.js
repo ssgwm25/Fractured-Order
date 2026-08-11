@@ -2905,6 +2905,7 @@ export class FacilitatorController {
             return accumulator;
         }, new Map());
         const updateConfirmState = () => {
+            if (!confirmBtn) return;
             const catalogueSections = profile?.sections.filter((section) => section.kind === 'catalogue') || [];
             confirmBtn.disabled = !catalogueSections.every((section) => Boolean(
                 section.targetKey === 'own' ? state.ownOrientation : state.forecasts[section.targetKey]

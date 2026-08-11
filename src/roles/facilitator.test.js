@@ -443,8 +443,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const removedOrientationInstruction = ['Each orientation', 'reflects a distinct posture toward strategic competition with the PRC.'].join(' ');
         const removedDescriptionClass = ['opt', 'desc'].join('-');
 
-        expect(html).toContain("Choose Blue's orientation");
-        expect(html).toContain("Forecast Red's orientation");
+        expect(html).toContain('Choose Blue&#39;s orientation');
+        expect(html).toContain('Forecast Red&#39;s orientation');
         expect(html).toContain('Describe what you expect Red to do');
         expect(html).not.toContain(removedScribeCopy);
         expect(html).not.toContain(removedOrientationInstruction);
@@ -477,9 +477,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const content = controller.createStrategicOrientationContent({});
         const html = content.innerHTML;
 
-        expect(html.indexOf("Choose Red's orientation")).toBeLessThan(html.indexOf("Describe and explain Red's strategic orientation"));
-        expect(html.indexOf("Describe and explain Red's strategic orientation")).toBeLessThan(html.indexOf("Forecast Blue's orientation"));
-        expect(html.indexOf("Forecast Blue's orientation")).toBeLessThan(html.indexOf('Forecast Green (Asian Pacific)'));
+        expect(html.indexOf('Choose Red&#39;s orientation')).toBeLessThan(html.indexOf('Describe and explain Red&#39;s strategic orientation'));
+        expect(html.indexOf('Describe and explain Red&#39;s strategic orientation')).toBeLessThan(html.indexOf('Forecast Blue&#39;s orientation'));
+        expect(html.indexOf('Forecast Blue&#39;s orientation')).toBeLessThan(html.indexOf('Forecast Green (Asian Pacific)'));
         expect(html.indexOf('Forecast Green (Asian Pacific)')).toBeLessThan(html.indexOf('Forecast Green (Europe)'));
         expect(html).toContain('data-orientation-target="own"');
         expect(html).toContain('data-orientation-target="blue"');
@@ -489,8 +489,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
     });
 
     it.each([
-        ['green', "Forecast Blue's orientation", "Choose Green's orientation", 'Describe your strategy given this forecast'],
-        ['industry', "Forecast Blue's orientation", "Choose Industry's orientation", 'Describe your strategy given this forecast']
+        ['green', 'Forecast Blue&#39;s orientation', 'Choose Green&#39;s orientation', 'Describe your strategy given this forecast'],
+        ['industry', 'Forecast Blue&#39;s orientation', 'Choose Industry&#39;s orientation', 'Describe your strategy given this forecast']
     ])('renders the %s workflow in forecast, own-orientation, strategy order', async (teamId, forecastLabel, ownLabel, strategyLabel) => {
         const { FacilitatorController } = await loadFacilitatorModule();
         global.document = createFakeDocument();

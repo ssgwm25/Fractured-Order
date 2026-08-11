@@ -998,7 +998,8 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 revision_number: 2,
                 legacy_adjudication_outcome: null
             });
-            expect(completedOrientation.full_content.details.rationale).toBe(correctedOrientationRationale);
+            expect(completedOrientation.full_content.details.forecastActionDescription).toBe(correctedOrientationRationale);
+            expect(completedOrientation.full_content.details.rationale).toBe('');
             expect(completedOrientation.review_history.map((review) => review.decision)).toEqual([
                 'return_to_team',
                 'complete'
