@@ -32,8 +32,8 @@ import { SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
-export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.8.0';
-export const RESEARCH_EXPORT_FORMAT_REVISION = 9;
+export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.9.0';
+export const RESEARCH_EXPORT_FORMAT_REVISION = 10;
 
 const HASHED_EVENT_FIELDS = [
     'event_id',
@@ -187,6 +187,12 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'targets',
         'instruments',
         'resources_committed',
+        'strategic_orientation_contract_version',
+        'own_orientation',
+        'forecast_targets',
+        'orientation_rationale',
+        'forecast_action_description',
+        'strategy_description',
         'full_content',
         'submitted_utc',
         'final_status',
@@ -1539,6 +1545,7 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     ? `${authorTeam || 'Team'} Strategic Orientation Forecast`
                     : `Strategic Orientation${orientationLabel ? `: ${orientationLabel}` : ''}`;
                 const sessionDetails = {
+                    contractVersion: strategicDetails?.contractVersion || 1,
                     hasStrategicOrientationDetails: Boolean(strategicDetails),
                     artifactType: strategicDetails?.artifactType || '',
                     isForecast,
@@ -1548,11 +1555,15 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     orientation: strategicDetails?.orientation || '',
                     orientationLabel,
                     orientationTag: strategicDetails?.orientationTag || '',
+                    ownOrientation: strategicDetails?.ownOrientation || null,
                     forecastTargets,
                     primaryLevers: safeArray(strategicDetails?.primaryLevers),
                     acceptedCosts: safeArray(strategicDetails?.acceptedCosts),
                     posture: strategicDetails?.posture || '',
                     rationale: strategicDetails?.rationale || '',
+                    orientationRationale: strategicDetails?.orientationRationale || '',
+                    forecastActionDescription: strategicDetails?.forecastActionDescription || '',
+                    strategyDescription: strategicDetails?.strategyDescription || '',
                     forecastSummary: strategicDetails?.forecastSummary || '',
                     scribeHandoff: strategicDetails?.scribeHandoff || ''
                 };
@@ -1569,15 +1580,24 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     move_number: action?.move ?? null,
                     action_sequence: null,
                     title: action?.goal || fallbackTitle,
-                    action_type: isForecast
-                        ? 'Strategic Orientation Forecast'
-                        : 'Strategic Orientation Selection',
-                    intent_text: sessionDetails.rationale
+                    action_type: sessionDetails.contractVersion > 1
+                        ? 'Strategic Orientation & Forecast'
+                        : (isForecast ? 'Strategic Orientation Forecast' : 'Strategic Orientation Selection'),
+                    intent_text: sessionDetails.orientationRationale
+                        || sessionDetails.strategyDescription
+                        || sessionDetails.forecastActionDescription
+                        || sessionDetails.rationale
                         || sessionDetails.forecastSummary
                         || null,
                     targets: forecastTargets.map((target) => target.label),
                     instruments: sessionDetails.primaryLevers,
                     resources_committed: [],
+                    strategic_orientation_contract_version: sessionDetails.contractVersion,
+                    own_orientation: sessionDetails.ownOrientation,
+                    forecast_targets: forecastTargets,
+                    orientation_rationale: sessionDetails.orientationRationale || null,
+                    forecast_action_description: sessionDetails.forecastActionDescription || null,
+                    strategy_description: sessionDetails.strategyDescription || null,
                     full_content: {
                         artifact_kind: 'strategic_orientation',
                         goal: action?.goal || null,
@@ -3134,8 +3154,13 @@ function buildScenarioContext(bundle = {}, {
                 orientation_id: orientation.action_id,
                 team: orientation.author_team,
                 artifact_type: safeObject(safeObject(orientation.full_content).details).artifactType || null,
+                contract_version: safeObject(safeObject(orientation.full_content).details).contractVersion || 1,
+                own_orientation: safeObject(safeObject(orientation.full_content).details).ownOrientation || null,
                 orientation: safeObject(safeObject(orientation.full_content).details).orientation || null,
                 rationale: safeObject(safeObject(orientation.full_content).details).rationale || null,
+                orientation_rationale: safeObject(safeObject(orientation.full_content).details).orientationRationale || null,
+                forecast_action_description: safeObject(safeObject(orientation.full_content).details).forecastActionDescription || null,
+                strategy_description: safeObject(safeObject(orientation.full_content).details).strategyDescription || null,
                 forecast_targets: safeArray(safeObject(safeObject(orientation.full_content).details).forecastTargets)
             })),
             actions: moveActions.map((action) => ({
@@ -3366,7 +3391,9 @@ function buildTaxonomySessionEvidence(sourceArtifact = {}) {
         goal: fullContent.goal || null,
         expected_outcomes: fullContent.expected_outcomes || null,
         details: {
+            contractVersion: details.contractVersion || 1,
             artifactType: details.artifactType || null,
+            ownOrientation: details.ownOrientation || null,
             orientation: details.orientation || null,
             orientationLabel: details.orientationLabel || null,
             orientationTag: details.orientationTag || null,
@@ -3375,6 +3402,9 @@ function buildTaxonomySessionEvidence(sourceArtifact = {}) {
             acceptedCosts: safeArray(details.acceptedCosts),
             posture: details.posture || null,
             rationale: details.rationale || null,
+            orientationRationale: details.orientationRationale || null,
+            forecastActionDescription: details.forecastActionDescription || null,
+            strategyDescription: details.strategyDescription || null,
             forecastSummary: details.forecastSummary || null,
             scribeHandoff: details.scribeHandoff || null
         }
@@ -3918,12 +3948,12 @@ function buildPersonaReports(dataset = {}) {
 
         return [
             orientation.author_team,
-            details.isForecast ? 'Forecast' : 'Selection',
-            forecastSummary || details.orientationLabel,
-            details.posture,
-            formatReportValue(details.primaryLevers, ''),
-            formatReportValue(details.acceptedCosts, ''),
-            details.rationale || details.forecastSummary,
+            (details.contractVersion || 1) > 1 ? 'Orientation & Forecast' : (details.isForecast ? 'Forecast' : 'Selection'),
+            details.ownOrientation?.label || ((details.contractVersion || 1) === 1 && !details.isForecast ? details.orientationLabel : ''),
+            forecastSummary,
+            details.orientationRationale || details.rationale,
+            details.strategyDescription,
+            details.forecastActionDescription,
             orientation.final_status
         ];
     });
@@ -4003,7 +4033,7 @@ function buildPersonaReports(dataset = {}) {
                 sections: [
                     { title: 'Session Indicators', html: commonSummaryCards },
                     { title: 'Outcome Taxonomy Signals', html: renderReportTable(['Dimension', 'Signal', 'Entity Type', 'Entity ID', 'Team', 'Keyword Hits'], outcomeRows) },
-                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Orientation / Forecasts', 'Posture', 'Primary Levers', 'Accepted Costs', 'Rationale', 'Status'], strategicOrientationRows) },
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
                     { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
                     { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Intended Recipient', 'Workflow', 'Historical / Legacy Adjudication', 'Recipient State', 'Rationale'], proposalRows) },
                     { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
@@ -4019,7 +4049,7 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Executive Indicators', html: commonSummaryCards },
-                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Orientation / Forecasts', 'Posture', 'Primary Levers', 'Accepted Costs', 'Rationale', 'Status'], strategicOrientationRows) },
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
                     { title: 'Turning Points', html: renderReportTable(['Type', 'Move', 'Team', 'Evidence'], turningRows) },
                     { title: 'Decision Lineage Highlights', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
                     { title: 'Network Metrics', html: renderReportTable(['Metric', 'Source Team', 'Target Team', 'Value', 'Unit'], networkRows) },
@@ -4085,7 +4115,7 @@ function buildCodebookRows() {
                     ? 'integer'
                     : /(duration|latency|seconds|_s$|_bytes|bits_per_second)/.test(columnName)
                         ? 'number'
-                        : ['payload', 'before_state', 'after_state', 'prior_state', 'new_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev', 'keyword_hits', 'evidence_refs', 'evidence_edge_ids', 'related_rfi_ids', 'related_communication_ids', 'related_response_ids', 'related_event_ids', 'capture_constraints_requested', 'notification_audiences', 'review_history', 'revision_history', 'recipient_approval_states', 'recipient_approvals', 'thread_history', 'resubmission_history', 'answer_history'].includes(columnName)
+                        : ['payload', 'before_state', 'after_state', 'prior_state', 'new_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'own_orientation', 'forecast_targets', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev', 'keyword_hits', 'evidence_refs', 'evidence_edge_ids', 'related_rfi_ids', 'related_communication_ids', 'related_response_ids', 'related_event_ids', 'capture_constraints_requested', 'notification_audiences', 'review_history', 'revision_history', 'recipient_approval_states', 'recipient_approvals', 'thread_history', 'resubmission_history', 'answer_history'].includes(columnName)
                             ? 'json'
                             : /(_state|_role|_team|_type|_status)$/.test(columnName)
                                 ? 'string'
@@ -4107,7 +4137,7 @@ function buildCodebookRows() {
             derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName)
                 ? 'Computed client-side at export time from canonical event and content tables.'
                 : null,
-            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action|evidence_summary|evidence_excerpt|reviewer_notes|notification_note|review_history|revision_history|thread_history|answer_history|prior_state|new_state/.test(columnName)
+            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|strategy_description|forecast_action_description|intent_text|requested_action|evidence_summary|evidence_excerpt|reviewer_notes|notification_note|review_history|revision_history|thread_history|answer_history|prior_state|new_state/.test(columnName)
                 ? 'pseudonymous'
                 : 'none',
             description: columnName.startsWith('legacy_adjudication') || columnName === 'review_evidence_classification'
@@ -4898,12 +4928,12 @@ export function buildResearchReportHtml(dataset, {
             target.orientationTag || ''
         ]);
         return renderReportEntityCard({
-            eyebrow: `${humanizeReportLabel(details.period || 'pre_move_1')} - ${details.isForecast ? 'Forecast' : 'Selection'}`,
+            eyebrow: `${humanizeReportLabel(details.period || 'pre_move_1')} - ${(details.contractVersion || 1) > 1 ? 'Orientation & Forecast' : (details.isForecast ? 'Forecast' : 'Selection')}`,
             title: orientation.title || details.orientationLabel || 'Strategic orientation',
-            summary: details.rationale || details.forecastSummary || orientation.intent_text || '',
+            summary: details.orientationRationale || details.strategyDescription || details.forecastActionDescription || details.rationale || details.forecastSummary || orientation.intent_text || '',
             badges: [
                 { label: orientation.author_team || details.team || 'team', tone: 'accent' },
-                { label: details.isForecast ? 'forecast' : 'selection', tone: 'muted' },
+                { label: (details.contractVersion || 1) > 1 ? 'orientation & forecast' : (details.isForecast ? 'forecast' : 'selection'), tone: 'muted' },
                 { label: orientation.workflow_state || orientation.final_status || 'pending', tone: 'success' },
                 { label: details.scribeHandoff || 'handoff not recorded', tone: 'muted' }
             ],
@@ -4911,7 +4941,8 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Author', value: `${orientation.author_pseudonym || 'N/A'} / ${formatRoleForReport(orientation.author_role) || 'unknown'}` },
                 { label: 'Team', value: details.teamLabel || orientation.author_team },
                 { label: 'Exercise Period', value: humanizeReportLabel(details.period || 'pre_move_1') },
-                { label: 'Artifact Type', value: details.isForecast ? 'Forecast' : 'Selection' },
+                { label: 'Contract Version', value: details.contractVersion || 1 },
+                { label: 'Artifact Type', value: (details.contractVersion || 1) > 1 ? 'Orientation & Forecast' : (details.isForecast ? 'Forecast' : 'Selection') },
                 { label: 'Scribe Handoff', value: details.scribeHandoff },
                 { label: 'Submitted', value: formatReportTimestamp(orientation.submitted_utc) },
                 { label: 'Workflow State', value: orientation.workflow_state },
@@ -4919,10 +4950,10 @@ export function buildResearchReportHtml(dataset, {
             ],
             sections: [
                 {
-                    title: details.isForecast ? 'Forecast Thesis' : 'Selected Orientation',
+                    title: 'Own Orientation',
                     html: renderReportMetaGrid([
-                        { label: 'Orientation', value: details.orientationLabel },
-                        { label: 'Strategic Tag', value: details.orientationTag },
+                        { label: 'Orientation', value: details.ownOrientation?.label || ((details.contractVersion || 1) === 1 && !details.isForecast ? details.orientationLabel : '') },
+                        { label: 'Strategic Tag', value: details.ownOrientation?.tag || ((details.contractVersion || 1) === 1 && !details.isForecast ? details.orientationTag : '') },
                         { label: 'Forecast Summary', value: details.forecastSummary },
                         { label: 'Expected Outcomes', value: safeObject(orientation.full_content).expected_outcomes }
                     ])
@@ -4934,8 +4965,11 @@ export function buildResearchReportHtml(dataset, {
                     }
                     : null,
                 {
-                    title: details.isForecast ? 'Forecast Logic' : 'Strategic Logic',
+                    title: 'Strategic Narrative',
                     html: renderReportMetaGrid([
+                        { label: 'Orientation Rationale', value: details.orientationRationale },
+                        { label: 'Strategy Description', value: details.strategyDescription },
+                        { label: 'Expected Target Actions', value: details.forecastActionDescription },
                         { label: 'Posture', value: details.posture },
                         { label: 'Rationale', value: details.rationale },
                         { label: 'Primary Levers', value: details.primaryLevers },
@@ -5293,8 +5327,8 @@ export function buildResearchReportHtml(dataset, {
             description: 'Draft revision path, wizard progress, and time-to-submit evidence.'
         },
         {
-            title: 'Strategic Orientation: Selections And Forecasts',
-            description: 'Pre-Move 1 selections and forecasts with target-level orientation, posture, rationale, levers, accepted costs, and handoff state.'
+            title: 'Strategic Orientation: Team Workflows',
+            description: 'Pre-Move 1 own orientations, target forecasts, required narratives, and handoff state, with legacy artifact labels preserved.'
         },
         {
             title: 'Actions And Workflow Reviews',
@@ -6329,7 +6363,7 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Active Participants', value: sessionMetrics.participants_active ?? 0, detail: 'seats engaged' },
                 { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
                 { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s), detail: 'event-log span' },
-                { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'selections and forecasts' },
+                { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'team workflows' },
                 { label: 'Actions Submitted', value: submittedActionCount, detail: `${adjudicatedActionCount} adjudicated` },
                 { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
                 { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
@@ -6375,7 +6409,7 @@ export function buildResearchReportHtml(dataset, {
             ])}
             ${renderReportSectionBlock('Archive Summary', renderReportSummaryCards([
                 { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
-                { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'selections and forecasts' },
+                { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'team workflows' },
                 { label: 'Actions Submitted', value: submittedActionCount, detail: `${adjudicatedActionCount} adjudicated` },
                 { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
                 { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
@@ -6497,8 +6531,8 @@ export function buildResearchReportHtml(dataset, {
         <section class="report-section">
             <div class="report-section-header">
                 <div>
-                    <h2 class="report-section-title">Strategic Orientation: Selections And Forecasts</h2>
-                    <p class="report-section-intro">Pre-Move 1 strategic-orientation artifacts. Blue records its selected orientation; Green forecasts Blue; Red and Industry may forecast Blue, Green (Asian Pacific), and Green (Europe). Each record preserves the declared posture, rationale, levers, accepted costs, target-level forecast, Scribe handoff, and White Cell review state.</p>
+                    <h2 class="report-section-title">Strategic Orientation: Team Workflows</h2>
+                    <p class="report-section-intro">Pre-Move 1 strategic-orientation artifacts preserve each team's own catalogue orientation, target-specific forecasts, required rationale or strategy narrative, Blue's expected Red actions, Scribe handoff, and White Cell review state. Legacy selection-only and forecast-only records remain explicitly labelled.</p>
                 </div>
             </div>
             ${renderReportEntityCollection(strategicOrientationCards, 'No strategic-orientation records were captured for this export.')}
@@ -6819,10 +6853,14 @@ ${renderLatexDescription([
         { label: 'Team', value: orientation.author_team || details.team },
         { label: 'Author pseudonym', value: orientation.author_pseudonym },
         { label: 'Author role', value: orientation.author_role },
-        { label: 'Artifact type', value: details.isForecast ? 'Forecast' : 'Selection' },
+        { label: 'Contract version', value: details.contractVersion || 1 },
+        { label: 'Artifact type', value: (details.contractVersion || 1) > 1 ? 'Orientation & Forecast' : (details.isForecast ? 'Forecast' : 'Selection') },
         { label: 'Period', value: details.period },
-        { label: 'Orientation', value: details.orientationLabel || details.orientation },
-        { label: 'Strategic tag', value: details.orientationTag },
+        { label: 'Own orientation', value: details.ownOrientation?.label || ((details.contractVersion || 1) === 1 && !details.isForecast ? details.orientationLabel || details.orientation : '') },
+        { label: 'Own orientation strategic tag', value: details.ownOrientation?.tag || ((details.contractVersion || 1) === 1 && !details.isForecast ? details.orientationTag : '') },
+        { label: 'Orientation rationale', value: details.orientationRationale },
+        { label: 'Strategy description', value: details.strategyDescription },
+        { label: 'Expected target actions', value: details.forecastActionDescription },
         { label: 'Posture', value: details.posture },
         { label: 'Rationale', value: details.rationale },
         { label: 'Primary levers', value: details.primaryLevers },
@@ -7127,7 +7165,7 @@ ${renderLatexDescription([
         { label: 'Research readiness', value: readiness.status }
     ])}
 
-\section{Strategic Orientation: selections and forecasts}
+\section{Strategic Orientation: team workflows}
 ${orientationSections}
 
 \section{Actions and workflow reviews}
@@ -7606,6 +7644,20 @@ function buildContractReconciliation({
         const source = [...safeArray(bundle.actions), ...sourceRfiRows].find((row) => row?.id === projection.id);
         return !source || (source.workflow_state || null) === (projection.state || null);
     });
+    const strategicOrientationProjectionMatches = actionContent
+        .filter(isStrategicOrientationContentRow)
+        .every((projection) => {
+            const source = safeArray(bundle.actions).find((row) => row?.id === projection.action_id);
+            const persisted = parseStrategicOrientationDetails(source?.ally_contingencies);
+            if (!source) return true;
+            if (!persisted) return false;
+            return (persisted.contractVersion || 1) === (projection.strategic_orientation_contract_version || 1)
+                && JSON.stringify(persisted.ownOrientation || null) === JSON.stringify(projection.own_orientation || null)
+                && JSON.stringify(safeArray(persisted.forecastTargets)) === JSON.stringify(safeArray(projection.forecast_targets))
+                && (persisted.orientationRationale || null) === (projection.orientation_rationale || null)
+                && (persisted.forecastActionDescription || null) === (projection.forecast_action_description || null)
+                && (persisted.strategyDescription || null) === (projection.strategy_description || null);
+        });
     const currentOutcomeViolations = [
         ...actionContent.map((row) => ({ state: row.workflow_state, outcome: row.legacy_adjudication_outcome, reviews: row.review_history })),
         ...proposalContent.map((row) => ({ state: row.workflow_state, outcome: row.review_decision, reviews: row.revision_history })),
@@ -7646,6 +7698,10 @@ function buildContractReconciliation({
         ui_workflow_projection: {
             matches: workflowProjectionMatches && currentOutcomeViolations === 0,
             current_completed_outcome_violations: currentOutcomeViolations
+        },
+        strategic_orientation_projection: {
+            projected_count: actionContent.filter(isStrategicOrientationContentRow).length,
+            matches: strategicOrientationProjectionMatches
         }
     };
     const passed = Object.values(checks).every((check) => check.matches !== false)

@@ -61,14 +61,16 @@ import {
 import {
     STRATEGIC_ORIENTATION_ACTION_MECHANISM,
     STRATEGIC_ORIENTATION_ARTIFACT_TYPES,
-    STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS,
     STRATEGIC_ORIENTATION_OPTIONS,
     STRATEGIC_ORIENTATION_PERIOD,
     STRATEGIC_ORIENTATION_SCRIBE_HANDOFF,
     buildStrategicOrientationForecastSummary,
     formatStrategicOrientationSelection,
+    getStrategicOrientationArtifactLabel,
     getStrategicOrientationCompletion,
+    getStrategicOrientationDisplayFields,
     getStrategicOrientationForecastTargetsForTeam,
+    getStrategicOrientationTeamProfile,
     getStrategicOrientationViewModel,
     isStrategicOrientationAction,
     serializeStrategicOrientationDetails
@@ -2274,7 +2276,7 @@ export class FacilitatorController {
             : '';
         const secondaryBadge = isStrategicOrientationFlow
             ? createBadge({
-                text: strategicOrientation.isForecast ? 'Forecast' : 'Selection',
+                text: getStrategicOrientationArtifactLabel(strategicOrientation),
                 variant: 'info',
                 size: 'sm',
                 rounded: true
@@ -2296,17 +2298,7 @@ export class FacilitatorController {
             : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
         const strategicOrientationFields = isStrategicOrientationFlow
             ? [
-                ...(strategicOrientation.isForecast
-                    ? strategicOrientation.forecastTargets.map((forecast) => ({
-                        label: `${forecast.label} Forecast`,
-                        value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
-                        wide: true
-                    }))
-                    : [{
-                        label: 'Selected Orientation',
-                        value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
-                        wide: true
-                    }]),
+                ...getStrategicOrientationDisplayFields(strategicOrientation),
                 ...(strategicOrientation.primaryLevers.length
                     ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) }]
                     : []),
@@ -2738,9 +2730,7 @@ export class FacilitatorController {
     }
 
     getStrategicOrientationArtifactType() {
-        return this.teamId === 'blue'
-            ? STRATEGIC_ORIENTATION_ARTIFACT_TYPES.SELECTION
-            : STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST;
+        return STRATEGIC_ORIENTATION_ARTIFACT_TYPES.ORIENTATION_AND_FORECAST;
     }
 
     getStrategicOrientationActionForTeam() {
@@ -2751,19 +2741,10 @@ export class FacilitatorController {
     }
 
     getStrategicOrientationModalCopy() {
-        const isBlue = this.teamId === 'blue';
-        const isMultiTargetForecast = STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
+        const profile = getStrategicOrientationTeamProfile(this.teamId);
         return {
-            title: isBlue
-                ? 'Strategic Orientation'
-                : (isMultiTargetForecast ? 'Forecast Strategic Orientations' : 'Forecast Blue Strategic Orientation'),
-            fieldLabel: isBlue ? 'Orientation' : 'Forecasted orientation',
-            submitButton: isBlue ? 'Record Orientation' : (isMultiTargetForecast ? 'Record Forecasts' : 'Record Forecast'),
-            rationalePlaceholder: isBlue
-                ? 'Briefly state why your team chose this orientation. Recorded for the White Cell and the after-action review.'
-                : (isMultiTargetForecast
-                    ? 'Briefly state why your team forecasts these orientations for Blue and the Green delegations. Recorded for the White Cell and the after-action review.'
-                    : 'Briefly state why your team forecasts Blue will choose this orientation. Recorded for the White Cell and the after-action review.')
+            title: profile?.title || 'Strategic Orientation',
+            submitButton: profile?.submitCopy || 'Record Strategic Orientation'
         };
     }
 
@@ -2812,256 +2793,258 @@ export class FacilitatorController {
     createStrategicOrientationContent(action = {}) {
         const content = document.createElement('div');
         const copy = this.getStrategicOrientationModalCopy();
+        const profile = getStrategicOrientationTeamProfile(this.teamId);
         const viewModel = getStrategicOrientationViewModel(action);
         const forecastTargets = getStrategicOrientationForecastTargetsForTeam(this.teamId);
-        const isMultiTargetForecast = STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
-        const selectedOrientation = viewModel.hasStrategicOrientationDetails
-            ? viewModel.orientation
-            : '';
-        const selectedForecasts = forecastTargets.reduce((accumulator, target) => {
+        const ownOrientation = viewModel.ownOrientation?.id || '';
+        const forecasts = forecastTargets.reduce((accumulator, target) => {
             const matchedForecast = viewModel.forecastTargets.find((forecast) => forecast.key === target.key);
             accumulator[target.key] = matchedForecast?.orientation || '';
             return accumulator;
         }, {});
-        const renderOrientationCard = (option) => {
-            const isSelected = selectedOrientation === option.id;
+        const renderOrientationCard = (section, option) => {
+            const targetKey = section.targetKey;
+            const selectedValue = targetKey === 'own' ? ownOrientation : forecasts[targetKey];
+            const isSelected = selectedValue === option.id;
             return `
                 <button
                     class="opt${isSelected ? ' selected' : ''}"
                     type="button"
                     data-orientation="${this.escapeHtml(option.id)}"
+                    data-orientation-target="${this.escapeHtml(targetKey)}"
                     role="radio"
                     aria-checked="${isSelected ? 'true' : 'false'}"
+                    tabindex="${isSelected || (!selectedValue && option.number === '01') ? '0' : '-1'}"
                 >
                     <div class="opt-name">${this.escapeHtml(option.name)}</div>
                     <div class="opt-tag">${this.escapeHtml(option.tag)}</div>
                 </button>
             `;
         };
-        const renderForecastCard = (target, option) => {
-            const isSelected = selectedForecasts[target.key] === option.id;
+        const renderSection = (section, index) => {
+            const sectionNumber = index + 1;
+            const sectionId = `strategicOrientationSection-${sectionNumber}`;
+            if (section.kind === 'catalogue') {
+                const errorId = `${sectionId}-error`;
+                return `
+                    <section class="strategic-orientation-section" aria-labelledby="${sectionId}-heading">
+                        <h3 id="${sectionId}-heading"><span aria-hidden="true">${sectionNumber}.</span> ${this.escapeHtml(section.legend)}</h3>
+                        <p class="form-hint" id="${sectionId}-help">${this.escapeHtml(section.helpText)}</p>
+                        <fieldset class="form-group strategic-orientation-fieldset" data-orientation-field="${this.escapeHtml(section.key)}" aria-describedby="${sectionId}-help ${errorId}">
+                            <legend class="sr-only">${this.escapeHtml(section.legend)} (required)</legend>
+                            <div class="options" role="radiogroup" aria-label="${this.escapeHtml(section.legend)}" aria-required="true">
+                                ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map((option) => renderOrientationCard(section, option)).join('')}
+                            </div>
+                            <p class="form-error" id="${errorId}" data-orientation-error="${this.escapeHtml(section.key)}" hidden></p>
+                        </fieldset>
+                    </section>
+                `;
+            }
+
+            const value = viewModel[section.key] || '';
             return `
-                <button
-                    class="opt${isSelected ? ' selected' : ''}"
-                    type="button"
-                    data-orientation="${this.escapeHtml(option.id)}"
-                    data-orientation-target="${this.escapeHtml(target.key)}"
-                    role="radio"
-                    aria-checked="${isSelected ? 'true' : 'false'}"
-                >
-                    <div class="opt-name">${this.escapeHtml(option.name)}</div>
-                    <div class="opt-tag">${this.escapeHtml(option.tag)}</div>
-                </button>
+                <section class="strategic-orientation-section" aria-labelledby="${sectionId}-heading">
+                    <h3 id="${sectionId}-heading"><span aria-hidden="true">${sectionNumber}.</span> ${this.escapeHtml(section.label)}</h3>
+                    <div class="form-group">
+                        <label class="form-label" for="${this.escapeHtml(section.key)}">${this.escapeHtml(section.label)} <span class="required-indicator">*</span></label>
+                        <textarea id="${this.escapeHtml(section.key)}" class="form-input form-textarea" data-orientation-narrative="${this.escapeHtml(section.key)}" aria-describedby="${sectionId}-help ${sectionId}-error" required>${this.escapeHtml(value)}</textarea>
+                        <p class="form-hint" id="${sectionId}-help">${this.escapeHtml(section.helpText)}</p>
+                        <p class="form-error" id="${sectionId}-error" data-orientation-error="${this.escapeHtml(section.key)}" hidden></p>
+                    </div>
+                </section>
             `;
         };
-        const multiTargetFieldsets = forecastTargets.map((target) => `
-            <fieldset class="form-group strategic-orientation-fieldset">
-                <legend class="form-label" id="strategicOrientationLegend-${this.escapeHtml(target.key)}">${this.escapeHtml(target.label)} <span class="required-indicator">*</span></legend>
-                <div class="options" id="options-${this.escapeHtml(target.key)}" role="radiogroup" aria-labelledby="strategicOrientationLegend-${this.escapeHtml(target.key)}">
-                    ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map((option) => renderForecastCard(target, option)).join('')}
-                </div>
-            </fieldset>
-        `).join('');
-        const singleTargetFieldset = `
-            <fieldset class="form-group strategic-orientation-fieldset">
-                <legend class="form-label" id="strategicOrientationLegend">${this.escapeHtml(copy.fieldLabel)} <span class="required-indicator">*</span></legend>
-                <div class="options" id="options" role="radiogroup" aria-labelledby="strategicOrientationLegend">
-                    ${Object.values(STRATEGIC_ORIENTATION_OPTIONS).map(renderOrientationCard).join('')}
-                </div>
-            </fieldset>
-        `;
-        const confirmEnabled = isMultiTargetForecast
-            ? forecastTargets.every((target) => Boolean(selectedForecasts[target.key]))
-            : Boolean(selectedOrientation);
+        const choicesComplete = profile?.sections
+            .filter((section) => section.kind === 'catalogue')
+            .every((section) => Boolean(section.targetKey === 'own' ? ownOrientation : forecasts[section.targetKey]));
 
         content.innerHTML = `
             <section class="strategic-orientation-modal" data-strategic-orientation-modal>
                 <div class="content-pad">
-                    ${isMultiTargetForecast ? multiTargetFieldsets : singleTargetFieldset}
-                    <div class="form-group">
-                        <label class="form-label" for="rationale">Team rationale</label>
-                        <textarea id="rationale" class="form-input form-textarea" aria-describedby="rationaleHelp" placeholder="${this.escapeHtml(copy.rationalePlaceholder)}">${this.escapeHtml(viewModel.rationale)}</textarea>
-                        <p class="form-hint" id="rationaleHelp">Record the team logic that supports this selection.</p>
+                    <div class="form-error-summary" data-orientation-error-summary role="alert" tabindex="-1" hidden>
+                        <h3>Complete the required Strategic Orientation fields</h3>
+                        <ul></ul>
+                    </div>
+                    <div class="strategic-orientation-sections">
+                        ${(profile?.sections || []).map(renderSection).join('')}
                     </div>
                     <div class="form-actions strategic-orientation-actions">
                         <button class="btn btn-ghost" type="button" data-orientation-nav="cancel">Cancel</button>
-                        <button class="btn btn-primary" id="confirmBtn" type="button" data-orientation-nav="confirm" ${confirmEnabled ? '' : 'disabled'}>${this.escapeHtml(copy.submitButton)}</button>
+                        <button class="btn btn-primary" id="confirmBtn" type="button" data-orientation-nav="confirm" ${choicesComplete ? '' : 'disabled'}>${this.escapeHtml(copy.submitButton)}</button>
                     </div>
                 </div>
             </section>
         `;
 
         content.__strategicOrientationInitialState = {
-            selected: selectedOrientation,
-            forecasts: selectedForecasts,
-            rationale: viewModel.rationale || ''
+            ownOrientation,
+            forecasts,
+            orientationRationale: viewModel.orientationRationale || '',
+            forecastActionDescription: viewModel.forecastActionDescription || '',
+            strategyDescription: viewModel.strategyDescription || ''
         };
 
         return content;
     }
 
     bindStrategicOrientationModal(content, modal, { actionId = null, isEdit = false } = {}) {
-        const forecastTargets = getStrategicOrientationForecastTargetsForTeam(this.teamId);
-        const isMultiTargetForecast = STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
+        const profile = getStrategicOrientationTeamProfile(this.teamId);
+        const initial = content.__strategicOrientationInitialState || {};
         const state = {
-            selected: content.__strategicOrientationInitialState?.selected || null,
-            forecasts: { ...(content.__strategicOrientationInitialState?.forecasts || {}) },
-            rationale: content.__strategicOrientationInitialState?.rationale || ''
+            ownOrientation: initial.ownOrientation || '',
+            forecasts: { ...(initial.forecasts || {}) },
+            orientationRationale: initial.orientationRationale || '',
+            forecastActionDescription: initial.forecastActionDescription || '',
+            strategyDescription: initial.strategyDescription || ''
         };
         const confirmBtn = content.querySelector('#confirmBtn');
-        const rationaleEl = content.querySelector('#rationale');
         const orientationButtons = [...content.querySelectorAll('[data-orientation]')];
         const orientationButtonsByTarget = orientationButtons.reduce((accumulator, button) => {
-            const targetKey = button.dataset.orientationTarget || '__single__';
+            const targetKey = button.dataset.orientationTarget;
             accumulator.set(targetKey, [...(accumulator.get(targetKey) || []), button]);
             return accumulator;
         }, new Map());
         const updateConfirmState = () => {
-            if (!confirmBtn) {
-                return;
-            }
-
-            confirmBtn.disabled = isMultiTargetForecast
-                ? !forecastTargets.every((target) => Boolean(state.forecasts[target.key]))
-                : !state.selected;
+            const catalogueSections = profile?.sections.filter((section) => section.kind === 'catalogue') || [];
+            confirmBtn.disabled = !catalogueSections.every((section) => Boolean(
+                section.targetKey === 'own' ? state.ownOrientation : state.forecasts[section.targetKey]
+            ));
         };
-        const selectOrientation = (orientation, { focus = false, targetKey = null } = {}) => {
-            if (!STRATEGIC_ORIENTATION_OPTIONS[orientation]) return;
+        const selectOrientation = (orientation, { focus = false, targetKey } = {}) => {
+            if (!STRATEGIC_ORIENTATION_OPTIONS[orientation] || !targetKey) return;
+            if (targetKey === 'own') state.ownOrientation = orientation;
+            else state.forecasts[targetKey] = orientation;
 
-            const resolvedTargetKey = targetKey || '__single__';
-            if (isMultiTargetForecast && resolvedTargetKey !== '__single__') {
-                state.forecasts[resolvedTargetKey] = orientation;
-            } else {
-                state.selected = orientation;
-            }
-
-            (orientationButtonsByTarget.get(resolvedTargetKey) || orientationButtons).forEach((button) => {
+            (orientationButtonsByTarget.get(targetKey) || []).forEach((button) => {
                 const selected = button.dataset.orientation === orientation;
                 button.classList.toggle('selected', selected);
                 button.setAttribute('aria-checked', selected ? 'true' : 'false');
-                if (focus && selected) {
-                    button.focus();
-                }
+                button.tabIndex = selected ? 0 : -1;
+                if (focus && selected) button.focus();
             });
+            this.clearStrategicOrientationFieldError(content, targetKey === 'own' ? 'ownOrientation' : `forecast:${targetKey}`);
             updateConfirmState();
         };
 
         orientationButtons.forEach((button) => {
-            const targetKey = button.dataset.orientationTarget || '__single__';
-            const groupButtons = orientationButtonsByTarget.get(targetKey) || orientationButtons;
-            const buttonIndex = groupButtons.indexOf(button);
+            const targetKey = button.dataset.orientationTarget;
+            const groupButtons = orientationButtonsByTarget.get(targetKey) || [];
             button.addEventListener('click', () => selectOrientation(button.dataset.orientation, { targetKey }));
             button.addEventListener('keydown', (event) => {
-                if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) {
-                    return;
-                }
+                if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return;
                 event.preventDefault();
-                const direction = (event.key === 'ArrowDown' || event.key === 'ArrowRight') ? 1 : -1;
-                const nextIndex = (buttonIndex + direction + groupButtons.length) % groupButtons.length;
-                selectOrientation(groupButtons[nextIndex].dataset.orientation, { focus: true, targetKey });
+                const currentIndex = groupButtons.indexOf(event.currentTarget);
+                const direction = ['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : -1;
+                const nextButton = groupButtons[(currentIndex + direction + groupButtons.length) % groupButtons.length];
+                selectOrientation(nextButton.dataset.orientation, { focus: true, targetKey });
             });
         });
-        rationaleEl?.addEventListener('input', () => {
-            state.rationale = rationaleEl.value.trim();
+
+        content.querySelectorAll('[data-orientation-narrative]').forEach((textarea) => {
+            textarea.addEventListener('input', () => {
+                state[textarea.dataset.orientationNarrative] = textarea.value;
+                this.clearStrategicOrientationFieldError(content, textarea.dataset.orientationNarrative);
+            });
         });
-        content.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => {
-            modal?.close();
-        });
+        content.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => modal?.close());
         content.querySelector('[data-orientation-nav="confirm"]')?.addEventListener('click', () => {
-            state.rationale = rationaleEl?.value?.trim() || '';
-            const error = this.validateStrategicOrientationData(state);
-            if (error) {
-                showToast({ message: error, type: 'error' });
+            content.querySelectorAll('[data-orientation-narrative]').forEach((textarea) => {
+                state[textarea.dataset.orientationNarrative] = textarea.value;
+            });
+            const errors = this.validateStrategicOrientationData(state);
+            if (errors.length) {
+                this.renderStrategicOrientationErrors(content, errors);
                 return;
             }
             this.submitStrategicOrientation(modal, state, { actionId, isEdit }).catch((err) => {
                 logger.error('Failed to forward Strategic Orientation:', err);
             });
         });
-
-        if (isMultiTargetForecast) {
-            forecastTargets.forEach((target) => {
-                if (state.forecasts[target.key]) {
-                    selectOrientation(state.forecasts[target.key], { targetKey: target.key });
-                }
-            });
-        } else if (state.selected) {
-            selectOrientation(state.selected);
-        }
-
         updateConfirmState();
     }
 
-    validateStrategicOrientationData(data = {}) {
-        if (STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId)) {
-            const forecastTargets = getStrategicOrientationForecastTargetsForTeam(this.teamId);
-            for (const target of forecastTargets) {
-                if (!STRATEGIC_ORIENTATION_OPTIONS[data?.forecasts?.[target.key]]) {
-                    return `Select one orientation for ${target.label}.`;
-                }
-            }
-            return null;
+    clearStrategicOrientationFieldError(content, field) {
+        const error = content.querySelector(`[data-orientation-error="${field}"]`);
+        if (error) {
+            error.hidden = true;
+            error.textContent = '';
         }
+        const textarea = content.querySelector(`[data-orientation-narrative="${field}"]`);
+        textarea?.removeAttribute('aria-invalid');
+        content.querySelector(`[data-orientation-field="${field}"]`)?.removeAttribute('aria-invalid');
+    }
 
-        if (!data.selected || !STRATEGIC_ORIENTATION_OPTIONS[data.selected]) {
-            return 'Select one orientation.';
+    renderStrategicOrientationErrors(content, errors = []) {
+        content.querySelectorAll('[data-orientation-error]').forEach((node) => {
+            node.hidden = true;
+            node.textContent = '';
+        });
+        errors.forEach(({ field, message }) => {
+            const fieldError = content.querySelector(`[data-orientation-error="${field}"]`);
+            if (fieldError) {
+                fieldError.textContent = message;
+                fieldError.hidden = false;
+            }
+            content.querySelector(`[data-orientation-narrative="${field}"]`)?.setAttribute('aria-invalid', 'true');
+            content.querySelector(`[data-orientation-field="${field}"]`)?.setAttribute('aria-invalid', 'true');
+        });
+        const summary = content.querySelector('[data-orientation-error-summary]');
+        if (summary) {
+            summary.querySelector('ul').innerHTML = errors.map(({ message }) => `<li>${this.escapeHtml(message)}</li>`).join('');
+            summary.hidden = false;
+            summary.focus();
         }
-        return null;
+    }
+
+    validateStrategicOrientationData(data = {}) {
+        const profile = getStrategicOrientationTeamProfile(this.teamId);
+        const errors = [];
+        (profile?.sections || []).forEach((section) => {
+            if (section.kind === 'catalogue') {
+                const value = section.targetKey === 'own' ? data.ownOrientation : data?.forecasts?.[section.targetKey];
+                if (!STRATEGIC_ORIENTATION_OPTIONS[value]) {
+                    errors.push({ field: section.key, message: `${section.legend} is required.` });
+                }
+            } else if (!String(data?.[section.key] || '').trim()) {
+                errors.push({ field: section.key, message: `${section.label} is required.` });
+            }
+        });
+        return errors;
     }
 
     buildStrategicOrientationPayload(data = {}) {
-        const artifactType = this.getStrategicOrientationArtifactType();
-        const isForecast = artifactType === STRATEGIC_ORIENTATION_ARTIFACT_TYPES.FORECAST;
-        const isMultiTargetForecast = isForecast
-            && STRATEGIC_ORIENTATION_MULTI_TARGET_FORECAST_TEAM_IDS.includes(this.teamId);
-        const forecastTargets = isForecast
-            ? getStrategicOrientationForecastTargetsForTeam(this.teamId)
-                .map((target) => {
-                    const orientation = isMultiTargetForecast
-                        ? data?.forecasts?.[target.key]
-                        : data.selected;
-                    const option = STRATEGIC_ORIENTATION_OPTIONS[orientation];
-                    if (!option) {
-                        return null;
-                    }
-
-                    return {
-                        key: target.key,
-                        label: target.label,
-                        orientation: option.id,
-                        orientationLabel: option.name,
-                        orientationTag: option.tag
-                    };
-                })
-                .filter(Boolean)
-            : [];
-        const primaryOrientation = isForecast
-            ? forecastTargets[0]?.orientation
-            : data.selected;
-        const option = STRATEGIC_ORIENTATION_OPTIONS[primaryOrientation];
-        const forecastSummary = isForecast
-            ? buildStrategicOrientationForecastSummary(forecastTargets)
-            : '';
+        const profile = getStrategicOrientationTeamProfile(this.teamId);
+        const ownOption = STRATEGIC_ORIENTATION_OPTIONS[data.ownOrientation];
+        const forecastTargets = (profile?.forecastTargets || []).map((targetKey) => {
+            const option = STRATEGIC_ORIENTATION_OPTIONS[data?.forecasts?.[targetKey]];
+            const target = getStrategicOrientationForecastTargetsForTeam(this.teamId).find(({ key }) => key === targetKey);
+            return {
+                key: target.key,
+                label: target.label,
+                orientation: option.id,
+                orientationLabel: option.name,
+                orientationTag: option.tag
+            };
+        });
+        const forecastSummary = buildStrategicOrientationForecastSummary(forecastTargets);
 
         return {
-            goal: isForecast
-                ? (isMultiTargetForecast
-                    ? `${this.teamLabel} Forecasts`
-                    : `${this.teamLabel} Forecast: Blue ${option.name}`)
-                : `Strategic Orientation: ${option.name}`,
+            goal: `${this.teamLabel} Strategic Orientation: ${ownOption.name}`,
             mechanism: STRATEGIC_ORIENTATION_ACTION_MECHANISM,
             sector: '',
             exposure_type: STRATEGIC_ORIENTATION_PERIOD,
             priority: 'HIGH',
             targets: [],
-            expected_outcomes: isForecast ? forecastSummary : option.tag,
+            expected_outcomes: ownOption.tag,
             ally_contingencies: serializeStrategicOrientationDetails({
-                artifactType,
+                artifactType: this.getStrategicOrientationArtifactType(),
                 team: this.teamId,
-                orientation: option.id,
-                rationale: data.rationale,
+                ownOrientation: ownOption.id,
                 forecastSummary,
                 forecastTargets,
+                orientationRationale: String(data.orientationRationale || '').trim(),
+                forecastActionDescription: String(data.forecastActionDescription || '').trim(),
+                strategyDescription: String(data.strategyDescription || '').trim(),
                 scribeHandoff: STRATEGIC_ORIENTATION_SCRIBE_HANDOFF.FORWARDED
             })
         };
@@ -3070,9 +3053,9 @@ export class FacilitatorController {
     async submitStrategicOrientation(modal, data = {}, { actionId = null, isEdit = false } = {}) {
         if (!this.requireWriteAccess()) return;
 
-        const error = this.validateStrategicOrientationData(data);
-        if (error) {
-            showToast({ message: error, type: 'error' });
+        const errors = this.validateStrategicOrientationData(data);
+        if (errors.length) {
+            showToast({ message: errors[0].message, type: 'error' });
             return;
         }
 
@@ -3155,6 +3138,11 @@ export class FacilitatorController {
                     strategic_orientation: true,
                     artifact_type: this.getStrategicOrientationArtifactType(),
                     orientation: option.id,
+                    own_orientation: payloadViewModel.ownOrientation,
+                    forecast_targets: payloadViewModel.forecastTargets,
+                    orientation_rationale: payloadViewModel.orientationRationale,
+                    forecast_action_description: payloadViewModel.forecastActionDescription,
+                    strategy_description: payloadViewModel.strategyDescription,
                     next_step: 'scribe_project_then_submit_to_white_cell',
                     semantic_next_step: 'facilitator_project_then_submit_to_white_cell'
                 },

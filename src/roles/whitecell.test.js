@@ -188,18 +188,39 @@ function createFakeDocument(ids = []) {
 
 function buildStrategicOrientationAction(team, {
     status = 'submitted',
-    artifactType = team === 'blue' ? 'selection' : 'forecast',
     orientation = 'pressure'
 } = {}) {
+    const profileDetails = {
+        blue: {
+            forecastTargets: [{ key: 'red', orientation: 'stabilization' }],
+            forecastActionDescription: 'Red will preserve market access.'
+        },
+        red: {
+            forecastTargets: [
+                { key: 'blue', orientation: 'pressure' },
+                { key: 'green_asian_pacific', orientation: 'reframe' },
+                { key: 'green_europe', orientation: 'stabilization' }
+            ],
+            orientationRationale: 'Red will reframe its partnerships.'
+        },
+        green: {
+            forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
+            strategyDescription: 'Green will stabilize exposure given the Blue forecast.'
+        },
+        industry: {
+            forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
+            strategyDescription: 'Industry will reframe investment given the Blue forecast.'
+        }
+    }[team];
     return {
         id: `strategic-orientation-${team}`,
         team,
         status,
         mechanism: 'Strategic Orientation',
         ally_contingencies: serializeStrategicOrientationDetails({
-            artifactType,
             team,
-            orientation
+            ownOrientation: orientation,
+            ...profileDetails
         })
     };
 }
@@ -1714,15 +1735,16 @@ describe('White Cell DOM contract', () => {
                 team: 'blue',
                 move: 1,
                 phase: 1,
-                goal: 'Strategic Orientation: Pressure',
+                goal: 'Blue Team Strategic Orientation: Pressure',
                 mechanism: 'Strategic Orientation',
                 status: 'submitted',
                 created_at: '2026-04-08T08:45:00.000Z',
                 submitted_at: '2026-04-08T08:55:00.000Z',
                 ally_contingencies: serializeStrategicOrientationDetails({
-                    artifactType: 'selection',
                     team: 'blue',
-                    orientation: 'pressure',
+                    ownOrientation: 'pressure',
+                    forecastTargets: [{ key: 'red', orientation: 'stabilization' }],
+                    forecastActionDescription: 'Red will preserve market access.',
                     primaryLevers: ['Expanded financial sanctions'],
                     acceptedCosts: ['Sustained economic friction'],
                     posture: 'Calibrated - escalate deliberately',
@@ -1790,7 +1812,7 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.proposalsBadge.hidden).toBe(false);
         expect(fakeDocument.elements.responsesBadge.hidden).toBe(false);
         expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain(
-            'Blue Team Strategic Orientation Selection: Pressure'
+            'Blue Team Strategic Orientation: Pressure'
         );
         expect(fakeDocument.elements.actionsBadge.textContent).not.toBe('3');
     });
@@ -1806,20 +1828,20 @@ describe('White Cell DOM contract', () => {
             team: 'red',
             move: 1,
             phase: 1,
-            goal: 'Red Team Forecasts',
+            goal: 'Red Team Strategic Orientation: Reframe',
             mechanism: 'Strategic Orientation',
             status: 'submitted',
             created_at: '2026-04-08T08:50:00.000Z',
             submitted_at: '2026-04-08T08:55:00.000Z',
             ally_contingencies: serializeStrategicOrientationDetails({
-                artifactType: 'forecast',
                 team: 'red',
+                ownOrientation: 'reframe',
                 forecastTargets: [
                     { key: 'blue', orientation: 'pressure' },
                     { key: 'green_asian_pacific', orientation: 'reframe' },
                     { key: 'green_europe', orientation: 'stabilization' }
                 ],
-                rationale: 'Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.',
+                orientationRationale: 'Red reframes its own posture while forecasting the other teams.',
                 scribeHandoff: 'Forwarded'
             })
         }];
@@ -1832,11 +1854,11 @@ describe('White Cell DOM contract', () => {
 
         controller.syncActionsFromStore();
 
-        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red Team Forecasts');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red Team Strategic Orientation: Reframe');
         expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Blue Forecast');
         expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Green (Asian Pacific) Forecast');
         expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Green (Europe) Forecast');
-        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.');
+        expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red reframes its own posture while forecasting the other teams.');
     });
 
     it('raises a visible arrival cue when a new Blue action reaches the White Cell queue', async () => {
@@ -2286,25 +2308,25 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Strategic Orientation');
     });
 
-    it('labels Blue Strategic Orientation selections explicitly in the White Cell card and review dialog', async () => {
+    it('labels new Blue Strategic Orientation records as orientation and forecast in the White Cell card and review dialog', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         global.document = createFakeDocument();
         const controller = new WhiteCellController();
         const action = {
             ...buildStrategicOrientationAction('blue'),
-            goal: 'Strategic Orientation: Pressure'
+            goal: 'Blue Team Strategic Orientation: Pressure'
         };
 
         const markup = controller.renderActionCard(action);
         controller.showStrategicOrientationReviewModal(action);
 
         expect(markup).toContain(
-            '<h3 class="entity-card__title">Blue Team Strategic Orientation Selection: Pressure</h3>'
+            '<h3 class="entity-card__title">Blue Team Strategic Orientation: Pressure</h3>'
         );
         expect(markup).toContain('<span class="badge-text">Blue Team</span>');
-        expect(markup).toContain('<span class="badge-text">Selection</span>');
+        expect(markup).toContain('<span class="badge-text">Orientation &amp; Forecast</span>');
         expect(showModal.mock.calls.at(-1)?.[0]?.content?.innerHTML).toContain(
-            '<h4 class="font-semibold">Blue Team Strategic Orientation Selection: Pressure</h4>'
+            '<h4 class="font-semibold">Blue Team Strategic Orientation: Pressure</h4>'
         );
         const modalConfig = showModal.mock.calls.at(-1)?.[0];
         expect(modalConfig?.buttons?.map((button) => button.label)).toEqual([
@@ -2783,10 +2805,10 @@ describe('White Cell DOM contract', () => {
                     ...buildStrategicOrientationAction('green'),
                     revision_number: 3,
                     ally_contingencies: serializeStrategicOrientationDetails({
-                        artifactType: 'forecast',
                         team: 'green',
-                        orientation: 'pressure',
-                        rationale: 'Forecast rationale retained in history.'
+                        ownOrientation: 'stabilization',
+                        forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
+                        strategyDescription: 'Forecast rationale retained in history.'
                     })
                 }
             },

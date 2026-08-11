@@ -37,7 +37,9 @@ import {
 } from '../features/actions/actionMarkRail.js';
 import {
     formatStrategicOrientationSelection,
+    getStrategicOrientationArtifactLabel,
     getStrategicOrientationCompletion,
+    getStrategicOrientationDisplayFields,
     getStrategicOrientationViewModel,
     isStrategicOrientationAction
 } from '../features/actions/strategicOrientationDetails.js';
@@ -1495,7 +1497,7 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Review Strategic Orientation',
-                    body: 'Strategic Orientation collects the Blue selection plus Green, Red, and Industry forecasts after each Facilitator submits them to White Cell.',
+                    body: 'Strategic Orientation collects each team\'s own orientation, target forecasts, and required narrative after each Facilitator submits the artifact to White Cell.',
                     highlight: navTarget('strategicOrientation')
                 },
                 {
@@ -3681,17 +3683,7 @@ export class WhiteCellController {
         }).outerHTML;
         const artifactDetails = isOrientation
             ? [
-                ...(orientation.isForecast
-                    ? orientation.forecastTargets.map((forecast) => ({
-                        label: `${forecast.label} Forecast`,
-                        value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
-                        wide: true
-                    }))
-                    : [{
-                        label: 'Selected Orientation',
-                        value: `${orientation.orientationLabel}: ${orientation.orientationTag}`,
-                        wide: true
-                    }]),
+                ...getStrategicOrientationDisplayFields(orientation),
                 ...(orientation.primaryLevers.length
                     ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(orientation.primaryLevers) }]
                     : []),
@@ -3757,7 +3749,7 @@ export class WhiteCellController {
             : '';
         const secondaryBadge = isStrategicOrientationFlow
             ? createBadge({
-                text: strategicOrientation.isForecast ? 'Forecast' : 'Selection',
+                text: getStrategicOrientationArtifactLabel(strategicOrientation),
                 variant: 'info',
                 size: 'sm',
                 rounded: true
@@ -3767,17 +3759,7 @@ export class WhiteCellController {
             : createPriorityBadge(action.priority || 'NORMAL').outerHTML;
         const strategicOrientationDetails = isStrategicOrientationFlow
             ? [
-                ...(strategicOrientation.isForecast
-                    ? strategicOrientation.forecastTargets.map((forecast) => ({
-                        label: `${forecast.label} Forecast`,
-                        value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
-                        wide: true
-                    }))
-                    : [{
-                        label: 'Selected Orientation',
-                        value: `${strategicOrientation.orientationLabel}: ${strategicOrientation.orientationTag}`,
-                        wide: true
-                    }]),
+                ...getStrategicOrientationDisplayFields(strategicOrientation),
                 ...(strategicOrientation.primaryLevers.length
                     ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(strategicOrientation.primaryLevers) }]
                     : []),
@@ -4059,24 +4041,14 @@ export class WhiteCellController {
         content.innerHTML = `
             <div class="mb-4">
                 <h4 class="font-semibold">${this.escapeHtml(reviewTitle)}</h4>
-                <p class="text-sm text-gray-500">Strategic Orientation | Pre-Move 1 | ${this.escapeHtml(viewModel.isForecast ? 'Forecast' : 'Selection')}</p>
+                <p class="text-sm text-gray-500">Strategic Orientation | Pre-Move 1 | ${this.escapeHtml(getStrategicOrientationArtifactLabel(viewModel))}</p>
                 ${action.submitted_at ? `
                     <p class="text-xs text-gray-500" style="margin-top: var(--space-2);">
                         <strong>Submitted:</strong> ${this.escapeHtml(formatDateTime(action.submitted_at))}
                     </p>
                 ` : ''}
                 ${this.renderDetailGrid([
-        ...(viewModel.isForecast
-            ? viewModel.forecastTargets.map((forecast) => ({
-                label: `${forecast.label} Forecast`,
-                value: `${forecast.orientationLabel}: ${forecast.orientationTag}`,
-                wide: true
-            }))
-            : [{
-                label: 'Selected Orientation',
-                value: `${viewModel.orientationLabel}: ${viewModel.orientationTag}`,
-                wide: true
-            }]),
+        ...getStrategicOrientationDisplayFields(viewModel),
         ...(viewModel.primaryLevers.length
             ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(viewModel.primaryLevers) }]
             : []),

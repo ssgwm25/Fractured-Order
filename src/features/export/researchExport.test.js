@@ -315,7 +315,7 @@ function buildBundleFixture() {
 }
 
 describe('research export builder', () => {
-    it('builds the full research archive dataset with the 1.8.0 workflow-evidence file set', async () => {
+    it('builds the full research archive dataset with the 1.9.0 workflow-evidence file set', async () => {
         const exportBundle = await buildResearchExportBundle(buildBundleFixture(), {
             generatedAtUtc: '2026-06-03T12:00:00.000Z',
             generatedByPseudonym: 'gm-1234abcd',
@@ -323,8 +323,8 @@ describe('research export builder', () => {
             includeNotesAppendix: true
         });
 
-        expect(RESEARCH_EXPORT_SCHEMA_VERSION).toBe('1.8.0');
-        expect(RESEARCH_EXPORT_FORMAT_REVISION).toBe(9);
+        expect(RESEARCH_EXPORT_SCHEMA_VERSION).toBe('1.9.0');
+        expect(RESEARCH_EXPORT_FORMAT_REVISION).toBe(10);
         expect(exportBundle.manifest).toMatchObject({
             schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
             export_format_revision: RESEARCH_EXPORT_FORMAT_REVISION,
@@ -894,13 +894,13 @@ describe('research export builder', () => {
                 goal: 'Blue selects Reframe',
                 expected_outcomes: 'Build long-term strategic autonomy.',
                 ally_contingencies: serializeStrategicOrientationDetails({
-                    artifactType: 'selection',
                     team: 'blue',
-                    orientation: 'reframe',
+                    ownOrientation: 'reframe',
+                    forecastTargets: [{ key: 'red', orientation: 'pressure' }],
+                    forecastActionDescription: 'Red will impose costs through visible pressure.',
                     primaryLevers: ['Friend-shoring agreements', 'Critical-input diversification'],
                     acceptedCosts: ['Transitional inefficiencies', 'Near-term economic friction'],
                     posture: 'Gradual - long-horizon reallocation',
-                    rationale: 'Resilience outweighs near-term efficiency.',
                     scribeHandoff: 'Forwarded'
                 }),
                 status: 'submitted',
@@ -914,19 +914,17 @@ describe('research export builder', () => {
                 move: 0,
                 phase: 0,
                 mechanism: 'Strategic Orientation',
-                goal: 'Industry forecasts counterpart orientations',
+                goal: 'Industry Strategic Orientation: Stabilization',
                 ally_contingencies: serializeStrategicOrientationDetails({
-                    artifactType: 'forecast',
                     team: 'industry',
+                    ownOrientation: 'stabilization',
                     forecastTargets: [
-                        { key: 'blue', orientation: 'pressure' },
-                        { key: 'green_asian_pacific', orientation: 'stabilization' },
-                        { key: 'green_europe', orientation: 'reframe' }
+                        { key: 'blue', orientation: 'pressure' }
                     ],
                     primaryLevers: ['Technology export controls'],
                     acceptedCosts: ['Market volatility'],
                     posture: 'Prepare for divergent partner choices.',
-                    rationale: 'Regional partners face different exposure profiles.',
+                    strategyDescription: 'Industry will preserve optionality while Blue applies pressure.',
                     forecastSummary: 'Blue pressures while Green pathways diverge.',
                     scribeHandoff: 'Forwarded'
                 }),
@@ -948,10 +946,15 @@ describe('research export builder', () => {
 
         expect(orientationRows).toHaveLength(2);
         expect(orientationRows[0]).toMatchObject({
-            action_type: 'Strategic Orientation Selection',
+            action_type: 'Strategic Orientation & Forecast',
+            strategic_orientation_contract_version: 2,
+            own_orientation: { id: 'reframe', label: 'Reframe' },
+            forecast_action_description: 'Red will impose costs through visible pressure.',
             full_content: {
                 details: {
-                    artifactType: 'selection',
+                    artifactType: 'orientation_and_forecast',
+                    contractVersion: 2,
+                    ownOrientation: { id: 'reframe', label: 'Reframe' },
                     orientationLabel: 'Reframe',
                     primaryLevers: ['Friend-shoring agreements', 'Critical-input diversification'],
                     acceptedCosts: ['Transitional inefficiencies', 'Near-term economic friction'],
@@ -962,20 +965,22 @@ describe('research export builder', () => {
         expect(orientationRows[0].full_content.details).not.toHaveProperty('description');
         expect(orientationRows[0].full_content.details).not.toHaveProperty('characteristics');
         expect(orientationRows[1].full_content.details.forecastTargets).toEqual([
-            expect.objectContaining({ label: 'Blue', orientationLabel: 'Pressure' }),
-            expect.objectContaining({ label: 'Green (Asian Pacific)', orientationLabel: 'Stabilization' }),
-            expect.objectContaining({ label: 'Green (Europe)', orientationLabel: 'Reframe' })
+            expect.objectContaining({ label: 'Blue', orientationLabel: 'Pressure' })
         ]);
+        expect(orientationRows[1]).toMatchObject({
+            strategy_description: 'Industry will preserve optionality while Blue applies pressure.'
+        });
         expect(exportBundle.draftRevisions).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 artifact_id: 'orientation-blue-1',
                 artifact_type: 'strategic_orientation'
             })
         ]));
-        expect(exportBundle.reportHtml).toContain('Strategic Orientation: Selections And Forecasts');
+        expect(exportBundle.reportHtml).toContain('Strategic Orientation: Team Workflows');
         expect(exportBundle.reportHtml).toContain('Forecast Targets');
-        expect(exportBundle.reportHtml).toContain('Green (Asian Pacific)');
-        expect(exportBundle.reportHtml).toContain('Resilience outweighs near-term efficiency.');
+        expect(exportBundle.reportHtml).toContain('Expected Target Actions');
+        expect(exportBundle.reportHtml).toContain('Red will impose costs through visible pressure.');
+        expect(exportBundle.reportHtml).toContain('Industry will preserve optionality while Blue applies pressure.');
         expect(exportBundle.reportHtml).toContain('Transitional inefficiencies');
         expect(exportBundle.reportHtml).toContain('Supply Chain Focus Decision');
         expect(exportBundle.reportHtml).toContain('Build resilience for Blue');
@@ -983,9 +988,9 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Existing legislation/policy');
         expect(exportBundle.reportHtml).toContain('not captured audit events');
         expect(exportBundle.reportHtml).not.toContain('The United States systematically reallocates economic exposure away from China');
-        expect(exportBundle.reportLatex).toContain(String.raw`\section{Strategic Orientation: selections and forecasts}`);
-        expect(exportBundle.reportLatex).toContain('Green (Asian Pacific)');
-        expect(exportBundle.reportLatex).toContain('Resilience outweighs near-term efficiency.');
+        expect(exportBundle.reportLatex).toContain(String.raw`\section{Strategic Orientation: team workflows}`);
+        expect(exportBundle.reportLatex).toContain('Red will impose costs through visible pressure.');
+        expect(exportBundle.reportLatex).toContain('Industry will preserve optionality while Blue applies pressure.');
         expect(exportBundle.reportLatex).toContain('Build resilience for Blue');
         expect(exportBundle.reportLatex).not.toContain('The United States systematically reallocates economic exposure away from China');
         expect(exportBundle.eventLog).toEqual(expect.arrayContaining([

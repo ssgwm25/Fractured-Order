@@ -7,6 +7,22 @@ function readText(relativePath) {
 }
 
 describe('repository operator docs contract', () => {
+    it('documents the four team-specific Strategic Orientation workflows', () => {
+        const readme = readText('../../README.md');
+        const runbook = readText('../../docs/live-demo-runbook.md');
+        const automation = readText('../../docs/playthrough-automation.md');
+        const walkthrough = readText('../../Plenum Briefing/Fractured-Order_Functionality-Walkthrough.html');
+
+        expect(readme).toContain("Choose Blue's orientation; forecast Red's orientation");
+        expect(readme).toContain("Choose and explain Red's orientation; forecast Blue, Green (Asian Pacific), and Green (Europe)");
+        expect(readme).toContain("Forecast Blue; choose Green's orientation");
+        expect(readme).toContain("Forecast Blue; choose Industry's orientation");
+        expect(runbook).toContain('new records use `Orientation & Forecast`');
+        expect(runbook).toContain('no database migration');
+        expect(automation).toContain('`forecastActionDescription`');
+        expect(walkthrough).toContain('Orientation &amp; Forecast');
+    });
+
     it('documents the root Vite app instead of the obsolete nested setup path', () => {
         const readme = readText('../../README.md');
 
@@ -170,7 +186,7 @@ describe('repository operator docs contract', () => {
         expect(automation).toMatch(/originating Scribe creates the proposal[\s\S]*actual\s+Facilitator[\s\S]*submits it to White Cell/i);
         expect(automation).toMatch(/White Cell approves\s+each intended recipient independently/i);
         expect(automation).toContain('isolated, append-only response thread');
-        expect(automation).toContain('schema `1.8.0` / format revision');
+        expect(automation).toContain('schema `1.9.0` / format revision');
         expect(automation).toContain('passed manifest reconciliation');
         expect(automation).toContain('Full dual-thread verification is part of both the');
 
@@ -209,7 +225,7 @@ describe('repository operator docs contract', () => {
         const rollback = readText('../../docs/supabase-rollback.md');
         const currentGuidance = `${readme}\n${deployment}\n${supabase}\n${runbook}\n${automation}\n${rollback}`;
 
-        expect(readme).toContain('schema `1.8.0` / format revision `9`');
+        expect(readme).toContain('schema `1.9.0` / format revision `10`');
         expect(deployment).toContain('Migration-First Release Order');
         expect(deployment).toContain('Deploy the matching frontend second from one clean commit');
         expect(deployment).toContain('roll back the frontend first');

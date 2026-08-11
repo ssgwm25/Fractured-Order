@@ -81,17 +81,17 @@ async function createStrategicOrientationAction(overrides = {}) {
         session_id: 'session-strategic-orientation',
         team: 'blue',
         status: 'draft',
-        goal: 'Strategic Orientation: Pressure',
+        goal: 'Blue Team Strategic Orientation: Pressure',
         mechanism: 'Strategic Orientation',
         exposure_type: 'pre_move_1',
         priority: 'HIGH',
         move: 1,
         phase: 1,
         ally_contingencies: serializeStrategicOrientationDetails({
-            artifactType: 'selection',
             team: 'blue',
-            orientation: 'pressure',
-            rationale: 'Set the pre-Move 1 posture.',
+            ownOrientation: 'pressure',
+            forecastTargets: [{ key: 'red', orientation: 'stabilization' }],
+            forecastActionDescription: 'Red will preserve market access.',
             scribeHandoff: 'Forwarded'
         }),
         ...overrides
@@ -298,17 +298,17 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(greenHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
         expect(greenHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
         expect(greenHtml).toContain('id="pageRefreshBtn"');
-        expect(greenHtml).toContain('Forecast Blue');
+        expect(greenHtml).toContain('Strategic Orientation');
         expect(redHtml).toContain('id="strategicOrientationBtn"');
         expect(redHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
         expect(redHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
         expect(redHtml).toContain('id="pageRefreshBtn"');
-        expect(redHtml).toContain('Forecast Teams');
+        expect(redHtml).toContain('Strategic Orientation');
         expect(industryHtml).toContain('id="strategicOrientationBtn"');
         expect(industryHtml).toContain('class="btn btn-primary" id="strategicOrientationBtn"');
         expect(industryHtml).toContain('class="btn btn-secondary" id="newActionBtn"');
         expect(industryHtml).toContain('id="pageRefreshBtn"');
-        expect(industryHtml).toContain('Forecast Teams');
+        expect(industryHtml).toContain('Strategic Orientation');
     });
 
     it('builds Strategic Orientation payloads with a non-null action sector', async () => {
@@ -318,8 +318,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         controller.teamLabel = 'Blue Team';
 
         const payload = controller.buildStrategicOrientationPayload({
-            selected: 'pressure',
-            rationale: 'Set the pre-Move 1 posture.'
+            ownOrientation: 'pressure',
+            forecasts: { red: 'stabilization' },
+            forecastActionDescription: 'Red will preserve market access.'
         });
 
         expect(payload).toMatchObject({
@@ -338,24 +339,23 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         controller.teamLabel = 'Red Team';
 
         const payload = controller.buildStrategicOrientationPayload({
+            ownOrientation: 'reframe',
             forecasts: {
                 blue: 'pressure',
                 green_asian_pacific: 'reframe',
                 green_europe: 'stabilization'
             },
-            rationale: 'Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.'
+            orientationRationale: 'Red will reframe its partnerships while monitoring every forecast target.'
         });
 
         expect(payload).toMatchObject({
-            goal: 'Red Team Forecasts',
+            goal: 'Red Team Strategic Orientation: Reframe',
             mechanism: 'Strategic Orientation',
             sector: '',
             exposure_type: 'pre_move_1',
             priority: 'HIGH'
         });
-        expect(payload.expected_outcomes).toContain('Blue -> Pressure');
-        expect(payload.expected_outcomes).toContain('Green (Asian Pacific) -> Reframe');
-        expect(payload.expected_outcomes).toContain('Green (Europe) -> Stabilization');
+        expect(payload.expected_outcomes).toContain('Develop new alliance and partnership structures');
         expect(payload.ally_contingencies).toContain('Forecast Targets:');
         expect(payload.ally_contingencies).toContain('"key":"green_asian_pacific"');
         expect(payload.ally_contingencies).toContain('"key":"green_europe"');
@@ -394,24 +394,28 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const modal = { close: vi.fn() };
 
         await controller.submitStrategicOrientation(modal, {
+            ownOrientation: 'reframe',
             forecasts: {
                 blue: 'pressure',
                 green_asian_pacific: 'reframe',
                 green_europe: 'stabilization'
             },
-            rationale: 'Red records all required forecast targets.'
+            orientationRationale: 'Red records and explains its own orientation.'
         });
 
         expect(createAction).toHaveBeenCalledWith(expect.objectContaining({
-            goal: 'Red Team Forecasts',
+            goal: 'Red Team Strategic Orientation: Reframe',
             team: 'red',
             status: 'draft'
         }));
         expect(createTimelineEvent).toHaveBeenNthCalledWith(2, expect.objectContaining({
             type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
             metadata: expect.objectContaining({
-                artifact_type: 'forecast',
-                orientation: 'pressure'
+                artifact_type: 'orientation_and_forecast',
+                orientation: 'reframe',
+                forecast_targets: expect.arrayContaining([
+                    expect.objectContaining({ key: 'green_asian_pacific', orientation: 'reframe' })
+                ])
             })
         }));
         expect(actionsStoreSpy).toHaveBeenCalledWith('INSERT', expect.objectContaining({
@@ -439,8 +443,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const removedOrientationInstruction = ['Each orientation', 'reflects a distinct posture toward strategic competition with the PRC.'].join(' ');
         const removedDescriptionClass = ['opt', 'desc'].join('-');
 
-        expect(html).toContain('<fieldset class="form-group strategic-orientation-fieldset">');
-        expect(html).toContain('<legend class="form-label" id="strategicOrientationLegend">Orientation <span class="required-indicator">*</span></legend>');
+        expect(html).toContain("Choose Blue's orientation");
+        expect(html).toContain("Forecast Red's orientation");
+        expect(html).toContain('Describe what you expect Red to do');
         expect(html).not.toContain(removedScribeCopy);
         expect(html).not.toContain(removedOrientationInstruction);
         expect(html).not.toContain(removedDescriptionClass);
@@ -455,14 +460,13 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(html).not.toContain('Select the orientation that will frame the first move.');
         expect(html).not.toContain('No orientation selected');
         expect(html).toContain('class="form-input form-textarea"');
-        expect(html).toContain('class="form-hint" id="rationaleHelp"');
-        expect(html).toContain('label class="form-label" for="rationale"');
-        expect(html).toContain('aria-describedby="rationaleHelp"');
+        expect(html).toContain('data-orientation-narrative="forecastActionDescription"');
+        expect(html).toContain('data-orientation-error-summary');
         expect(html).toContain('role="radiogroup"');
         expect(html).toContain('role="radio"');
     });
 
-    it('renders Red and Industry forecast modals with Blue and Green target groups plus one rationale box', async () => {
+    it('renders Red sections in the required workflow order with independent radio groups', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         global.document = createFakeDocument();
 
@@ -473,14 +477,54 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const content = controller.createStrategicOrientationContent({});
         const html = content.innerHTML;
 
-        expect(html).toContain('Green (Asian Pacific) <span class="required-indicator">*</span>');
-        expect(html).toContain('Green (Europe) <span class="required-indicator">*</span>');
-        expect(html).toContain('Blue <span class="required-indicator">*</span>');
+        expect(html.indexOf("Choose Red's orientation")).toBeLessThan(html.indexOf("Describe and explain Red's strategic orientation"));
+        expect(html.indexOf("Describe and explain Red's strategic orientation")).toBeLessThan(html.indexOf("Forecast Blue's orientation"));
+        expect(html.indexOf("Forecast Blue's orientation")).toBeLessThan(html.indexOf('Forecast Green (Asian Pacific)'));
+        expect(html.indexOf('Forecast Green (Asian Pacific)')).toBeLessThan(html.indexOf('Forecast Green (Europe)'));
+        expect(html).toContain('data-orientation-target="own"');
         expect(html).toContain('data-orientation-target="blue"');
         expect(html).toContain('data-orientation-target="green_asian_pacific"');
         expect(html).toContain('data-orientation-target="green_europe"');
-        expect(html).toContain('label class="form-label" for="rationale"');
-        expect(html).toContain('Briefly state why your team forecasts these orientations for Blue and the Green delegations.');
+        expect(html).toContain('data-orientation-narrative="orientationRationale"');
+    });
+
+    it.each([
+        ['green', "Forecast Blue's orientation", "Choose Green's orientation", 'Describe your strategy given this forecast'],
+        ['industry', "Forecast Blue's orientation", "Choose Industry's orientation", 'Describe your strategy given this forecast']
+    ])('renders the %s workflow in forecast, own-orientation, strategy order', async (teamId, forecastLabel, ownLabel, strategyLabel) => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        global.document = createFakeDocument();
+        const controller = new FacilitatorController();
+        controller.teamId = teamId;
+
+        const html = controller.createStrategicOrientationContent({}).innerHTML;
+
+        expect(html.indexOf(forecastLabel)).toBeLessThan(html.indexOf(ownLabel));
+        expect(html.indexOf(ownLabel)).toBeLessThan(html.indexOf(strategyLabel));
+        expect(html).toContain('data-orientation-narrative="strategyDescription"');
+    });
+
+    it('requires every team-specific choice and rejects whitespace-only narratives', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+
+        expect(controller.validateStrategicOrientationData({
+            ownOrientation: 'pressure',
+            forecasts: { red: 'stabilization' },
+            forecastActionDescription: '   '
+        })).toEqual([{
+            field: 'forecastActionDescription',
+            message: 'Describe what you expect Red to do is required.'
+        }]);
+        expect(controller.validateStrategicOrientationData({
+            ownOrientation: 'pressure',
+            forecasts: {},
+            forecastActionDescription: 'Red will stabilize.'
+        })).toEqual([{
+            field: 'forecast:red',
+            message: "Forecast Red's orientation is required."
+        }]);
     });
 
     it('swaps Strategic Orientation and action button priority after the team records one', async () => {
@@ -631,15 +675,16 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const modal = { close: vi.fn() };
 
         await controller.submitStrategicOrientation(modal, {
-            selected: 'reframe',
-            rationale: 'Update the projected orientation before forwarding.'
+            ownOrientation: 'reframe',
+            forecasts: { red: 'pressure' },
+            forecastActionDescription: 'Red will apply pressure while preserving the recorded forecast.'
         }, {
             actionId: action.id,
             isEdit: true
         });
 
         expect(updateDraftAction).toHaveBeenCalledWith(action.id, expect.objectContaining({
-            goal: 'Strategic Orientation: Reframe'
+            goal: 'Blue Team Strategic Orientation: Reframe'
         }));
         expect(createAction).not.toHaveBeenCalled();
         expect(actionsStoreSpy).toHaveBeenCalledWith('UPDATE', updatedAction);

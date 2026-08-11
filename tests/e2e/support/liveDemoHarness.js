@@ -502,9 +502,28 @@ export async function forwardActionToScribe(page, goal) {
 
 export async function recordStrategicOrientationFromScribe(page, {
     team = 'blue',
-    orientation = 'pressure',
+    ownOrientation = 'pressure',
+    orientation,
+    forecasts = null,
+    orientationRationale = '',
+    forecastActionDescription = '',
+    strategyDescription = '',
     rationale = 'Topology rehearsal orientation recorded before the normal move gate.'
 } = {}) {
+    const normalizedTeam = String(team).toLowerCase();
+    const resolvedOwnOrientation = orientation || ownOrientation;
+    const defaultForecasts = {
+        blue: { red: 'stabilization' },
+        red: { blue: 'pressure', green_asian_pacific: 'reframe', green_europe: 'stabilization' },
+        green: { blue: 'pressure' },
+        industry: { blue: 'pressure' }
+    }[normalizedTeam] || {};
+    const resolvedForecasts = forecasts || defaultForecasts;
+    const resolvedNarratives = {
+        orientationRationale: orientationRationale || (normalizedTeam === 'red' ? rationale : ''),
+        forecastActionDescription: forecastActionDescription || (normalizedTeam === 'blue' ? rationale : ''),
+        strategyDescription: strategyDescription || (['green', 'industry'].includes(normalizedTeam) ? rationale : '')
+    };
     await page.locator('#strategicOrientationBtn').click();
 
     const modal = page.locator('.modal-overlay').filter({
@@ -512,24 +531,28 @@ export async function recordStrategicOrientationFromScribe(page, {
     });
     await expect(modal).toBeVisible();
 
-    const orientationOptions = modal.locator(`[data-orientation="${orientation}"]`);
-    const orientationOptionCount = await orientationOptions.count();
-    expect(orientationOptionCount).toBeGreaterThan(0);
-    for (let index = 0; index < orientationOptionCount; index += 1) {
-        const orientationOption = orientationOptions.nth(index);
-        await orientationOption.click();
-        await expect(orientationOption).toHaveAttribute('aria-checked', 'true');
-    }
-    await modal.locator('#rationale').fill(rationale);
-
     const confirmButton = modal.locator('[data-orientation-nav="confirm"]');
+    await expect(confirmButton).toBeDisabled();
+
+    const ownOption = modal.locator(`[data-orientation-target="own"][data-orientation="${resolvedOwnOrientation}"]`);
+    await ownOption.click();
+    await expect(ownOption).toHaveAttribute('aria-checked', 'true');
+    for (const [target, forecastOrientation] of Object.entries(resolvedForecasts)) {
+        const forecastOption = modal.locator(`[data-orientation-target="${target}"][data-orientation="${forecastOrientation}"]`);
+        await forecastOption.click();
+        await expect(forecastOption).toHaveAttribute('aria-checked', 'true');
+    }
+    for (const [field, value] of Object.entries(resolvedNarratives)) {
+        const textarea = modal.locator(`#${field}`);
+        if (await textarea.count()) await textarea.fill(value);
+    }
+
     await expect(confirmButton).toBeEnabled();
     await confirmButton.click();
 
     await expect(page.locator('#toast-container')).toContainText('Strategic Orientation forwarded to Facilitator');
 
-    const artifactLabel = team === 'blue' ? 'Strategic Orientation:' : 'Forecast';
-    const orientationCard = page.locator('#actionsList .entity-card').filter({ hasText: artifactLabel }).first();
+    const orientationCard = page.locator('#actionsList .entity-card').filter({ hasText: 'Strategic Orientation' }).first();
     await expect(orientationCard).toBeVisible();
     const goal = (await orientationCard.locator('.entity-card__title').innerText()).trim();
 
@@ -814,7 +837,13 @@ export async function reviseReturnedAction(page, {
 
 export async function reviseReturnedStrategicOrientation(page, {
     goal,
-    orientation = 'stabilization',
+    team = 'blue',
+    ownOrientation = 'stabilization',
+    orientation,
+    forecasts = null,
+    orientationRationale = '',
+    forecastActionDescription = '',
+    strategyDescription = '',
     rationale
 } = {}) {
     if (!goal || !rationale) {
@@ -843,27 +872,35 @@ export async function reviseReturnedStrategicOrientation(page, {
         has: page.locator('[data-strategic-orientation-modal]')
     });
     await expect(modal).toBeVisible();
-    await modal.locator(`[data-orientation="${orientation}"]`).first().click();
-    await modal.locator('#rationale').fill(rationale);
+    await expect(modal.locator('[data-orientation-target]:not([data-orientation-target="own"])[aria-checked="true"]')).not.toHaveCount(0);
+    await expect(modal.locator('[data-orientation-narrative]').first()).not.toHaveValue('');
+    const normalizedTeam = String(team).toLowerCase();
+    const resolvedOwnOrientation = orientation || ownOrientation;
+    await modal.locator(`[data-orientation-target="own"][data-orientation="${resolvedOwnOrientation}"]`).click();
+    if (forecasts) {
+        for (const [target, forecastOrientation] of Object.entries(forecasts)) {
+            await modal.locator(`[data-orientation-target="${target}"][data-orientation="${forecastOrientation}"]`).click();
+        }
+    }
+    const narratives = {
+        orientationRationale: orientationRationale || (normalizedTeam === 'red' ? rationale : ''),
+        forecastActionDescription: forecastActionDescription || (normalizedTeam === 'blue' ? rationale : ''),
+        strategyDescription: strategyDescription || (['green', 'industry'].includes(normalizedTeam) ? rationale : '')
+    };
+    for (const [field, value] of Object.entries(narratives)) {
+        const textarea = modal.locator(`#${field}`);
+        if (await textarea.count() && value) await textarea.fill(value);
+    }
     await modal.locator('[data-orientation-nav="confirm"]').click();
     await expect(modal).toBeHidden();
     await expect(page.locator('#toast-container')).toContainText('Strategic Orientation forwarded to Facilitator');
 
-    return `Strategic Orientation: ${orientation.charAt(0).toUpperCase()}${orientation.slice(1)}`;
+    return `${team.charAt(0).toUpperCase()}${team.slice(1)} Team Strategic Orientation: ${resolvedOwnOrientation.charAt(0).toUpperCase()}${resolvedOwnOrientation.slice(1)}`;
 }
 
 export function getWhiteCellStrategicOrientationTitle(goal, team = '') {
-    const normalizedGoal = String(goal || '').trim();
-    const normalizedTeam = String(team || '').trim().toLowerCase();
-
-    if (
-        (normalizedTeam === 'blue' || (!normalizedTeam && normalizedGoal.startsWith('Strategic Orientation:')))
-        && normalizedGoal.startsWith('Strategic Orientation:')
-    ) {
-        return `Blue Team Strategic Orientation Selection:${normalizedGoal.slice('Strategic Orientation:'.length)}`;
-    }
-
-    return normalizedGoal;
+    void team;
+    return String(goal || '').trim();
 }
 
 export async function createProposal(page, {

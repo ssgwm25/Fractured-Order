@@ -39,6 +39,8 @@ import {
 } from '../features/actions/blueActionDetails.js';
 import {
     STRATEGIC_ORIENTATION_PERIOD,
+    getStrategicOrientationArtifactLabel,
+    getStrategicOrientationDisplayFields,
     getStrategicOrientationViewModel,
     isStrategicOrientationAction,
     isStrategicOrientationForwardedToScribe
@@ -437,7 +439,7 @@ export function buildScribeActionSlides(actions = [], {
                 ? 'SO'
                 : (isOwnProposalSlide ? 'P' : String(actionNumber)),
             sidebarKicker: isStrategicOrientationSlide
-                ? `${getActionSlideLifecycleLabel(action)} | Pre-Move 1 | ${strategicOrientation.isForecast ? 'Forecast' : 'Selection'}`
+                ? `${getActionSlideLifecycleLabel(action)} | Pre-Move 1 | ${getStrategicOrientationArtifactLabel(strategicOrientation)}`
                 : (isOwnProposalSlide
                     ? `${getActionSlideLifecycleLabel(action)} | Proposal → ${recipientLabel}`
                     : `${getActionSlideLifecycleLabel(action)} | ${sequenceLabel}`)
@@ -3309,11 +3311,11 @@ export class ScribeController {
                         class="btn btn-secondary btn-sm"
                         data-scribe-action-project
                         data-action-id="${escapeHtml(actionId)}"
-                    >${viewModel.isForecast ? 'Project Forecast' : 'Project Orientation'}</button>
+                    >Project Strategic Orientation</button>
                 </div>
 
                 <p class="scribe-action-slide-lead-note">
-                    Project this ${viewModel.isForecast ? 'forecast' : 'orientation selection'} for ${escapeHtml(this.teamLabel)}, verify the team sees their completed work, then submit it to White Cell.
+                    Project this orientation and its forecasts for ${escapeHtml(this.teamLabel)}, verify the team sees their completed work, then submit it to White Cell.
                 </p>
 
                 <div class="scribe-action-slide-submit-actions">
@@ -3786,6 +3788,11 @@ export class ScribeController {
                     period: STRATEGIC_ORIENTATION_PERIOD,
                     artifact_type: viewModel.artifactType,
                     orientation: viewModel.orientation,
+                    own_orientation: viewModel.ownOrientation,
+                    forecast_targets: viewModel.forecastTargets,
+                    orientation_rationale: viewModel.orientationRationale,
+                    forecast_action_description: viewModel.forecastActionDescription,
+                    strategy_description: viewModel.strategyDescription,
                     revision_number: submittedAction.revision_number || action.revision_number || 1,
                     workflow_state: submittedAction.workflow_state || null
                 },
@@ -4067,26 +4074,17 @@ export class ScribeController {
         const lifecycleArtifact = getActionSlideLifecycleArtifact(action);
         const lifecycle = getArtifactLifecycleViewModel(lifecycleArtifact);
         const returnNotes = action.review_notes || action.adjudication_notes || '';
-        const forecastRows = viewModel.isForecast
-            ? (viewModel.forecastTargets.length
-                ? viewModel.forecastTargets
-                : [{
-                    key: 'blue',
-                    label: 'Blue',
-                    orientationLabel: viewModel.orientationLabel,
-                    orientationTag: viewModel.orientationTag
-                }])
-            : [];
         const scribeSubmissionControls = isDraftPreview
             ? this.renderScribeStrategicOrientationSubmissionControls(action, viewModel)
             : '';
+        const displayFields = getStrategicOrientationDisplayFields(viewModel);
 
         return `
             <article class="scribe-action-slide scribe-orientation-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
                         <p class="scribe-action-slide-eyebrow">${escapeHtml(viewModel.teamLabel)}</p>
-                        <h2 class="scribe-action-slide-title">${viewModel.isForecast ? 'Strategic Orientation Forecast' : 'Strategic Orientation'}</h2>
+                        <h2 class="scribe-action-slide-title">Strategic Orientation</h2>
                     </div>
                     <div class="scribe-action-slide-status">
                         ${createArtifactLifecycleBadge(lifecycleArtifact, { size: 'sm' }).outerHTML}
@@ -4099,20 +4097,13 @@ export class ScribeController {
                 <section class="scribe-action-slide-panel">
                     <section class="scribe-action-slide-glance" aria-label="Strategic Orientation">
                         <div class="scribe-action-slide-section-header">
-                            <h3 class="scribe-action-slide-section-title">${viewModel.isForecast ? (forecastRows.length > 1 ? 'Forecasted team postures' : 'Forecasted Blue posture') : 'Selected strategic posture'}</h3>
+                            <h3 class="scribe-action-slide-section-title">Orientation and forecasts</h3>
                         </div>
                         <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
-                            ${viewModel.isForecast
-                ? forecastRows.map((forecast) => renderActionSlideGlanceCard({
-                    label: forecast.label,
-                    value: forecast.orientationLabel,
-                    support: forecast.orientationTag || 'Tag pending'
-                })).join('')
-                : renderActionSlideGlanceCard({
-                    label: 'Orientation',
-                    value: viewModel.orientationLabel,
-                    support: viewModel.orientationTag || 'Tag pending'
-                })}
+                            ${displayFields.map((field) => renderActionSlideGlanceCard({
+                    label: field.label,
+                    value: field.value
+                })).join('')}
                             ${!viewModel.isForecast && viewModel.primaryLevers.length
                 ? renderActionSlideGlanceCard({
                     label: 'Primary levers',
@@ -4134,10 +4125,12 @@ export class ScribeController {
                         </div>
                     </section>
 
-                    <section class="scribe-action-slide-lead" aria-label="Team rationale">
-                        <p class="scribe-action-slide-section-label">Team rationale</p>
-                        <p class="scribe-action-slide-body">${escapeHtml(viewModel.rationale || 'No rationale provided.')}</p>
-                    </section>
+                    ${viewModel.isLegacy && viewModel.rationale ? `
+                        <section class="scribe-action-slide-lead" aria-label="Team rationale">
+                            <p class="scribe-action-slide-section-label">Team rationale</p>
+                            <p class="scribe-action-slide-body">${escapeHtml(viewModel.rationale)}</p>
+                        </section>
+                    ` : ''}
 
                     ${lifecycle.isReturned ? `
                         <section class="scribe-action-slide-return" aria-label="White Cell return details">

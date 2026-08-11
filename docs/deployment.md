@@ -37,7 +37,7 @@ following from the candidate head:
 - mock and live-Supabase results produced from the same commit and migration
   state
 - Playwright reports and `playthrough-diagnostics.json`, plus the downloaded
-  schema `1.8.0` / format revision `9` research archive and its passed manifest
+  schema `1.9.0` / format revision `10` research archive and its passed manifest
   reconciliation
 
 An uncommitted working-tree run is useful development feedback but is not

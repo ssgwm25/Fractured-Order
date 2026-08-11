@@ -32,10 +32,10 @@ test('@smoke session creation, Scribe handoff, Facilitator action submit, and Wh
     const sessionCode = 'SMOKE2026';
     const actionGoal = 'Coordinate export controls to reduce semiconductor exposure across allied partners.';
     const orientationTeams = [
-        { team: 'blue', orientation: 'pressure' },
-        { team: 'green', orientation: 'stabilization' },
-        { team: 'red', orientation: 'reframe' },
-        { team: 'industry', orientation: 'pressure' }
+        { team: 'blue', ownOrientation: 'pressure', forecasts: { red: 'stabilization' }, forecastActionDescription: 'Red will preserve market access while limiting escalation.' },
+        { team: 'green', ownOrientation: 'stabilization', forecasts: { blue: 'pressure' }, strategyDescription: 'Green will protect regional stability under Blue pressure.' },
+        { team: 'red', ownOrientation: 'reframe', forecasts: { blue: 'pressure', green_asian_pacific: 'reframe', green_europe: 'stabilization' }, orientationRationale: 'Red will reframe its partnerships for long-term leverage.' },
+        { team: 'industry', ownOrientation: 'pressure', forecasts: { blue: 'stabilization' }, strategyDescription: 'Industry will protect critical capacity under Blue stabilization.' }
     ];
 
     await test.step('create a session from the control panel', async () => {
@@ -52,7 +52,8 @@ test('@smoke session creation, Scribe handoff, Facilitator action submit, and Wh
     });
 
     await test.step('complete the required pre-move Strategic Orientation handoffs', async () => {
-        for (const { team, orientation } of orientationTeams) {
+        for (const orientationFixture of orientationTeams) {
+            const { team } = orientationFixture;
             const teamLabel = team.charAt(0).toUpperCase() + team.slice(1);
 
             await joinPublicParticipant(page, {
@@ -63,9 +64,7 @@ test('@smoke session creation, Scribe handoff, Facilitator action submit, and Wh
             });
 
             const orientationGoal = await recordStrategicOrientationFromScribe(page, {
-                team,
-                orientation,
-                rationale: `${teamLabel} orientation recorded to complete the pre-move gate.`
+                ...orientationFixture
             });
 
             await logoutCurrentUser(page);

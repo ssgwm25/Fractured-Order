@@ -369,16 +369,15 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toHaveText('Awaiting Orientation');
 
             const orientationByTeam = {
-                blue: 'pressure',
-                green: 'stabilization',
-                red: 'reframe',
-                industry: 'pressure'
+                blue: { ownOrientation: 'pressure', forecasts: { red: 'stabilization' }, forecastActionDescription: 'Red will preserve market access while limiting escalation.' },
+                green: { ownOrientation: 'stabilization', forecasts: { blue: 'pressure' }, strategyDescription: 'Green will protect regional stability under the Blue forecast.' },
+                red: { ownOrientation: 'reframe', forecasts: { blue: 'pressure', green_asian_pacific: 'reframe', green_europe: 'stabilization' }, orientationRationale: 'Red will reframe its partnerships for long-term leverage.' },
+                industry: { ownOrientation: 'pressure', forecasts: { blue: 'stabilization' }, strategyDescription: 'Industry will protect capacity under the Blue forecast.' }
             };
             const recordedGoals = await runActorOperations(TEAMS.map((team) => () => (
                 recordStrategicOrientationFromScribe(actors.teams[team].scribe, {
                     team,
-                    orientation: orientationByTeam[team],
-                    rationale: `${TEAM_LABELS[team]} rationale recorded during the 18-person playthrough.`
+                    ...orientationByTeam[team]
                 })
             )), { concurrent: actorPool.useIndependentContexts });
             TEAMS.forEach((team, index) => {
@@ -429,6 +428,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await openSidebarSection(actors.whiteCellLead, 'strategicOrientation');
             const orientationSurface = actors.whiteCellLead.locator('#strategicOrientationList');
             await expect(orientationSurface).toContainText('Completed');
+            await expect(orientationSurface).toContainText('Green will protect regional stability under the Blue forecast.');
+            await expect(orientationSurface).toContainText('Red will reframe its partnerships for long-term leverage.');
+            await expect(orientationSurface).toContainText('Industry will protect capacity under the Blue forecast.');
+            await expect(orientationSurface).toContainText(correctedOrientationRationale);
             for (const outcome of CURRENT_OUTCOME_LABELS) {
                 await expect(orientationSurface.getByText(outcome, { exact: true })).toHaveCount(0);
             }
@@ -946,8 +949,8 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             const workflowReviews = parseArchiveJson(archiveEntries, 'artifact_workflow_reviews.json');
 
             expect(manifest.session_config_snapshot.session_name).toBe(sessionName);
-            expect(manifest.schema_version).toBe('1.8.0');
-            expect(manifest.export_format_revision).toBe(9);
+            expect(manifest.schema_version).toBe('1.9.0');
+            expect(manifest.export_format_revision).toBe(10);
             expect(manifest.contract_reconciliation.status).toBe('passed');
             expect(manifest.contract_reconciliation.checks.artifact_review_rows.matches).toBe(true);
             expect(manifest.contract_reconciliation.checks.proposal_threads.matches).toBe(true);

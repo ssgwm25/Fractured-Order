@@ -627,7 +627,51 @@ body.loader-active {
 }
 
 .strategic-orientation-modal .content-pad {
-    padding: var(--space-6);
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    padding: 0;
+}
+
+.strategic-orientation-modal .strategic-orientation-sections {
+    display: grid;
+    gap: var(--space-5);
+    padding: var(--space-5) var(--space-6);
+}
+
+.strategic-orientation-modal .strategic-orientation-section {
+    padding-bottom: var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.strategic-orientation-modal .strategic-orientation-section:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.strategic-orientation-modal .strategic-orientation-section h3 {
+    margin: 0 0 var(--space-2);
+    color: var(--color-text);
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+}
+
+.strategic-orientation-modal .form-error-summary {
+    margin: var(--space-5) var(--space-6) 0;
+    padding: var(--space-4);
+    border: 2px solid var(--color-error);
+    border-radius: var(--input-radius);
+    background: var(--color-error-light);
+}
+
+.strategic-orientation-modal .form-error-summary h3,
+.strategic-orientation-modal .form-error-summary ul {
+    margin: 0;
+}
+
+.strategic-orientation-modal .form-error-summary ul {
+    padding-top: var(--space-2);
+    padding-left: var(--space-5);
 }
 
 .strategic-orientation-modal .strategic-orientation-fieldset {
@@ -640,12 +684,14 @@ body.loader-active {
 
 .strategic-orientation-modal .options {
     display: grid;
-    gap: var(--space-3);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
 }
 
 .strategic-orientation-modal .opt {
     width: 100%;
-    padding: var(--space-4);
+    min-height: 100%;
+    padding: var(--space-3);
     border: 1px solid var(--color-border);
     border-radius: var(--input-radius);
     background: var(--color-surface);
@@ -672,23 +718,44 @@ body.loader-active {
 }
 
 .strategic-orientation-modal .opt-name {
-    font-size: var(--text-lg);
+    font-size: var(--text-base);
     font-weight: var(--font-semibold);
 }
 
 .strategic-orientation-modal .opt-tag {
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
     color: var(--color-text-secondary);
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
 }
 
 .strategic-orientation-modal .strategic-orientation-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: var(--z-sticky);
     justify-content: flex-end;
+    margin: 0;
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
 }
 
 @media (max-width: 720px) {
-    .strategic-orientation-modal .content-pad {
-        padding: var(--space-4);
+    .strategic-orientation-modal .options {
+        grid-template-columns: 1fr;
+    }
+
+    .strategic-orientation-modal .strategic-orientation-sections,
+    .strategic-orientation-modal .strategic-orientation-actions {
+        padding-right: var(--space-4);
+        padding-left: var(--space-4);
+    }
+}
+
+@media (max-height: 700px) {
+    .strategic-orientation-modal {
+        max-height: calc(100vh - (2 * var(--space-4)));
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 }

@@ -1847,15 +1847,16 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             team: 'blue',
             move: 1,
             phase: 1,
-            goal: 'Strategic Orientation: Pressure',
+            goal: 'Blue Team Strategic Orientation: Pressure',
             mechanism: 'Strategic Orientation',
             exposure_type: 'pre_move_1',
             priority: 'HIGH',
             status: 'draft',
             ally_contingencies: serializeStrategicOrientationDetails({
-                artifactType: 'selection',
                 team: 'blue',
-                orientation: 'pressure',
+                ownOrientation: 'pressure',
+                forecastTargets: [{ key: 'red', orientation: 'stabilization' }],
+                forecastActionDescription: 'Red will preserve market access.',
                 primaryLevers: ['Expanded financial sanctions'],
                 acceptedCosts: ['Sustained economic friction'],
                 posture: 'Calibrated \u2014 escalate deliberately',
@@ -1869,9 +1870,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(liveSlides.slides[0]).toMatchObject({
             slideKey: 'action-orientation-blue-1',
             slideType: 'strategic-orientation',
-            title: 'Strategic Orientation: Pressure',
+            title: 'Blue Team Strategic Orientation: Pressure',
             sidebarOrdinal: 'SO',
-            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Selection'
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Orientation & Forecast'
         });
     });
 
@@ -2126,7 +2127,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             team: 'green',
             move: 1,
             phase: 1,
-            goal: 'Green Forecast: Blue Reframe',
+            goal: 'Green Team Strategic Orientation: Stabilization',
             mechanism: 'Strategic Orientation',
             exposure_type: 'pre_move_1',
             priority: 'HIGH',
@@ -2134,10 +2135,10 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             created_at: '2026-06-15T09:55:00.000Z',
             updated_at: '2026-06-15T10:05:00.000Z',
             ally_contingencies: serializeStrategicOrientationDetails({
-                artifactType: 'forecast',
                 team: 'green',
-                orientation: 'reframe',
-                rationale: 'Green expects Blue to pivot into alliance structure-building.',
+                ownOrientation: 'stabilization',
+                forecastTargets: [{ key: 'blue', orientation: 'reframe' }],
+                strategyDescription: 'Green will stabilize exposure while Blue pivots into alliance structure-building.',
                 scribeHandoff: 'Forwarded'
             })
         };
@@ -2146,18 +2147,18 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             slideKey: 'action-orientation-forecast-preview',
             slideType: 'strategic-orientation',
             sidebarOrdinal: 'SO',
-            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Forecast',
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Orientation & Forecast',
             action
         });
 
-        expect(html).toContain('Strategic Orientation Forecast');
+        expect(html).toContain('Strategic Orientation');
         expect(html).toContain('scribe-orientation-slide');
-        expect(html).toContain('Forecasted Blue posture');
+        expect(html).toContain('Orientation and forecasts');
         expect(html).toContain('Develop new alliance and partnership structures');
-        expect(html).toContain('Green expects Blue to pivot into alliance structure-building.');
+        expect(html).toContain('Green will stabilize exposure while Blue pivots into alliance structure-building.');
         expect(html).toContain('Facilitator-to-White Cell handoff');
         expect(html).toContain('Project orientation, then send to White Cell');
-        expect(html).toContain('Project Forecast');
+        expect(html).toContain('Project Strategic Orientation');
         expect(html).toContain('Submit to White Cell');
         expect(html).not.toContain('scribe-action-slide is-collapsed');
         expect(html).not.toContain('data-scribe-action-toggle');
@@ -2774,20 +2775,20 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             team: 'blue',
             move: 1,
             phase: 1,
-            goal: 'Strategic Orientation: Pressure',
+            goal: 'Blue Team Strategic Orientation: Pressure',
             mechanism: 'Strategic Orientation',
             exposure_type: 'pre_move_1',
             priority: 'HIGH',
             status: 'draft',
             updated_at: '2026-07-15T11:45:00.000Z',
             ally_contingencies: serializeStrategicOrientationDetails({
-                artifactType: 'selection',
                 team: 'blue',
-                orientation: 'pressure',
+                ownOrientation: 'pressure',
+                forecastTargets: [{ key: 'red', orientation: 'stabilization' }],
+                forecastActionDescription: 'Red will preserve market access while limiting escalation.',
                 primaryLevers: ['Expanded financial sanctions'],
                 acceptedCosts: ['Sustained economic friction'],
                 posture: 'Calibrated — escalate deliberately',
-                rationale: 'Blue accepts near-term friction to gain negotiating leverage.',
                 scribeHandoff: 'Forwarded'
             })
         };
@@ -2796,21 +2797,24 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             slideKey: 'action-orientation-selection-preview',
             slideType: 'strategic-orientation',
             sidebarOrdinal: 'SO',
-            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Selection',
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Orientation & Forecast',
             action
         });
 
-        expect(html).toContain('Selected strategic posture');
+        expect(html).toContain('Orientation and forecasts');
+        expect(html).toContain('Own Orientation');
+        expect(html).toContain('Red Forecast');
+        expect(html).toContain('Expected Target Actions');
         expect(html).toContain('Primary levers');
         expect(html).toContain('Expanded financial sanctions');
         expect(html).toContain('Accepted costs');
         expect(html).toContain('Sustained economic friction');
         expect(html).toContain('Posture');
         expect(html).toContain('Calibrated — escalate deliberately');
-        expect(html).toContain('Blue accepts near-term friction to gain negotiating leverage.');
+        expect(html).toContain('Red will preserve market access while limiting escalation.');
         expect(html.match(/Expanded financial sanctions/g)).toHaveLength(1);
         expect(html.match(/Sustained economic friction/g)).toHaveLength(1);
-        expect(html.match(/Blue accepts near-term friction to gain negotiating leverage\./g)).toHaveLength(1);
+        expect(html.match(/Red will preserve market access while limiting escalation\./g)).toHaveLength(1);
         expect(html).not.toContain('Orientation record');
         expect(html).not.toContain('Status and White Cell');
         expect(html).not.toContain('Forwarded to Facilitator | Pre-Move 1 | Selection');
@@ -2827,7 +2831,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             team: 'red',
             move: 1,
             phase: 1,
-            goal: 'Red Team Forecasts',
+            goal: 'Red Team Strategic Orientation: Reframe',
             mechanism: 'Strategic Orientation',
             exposure_type: 'pre_move_1',
             priority: 'HIGH',
@@ -2835,14 +2839,14 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             created_at: '2026-06-15T09:55:00.000Z',
             updated_at: '2026-06-15T10:05:00.000Z',
             ally_contingencies: serializeStrategicOrientationDetails({
-                artifactType: 'forecast',
                 team: 'red',
+                ownOrientation: 'reframe',
                 forecastTargets: [
                     { key: 'blue', orientation: 'pressure' },
                     { key: 'green_asian_pacific', orientation: 'reframe' },
                     { key: 'green_europe', orientation: 'stabilization' }
                 ],
-                rationale: 'Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.',
+                orientationRationale: 'Red reframes its own posture while forecasting the other teams.',
                 scribeHandoff: 'Forwarded'
             })
         };
@@ -2851,18 +2855,18 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             slideKey: 'action-orientation-forecast-red-multi',
             slideType: 'strategic-orientation',
             sidebarOrdinal: 'SO',
-            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Forecast',
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Orientation & Forecast',
             action
         });
 
-        expect(html).toContain('Forecasted team postures');
+        expect(html).toContain('Orientation and forecasts');
         expect(html).toContain('Blue');
         expect(html).toContain('Pressure');
         expect(html).toContain('Green (Asian Pacific)');
         expect(html).toContain('Reframe');
         expect(html).toContain('Green (Europe)');
         expect(html).toContain('Stabilization');
-        expect(html).toContain('Red expects Blue to pressure, Green AP to reframe, and Green Europe to stabilize.');
+        expect(html).toContain('Red reframes its own posture while forecasting the other teams.');
     });
 
     it('requires scribe yes/no decisions and selected tick boxes before showing submit', async () => {

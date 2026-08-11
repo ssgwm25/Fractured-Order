@@ -128,11 +128,15 @@ The local browser layer dispatches offline/online transitions against the
 shared deterministic backend. It proves the recovery UI and reconciliation
 flow, but not Supabase WebSocket behavior.
 
-The Realtime suite exercises the `actions` subscription through the Blue
-Strategic Orientation handoff while the session remains in its required
-pre-move state. The four-team orientation gate and the subsequent normal-action
-lifecycle are covered by the professional playthrough. The focused Realtime
-gate does not bypass or weaken that workflow precondition.
+The Realtime suite exercises the `actions` subscription through the versioned
+Blue Strategic Orientation handoff while the session remains in its required
+pre-move state. The professional playthrough supplies each helper with
+`ownOrientation`, target-specific `forecasts`, `orientationRationale`,
+`forecastActionDescription`, and `strategyDescription` as applicable. It checks
+the exact team section order, incomplete and whitespace-only rejection, unchanged
+Facilitator/White Cell values, complete edit/return/resubmission prepopulation,
+keyboard-only operation, mobile and short viewports, 200% zoom, and legacy
+record rendering. The one-artifact-per-team gate is unchanged.
 
 Run the authoritative Realtime gate against the dedicated rehearsal deployment:
 
@@ -179,7 +183,7 @@ Pass:
 - eighteen browser actors remain active for the test
 - the selected session contains exactly seventeen active role seats
 - every test step completes without retries or skipped tests
-- the schema `1.8.0` / format revision `9` research archive reconciles every
+- the schema `1.9.0` / format revision `10` research archive reconciles every
   workflow/revision review, both proposal threads and rounds, notification
   metadata, and returned/answered RFI history across JSON, CSV, HTML, and LaTeX
 - no current action, Strategic Orientation, or proposal surface exposes a
@@ -322,8 +326,8 @@ The approved recipient's actual Facilitator appends the first response as round
 append round 2, and later replies continue in order without updating or deleting
 prior messages. The professional playthrough pins sequential approval of a
 dual-recipient proposal, then exercises independent Blue and Red responses and
-separate proposing-Facilitator follow-ups. The resulting schema `1.8.0` / format
-revision `9` archive must report a passed manifest reconciliation and expose
+separate proposing-Facilitator follow-ups. The resulting schema `1.9.0` / format
+revision `10` archive must report a passed manifest reconciliation and expose
 the same review, recipient, thread/round, notification, and RFI history in
 JSON, CSV, HTML, and LaTeX. Full dual-thread verification is part of both the
 deterministic and live staged rehearsal gates.
