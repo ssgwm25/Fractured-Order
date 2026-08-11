@@ -544,9 +544,9 @@ async function selectFacilitatorWorkspace(page, viewButtonId) {
 
     await expect(viewButton).toBeVisible({ timeout: 20000 });
     if (await viewButton.getAttribute('aria-selected') !== 'true') {
-        await viewButton.click();
+        await viewButton.dispatchEvent('click');
     }
-    await expect(viewButton).toHaveAttribute('aria-selected', 'true');
+    await expect(viewButton).toHaveAttribute('aria-selected', 'true', { timeout: 20000 });
 }
 
 export async function openFacilitatorActionSlide(page, goal) {
@@ -586,7 +586,8 @@ export async function openFacilitatorActionSlide(page, goal) {
     }
 
     await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
-    await actionSlideLink.click();
+    await actionSlideLink.dispatchEvent('click');
+    await expect(actionSlideLink).toHaveAttribute('aria-current', 'true', { timeout: 20000 });
     return actionSlideLink;
 }
 
@@ -616,13 +617,18 @@ export async function submitActionFromScribe(page, goal, {
         await panel.locator(`[data-scribe-action-checkbox="informed-engaged"][value="${informedValue}"]`).check();
     }
 
-    const submitButton = panel.getByRole('button', { name: 'Submit to White Cell' });
+    const submitButton = panel.getByRole('button', { name: /^(?:Submit|Resubmit) to White Cell$/ });
+    const isResubmission = (await submitButton.innerText()).trim().startsWith('Resubmit');
     await expect(submitButton).toBeVisible();
     await submitButton.click();
-    await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
+    await page.locator('.modal-overlay').getByRole('button', {
+        name: isResubmission ? 'Resubmit' : 'Submit',
+        exact: true
+    }).click();
     await expect(panel).toHaveCount(0);
-    await expect(actionSlideLink).toContainText('Submitted to White Cell');
-    await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
+    const expectedState = isResubmission ? 'Resubmitted' : 'Submitted to White Cell';
+    await expect(actionSlideLink).toContainText(expectedState);
+    await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText(`${expectedState}.`);
 }
 
 export async function submitStrategicOrientationFromScribe(page, goal) {
@@ -634,17 +640,25 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
     await expect(orientationSlide).toBeVisible();
     await expect(orientationSlide.locator('.scribe-action-slide-title')).toContainText('Strategic Orientation');
     await expect(panel).toBeVisible();
-    await panel.getByRole('button', { name: 'Submit to White Cell' }).click();
-    await page.locator('.modal-overlay').getByRole('button', { name: 'Submit' }).click();
+    const submitButton = panel.getByRole('button', { name: /^(?:Submit|Resubmit) to White Cell$/ });
+    const isResubmission = (await submitButton.innerText()).trim().startsWith('Resubmit');
+    await submitButton.click();
+    await page.locator('.modal-overlay').getByRole('button', {
+        name: isResubmission ? 'Resubmit' : 'Submit',
+        exact: true
+    }).click();
     await expect(panel).toHaveCount(0);
-    await expect(actionSlideLink).toContainText('Submitted to White Cell');
-    await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText('Submitted to White Cell.');
+    const expectedState = isResubmission ? 'Resubmitted' : 'Submitted to White Cell';
+    await expect(actionSlideLink).toContainText(expectedState);
+    await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText(`${expectedState}.`);
 }
 
 export async function adjudicateAction(page, {
     goal,
     section = 'actions',
-    notes = 'Validated through the live-demo topology suite.'
+    notes = 'Validated through the live-demo topology suite.',
+    decision = 'complete',
+    expectedDetails = {}
 } = {}) {
     const queueSelector = {
         actions: '#actionsList',
@@ -682,6 +696,17 @@ export async function adjudicateAction(page, {
             `${queueSelector} [data-action-mark-panel]:not([hidden]) .entity-card`
         ).filter({ has: cardHeading }).first();
     } else {
+        const responseCard = page.locator(`${queueSelector} .tab-panel .entity-card`)
+            .filter({ has: cardHeading })
+            .first();
+        await expect(responseCard).toHaveCount(1, { timeout: 20000 });
+        if (!await responseCard.isVisible()) {
+            const reviewTab = await responseCard.evaluate((card) => (
+                card.closest('[data-review-panel]')?.dataset.reviewPanel || ''
+            ));
+            expect(reviewTab).not.toBe('');
+            await page.locator(`${queueSelector} [data-review-tab="${reviewTab}"]`).click();
+        }
         adjudicationCard = page.locator(
             `${queueSelector} .tab-panel:not([hidden]) .entity-card`
         ).filter({ has: cardHeading }).first();
@@ -690,16 +715,32 @@ export async function adjudicateAction(page, {
     await adjudicationCard.locator('.adjudicate-btn').click();
 
     const modal = page.locator('.modal-overlay');
+    await expect(modal).toBeVisible();
+    for (const [label, value] of Object.entries(expectedDetails)) {
+        const detail = modal
+            .locator('.detail-item, section[aria-label$="notification request"]')
+            .filter({ hasText: label })
+            .first();
+        await expect(detail, `White Cell action detail is missing ${label}`).toBeVisible();
+        await expect(detail).toContainText(String(value));
+    }
+    await expect(modal.locator('[name*="outcome" i]')).toHaveCount(0);
     await modal.locator('#artifactReviewNotes').fill(notes);
-    await modal.getByRole('button', { name: 'Accept as Complete' }).click();
+    const reviewButton = decision === 'return'
+        ? modal.getByRole('button', { name: 'Send Back for Improvement' })
+        : modal.getByRole('button', { name: 'Accept as Complete' });
+    await reviewButton.click();
     await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('accepted as complete');
+    await expect(page.locator('#toast-container')).toContainText(
+        decision === 'return' ? 'sent back for improvement' : 'accepted as complete'
+    );
 }
 
 export async function reviewStrategicOrientation(page, {
     goal,
     team,
-    notes = 'Validated Strategic Orientation through the live-demo topology suite.'
+    notes = 'Validated Strategic Orientation through the live-demo topology suite.',
+    decision = 'complete'
 } = {}) {
     await openSidebarSection(page, 'strategicOrientation');
 
@@ -720,10 +761,95 @@ export async function reviewStrategicOrientation(page, {
     await orientationCard.locator('.adjudicate-btn').click();
 
     const modal = page.locator('.modal-overlay');
+    await expect(modal).toBeVisible();
+    await expect(modal.locator('[name*="outcome" i]')).toHaveCount(0);
     await modal.locator('#artifactReviewNotes').fill(notes);
-    await modal.getByRole('button', { name: 'Accept as Complete' }).click();
+    await modal.getByRole('button', {
+        name: decision === 'return' ? 'Send Back for Improvement' : 'Accept as Complete'
+    }).click();
     await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('accepted as complete');
+    await expect(page.locator('#toast-container')).toContainText(
+        decision === 'return' ? 'sent back for improvement' : 'accepted as complete'
+    );
+}
+
+export async function reviseReturnedAction(page, {
+    goal,
+    expectedOutcomes
+} = {}) {
+    if (!goal || !expectedOutcomes) {
+        throw new Error('reviseReturnedAction requires goal and expectedOutcomes.');
+    }
+
+    await openSidebarSection(page, 'actions');
+    const card = page.locator('#actionsList .entity-card').filter({ hasText: goal }).first();
+    await expect(card).toHaveCount(1, { timeout: 20000 });
+    if (!await card.isVisible()) {
+        const markKey = await card.evaluate((element) => (
+            element.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
+        ));
+        expect(markKey).not.toBe('');
+        await page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`).click();
+    }
+    const detailsToggle = card.locator('.toggle-action-card-btn');
+    if (await detailsToggle.count() && await detailsToggle.getAttribute('aria-expanded') !== 'true') {
+        await detailsToggle.click();
+    }
+    await expect(card).toContainText('Returned by White Cell');
+    await expect(card).toContainText(/REV 2|Revision:\s*2/);
+    await card.locator('.edit-action-btn').click();
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#blueActionWizardForm') });
+    await expect(modal).toBeVisible();
+    for (let pageIndex = 0; pageIndex < 3 && !await modal.locator('#actionExpectedOutcomes').isVisible(); pageIndex += 1) {
+        await modal.locator('[data-blue-action-nav="next"]').click();
+    }
+    await expect(modal.locator('#actionExpectedOutcomes')).toBeVisible();
+    await modal.locator('#actionExpectedOutcomes').fill(expectedOutcomes);
+    await modal.locator('[data-blue-action-nav="saveChanges"]').click();
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#toast-container')).toContainText('Draft action updated');
+    await expect(card).toContainText(expectedOutcomes);
+}
+
+export async function reviseReturnedStrategicOrientation(page, {
+    goal,
+    orientation = 'stabilization',
+    rationale
+} = {}) {
+    if (!goal || !rationale) {
+        throw new Error('reviseReturnedStrategicOrientation requires goal and rationale.');
+    }
+
+    await openSidebarSection(page, 'actions');
+    const card = page.locator('#actionsList .entity-card').filter({ hasText: goal }).first();
+    await expect(card).toHaveCount(1, { timeout: 20000 });
+    if (!await card.isVisible()) {
+        const markKey = await card.evaluate((element) => (
+            element.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
+        ));
+        expect(markKey).not.toBe('');
+        await page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`).click();
+    }
+    const detailsToggle = card.locator('.toggle-action-card-btn');
+    if (await detailsToggle.count() && await detailsToggle.getAttribute('aria-expanded') !== 'true') {
+        await detailsToggle.click();
+    }
+    await expect(card).toContainText('Returned by White Cell');
+    await expect(card).toContainText(/REV 2|Revision:\s*2/);
+    await card.locator('.edit-action-btn').click();
+
+    const modal = page.locator('.modal-overlay').filter({
+        has: page.locator('[data-strategic-orientation-modal]')
+    });
+    await expect(modal).toBeVisible();
+    await modal.locator(`[data-orientation="${orientation}"]`).first().click();
+    await modal.locator('#rationale').fill(rationale);
+    await modal.locator('[data-orientation-nav="confirm"]').click();
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#toast-container')).toContainText('Strategic Orientation forwarded to Facilitator');
+
+    return `Strategic Orientation: ${orientation.charAt(0).toUpperCase()}${orientation.slice(1)}`;
 }
 
 export function getWhiteCellStrategicOrientationTitle(goal, team = '') {
@@ -893,17 +1019,19 @@ export async function respondToForwardedProposal(page, {
     await proposalFrame.locator(`[data-facilitator-proposal-decision="${decision}"]`).click();
 
     if (decision === 'negotiate') {
-        const modal = page.locator('.modal-overlay').filter({
+        const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)').filter({
             has: page.locator('#facilitatorProposalNegotiationForm')
         });
         await expect(modal).toBeVisible();
         await modal.locator('#facilitatorProposalNegotiationTerms').fill(negotiationTerms);
         await modal.getByRole('button', { name: 'Send Negotiation' }).click();
+        await expect(modal).toBeHidden();
     } else {
         const decisionLabel = decision === 'not_interested' ? 'Not Interested' : 'Accept';
-        const modal = page.locator('.modal-overlay');
+        const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)');
         await expect(modal).toBeVisible();
         await modal.getByRole('button', { name: decisionLabel, exact: true }).click();
+        await expect(modal).toBeHidden();
     }
 
     const expectedLabel = decision === 'negotiate'
@@ -913,18 +1041,73 @@ export async function respondToForwardedProposal(page, {
     await expect(proposalFrame).toContainText(decision === 'negotiate' ? 'Negotiation underway' : 'Response received');
 }
 
+export async function openReceivedProposalSlide(page, title) {
+    if (!title) {
+        throw new Error('openReceivedProposalSlide requires a title.');
+    }
+
+    await expect(page.locator('body')).toHaveAttribute('data-scribe-deck-state', 'ready', {
+        timeout: 20000
+    });
+    await selectFacilitatorWorkspace(page, 'teamActionReviewViewBtn');
+    const proposalsSectionTrigger = page.locator(
+        '#scribeSectionList .scribe-section-trigger[data-section-label="Proposals"]'
+    ).first();
+    await expect(proposalsSectionTrigger).toBeVisible({ timeout: 20000 });
+    if (await proposalsSectionTrigger.getAttribute('aria-expanded') !== 'true') {
+        await proposalsSectionTrigger.click();
+    }
+
+    const proposalSlideLink = page.locator('#scribeSectionList button[data-slide-key^="proposal-"]')
+        .filter({ hasText: title })
+        .first();
+    await expect(proposalSlideLink).toBeVisible({ timeout: 20000 });
+    await proposalSlideLink.click();
+    await expect(proposalSlideLink).toHaveAttribute('aria-current', 'true', { timeout: 20000 });
+    await expect(page.locator('#deckActionFrame')).toContainText(title);
+    return proposalSlideLink;
+}
+
 export async function replyToProposalThread(page, {
     title,
+    recipientTeam,
     message = 'The proposing team accepts the checkpoint and proposes a joint review after the next move.'
 } = {}) {
     if (!title) throw new Error('replyToProposalThread requires a title.');
+    if (!recipientTeam) throw new Error('replyToProposalThread requires a recipientTeam.');
+
+    const recipientLabel = {
+        blue: 'Blue Team',
+        green: 'Green Team',
+        red: 'Red Team',
+        industry: 'Industry'
+    }[String(recipientTeam).trim().toLowerCase()];
+    if (!recipientLabel) {
+        throw new Error(`replyToProposalThread received an unsupported recipientTeam: ${recipientTeam}`);
+    }
+
     await openFacilitatorActionSlide(page, title);
     const frame = page.locator('#deckActionFrame');
-    await frame.getByRole('button', { name: 'Reply with next round' }).click();
-    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#facilitatorProposalNegotiationForm') });
+    const threadActions = frame.getByRole('group', {
+        name: `${recipientLabel} thread actions`,
+        exact: true
+    });
+    await expect(threadActions).toHaveCount(1);
+    const replyButton = threadActions.getByRole('button', {
+        name: 'Reply with next round',
+        exact: true
+    });
+    await expect(replyButton).toBeEnabled();
+    await replyButton.dispatchEvent('click');
+    const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)').filter({
+        has: page.locator('#facilitatorProposalNegotiationForm')
+    });
+    await expect(modal).toBeVisible();
     await modal.locator('#facilitatorProposalNegotiationTerms').fill(message);
     await modal.getByRole('button', { name: 'Send Follow-up' }).click();
+    await expect(modal).toBeHidden();
     await expect(page.locator('#toast-container')).toContainText('Proposal thread updated: Follow-up sent');
+    await openFacilitatorActionSlide(page, title);
     await expect(frame).toContainText(message);
 }
 
@@ -980,6 +1163,62 @@ export async function answerRfi(page, {
     await expect(modal).toBeHidden();
 }
 
+export async function returnRfi(page, {
+    question,
+    notes
+} = {}) {
+    if (!question || !notes) {
+        throw new Error('returnRfi requires both question and notes.');
+    }
+
+    await openSidebarSection(page, 'requests');
+    const rfiCard = page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }).first();
+    await expect(rfiCard).toBeVisible();
+    await rfiCard.getByRole('button', { name: 'Return for Clarification' }).click();
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiReturnForm') });
+    await expect(modal).toBeVisible();
+    await modal.locator('#rfiReturnNotes').fill(notes);
+    await modal.getByRole('button', { name: 'Return for Clarification' }).click();
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#toast-container')).toContainText('RFI returned for clarification');
+}
+
+export async function reviseAndResubmitRfi(page, {
+    originalQuestion,
+    revisedQuestion,
+    returnNotes
+} = {}) {
+    if (!originalQuestion || !revisedQuestion || !returnNotes) {
+        throw new Error('reviseAndResubmitRfi requires originalQuestion, revisedQuestion, and returnNotes.');
+    }
+
+    await selectFacilitatorWorkspace(page, 'rfiViewBtn');
+    const rfiSlideLink = page.locator('#scribeSectionList button[data-slide-type="rfi"]')
+        .filter({ hasText: originalQuestion })
+        .first();
+    await expect(rfiSlideLink).toBeVisible({ timeout: 20000 });
+    await rfiSlideLink.click();
+
+    const frame = page.locator('#deckActionFrame');
+    await expect(frame).toContainText('Returned for clarification');
+    await expect(frame).toContainText(returnNotes);
+    await expect(frame).toContainText('REV 2');
+    await frame.getByRole('button', { name: 'Edit and Resubmit' }).click();
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiForm') });
+    await expect(modal).toBeVisible();
+    await expect(modal).toContainText(returnNotes);
+    await expect(modal).toContainText('editing revision 2');
+    await modal.locator('#rfiQuestion').fill(revisedQuestion);
+    await modal.getByRole('button', { name: 'Resubmit RFI' }).click();
+    await expect(modal).toBeHidden();
+    await expect(page.locator('#toast-container')).toContainText('RFI resubmitted successfully');
+    await expect(frame).toContainText(revisedQuestion);
+    await expect(frame).toContainText('Resubmitted');
+    return revisedQuestion;
+}
+
 export async function sendWhiteCellCommunication(page, {
     recipient,
     content,
@@ -1008,25 +1247,27 @@ export async function sendFacilitatorCommunication(page, { content } = {}) {
         timeout: 20000
     });
     await selectFacilitatorWorkspace(page, 'communicationsViewBtn');
-    const communicationSectionTrigger = page.locator(
-        '#scribeSectionList .scribe-section-trigger[data-section-label="Communications"]'
-    ).first();
-    await expect(communicationSectionTrigger).toBeVisible({ timeout: 20000 });
-    if (await communicationSectionTrigger.getAttribute('aria-expanded') !== 'true') {
-        await communicationSectionTrigger.click();
-    }
-    await page.locator('#scribeSectionList button[data-slide-type^="communication"]').first().click();
-    await page.locator('#deckActionFrame [data-facilitator-new-communication]').click();
+    const communicationFrame = page.locator('#deckActionFrame');
+    await expect(communicationFrame.getByRole('heading', {
+        name: 'Communications',
+        exact: true
+    })).toBeVisible({ timeout: 20000 });
+    const messageButton = communicationFrame.getByRole('button', {
+        name: 'Message White Cell',
+        exact: true
+    });
+    await expect(messageButton).toBeEnabled({ timeout: 20000 });
+    await messageButton.dispatchEvent('click');
 
     const modal = page.locator('.modal-overlay').filter({
         has: page.locator('#facilitatorCommunicationForm')
     });
     await expect(modal).toBeVisible();
     await modal.locator('#facilitatorCommunicationMessage').fill(content);
-    await modal.getByRole('button', { name: 'Send Message' }).click();
+    await modal.getByRole('button', { name: 'Send Message' }).click({ timeout: 20000 });
     await expect(page.locator('#toast-container')).toContainText('Message sent to White Cell');
     await expect(modal).toBeHidden();
-    await expect(page.locator('#deckActionFrame')).toContainText(content);
+    await expect(communicationFrame).toContainText(content);
 }
 
 export async function appendNotetakerObservation(page, content) {
@@ -1039,6 +1280,57 @@ export async function appendNotetakerObservation(page, content) {
 
 export async function waitForToast(page, message) {
     await expect(page.locator('#toast-container')).toContainText(message);
+}
+
+export async function waitForDurableNotification(page, {
+    source,
+    artifact,
+    requiredAction
+} = {}) {
+    const notice = page.locator('#toast-container .toast-durable[data-notification-id]').filter({
+        hasText: artifact
+    });
+    await expect(notice).toBeVisible({ timeout: 30000 });
+    await expect(notice).toContainText(`Source${source}`);
+    await expect(notice).toContainText(`Artifact${artifact}`);
+    await expect(notice).toContainText(`Required action${requiredAction}`);
+    await expect(notice.getByRole('button', { name: /Open|Review/ })).toBeVisible();
+    await expect(notice.getByRole('button', { name: 'Dismiss notification' })).toBeVisible();
+    return notice;
+}
+
+export async function getDurableNotificationSnapshot(page) {
+    return page.evaluate(() => {
+        const actorPrefix = globalThis.__ESG_E2E_ACTOR__
+            ? `actor:${globalThis.__ESG_E2E_ACTOR__}::`
+            : '';
+        const records = [];
+
+        for (let index = 0; index < globalThis.localStorage.length; index += 1) {
+            const physicalKey = globalThis.localStorage.key(index) || '';
+            if (!physicalKey.includes('statecraft:durable-notifications:')) continue;
+            if (actorPrefix && !physicalKey.startsWith(actorPrefix)) continue;
+
+            const logicalKey = actorPrefix ? physicalKey.slice(actorPrefix.length) : physicalKey;
+            try {
+                const state = JSON.parse(globalThis.localStorage.getItem(logicalKey) || 'null');
+                Object.entries(state?.records || {}).forEach(([id, record]) => {
+                    records.push({
+                        id,
+                        family: record?.notification?.family || '',
+                        read: record?.read === true,
+                        dismissed: record?.dismissed === true,
+                        source: record?.notification?.source || '',
+                        artifact: record?.notification?.artifact || ''
+                    });
+                });
+            } catch (_error) {
+                // Malformed optional browser state is ignored by the runtime as well.
+            }
+        }
+
+        return records.sort((left, right) => left.id.localeCompare(right.id));
+    });
 }
 
 export async function logoutCurrentUser(page) {

@@ -7,7 +7,8 @@ import { communicationsStore } from '../stores/communications.js';
 import { database } from '../services/database.js';
 import { createLogger } from '../utils/logger.js';
 import { formatRelativeTime } from '../utils/formatting.js';
-import { showToast } from '../components/ui/Toast.js';
+import { showDurableNotification, showToast } from '../components/ui/Toast.js';
+import { DurableNotificationCenter } from '../components/ui/DurableNotification.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { confirmModal, showModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
@@ -20,7 +21,11 @@ import {
 import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
 import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 import { createArtifactLifecycleBadge, createBadge } from '../components/ui/Badge.js';
-import { groupActionRecordsByMark } from '../features/actions/actionMarkRail.js';
+import {
+    ACTION_MARKS,
+    getActionMarkKey,
+    groupActionRecordsByMark
+} from '../features/actions/actionMarkRail.js';
 import {
     BLUE_ACTION_COORDINATED_OPTIONS,
     BLUE_ACTION_INFORMED_OPTIONS,
@@ -74,6 +79,13 @@ import { getUploadedScribeDeck } from '../features/scribe/deckStorage.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 import { createRfiForm } from '../features/requests/RfiForm.js';
 import { getUserMessage } from '../core/errors.js';
+import {
+    buildDirectCommunicationNotification,
+    buildFacilitatorArtifactReturnNotification,
+    buildProposalRoundNotification,
+    buildRfiWorkflowNotification,
+    buildWorkflowNotificationId
+} from '../features/notifications/workflowNotifications.js';
 
 const logger = createLogger('Scribe');
 const ACTIONS_SECTION_ID = 'actions';
@@ -944,6 +956,7 @@ export class ScribeController {
         this.currentSlideIndex = 0;
         this.activeSectionIndex = 0;
         this.activeFacilitatorView = 'deck';
+        this.actionMarkActiveKey = '';
         this.lastDeckSlideKey = '';
         this.lastSlideKeyByView = new Map();
         this.storeUnsubscribers = [];
@@ -959,6 +972,9 @@ export class ScribeController {
         this.actionVisibleById = new Map();
         this.communicationsSeeded = false;
         this.actionsSeeded = false;
+        this.rfiStateById = new Map();
+        this.rfisSeeded = false;
+        this.durableNotifications = null;
         this.collapsedStrategicActionIds = new Set();
         this.presentationEditActionId = null;
         this.presentationEditHost = null;
@@ -978,6 +994,11 @@ export class ScribeController {
             }, 2000);
             return;
         }
+
+        this.durableNotifications = new DurableNotificationCenter({
+            scope: `${sessionId}:facilitator:${this.teamId}`,
+            render: showDurableNotification
+        });
 
         this.role = sessionStore.getRole() || sessionStore.getSessionData()?.role;
         const observerTeamId = sessionStore.getSessionData()?.team || null;
@@ -1011,6 +1032,7 @@ export class ScribeController {
         this.syncCommunicationsFromStore();
         await this.loadDeck();
         this.syncActionsFromStore();
+        this.restoreDurableNotifications();
         this.mountFollowAlongOnboarding();
 
         logger.info('Facilitator support deck initialized');
@@ -1038,7 +1060,7 @@ export class ScribeController {
                 },
                 {
                     title: 'Project and answer proposals',
-                    body: 'Open Proposals below Actions to project proposals forwarded from other teams. Record one response for each proposal: Accept, Not Interested, or Negotiate.',
+                    body: 'Open Proposals below Actions to project proposals approved and forwarded to this team. Start this recipient\'s isolated, append-only thread with Accept, Not Interested, or Negotiate; later rounds remain in the same thread.',
                     highlight: '.scribe-section-region--proposals'
                 },
                 {
@@ -1134,8 +1156,8 @@ export class ScribeController {
         });
 
         document.getElementById('scribeAlertsClear')?.addEventListener('click', () => {
-            this.notifications = [];
-            this.unreadNotifications = 0;
+            this.notifications = this.notifications.filter((entry) => !entry.read);
+            this.recountUnreadNotifications();
             this.renderAlerts();
         });
 
@@ -1144,10 +1166,17 @@ export class ScribeController {
         });
 
         document.getElementById('scribeAlertsList')?.addEventListener('click', (event) => {
-            const item = event.target.closest('[data-slide-key]');
+            const item = event.target.closest('[data-notification-id]');
             if (!item) return;
-            this.setSlideByKey(item.dataset.slideKey || '');
-            this.setAlertsOpen(false);
+            this.openNotificationEntry(item.dataset.notificationId || '');
+        });
+
+        document.getElementById('scribeAlertsList')?.addEventListener('keydown', (event) => {
+            if (!['Enter', ' '].includes(event.key)) return;
+            const item = event.target.closest('[data-notification-id]');
+            if (!item) return;
+            event.preventDefault();
+            this.openNotificationEntry(item.dataset.notificationId || '');
         });
 
         document.addEventListener('click', (event) => {
@@ -1244,9 +1273,17 @@ export class ScribeController {
 
         const sectionListEl = document.getElementById('scribeSectionList');
         sectionListEl?.addEventListener('click', (event) => {
+            const actionMarkTab = event.target.closest('[data-scribe-action-mark-tab]');
+            if (actionMarkTab && sectionListEl.contains(actionMarkTab)) {
+                this.setScribeActionMark(actionMarkTab.dataset.scribeActionMarkTab, sectionListEl);
+                return;
+            }
+
             const slideButton = event.target.closest('[data-slide-key]');
             if (slideButton) {
-                this.setSlideByKey(slideButton.dataset.slideKey || '');
+                const slideKey = slideButton.dataset.slideKey || '';
+                this.markSlideNotificationsRead(slideKey);
+                this.setSlideByKey(slideKey);
                 this.closeMobileSidebar();
                 return;
             }
@@ -1263,6 +1300,9 @@ export class ScribeController {
                 }
                 this.toggleSection(sectionIndex);
             }
+        });
+        sectionListEl?.addEventListener('keydown', (event) => {
+            this.handleScribeActionMarkKeydown(event, sectionListEl);
         });
         // Section-rail tooltips (collapsed desktop only).
         sectionListEl?.addEventListener('pointerover', (event) => {
@@ -1441,11 +1481,20 @@ export class ScribeController {
         this.communicationsSeeded = communicationsStore.initialized;
         actionsStore.getByTeam(this.teamId).forEach((action) => {
             if (action?.id) {
-                this.actionStatusById.set(action.id, action.status);
+                this.actionStatusById.set(action.id, this.getActionNotificationState(action));
                 this.actionVisibleById.set(action.id, isScribeVisibleAction(action));
             }
         });
         this.actionsSeeded = true;
+        requestsStore.getByTeam(this.teamId).forEach((request) => {
+            if (request?.id) this.rfiStateById.set(request.id, this.getRfiNotificationFingerprint(request));
+        });
+        this.rfisSeeded = true;
+        this.durableNotifications?.seed([
+            ...actionsStore.getByTeam(this.teamId).map((action) => this.buildDurableActionNotification(action)),
+            ...requestsStore.getByTeam(this.teamId).map((request) => buildRfiWorkflowNotification(request)),
+            ...communications.map((communication) => this.buildDurableCommunicationNotification(communication))
+        ].filter(Boolean));
         this.renderAlerts();
     }
 
@@ -1457,6 +1506,11 @@ export class ScribeController {
         case 'industry': return 'Industry Team';
         default: return team || 'Another team';
         }
+    }
+
+    getActionNotificationState(action = {}) {
+        const lifecycle = getArtifactLifecycleViewModel(action).state;
+        return `${action.status || ''}|${lifecycle}|r${Number(action.revision_number) || 1}`;
     }
 
     isAuthoredProposalCommunication(communication = {}) {
@@ -1569,7 +1623,26 @@ export class ScribeController {
                 || recipientEntry?.actioned_at
                 || communication.updated_at
                 || communication.created_at
-                || null
+                || null,
+            durableNotification: {
+                id: buildWorkflowNotificationId(
+                    'proposal-response',
+                    communication.id,
+                    recipientEntry?.response_sent_at || recipientEntry?.responded_at || recipientEntry?.actioned_at || status
+                ),
+                family: 'proposal-response',
+                source: recipientLabel,
+                artifact: `Proposal: ${proposalTitle}`,
+                requiredAction: 'Open the proposal response and continue the thread if action is required.',
+                destinationLabel: 'Open proposal response',
+                destination: {
+                    surface: 'facilitator',
+                    slideKey: metadata.source_proposal_id ? `action-${metadata.source_proposal_id}` : '',
+                    recordId: String(metadata.source_proposal_id || communication.id)
+                },
+                createdAt: recipientEntry?.response_sent_at || recipientEntry?.responded_at || communication.updated_at,
+                type: 'warning'
+            }
         };
     }
 
@@ -1638,6 +1711,7 @@ export class ScribeController {
 
     syncRfisFromStore({ event = '', data = null } = {}) {
         this.teamRfis = requestsStore.getByTeam(this.teamId);
+        this.processRfiNotifications({ event, data });
 
         if (!this.facilitatorDeckSlides.length && !this.sections.length) {
             return;
@@ -1652,6 +1726,47 @@ export class ScribeController {
         if (this.deckSlides.length) {
             this.renderSlide();
         }
+    }
+
+    getRfiNotificationFingerprint(request = {}) {
+        return JSON.stringify({
+            state: request.canonical_workflow_state || request.workflow_state || request.status || '',
+            revision: Number(request.revision_number) || 1,
+            respondedAt: request.responded_at || '',
+            updatedAt: request.updated_at || ''
+        });
+    }
+
+    processRfiNotifications({ event = '', data = null } = {}) {
+        if (!this.rfisSeeded || ['initialized', 'loaded', 'reset'].includes(event)) {
+            this.rfiStateById = new Map(this.teamRfis
+                .filter((request) => request?.id)
+                .map((request) => [request.id, this.getRfiNotificationFingerprint(request)]));
+            this.rfisSeeded = true;
+            return;
+        }
+
+        const changed = event === 'reconciled'
+            ? (Array.isArray(data) ? data : [])
+            : (data ? [data] : []);
+        changed
+            .filter((request) => request?.team === this.teamId && request?.id)
+            .forEach((request) => {
+                const fingerprint = this.getRfiNotificationFingerprint(request);
+                if (this.rfiStateById.get(request.id) === fingerprint) return;
+                this.rfiStateById.set(request.id, fingerprint);
+                const durableNotification = buildRfiWorkflowNotification(request);
+                if (!durableNotification) return;
+                this.pushNotification({
+                    kind: 'rfi',
+                    tone: 'whitecell',
+                    title: durableNotification.family === 'rfi-answer' ? 'RFI answered' : 'RFI returned by White Cell',
+                    detail: durableNotification.artifact,
+                    slideKey: durableNotification.destination.slideKey,
+                    at: durableNotification.createdAt,
+                    durableNotification
+                });
+            });
     }
 
     syncCommunicationsFromStore({ event = '', data = null } = {}) {
@@ -1676,11 +1791,18 @@ export class ScribeController {
     }
 
     processActionNotification({ event = '', data = null } = {}) {
+        if (event === 'reconciled') {
+            (Array.isArray(data) ? data : []).forEach((action) => {
+                this.processActionNotification({ event: 'updated', data: action });
+            });
+            return;
+        }
+
         const isLiveEvent = event === 'created' || event === 'updated';
         if (!this.actionsSeeded || !isLiveEvent) {
             this.teamActions.forEach((action) => {
                 if (action?.id) {
-                    this.actionStatusById.set(action.id, action.status);
+                    this.actionStatusById.set(action.id, this.getActionNotificationState(action));
                     this.actionVisibleById.set(action.id, isScribeVisibleAction(action));
                 }
             });
@@ -1694,7 +1816,7 @@ export class ScribeController {
 
         const previousStatus = this.actionStatusById.get(data.id);
         const wasVisible = this.actionVisibleById.get(data.id) === true;
-        const nextStatus = data.status;
+        const nextStatus = this.getActionNotificationState(data);
         const isVisible = isScribeVisibleAction(data);
         const isNewAction = event === 'created' || previousStatus === undefined || (!wasVisible && isVisible);
         const statusChanged = previousStatus !== nextStatus;
@@ -1741,8 +1863,16 @@ export class ScribeController {
             title,
             detail,
             slideKey: `action-${action.id}`,
-            at: action.adjudicated_at || action.submitted_at || action.updated_at || action.created_at || null
+            at: action.adjudicated_at || action.submitted_at || action.updated_at || action.created_at || null,
+            durableNotification: this.buildDurableActionNotification(action)
         };
+    }
+
+    buildDurableActionNotification(action = {}) {
+        const artifactType = isStrategicOrientationAction(action)
+            ? 'Strategic Orientation'
+            : (isProposalAction(action) ? 'Proposal' : 'Action');
+        return buildFacilitatorArtifactReturnNotification(action, { artifactType });
     }
 
     processCommunicationNotifications(event = '') {
@@ -1779,19 +1909,23 @@ export class ScribeController {
         ) {
             const senderLabel = this.getTeamLabel(thread.senderTeam);
             const proposal = this.teamActions.find((action) => action?.id === thread.sourceProposalId);
+            const slideKey = thread.sourceTeam === this.teamId
+                ? `action-${thread.sourceProposalId}`
+                : `proposal-${getProposalThreadForRecipient(
+                    communicationsStore.getAll(),
+                    thread.sourceProposalId,
+                    thread.recipientTeam
+                )[0]?.id || ''}`;
+            const durableNotification = buildProposalRoundNotification(communication);
+            if (durableNotification) durableNotification.destination.slideKey = slideKey;
             return {
                 kind: 'proposal',
                 tone: 'proposal',
                 title: `Proposal round ${thread.roundNumber} from ${senderLabel}`,
                 detail: proposal?.goal || communication.title || 'Open the proposal thread to respond.',
-                slideKey: thread.sourceTeam === this.teamId
-                    ? `action-${thread.sourceProposalId}`
-                    : `proposal-${getProposalThreadForRecipient(
-                        communicationsStore.getAll(),
-                        thread.sourceProposalId,
-                        thread.recipientTeam
-                    )[0]?.id || ''}`,
-                at: thread.sentAt
+                slideKey,
+                at: thread.sentAt,
+                durableNotification
             };
         }
 
@@ -1807,7 +1941,18 @@ export class ScribeController {
                 title: `Proposal received from ${sourceLabel}`,
                 detail: proposalTitle || 'Forwarded by White Cell',
                 slideKey: communication.id ? `proposal-${communication.id}` : '',
-                at: communication.created_at || null
+                at: communication.created_at || null,
+                durableNotification: {
+                    id: buildWorkflowNotificationId('proposal-forwarded', communication.id),
+                    family: 'proposal-response',
+                    source: sourceLabel,
+                    artifact: `Proposal: ${proposalTitle || 'Forwarded proposal'}`,
+                    requiredAction: 'Open the proposal and provide the team response.',
+                    destinationLabel: 'Open proposal',
+                    destination: { surface: 'facilitator', slideKey: `proposal-${communication.id}`, recordId: String(communication.id) },
+                    createdAt: communication.created_at || null,
+                    type: 'warning'
+                }
             };
         }
 
@@ -1828,7 +1973,8 @@ export class ScribeController {
                 tone: 'whitecell',
                 title: kindLabel,
                 detail,
-                at: communication.created_at || null
+                at: communication.created_at || null,
+                durableNotification: this.buildDurableCommunicationNotification(communication)
             };
         }
 
@@ -1840,16 +1986,25 @@ export class ScribeController {
             return;
         }
 
+        const durableNotification = note.durableNotification || null;
+        const durableDelivery = durableNotification
+            ? this.durableNotifications?.notify(durableNotification, {
+                onOpen: (notification) => this.openNotificationDestination(notification)
+            })
+            : null;
+        if (durableNotification && this.durableNotifications && !durableDelivery) return;
+
         this.notificationSeq += 1;
         const entry = {
-            id: `scribe-alert-${this.notificationSeq}`,
+            id: durableNotification?.id || `scribe-alert-${this.notificationSeq}`,
             kind: note.kind || 'info',
             tone: note.tone || 'info',
             title: note.title,
             detail: note.detail || '',
             slideKey: note.slideKey || '',
             at: note.at || null,
-            read: this.alertsOpen
+            read: durableNotification ? false : this.alertsOpen,
+            durableNotification
         };
 
         this.notifications.unshift(entry);
@@ -1857,16 +2012,99 @@ export class ScribeController {
             this.notifications.length = 30;
         }
 
-        if (!this.alertsOpen) {
-            this.unreadNotifications += 1;
-        }
+        this.recountUnreadNotifications();
 
         this.renderAlerts();
 
-        showToast({
-            message: entry.detail ? `${entry.title}: ${entry.detail}` : entry.title,
-            type: 'info',
-            duration: 5000
+        if (!durableNotification) {
+            showToast({
+                message: entry.detail ? `${entry.title}: ${entry.detail}` : entry.title,
+                type: 'info',
+                duration: 5000
+            });
+        }
+    }
+
+    buildDurableCommunicationNotification(communication = {}) {
+        const proposalRound = buildProposalRoundNotification(communication);
+        if (proposalRound) return proposalRound;
+        if (!isFacilitatorDirectCommunication(communication, this.teamContext)) return null;
+        return buildDirectCommunicationNotification(communication);
+    }
+
+    restoreDurableNotifications() {
+        this.durableNotifications?.getNotifications({ unreadOnly: true }).forEach((notification) => {
+            if (this.notifications.some((entry) => entry.id === notification.id)) return;
+            this.notifications.push({
+                id: notification.id,
+                kind: notification.family,
+                tone: notification.type,
+                title: notification.artifact,
+                detail: notification.requiredAction,
+                slideKey: notification.destination?.slideKey || '',
+                at: notification.createdAt,
+                read: false,
+                durableNotification: notification
+            });
+        });
+        this.recountUnreadNotifications();
+        this.renderAlerts();
+        this.durableNotifications?.restore({
+            onOpen: (notification) => this.openNotificationDestination(notification)
+        });
+    }
+
+    recountUnreadNotifications() {
+        this.unreadNotifications = this.notifications.filter((entry) => !entry.read).length;
+    }
+
+    markSlideNotificationsRead(slideKey = '') {
+        if (!slideKey) return false;
+        let changed = false;
+        this.notifications.forEach((entry) => {
+            if (entry.read || entry.durableNotification?.destination?.slideKey !== slideKey) return;
+            entry.read = true;
+            changed = true;
+        });
+        const persistedChanged = this.durableNotifications?.markDestinationRead?.({ slideKey }) === true;
+        if (changed) {
+            this.recountUnreadNotifications();
+            this.renderAlerts();
+        }
+        return changed || persistedChanged;
+    }
+
+    openNotificationEntry(notificationId = '') {
+        const entry = this.notifications.find((candidate) => candidate.id === notificationId);
+        if (!entry) return;
+        entry.read = true;
+        this.durableNotifications?.open(notificationId, (notification) => this.openNotificationDestination(notification));
+        if (!entry.durableNotification) {
+            this.openNotificationDestination({ destination: { slideKey: entry.slideKey } });
+        }
+        this.recountUnreadNotifications();
+        this.renderAlerts();
+        this.setAlertsOpen(false, { restoreFocus: false });
+    }
+
+    openNotificationDestination(notification = {}) {
+        const entry = this.notifications.find((candidate) => candidate.id === notification.id);
+        if (entry) {
+            entry.read = true;
+            this.recountUnreadNotifications();
+            this.renderAlerts();
+        }
+        const slideKey = notification.destination?.slideKey || '';
+        const recordId = String(notification.destination?.recordId || '');
+        if (slideKey) this.setSlideByKey(slideKey);
+        requestAnimationFrame(() => {
+            const target = (recordId
+                ? document.querySelector?.(`#deckActionFrame [data-communication-id="${recordId}"], #deckActionFrame [data-action-id="${recordId}"], #deckActionFrame [data-rfi-id="${recordId}"]`)
+                : null)
+                || document.querySelector?.('#deckActionFrame h2, #deckActionFrame h3, #deckActionFrame article, #facilitatorWorkspacePanel');
+            if (!target) return;
+            if (!target.hasAttribute?.('tabindex')) target.setAttribute?.('tabindex', '-1');
+            target.focus?.({ preventScroll: false });
         });
     }
 
@@ -1947,8 +2185,6 @@ export class ScribeController {
         }
 
         if (this.alertsOpen) {
-            this.unreadNotifications = 0;
-            this.notifications.forEach((entry) => { entry.read = true; });
             this.renderAlerts();
             this.focusAlertsDialog();
         } else {
@@ -1996,9 +2232,7 @@ export class ScribeController {
             const detailMarkup = entry.detail
                 ? `<span class="scribe-alert-detail">${escapeHtml(entry.detail)}</span>`
                 : '';
-            const slideAttr = entry.slideKey
-                ? ` data-slide-key="${escapeHtml(entry.slideKey)}" role="button" tabindex="0"`
-                : '';
+            const slideAttr = ` data-notification-id="${escapeHtml(entry.id)}"${entry.slideKey ? ` data-slide-key="${escapeHtml(entry.slideKey)}"` : ''} role="button" tabindex="0"`;
             return `
                 <div class="scribe-alert scribe-alert--${escapeHtml(entry.tone)}${entry.read ? '' : ' is-unread'}"${slideAttr}>
                     <span class="scribe-alert-dot" aria-hidden="true"></span>
@@ -2314,7 +2548,9 @@ export class ScribeController {
             }
             if (sectionKind === 'actions') {
                 sectionGroups.actions.push(
-                    this.renderVerticalActionMarkSections(section, currentSlideKey)
+                    this.teamId === 'blue'
+                        ? this.renderActionMarkRail(section, currentSlideKey)
+                        : this.renderVerticalActionMarkSections(section, currentSlideKey)
                 );
                 return;
             }
@@ -2446,18 +2682,164 @@ export class ScribeController {
         );
     }
 
-    renderVerticalActionMarkSections(section = {}, currentSlideKey = '') {
+    getActionMarkSlideGroups(section = {}) {
         const slidesByActionId = new Map(
             (section.slides || [])
                 .filter((slide) => slide?.action?.id)
                 .map((slide) => [slide.action.id, slide])
         );
-        const groups = groupActionRecordsByMark(
+
+        return groupActionRecordsByMark(
             (section.slides || []).map((slide) => slide.action).filter(Boolean)
         ).map((mark) => ({
             ...mark,
             slides: mark.records.map((record) => slidesByActionId.get(record.id)).filter(Boolean)
         }));
+    }
+
+    setScribeActionMark(markKey, container = document.getElementById('scribeSectionList')) {
+        const normalizedMarkKey = String(markKey || '');
+        if (!ACTION_MARKS.some((mark) => mark.key === normalizedMarkKey)) {
+            return;
+        }
+
+        this.actionMarkActiveKey = normalizedMarkKey;
+        if (!container || typeof container.querySelectorAll !== 'function') {
+            return;
+        }
+
+        container.querySelectorAll('[data-scribe-action-mark-tab]').forEach((button) => {
+            const isActive = button.dataset.scribeActionMarkTab === normalizedMarkKey;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            button.setAttribute('tabindex', isActive ? '0' : '-1');
+        });
+        container.querySelectorAll('[data-scribe-action-mark-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.scribeActionMarkPanel !== normalizedMarkKey;
+        });
+    }
+
+    handleScribeActionMarkKeydown(event, container = document.getElementById('scribeSectionList')) {
+        const currentTab = event.target?.closest?.('[data-scribe-action-mark-tab]');
+        if (!currentTab || !container?.contains?.(currentTab)) {
+            return;
+        }
+
+        const tabs = [...container.querySelectorAll('[data-scribe-action-mark-tab]')];
+        const currentIndex = tabs.indexOf(currentTab);
+        if (currentIndex < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        const nextIndex = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+                ? tabs.length - 1
+                : event.key === 'ArrowLeft'
+                    ? (currentIndex - 1 + tabs.length) % tabs.length
+                    : (currentIndex + 1) % tabs.length;
+        const nextTab = tabs[nextIndex];
+        this.setScribeActionMark(nextTab?.dataset?.scribeActionMarkTab, container);
+        nextTab?.focus?.();
+        nextTab?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    }
+
+    syncScribeActionMarkForSlide(slide = {}) {
+        if (this.teamId !== 'blue' || !slide?.action) {
+            return;
+        }
+
+        const markKey = getActionMarkKey(slide.action);
+        if (markKey) {
+            this.actionMarkActiveKey = markKey;
+        }
+    }
+
+    renderActionMarkRail(section = {}, currentSlideKey = '') {
+        const groups = this.getActionMarkSlideGroups(section);
+        const currentSlide = (section.slides || []).find((slide) => getSlideKey(slide) === currentSlideKey);
+        const currentMarkKey = getActionMarkKey(currentSlide?.action);
+        if (!ACTION_MARKS.some((mark) => mark.key === this.actionMarkActiveKey)) {
+            this.actionMarkActiveKey = currentMarkKey
+                || groups.find((mark) => mark.count > 0)?.key
+                || ACTION_MARKS[0].key;
+        }
+
+        const tabs = groups.map((mark) => {
+            const isActive = mark.key === this.actionMarkActiveKey;
+            return `
+                <button
+                    type="button"
+                    id="scribe-action-mark-tab-${mark.key}"
+                    class="action-mark-tab scribe-action-mark-tab${isActive ? ' is-active' : ''}"
+                    data-scribe-action-mark-tab="${mark.key}"
+                    role="tab"
+                    aria-selected="${isActive ? 'true' : 'false'}"
+                    aria-controls="scribe-action-mark-panel-${mark.key}"
+                    aria-label="${escapeHtml(`${mark.label}, ${mark.count} ${mark.count === 1 ? 'record' : 'records'}`)}"
+                    tabindex="${isActive ? '0' : '-1'}"
+                >
+                    <span>${escapeHtml(mark.label)}</span>
+                    <span class="action-mark-count" aria-hidden="true">${mark.count}</span>
+                </button>
+            `;
+        }).join('');
+
+        const panels = groups.map((mark) => {
+            const isActive = mark.key === this.actionMarkActiveKey;
+            const records = mark.slides.map((slide, slideIndex) => {
+                const isActiveSlide = getSlideKey(slide) === currentSlideKey;
+                return `
+                    <li>
+                        <button
+                            type="button"
+                            class="scribe-slide-link${isActiveSlide ? ' is-active' : ''}${getLiveSlideTypeClass(slide)}"
+                            data-slide-key="${escapeHtml(getSlideKey(slide))}"
+                            data-slide-type="${escapeHtml(slide.slideType || 'action')}"
+                            ${isActiveSlide ? 'aria-current="true"' : ''}
+                        >
+                            <span class="scribe-slide-link-number">${escapeHtml(String(slide.sidebarOrdinal || slideIndex + 1))}</span>
+                            <span class="scribe-slide-link-text">
+                                <span class="scribe-slide-link-kicker">${escapeHtml(slide.sidebarKicker || `Record ${slideIndex + 1}`)}</span>
+                                <span class="scribe-slide-link-title">${escapeHtml(slide.title)}</span>
+                            </span>
+                        </button>
+                    </li>
+                `;
+            }).join('');
+
+            return `
+                <section
+                    id="scribe-action-mark-panel-${mark.key}"
+                    class="action-mark-panel scribe-action-mark-panel"
+                    data-scribe-action-mark-panel="${mark.key}"
+                    role="tabpanel"
+                    aria-labelledby="scribe-action-mark-tab-${mark.key}"
+                    tabindex="0"
+                    ${isActive ? '' : 'hidden'}
+                >
+                    ${records
+                        ? `<ol class="scribe-slide-list">${records}</ol>`
+                        : `<p class="action-mark-empty">No records for ${escapeHtml(mark.label)}.</p>`}
+                </section>
+            `;
+        }).join('');
+
+        return `
+            <div class="action-mark-navigation scribe-action-mark-navigation" data-scribe-action-mark-navigation>
+                <div class="action-mark-rail scribe-action-mark-rail" role="tablist" aria-orientation="horizontal" aria-label="${escapeHtml(`${this.teamLabel} Facilitator records by simulation mark`)}" aria-describedby="scribe-action-mark-help">
+                    ${tabs}
+                </div>
+                <p class="action-mark-help" id="scribe-action-mark-help">Use Left and Right Arrow keys to move between marks; Home and End jump to the first and last mark. Records are newest first.</p>
+                ${panels}
+            </div>
+        `;
+    }
+
+    renderVerticalActionMarkSections(section = {}, currentSlideKey = '') {
+        const groups = this.getActionMarkSlideGroups(section);
         const sections = groups.map((mark) => {
             const records = mark.slides.map((slide, slideIndex) => {
                 const isActiveSlide = getSlideKey(slide) === currentSlideKey;
@@ -2514,6 +2896,8 @@ export class ScribeController {
             this.setDeckState('error');
             return;
         }
+
+        this.syncScribeActionMarkForSlide(slide);
 
         this.setDeckState('ready');
         this.renderDeckState();
@@ -4335,7 +4719,7 @@ export class ScribeController {
                 const timestamp = communication.created_at || '';
                 const isSelected = communication.id === selectedCommunicationId;
                 return `
-                    <article class="facilitator-thread-message ${isOutbound ? 'is-outbound' : 'is-inbound'}${isSelected ? ' is-selected' : ''}"${isSelected ? ' aria-current="true"' : ''}>
+                    <article class="facilitator-thread-message ${isOutbound ? 'is-outbound' : 'is-inbound'}${isSelected ? ' is-selected' : ''}" data-communication-id="${escapeHtml(String(communication.id || ''))}"${isSelected ? ' aria-current="true"' : ''}>
                         <header class="facilitator-thread-message-meta">
                             <span>${isOutbound ? 'You | to White Cell' : 'White Cell'}</span>
                             <time datetime="${escapeHtml(timestamp)}">${escapeHtml(formatRelativeTime(timestamp))}</time>
@@ -4506,6 +4890,7 @@ export class ScribeController {
         }
 
         this.currentSlideIndex = nextIndex;
+        this.syncScribeActionMarkForSlide(this.deckSlides[this.currentSlideIndex]);
         this.expandSectionForSlide(this.deckSlides[this.currentSlideIndex], { render: false });
         this.renderSlide();
     }
@@ -4517,6 +4902,7 @@ export class ScribeController {
         }
 
         this.currentSlideIndex = nextIndex;
+        this.syncScribeActionMarkForSlide(this.deckSlides[this.currentSlideIndex]);
         this.expandSectionForSlide(this.deckSlides[this.currentSlideIndex], { render: false });
         this.renderSlide();
     }

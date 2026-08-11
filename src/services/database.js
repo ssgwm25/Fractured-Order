@@ -551,6 +551,7 @@ async function invokeKeepaliveRpc(functionName, payload = {}) {
 }
 
 const RESEARCH_TABLE_QUERY_CONFIG = Object.freeze({
+    artifact_workflow_reviews: { orderField: 'reviewed_at', ascending: true },
     research_audit_event_log: { orderField: 'event_id', ascending: true },
     research_participant: { orderField: 'first_seen_utc', ascending: true },
     research_note: { orderField: 'created_utc', ascending: true },
@@ -2066,7 +2067,8 @@ export const database = {
             researchDataQualityEvents,
             researchDerivedParticipantMetrics,
             researchDerivedSessionMetrics,
-            researchCodebook
+            researchCodebook,
+            artifactWorkflowReviews
         ] = await Promise.all([
             this.fetchSessionBundle(sessionId),
             this.fetchCommunications(sessionId).catch(() => []),
@@ -2088,7 +2090,8 @@ export const database = {
             this.fetchResearchTable('research_data_quality_event', sessionId),
             this.fetchResearchTable('research_derived_participant_metrics', sessionId),
             this.fetchResearchTable('research_derived_session_metrics', sessionId),
-            this.fetchResearchTable('research_export_codebook', null)
+            this.fetchResearchTable('research_export_codebook', null),
+            this.fetchResearchTable('artifact_workflow_reviews', sessionId)
         ]);
         const researchNoteIds = new Set(
             researchNotes
@@ -2119,7 +2122,8 @@ export const database = {
             researchDataQualityEvents,
             researchDerivedParticipantMetrics,
             researchDerivedSessionMetrics,
-            researchCodebook
+            researchCodebook,
+            artifactWorkflowReviews
         };
     },
 

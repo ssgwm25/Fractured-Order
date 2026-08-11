@@ -1,6 +1,8 @@
 -- ESG Simulation Platform
 -- Current Build Supabase Patch
--- Apply only through the ordered hardening path in docs/supabase-setup.md.
+-- LEGACY-PROJECT REPAIR ONLY — NOT PART OF THE AUTHORITATIVE MIGRATION LEDGER.
+-- Apply only when a separately reviewed repair plan identifies missing
+-- compatibility columns, then resume the dated order in docs/supabase-setup.md.
 -- This compatibility patch is not a replacement for dated RLS, role,
 -- workflow-integrity, research, plugin, or storage migrations.
 -- Apply data/2026-08-05_team_neutral_artifact_review.sql after this patch and

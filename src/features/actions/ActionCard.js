@@ -17,11 +17,9 @@ import { ENUMS } from '../../core/enums.js';
  * @param {boolean} options.canEdit - Can edit action
  * @param {boolean} options.canDelete - Can delete action
  * @param {boolean} options.canSubmit - Can submit action
- * @param {boolean} options.canAdjudicate - Can adjudicate action
  * @param {Function} options.onEdit - Edit callback
  * @param {Function} options.onDelete - Delete callback
  * @param {Function} options.onSubmit - Submit callback
- * @param {Function} options.onAdjudicate - Adjudicate callback
  * @param {Function} options.onClick - Card click callback
  * @returns {HTMLElement}
  */
@@ -31,11 +29,9 @@ export function createActionCard(action, options = {}) {
         canEdit = false,
         canDelete = false,
         canSubmit = false,
-        canAdjudicate = false,
         onEdit,
         onDelete,
         onSubmit,
-        onAdjudicate,
         onClick
     } = options;
 
@@ -111,9 +107,6 @@ export function createActionCard(action, options = {}) {
                     ${canSubmit && action.status === ENUMS.ACTION_STATUS.DRAFT ? `
                         <button class="btn btn-primary btn-sm submit-btn">Submit</button>
                     ` : ''}
-                    ${canAdjudicate && action.status === ENUMS.ACTION_STATUS.SUBMITTED ? `
-                        <button class="btn btn-primary btn-sm adjudicate-btn">Record Deliberation</button>
-                    ` : ''}
                     ${canDelete && action.status === ENUMS.ACTION_STATUS.DRAFT ? `
                         <button class="btn btn-ghost btn-sm text-error delete-btn">Delete</button>
                     ` : ''}
@@ -154,14 +147,6 @@ export function createActionCard(action, options = {}) {
         submitBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             onSubmit(action);
-        });
-    }
-
-    const adjudicateBtn = card.querySelector('.adjudicate-btn');
-    if (adjudicateBtn && onAdjudicate) {
-        adjudicateBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            onAdjudicate(action);
         });
     }
 

@@ -25,12 +25,69 @@ The anon key is safe-to-expose browser configuration. It is stored as a GitHub r
 
 ## SQL Setup Order
 
-Use the current hardening path for live environments:
+The only supported operational path is the forward-only dated migration ledger
+below, applied to an already-provisioned database and recorded in the deployment
+change log. Do not sort or omit files; same-day migrations have intentional
+ordering. Apply each migration only when it is absent from that environment's
+verified migration record; reapply a function/policy owner only when a reviewed
+repair step below explicitly requires it.
 
-1. Apply the complete/current schema baseline used for this repository.
-2. Apply `data/CURRENT_BUILD_SUPABASE_PATCH.sql` when the selected baseline requires its compatibility columns.
-3. For existing live-demo projects, make sure `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, `data/2026-07-29_industry_submission_permissions.sql`, `data/2026-07-29_return_action_to_blue.sql`, `data/2026-08-05_team_neutral_artifact_review.sql`, `data/2026-08-06_facilitator_rfi_communications.sql`, and `data/2026-08-06_proposal_recipient_threads.sql` have been applied in that order. The July integrity migration also requires `data/2026-06-04_research_export_capture.sql` from the earlier dated sequence. The July 29 recovery migration normalizes Industry seats and draft/submission permissions. August 5 adds the revision-aware review workflow. Apply the Facilitator RFI/communications migration before the proposal-thread migration; the latter is the final owner of current communications RLS. Projects that reapply July 14, August 5, or the earlier August 6 policy migration must reapply the proposal-thread migration last.
-4. Verify RPCs and RLS policies before a demo.
+Apply and verify this ledger in a dedicated rehearsal project before deploying
+the corresponding frontend. Production rollout is migration-first. After any
+workflow write, containment is frontend-first rollback while additive schema
+and immutable review, proposal-thread, and RFI history remain in place.
+
+This repository does not currently contain a supported single-file greenfield
+schema. `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
+`data/updated_supabase_migration.sql` are deprecated historical snapshots with
+superseded broad policies and partial workflow behavior. They are not a base,
+shortcut, recovery path, or complete current install. `data/CURRENT_BUILD_SUPABASE_PATCH.sql`
+is also not part of the normal ledger; use it only in a separately reviewed
+legacy-project repair. If a project does not already have the pre-ledger base
+tables, stop and obtain a verified base snapshot rather than assembling one
+from these historical files.
+
+Apply the authoritative ledger in this exact order:
+
+1. `data/2026-04-07_secure_session_join_contract.sql`
+2. `data/2026-04-08_live_demo_role_seat_contract.sql`
+3. `data/2026-04-08_live_demo_rls_hardening.sql`
+4. `data/2026-04-08_facilitator_join_session_access_fix.sql`
+5. `data/2026-04-08_operator_auth_digest_fix.sql`
+6. `data/2026-04-09_global_white_cell_role_contract.sql`
+7. `data/2026-04-16_game_master_remove_session_participant.sql`
+8. `data/2026-04-17_seat_claim_role_input_normalization.sql`
+9. `data/2026-04-17_white_cell_backend_alignment.sql`
+10. `data/2026-06-02_operator_code_runtime_config_table.sql`
+11. `data/2026-06-03_proposal_response_finalization_lock.sql`
+12. `data/2026-06-04_research_export_capture.sql`
+13. `data/2026-06-18_participant_auth_identity_reconcile.sql`
+14. `data/2026-06-25_industry_team_role_contract.sql`
+15. `data/2026-06-25_scribe_action_submit_policy.sql`
+16. `data/2026-06-25_participant_role_resolver_normalization.sql`
+17. `data/2026-06-25_timer_allocations_game_state.sql`
+18. `data/2026-06-28_white_cell_plugins_game_state.sql`
+19. `data/2026-06-28_intercom_storage_bucket.sql`
+20. `data/2026-07-14_action_artifact_workflow_integrity.sql`
+21. `data/2026-07-17_pli_adjudications.sql`
+22. `data/2026-07-20_sme_handoffs.sql`
+23. `data/2026-07-20_staff_access_code_only.sql`
+24. `data/2026-07-20_sme_pli_write_hardening.sql`
+25. `data/2026-07-20_operator_grants_sme_surface.sql`
+26. `data/2026-07-21_scribe_proposal_submit_policy.sql`
+27. `data/2026-07-29_sme_handoffs_backfill.sql`
+28. `data/2026-07-29_industry_submission_permissions.sql`
+29. `data/2026-07-29_return_action_to_blue.sql`
+30. `data/2026-08-05_team_neutral_artifact_review.sql`
+31. `data/2026-08-06_facilitator_rfi_communications.sql`
+32. `data/2026-08-06_proposal_recipient_threads.sql`
+
+The final August 6 migration is the current owner of communications RLS and
+proposal-review behavior. If July 14, August 5, or the earlier August 6 policy
+migration is reapplied during repair, reapply
+`data/2026-08-06_proposal_recipient_threads.sql` last. Verify RPCs, triggers,
+policies, and grants before a demo; a missing migration record or failed
+verification is a deployment blocker.
 
 ## Intercom Storage
 
@@ -46,7 +103,8 @@ Apply `data/2026-06-28_intercom_storage_bucket.sql` after the plugin-state game-
 
 If the operator UI reports `Bucket not found` when sending to Scribes, the browser recorded a clip larger than the inline threshold and the Supabase project is missing `intercom-announcements`. Apply `data/2026-06-28_intercom_storage_bucket.sql` in the Supabase SQL editor, then retry.
 
-Do not treat legacy broad-policy files such as `data/updated_supabase_schema.sql` as final production state. They are historical/setup artifacts and must be followed by the hardening migrations.
+Do not execute any of the deprecated consolidated SQL snapshots named above.
+Their headers intentionally direct operators back to the dated ledger.
 
 ## Action Artifact And Workflow Integrity
 
@@ -115,11 +173,18 @@ where schemaname = 'public'
 order by tablename, policyname;
 ```
 
-Pass: seven action columns, three unique indexes, two action triggers, and four Industry submission policies are returned. A proposal review performed through the UI produces one adjudicated proposal, at most one forwarded communication, the matching timeline rows, action-log revisions, and hash-chained research audit events.
+Pass: seven action columns, three unique indexes, two action triggers, and four Industry submission policies are returned. Proposal review through the current UI produces one recipient-specific forwarding communication per approved intended recipient, matching timeline rows, action-log revisions, and hash-chained research audit events; approving one recipient leaves every other recipient unchanged.
 
 ## Team-Neutral Artifact Review Workflow
 
 Apply `data/2026-08-05_team_neutral_artifact_review.sql` after the July workflow, PLI, Industry-permission, and Blue-return migrations. It adds workflow/revision metadata without updating historical `actions` or `requests` rows. Untouched rows therefore retain their original database values: historical `returned_to_blue` remains stored as `returned_to_blue`, and NULL revision metadata is exposed by the client as a labeled legacy default rather than a fabricated database history.
+
+The new columns, constraints, normalization functions/triggers,
+`artifact_workflow_reviews` table, RLS policy, grants, compatibility wrapper,
+and comments are additive workflow objects. Do not drop them during application
+rollback after any review write. Do not rewrite historical `returned_to_blue`
+rows to `returned_to_team`, assign them synthetic revisions, or insert review
+history for transitions that did not occur under this contract.
 
 New White Cell review code must call `operator_review_artifact` with the persisted submitting team and the revision currently displayed to the reviewer. The same authorization and transaction handle Blue and Red action returns, Strategic Orientation completion/return, and RFI clarification returns. Returns require notes. A revision mismatch, team mismatch, missing White Cell grant, or completed artifact fails without a partial artifact, PLI, or review-log write. Completion maps the compatibility `status` to `adjudicated`, sets `workflow_state` to `completed`, and deliberately leaves `outcome` NULL.
 
@@ -183,7 +248,7 @@ where schemaname = 'public'
 order by tablename, policyname;
 ```
 
-Pass: exactly six rows are returned. In a four-seat rehearsal, each actual Facilitator can create a same-team RFI and direct message; the paired Scribe cannot create an RFI; another team cannot read either record; White Cell can return the RFI only with notes; and the Facilitator resubmits the same RFI ID with the next revision. Current RFI forms, CSV exports, and JSON exports contain no Priority field; explicitly labeled legacy JSON rows may retain their historical value.
+Pass: exactly six rows are returned. In a four-seat rehearsal, each actual Facilitator can create a same-team RFI and direct message; the paired Scribe cannot create an RFI; another team cannot read either record; White Cell can return the RFI only with notes; and the Facilitator resubmits the same RFI ID with the next revision. Current RFI forms and current-run exports contain only category, question, workflow, revision, return, resubmission, and answer-history data; retired fields may appear only in explicitly labelled legacy evidence.
 
 ## Session Recorder Artifact Metadata
 

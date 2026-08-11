@@ -14,7 +14,8 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
-import { showToast } from '../components/ui/Toast.js';
+import { showDurableNotification, showToast } from '../components/ui/Toast.js';
+import { DurableNotificationCenter } from '../components/ui/DurableNotification.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
 import {
@@ -88,6 +89,12 @@ import {
 import { CONFIG } from '../core/config.js';
 import { ENUMS, canAdjudicateAction, getPhaseLabel, isAdjudicatedAction, isDraftAction } from '../core/enums.js';
 import { getUserMessage, ValidationError } from '../core/errors.js';
+import {
+    buildDirectCommunicationNotification,
+    buildProposalRoundNotification,
+    buildRfiWorkflowNotification,
+    buildWhiteCellArtifactNotification
+} from '../features/notifications/workflowNotifications.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import {
     OPERATOR_SURFACES,
@@ -1248,6 +1255,13 @@ export class WhiteCellController {
         this.hasHydratedBlueActionQueue = false;
         this.hasHydratedGreenProposalQueue = false;
         this.hasHydratedRedResponseQueue = false;
+        this.durableNotifications = null;
+        this.seenRfiNotificationIds = new Set();
+        this.newRfiIds = new Set();
+        this.hasHydratedRfiNotifications = false;
+        this.seenInboundCommunicationIds = new Set();
+        this.newCommunicationIds = new Set();
+        this.hasHydratedInboundCommunications = false;
         this.pliMacroReview = null;
         this.pliDiplomacyInfoReview = null;
         this.pliNiEscalationReview = null;
@@ -1291,6 +1305,10 @@ export class WhiteCellController {
 
         this.operatorRole = accessState.operatorRole || WHITE_CELL_OPERATOR_ROLES.LEAD;
         const sessionId = accessState.sessionId;
+        this.durableNotifications = new DurableNotificationCenter({
+            scope: `${sessionId}:whitecell:${this.operatorRole}`,
+            render: (config) => this.notificationsMuted ? null : showDurableNotification(config)
+        });
 
         this.renderScribeDeckSettings();
         this.renderPluginSettings();
@@ -1310,6 +1328,7 @@ export class WhiteCellController {
         this.syncCommunicationsFromStore();
         this.syncTimelineFromStore();
         this.syncParticipantsFromStore();
+        this.restoreDurableNotifications();
         this.updateTimerDisplay();
         this.updateTimerStatusDisplay();
         this.loadSessionsAdmin().catch((err) => {
@@ -1521,7 +1540,7 @@ export class WhiteCellController {
                 },
                 {
                     title: 'Control arrival noise',
-                    body: 'Mute notifications suppresses queue-arrival toasts only. Badges and NEW labels remain visible until the queue items are opened.',
+                    body: 'Mute notifications suppresses durable arrival notices only. Badges and NEW labels remain visible until each destination item is opened.',
                     highlight: '#whiteCellNotificationsMuteBtn'
                 },
                 {
@@ -1555,8 +1574,8 @@ export class WhiteCellController {
         const isMuted = this.notificationsMuted === true;
         button.textContent = isMuted ? 'Notifications muted' : 'Mute notifications';
         button.title = isMuted
-            ? 'Queue arrival toasts are muted. Click to unmute.'
-            : 'Mute White Cell queue arrival toasts.';
+            ? 'Durable arrival notices are muted. Click to restore unread notices.'
+            : 'Mute White Cell durable arrival notices.';
         button.setAttribute?.('aria-pressed', String(isMuted));
         button.setAttribute?.(
             'aria-label',
@@ -1578,6 +1597,11 @@ export class WhiteCellController {
 
     toggleNotificationsMuted() {
         this.setNotificationsMuted(!this.notificationsMuted);
+        if (!this.notificationsMuted) {
+            this.durableNotifications?.restore({
+                onOpen: (notification) => this.openDurableDestination(notification)
+            });
+        }
     }
 
     configureCommunicationRecipients(recipientSelect) {
@@ -1869,22 +1893,6 @@ export class WhiteCellController {
 
         document.querySelectorAll?.('.sidebar-link[data-section]')?.forEach((link) => {
             link.addEventListener('click', () => {
-                if (link.dataset.section === 'strategicOrientation') {
-                    this.clearQueueArrivalHighlights('strategicOrientation');
-                }
-
-                if (link.dataset.section === 'actions') {
-                    this.clearQueueArrivalHighlights('actions');
-                }
-
-                if (link.dataset.section === 'proposals') {
-                    this.clearQueueArrivalHighlights('proposals');
-                }
-
-                if (link.dataset.section === 'responses') {
-                    this.clearQueueArrivalHighlights('responses');
-                }
-
                 if (link.dataset.section === 'pliAdjudication') {
                     this.pliMacroReview?.refresh?.();
                     this.syncPliBadges().catch(() => {});
@@ -1914,7 +1922,7 @@ export class WhiteCellController {
         this.storeUnsubscribers.push(
             actionsStore.subscribe((event) => {
                 this.syncActionsFromStore({
-                    announce: event === 'created' || event === 'updated'
+                    announce: event === 'created' || event === 'updated' || event === 'reconciled'
                 });
                 if (event === 'updated') {
                     this.loadReturnedRevisionHistory().catch(() => {});
@@ -1924,8 +1932,8 @@ export class WhiteCellController {
         );
 
         this.storeUnsubscribers.push(
-            requestsStore.subscribe(() => {
-                this.syncRfisFromStore();
+            requestsStore.subscribe((event, payload) => {
+                this.syncRfisFromStore({ event, data: payload });
             })
         );
 
@@ -1934,7 +1942,8 @@ export class WhiteCellController {
                 this.syncActionsFromStore();
                 this.syncCommunicationsFromStore({
                     announceThreadRounds: event === 'created' || event === 'reconciled',
-                    changedCommunications: Array.isArray(payload) ? payload : [payload]
+                    changedCommunications: Array.isArray(payload) ? payload : [payload],
+                    event
                 });
             })
         );
@@ -2946,29 +2955,31 @@ export class WhiteCellController {
         hydratedFlag,
         announce = false
     } = {}) {
-        const nextIds = new Set(
-            nextItems
-                .map((item) => item?.id)
-                .filter(Boolean)
-        );
+        const notifications = nextItems
+            .map((item) => ({ item, notification: this.buildQueueDurableNotification(queueName, item) }))
+            .filter(({ notification }) => notification);
+        const nextIds = new Set(nextItems.map((item) => item?.id).filter(Boolean));
 
         if (!this[hydratedFlag]) {
             seenSet.clear();
-            nextIds.forEach((itemId) => seenSet.add(itemId));
+            notifications.forEach(({ notification }) => seenSet.add(notification.id));
+            this.durableNotifications?.seed(notifications.map(({ notification }) => notification));
             newSet.clear();
             this[hydratedFlag] = true;
             return;
         }
 
-        nextItems.forEach((item) => {
-            if (!item?.id || seenSet.has(item.id)) {
+        notifications.forEach(({ item, notification }) => {
+            if (!item?.id || seenSet.has(notification.id)) {
                 return;
             }
 
-            seenSet.add(item.id);
+            seenSet.add(notification.id);
             newSet.add(item.id);
             if (announce) {
-                this.pendingQueueArrivalSummary[queueName].add(item.id);
+                this.durableNotifications?.notify(notification, {
+                    onOpen: (durableNotification) => this.openDurableDestination(durableNotification)
+                });
             }
         });
 
@@ -2979,7 +2990,17 @@ export class WhiteCellController {
         });
     }
 
-    clearQueueArrivalHighlights(queueName = '') {
+    buildQueueDurableNotification(queueName = '', item = {}) {
+        const configs = {
+            strategicOrientation: { section: 'strategicOrientation', artifactType: 'Strategic Orientation' },
+            actions: { section: 'actions', artifactType: 'Action' },
+            proposals: { section: 'proposals', artifactType: 'Proposal' },
+            responses: { section: 'responses', artifactType: 'Red action' }
+        };
+        return buildWhiteCellArtifactNotification(item, configs[queueName]);
+    }
+
+    clearQueueArrivalHighlights(queueName = '', itemId = '') {
         const queueMap = {
             strategicOrientation: {
                 newSet: this.newStrategicOrientationIds,
@@ -3007,50 +3028,17 @@ export class WhiteCellController {
             }
         };
         const queueState = queueMap[queueName];
-        if (!queueState || queueState.newSet.size === 0) {
+        if (!queueState || !itemId || !queueState.newSet.has(itemId)) {
             return;
         }
 
-        queueState.newSet.clear();
+        queueState.newSet.delete(itemId);
+        this.durableNotifications?.markDestinationRead({ recordId: itemId });
         queueState.rerender();
     }
 
     flushQueueArrivalAnnouncement() {
-        const strategicOrientationCount = this.pendingQueueArrivalSummary.strategicOrientation.size;
-        const actionCount = this.pendingQueueArrivalSummary.actions.size;
-        const proposalCount = this.pendingQueueArrivalSummary.proposals.size;
-        const responseCount = this.pendingQueueArrivalSummary.responses.size;
-
-        if (strategicOrientationCount === 0 && actionCount === 0 && proposalCount === 0 && responseCount === 0) {
-            return;
-        }
-
-        const summaryParts = [];
-        if (strategicOrientationCount > 0) {
-            summaryParts.push(`${strategicOrientationCount} Strategic Orientation artifact${strategicOrientationCount === 1 ? '' : 's'}`);
-        }
-        if (actionCount > 0) {
-            summaryParts.push(`${actionCount} Blue action${actionCount === 1 ? '' : 's'}`);
-        }
-        if (proposalCount > 0) {
-            summaryParts.push(`${proposalCount} proposal${proposalCount === 1 ? '' : 's'}`);
-        }
-        if (responseCount > 0) {
-            summaryParts.push(`${responseCount} Red action${responseCount === 1 ? '' : 's'}`);
-        }
-
-        if (!this.notificationsMuted) {
-            showToast({
-                message: `New team submissions arrived: ${summaryParts.join(', ')}.`,
-                type: 'warning',
-                duration: 10000
-            });
-        }
-
-        this.pendingQueueArrivalSummary.strategicOrientation.clear();
-        this.pendingQueueArrivalSummary.actions.clear();
-        this.pendingQueueArrivalSummary.proposals.clear();
-        this.pendingQueueArrivalSummary.responses.clear();
+        Object.values(this.pendingQueueArrivalSummary).forEach((queue) => queue.clear());
     }
 
     isProposalAction(action = {}) {
@@ -3256,7 +3244,7 @@ export class WhiteCellController {
                         const thread = getProposalThreadMetadata(message);
                         const senderLabel = this.formatProposalRecipientTeamLabel(thread.senderTeam);
                         return `
-                            <li class="proposal-thread-message" data-thread-id="${this.escapeHtml(thread.threadId)}" data-thread-round="${thread.roundNumber}">
+                            <li class="proposal-thread-message" data-thread-id="${this.escapeHtml(thread.threadId)}" data-thread-round="${thread.roundNumber}" data-communication-id="${this.escapeHtml(String(message.id || ''))}">
                                 <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">
                                     <strong>Round ${thread.roundNumber}</strong> &middot; ${this.escapeHtml(senderLabel)} &middot; ${this.escapeHtml(formatDateTime(thread.sentAt))}
                                 </p>
@@ -3893,6 +3881,7 @@ export class WhiteCellController {
                 const actionId = button.dataset.actionId;
                 const action = this.actions.find((candidate) => candidate.id === actionId);
                 if (action) {
+                    this.markWhiteCellRecordOpened(this.getQueueNameForAction(action), actionId);
                     this.showAdjudicateModal(action);
                 }
             });
@@ -4595,14 +4584,59 @@ export class WhiteCellController {
         }
     }
 
-    syncRfisFromStore() {
+    syncRfisFromStore({ event = '', data = null } = {}) {
         const allRfis = requestsStore.getAll();
         this.rfis = allRfis.filter(isRfiAwaitingWhiteCellResponse);
         this.rfiHistory = allRfis.filter((rfi) => !isRfiAwaitingWhiteCellResponse(rfi));
+        this.captureRfiNotifications(allRfis, { event, data });
 
         this.renderRfiQueue();
 
         this.updateSidebarBadge('rfiBadge', this.rfis.length);
+    }
+
+    captureRfiNotifications(allRfis = [], { event = '', data = null } = {}) {
+        const notifications = allRfis
+            .map((rfi) => ({ rfi, notification: buildRfiWorkflowNotification(rfi, { audience: 'whitecell' }) }))
+            .filter(({ notification }) => notification);
+
+        if (!this.hasHydratedRfiNotifications) {
+            this.seenRfiNotificationIds = new Set(notifications.map(({ notification }) => notification.id));
+            this.durableNotifications?.seed(notifications.map(({ notification }) => notification));
+            this.hasHydratedRfiNotifications = true;
+            return;
+        }
+
+        const changedIds = new Set((event === 'reconciled' ? (Array.isArray(data) ? data : []) : [data])
+            .map((rfi) => rfi?.id)
+            .filter(Boolean));
+        notifications.forEach(({ rfi, notification }) => {
+            if (this.seenRfiNotificationIds.has(notification.id)) return;
+            this.seenRfiNotificationIds.add(notification.id);
+            if (!changedIds.has(rfi.id)) return;
+            this.newRfiIds.add(rfi.id);
+            this.durableNotifications?.notify(notification, {
+                onOpen: (durableNotification) => this.openDurableDestination(durableNotification)
+            });
+        });
+    }
+
+    getQueueNameForAction(action = {}) {
+        if (isStrategicOrientationAction(action)) return 'strategicOrientation';
+        if (this.isProposalAction(action)) return 'proposals';
+        if (action?.team === 'red') return 'responses';
+        return 'actions';
+    }
+
+    markWhiteCellRecordOpened(queueName = '', recordId = '') {
+        if (!recordId) return;
+        if (queueName === 'requests') {
+            this.newRfiIds.delete(recordId);
+            this.durableNotifications?.markDestinationRead({ recordId });
+            this.renderRfiQueue();
+            return;
+        }
+        this.clearQueueArrivalHighlights(queueName, recordId);
     }
 
     renderRfiQueue() {
@@ -4615,12 +4649,14 @@ export class WhiteCellController {
         const cards = visibleRfis.length ? visibleRfis.map((rfi) => {
             const queryText = rfi.query || rfi.question || '';
             const isPending = isRfiAwaitingWhiteCellResponse(rfi);
+            const isNew = this.newRfiIds.has(rfi.id);
             return `
-                <div class="card card-bordered" data-rfi-id="${rfi.id}" style="padding: var(--space-4); margin-bottom: var(--space-3);">
+                <div class="card card-bordered" data-rfi-id="${rfi.id}" style="padding: var(--space-4); margin-bottom: var(--space-3);${isNew ? ' background: var(--color-surface-alt);' : ''}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-2); gap: var(--space-2);">
                         <span class="text-xs text-gray-500">${this.escapeHtml(this.formatTeamLabel(rfi.team))} | ${formatRelativeTime(rfi.created_at)}</span>
                         <div style="display: flex; gap: var(--space-2);">
                             ${createArtifactLifecycleBadge(rfi, { size: 'sm' }).outerHTML}
+                            ${isNew ? createBadge({ text: 'NEW', variant: 'warning', size: 'sm', rounded: true }).outerHTML : ''}
                         </div>
                     </div>
                     <p class="text-sm font-medium mb-2">${this.escapeHtml(queryText)}</p>
@@ -4672,6 +4708,7 @@ export class WhiteCellController {
                 const rfiId = button.dataset.rfiId;
                 const rfi = this.rfis.find((candidate) => candidate.id === rfiId);
                 if (rfi) {
+                    this.markWhiteCellRecordOpened('requests', rfiId);
                     this.showRespondRfiModal(rfi);
                 }
             });
@@ -4679,7 +4716,10 @@ export class WhiteCellController {
         container.querySelectorAll('.return-rfi-btn').forEach((button) => {
             button.addEventListener('click', () => {
                 const rfi = this.rfis.find((candidate) => candidate.id === button.dataset.rfiId);
-                if (rfi) this.showReturnRfiModal(rfi);
+                if (rfi) {
+                    this.markWhiteCellRecordOpened('requests', rfi.id);
+                    this.showReturnRfiModal(rfi);
+                }
             });
         });
     }
@@ -5077,12 +5117,14 @@ export class WhiteCellController {
 
     syncCommunicationsFromStore({
         announceThreadRounds = false,
-        changedCommunications = []
+        changedCommunications = [],
+        event = ''
     } = {}) {
         this.communications = communicationsStore.getAll();
         this.captureProposalThreadRoundNotifications(changedCommunications, {
             announce: announceThreadRounds
         });
+        this.captureInboundCommunicationNotifications(changedCommunications, { event });
         this.scribeDeckAssignments = buildWhiteCellScribeDeckAssignments(this.communications);
         this.verbaAiUpdates = this.communications
             .filter((communication) => (
@@ -5119,14 +5161,96 @@ export class WhiteCellController {
             if (!announce || (changedKeys.size && !changedKeys.has(roundKey))) return;
 
             const thread = getProposalThreadMetadata(message);
-            const senderLabel = this.formatProposalRecipientTeamLabel(thread.senderTeam);
-            if (!this.notificationsMuted) {
-                showToast({
-                    message: `New proposal thread round ${thread.roundNumber} from ${senderLabel} for ${this.formatProposalRecipientTeamLabel(thread.recipientTeam)}.`,
-                    type: 'warning',
-                    duration: 10000
-                });
+            const durableNotification = buildProposalRoundNotification(message, { audience: 'whitecell' });
+            if (durableNotification?.destination?.recordId) {
+                this.newGreenProposalIds.add(durableNotification.destination.recordId);
+                this.renderProposals();
             }
+            this.durableNotifications?.notify(durableNotification, {
+                onOpen: (notification) => this.openDurableDestination(notification)
+            });
+        });
+    }
+
+    captureInboundCommunicationNotifications(changedCommunications = [], { event = '' } = {}) {
+        const inbound = this.communications
+            .filter((communication) => (
+                !isProposalThreadMessage(communication)
+                && String(communication?.to_role || '').trim().toLowerCase() === 'white_cell'
+            ))
+            .map((communication) => ({
+                communication,
+                notification: buildDirectCommunicationNotification(communication, { audience: 'whitecell' })
+            }))
+            .filter(({ notification }) => notification);
+
+        if (!this.hasHydratedInboundCommunications) {
+            this.seenInboundCommunicationIds = new Set(inbound.map(({ notification }) => notification.id));
+            this.durableNotifications?.seed(inbound.map(({ notification }) => notification));
+            this.hasHydratedInboundCommunications = true;
+            return;
+        }
+
+        const changedIds = new Set((changedCommunications || []).map((communication) => communication?.id).filter(Boolean));
+        inbound.forEach(({ communication, notification }) => {
+            if (this.seenInboundCommunicationIds.has(notification.id)) return;
+            this.seenInboundCommunicationIds.add(notification.id);
+            if (!['created', 'reconciled'].includes(event) || !changedIds.has(communication.id)) return;
+            this.newCommunicationIds.add(String(communication.id));
+            this.durableNotifications?.notify(notification, {
+                onOpen: (durableNotification) => this.openDurableDestination(durableNotification)
+            });
+        });
+    }
+
+    restoreDurableNotifications() {
+        this.durableNotifications?.getNotifications({ unreadOnly: true }).forEach((notification) => {
+            const { section, recordId } = notification.destination || {};
+            if (!recordId) return;
+            const queueSets = {
+                strategicOrientation: this.newStrategicOrientationIds,
+                actions: this.newBlueActionIds,
+                proposals: this.newGreenProposalIds,
+                responses: this.newRedResponseIds,
+                requests: this.newRfiIds
+            };
+            queueSets[section]?.add(recordId);
+            if (section === 'communications') this.newCommunicationIds.add(recordId);
+        });
+        this.syncActionsFromStore();
+        this.syncRfisFromStore();
+        this.durableNotifications?.restore({
+            onOpen: (notification) => this.openDurableDestination(notification)
+        });
+    }
+
+    openDurableDestination(notification = {}) {
+        const destination = notification.destination || {};
+        const section = destination.section || 'communications';
+        const recordId = String(destination.recordId || '');
+        const communicationId = String(destination.communicationId || '');
+        this.durableNotifications?.markDestinationRead({ recordId, communicationId });
+
+        if (['strategicOrientation', 'actions', 'proposals', 'responses'].includes(section) && recordId) {
+            this.clearQueueArrivalHighlights(section, recordId);
+        } else if (section === 'requests' && recordId) {
+            this.newRfiIds.delete(recordId);
+            this.renderRfiQueue();
+        } else if (section === 'communications' && recordId) {
+            this.newCommunicationIds.delete(recordId);
+            this.renderCommunicationHistory();
+        }
+
+        document.querySelector?.(`.sidebar-link[data-section="${section}"]`)?.click?.();
+        requestAnimationFrame(() => {
+            const selector = communicationId
+                ? `[data-communication-id="${communicationId}"]`
+                : (recordId ? `[data-action-id="${recordId}"], [data-rfi-id="${recordId}"], [data-communication-id="${recordId}"]` : 'h2');
+            const target = document.querySelector?.(`#${section}Section ${selector}`)
+                || document.querySelector?.(`#${section}Section h2, #${section}Section h3`);
+            if (!target) return;
+            if (!target.hasAttribute?.('tabindex')) target.setAttribute?.('tabindex', '-1');
+            target.focus?.({ preventScroll: false });
         });
     }
 
@@ -6135,22 +6259,35 @@ export class WhiteCellController {
             const counterpartLabel = isOutbound
                 ? `To ${this.formatCommunicationRecipient(communication.to_role)}`
                 : `From ${this.formatCommunicationRecipient(communication.from_role)}`;
+            const isNew = this.newCommunicationIds.has(String(communication.id));
 
             return `
-                <div class="card card-bordered" style="padding: var(--space-4); margin-bottom: var(--space-3);">
+                <div class="card card-bordered" data-communication-id="${this.escapeHtml(String(communication.id || ''))}" style="padding: var(--space-4); margin-bottom: var(--space-3);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
                         <div>
                             <p class="text-sm font-semibold">${this.escapeHtml(counterpartLabel)}</p>
                             <p class="text-xs text-gray-500">${formatRelativeTime(communication.created_at)}</p>
                         </div>
                         ${createBadge({ text: thread ? `THREAD ROUND ${thread.roundNumber}` : (isNegotiationRequest ? 'NEGOTIATION REQUESTED' : (communication.type || 'MESSAGE')), size: 'sm' }).outerHTML}
+                        ${isNew ? createBadge({ text: 'NEW', variant: 'warning', size: 'sm', rounded: true }).outerHTML : ''}
                     </div>
                     ${thread ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">${this.escapeHtml(this.formatProposalRecipientTeamLabel(thread.recipientTeam))} thread &middot; ${this.escapeHtml(thread.messageType.replace(/_/g, ' '))}</p>` : (isNegotiationRequest ? '<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">Negotiation terms</p>' : '')}
                     <p class="text-sm">${this.escapeHtml(communication.content || '')}</p>
+                    ${isNew ? `<button type="button" class="btn btn-secondary btn-sm" data-open-communication-id="${this.escapeHtml(String(communication.id))}">Open message</button>` : ''}
                 </div>
             `;
         }).join('')}
         `;
+
+        container.querySelectorAll('[data-open-communication-id]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const communicationId = button.dataset.openCommunicationId || '';
+                this.newCommunicationIds.delete(communicationId);
+                this.durableNotifications?.markDestinationRead({ recordId: communicationId });
+                this.renderCommunicationHistory();
+                document.querySelector?.('#communicationsSection h2, #communicationsSection h3')?.focus?.();
+            });
+        });
     }
 
     formatCommunicationRecipient(recipient) {

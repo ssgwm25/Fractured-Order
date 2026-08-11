@@ -48,7 +48,15 @@ export function normalizeToastArgs(messageOrConfig, options = {}) {
                 type === 'error' ? CONFIG.TOAST_ERROR_DURATION_MS : CONFIG.TOAST_DURATION_MS
             ),
             dismissible: merged.dismissible,
-            urgent: merged.urgent === true
+            urgent: merged.urgent === true,
+            persistent: merged.persistent === true,
+            notificationId: String(merged.notificationId || '').trim(),
+            source: String(merged.source || '').trim(),
+            artifact: String(merged.artifact || '').trim(),
+            requiredAction: String(merged.requiredAction || '').trim(),
+            destinationLabel: String(merged.destinationLabel || '').trim(),
+            onAction: typeof merged.onAction === 'function' ? merged.onAction : null,
+            onDismiss: typeof merged.onDismiss === 'function' ? merged.onDismiss : null
         };
     }
 
@@ -68,7 +76,15 @@ export function normalizeToastArgs(messageOrConfig, options = {}) {
             type === 'error' ? CONFIG.TOAST_ERROR_DURATION_MS : CONFIG.TOAST_DURATION_MS
         ),
         dismissible: merged.dismissible,
-        urgent: merged.urgent === true
+        urgent: merged.urgent === true,
+        persistent: merged.persistent === true,
+        notificationId: String(merged.notificationId || '').trim(),
+        source: String(merged.source || '').trim(),
+        artifact: String(merged.artifact || '').trim(),
+        requiredAction: String(merged.requiredAction || '').trim(),
+        destinationLabel: String(merged.destinationLabel || '').trim(),
+        onAction: typeof merged.onAction === 'function' ? merged.onAction : null,
+        onDismiss: typeof merged.onDismiss === 'function' ? merged.onDismiss : null
     };
 }
 
@@ -93,7 +109,15 @@ export function showToast(messageOrConfig, options = {}) {
         type,
         duration,
         dismissible,
-        urgent
+        urgent,
+        persistent,
+        notificationId,
+        source,
+        artifact,
+        requiredAction,
+        destinationLabel,
+        onAction,
+        onDismiss
     } = normalizeToastArgs(messageOrConfig, options);
 
     const container = getContainer();
@@ -103,6 +127,10 @@ export function showToast(messageOrConfig, options = {}) {
     toast.setAttribute('role', urgent ? 'alert' : 'status');
     toast.setAttribute('aria-live', urgent ? 'assertive' : 'polite');
     toast.setAttribute('aria-atomic', 'true');
+    if (persistent) {
+        toast.classList.add('toast-durable');
+        toast.dataset.notificationId = notificationId;
+    }
 
     // Icon based on type
     const icons = {
@@ -124,7 +152,15 @@ export function showToast(messageOrConfig, options = {}) {
         ${icons[type]}
         <div class="toast-content">
             ${title ? `<p class="toast-title">${escapeHtml(title)}</p>` : ''}
-            <p class="toast-message">${escapeHtml(message)}</p>
+            ${message ? `<p class="toast-message">${escapeHtml(message)}</p>` : ''}
+            ${persistent ? `
+                <dl class="toast-workflow-details">
+                    <div><dt>Source</dt><dd>${escapeHtml(source)}</dd></div>
+                    <div><dt>Artifact</dt><dd>${escapeHtml(artifact)}</dd></div>
+                    <div><dt>Required action</dt><dd>${escapeHtml(requiredAction)}</dd></div>
+                </dl>
+                <button type="button" class="toast-action">${escapeHtml(destinationLabel || 'Open record')}</button>
+            ` : ''}
         </div>
         ${dismissible ? `
             <button type="button" class="toast-dismiss" aria-label="Dismiss notification">
@@ -138,7 +174,22 @@ export function showToast(messageOrConfig, options = {}) {
     // Add dismiss handler
     if (dismissible) {
         const dismissBtn = toast.querySelector('.toast-dismiss');
-        dismissBtn.addEventListener('click', () => dismissToast(toast));
+        dismissBtn.addEventListener('click', () => {
+            onDismiss?.();
+            dismissToast(toast);
+        });
+    }
+
+    if (persistent) {
+        toast.querySelector('.toast-action')?.addEventListener('click', () => {
+            onAction?.();
+            dismissToast(toast);
+        });
+        toast.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            toast.querySelector('.toast-dismiss')?.click();
+        });
     }
 
     container.appendChild(toast);
@@ -152,7 +203,7 @@ export function showToast(messageOrConfig, options = {}) {
     });
 
     // Auto dismiss
-    if (duration > 0) {
+    if (!persistent && duration > 0) {
         setTimeout(() => dismissToast(toast), duration);
     }
 
@@ -169,11 +220,29 @@ export function dismissToast(toast) {
     toast.classList.remove('toast-visible');
     toast.classList.add('toast-hiding');
 
+    const reduceMotion = typeof window !== 'undefined'
+        && typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     setTimeout(() => {
         if (toast.parentNode) {
             toast.parentNode.removeChild(toast);
         }
-    }, 300);
+    }, reduceMotion ? 0 : 300);
+}
+
+/**
+ * Render a durable inbound workflow notice. Ordinary showToast calls remain timed.
+ */
+export function showDurableNotification(config = {}) {
+    return showToast({
+        ...config,
+        message: '',
+        title: 'Inbound workflow update',
+        duration: 0,
+        dismissible: true,
+        urgent: false,
+        persistent: true
+    });
 }
 
 /**
@@ -242,6 +311,7 @@ export default {
     error: showError,
     warning: showWarning,
     info: showInfo,
+    durable: showDurableNotification,
     dismiss: dismissToast,
     clearAll: clearAllToasts
 };

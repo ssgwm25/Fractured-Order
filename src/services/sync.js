@@ -104,10 +104,14 @@ class SyncService {
             // Set up real-time handlers
             this.setupRealtimeHandlers();
 
-            // Close the snapshot-to-subscription gap. Communications committed
-            // while realtime was starting must still reach role notification
+            // Close the snapshot-to-subscription gap. Workflow rows committed
+            // while realtime was starting must still reach durable notification
             // feeds, while rows already received through realtime are retained.
-            await communicationsStore.reconcileCommunications();
+            await Promise.all([
+                actionsStore.reconcileActions(),
+                requestsStore.reconcileRequests(),
+                communicationsStore.reconcileCommunications()
+            ]);
 
             // Set up online/offline handlers
             this.setupConnectivityHandlers();
@@ -277,13 +281,13 @@ class SyncService {
             try {
                 await Promise.all([
                     gameStateStore.initialize(this.sessionId),
-                    actionsStore.loadActions(),
-                    requestsStore.loadRequests(),
+                    actionsStore.reconcileActions(),
+                    requestsStore.reconcileRequests(),
                     timelineStore.loadEvents(),
                     participantsStore.loadParticipants({
                         tolerateError: true
                     }),
-                    communicationsStore.loadCommunications()
+                    communicationsStore.reconcileCommunications()
                 ]);
 
                 this.lastSyncTime = Date.now();

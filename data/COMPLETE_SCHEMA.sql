@@ -1,3 +1,12 @@
+-- DEPRECATED HISTORICAL SCHEMA SNAPSHOT — NOT A CURRENT INSTALL PATH.
+--
+-- Do not execute this file for a new or existing environment. It contains
+-- superseded broad-policy setup and does not install the operational
+-- artifact-review functions, normalization trigger contract, append-only RLS,
+-- grants, or comments owned by the dated migration ledger. Follow the single
+-- authoritative order in docs/supabase-setup.md. In particular,
+-- data/2026-08-05_team_neutral_artifact_review.sql owns the review contract.
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================================

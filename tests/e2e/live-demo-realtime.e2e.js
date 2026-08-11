@@ -12,7 +12,8 @@ import {
     recordStrategicOrientationFromScribe,
     sendWhiteCellCommunication,
     submitStrategicOrientationFromScribe,
-    submitRfi
+    submitRfi,
+    waitForDurableNotification
 } from './support/liveDemoHarness.js';
 
 const REALTIME_SLO_MS = Number(process.env.PLAYWRIGHT_REALTIME_SLO_MS || 15000);
@@ -88,12 +89,22 @@ async function setActorConnectivity(actor, { online, hosted }) {
     }
 
     // Chromium's network emulation does not guarantee that the corresponding
-    // DOM connectivity event reaches the page before the next assertion. Emit
-    // the browser signal explicitly after the real network toggle so the app's
-    // sync-state handler and reconciliation path are exercised deterministically.
-    await actor.page.evaluate((eventName) => {
+    // DOM connectivity event reaches the page before the next assertion. The
+    // local mock also needs navigator.onLine to mirror the requested state.
+    // Emit the browser signal explicitly so recovery is deterministic.
+    await actor.page.evaluate(({ eventName, online: expectedOnline, emulateNavigatorState }) => {
+        if (emulateNavigatorState) {
+            Object.defineProperty(window.navigator, 'onLine', {
+                configurable: true,
+                get: () => expectedOnline
+            });
+        }
         window.dispatchEvent(new Event(eventName));
-    }, online ? 'online' : 'offline');
+    }, {
+        eventName: online ? 'online' : 'offline',
+        online,
+        emulateNavigatorState: !hosted
+    });
 }
 
 test('@realtime fanout, outage recovery, reconciliation, and isolation stay correct', async ({ browser }, testInfo) => {
@@ -223,11 +234,11 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             recordLatency(latencySamples, 'requests fanout', requestStartedAt);
 
             const blueAlertsBadge = blueFacilitator.page.locator('#scribeAlertsBadge');
-            if (await blueAlertsBadge.isVisible()) {
+            for (let index = 0; index < 30 && await blueAlertsBadge.isVisible(); index += 1) {
                 await blueFacilitator.page.locator('#scribeAlertsBtn').click();
-                await blueFacilitator.page.locator('#scribeAlertsClose').click();
-                await expect(blueAlertsBadge).toBeHidden();
+                await blueFacilitator.page.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
             }
+            await expect(blueAlertsBadge).toBeHidden();
 
             let communicationStartedAt = Date.now();
             await sendWhiteCellCommunication(whiteCell.page, {
@@ -243,6 +254,11 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
                 ]);
             }
             await expect(blueAlertsBadge).toHaveText('1');
+            await waitForDurableNotification(blueFacilitator.page, {
+                source: 'White Cell',
+                artifact: directMessage,
+                requiredAction: 'Open and read the message; reply if action is required.'
+            });
             recordLatency(latencySamples, 'communications fanout', communicationStartedAt);
             await blueFacilitator.page.locator('#scribeAlertsBtn').click();
             await expect(
@@ -250,7 +266,8 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             ).toHaveCount(1);
             await expect(redFacilitator.page.locator('#scribeAlertsList')).not.toContainText(directMessage);
             await expect(isolationFacilitator.page.locator('#scribeAlertsList')).not.toContainText(directMessage);
-            await blueFacilitator.page.locator('#scribeAlertsClose').click();
+            await blueFacilitator.page.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
+            await expect(blueAlertsBadge).toBeHidden();
 
             await openSidebarSection(whiteCell.page, 'timeline');
             await expect(whiteCell.page.locator('#timelineList')).toContainText(new RegExp(`${sessionCodes.primary}|action|RFI`, 'i'));
@@ -277,6 +294,11 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
 
             await expect(blueFacilitator.page.locator('#syncStatusBanner')).toBeHidden({ timeout: 30000 });
             await expect(blueFacilitator.page.locator('#scribeAlertsBadge')).toHaveText('1', { timeout: 30000 });
+            const recoveredNotice = await waitForDurableNotification(blueFacilitator.page, {
+                source: 'White Cell',
+                artifact: missedMessage,
+                requiredAction: 'Open and read the message; reply if action is required.'
+            });
             await blueFacilitator.page.locator('#scribeAlertsBtn').click();
             const recoveredAlert = blueFacilitator.page
                 .locator('#scribeAlertsList')
@@ -284,6 +306,7 @@ test('@realtime fanout, outage recovery, reconciliation, and isolation stay corr
             await expect(recoveredAlert).toHaveCount(1);
             await blueFacilitator.page.waitForTimeout(1000);
             await expect(recoveredAlert).toHaveCount(1);
+            await expect(recoveredNotice).toHaveCount(1);
             await expect(redFacilitator.page.locator('#scribeAlertsList')).not.toContainText(missedMessage);
             await expect(isolationFacilitator.page.locator('#scribeAlertsList')).not.toContainText(missedMessage);
         });

@@ -873,13 +873,14 @@
               <span class="modal-name">Proposal response</span>
             </div>
             <ul class="checklist">
-              <li>Open the Green proposal forwarded by White Cell.</li>
-              <li>Facilitator projects the proposal for the room.</li>
-              <li>Choose <strong>Accept</strong> for the European consortium.</li>
-              <li>Confirm the response; it is final and returns to White Cell and Green.</li>
+              <li>Open the Green proposal independently approved for Blue by White Cell.</li>
+              <li>The actual Facilitator projects the proposal for the room.</li>
+              <li>Choose <strong>Accept</strong> to append Blue's round 1 response.</li>
+              <li>Confirm White Cell is notified and the Green Facilitator can append round 2 in the same thread.</li>
             </ul>
-            <p class="copy-block"><strong>If using the Scribe surface instead:</strong> Acknowledge, Respond, Decline,
-              and Ignore are available. A free-text <strong>Respond to Proposal</strong> submission is also final.</p>
+            <p class="copy-block">Proposal responses belong to the actual Facilitator, not the Scribe workspace.
+              Accept, Not Interested, and Negotiate append to Blue's isolated thread; later rounds preserve every
+              earlier message until a participant explicitly closes the thread.</p>
           </section>
         </div>
       </div>
@@ -1056,11 +1057,11 @@
       </header>
 
       <ol class="workflow" aria-label="Green proposal workflow">
-        <li><strong>1 &middot; Scribe</strong><span>Open Proposals &rarr; New Proposal.</span></li>
-        <li><strong>2 &middot; Modal</strong><span>Complete every required field.</span></li>
-        <li><strong>3 &middot; Handoff</strong><span>Forward to Facilitator (Blue).</span></li>
-        <li><strong>4 &middot; Facilitator</strong><span>Project, forward to White Cell.</span></li>
-        <li><strong>5 &middot; Recipient</strong><span>Blue records a final response.</span></li>
+        <li><strong>1 &middot; Scribe</strong><span>Create the proposal and send it to the Facilitator.</span></li>
+        <li><strong>2 &middot; Facilitator</strong><span>Review and submit it to White Cell.</span></li>
+        <li><strong>3 &middot; White Cell</strong><span>Approve each intended recipient independently.</span></li>
+        <li><strong>4 &middot; Recipient</strong><span>Append the first response in its isolated thread.</span></li>
+        <li><strong>5 &middot; Thread</strong><span>Both Facilitators append later rounds without overwrites.</span></li>
       </ol>
 
       <div class="columns">
@@ -1113,8 +1114,8 @@
           </table>
           <div class="handoff">
             <span class="role-label">Scribe</span>
-            <p>Choose <span class="button-label">Forward to Facilitator (Blue)</span>. This button selects Blue as the
-              recipient team; the Intended Partner(s) field remains descriptive free text.</p>
+            <p>Choose <span class="button-label">Forward to Facilitator</span>. The Intended Partners selections are
+              proposed recipients only; White Cell approves each one independently after Facilitator submission.</p>
           </div>
           <div class="handoff">
             <span class="role-label">Facilitator</span>
@@ -1203,11 +1204,11 @@
       </header>
 
       <ol class="workflow" aria-label="Industry proposal workflow">
-        <li><strong>1 &middot; Scribe</strong><span>Open Proposals &rarr; New Proposal.</span></li>
-        <li><strong>2 &middot; Modal</strong><span>Complete every required field.</span></li>
-        <li><strong>3 &middot; Handoff</strong><span>Forward to Facilitator (Blue).</span></li>
-        <li><strong>4 &middot; Facilitator</strong><span>Project, forward to White Cell.</span></li>
-        <li><strong>5 &middot; Recipient</strong><span>Blue records a final response.</span></li>
+        <li><strong>1 &middot; Scribe</strong><span>Create the proposal and send it to the Facilitator.</span></li>
+        <li><strong>2 &middot; Facilitator</strong><span>Review and submit it to White Cell.</span></li>
+        <li><strong>3 &middot; White Cell</strong><span>Approve each intended recipient independently.</span></li>
+        <li><strong>4 &middot; Recipient</strong><span>Append the first response in its isolated thread.</span></li>
+        <li><strong>5 &middot; Thread</strong><span>Both Facilitators append later rounds without overwrites.</span></li>
       </ol>
 
       <div class="columns">
@@ -1260,8 +1261,8 @@
           </table>
           <div class="handoff">
             <span class="role-label">Scribe</span>
-            <p>Choose <span class="button-label">Forward to Facilitator (Blue)</span>. Do not use the Red recipient
-              button for this playthrough.</p>
+            <p>Choose <span class="button-label">Forward to Facilitator</span>. Keep Blue selected under Intended
+              Partners for this playthrough; White Cell approval creates only Blue's isolated response thread.</p>
           </div>
           <div class="handoff">
             <span class="role-label">Facilitator</span>
@@ -1348,15 +1349,15 @@
 
       <div class="gate">
         <span class="section-kicker">Operator split</span>
-        <p><strong>White Cell Lead</strong> can record deliberations and proposal reviews. Support can inspect queues
-          and assist, but cannot record deliberation. Review all Strategic Orientation artifacts before advancing the
+        <p><strong>White Cell Lead</strong> can review actions, Strategic Orientations, and proposals. Support can inspect queues
+          and assist, but cannot submit reviews. Review all Strategic Orientation artifacts before advancing the
           Move 1 gate.</p>
       </div>
 
       <ol class="workflow" aria-label="White Cell review workflow">
         <li><strong>Orientations</strong><span>Review all four team artifacts.</span></li>
-        <li><strong>Actions</strong><span>Record outcome and notes.</span></li>
-        <li><strong>Proposals</strong><span>Forward, request changes, or reject.</span></li>
+        <li><strong>Actions</strong><span>Accept as complete or return for improvement.</span></li>
+        <li><strong>Proposals</strong><span>Approve each recipient independently or return for changes.</span></li>
         <li><strong>RFIs</strong><span>Answer from the pending queue.</span></li>
         <li><strong>Timeline</strong><span>Verify each state change.</span></li>
       </ol>
@@ -1365,13 +1366,13 @@
         <section class="panel" aria-labelledby="wc-actions-heading">
           <div class="panel-header">
             <h3 id="wc-actions-heading">Review team actions</h3>
-            <span class="modal-name">Record Deliberation</span>
+            <span class="modal-name">Review Action</span>
           </div>
           <table class="fields">
             <tbody>
               <tr>
-                <th>Blue outcome</th>
-                <td><strong>PARTIAL_SUCCESS</strong></td>
+                <th>Blue decision</th>
+                <td><strong>Accept as Complete</strong></td>
               </tr>
               <tr>
                 <th>Blue notes</th>
@@ -1379,8 +1380,8 @@
                   survive; allied capitals read the signal as durable.</td>
               </tr>
               <tr>
-                <th>Red outcome</th>
-                <td><strong>PARTIAL_SUCCESS</strong></td>
+                <th>Red decision</th>
+                <td><strong>Send Back for Improvement</strong></td>
               </tr>
               <tr>
                 <th>Red notes</th>
@@ -1389,9 +1390,9 @@
               </tr>
             </tbody>
           </table>
-          <p class="copy-block">Open the submitted action, choose <strong>Outcome</strong>, enter optional
-            <strong>Notes</strong>, then choose <span class="button-label">Record Deliberation</span>. Valid outcomes
-            are SUCCESS, PARTIAL_SUCCESS, FAIL, and BACKFIRE.
+          <p class="copy-block">Open the submitted action and choose <strong>Accept as Complete</strong> or
+            <strong>Send Back for Improvement</strong>. Reviewer notes are optional for acceptance and required for a
+            return. Completion records no outcome.
           </p>
         </section>
 
@@ -1479,10 +1480,10 @@
           <span class="modal-name">Live state</span>
         </div>
         <ul class="compact-list">
-          <li>Actions show <strong>adjudicated</strong> only after Record Deliberation; proposals show their review and
-            recipient state separately.</li>
-          <li>Forwarded proposals appear only for the selected Blue or Red recipient, with Accept / Not Interested /
-            Negotiate available to the Facilitator.</li>
+          <li>Accepted actions show <strong>Completed</strong>; returned actions retain their revision history and
+            submitting-team-specific review notes. Proposals show their review and recipient state separately.</li>
+          <li>Each independently approved Blue or Red recipient receives a separate append-only thread; Accept / Not
+            Interested / Negotiate starts round 1, and later Facilitator replies append without overwriting history.</li>
           <li>Answered RFIs leave the pending queue, retain priority/categories, and create an RFI_ANSWERED timeline
             event.</li>
         </ul>

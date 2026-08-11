@@ -315,7 +315,7 @@ function buildBundleFixture() {
 }
 
 describe('research export builder', () => {
-    it('builds the full research archive dataset with the 1.7.0 dual-renderer file set', async () => {
+    it('builds the full research archive dataset with the 1.8.0 workflow-evidence file set', async () => {
         const exportBundle = await buildResearchExportBundle(buildBundleFixture(), {
             generatedAtUtc: '2026-06-03T12:00:00.000Z',
             generatedByPseudonym: 'gm-1234abcd',
@@ -323,6 +323,8 @@ describe('research export builder', () => {
             includeNotesAppendix: true
         });
 
+        expect(RESEARCH_EXPORT_SCHEMA_VERSION).toBe('1.8.0');
+        expect(RESEARCH_EXPORT_FORMAT_REVISION).toBe(9);
         expect(exportBundle.manifest).toMatchObject({
             schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
             export_format_revision: RESEARCH_EXPORT_FORMAT_REVISION,
@@ -331,11 +333,13 @@ describe('research export builder', () => {
             capture_mode: 'research',
             event_log_source: 'reconstructed_from_session_records'
         });
+        expect(exportBundle.manifest.contract_reconciliation.status).toBe('passed');
         expect(exportBundle.manifest.row_counts).toMatchObject({
             action_content: 1,
             proposal_content: 1,
             move_response_content: 1,
             rfi_content: 1,
+            artifact_workflow_reviews: 0,
             session_recording_artifacts: 1
         });
         expect(exportBundle.manifest).toMatchObject({
@@ -374,6 +378,8 @@ describe('research export builder', () => {
             action_type: 'Export Controls, Sanctions',
             instruments: ['Economic', 'Diplomacy', 'Information', 'Military'],
             final_status: 'adjudicated',
+            legacy_adjudication_outcome: 'permitted_with_constraint',
+            legacy_adjudication_notes: 'Proceed with reporting safeguards.',
             full_content: {
                 details: {
                     levers: ['Export Controls', 'Sanctions'],
@@ -417,7 +423,7 @@ describe('research export builder', () => {
         expect(exportBundle.reportLatex).toContain(String.raw`\usepackage{fontspec}`);
         expect(exportBundle.reportLatex).toContain(String.raw`\setmainfont{TeX Gyre Pagella}`);
         expect(exportBundle.reportLatex).toContain(String.raw`\section{Evidence and provenance statement}`);
-        expect(exportBundle.reportLatex).toContain(String.raw`\section{Actions and adjudications}`);
+        expect(exportBundle.reportLatex).toContain(String.raw`\section{Actions and workflow reviews}`);
         expect(exportBundle.reportLatex).toContain(String.raw`\section{Proposals: content and review}`);
         expect(exportBundle.reportLatex).toContain('Reconstructed event rows are intentionally not printed as captured session evidence.');
         expect(exportBundle.reportLatex).not.toContain(String.raw`ACTION\_SUBMITTED`);
@@ -465,10 +471,15 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Focus Sectors');
         expect(exportBundle.reportHtml).toContain('Supply Chain Decision');
         expect(exportBundle.reportHtml).toContain('Revision History');
+        expect(exportBundle.reportHtml).toContain('Historical / Legacy Adjudication');
+        expect(exportBundle.reportHtml).not.toContain('Review Outcome');
         expect(exportBundle.reportHtml).toContain('Clarify the timing conditions.');
         expect(exportBundle.reportHtml).not.toContain('Delivery (historical)');
         expect(exportBundle.reportLatex).toContain('Action angles');
         expect(exportBundle.reportLatex).toContain('Revision history');
+        expect(exportBundle.reportLatex).toContain('Historical / legacy adjudication outcome');
+        expect(exportBundle.files.find((file) => file.path === 'action_content.csv').content)
+            .toContain('legacy_adjudication_outcome');
         expect(exportBundle.reportHtml).toContain('White Cell clarification changed the pacing.');
         expect(exportBundle.reportHtml).toContain('Notes Appendix');
         expect(exportBundle.dataQualitySummary).toMatchObject({
@@ -581,6 +592,8 @@ describe('research export builder', () => {
             'proposal_content.json',
             'move_response_content.csv',
             'rfi_content.json',
+            'artifact_workflow_reviews.csv',
+            'artifact_workflow_reviews.json',
             'interaction_edges.csv',
             'derived_session_metrics.csv',
             'legacy/session_metadata.json',
@@ -591,6 +604,239 @@ describe('research export builder', () => {
         expect(checksumsFile.content).toContain('  report.tex');
         expect(checksumsFile.content).toContain('  latexmkrc');
         expect(checksumsFile.content).toContain('  LATEX_REPORT_README.md');
+    });
+
+    it('reconciles authoritative reviews, proposal rounds, and RFI history across every renderer', async () => {
+        const bundle = buildBundleFixture();
+        const action = bundle.actions.find((row) => row.id === 'action-blue-1');
+        Object.assign(action, {
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            prior_workflow_state: 'resubmitted',
+            revision_number: 2,
+            outcome: null,
+            adjudication_notes: null,
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Coordinate export posture',
+                instruments: ['Economic'],
+                notificationTeams: ['Green', 'Industry'],
+                notificationNote: 'Share the completed action with both informed teams.'
+            })
+        });
+        const proposal = bundle.actions.find((row) => row.id === 'proposal-green-1');
+        Object.assign(proposal, {
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            prior_workflow_state: 'submitted_to_white_cell',
+            revision_number: 2,
+            outcome: null,
+            adjudication_notes: null,
+            artifact_payload: {
+                proposal_recipient_reviews: {
+                    blue: {
+                        status: 'approved_forwarded',
+                        thread_id: 'thread-blue-1',
+                        communication_id: 'comm-forwarded-1',
+                        approved_at: '2026-06-03T10:11:30.000Z',
+                        approved_by_role: 'whitecell_lead'
+                    },
+                    red: { status: 'pending_white_cell_approval' }
+                }
+            }
+        });
+        const request = bundle.requests[0];
+        Object.assign(request, {
+            workflow_state: 'completed',
+            prior_workflow_state: 'resubmitted',
+            revision_number: 2,
+            review_notes: null,
+            reviewed_by_role: 'whitecell_lead',
+            completed_at: '2026-06-03T10:14:00.000Z'
+        });
+        bundle.artifactWorkflowReviews = [
+            {
+                id: 'review-action-complete-1',
+                session_id: bundle.session.id,
+                artifact_kind: 'action',
+                artifact_id: action.id,
+                artifact_type: 'blue_action',
+                team: 'blue',
+                decision: 'complete',
+                revision_number: 2,
+                next_revision_number: 2,
+                prior_status: 'submitted',
+                status_to: 'adjudicated',
+                prior_workflow_state: 'resubmitted',
+                workflow_state_to: 'completed',
+                reviewer_role: 'whitecell_lead',
+                reviewer_notes: null,
+                reviewed_at: '2026-06-03T10:12:00.000Z',
+                prior_state: { workflow_state: 'resubmitted', revision_number: 2 },
+                new_state: { workflow_state: 'completed', revision_number: 2, outcome: null }
+            },
+            {
+                id: 'review-proposal-complete-1',
+                session_id: bundle.session.id,
+                artifact_kind: 'action',
+                artifact_id: proposal.id,
+                artifact_type: 'proposal',
+                team: 'green',
+                decision: 'complete',
+                revision_number: 2,
+                next_revision_number: 2,
+                prior_status: 'submitted',
+                status_to: 'adjudicated',
+                prior_workflow_state: 'submitted_to_white_cell',
+                workflow_state_to: 'completed',
+                reviewer_role: 'whitecell_lead',
+                reviewed_at: '2026-06-03T10:13:00.000Z',
+                prior_state: { workflow_state: 'submitted_to_white_cell' },
+                new_state: { workflow_state: 'completed', outcome: null }
+            },
+            {
+                id: 'review-rfi-return-1',
+                session_id: bundle.session.id,
+                artifact_kind: 'rfi',
+                artifact_id: request.id,
+                artifact_type: 'rfi',
+                team: 'blue',
+                decision: 'return_for_clarification',
+                revision_number: 1,
+                next_revision_number: 2,
+                prior_status: 'pending',
+                status_to: 'pending',
+                prior_workflow_state: 'submitted_to_white_cell',
+                workflow_state_to: 'returned_to_team',
+                reviewer_role: 'whitecell_lead',
+                reviewer_notes: 'Specify the requested reporting horizon.',
+                reviewed_at: '2026-06-03T10:10:00.000Z',
+                prior_state: { query: 'What is the latest White Cell guidance?' },
+                new_state: { workflow_state: 'returned_to_team', revision_number: 2 }
+            }
+        ];
+        bundle.communications = [
+            {
+                id: 'comm-forwarded-1',
+                type: 'PROPOSAL_FORWARDED',
+                from_role: 'white_cell',
+                to_role: 'blue',
+                content: 'Forwarded to Blue.',
+                created_at: '2026-06-03T10:11:30.000Z',
+                metadata: {
+                    thread_id: 'thread-blue-1', recipient_team: 'blue', round_number: 0,
+                    parent_message_id: null, source_proposal_id: proposal.id, source_revision: 2,
+                    source_team: 'green', sender_team: 'white_cell', sender_role: 'whitecell_lead',
+                    sent_at: '2026-06-03T10:11:30.000Z', message_type: 'proposal_forwarded'
+                }
+            },
+            {
+                id: 'comm-response-1',
+                type: 'PROPOSAL_RESPONSE',
+                from_role: 'blue_scribe',
+                to_role: 'green',
+                content: 'Blue requests a second negotiation round.',
+                created_at: '2026-06-03T10:15:30.000Z',
+                metadata: {
+                    thread_id: 'thread-blue-1', recipient_team: 'blue', round_number: 1,
+                    parent_message_id: 'comm-forwarded-1', source_proposal_id: proposal.id, source_revision: 2,
+                    source_team: 'green', sender_team: 'blue', sender_role: 'blue_scribe',
+                    sent_at: '2026-06-03T10:15:30.000Z', message_type: 'recipient_response',
+                    facilitator_decision: 'negotiate', client_message_id: 'blue-round-1'
+                }
+            },
+            {
+                id: 'rfi-answer-1',
+                linked_request_id: request.id,
+                type: 'rfi_response',
+                from_role: 'white_cell',
+                to_role: 'blue',
+                content: request.response,
+                created_at: request.responded_at,
+                metadata: { workflow_state: 'completed', revision_number: 2, answered_by_role: 'whitecell_lead' }
+            }
+        ];
+        bundle.timeline.push({
+            id: 'timeline-rfi-resubmitted-1',
+            type: 'RFI_RESUBMITTED',
+            created_at: '2026-06-03T10:12:30.000Z',
+            metadata: { related_id: request.id, revision_number: 2 }
+        });
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z'
+        });
+
+        expect(exportBundle.manifest.contract_reconciliation).toMatchObject({
+            status: 'passed',
+            checks: {
+                artifact_review_rows: { source_count: 3, projected_count: 3, matches: true },
+                proposal_threads: {
+                    source_thread_count: 1,
+                    projected_thread_count: 1,
+                    source_round_count: 2,
+                    projected_round_count: 2,
+                    approved_recipient_count: 1,
+                    round_zero_count: 1,
+                    matches: true
+                },
+                rfi_revisions: { return_review_count: 1, resubmission_count: 1, answer_count: 1, matches: true },
+                ui_workflow_projection: { matches: true, current_completed_outcome_violations: 0 }
+            }
+        });
+        expect(exportBundle.actionContent[0]).toMatchObject({
+            workflow_state: 'completed',
+            revision_number: 2,
+            notification_audiences: ['green', 'industry'],
+            notification_note: 'Share the completed action with both informed teams.',
+            legacy_adjudication_outcome: null,
+            review_history: [expect.objectContaining({ review_id: 'review-action-complete-1', decision: 'complete' })]
+        });
+        expect(exportBundle.proposalContent[0]).toMatchObject({
+            workflow_state: 'completed',
+            recipient_approvals: { blue: expect.objectContaining({ thread_id: 'thread-blue-1' }) },
+            thread_count: 1,
+            round_count: 2,
+            thread_history: [
+                expect.objectContaining({ thread_id: 'thread-blue-1', round_number: 0, parent_message_id: null }),
+                expect.objectContaining({ thread_id: 'thread-blue-1', round_number: 1, parent_message_id: 'comm-forwarded-1' })
+            ],
+            review_decision: null
+        });
+        expect(exportBundle.rfiContent[0]).toMatchObject({
+            workflow_state: 'completed',
+            revision_number: 2,
+            return_notes: 'Specify the requested reporting horizon.',
+            returned_by_role: 'whitecell_lead',
+            resubmitted_utc: '2026-06-03T10:12:30.000Z',
+            answer_history: [expect.objectContaining({ communication_id: 'rfi-answer-1', revision_number: 2 })]
+        });
+        const actionCsv = exportBundle.files.find((file) => file.path === 'action_content.csv').content;
+        const proposalCsv = exportBundle.files.find((file) => file.path === 'proposal_content.csv').content;
+        const rfiCsv = exportBundle.files.find((file) => file.path === 'rfi_content.csv').content;
+        const workflowReviewsJson = exportBundle.files.find((file) => file.path === 'artifact_workflow_reviews.json').content;
+        expect(actionCsv).toContain('notification_audiences');
+        expect(proposalCsv).toContain('thread_history');
+        expect(rfiCsv).toContain('answer_history');
+        expect(JSON.parse(workflowReviewsJson)).toHaveLength(3);
+        expect(exportBundle.codebook.tables).toEqual(expect.arrayContaining([
+            expect.objectContaining({ table_name: 'action_content', column_name: 'review_history', data_type: 'json' }),
+            expect.objectContaining({ table_name: 'proposal_content', column_name: 'thread_history', data_type: 'json' }),
+            expect.objectContaining({ table_name: 'rfi_content', column_name: 'answer_history', data_type: 'json' }),
+            expect.objectContaining({ table_name: 'artifact_workflow_reviews', column_name: 'prior_state', data_type: 'json' }),
+            expect.objectContaining({ table_name: 'artifact_workflow_reviews', column_name: 'new_state', data_type: 'json' }),
+            expect.objectContaining({ table_name: 'event_log', column_name: 'before_state', data_type: 'json' }),
+            expect.objectContaining({ table_name: 'event_log', column_name: 'after_state', data_type: 'json' }),
+            expect.objectContaining({ table_name: 'action_content', column_name: 'workflow_state', data_type: 'string' }),
+            expect.objectContaining({ table_name: 'artifact_workflow_reviews', column_name: 'prior_status', data_type: 'string' }),
+            expect.objectContaining({ table_name: 'turning_points', column_name: 'evidence_summary', data_type: 'string' })
+        ]));
+        expect(exportBundle.reportHtml).toContain('Authoritative Review Records');
+        expect(exportBundle.reportHtml).toContain('Immutable Proposal Thread History');
+        expect(exportBundle.reportHtml).toContain('Specify the requested reporting horizon.');
+        expect(exportBundle.reportHtml).not.toContain('Review Outcome');
+        expect(exportBundle.reportLatex).toContain('Workflow review history');
+        expect(exportBundle.reportLatex).toContain('Immutable thread history');
+        expect(exportBundle.reportLatex).toContain('Answer history');
     });
 
     it('attributes current RFIs to the actual Facilitator while preserving legacy attribution', async () => {

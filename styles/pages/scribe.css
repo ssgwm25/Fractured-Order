@@ -613,6 +613,48 @@ body::before {
     padding: 0 var(--space-3);
 }
 
+.scribe-action-mark-navigation {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0 var(--space-3);
+    overflow: hidden;
+}
+
+.scribe-action-mark-rail {
+    flex-wrap: nowrap;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+}
+
+.scribe-action-mark-tab {
+    flex: 0 0 max-content;
+}
+
+.scribe-action-mark-tab:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--border-width-2);
+}
+
+.scribe-action-mark-panel {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.scribe-action-mark-panel .scribe-slide-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.scribe-action-mark-panel .scribe-slide-list > li {
+    min-width: 0;
+}
+
 .scribe-action-mark-section {
     display: grid;
     gap: var(--space-2);
@@ -2303,6 +2345,7 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
 #sidebar.sidebar-collapsed .scribe-section-region-heading,
 #sidebar.sidebar-collapsed .scribe-slide-group,
 #sidebar.sidebar-collapsed .scribe-action-mark-stack,
+#sidebar.sidebar-collapsed .scribe-action-mark-navigation,
 #sidebar.sidebar-collapsed .scribe-section-trigger-text,
 #sidebar.sidebar-collapsed .scribe-section-trigger-meta,
 #sidebar.sidebar-collapsed .scribe-view-switch,
@@ -2412,10 +2455,24 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
     }
 
     .scribe-section-region--actions,
+    .scribe-action-mark-navigation,
+    .scribe-action-mark-panel,
     .scribe-action-mark-stack,
     .scribe-action-mark-section {
         max-width: 100%;
         min-width: 0;
+    }
+
+    .scribe-action-mark-rail {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-inline: contain;
+    }
+
+    .scribe-action-mark-tab {
+        flex: 0 0 auto;
     }
 
     .sidebar-overlay.sidebar-overlay-visible {

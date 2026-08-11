@@ -32,8 +32,8 @@ import { SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
-export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.7.0';
-export const RESEARCH_EXPORT_FORMAT_REVISION = 8;
+export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.8.0';
+export const RESEARCH_EXPORT_FORMAT_REVISION = 9;
 
 const HASHED_EVENT_FIELDS = [
     'event_id',
@@ -189,7 +189,16 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'resources_committed',
         'full_content',
         'submitted_utc',
-        'final_status'
+        'final_status',
+        'workflow_state',
+        'prior_workflow_state',
+        'revision_number',
+        'notification_audiences',
+        'notification_note',
+        'review_history',
+        'legacy_adjudication_outcome',
+        'legacy_adjudication_notes',
+        'legacy_adjudicated_utc'
     ],
     proposal_content: [
         'proposal_id',
@@ -211,6 +220,12 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'proposed_activity',
         'revision_number',
         'revision_history',
+        'workflow_state',
+        'prior_workflow_state',
+        'recipient_approvals',
+        'thread_history',
+        'thread_count',
+        'round_count',
         'proposal_text',
         'requested_action',
         'rationale',
@@ -220,6 +235,7 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'review_reason',
         'reviewer_pseudonym',
         'reviewed_utc',
+        'review_evidence_classification',
         'forwarded_to_team',
         'forwarded_to_teams',
         'final_recipient_state'
@@ -235,7 +251,8 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'ruling',
         'reasoning',
         'effects',
-        'adjudicated_utc'
+        'adjudicated_utc',
+        'evidence_classification'
     ],
     move_response_content: [
         'move_response_id',
@@ -251,7 +268,14 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'rationale',
         'full_content',
         'submitted_utc',
-        'review_state'
+        'review_state',
+        'workflow_state',
+        'prior_workflow_state',
+        'revision_number',
+        'review_history',
+        'legacy_adjudication_outcome',
+        'legacy_adjudication_notes',
+        'legacy_adjudicated_utc'
     ],
     rfi_content: [
         'rfi_id',
@@ -265,7 +289,38 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'answer_text',
         'answered_by_pseudonym',
         'answered_utc',
-        'status'
+        'status',
+        'workflow_state',
+        'prior_workflow_state',
+        'revision_number',
+        'return_notes',
+        'returned_by_role',
+        'returned_utc',
+        'resubmitted_utc',
+        'review_history',
+        'resubmission_history',
+        'answer_history',
+        'completed_utc'
+    ],
+    artifact_workflow_reviews: [
+        'review_id',
+        'session_id',
+        'artifact_kind',
+        'artifact_id',
+        'artifact_type',
+        'team',
+        'decision',
+        'revision_number',
+        'next_revision_number',
+        'prior_status',
+        'status_to',
+        'prior_workflow_state',
+        'workflow_state_to',
+        'reviewer_role',
+        'reviewer_notes',
+        'reviewed_utc',
+        'prior_state',
+        'new_state'
     ],
     interaction_edges: [
         'edge_id',
@@ -817,7 +872,9 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                 causal_event_id: null,
                 before_state: null,
                 after_state: {
-                    status: action?.status || 'draft'
+                    status: action?.status || 'draft',
+                    workflow_state: action?.workflow_state || null,
+                    revision_number: action?.revision_number ?? null
                 },
                 payload: {
                     title: action?.goal || null
@@ -848,7 +905,9 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                     status: 'draft'
                 },
                 after_state: {
-                    status: action?.status || 'submitted'
+                    status: action?.status || 'submitted',
+                    workflow_state: action?.workflow_state || null,
+                    revision_number: action?.revision_number ?? null
                 },
                 payload: {
                     title: action?.goal || null
@@ -914,7 +973,9 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                     status: 'draft'
                 },
                 after_state: {
-                    status: action?.status || 'submitted'
+                    status: action?.status || 'submitted',
+                    workflow_state: action?.workflow_state || null,
+                    revision_number: action?.revision_number ?? null
                 },
                 payload: {
                     title: action?.goal || null
@@ -925,7 +986,10 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
             });
         }
 
-        if (action?.adjudicated_at) {
+        // Only persisted legacy outcomes reconstruct adjudication events. Current
+        // workflow completion is reconstructed from artifact_workflow_reviews
+        // below and never receives an inferred ruling.
+        if (action?.adjudicated_at && action?.outcome) {
             events.push({
                 event_uuid: nextSyntheticId('event', counterRef),
                 session_id: sessionId,
@@ -970,13 +1034,51 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                 },
                 payload: {
                     outcome: action?.outcome || null,
-                    adjudication_notes: action?.adjudication_notes || null
+                    adjudication_notes: action?.adjudication_notes || null,
+                    evidence_classification: 'historical_legacy_adjudication'
                 },
                 phase: action?.phase ?? null,
                 elapsed_session_s: null,
                 elapsed_actor_prev_s: null
             });
         }
+    });
+
+    buildArtifactWorkflowReviewRows(bundle).forEach((review) => {
+        events.push({
+            event_uuid: review.review_id || nextSyntheticId('event', counterRef),
+            session_id: review.session_id || sessionId,
+            event_ts_utc: review.reviewed_utc,
+            server_received_utc: review.reviewed_utc,
+            client_ts_utc: null,
+            actor_pseudonym: 'whitecell-operator',
+            actor_role: review.reviewer_role,
+            actor_team: 'whitecell',
+            actor_seat_index: null,
+            event_type: review.decision === 'complete'
+                ? 'ARTIFACT_COMPLETED'
+                : review.decision === 'return_for_clarification'
+                    ? 'RFI_RETURNED_FOR_CLARIFICATION'
+                    : 'ARTIFACT_RETURNED_TO_TEAM',
+            entity_type: review.artifact_kind,
+            entity_id: review.artifact_id,
+            move_number: safeObject(review.new_state).move ?? safeObject(review.prior_state).move ?? null,
+            action_sequence: null,
+            correlation_id: review.artifact_id,
+            causal_event_id: null,
+            before_state: review.prior_state,
+            after_state: review.new_state,
+            payload: {
+                decision: review.decision,
+                revision_number: review.revision_number,
+                next_revision_number: review.next_revision_number,
+                reviewer_notes: review.reviewer_notes,
+                evidence_source: 'artifact_workflow_reviews'
+            },
+            phase: safeObject(review.new_state).phase ?? safeObject(review.prior_state).phase ?? null,
+            elapsed_session_s: null,
+            elapsed_actor_prev_s: null
+        });
     });
 
     safeArray(bundle.requests).forEach((request) => {
@@ -1007,7 +1109,9 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
             causal_event_id: null,
             before_state: null,
             after_state: {
-                status: request?.status || 'pending'
+                status: request?.status || 'pending',
+                workflow_state: request?.workflow_state || null,
+                revision_number: request?.revision_number ?? null
             },
             payload: {
                 question_text: request?.query || null
@@ -1040,7 +1144,9 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
                     status: 'pending'
                 },
                 after_state: {
-                    status: 'answered'
+                    status: 'answered',
+                    workflow_state: request?.workflow_state || null,
+                    revision_number: request?.revision_number ?? null
                 },
                 payload: {
                     answer_text: request?.response || null
@@ -1378,10 +1484,28 @@ function buildDraftRevisions(bundle = {}, participantRegistry) {
         });
 }
 
-function buildActionContent(bundle = {}, participantRegistry) {
+function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowReviews = []) {
     const explicitRows = safeArray(bundle.researchActionContent);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows.map((row) => {
+            const action = safeArray(bundle.actions).find((candidate) => candidate?.id === row.action_id);
+            if (!action) return row;
+            const viewModel = getBlueActionViewModel(action);
+            return {
+                ...row,
+                workflow_state: action.workflow_state || null,
+                prior_workflow_state: action.prior_workflow_state || null,
+                revision_number: action.revision_number ?? null,
+                notification_audiences: safeArray(viewModel.notificationTeams)
+                    .map((team) => String(team).trim().toLowerCase())
+                    .filter(Boolean),
+                notification_note: viewModel.notificationNote || null,
+                review_history: resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action.id, isStrategicOrientationAction(action) ? 'strategic_orientation' : 'action'),
+                legacy_adjudication_outcome: action.outcome || null,
+                legacy_adjudication_notes: action.outcome ? action.adjudication_notes || null : null,
+                legacy_adjudicated_utc: action.outcome ? asUtcIso(action.adjudicated_at) : null
+            };
+        });
     }
 
     return safeArray(bundle.actions)
@@ -1394,6 +1518,19 @@ function buildActionContent(bundle = {}, participantRegistry) {
             const viewModel = getBlueActionViewModel(action);
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
+            const reviewHistory = resolveArtifactReviewHistory(
+                bundle,
+                artifactWorkflowReviews,
+                action?.id,
+                isStrategicOrientation ? 'strategic_orientation' : 'action'
+            );
+            const legacyAdjudication = action?.outcome
+                ? {
+                    outcome: action.outcome,
+                    notes: action?.adjudication_notes || null,
+                    adjudicated_utc: asUtcIso(action?.adjudicated_at)
+                }
+                : null;
             if (isStrategicOrientation) {
                 const isForecast = strategicDetails?.artifactType === 'forecast';
                 const forecastTargets = safeArray(strategicDetails?.forecastTargets);
@@ -1448,7 +1585,16 @@ function buildActionContent(bundle = {}, participantRegistry) {
                         details: sessionDetails
                     },
                     submitted_utc: asUtcIso(action?.submitted_at),
-                    final_status: action?.status || null
+                    final_status: action?.status || null,
+                    workflow_state: action?.workflow_state || null,
+                    prior_workflow_state: action?.prior_workflow_state || null,
+                    revision_number: action?.revision_number ?? null,
+                    notification_audiences: [],
+                    notification_note: null,
+                    review_history: reviewHistory,
+                    legacy_adjudication_outcome: legacyAdjudication?.outcome || null,
+                    legacy_adjudication_notes: legacyAdjudication?.notes || null,
+                    legacy_adjudicated_utc: legacyAdjudication?.adjudicated_utc || null
                 };
             }
 
@@ -1479,15 +1625,46 @@ function buildActionContent(bundle = {}, participantRegistry) {
                     details: viewModel
                 },
                 submitted_utc: asUtcIso(action?.submitted_at),
-                final_status: action?.status || null
+                final_status: action?.status || null,
+                workflow_state: action?.workflow_state || null,
+                prior_workflow_state: action?.prior_workflow_state || null,
+                revision_number: action?.revision_number ?? null,
+                notification_audiences: safeArray(viewModel.notificationTeams)
+                    .map((team) => String(team).trim().toLowerCase())
+                    .filter(Boolean),
+                notification_note: viewModel.notificationNote || null,
+                review_history: reviewHistory,
+                legacy_adjudication_outcome: legacyAdjudication?.outcome || null,
+                legacy_adjudication_notes: legacyAdjudication?.notes || null,
+                legacy_adjudicated_utc: legacyAdjudication?.adjudicated_utc || null
             };
         });
 }
 
-function buildProposalContent(bundle = {}, participantRegistry) {
+function buildProposalContent(bundle = {}, participantRegistry, artifactWorkflowReviews = []) {
     const explicitRows = safeArray(bundle.researchProposalContent);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows.map((row) => {
+            const action = safeArray(bundle.actions).find((candidate) => candidate?.id === row.proposal_id);
+            if (!action) return row;
+            const threadHistory = buildProposalThreadHistory(bundle.communications, action.id);
+            return {
+                ...row,
+                workflow_state: action.workflow_state || null,
+                prior_workflow_state: action.prior_workflow_state || null,
+                revision_number: action.revision_number ?? row.revision_number ?? null,
+                revision_history: resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action.id, 'proposal'),
+                recipient_approvals: safeObject(action?.artifact_payload?.proposal_recipient_reviews),
+                thread_history: threadHistory,
+                thread_count: new Set(threadHistory.map((message) => message.thread_id).filter(Boolean)).size,
+                round_count: threadHistory.length,
+                review_decision: action.outcome || null,
+                review_reason: action.outcome ? action.adjudication_notes || null : null,
+                reviewer_pseudonym: action.outcome ? 'whitecell-operator' : null,
+                reviewed_utc: action.outcome ? asUtcIso(action.adjudicated_at) : null,
+                review_evidence_classification: action.outcome ? 'historical_legacy_adjudication' : null
+            };
+        });
     }
 
     return safeArray(bundle.actions)
@@ -1502,24 +1679,15 @@ function buildProposalContent(bundle = {}, participantRegistry) {
                 || null;
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
-            const revisionHistory = safeArray(bundle.timeline)
-                .filter((event) => {
-                    const metadata = safeObject(event?.metadata);
-                    return (event?.type || event?.event_type) === 'ARTIFACT_RETURNED_TO_TEAM'
-                        && (metadata.related_id === action?.id || metadata.action_id === action?.id)
-                        && (!metadata.artifact_kind || metadata.artifact_kind === 'proposal');
-                })
-                .map((event) => {
-                    const metadata = safeObject(event?.metadata);
-                    return {
-                        revision_number: metadata.revision_number || 1,
-                        next_revision_number: metadata.next_revision_number || null,
-                        reviewer_role: metadata.role || 'whitecell_lead',
-                        reviewer_notes: metadata.return_notes || event?.content || null,
-                        returned_utc: asUtcIso(event?.created_at || event?.event_ts_utc)
-                    };
-                })
-                .sort((left, right) => String(left.returned_utc || '').localeCompare(String(right.returned_utc || '')));
+            const revisionHistory = resolveArtifactReviewHistory(
+                bundle,
+                artifactWorkflowReviews,
+                action?.id,
+                'proposal'
+            );
+            const threadHistory = buildProposalThreadHistory(bundle.communications, action?.id);
+            const recipientApprovals = safeObject(action?.artifact_payload?.proposal_recipient_reviews);
+            const threadCount = new Set(threadHistory.map((message) => message.thread_id).filter(Boolean)).size;
 
             return {
                 proposal_id: action?.id || null,
@@ -1544,6 +1712,12 @@ function buildProposalContent(bundle = {}, participantRegistry) {
                 proposed_activity: viewModel.proposedActivity || null,
                 revision_number: action?.revision_number || viewModel.revisionMetadata?.revisionNumber || 1,
                 revision_history: revisionHistory,
+                workflow_state: action?.workflow_state || null,
+                prior_workflow_state: action?.prior_workflow_state || null,
+                recipient_approvals: recipientApprovals,
+                thread_history: threadHistory,
+                thread_count: threadCount,
+                round_count: threadHistory.length,
                 proposal_text: viewModel.objective || null,
                 requested_action: viewModel.expectedOutcomes || null,
                 rationale: viewModel.timingAndConditions || null,
@@ -1554,9 +1728,12 @@ function buildProposalContent(bundle = {}, participantRegistry) {
                 },
                 submitted_utc: asUtcIso(action?.submitted_at),
                 review_decision: action?.outcome || null,
-                review_reason: action?.adjudication_notes || null,
-                reviewer_pseudonym: action?.adjudicated_at ? 'whitecell-operator' : null,
-                reviewed_utc: asUtcIso(action?.adjudicated_at),
+                review_reason: action?.outcome ? action?.adjudication_notes || null : null,
+                reviewer_pseudonym: action?.outcome ? 'whitecell-operator' : null,
+                reviewed_utc: action?.outcome ? asUtcIso(action?.adjudicated_at) : null,
+                review_evidence_classification: action?.outcome
+                    ? 'historical_legacy_adjudication'
+                    : null,
                 forwarded_to_team: forwardedMetadata.recipient_team || viewModel.recipientTeam || null,
                 forwarded_to_teams: safeArray(bundle.communications)
                     .filter((communication) => (
@@ -1573,11 +1750,16 @@ function buildProposalContent(bundle = {}, participantRegistry) {
 function buildAdjudicationContent(bundle = {}) {
     const explicitRows = safeArray(bundle.researchAdjudicationContent);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows
+            .filter((row) => row?.ruling !== null && row?.ruling !== undefined && String(row.ruling).trim() !== '')
+            .map((row) => ({
+                ...row,
+                evidence_classification: 'historical_legacy_adjudication'
+            }));
     }
 
     return safeArray(bundle.actions)
-        .filter((action) => action?.adjudicated_at)
+        .filter((action) => action?.adjudicated_at && action?.outcome)
         .map((action) => ({
             adjudication_id: `${action.id}-adjudication`,
             session_id: bundle.session?.id || null,
@@ -1595,14 +1777,28 @@ function buildAdjudicationContent(bundle = {}) {
             ruling: action?.outcome || null,
             reasoning: action?.adjudication_notes || null,
             effects: safeObject(action?.adjudication),
-            adjudicated_utc: asUtcIso(action?.adjudicated_at)
+            adjudicated_utc: asUtcIso(action?.adjudicated_at),
+            evidence_classification: 'historical_legacy_adjudication'
         }));
 }
 
-function buildMoveResponseContent(bundle = {}, participantRegistry) {
+function buildMoveResponseContent(bundle = {}, participantRegistry, artifactWorkflowReviews = []) {
     const explicitRows = safeArray(bundle.researchMoveResponseContent);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows.map((row) => {
+            const action = safeArray(bundle.actions).find((candidate) => candidate?.id === row.move_response_id);
+            if (!action) return row;
+            return {
+                ...row,
+                workflow_state: action.workflow_state || null,
+                prior_workflow_state: action.prior_workflow_state || null,
+                revision_number: action.revision_number ?? null,
+                review_history: resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action.id, 'action'),
+                legacy_adjudication_outcome: action.outcome || null,
+                legacy_adjudication_notes: action.outcome ? action.adjudication_notes || null : null,
+                legacy_adjudicated_utc: action.outcome ? asUtcIso(action.adjudicated_at) : null
+            };
+        });
     }
 
     return safeArray(bundle.actions)
@@ -1611,6 +1807,7 @@ function buildMoveResponseContent(bundle = {}, participantRegistry) {
             const viewModel = getMoveResponseViewModel(action);
             const authorRole = action?.team ? `${action.team}_facilitator` : null;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
+            const reviewHistory = resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action?.id, 'action');
 
             return {
                 move_response_id: action?.id || null,
@@ -1633,20 +1830,57 @@ function buildMoveResponseContent(bundle = {}, participantRegistry) {
                     details: viewModel
                 },
                 submitted_utc: asUtcIso(action?.submitted_at),
-                review_state: action?.status || null
+                review_state: action?.status || null,
+                workflow_state: action?.workflow_state || null,
+                prior_workflow_state: action?.prior_workflow_state || null,
+                revision_number: action?.revision_number ?? null,
+                review_history: reviewHistory,
+                legacy_adjudication_outcome: action?.outcome || null,
+                legacy_adjudication_notes: action?.outcome ? action?.adjudication_notes || null : null,
+                legacy_adjudicated_utc: action?.outcome ? asUtcIso(action?.adjudicated_at) : null
             };
         });
 }
 
-function buildRfiContent(bundle = {}, participantRegistry) {
+function buildRfiContent(bundle = {}, participantRegistry, artifactWorkflowReviews = []) {
     const explicitRows = safeArray(bundle.researchRfiContent);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows.map((row) => {
+            const request = safeArray(bundle.requests).find((candidate) => candidate?.id === row.rfi_id);
+            if (!request) return row;
+            const reviewHistory = resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, request.id, 'rfi');
+            const returnReview = [...reviewHistory].reverse().find((review) => review.decision === 'return_for_clarification');
+            const resubmissionHistory = buildRfiResubmissionHistory(bundle, request.id);
+            const answerHistory = buildRfiAnswerHistory(bundle, request);
+            return {
+                ...row,
+                workflow_state: request.workflow_state || null,
+                prior_workflow_state: request.prior_workflow_state || null,
+                revision_number: request.revision_number ?? null,
+                return_notes: returnReview?.reviewer_notes || request.review_notes || null,
+                returned_by_role: returnReview?.reviewer_role || request.reviewed_by_role || null,
+                returned_utc: returnReview?.reviewed_utc || null,
+                resubmitted_utc: resubmissionHistory[resubmissionHistory.length - 1]?.resubmitted_utc || null,
+                review_history: reviewHistory,
+                resubmission_history: resubmissionHistory,
+                answer_history: answerHistory,
+                answer_text: answerHistory[answerHistory.length - 1]?.answer_text || request.response || row.answer_text || null,
+                answered_utc: answerHistory[answerHistory.length - 1]?.answered_utc || asUtcIso(request.responded_at || request.answered_at),
+                completed_utc: asUtcIso(request.completed_at) || answerHistory[answerHistory.length - 1]?.answered_utc || null
+            };
+        });
     }
 
     return safeArray(bundle.requests).map((request) => {
         const requesterRole = resolveRequestAuthorRole(bundle, request);
         const requesterTeam = inferTeamFromRole(requesterRole, request?.team);
+        const reviewHistory = resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, request?.id, 'rfi');
+        const returnReview = [...reviewHistory]
+            .reverse()
+            .find((review) => review.decision === 'return_for_clarification');
+        const resubmissionHistory = buildRfiResubmissionHistory(bundle, request?.id);
+        const answerHistory = buildRfiAnswerHistory(bundle, request);
+        const latestAnswer = answerHistory[answerHistory.length - 1];
 
         return {
             rfi_id: request?.id || null,
@@ -1660,10 +1894,21 @@ function buildRfiContent(bundle = {}, participantRegistry) {
             move_number: request?.move ?? null,
             question_text: request?.query || null,
             raised_utc: asUtcIso(request?.created_at),
-            answer_text: request?.response || null,
-            answered_by_pseudonym: request?.response ? 'whitecell-operator' : null,
-            answered_utc: asUtcIso(request?.responded_at || request?.answered_at),
-            status: request?.status || 'pending'
+            answer_text: latestAnswer?.answer_text || request?.response || null,
+            answered_by_pseudonym: latestAnswer?.answered_by_role ? 'whitecell-operator' : (request?.response ? 'whitecell-operator' : null),
+            answered_utc: latestAnswer?.answered_utc || asUtcIso(request?.responded_at || request?.answered_at),
+            status: request?.status || 'pending',
+            workflow_state: request?.workflow_state || null,
+            prior_workflow_state: request?.prior_workflow_state || null,
+            revision_number: request?.revision_number ?? null,
+            return_notes: returnReview?.reviewer_notes || request?.review_notes || null,
+            returned_by_role: returnReview?.reviewer_role || request?.reviewed_by_role || null,
+            returned_utc: returnReview?.reviewed_utc || null,
+            resubmitted_utc: resubmissionHistory[resubmissionHistory.length - 1]?.resubmitted_utc || null,
+            review_history: reviewHistory,
+            resubmission_history: resubmissionHistory,
+            answer_history: answerHistory,
+            completed_utc: asUtcIso(request?.completed_at) || latestAnswer?.answered_utc || null
         };
     });
 }
@@ -1675,6 +1920,26 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
     }
 
     const transitions = [];
+    const appendReviewTransitions = ({ reviews, sessionId, entityType, entityId, team, moveNumber }) => {
+        safeArray(reviews).forEach((review) => {
+            transitions.push({
+                transition_id: review.review_id || `${entityId}-${review.decision}-${review.revision_number}`,
+                session_id: sessionId,
+                entity_type: entityType,
+                entity_id: entityId,
+                from_state: review.prior_workflow_state || review.prior_status,
+                to_state: review.workflow_state_to || review.status_to,
+                transition_utc: review.reviewed_utc,
+                actor_pseudonym: 'whitecell-operator',
+                actor_role: review.reviewer_role,
+                actor_team: 'whitecell',
+                recipient_team: team,
+                move_number: moveNumber,
+                dwell_in_from_s: null,
+                triggering_event_id: null
+            });
+        });
+    };
 
     actionContent.forEach((action) => {
         const entityType = isStrategicOrientationContentRow(action) ? 'strategic_orientation' : 'action';
@@ -1713,7 +1978,15 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
                 triggering_event_id: null
             });
         }
-        if (action.final_status === 'adjudicated') {
+        appendReviewTransitions({
+            reviews: action.review_history,
+            sessionId: action.session_id,
+            entityType,
+            entityId: action.action_id,
+            team: action.author_team,
+            moveNumber: action.move_number
+        });
+        if (!safeArray(action.review_history).length && action.legacy_adjudication_outcome && action.final_status === 'adjudicated') {
             const sourceAction = safeArray(bundle.actions).find((candidate) => candidate?.id === action.action_id);
             transitions.push({
                 transition_id: `${action.action_id}-adjudicated`,
@@ -1770,6 +2043,32 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
                 triggering_event_id: null
             });
         }
+        appendReviewTransitions({
+            reviews: proposal.revision_history,
+            sessionId: proposal.session_id,
+            entityType: 'proposal',
+            entityId: proposal.proposal_id,
+            team: proposal.author_team,
+            moveNumber: proposal.move_number
+        });
+        safeArray(proposal.thread_history).forEach((message) => {
+            transitions.push({
+                transition_id: message.message_id,
+                session_id: proposal.session_id,
+                entity_type: 'proposal',
+                entity_id: proposal.proposal_id,
+                from_state: message.round_number === 0 ? proposal.workflow_state || 'submitted' : 'thread_open',
+                to_state: message.round_number === 0 ? 'approved_forwarded' : message.message_type,
+                transition_utc: message.sent_utc,
+                actor_pseudonym: message.sender_team === 'white_cell' ? 'whitecell-operator' : null,
+                actor_role: message.sender_role,
+                actor_team: message.sender_team,
+                recipient_team: message.recipient_team,
+                move_number: proposal.move_number,
+                dwell_in_from_s: null,
+                triggering_event_id: null
+            });
+        });
 
         const reviewState = proposal.review_decision === 'forwarded'
             ? 'forwarded'
@@ -1839,7 +2138,15 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
             dwell_in_from_s: null,
             triggering_event_id: null
         });
-        if (response.review_state === 'adjudicated' && sourceAction?.adjudicated_at) {
+        appendReviewTransitions({
+            reviews: response.review_history,
+            sessionId: response.session_id,
+            entityType: 'move_response',
+            entityId: response.move_response_id,
+            team: response.author_team,
+            moveNumber: response.move_number
+        });
+        if (!safeArray(response.review_history).length && response.legacy_adjudication_outcome && response.review_state === 'adjudicated' && sourceAction?.adjudicated_at) {
             transitions.push({
                 transition_id: `${response.move_response_id}-reviewed`,
                 session_id: response.session_id,
@@ -1875,6 +2182,32 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
             move_number: rfi.move_number,
             dwell_in_from_s: null,
             triggering_event_id: null
+        });
+        appendReviewTransitions({
+            reviews: rfi.review_history,
+            sessionId: rfi.session_id,
+            entityType: 'rfi',
+            entityId: rfi.rfi_id,
+            team: rfi.requester_team,
+            moveNumber: rfi.move_number
+        });
+        safeArray(rfi.resubmission_history).forEach((resubmission) => {
+            transitions.push({
+                transition_id: resubmission.timeline_event_id || `${rfi.rfi_id}-resubmitted-${resubmission.revision_number}`,
+                session_id: rfi.session_id,
+                entity_type: 'rfi',
+                entity_id: rfi.rfi_id,
+                from_state: 'returned_to_team',
+                to_state: 'resubmitted',
+                transition_utc: resubmission.resubmitted_utc,
+                actor_pseudonym: rfi.requester_pseudonym,
+                actor_role: rfi.requester_role,
+                actor_team: rfi.requester_team,
+                recipient_team: 'whitecell',
+                move_number: rfi.move_number,
+                dwell_in_from_s: null,
+                triggering_event_id: null
+            });
         });
         if (rfi.answered_utc) {
             transitions.push({
@@ -2141,7 +2474,11 @@ function buildDerivedSessionMetrics({
             actions_submitted: moveActions.filter((row) => row.submitted_utc).length,
             actions_adjudicated: moveActions.filter((row) => row.final_status === 'adjudicated').length,
             proposals_submitted: proposalContent.filter((row) => row.submitted_utc).length,
-            proposals_forwarded: proposalContent.filter((row) => row.review_decision === 'forwarded').length,
+            proposals_forwarded: proposalContent.filter((row) => (
+                safeArray(row.forwarded_to_teams).length
+                || safeArray(row.thread_history).some((message) => message.round_number === 0)
+                || row.review_decision === 'forwarded'
+            )).length,
             rfis_raised: rfiContent.length,
             communications_sent: interactionEdges.filter((edge) => edge.channel === 'communication').length,
             mean_proposal_response_latency_s: proposalLatencies.length
@@ -2296,6 +2633,7 @@ function buildResearchTableCoverage({
     adjudicationContent,
     moveResponseContent,
     rfiContent,
+    artifactWorkflowReviews,
     interactionEdges,
     sessionRecordingArtifacts,
     dataQualityEvents,
@@ -2319,6 +2657,7 @@ function buildResearchTableCoverage({
         adjudication_content: adjudicationContent,
         move_response_content: moveResponseContent,
         rfi_content: rfiContent,
+        artifact_workflow_reviews: artifactWorkflowReviews,
         interaction_edges: interactionEdges,
         session_recording_artifacts: sessionRecordingArtifacts,
         data_quality_events: dataQualityEvents,
@@ -2342,6 +2681,7 @@ function buildResearchTableCoverage({
         adjudication_content: safeArray(bundle.researchAdjudicationContent).length,
         move_response_content: safeArray(bundle.researchMoveResponseContent).length,
         rfi_content: safeArray(bundle.researchRfiContent).length,
+        artifact_workflow_reviews: safeArray(bundle.artifactWorkflowReviews).length,
         interaction_edges: safeArray(bundle.researchInteractionEdges).length,
         session_recording_artifacts: safeArray(bundle.researchSessionRecordingArtifacts).length,
         data_quality_events: safeArray(bundle.researchDataQualityEvents).length,
@@ -2371,13 +2711,13 @@ function buildResearchTableCoverage({
         'network_metrics',
         'turning_points'
     ]);
-    const criticalTables = new Set(['event_log', 'participants', 'action_content', 'decision_lineage', 'data_quality_events']);
+    const criticalTables = new Set(['event_log', 'participants', 'action_content', 'artifact_workflow_reviews', 'decision_lineage', 'data_quality_events']);
 
     return Object.entries(rowsByTable).map(([tableName, rows]) => {
         const rowCount = safeArray(rows).length;
         const explicitCount = explicitResearchRows[tableName] || 0;
         const source = explicitCount
-            ? 'research_table'
+            ? (tableName === 'artifact_workflow_reviews' ? 'workflow_review_table' : 'research_table')
             : (tableName === 'session_recording_artifacts' && rowCount
                 ? 'local_browser_metadata'
                 : (derivedTables.has(tableName) ? 'derived_at_export' : 'not_available'));
@@ -2414,6 +2754,7 @@ function buildDataQualitySummary({
     adjudicationContent,
     moveResponseContent,
     rfiContent,
+    artifactWorkflowReviews,
     interactionEdges,
     sessionRecordingArtifacts,
     dataQualityEvents,
@@ -2439,6 +2780,7 @@ function buildDataQualitySummary({
         adjudicationContent,
         moveResponseContent,
         rfiContent,
+        artifactWorkflowReviews,
         interactionEdges,
         sessionRecordingArtifacts,
         dataQualityEvents,
@@ -2469,6 +2811,9 @@ function buildDataQualitySummary({
     }
     if (!safeArray(decisionLineage).length) {
         limitations.push('No decision lineage rows were available for trace-based analysis.');
+    }
+    if (safeObject(manifest.contract_reconciliation).status !== 'passed') {
+        limitations.push('Workflow review, proposal thread, RFI revision, or UI workflow projection did not reconcile.');
     }
 
     const readinessStatus = resolveReadinessStatus(limitations, eventLog);
@@ -2528,6 +2873,7 @@ function buildDataQualitySummary({
         },
         integrity: {
             event_log_chain: manifest.event_log_chain,
+            contract_reconciliation: manifest.contract_reconciliation,
             checksums_ref: 'checksums.sha256',
             manifest_ref: 'manifest.json',
             codebook_ref: manifest.codebook_ref
@@ -2612,10 +2958,10 @@ function buildDecisionLineage({
             root_entity_id: action.action_id,
             move_number: action.move_number,
             source_team: action.author_team,
-            current_state: action.final_status || adjudication?.ruling || 'submitted',
+            current_state: action.workflow_state || action.final_status || adjudication?.ruling || 'submitted',
             created_utc: null,
             submitted_utc: action.submitted_utc,
-            reviewed_utc: adjudication?.adjudicated_utc || null,
+            reviewed_utc: safeArray(action.review_history).at(-1)?.reviewed_utc || adjudication?.adjudicated_utc || null,
             related_rfi_ids: idsForRows(relatedRfis, 'rfi_id'),
             related_event_ids: buildRelatedEventIds(eventLog, action.action_id),
             evidence_summary: [
@@ -2623,7 +2969,7 @@ function buildDecisionLineage({
                 action.action_type
                     ? `${isStrategicOrientation ? 'artifact' : 'instrument'}=${action.action_type}`
                     : '',
-                adjudication?.ruling ? `ruling=${adjudication.ruling}` : ''
+                adjudication?.ruling ? `historical_legacy_ruling=${adjudication.ruling}` : ''
             ].filter(Boolean).join('; ')
         });
     });
@@ -2639,10 +2985,10 @@ function buildDecisionLineage({
             root_entity_id: proposal.proposal_id,
             move_number: proposal.move_number,
             source_team: proposal.author_team,
-            current_state: proposal.final_recipient_state || proposal.review_decision || 'submitted',
+            current_state: proposal.final_recipient_state || proposal.workflow_state || proposal.review_decision || 'submitted',
             created_utc: null,
             submitted_utc: proposal.submitted_utc,
-            reviewed_utc: proposal.reviewed_utc,
+            reviewed_utc: safeArray(proposal.revision_history).at(-1)?.reviewed_utc || proposal.reviewed_utc,
             related_communication_ids: uniqueSortedList([
                 ...idsForRows(proposalEdges, 'edge_id'),
                 ...idsForRows(proposalCommunications, 'id')
@@ -2663,10 +3009,10 @@ function buildDecisionLineage({
             root_entity_id: response.move_response_id,
             move_number: response.move_number,
             source_team: response.author_team,
-            current_state: response.review_state || 'submitted',
+            current_state: response.workflow_state || response.review_state || 'submitted',
             created_utc: null,
             submitted_utc: response.submitted_utc,
-            reviewed_utc: null,
+            reviewed_utc: safeArray(response.review_history).at(-1)?.reviewed_utc || response.legacy_adjudicated_utc || null,
             related_event_ids: buildRelatedEventIds(eventLog, response.move_response_id),
             evidence_summary: [
                 safeObject(response.full_content).goal || 'Move response',
@@ -2688,10 +3034,10 @@ function buildDecisionLineage({
             root_entity_id: rfi.rfi_id,
             move_number: rfi.move_number,
             source_team: rfi.requester_team,
-            current_state: rfi.status || 'raised',
+            current_state: rfi.workflow_state || rfi.status || 'raised',
             created_utc: rfi.raised_utc,
             submitted_utc: rfi.raised_utc,
-            reviewed_utc: rfi.answered_utc,
+            reviewed_utc: rfi.completed_utc || safeArray(rfi.review_history).at(-1)?.reviewed_utc || rfi.answered_utc,
             related_communication_ids: uniqueSortedList([
                 ...idsForRows(rfiEdges, 'edge_id'),
                 ...idsForRows(rfiCommunications, 'id')
@@ -2840,6 +3186,173 @@ function normalizeTaxonomyEvidence(value) {
         .toLowerCase()
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function buildArtifactWorkflowReviewRows(bundle = {}) {
+    return safeArray(bundle.artifactWorkflowReviews)
+        .map((review) => {
+            const reviewedUtc = asUtcIso(review?.reviewed_at || review?.reviewed_utc);
+            return {
+                review_id: review?.id || null,
+                session_id: review?.session_id || bundle.session?.id || null,
+                artifact_kind: review?.artifact_kind || null,
+                artifact_id: review?.artifact_id || null,
+                artifact_type: review?.artifact_type || null,
+                team: review?.team || null,
+                decision: review?.decision || null,
+                revision_number: review?.revision_number ?? null,
+                next_revision_number: review?.next_revision_number ?? null,
+                prior_status: review?.prior_status || null,
+                status_to: review?.status_to || null,
+                prior_workflow_state: review?.prior_workflow_state || null,
+                workflow_state_to: review?.workflow_state_to || null,
+                reviewer_role: review?.reviewer_role || null,
+                reviewer_notes: review?.reviewer_notes || null,
+                reviewed_utc: reviewedUtc,
+                returned_utc: review?.decision === 'complete' ? null : reviewedUtc,
+                prior_state: safeObject(review?.prior_state),
+                new_state: safeObject(review?.new_state)
+            };
+        })
+        .sort((left, right) => (
+            String(left.reviewed_utc || '').localeCompare(String(right.reviewed_utc || ''))
+            || String(left.review_id || '').localeCompare(String(right.review_id || ''))
+        ));
+}
+
+function getArtifactReviewHistory(artifactWorkflowReviews = [], artifactId = null) {
+    if (!artifactId) return [];
+
+    return safeArray(artifactWorkflowReviews)
+        .filter((review) => review.artifact_id === artifactId)
+        .map((review) => ({ ...review }));
+}
+
+function buildLegacyTimelineReviewHistory(bundle = {}, artifactId = null, artifactKind = null) {
+    return safeArray(bundle.timeline)
+        .filter((event) => {
+            const metadata = safeObject(event?.metadata);
+            return (event?.type || event?.event_type) === 'ARTIFACT_RETURNED_TO_TEAM'
+                && (metadata.related_id === artifactId || metadata.action_id === artifactId)
+                && (!artifactKind || !metadata.artifact_kind || metadata.artifact_kind === artifactKind);
+        })
+        .map((event) => {
+            const metadata = safeObject(event?.metadata);
+            return {
+                review_id: event?.id || null,
+                session_id: event?.session_id || bundle.session?.id || null,
+                artifact_kind: metadata.artifact_kind || artifactKind || null,
+                artifact_id: artifactId,
+                artifact_type: metadata.artifact_type || null,
+                team: metadata.team || null,
+                decision: 'return_to_team',
+                revision_number: metadata.revision_number ?? null,
+                next_revision_number: metadata.next_revision_number ?? null,
+                prior_status: null,
+                status_to: 'draft',
+                prior_workflow_state: metadata.prior_workflow_state || null,
+                workflow_state_to: 'returned_to_team',
+                reviewer_role: metadata.role || 'whitecell_lead',
+                reviewer_notes: metadata.return_notes || event?.content || null,
+                reviewed_utc: asUtcIso(event?.created_at || event?.event_ts_utc),
+                returned_utc: asUtcIso(event?.created_at || event?.event_ts_utc),
+                prior_state: {},
+                new_state: {},
+                evidence_source: 'legacy_timeline_fallback'
+            };
+        })
+        .sort((left, right) => String(left.reviewed_utc || '').localeCompare(String(right.reviewed_utc || '')));
+}
+
+function resolveArtifactReviewHistory(bundle = {}, artifactWorkflowReviews = [], artifactId = null, artifactKind = null) {
+    const authoritativeHistory = getArtifactReviewHistory(artifactWorkflowReviews, artifactId);
+    return authoritativeHistory.length
+        ? authoritativeHistory
+        : buildLegacyTimelineReviewHistory(bundle, artifactId, artifactKind);
+}
+
+function buildProposalThreadHistory(communications = [], proposalId = null) {
+    return safeArray(communications)
+        .filter((communication) => {
+            const metadata = safeObject(communication?.metadata);
+            return metadata.source_proposal_id === proposalId
+                && ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE'].includes(communication?.type)
+                && Boolean(metadata.thread_id);
+        })
+        .map((communication) => {
+            const metadata = safeObject(communication?.metadata);
+            return {
+                message_id: communication?.id || null,
+                thread_id: metadata.thread_id || null,
+                recipient_team: metadata.recipient_team || null,
+                round_number: metadata.round_number ?? null,
+                parent_message_id: metadata.parent_message_id || null,
+                source_proposal_id: metadata.source_proposal_id || null,
+                source_revision: metadata.source_revision ?? null,
+                source_team: metadata.source_team || null,
+                sender_team: metadata.sender_team || inferTeamFromRole(communication?.from_role),
+                sender_role: metadata.sender_role || communication?.from_role || null,
+                sent_utc: asUtcIso(metadata.sent_at || communication?.created_at),
+                message_type: metadata.message_type || communication?.type || null,
+                facilitator_decision: metadata.facilitator_decision || null,
+                client_message_id: metadata.client_message_id || null,
+                content: communication?.content || null
+            };
+        })
+        .sort((left, right) => (
+            String(left.thread_id || '').localeCompare(String(right.thread_id || ''))
+            || Number(left.round_number ?? 0) - Number(right.round_number ?? 0)
+            || String(left.sent_utc || '').localeCompare(String(right.sent_utc || ''))
+            || String(left.message_id || '').localeCompare(String(right.message_id || ''))
+        ));
+}
+
+function buildRfiAnswerHistory(bundle = {}, request = {}) {
+    const rows = safeArray(bundle.communications)
+        .filter((communication) => (
+            communication?.linked_request_id === request?.id
+            && String(communication?.type || '').toLowerCase() === 'rfi_response'
+        ))
+        .map((communication) => {
+            const metadata = safeObject(communication?.metadata);
+            return {
+                communication_id: communication?.id || null,
+                revision_number: metadata.revision_number ?? request?.revision_number ?? null,
+                answer_text: communication?.content || null,
+                answered_by_role: metadata.answered_by_role || communication?.from_role || null,
+                answered_utc: asUtcIso(communication?.created_at || request?.responded_at || request?.answered_at),
+                workflow_state: metadata.workflow_state || 'completed'
+            };
+        })
+        .sort((left, right) => String(left.answered_utc || '').localeCompare(String(right.answered_utc || '')));
+
+    if (!rows.length && request?.response) {
+        rows.push({
+            communication_id: null,
+            revision_number: request?.revision_number ?? null,
+            answer_text: request.response,
+            answered_by_role: request?.reviewed_by_role || 'whitecell_lead',
+            answered_utc: asUtcIso(request?.responded_at || request?.answered_at),
+            workflow_state: request?.workflow_state || null,
+            evidence_source: 'legacy_request_row'
+        });
+    }
+    return rows;
+}
+
+function buildRfiResubmissionHistory(bundle = {}, requestId = null) {
+    return safeArray(bundle.timeline)
+        .filter((event) => {
+            const metadata = safeObject(event?.metadata);
+            return (event?.type || event?.event_type) === 'RFI_RESUBMITTED'
+                && (metadata.related_id === requestId || metadata.request_id === requestId);
+        })
+        .map((event) => ({
+            timeline_event_id: event?.id || null,
+            revision_number: safeObject(event?.metadata).revision_number ?? null,
+            resubmitted_utc: asUtcIso(event?.created_at || event?.event_ts_utc)
+        }))
+        .sort((left, right) => String(left.resubmitted_utc || '').localeCompare(String(right.resubmitted_utc || '')));
 }
 
 function buildTaxonomySessionEvidence(sourceArtifact = {}) {
@@ -3173,8 +3686,14 @@ function buildTurningPoints({
         });
     };
     const firstForwardedProposal = earliestByTimestamp(
-        safeArray(proposalContent).filter((proposal) => proposal.forwarded_to_team),
-        'reviewed_utc'
+        safeArray(proposalContent)
+            .filter((proposal) => proposal.forwarded_to_team || safeArray(proposal.thread_history).some((message) => message.round_number === 0))
+            .map((proposal) => ({
+                ...proposal,
+                first_forwarded_utc: safeArray(proposal.thread_history).find((message) => message.round_number === 0)?.sent_utc
+                    || proposal.reviewed_utc
+            })),
+        'first_forwarded_utc'
     );
     const firstRfi = earliestByTimestamp(rfiContent, 'raised_utc');
     const firstDataQualityEvent = earliestByTimestamp(dataQualityEvents, 'occurred_utc');
@@ -3202,7 +3721,7 @@ function buildTurningPoints({
     if (firstForwardedProposal) {
         addTurningPoint({
             turning_point_id: `first_forwarded_proposal-${firstForwardedProposal.proposal_id}`,
-            occurred_utc: firstForwardedProposal.reviewed_utc,
+            occurred_utc: firstForwardedProposal.first_forwarded_utc,
             move_number: firstForwardedProposal.move_number,
             turning_point_type: 'first_forwarded_proposal',
             entity_type: 'proposal',
@@ -3275,7 +3794,7 @@ function buildTurningPoints({
             entity_type: 'proposal',
             entity_id: proposalNotAdvanced.proposal_id,
             team: proposalNotAdvanced.author_team,
-            evidence_summary: `Proposal review decision was ${proposalNotAdvanced.review_decision}.`,
+            evidence_summary: `Historical/legacy proposal adjudication outcome was ${proposalNotAdvanced.review_decision}.`,
             evidence_refs: [proposalNotAdvanced.proposal_id]
         });
     }
@@ -3412,6 +3931,7 @@ function buildPersonaReports(dataset = {}) {
         proposal.move_number,
         proposal.author_team,
         formatReportValue(proposal.intended_recipient_teams, proposal.intended_recipient_team),
+        proposal.workflow_state,
         proposal.review_decision,
         proposal.final_recipient_state,
         proposal.rationale
@@ -3478,14 +3998,14 @@ function buildPersonaReports(dataset = {}) {
             path: 'reports/policy_brief.html',
             content: renderPersonaHtml({
                 title: 'Policy Brief',
-                subtitle: 'Policy-relevant instruments, partner routing, constraints, and review outcomes.',
+                subtitle: 'Policy-relevant instruments, partner routing, constraints, workflow reviews, and explicitly historical legacy adjudication evidence.',
                 manifest,
                 sections: [
                     { title: 'Session Indicators', html: commonSummaryCards },
                     { title: 'Outcome Taxonomy Signals', html: renderReportTable(['Dimension', 'Signal', 'Entity Type', 'Entity ID', 'Team', 'Keyword Hits'], outcomeRows) },
                     { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Orientation / Forecasts', 'Posture', 'Primary Levers', 'Accepted Costs', 'Rationale', 'Status'], strategicOrientationRows) },
                     { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
-                    { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Intended Recipient', 'Review', 'Recipient State', 'Rationale'], proposalRows) },
+                    { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Intended Recipient', 'Workflow', 'Historical / Legacy Adjudication', 'Recipient State', 'Rationale'], proposalRows) },
                     { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
                 ]
             }),
@@ -3563,12 +4083,12 @@ function buildCodebookRows() {
                 ? 'timestamp_utc'
                 : /(_count|_number|_index|_sequence)$/.test(columnName)
                     ? 'integer'
-                    : /(duration|latency|seconds|_s|_bytes|bits_per_second)/.test(columnName)
+                    : /(duration|latency|seconds|_s$|_bytes|bits_per_second)/.test(columnName)
                         ? 'number'
-                        : /(_state|_role|_team|_type|_status)$/.test(columnName)
-                            ? 'string'
-                            : ['payload', 'before_state', 'after_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev', 'keyword_hits', 'evidence_refs', 'evidence_edge_ids', 'related_rfi_ids', 'related_communication_ids', 'related_response_ids', 'related_event_ids', 'capture_constraints_requested'].includes(columnName)
-                                ? 'json'
+                        : ['payload', 'before_state', 'after_state', 'prior_state', 'new_state', 'full_content', 'targets', 'instruments', 'resources_committed', 'effects', 'detail', 'content_snapshot', 'content_diff_from_prev', 'keyword_hits', 'evidence_refs', 'evidence_edge_ids', 'related_rfi_ids', 'related_communication_ids', 'related_response_ids', 'related_event_ids', 'capture_constraints_requested', 'notification_audiences', 'review_history', 'revision_history', 'recipient_approval_states', 'recipient_approvals', 'thread_history', 'resubmission_history', 'answer_history'].includes(columnName)
+                            ? 'json'
+                            : /(_state|_role|_team|_type|_status)$/.test(columnName)
+                                ? 'string'
                                 : 'string',
             units: /_bytes$/.test(columnName)
                 ? 'bytes'
@@ -3587,10 +4107,18 @@ function buildCodebookRows() {
             derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName)
                 ? 'Computed client-side at export time from canonical event and content tables.'
                 : null,
-            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action|evidence_summary|evidence_excerpt/.test(columnName)
+            pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|intent_text|requested_action|evidence_summary|evidence_excerpt|reviewer_notes|notification_note|review_history|revision_history|thread_history|answer_history|prior_state|new_state/.test(columnName)
                 ? 'pseudonymous'
                 : 'none',
-            description: `Research export field ${columnName.replace(/_/g, ' ')} for ${tableName.replace(/_/g, ' ')}.`
+            description: columnName.startsWith('legacy_adjudication') || columnName === 'review_evidence_classification'
+                ? `Explicitly historical/legacy adjudication evidence retained for deterministic replay; it is not a current workflow outcome.`
+                : ['review_history', 'revision_history'].includes(columnName)
+                    ? 'Authoritative append-only workflow review history projected from artifact_workflow_reviews; legacy timeline fallback rows are explicitly marked.'
+                    : columnName === 'thread_history'
+                        ? 'Immutable proposal messages with stable thread, recipient, round, parent, source revision, sender, timestamp, and message-type metadata.'
+                        : columnName === 'answer_history'
+                            ? 'Ordered RFI answer records projected from persisted response communications, with explicitly marked legacy fallback when required.'
+                            : `Research export field ${columnName.replace(/_/g, ' ')} for ${tableName.replace(/_/g, ' ')}.`
         }));
     });
 }
@@ -4376,7 +4904,7 @@ export function buildResearchReportHtml(dataset, {
             badges: [
                 { label: orientation.author_team || details.team || 'team', tone: 'accent' },
                 { label: details.isForecast ? 'forecast' : 'selection', tone: 'muted' },
-                { label: orientation.final_status || 'pending', tone: 'success' },
+                { label: orientation.workflow_state || orientation.final_status || 'pending', tone: 'success' },
                 { label: details.scribeHandoff || 'handoff not recorded', tone: 'muted' }
             ],
             metadata: [
@@ -4385,7 +4913,9 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Exercise Period', value: humanizeReportLabel(details.period || 'pre_move_1') },
                 { label: 'Artifact Type', value: details.isForecast ? 'Forecast' : 'Selection' },
                 { label: 'Scribe Handoff', value: details.scribeHandoff },
-                { label: 'Submitted', value: formatReportTimestamp(orientation.submitted_utc) }
+                { label: 'Submitted', value: formatReportTimestamp(orientation.submitted_utc) },
+                { label: 'Workflow State', value: orientation.workflow_state },
+                { label: 'Revision', value: orientation.revision_number }
             ],
             sections: [
                 {
@@ -4414,13 +4944,19 @@ export function buildResearchReportHtml(dataset, {
                 },
                 adjudication
                     ? {
-                        title: 'White Cell Review',
+                        title: 'Historical / Legacy Adjudication',
                         html: renderReportMetaGrid([
                             { label: 'Ruling', value: adjudication.ruling },
                             { label: 'Reasoning', value: adjudication.reasoning },
                             { label: 'Adjudicated UTC', value: formatReportTimestamp(adjudication.adjudicated_utc) },
                             { label: 'Effects', value: adjudication.effects }
                         ])
+                    }
+                    : null,
+                safeArray(orientation.review_history).length
+                    ? {
+                        title: 'Workflow Review History',
+                        html: renderReportMetaGrid([{ label: 'Authoritative Review Records', value: orientation.review_history }])
                     }
                     : null
             ].filter(Boolean)
@@ -4436,7 +4972,7 @@ export function buildResearchReportHtml(dataset, {
             summary: action.intent_text || safeObject(action.full_content).goal || '',
             badges: [
                 { label: action.author_team || 'team', tone: 'accent' },
-                { label: action.final_status || 'pending', tone: 'success' },
+                { label: action.workflow_state || action.final_status || 'pending', tone: 'success' },
                 { label: action.action_type || 'unspecified', tone: 'muted' }
             ],
             metadata: [
@@ -4444,7 +4980,9 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Submitted', value: formatReportTimestamp(action.submitted_utc) },
                 { label: 'Targets', value: action.targets },
                 { label: 'Instrument Of Power', value: action.instruments },
-                { label: 'Resources Committed', value: action.resources_committed }
+                { label: 'Resources Committed', value: action.resources_committed },
+                { label: 'Workflow State', value: action.workflow_state },
+                { label: 'Revision', value: action.revision_number }
             ],
             sections: [
                 {
@@ -4467,12 +5005,20 @@ export function buildResearchReportHtml(dataset, {
                         { label: 'Coordination Planned', value: details.coordinatedDecision },
                         { label: 'Coordinated With', value: details.coordinated },
                         { label: 'Information / Engagement Planned', value: details.informedEngagedDecision },
-                        { label: 'Informed Parties', value: details.informed }
+                        { label: 'Informed Parties', value: details.informed },
+                        { label: 'Notification Audiences', value: action.notification_audiences },
+                        { label: 'Notification Note', value: action.notification_note }
                     ])
                 },
+                safeArray(action.review_history).length
+                    ? {
+                        title: 'Workflow Review History',
+                        html: renderReportMetaGrid([{ label: 'Authoritative Review Records', value: action.review_history }])
+                    }
+                    : null,
                 adjudication
                     ? {
-                        title: 'Adjudication',
+                        title: 'Historical / Legacy Adjudication',
                         html: renderReportMetaGrid([
                             { label: 'Ruling', value: adjudication.ruling },
                             { label: 'Reasoning', value: adjudication.reasoning },
@@ -4493,7 +5039,7 @@ export function buildResearchReportHtml(dataset, {
             summary: proposal.proposal_text || safeObject(proposal.full_content).goal || '',
             badges: [
                 { label: proposal.author_team || 'team', tone: 'accent' },
-                { label: proposal.review_decision || 'pending review', tone: 'success' },
+                { label: proposal.workflow_state || 'pending review', tone: 'success' },
                 { label: proposal.final_recipient_state || proposal.intended_recipient_team || 'awaiting recipient', tone: 'muted' }
             ],
             metadata: [
@@ -4503,8 +5049,12 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Revision', value: proposal.revision_number },
                 { label: 'Revision History', value: proposal.revision_history },
                 { label: 'Proposed Recipient Approvals', value: proposal.recipient_approval_states },
+                { label: 'Authoritative Recipient Approvals', value: proposal.recipient_approvals },
+                { label: 'Thread Count', value: proposal.thread_count },
+                { label: 'Immutable Round Count', value: proposal.round_count },
+                { label: 'Workflow State', value: proposal.workflow_state },
                 { label: 'Submitted', value: formatReportTimestamp(proposal.submitted_utc) },
-                { label: 'Reviewed', value: formatReportTimestamp(proposal.reviewed_utc) }
+                { label: 'Latest Workflow Review', value: formatReportTimestamp(safeArray(proposal.revision_history).at(-1)?.reviewed_utc) }
             ],
             sections: [
                 {
@@ -4533,20 +5083,29 @@ export function buildResearchReportHtml(dataset, {
                         { label: 'Expected Outcomes', value: safeObject(proposal.full_content).expected_outcomes }
                     ])
                 },
-                {
-                    title: 'Review Outcome',
-                    html: renderReportMetaGrid([
-                        { label: 'Review Decision', value: proposal.review_decision },
-                        { label: 'Review Reason', value: proposal.review_reason },
-                        { label: 'Reviewer', value: proposal.reviewer_pseudonym },
-                        { label: 'Final Recipient State', value: proposal.final_recipient_state }
-                    ])
-                }
-            ]
+                safeArray(proposal.thread_history).length
+                    ? {
+                        title: 'Immutable Proposal Thread History',
+                        html: renderReportMetaGrid([{ label: 'Thread / Round Records', value: proposal.thread_history }])
+                    }
+                    : null,
+                proposal.review_evidence_classification
+                    ? {
+                        title: 'Historical / Legacy Adjudication',
+                        html: renderReportMetaGrid([
+                            { label: 'Historical Outcome', value: proposal.review_decision },
+                            { label: 'Historical Reason', value: proposal.review_reason },
+                            { label: 'Historical Reviewer', value: proposal.reviewer_pseudonym },
+                            { label: 'Evidence Classification', value: proposal.review_evidence_classification }
+                        ])
+                    }
+                    : null
+            ].filter(Boolean)
         });
     });
     const moveResponseCards = dataset.moveResponseContent.map((response) => {
         const details = safeObject(safeObject(response.full_content).details);
+        const adjudication = adjudicationByTargetId.get(response.move_response_id);
 
         return renderReportEntityCard({
             eyebrow: `Move ${response.move_number ?? 'N/A'} - Move response`,
@@ -4554,13 +5113,15 @@ export function buildResearchReportHtml(dataset, {
             summary: response.response_text || '',
             badges: [
                 { label: response.author_team || 'team', tone: 'accent' },
-                { label: response.review_state || 'submitted', tone: 'success' },
+                { label: response.workflow_state || response.review_state || 'submitted', tone: 'success' },
                 { label: response.posture || 'posture not set', tone: 'muted' }
             ],
             metadata: [
                 { label: 'Author', value: `${response.author_pseudonym || 'N/A'} / ${formatRoleForReport(response.author_role) || 'unknown'}` },
                 { label: 'Submitted', value: formatReportTimestamp(response.submitted_utc) },
-                { label: 'Responding To', value: response.responding_to_entity_type }
+                { label: 'Responding To', value: response.responding_to_entity_type },
+                { label: 'Workflow State', value: response.workflow_state },
+                { label: 'Revision', value: response.revision_number }
             ],
             sections: [
                 {
@@ -4573,8 +5134,25 @@ export function buildResearchReportHtml(dataset, {
                         { label: 'Delivery Channel', value: details.deliveryChannel },
                         { label: 'Expected Effect', value: safeObject(response.full_content).expected_outcomes }
                     ])
-                }
-            ]
+                },
+                safeArray(response.review_history).length
+                    ? {
+                        title: 'Workflow Review History',
+                        html: renderReportMetaGrid([{ label: 'Authoritative Review Records', value: response.review_history }])
+                    }
+                    : null,
+                adjudication
+                    ? {
+                        title: 'Historical / Legacy Adjudication',
+                        html: renderReportMetaGrid([
+                            { label: 'Ruling', value: adjudication.ruling },
+                            { label: 'Reasoning', value: adjudication.reasoning },
+                            { label: 'Adjudicated UTC', value: formatReportTimestamp(adjudication.adjudicated_utc) },
+                            { label: 'Effects', value: adjudication.effects }
+                        ])
+                    }
+                    : null
+            ].filter(Boolean)
         });
     });
     const rfiCards = dataset.rfiContent.map((rfi) => renderReportEntityCard({
@@ -4583,12 +5161,14 @@ export function buildResearchReportHtml(dataset, {
         summary: rfi.question_text || '',
         badges: [
             { label: rfi.requester_team || 'team', tone: 'accent' },
-            { label: rfi.status || 'pending', tone: 'success' }
+            { label: rfi.workflow_state || rfi.status || 'pending', tone: 'success' }
         ],
         metadata: [
             { label: 'Requester', value: `${rfi.requester_pseudonym || 'N/A'} / ${formatRoleForReport(rfi.requester_role) || 'unknown'}` },
             { label: 'Raised UTC', value: formatReportTimestamp(rfi.raised_utc) },
-            { label: 'Answered UTC', value: formatReportTimestamp(rfi.answered_utc) }
+            { label: 'Answered UTC', value: formatReportTimestamp(rfi.answered_utc) },
+            { label: 'Workflow State', value: rfi.workflow_state },
+            { label: 'Revision', value: rfi.revision_number }
         ],
         sections: [
             {
@@ -4596,7 +5176,14 @@ export function buildResearchReportHtml(dataset, {
                 html: renderReportMetaGrid([
                     { label: 'Question', value: rfi.question_text },
                     { label: 'Answer', value: rfi.answer_text },
-                    { label: 'Answered By', value: rfi.answered_by_pseudonym }
+                    { label: 'Answered By', value: rfi.answered_by_pseudonym },
+                    { label: 'Return Notes', value: rfi.return_notes },
+                    { label: 'Returned By', value: rfi.returned_by_role },
+                    { label: 'Returned UTC', value: formatReportTimestamp(rfi.returned_utc) },
+                    { label: 'Resubmitted UTC', value: formatReportTimestamp(rfi.resubmitted_utc) },
+                    { label: 'Review History', value: rfi.review_history },
+                    { label: 'Resubmission History', value: rfi.resubmission_history },
+                    { label: 'Answer History', value: rfi.answer_history }
                 ])
             }
         ]
@@ -4710,8 +5297,8 @@ export function buildResearchReportHtml(dataset, {
             description: 'Pre-Move 1 selections and forecasts with target-level orientation, posture, rationale, levers, accepted costs, and handoff state.'
         },
         {
-            title: 'Actions And Adjudications',
-            description: 'Detailed move-action records, decision inputs, handoff state, and White Cell rulings and effects.'
+            title: 'Actions And Workflow Reviews',
+            description: 'Detailed move-action records, decision inputs, workflow review history, and explicitly historical legacy adjudication evidence.'
         },
         {
             title: 'Proposals: Content And Review',
@@ -5860,7 +6447,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Decision Lineage</h2>
-                    <p class="report-section-intro">Derived trace rows linking submitted artifacts to review outcomes, related communications, RFIs, and event evidence. These rows support navigation and audit, not automatic causal attribution.</p>
+                    <p class="report-section-intro">Derived trace rows linking submitted artifacts to workflow reviews, explicitly historical legacy adjudication evidence, related communications, RFIs, and event evidence. These rows support navigation and audit, not automatic causal attribution.</p>
                 </div>
             </div>
             ${renderReportTable(
@@ -5920,8 +6507,8 @@ export function buildResearchReportHtml(dataset, {
         <section class="report-section">
             <div class="report-section-header">
                 <div>
-                    <h2 class="report-section-title">Actions And Adjudications</h2>
-                    <p class="report-section-intro">Move-action records covering objectives, instruments, levers, sector and supply-chain choices, implementation, legislative options, coordination and engagement decisions, Scribe handoff, and White Cell adjudication.</p>
+                    <h2 class="report-section-title">Actions And Workflow Reviews</h2>
+                    <p class="report-section-intro">Move-action records covering objectives, instruments, levers, sector and supply-chain choices, implementation, legislative options, coordination and engagement decisions, Scribe handoff, authoritative workflow reviews, and explicitly historical legacy adjudication evidence.</p>
                 </div>
             </div>
             ${renderReportEntityCollection(actionCards, 'No move-action records were captured for this export.')}
@@ -6037,6 +6624,7 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Generated At UTC', value: formatReportTimestamp(manifest.generated_at_utc) },
                 { label: 'Generated By Pseudonym', value: manifest.generated_by_pseudonym },
                 { label: 'Event Log Source', value: manifest.event_log_source || 'unspecified' },
+                { label: 'Contract Reconciliation', value: manifest.contract_reconciliation },
                 { label: 'Session Checksum', value: safeObject(manifest.event_log_chain).session_checksum },
                 { label: 'First Event Hash', value: safeObject(manifest.event_log_chain).first_event_hash },
                 { label: 'Last Event Hash', value: safeObject(manifest.event_log_chain).last_event_hash },
@@ -6244,10 +6832,13 @@ ${renderLatexDescription([
         { label: 'Scribe handoff', value: details.scribeHandoff },
         { label: 'Submitted UTC', value: orientation.submitted_utc },
         { label: 'Status', value: orientation.final_status },
-        { label: 'White Cell ruling', value: adjudication?.ruling },
-        { label: 'White Cell reasoning', value: adjudication?.reasoning },
-        { label: 'White Cell effects', value: adjudication?.effects },
-        { label: 'Adjudicated UTC', value: adjudication?.adjudicated_utc }
+        { label: 'Workflow state', value: orientation.workflow_state },
+        { label: 'Revision', value: orientation.revision_number },
+        { label: 'Workflow review history', value: orientation.review_history },
+        { label: 'Historical / legacy adjudication ruling', value: adjudication?.ruling },
+        { label: 'Historical / legacy adjudication reasoning', value: adjudication?.reasoning },
+        { label: 'Historical / legacy adjudication effects', value: adjudication?.effects },
+        { label: 'Historical adjudicated UTC', value: adjudication?.adjudicated_utc }
     ])}
 ${forecastRows.length ? String.raw`\subsubsection{Forecast targets}
 ${renderLatexLongTable(['Target', 'Forecast orientation', 'Strategic tag'], forecastRows)}` : ''}`;
@@ -6282,15 +6873,21 @@ ${renderLatexDescription([
         { label: 'Coordinated with', value: details.coordinated },
         { label: 'Engagement planned', value: details.informedEngagedDecision },
         { label: 'Informed parties', value: details.informed },
+        { label: 'Notification audiences', value: action.notification_audiences },
+        { label: 'Notification note', value: action.notification_note },
         { label: 'Expected outcomes', value: safeObject(action.full_content).expected_outcomes },
         { label: 'Legacy notes', value: details.legacyNotes },
         { label: 'Scribe handoff', value: details.scribeHandoff },
         { label: 'Submitted UTC', value: action.submitted_utc },
         { label: 'Status', value: action.final_status },
-        { label: 'White Cell ruling', value: adjudication?.ruling },
-        { label: 'White Cell reasoning', value: adjudication?.reasoning },
-        { label: 'Adjudication effects', value: adjudication?.effects },
-        { label: 'Adjudicated UTC', value: adjudication?.adjudicated_utc }
+        { label: 'Workflow state', value: action.workflow_state },
+        { label: 'Prior workflow state', value: action.prior_workflow_state },
+        { label: 'Revision', value: action.revision_number },
+        { label: 'Workflow review history', value: action.review_history },
+        { label: 'Historical / legacy adjudication ruling', value: adjudication?.ruling },
+        { label: 'Historical / legacy adjudication reasoning', value: adjudication?.reasoning },
+        { label: 'Historical / legacy adjudication effects', value: adjudication?.effects },
+        { label: 'Historical adjudicated UTC', value: adjudication?.adjudicated_utc }
     ])}`;
     });
 
@@ -6314,6 +6911,7 @@ ${renderLatexDescription([
         { label: 'Intended partners', value: details.intendedPartners },
         { label: 'Intended recipients', value: proposal.intended_recipient_teams?.length ? proposal.intended_recipient_teams : proposal.intended_recipient_team },
         { label: 'Proposed recipient approvals', value: proposal.recipient_approval_states },
+        { label: 'Authoritative recipient approvals', value: proposal.recipient_approvals },
         { label: 'Focus sectors', value: proposal.focus_sectors?.length ? proposal.focus_sectors : details.focusSectors || details.focusSector },
         { label: 'Supply chain decision', value: proposal.supply_chain_focus_decision },
         { label: 'Action angles', value: proposal.supply_chain_action_angles },
@@ -6326,10 +6924,16 @@ ${renderLatexDescription([
         { label: 'Requested action / expected outcomes', value: proposal.requested_action },
         { label: 'Revision', value: proposal.revision_number },
         { label: 'Revision history', value: proposal.revision_history },
+        { label: 'Workflow state', value: proposal.workflow_state },
+        { label: 'Prior workflow state', value: proposal.prior_workflow_state },
+        { label: 'Immutable thread history', value: proposal.thread_history },
+        { label: 'Thread count', value: proposal.thread_count },
+        { label: 'Round count', value: proposal.round_count },
         { label: 'Forwarded to', value: proposal.forwarded_to_teams?.length ? proposal.forwarded_to_teams : proposal.forwarded_to_team },
-        { label: 'Review decision', value: proposal.review_decision },
-        { label: 'Review reason', value: proposal.review_reason },
-        { label: 'Reviewer pseudonym', value: proposal.reviewer_pseudonym },
+        { label: 'Historical / legacy adjudication outcome', value: proposal.review_decision },
+        { label: 'Historical / legacy adjudication reason', value: proposal.review_reason },
+        { label: 'Historical / legacy reviewer pseudonym', value: proposal.reviewer_pseudonym },
+        { label: 'Review evidence classification', value: proposal.review_evidence_classification },
         { label: 'Final recipient state', value: proposal.final_recipient_state },
         { label: 'Submitted UTC', value: proposal.submitted_utc },
         { label: 'Reviewed UTC', value: proposal.reviewed_utc }
@@ -6338,6 +6942,7 @@ ${renderLatexDescription([
 
     const responseSections = renderLatexArtifactSections(dataset.moveResponseContent, (response) => {
         const details = safeObject(safeObject(response.full_content).details);
+        const adjudication = adjudicationByTargetId.get(response.move_response_id);
         return String.raw`\subsection{${escapeLatex(safeObject(response.full_content).goal || 'Move response')}}
 ${renderLatexDescription([
         { label: 'Move response ID', value: response.move_response_id },
@@ -6354,7 +6959,15 @@ ${renderLatexDescription([
         { label: 'Delivery channel', value: details.deliveryChannel },
         { label: 'Expected effect', value: safeObject(response.full_content).expected_outcomes },
         { label: 'Submitted UTC', value: response.submitted_utc },
-        { label: 'Review state', value: response.review_state }
+        { label: 'Review state', value: response.review_state },
+        { label: 'Workflow state', value: response.workflow_state },
+        { label: 'Prior workflow state', value: response.prior_workflow_state },
+        { label: 'Revision', value: response.revision_number },
+        { label: 'Workflow review history', value: response.review_history },
+        { label: 'Historical / legacy adjudication ruling', value: adjudication?.ruling },
+        { label: 'Historical / legacy adjudication reasoning', value: adjudication?.reasoning },
+        { label: 'Historical / legacy adjudication effects', value: adjudication?.effects },
+        { label: 'Historical adjudicated UTC', value: adjudication?.adjudicated_utc }
     ])}`;
     });
 
@@ -6370,7 +6983,18 @@ ${renderLatexDescription([
         { label: 'Answer', value: rfi.answer_text },
         { label: 'Answered by pseudonym', value: rfi.answered_by_pseudonym },
         { label: 'Answered UTC', value: rfi.answered_utc },
-        { label: 'Status', value: rfi.status }
+        { label: 'Status', value: rfi.status },
+        { label: 'Workflow state', value: rfi.workflow_state },
+        { label: 'Prior workflow state', value: rfi.prior_workflow_state },
+        { label: 'Revision', value: rfi.revision_number },
+        { label: 'Return notes', value: rfi.return_notes },
+        { label: 'Returned by role', value: rfi.returned_by_role },
+        { label: 'Returned UTC', value: rfi.returned_utc },
+        { label: 'Resubmitted UTC', value: rfi.resubmitted_utc },
+        { label: 'Workflow review history', value: rfi.review_history },
+        { label: 'Resubmission history', value: rfi.resubmission_history },
+        { label: 'Answer history', value: rfi.answer_history },
+        { label: 'Completed UTC', value: rfi.completed_utc }
     ])}`);
     const lineageRows = safeArray(dataset.decisionLineage).map((row) => [
         row.root_entity_type,
@@ -6506,7 +7130,7 @@ ${renderLatexDescription([
 \section{Strategic Orientation: selections and forecasts}
 ${orientationSections}
 
-\section{Actions and adjudications}
+\section{Actions and workflow reviews}
 ${actionSections}
 
 \section{Proposals: content and review}
@@ -6541,6 +7165,7 @@ ${renderLatexDescription([
         { label: 'Recommended uses', value: readiness.recommended_uses },
         { label: 'Unsupported uses', value: readiness.unsupported_uses },
         { label: 'Event-log source', value: eventLogSource },
+        { label: 'Contract reconciliation', value: manifest.contract_reconciliation },
         { label: 'Software build hash', value: manifest.software_build_hash },
         { label: 'Generated by pseudonym', value: manifest.generated_by_pseudonym }
     ])}
@@ -6656,6 +7281,7 @@ function buildFileDefinitions({
     adjudicationContent,
     moveResponseContent,
     rfiContent,
+    artifactWorkflowReviews,
     interactionEdges,
     sessionRecordingArtifacts,
     dataQualityEvents,
@@ -6866,6 +7492,16 @@ function buildFileDefinitions({
             mimeType: 'application/json'
         },
         {
+            path: 'artifact_workflow_reviews.csv',
+            content: arrayToCsv(artifactWorkflowReviews, RESEARCH_EXPORT_COLUMNS.artifact_workflow_reviews),
+            mimeType: 'text/csv'
+        },
+        {
+            path: 'artifact_workflow_reviews.json',
+            content: toJsonFileContent(artifactWorkflowReviews),
+            mimeType: 'application/json'
+        },
+        {
             path: 'interaction_edges.csv',
             content: arrayToCsv(interactionEdges, RESEARCH_EXPORT_COLUMNS.interaction_edges),
             mimeType: 'text/csv'
@@ -6924,6 +7560,103 @@ async function buildChecksumsFile(fileDefinitions = []) {
     };
 }
 
+function buildContractReconciliation({
+    bundle,
+    artifactWorkflowReviews,
+    actionContent,
+    proposalContent,
+    moveResponseContent,
+    rfiContent
+}) {
+    const projectedReviewIds = new Set([
+        ...actionContent,
+        ...proposalContent.map((row) => ({ review_history: row.revision_history })),
+        ...moveResponseContent,
+        ...rfiContent
+    ].flatMap((row) => safeArray(row.review_history))
+        .filter((review) => review.evidence_source !== 'legacy_timeline_fallback')
+        .map((review) => review.review_id)
+        .filter(Boolean));
+    const sourceReviewIds = new Set(artifactWorkflowReviews.map((review) => review.review_id).filter(Boolean));
+    const sourceThreadMessages = safeArray(bundle.communications).filter((communication) => {
+        const metadata = safeObject(communication?.metadata);
+        return metadata.thread_id
+            && metadata.source_proposal_id
+            && ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE'].includes(communication?.type);
+    });
+    const projectedThreadMessages = proposalContent.flatMap((proposal) => safeArray(proposal.thread_history));
+    const sourceThreadIds = new Set(sourceThreadMessages.map((communication) => safeObject(communication.metadata).thread_id));
+    const projectedThreadIds = new Set(projectedThreadMessages.map((message) => message.thread_id));
+    const approvedRecipientCount = proposalContent.reduce((count, proposal) => (
+        count + Object.values(safeObject(proposal.recipient_approvals))
+            .filter((approval) => safeObject(approval).status === 'approved_forwarded').length
+    ), 0);
+    const roundZeroCount = projectedThreadMessages.filter((message) => message.round_number === 0).length;
+    const sourceRfiRows = safeArray(bundle.requests);
+    const rfiRevisionMatches = rfiContent.every((row) => {
+        const source = sourceRfiRows.find((request) => request?.id === row.rfi_id);
+        return !source || (source.revision_number ?? null) === (row.revision_number ?? null);
+    });
+    const workflowProjectionMatches = [
+        ...actionContent.map((row) => ({ id: row.action_id, state: row.workflow_state })),
+        ...proposalContent.map((row) => ({ id: row.proposal_id, state: row.workflow_state })),
+        ...moveResponseContent.map((row) => ({ id: row.move_response_id, state: row.workflow_state })),
+        ...rfiContent.map((row) => ({ id: row.rfi_id, state: row.workflow_state }))
+    ].every((projection) => {
+        const source = [...safeArray(bundle.actions), ...sourceRfiRows].find((row) => row?.id === projection.id);
+        return !source || (source.workflow_state || null) === (projection.state || null);
+    });
+    const currentOutcomeViolations = [
+        ...actionContent.map((row) => ({ state: row.workflow_state, outcome: row.legacy_adjudication_outcome, reviews: row.review_history })),
+        ...proposalContent.map((row) => ({ state: row.workflow_state, outcome: row.review_decision, reviews: row.revision_history })),
+        ...moveResponseContent.map((row) => ({ state: row.workflow_state, outcome: row.legacy_adjudication_outcome, reviews: row.review_history }))
+    ].filter((row) => (
+        row.state === 'completed'
+        && row.outcome !== null
+        && row.outcome !== undefined
+        && safeArray(row.reviews).some((review) => review.decision === 'complete' && review.evidence_source !== 'legacy_timeline_fallback')
+    )).length;
+
+    const checks = {
+        artifact_review_rows: {
+            source_count: sourceReviewIds.size,
+            projected_count: projectedReviewIds.size,
+            matches: sourceReviewIds.size === projectedReviewIds.size
+                && [...sourceReviewIds].every((reviewId) => projectedReviewIds.has(reviewId))
+        },
+        proposal_threads: {
+            source_thread_count: sourceThreadIds.size,
+            projected_thread_count: projectedThreadIds.size,
+            source_round_count: sourceThreadMessages.length,
+            projected_round_count: projectedThreadMessages.length,
+            approved_recipient_count: approvedRecipientCount,
+            round_zero_count: roundZeroCount,
+            matches: sourceThreadIds.size === projectedThreadIds.size
+                && sourceThreadMessages.length === projectedThreadMessages.length
+                && approvedRecipientCount === roundZeroCount
+        },
+        rfi_revisions: {
+            source_rfi_count: sourceRfiRows.length,
+            projected_rfi_count: rfiContent.length,
+            return_review_count: rfiContent.reduce((count, row) => count + safeArray(row.review_history).filter((review) => review.decision === 'return_for_clarification').length, 0),
+            resubmission_count: rfiContent.reduce((count, row) => count + safeArray(row.resubmission_history).length, 0),
+            answer_count: rfiContent.reduce((count, row) => count + safeArray(row.answer_history).length, 0),
+            matches: sourceRfiRows.length === rfiContent.length && rfiRevisionMatches
+        },
+        ui_workflow_projection: {
+            matches: workflowProjectionMatches && currentOutcomeViolations === 0,
+            current_completed_outcome_violations: currentOutcomeViolations
+        }
+    };
+    const passed = Object.values(checks).every((check) => check.matches !== false)
+        && currentOutcomeViolations === 0;
+
+    return {
+        status: passed ? 'passed' : 'failed',
+        checks
+    };
+}
+
 export async function buildResearchExportBundle(bundle = {}, {
     generatedAtUtc = new Date().toISOString(),
     generatedByPseudonym = 'game_master_operator',
@@ -6957,11 +7690,12 @@ export async function buildResearchExportBundle(bundle = {}, {
     const eventLogChain = await buildEventLogChain(eventLog);
     const { notes, noteRevisions } = buildNotesTables(bundle, participantRegistry);
     const draftRevisions = buildDraftRevisions(bundle, participantRegistry);
-    const actionContent = buildActionContent(bundle, participantRegistry);
-    const proposalContent = buildProposalContent(bundle, participantRegistry);
+    const artifactWorkflowReviews = buildArtifactWorkflowReviewRows(bundle);
+    const actionContent = buildActionContent(bundle, participantRegistry, artifactWorkflowReviews);
+    const proposalContent = buildProposalContent(bundle, participantRegistry, artifactWorkflowReviews);
     const adjudicationContent = buildAdjudicationContent(bundle);
-    const moveResponseContent = buildMoveResponseContent(bundle, participantRegistry);
-    const rfiContent = buildRfiContent(bundle, participantRegistry);
+    const moveResponseContent = buildMoveResponseContent(bundle, participantRegistry, artifactWorkflowReviews);
+    const rfiContent = buildRfiContent(bundle, participantRegistry, artifactWorkflowReviews);
     const stateTransitions = buildStateTransitions(
         bundle,
         actionContent,
@@ -7000,6 +7734,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         adjudicationContent,
         moveResponseContent,
         rfiContent,
+        artifactWorkflowReviews,
         interactionEdges,
         communications: bundle.communications,
         eventLog
@@ -7031,6 +7766,14 @@ export async function buildResearchExportBundle(bundle = {}, {
         decisionLineage
     });
     const sessionRecordingArtifacts = buildSessionRecordingArtifactRows(bundle);
+    const contractReconciliation = buildContractReconciliation({
+        bundle,
+        artifactWorkflowReviews,
+        actionContent,
+        proposalContent,
+        moveResponseContent,
+        rfiContent
+    });
     const rowCounts = {
         event_log: eventLog.length,
         participants: participantRegistry.rows.length,
@@ -7043,6 +7786,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         adjudication_content: adjudicationContent.length,
         move_response_content: moveResponseContent.length,
         rfi_content: rfiContent.length,
+        artifact_workflow_reviews: artifactWorkflowReviews.length,
         interaction_edges: interactionEdges.length,
         session_recording_artifacts: sessionRecordingArtifacts.length,
         data_quality_events: dataQualityEvents.length,
@@ -7072,7 +7816,9 @@ export async function buildResearchExportBundle(bundle = {}, {
         },
         row_counts: rowCounts,
         event_log_chain: eventLogChain,
+        contract_reconciliation: contractReconciliation,
         codebook_ref: 'codebook.json',
+        artifact_workflow_reviews_ref: 'artifact_workflow_reviews.json',
         report_ref: 'report.html',
         latex_report_ref: 'report.tex',
         latex_engine: 'lualatex',
@@ -7102,6 +7848,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         proposalContent,
         moveResponseContent,
         rfiContent,
+        artifactWorkflowReviews,
         interactionEdges
     });
     const dataQualitySummary = buildDataQualitySummary({
@@ -7118,6 +7865,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         adjudicationContent,
         moveResponseContent,
         rfiContent,
+        artifactWorkflowReviews,
         interactionEdges,
         sessionRecordingArtifacts,
         dataQualityEvents,
@@ -7130,17 +7878,28 @@ export async function buildResearchExportBundle(bundle = {}, {
         turningPoints,
         includeNotesAppendix
     });
-    const codebook = safeArray(bundle.researchCodebook).length
-        ? {
-            schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
-            generated_at_utc: manifest.generated_at_utc,
-            tables: safeArray(bundle.researchCodebook)
-        }
-        : {
-            schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
-            generated_at_utc: manifest.generated_at_utc,
-            tables: buildCodebookRows()
-        };
+    const generatedCodebookRows = buildCodebookRows();
+    const storedCodebookRows = safeArray(bundle.researchCodebook);
+    const storedCodebookByField = new Map(storedCodebookRows.map((row) => [
+        `${row.table_name}:${row.column_name}`,
+        row
+    ]));
+    const generatedCodebookKeys = new Set(generatedCodebookRows.map((row) => `${row.table_name}:${row.column_name}`));
+    const codebook = {
+        schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
+        generated_at_utc: manifest.generated_at_utc,
+        tables: [
+            ...generatedCodebookRows.map((row) => ({
+                ...row,
+                ...safeObject(storedCodebookByField.get(`${row.table_name}:${row.column_name}`)),
+                table_name: row.table_name,
+                column_name: row.column_name,
+                data_type: row.data_type,
+                description: row.description
+            })),
+            ...storedCodebookRows.filter((row) => !generatedCodebookKeys.has(`${row.table_name}:${row.column_name}`))
+        ]
+    };
     const dataset = {
         session: bundle.session || null,
         manifest,
@@ -7156,6 +7915,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         adjudicationContent,
         moveResponseContent,
         rfiContent,
+        artifactWorkflowReviews,
         interactionEdges,
         sessionRecordingArtifacts,
         dataQualityEvents,
@@ -7201,6 +7961,7 @@ export async function buildResearchExportBundle(bundle = {}, {
         adjudicationContent,
         moveResponseContent,
         rfiContent,
+        artifactWorkflowReviews,
         interactionEdges,
         sessionRecordingArtifacts,
         dataQualityEvents,

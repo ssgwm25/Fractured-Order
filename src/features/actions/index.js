@@ -6,7 +6,6 @@
 export { createActionForm } from './ActionForm.js';
 export { createActionCard, createCompactActionCard } from './ActionCard.js';
 export { createActionList } from './ActionList.js';
-export { createActionReview } from './ActionReview.js';
 export {
     ARTIFACT_LIFECYCLE,
     getArtifactLifecycleViewModel,

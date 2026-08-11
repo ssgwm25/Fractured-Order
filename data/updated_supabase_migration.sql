@@ -1,5 +1,15 @@
--- ESG Simulation Platform - Migration Script
--- Authoritative schema: updated_supabase_schema.sql (Jan 23, 2026)
+-- DEPRECATED HISTORICAL MIGRATION SNAPSHOT — NOT A CURRENT INSTALL PATH.
+--
+-- This January 2026 compatibility script is retained only for archaeology.
+-- Do not execute it for a new or existing environment: its former
+-- "authoritative schema" reference is obsolete and it does not install the
+-- operational artifact-review RPC/trigger/RLS/grant contract. Follow the
+-- single authoritative dated migration order in docs/supabase-setup.md; the
+-- current review contract is owned by
+-- data/2026-08-05_team_neutral_artifact_review.sql.
+--
+-- ESG Simulation Platform - Historical Migration Script
+-- Historical schema reference: updated_supabase_schema.sql (Jan 23, 2026)
 --
 -- Purpose:
 -- 1) Ensure all tables from updated_supabase_schema.sql exist

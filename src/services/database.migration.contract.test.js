@@ -81,7 +81,7 @@ const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
 );
-const CONSOLIDATED_SCHEMA_PATHS = [
+const DEPRECATED_CONSOLIDATED_SCHEMA_PATHS = [
     new URL('../../data/COMPLETE_SCHEMA.sql', import.meta.url),
     new URL('../../data/updated_supabase_schema.sql', import.meta.url),
     new URL('../../data/updated_supabase_migration.sql', import.meta.url)
@@ -492,6 +492,28 @@ describe('database migration contracts', () => {
         expect(schemaSection).toContain('Historical NULL revision_number values are');
     });
 
+    it('keeps both workflow normalizers bound to the ordered trigger contract', () => {
+        const integritySql = readFileSync(ACTION_ARTIFACT_WORKFLOW_INTEGRITY_PATH, 'utf8');
+        const reviewSql = readFileSync(TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH, 'utf8');
+        const actionNormalizer = extractFunctionBody(reviewSql, 'normalize_action_workflow_write');
+        const requestNormalizer = extractFunctionBody(reviewSql, 'normalize_request_workflow_write');
+
+        expect(integritySql).toContain('CREATE TRIGGER normalize_action_workflow_write');
+        expect(integritySql).toContain('EXECUTE FUNCTION public.normalize_action_workflow_write()');
+        expect(reviewSql).toContain('CREATE OR REPLACE FUNCTION public.normalize_action_workflow_write()');
+        expect(actionNormalizer).toContain("public.live_demo_participant_surface(NEW.session_id) = 'whitecell'");
+        expect(actionNormalizer).toContain('public.live_demo_has_operator_grant(');
+        expect(actionNormalizer).toContain("OLD.workflow_state = 'completed'");
+        expect(actionNormalizer).toContain('Completed artifacts are immutable.');
+        expect(reviewSql).toContain('DROP TRIGGER IF EXISTS normalize_request_workflow_write ON public.requests;');
+        expect(reviewSql).toContain('CREATE TRIGGER normalize_request_workflow_write');
+        expect(reviewSql).toContain('EXECUTE FUNCTION public.normalize_request_workflow_write()');
+        expect(requestNormalizer).toContain("public.live_demo_participant_surface(NEW.session_id) = 'whitecell'");
+        expect(requestNormalizer).toContain('public.live_demo_has_operator_grant(');
+        expect(requestNormalizer).toContain("OLD.status IN ('answered', 'withdrawn')");
+        expect(requestNormalizer).toContain('Completed artifacts are immutable.');
+    });
+
     it('uses one fail-closed White Cell review contract for actions, proposals, orientations, and RFIs', () => {
         const sql = readFileSync(TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH, 'utf8');
         const reviewBody = extractFunctionBody(sql, 'operator_review_artifact');
@@ -510,10 +532,16 @@ describe('database migration contracts', () => {
         expect(reviewBody).toContain('Reviewer notes are required for every return.');
         expect(reviewBody).toContain('Requested team does not match the artifact submitting team.');
         expect(reviewBody).toContain('White Cell operator authorization is required.');
+        expect(reviewBody.match(/auth\.uid\(\) IS NULL/g)).toHaveLength(2);
+        expect(reviewBody.match(/public\.live_demo_participant_surface\([^)]*\) <> 'whitecell'/g)).toHaveLength(2);
+        expect(reviewBody.match(/public\.live_demo_has_operator_grant\(/g)).toHaveLength(2);
         expect(reviewBody).toContain('Stale artifact revision. Expected %, current %.');
+        expect(reviewBody.match(/Stale artifact revision\. Expected %, current %\./g)).toHaveLength(2);
         expect(reviewBody).toContain("action_row.workflow_state = 'completed'");
         expect(reviewBody).toContain("request_row.status IN ('answered', 'withdrawn')");
+        expect(reviewBody.match(/Completed artifacts are immutable\./g)).toHaveLength(2);
         expect(reviewBody).toContain("effective_workflow_state NOT IN ('submitted_to_white_cell', 'resubmitted')");
+        expect(reviewBody.match(/FOR UPDATE;/g)).toHaveLength(2);
         expect(requestWorkflowBody).toContain("OLD.status IN ('answered', 'withdrawn')");
         expect(requestWorkflowBody).toContain('Completed artifacts are immutable.');
         expect(requestWorkflowBody).toContain('content_changed');
@@ -535,11 +563,62 @@ describe('database migration contracts', () => {
         expect(reviewBody).toContain('prior_workflow_state = action_row.workflow_state');
         expect(reviewBody).toContain('reviewed_by_role = reviewer_role');
         expect(reviewBody).toContain('INSERT INTO public.artifact_workflow_reviews');
+        expect(reviewBody.match(/INSERT INTO public\.artifact_workflow_reviews/g)).toHaveLength(2);
         expect(reviewBody).toContain('prior_state');
         expect(reviewBody).toContain('new_state');
         expect(reviewBody).toContain("to_regclass('public.pli_adjudications')");
+
+        const rfiPathStart = reviewBody.indexOf('-- RFI clarification return path.');
+        const actionPath = reviewBody.slice(0, rfiPathStart);
+        const rfiPath = reviewBody.slice(rfiPathStart);
+
+        expect(actionPath.indexOf('UPDATE public.actions a')).toBeGreaterThan(-1);
+        expect(actionPath.indexOf('INSERT INTO public.artifact_workflow_reviews')).toBeGreaterThan(
+            actionPath.indexOf('UPDATE public.actions a')
+        );
+        expect(rfiPath.indexOf('UPDATE public.requests r')).toBeGreaterThan(-1);
+        expect(rfiPath.indexOf('INSERT INTO public.artifact_workflow_reviews')).toBeGreaterThan(
+            rfiPath.indexOf('UPDATE public.requests r')
+        );
         expect(legacyWrapperBody).toContain('public.operator_review_artifact');
+        expect(legacyWrapperBody).toContain("LOWER(BTRIM(action_row.team)) <> 'blue'");
         expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_review_artifact(TEXT, UUID, TEXT, TEXT, BIGINT, TEXT)');
+    });
+
+    it('keeps review history append-only behind session RLS and authenticated RPC grants', () => {
+        const sql = normalizeLineEndings(
+            readFileSync(TEAM_NEUTRAL_ARTIFACT_REVIEW_PATH, 'utf8')
+        );
+
+        expect(sql).toContain('ALTER TABLE public.artifact_workflow_reviews ENABLE ROW LEVEL SECURITY;');
+        expect(sql).toContain('CREATE POLICY artifact_workflow_reviews_select');
+        expect(sql).toContain('USING (public.live_demo_can_read_session(session_id));');
+        expect(sql).toContain('REVOKE ALL ON public.artifact_workflow_reviews FROM PUBLIC;');
+        expect(sql).toContain('REVOKE ALL ON public.artifact_workflow_reviews FROM anon;');
+        expect(sql).toContain(
+            'REVOKE INSERT, UPDATE, DELETE, TRUNCATE\n    ON public.artifact_workflow_reviews FROM authenticated;'
+        );
+        expect(sql).toContain('GRANT SELECT ON public.artifact_workflow_reviews TO authenticated;');
+        expect(sql).not.toMatch(/CREATE POLICY artifact_workflow_reviews_[^;]*FOR (?:INSERT|UPDATE|DELETE|ALL)/);
+        expect(sql).toContain("'Append-only White Cell artifact review transitions. Writes are owned by operator_review_artifact.';");
+
+        expect(sql).toContain(
+            'REVOKE ALL ON FUNCTION public.operator_review_artifact(TEXT, UUID, TEXT, TEXT, BIGINT, TEXT)\n    FROM PUBLIC;'
+        );
+        expect(sql).toContain(
+            'REVOKE ALL ON FUNCTION public.operator_review_artifact(TEXT, UUID, TEXT, TEXT, BIGINT, TEXT)\n    FROM anon;'
+        );
+        expect(sql).toContain(
+            'GRANT EXECUTE ON FUNCTION public.operator_review_artifact(TEXT, UUID, TEXT, TEXT, BIGINT, TEXT)\n    TO authenticated;'
+        );
+        expect(sql).toContain('REVOKE ALL ON FUNCTION public.operator_return_action_to_blue(UUID, TEXT) FROM PUBLIC;');
+        expect(sql).toContain('REVOKE ALL ON FUNCTION public.operator_return_action_to_blue(UUID, TEXT) FROM anon;');
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_return_action_to_blue(UUID, TEXT) TO authenticated;');
+        expect(sql).toContain('COMMENT ON FUNCTION public.operator_review_artifact(TEXT, UUID, TEXT, TEXT, BIGINT, TEXT) IS');
+        expect(sql).toContain('COMMENT ON FUNCTION public.operator_return_action_to_blue(UUID, TEXT) IS');
+        expect(sql).toContain('COMMENT ON COLUMN public.actions.revision_number IS');
+        expect(sql).toContain('COMMENT ON COLUMN public.requests.workflow_state IS');
+        expect(sql).toContain('COMMENT ON COLUMN public.requests.revision_number IS');
     });
 
     it('assigns RFIs and direct White Cell text to the actual Facilitator seat with team isolation', () => {
@@ -557,20 +636,16 @@ describe('database migration contracts', () => {
         expect(sql).toContain('Facilitators may only revise RFI question and category content.');
     });
 
-    it('keeps consolidated schema artifacts aligned with the richer workflow shape', () => {
-        CONSOLIDATED_SCHEMA_PATHS.forEach((schemaPath) => {
+    it('marks obsolete consolidated SQL artifacts as non-installable', () => {
+        DEPRECATED_CONSOLIDATED_SCHEMA_PATHS.forEach((schemaPath) => {
             const sql = readFileSync(schemaPath, 'utf8');
+            const header = sql.slice(0, 900);
 
-            expect(sql).toContain("workflow_state TEXT NOT NULL DEFAULT 'draft'");
-            expect(sql).toContain("workflow_state TEXT DEFAULT 'submitted_to_white_cell'");
-            expect(sql).toContain('revision_number BIGINT DEFAULT 1');
-            expect(sql).toContain("'returned_to_team'");
-            expect(sql).toContain("'resubmitted'");
-            expect(sql).toContain("'completed'");
-            expect(sql).toContain("'returned_to_blue'");
-            expect(sql).toContain('CREATE TABLE IF NOT EXISTS artifact_workflow_reviews');
-            expect(sql).toContain('prior_state JSONB NOT NULL');
-            expect(sql).toContain('new_state JSONB NOT NULL');
+            expect(header).toContain('DEPRECATED HISTORICAL');
+            expect(header).toContain('NOT A CURRENT INSTALL PATH');
+            expect(header).toContain('Do not execute');
+            expect(header).toContain('docs/supabase-setup.md');
+            expect(header).toContain('data/2026-08-05_team_neutral_artifact_review.sql');
         });
     });
 

@@ -14,6 +14,16 @@ import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('RequestsStore');
 
+function getRequestSyncFingerprint(request = {}) {
+    return JSON.stringify({
+        status: request.status || '',
+        workflowState: request.canonical_workflow_state || request.workflow_state || '',
+        revision: Number(request.revision_number) || 1,
+        responseAt: request.responded_at || '',
+        updatedAt: request.updated_at || ''
+    });
+}
+
 /**
  * Request status constants
  * Schema: status IN ('pending', 'answered', 'withdrawn')
@@ -278,6 +288,29 @@ class RequestsStore {
             logger.error('Failed to respond to RFI:', err);
             throw err;
         }
+    }
+
+    async reconcileRequests() {
+        if (!this.sessionId) return [];
+
+        const atQueryStart = new Map(this.requests
+            .filter((request) => request?.id)
+            .map((request) => [request.id, getRequestSyncFingerprint(request)]));
+        const fetched = await database.fetchRequests(this.sessionId) || [];
+        const reconciled = new Map(fetched.filter((request) => request?.id).map((request) => [request.id, request]));
+
+        this.requests.forEach((request) => {
+            if (!request?.id) return;
+            const changedDuringQuery = atQueryStart.get(request.id) !== getRequestSyncFingerprint(request);
+            if (!reconciled.has(request.id) || changedDuringQuery) reconciled.set(request.id, request);
+        });
+
+        const discovered = fetched.filter((request) => (
+            request?.id && atQueryStart.get(request.id) !== getRequestSyncFingerprint(request)
+        ));
+        this.requests = Array.from(reconciled.values());
+        this.notify('reconciled', discovered);
+        return discovered;
     }
 
     /**

@@ -6,6 +6,7 @@ import {
     buildTeamRole,
     buildWhiteCellOperatorRole
 } from '../core/teamContext.js';
+import { serializeProposalDetails } from '../features/actions/proposalDetails.js';
 
 class MemoryStorage {
     constructor() {
@@ -667,7 +668,7 @@ describe('database live-demo seat contract', () => {
         });
     });
 
-    it('lets the addressed facilitator send a proposal response back to White Cell before marking the proposal responded', async () => {
+    it('lets the addressed facilitator append the first immutable proposal thread response', async () => {
         const { sessionStore, database } = await loadModules();
         setClientIdentity(sessionStore, 'client-response-gm');
         await database.authorizeOperatorAccess({
@@ -681,6 +682,32 @@ describe('database live-demo seat contract', () => {
             session_code: 'RESP2026'
         });
 
+        setClientIdentity(sessionStore, 'client-response-green');
+        await database.claimParticipantSeat(session.id, 'green_scribe', 'Green Scribe');
+        const proposal = await database.createAction({
+            session_id: session.id,
+            client_id: sessionStore.getClientId(),
+            move: 1,
+            phase: 1,
+            team: 'green',
+            mechanism: 'Proposal',
+            sector: 'Biotechnology',
+            exposure_type: null,
+            targets: [],
+            goal: 'Counter Port Proposal',
+            expected_outcomes: 'Coordinate a shared customs position.',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU'],
+                objective: 'Coordinate port investment and customs standards.',
+                recipientTeams: ['blue'],
+                focusSectors: ['Biotechnology'],
+                supplyChainFocusDecision: 'No',
+                timingAndConditions: 'During the current move.'
+            }),
+            priority: 'NORMAL',
+            status: 'submitted'
+        });
+
         setClientIdentity(sessionStore, 'client-response-whitecell');
         await database.authorizeOperatorAccess({
             surface: 'whitecell',
@@ -691,87 +718,57 @@ describe('database live-demo seat contract', () => {
         });
         await database.claimParticipantSeat(session.id, 'whitecell_lead', 'White Cell Lead');
 
-        const forwardedProposal = await database.createCommunication({
-            session_id: session.id,
-            from_role: 'white_cell',
-            to_role: 'blue',
-            type: 'PROPOSAL_FORWARDED',
-            content: 'Forwarded proposal content',
-            metadata: {
-                source_proposal_id: 'proposal-2',
-                recipient_team: 'blue',
-                proposal: {
-                    title: 'Counter Port Proposal'
-                }
-            }
+        const proposalReview = await database.reviewProposal(proposal.id, {
+            decision: 'forward_to_recipient',
+            recipient_team: 'blue',
+            expected_revision: 1
         });
+        const forwardedProposal = proposalReview.communication;
 
         setClientIdentity(sessionStore, 'client-response-blue');
         await database.claimParticipantSeat(session.id, 'blue_facilitator', 'Blue Facilitator');
 
-        const responseCommunication = await database.createCommunication({
-            session_id: session.id,
-            from_role: 'blue_facilitator',
-            to_role: 'white_cell',
-            type: 'PROPOSAL_RESPONSE',
+        const responseCommunication = await database.appendProposalThreadMessage(forwardedProposal.id, {
             content: 'Blue Team can support this proposal with customs coordination.',
-            metadata: {
-                source_proposal_id: 'proposal-2',
-                source_communication_id: forwardedProposal.id,
-                source_team: 'green',
-                responder_team: 'blue'
-            }
+            messageType: 'recipient_response',
+            facilitatorDecision: 'accept',
+            clientMessageId: 'seat-contract-blue-round-1'
         });
 
         expect(responseCommunication).toMatchObject({
             session_id: session.id,
             from_role: 'blue_facilitator',
-            to_role: 'white_cell',
+            to_role: 'green',
             type: 'PROPOSAL_RESPONSE',
             content: 'Blue Team can support this proposal with customs coordination.',
             metadata: expect.objectContaining({
-                source_communication_id: forwardedProposal.id,
-                responder_team: 'blue'
+                thread_id: forwardedProposal.metadata.thread_id,
+                recipient_team: 'blue',
+                round_number: 1,
+                parent_message_id: forwardedProposal.id,
+                source_proposal_id: proposal.id,
+                source_revision: 1,
+                source_team: 'green',
+                sender_team: 'blue',
+                sender_role: 'blue_facilitator',
+                message_type: 'recipient_response',
+                facilitator_decision: 'accept',
+                client_message_id: 'seat-contract-blue-round-1'
             })
         });
 
-        const updatedCommunication = await database.updateProposalRecipientStatus(
-            forwardedProposal.id,
-            'responded',
-            {
-                response_communication_id: responseCommunication.id,
-                responded_at: '2026-04-09T10:20:00.000Z',
-                response_sent_at: '2026-04-09T10:20:00.000Z',
-                response_content: 'Blue Team can support this proposal with customs coordination.',
-                response_from_role: 'blue_facilitator',
-                response_from_team: 'blue'
-            }
-        );
-
-        expect(updatedCommunication).toMatchObject({
-            id: forwardedProposal.id,
-            metadata: expect.objectContaining({
-                proposal_recipient_state: expect.objectContaining({
-                    status: 'responded',
-                    participant_team: 'blue',
-                    participant_role: 'blue_facilitator',
-                    response_communication_id: responseCommunication.id
-                })
-            })
+        const idempotentRetry = await database.appendProposalThreadMessage(forwardedProposal.id, {
+            content: 'Blue Team can support this proposal with customs coordination.',
+            messageType: 'recipient_response',
+            facilitatorDecision: 'accept',
+            clientMessageId: 'seat-contract-blue-round-1'
         });
+        expect(idempotentRetry.id).toBe(responseCommunication.id);
 
-        const refreshedForwardedProposal = await database.fetchCommunications(session.id);
-        const storedForwardedProposal = refreshedForwardedProposal.find((entry) => entry.id === forwardedProposal.id);
-
-        expect(storedForwardedProposal).toMatchObject({
-            metadata: expect.objectContaining({
-                proposal_recipient_state: expect.objectContaining({
-                    response_communication_id: responseCommunication.id,
-                    response_content: 'Blue Team can support this proposal with customs coordination.',
-                    response_from_team: 'blue'
-                })
-            })
-        });
+        const threadMessages = (await database.fetchCommunications(session.id))
+            .filter((entry) => entry.metadata?.thread_id === forwardedProposal.metadata.thread_id);
+        expect(threadMessages).toHaveLength(2);
+        expect(threadMessages.map((entry) => entry.metadata.round_number).sort()).toEqual([0, 1]);
 
         await expect(
             database.createCommunication({
@@ -781,7 +778,7 @@ describe('database live-demo seat contract', () => {
                 type: 'PROPOSAL_RESPONSE',
                 content: 'Blue Team wants to replace its earlier response.',
                 metadata: {
-                    source_proposal_id: 'proposal-2',
+                    source_proposal_id: proposal.id,
                     source_communication_id: forwardedProposal.id,
                     source_team: 'green',
                     responder_team: 'blue'

@@ -9,6 +9,7 @@ const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
 const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
 const MODALS_CSS_PATH = new URL('../../styles/components/modals.css', import.meta.url);
 const showToast = vi.fn();
+const showDurableNotification = vi.fn();
 const showModal = vi.fn();
 const confirmModal = vi.fn();
 const showLoader = vi.fn(() => ({ hide: vi.fn() }));
@@ -43,7 +44,8 @@ const {
 }));
 
 vi.mock('../components/ui/Toast.js', () => ({
-    showToast
+    showToast,
+    showDurableNotification
 }));
 
 vi.mock('../components/ui/Modal.js', () => ({
@@ -1850,6 +1852,7 @@ describe('White Cell DOM contract', () => {
 
         const controller = new WhiteCellController();
         controller.operatorRole = 'lead';
+        controller.durableNotifications = { seed: vi.fn(), notify: vi.fn(() => ({})) };
         controller.syncActionsFromStore();
 
         pendingItems = [{
@@ -1869,11 +1872,11 @@ describe('White Cell DOM contract', () => {
         controller.syncActionsFromStore({ announce: true });
         controller.flushQueueArrivalAnnouncement();
 
-        expect(showToast).toHaveBeenCalledWith({
-            message: 'New team submissions arrived: 1 Blue action.',
-            type: 'warning',
-            duration: 10000
-        });
+        expect(controller.durableNotifications.notify).toHaveBeenCalledWith(expect.objectContaining({
+            id: 'artifact-submission:action-arrival-1:submitted_to_white_cell:r1',
+            source: 'Blue Team',
+            requiredAction: 'Open and review the submission.'
+        }), expect.any(Object));
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('NEW');
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('Stabilize port access');
     });
@@ -1891,6 +1894,7 @@ describe('White Cell DOM contract', () => {
 
         const controller = new WhiteCellController();
         controller.operatorRole = 'lead';
+        controller.durableNotifications = { seed: vi.fn(), notify: vi.fn(() => ({})) };
         controller.syncActionsFromStore();
 
         pendingItems = [{
@@ -1918,18 +1922,17 @@ describe('White Cell DOM contract', () => {
         controller.syncActionsFromStore({ announce: true });
         controller.flushQueueArrivalAnnouncement();
 
-        expect(showToast).toHaveBeenCalledWith({
-            message: 'New team submissions arrived: 1 Strategic Orientation artifact.',
-            type: 'warning',
-            duration: 10000
-        });
+        expect(controller.durableNotifications.notify).toHaveBeenCalledWith(expect.objectContaining({
+            family: 'artifact-submission',
+            artifact: expect.stringContaining('Strategic Orientation')
+        }), expect.any(Object));
         expect(fakeDocument.elements.strategicOrientationBadge.textContent).toBe('1');
         expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('NEW');
         expect(fakeDocument.elements.strategicOrientationList.innerHTML).toContain('Red Forecast: Blue Reframe');
         expect(fakeDocument.elements.responsesBadge.hidden).toBe(true);
     });
 
-    it('mutes White Cell queue arrival toasts without hiding visible queue cues', async () => {
+    it('mutes White Cell durable arrival notices without hiding visible queue cues', async () => {
         const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');
         const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
@@ -1967,6 +1970,20 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.actionsBadge.hidden).toBe(false);
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('NEW');
         expect(fakeDocument.elements.actionsList.innerHTML).toContain('Keep the queue visible while muted');
+    });
+
+    it('keeps other NEW records unread when one White Cell destination is opened', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const controller = new WhiteCellController();
+        controller.newBlueActionIds = new Set(['action-opened', 'action-unread']);
+        controller.renderActionReview = vi.fn();
+        controller.durableNotifications = { markDestinationRead: vi.fn() };
+
+        controller.clearQueueArrivalHighlights('actions', 'action-opened');
+
+        expect(controller.newBlueActionIds).toEqual(new Set(['action-unread']));
+        expect(controller.durableNotifications.markDestinationRead).toHaveBeenCalledWith({ recordId: 'action-opened' });
+        expect(controller.renderActionReview).toHaveBeenCalledTimes(1);
     });
 
     it('keeps reviewed proposal-team submissions visible in the White Cell proposals queue', async () => {
@@ -2180,17 +2197,21 @@ describe('White Cell DOM contract', () => {
         };
 
         controller.communications = [roundOne];
+        controller.renderProposals = vi.fn();
+        controller.durableNotifications = { seed: vi.fn(), notify: vi.fn(() => ({})) };
         controller.captureProposalThreadRoundNotifications([], { announce: false });
-        expect(showToast).not.toHaveBeenCalled();
+        expect(controller.durableNotifications.notify).not.toHaveBeenCalled();
 
         controller.communications = [roundOne, roundTwo];
         controller.captureProposalThreadRoundNotifications([roundTwo], { announce: true });
         controller.captureProposalThreadRoundNotifications([roundTwo], { announce: true });
 
-        expect(showToast).toHaveBeenCalledTimes(1);
-        expect(showToast).toHaveBeenCalledWith(expect.objectContaining({
-            message: 'New proposal thread round 2 from Green Team for Blue Team.'
-        }));
+        expect(controller.durableNotifications.notify).toHaveBeenCalledTimes(1);
+        expect(controller.durableNotifications.notify).toHaveBeenCalledWith(expect.objectContaining({
+            id: 'proposal-round:thread-round-2:round-2',
+            source: 'Green Team',
+            requiredAction: expect.stringContaining('Open the thread')
+        }), expect.any(Object));
     });
 
     it('renders facilitator action details without a Red Team send control in White Cell adjudication', async () => {

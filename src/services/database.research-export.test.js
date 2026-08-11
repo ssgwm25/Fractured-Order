@@ -87,6 +87,7 @@ describe('database research export helpers', () => {
             if (tableName === 'research_note_revision') return [{ note_id: 'note-1', version: 1 }];
             if (tableName === 'research_derived_session_metrics') return [{ session_id: 'session-1' }];
             if (tableName === 'research_export_codebook') return [{ table_name: 'event_log', column_name: 'event_id' }];
+            if (tableName === 'artifact_workflow_reviews') return [{ id: 'review-1', artifact_id: 'action-1' }];
             return [];
         });
 
@@ -102,7 +103,9 @@ describe('database research export helpers', () => {
             researchParticipants: [{ participant_pseudonym: 'participant-001' }],
             researchNoteRevisions: [{ note_id: 'note-1', version: 1 }],
             researchDerivedSessionMetrics: [{ session_id: 'session-1' }],
-            researchCodebook: [{ table_name: 'event_log', column_name: 'event_id' }]
+            researchCodebook: [{ table_name: 'event_log', column_name: 'event_id' }],
+            artifactWorkflowReviews: [{ id: 'review-1', artifact_id: 'action-1' }]
         });
+        expect(database.fetchResearchTable).toHaveBeenCalledWith('artifact_workflow_reviews', 'session-1');
     });
 });

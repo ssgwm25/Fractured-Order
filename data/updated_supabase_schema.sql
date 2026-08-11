@@ -1,5 +1,15 @@
+-- DEPRECATED HISTORICAL SCHEMA SNAPSHOT — NOT A CURRENT INSTALL PATH.
+--
+-- This January 2026 snapshot is retained only for archaeology. Do not execute
+-- it for a new or existing environment: its broad policies and partial
+-- workflow shape are superseded, and it does not install the operational
+-- artifact-review RPC/trigger/RLS/grant contract. Follow the single
+-- authoritative dated migration order in docs/supabase-setup.md; the current
+-- review contract is owned by
+-- data/2026-08-05_team_neutral_artifact_review.sql.
+--
 -- ESG Simulation Platform - Updated Supabase Schema
--- Aligned to current src/ code + remediation plan (Jan 23, 2026)
+-- Historical alignment snapshot (Jan 23, 2026)
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

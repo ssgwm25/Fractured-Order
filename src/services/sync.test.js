@@ -36,12 +36,14 @@ const {
         mockActionsStore: {
             initialize: vi.fn(),
             loadActions: vi.fn(),
+            reconcileActions: vi.fn(),
             updateFromServer: vi.fn(),
             reset: vi.fn()
         },
         mockRequestsStore: {
             initialize: vi.fn(),
             loadRequests: vi.fn(),
+            reconcileRequests: vi.fn(),
             updateFromServer: vi.fn(),
             reset: vi.fn()
         },
@@ -135,6 +137,8 @@ describe('syncService live bootstrap', () => {
         mockTimelineStore.initialize.mockResolvedValue();
         mockParticipantsStore.initialize.mockResolvedValue([]);
         mockCommunicationsStore.initialize.mockResolvedValue();
+        mockActionsStore.reconcileActions.mockResolvedValue([]);
+        mockRequestsStore.reconcileRequests.mockResolvedValue([]);
         mockCommunicationsStore.reconcileCommunications.mockResolvedValue([]);
         global.window = {
             addEventListener: vi.fn(),
@@ -163,6 +167,8 @@ describe('syncService live bootstrap', () => {
         expect(mockCommunicationsStore.initialize).toHaveBeenCalledWith('session-live-1');
         expect(mockRealtimeService.initialize).toHaveBeenCalledWith('session-live-1');
         expect(mockCommunicationsStore.reconcileCommunications).toHaveBeenCalledTimes(1);
+        expect(mockActionsStore.reconcileActions).toHaveBeenCalledTimes(1);
+        expect(mockRequestsStore.reconcileRequests).toHaveBeenCalledTimes(1);
         expect(
             mockRealtimeService.on.mock.invocationCallOrder.at(-1)
         ).toBeLessThan(
@@ -253,11 +259,11 @@ describe('syncService live bootstrap', () => {
     it('reconciles every durable store after a realtime channel reconnects', async () => {
         vi.useFakeTimers();
         mockGameStateStore.initialize.mockResolvedValue();
-        mockActionsStore.loadActions.mockResolvedValue([]);
-        mockRequestsStore.loadRequests.mockResolvedValue([]);
+        mockActionsStore.reconcileActions.mockResolvedValue([]);
+        mockRequestsStore.reconcileRequests.mockResolvedValue([]);
         mockTimelineStore.loadEvents.mockResolvedValue([]);
         mockParticipantsStore.loadParticipants.mockResolvedValue([]);
-        mockCommunicationsStore.loadCommunications.mockResolvedValue([]);
+        mockCommunicationsStore.reconcileCommunications.mockResolvedValue([]);
 
         const { syncService, SYNC_STATUS } = await loadSyncModule();
         await syncService.initialize('session-live-reconnect');
@@ -270,11 +276,11 @@ describe('syncService live bootstrap', () => {
         await vi.advanceTimersByTimeAsync(500);
 
         expect(mockGameStateStore.initialize).toHaveBeenLastCalledWith('session-live-reconnect');
-        expect(mockActionsStore.loadActions).toHaveBeenCalledTimes(1);
-        expect(mockRequestsStore.loadRequests).toHaveBeenCalledTimes(1);
+        expect(mockActionsStore.reconcileActions).toHaveBeenCalledTimes(2);
+        expect(mockRequestsStore.reconcileRequests).toHaveBeenCalledTimes(2);
         expect(mockTimelineStore.loadEvents).toHaveBeenCalledTimes(1);
         expect(mockParticipantsStore.loadParticipants).toHaveBeenCalledWith({ tolerateError: true });
-        expect(mockCommunicationsStore.loadCommunications).toHaveBeenCalledTimes(1);
+        expect(mockCommunicationsStore.reconcileCommunications).toHaveBeenCalledTimes(2);
         expect(syncService.getStatus()).toBe(SYNC_STATUS.SYNCED);
     });
 });

@@ -2,6 +2,68 @@
 
 This project deploys as a root-level Vite multi-page app through GitHub Pages.
 
+## Migration-First Release Order
+
+Rehearse every release in a dedicated, non-production Supabase project. Apply
+database changes first, in the 32-step dated order documented in
+`docs/supabase-setup.md`, ending at
+`data/2026-08-06_proposal_recipient_threads.sql`. Record the project reference,
+final migration identifier, operator, and UTC completion time. Verify RPCs,
+RLS, append-only review/thread records, RFI history, and research-export
+reconciliation before advancing.
+
+Deploy the matching frontend second from one clean commit. Record the commit
+SHA and the deployed asset evidence, then run the complete rehearsal matrix
+against the dedicated live project. Run the same matrix against the
+deterministic mock from that same commit and declared migration state; a mock
+pass cannot substitute for the live Supabase pass.
+
+For containment, roll back the frontend first and leave additive schema,
+`artifact_workflow_reviews`, proposal thread rounds, and accepted RFI history
+intact. Follow `docs/supabase-rollback.md`; do not reverse dated migrations in a
+live or shared environment.
+
+## Current-Head Evidence Contract
+
+A release evidence bundle is current only when it contains all of the
+following from the candidate head:
+
+- the clean source commit SHA and the deployed frontend commit SHA, which must
+  match
+- the verified final migration identifier
+  `2026-08-06_proposal_recipient_threads`
+- the dedicated rehearsal deployment URL, unique run ID, UTC start/end times,
+  and operator
+- mock and live-Supabase results produced from the same commit and migration
+  state
+- Playwright reports and `playthrough-diagnostics.json`, plus the downloaded
+  schema `1.8.0` / format revision `9` research archive and its passed manifest
+  reconciliation
+
+An uncommitted working-tree run is useful development feedback but is not
+current-head release evidence. Historical reports, screenshots, archives, or
+session rows never satisfy a current candidate gate, even when they previously
+passed.
+
+## Explicit Release Blockers
+
+Do not release when any of these is true:
+
+- the rehearsal project is missing a migration, its final migration identifier
+  differs, or its RPC/RLS verification is incomplete
+- the hosted frontend commit cannot be proven to match the clean candidate
+  commit, or hosted assets are stale
+- either the deterministic-mock matrix or the live-Supabase matrix fails, is
+  skipped, uses another commit/migration state, or lacks current-head artifacts
+- workflow/revision reconciliation fails; return notes, reviewers, timestamps,
+  recipient approvals, immutable proposal rounds, notification metadata, or
+  RFI return/resubmission/answer history are missing
+- a current decision surface exposes an outcome badge, a notification is
+  duplicated after startup/reconnect, dismissal does not persist, or recipient
+  proposal threads leak across teams
+- rollback readiness has not been rehearsed as frontend-first containment with
+  additive schema and accepted history preserved
+
 ## GitHub Pages Workflow
 
 The deployment workflow is `.github/workflows/deploy-pages.yml`.

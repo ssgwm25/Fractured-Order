@@ -16,6 +16,16 @@ import { ENUMS } from '../core/enums.js';
 
 const logger = createLogger('ActionsStore');
 
+function getActionSyncFingerprint(action = {}) {
+    return JSON.stringify({
+        status: action.status || '',
+        workflowState: action.canonical_workflow_state || action.workflow_state || '',
+        revision: Number(action.revision_number) || 1,
+        rowVersion: Number(action.row_version) || 0,
+        updatedAt: action.updated_at || ''
+    });
+}
+
 /**
  * @typedef {Object} Action
  * @property {string} id - Action ID
@@ -107,6 +117,29 @@ class ActionsStore {
             logger.error('Failed to load actions:', err);
             throw err;
         }
+    }
+
+    async reconcileActions() {
+        if (!this.sessionId) return [];
+
+        const atQueryStart = new Map(this.actions
+            .filter((action) => action?.id)
+            .map((action) => [action.id, getActionSyncFingerprint(action)]));
+        const fetched = await database.fetchActions(this.sessionId) || [];
+        const reconciled = new Map(fetched.filter((action) => action?.id).map((action) => [action.id, action]));
+
+        this.actions.forEach((action) => {
+            if (!action?.id) return;
+            const changedDuringQuery = atQueryStart.get(action.id) !== getActionSyncFingerprint(action);
+            if (!reconciled.has(action.id) || changedDuringQuery) reconciled.set(action.id, action);
+        });
+
+        const discovered = fetched.filter((action) => (
+            action?.id && atQueryStart.get(action.id) !== getActionSyncFingerprint(action)
+        ));
+        this.actions = Array.from(reconciled.values());
+        this.notify('reconciled', discovered);
+        return discovered;
     }
 
     /**

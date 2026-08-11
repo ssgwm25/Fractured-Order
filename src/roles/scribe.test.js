@@ -68,7 +68,8 @@ function flattenHighlights(steps) {
 }
 
 vi.mock('../components/ui/Toast.js', () => ({
-    showToast: vi.fn()
+    showToast: vi.fn(),
+    showDurableNotification: vi.fn()
 }));
 
 vi.mock('../components/ui/Loader.js', () => ({
@@ -298,6 +299,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         vi.clearAllMocks();
         vi.restoreAllMocks();
         delete globalThis.__ESG_DISABLE_AUTO_INIT__;
+        delete global.requestAnimationFrame;
         global.document?.body?.removeAttribute?.('data-scribe-presentation');
         global.document?.body?.removeAttribute?.('data-role-surface');
         global.document?.body?.removeAttribute?.('data-scribe-deck-state');
@@ -783,7 +785,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         });
     });
 
-    it('moves focus into the scribe alerts dialog, traps Tab, and restores focus on Escape', async () => {
+    it('moves focus into the alerts dialog without clearing unread, traps Tab, and restores focus on Escape', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const alertsButton = fakeDocument.register(createFakeElement('scribeAlertsBtn', '', 'button'));
@@ -809,8 +811,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         expect(alertsPanel.hidden).toBe(false);
         expect(alertsButton.getAttribute('aria-expanded')).toBe('true');
-        expect(controller.unreadNotifications).toBe(0);
-        expect(controller.notifications[0].read).toBe(true);
+        expect(controller.unreadNotifications).toBe(1);
+        expect(controller.notifications[0].read).toBe(false);
         expect(controller.renderAlerts).toHaveBeenCalled();
         expect(clearButton.focus).toHaveBeenCalledWith({ preventScroll: true });
 
@@ -837,7 +839,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(alertsPanel.hidden).toBe(true);
         expect(alertsButton.getAttribute('aria-expanded')).toBe('false');
         expect(alertsButton.focus).toHaveBeenCalledWith({ preventScroll: true });
-        expect(alertsBadge.hidden).toBe(true);
+        expect(alertsBadge.hidden).toBe(false);
+        expect(alertsBadge.textContent).toBe('1');
     });
 
     it('pops up each new Tribe Street Journal update for the Facilitator without replaying history', async () => {
@@ -853,6 +856,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         const getAll = vi.spyOn(communicationsStore, 'getAll');
         const controller = new ScribeController();
         controller.renderAlerts = vi.fn();
+        controller.durableNotifications = {
+            notify: vi.fn(() => ({}))
+        };
 
         getAll.mockReturnValue([]);
         controller.processCommunicationNotifications('initialized');
@@ -874,12 +880,74 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         expect(controller.notifications).toHaveLength(1);
         expect(controller.notifications[0].title).toBe('Tribe Street Journal update');
-        expect(showToast).toHaveBeenCalledTimes(1);
-        expect(showToast).toHaveBeenCalledWith({
-            message: 'Tribe Street Journal update: The port disruption headline has been updated.',
-            type: 'info',
-            duration: 5000
-        });
+        expect(controller.durableNotifications.notify).toHaveBeenCalledWith(expect.objectContaining({
+            id: 'direct-communication:comm-journal-facilitator-update-1',
+            source: 'White Cell'
+        }), expect.any(Object));
+        expect(showToast).not.toHaveBeenCalled();
+    });
+
+    it('clears only the opened durable alert and transfers focus to its destination', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const focusTarget = createFakeElement('notificationDestination', '', 'article');
+        const originalQuerySelector = fakeDocument.querySelector.bind(fakeDocument);
+        fakeDocument.querySelector = vi.fn((selector) => (
+            selector.includes('#deckActionFrame') ? focusTarget : originalQuerySelector(selector)
+        ));
+        global.document = fakeDocument;
+        global.requestAnimationFrame = (callback) => callback();
+
+        const controller = new ScribeController();
+        controller.setSlideByKey = vi.fn();
+        controller.renderAlerts = vi.fn();
+        controller.notifications = [{
+            id: 'direct-communication:comm-open',
+            title: 'White Cell communication',
+            read: false,
+            durableNotification: {
+                destination: { slideKey: 'communication-comm-open' }
+            }
+        }, {
+            id: 'direct-communication:comm-still-unread',
+            title: 'Another communication',
+            read: false
+        }];
+        controller.unreadNotifications = 2;
+        controller.durableNotifications = {
+            open: vi.fn((_id, onOpen) => onOpen({ destination: { slideKey: 'communication-comm-open' } }))
+        };
+
+        controller.openNotificationEntry('direct-communication:comm-open');
+
+        expect(controller.unreadNotifications).toBe(1);
+        expect(controller.notifications[1].read).toBe(false);
+        expect(controller.setSlideByKey).toHaveBeenCalledWith('communication-comm-open');
+        expect(focusTarget.focus).toHaveBeenCalledWith({ preventScroll: false });
+    });
+
+    it('clears only the durable alert whose slide is explicitly opened', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+        controller.renderAlerts = vi.fn();
+        controller.notifications = [{
+            id: 'proposal-opened',
+            read: false,
+            durableNotification: { destination: { slideKey: 'proposal-1' } }
+        }, {
+            id: 'proposal-unread',
+            read: false,
+            durableNotification: { destination: { slideKey: 'proposal-2' } }
+        }];
+        controller.unreadNotifications = 2;
+        controller.durableNotifications = { markDestinationRead: vi.fn(() => true) };
+
+        controller.markSlideNotificationsRead('proposal-1');
+
+        expect(controller.notifications[0].read).toBe(true);
+        expect(controller.notifications[1].read).toBe(false);
+        expect(controller.unreadNotifications).toBe(1);
+        expect(controller.durableNotifications.markDestinationRead).toHaveBeenCalledWith({ slideKey: 'proposal-1' });
     });
 
     it('seeds a delayed initial communications snapshot without replaying unread activity', async () => {
@@ -892,6 +960,10 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         const getAll = vi.spyOn(communicationsStore, 'getAll');
         const controller = new ScribeController();
         controller.renderAlerts = vi.fn();
+        controller.durableNotifications = {
+            seed: vi.fn(),
+            notify: vi.fn(() => ({}))
+        };
         const historicalCommunication = {
             id: 'comm-present-before-reload-1',
             from_role: 'white_cell',
@@ -925,6 +997,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         const getAll = vi.spyOn(communicationsStore, 'getAll');
         const controller = new ScribeController();
         controller.renderAlerts = vi.fn();
+        controller.durableNotifications = { notify: vi.fn(() => ({})) };
 
         getAll.mockReturnValue([]);
         controller.processCommunicationNotifications('loaded');
@@ -961,7 +1034,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             'Second facilitator message.',
             'First facilitator message.'
         ]);
-        expect(showToast).toHaveBeenCalledTimes(2);
+        expect(controller.durableNotifications.notify).toHaveBeenCalledTimes(2);
+        expect(showToast).not.toHaveBeenCalled();
     });
 
     it('announces a White Cell communication recovered by reconnect resync exactly once', async () => {
@@ -974,6 +1048,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         const getAll = vi.spyOn(communicationsStore, 'getAll');
         const controller = new ScribeController();
         controller.renderAlerts = vi.fn();
+        controller.durableNotifications = { notify: vi.fn(() => ({})) };
         const recoveredCommunication = {
             id: 'comm-recovered-after-outage-1',
             from_role: 'white_cell',
@@ -993,7 +1068,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(controller.notifications).toHaveLength(1);
         expect(controller.notifications[0].detail).toBe('Recovered while the facilitator was offline.');
         expect(controller.unreadNotifications).toBe(1);
-        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(controller.durableNotifications.notify).toHaveBeenCalledTimes(1);
+        expect(showToast).not.toHaveBeenCalled();
     });
 
     it('keeps the requested sidebar sections while reserving Actions for live facilitator decisions', () => {
@@ -1074,6 +1150,119 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         expect(controller.activeSectionIndex).toBe(0);
         expect(controller.getCurrentSlideKey()).toBe('action-live-1');
+    });
+
+    it('renders the horizontal mark rail on the actual Blue Facilitator action workspace', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
+        global.document = fakeDocument;
+
+        const controller = new ScribeController();
+        controller.teamId = 'blue';
+        controller.teamLabel = 'Blue Team';
+        controller.sections = [{
+            id: 'actions',
+            label: 'Actions',
+            slideCount: 3,
+            slides: [{
+                slideKey: 'action-move-1-old',
+                slideType: 'action',
+                title: 'Older Move 1 action',
+                action: { id: 'move-1-old', move: 1, updated_at: '2026-08-05T10:00:00.000Z' }
+            }, {
+                slideKey: 'action-move-1-new',
+                slideType: 'action',
+                title: 'Newest Move 1 action',
+                action: { id: 'move-1-new', move: 1, updated_at: '2026-08-05T12:00:00.000Z' }
+            }, {
+                slideKey: 'action-move-3',
+                slideType: 'action',
+                title: 'Move 3 action',
+                action: { id: 'move-3', move: 3, updated_at: '2026-08-05T11:00:00.000Z' }
+            }]
+        }];
+        controller.deckSlides = [...controller.sections[0].slides];
+        controller.currentSlideIndex = 0;
+        controller.activeSectionIndex = 0;
+
+        controller.renderSections();
+
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark-navigation');
+        expect(sectionList.innerHTML).toContain('role="tablist"');
+        expect(sectionList.innerHTML).toContain('aria-orientation="horizontal"');
+        expect(sectionList.innerHTML).toContain('data-scribe-action-mark-tab="strategic-orientation"');
+        expect(sectionList.innerHTML).toContain('aria-label="Strategic Orientation, 0 records"');
+        expect(sectionList.innerHTML).toContain('aria-label="Move 1, 2 records"');
+        expect(sectionList.innerHTML).toContain('aria-label="Move 2, 0 records"');
+        expect(sectionList.innerHTML).toContain('aria-label="Move 3, 1 record"');
+        expect(sectionList.innerHTML).toMatch(/data-scribe-action-mark-tab="move-1"[\s\S]*?aria-selected="true"[\s\S]*?tabindex="0"/);
+        expect(sectionList.innerHTML).toMatch(/data-scribe-action-mark-panel="strategic-orientation"[\s\S]*?No records for Strategic Orientation\./);
+        expect(sectionList.innerHTML).toMatch(/data-scribe-action-mark-panel="move-2"[\s\S]*?No records for Move 2\./);
+        expect(sectionList.innerHTML).toMatch(/data-scribe-action-mark-panel="move-1"[\s\S]*?role="tabpanel"[\s\S]*?tabindex="0"/);
+        expect(sectionList.innerHTML.indexOf('Newest Move 1 action')).toBeLessThan(
+            sectionList.innerHTML.indexOf('Older Move 1 action')
+        );
+        expect(sectionList.innerHTML).not.toContain('data-scribe-action-mark-stack');
+    });
+
+    it('moves Blue Facilitator mark-tab selection and focus with arrow, Home, and End keys', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+        const container = createFakeElement('scribeSectionList');
+        const markKeys = ['strategic-orientation', 'move-1', 'move-2', 'move-3'];
+        const tabs = markKeys.map((markKey) => {
+            const tab = createFakeElement(null, 'action-mark-tab scribe-action-mark-tab', 'button');
+            tab.dataset.scribeActionMarkTab = markKey;
+            tab.closest = (selector) => selector === '[data-scribe-action-mark-tab]' ? tab : null;
+            tab.scrollIntoView = vi.fn();
+            container.appendChild(tab);
+            return tab;
+        });
+        const panels = markKeys.map((markKey) => {
+            const panel = createFakeElement();
+            panel.dataset.scribeActionMarkPanel = markKey;
+            container.appendChild(panel);
+            return panel;
+        });
+        container.querySelectorAll = (selector) => (
+            selector === '[data-scribe-action-mark-tab]' ? tabs : panels
+        );
+
+        for (const [key, currentIndex, expectedIndex] of [
+            ['ArrowRight', 0, 1],
+            ['ArrowLeft', 0, 3],
+            ['Home', 2, 0],
+            ['End', 1, 3]
+        ]) {
+            tabs.forEach((tab) => tab.focus.mockClear());
+            controller.setScribeActionMark(markKeys[currentIndex], container);
+            const event = {
+                key,
+                target: tabs[currentIndex],
+                preventDefault: vi.fn(),
+                stopPropagation: vi.fn()
+            };
+
+            controller.handleScribeActionMarkKeydown(event, container);
+
+            expect(event.preventDefault).toHaveBeenCalledOnce();
+            expect(event.stopPropagation).toHaveBeenCalledOnce();
+            expect(controller.actionMarkActiveKey).toBe(markKeys[expectedIndex]);
+            expect(tabs[expectedIndex].getAttribute('aria-selected')).toBe('true');
+            expect(tabs[expectedIndex].getAttribute('tabindex')).toBe('0');
+            expect(tabs[expectedIndex].focus).toHaveBeenCalledOnce();
+            expect(tabs[expectedIndex].scrollIntoView).toHaveBeenCalledWith({
+                block: 'nearest',
+                inline: 'nearest'
+            });
+            expect(panels[expectedIndex].hidden).toBe(false);
+            tabs.forEach((tab, tabIndex) => {
+                expect(tab.getAttribute('aria-selected')).toBe(tabIndex === expectedIndex ? 'true' : 'false');
+                expect(tab.getAttribute('tabindex')).toBe(tabIndex === expectedIndex ? '0' : '-1');
+                expect(panels[tabIndex].hidden).toBe(tabIndex !== expectedIndex);
+            });
+        }
     });
 
     it('scopes the sidebar to the active deck workspace without duplicating live actions', async () => {
@@ -2354,6 +2543,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         global.document = createFakeDocument();
         const getAll = vi.spyOn(communicationsStore, 'getAll');
         const controller = new ScribeController();
+        controller.durableNotifications = { notify: vi.fn(() => ({})) };
         controller.teamId = 'green';
         controller.teamActions = [{
             id: 'proposal-alert-source',
@@ -2402,7 +2592,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             slideKey: 'action-proposal-alert-source'
         });
         expect(controller.unreadNotifications).toBe(1);
-        expect(showToast).toHaveBeenCalledTimes(1);
+        expect(controller.durableNotifications.notify).toHaveBeenCalledTimes(1);
+        expect(showToast).not.toHaveBeenCalled();
     });
 
     it('presents every Industry Scribe proposal field to the Industry Facilitator for review', async () => {
@@ -2956,6 +3147,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('<title>Statecraft Sim | Blue Team Facilitator</title>');
         expect(html).toContain('content="Statecraft Sim Blue Team facilitator support deck."');
         expect(html).toContain('data-scribe-presentation="standard"');
+        expect(html).toContain('data-action-mark-layout="horizontal-rail"');
         expect(html).toContain('../../styles/components/badges.css');
         expect(html).toContain('../../styles/components/cards.css');
         expect(html).toContain('../../styles/components/modals.css');
@@ -3072,7 +3264,17 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(css).not.toContain('box-shadow: inset 3px 0 0 var(--color-team-blue);');
     });
 
-    it('lays out action marks and their records as vertical scribe sections', () => {
+    it('contains the Blue Facilitator rail overflow and exposes a visible tab focus state', () => {
+        const pageCss = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
+
+        expect(pageCss).toMatch(/\.scribe-action-mark-navigation\s*\{[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/);
+        expect(pageCss).toMatch(/\.scribe-action-mark-rail\s*\{[^}]*flex-wrap:\s*nowrap;[^}]*overflow-x:\s*auto;[^}]*overflow-y:\s*hidden;[^}]*overscroll-behavior-inline:\s*contain;/);
+        expect(pageCss).toContain('.scribe-action-mark-tab:focus-visible {\n    outline: var(--border-width-3) solid var(--color-focus-ring);');
+        expect(pageCss).toContain('#sidebar.sidebar-collapsed .scribe-action-mark-navigation,');
+        expect(pageCss).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.scribe-section-region--actions,[\s\S]*?\.scribe-action-mark-navigation,[\s\S]*?max-width: 100%;[\s\S]*?\.scribe-action-mark-rail\s*\{[\s\S]*?overflow-x: auto;[\s\S]*?overflow-y: hidden;/);
+    });
+
+    it('retains vertical action-mark styling for non-Blue legacy Scribe surfaces', () => {
         const pageCss = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
         expect(pageCss).toContain('.scribe-action-mark-stack {\n    display: grid;');
@@ -3084,7 +3286,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(pageCss).toContain('#sidebar.sidebar-collapsed .scribe-action-mark-stack,');
     });
 
-    it('renders every action mark vertically with each action beneath its heading', async () => {
+    it('retains every vertical action mark for non-Blue legacy Scribe surfaces', async () => {
         const { ScribeController } = await loadScribeModule();
         const controller = new ScribeController();
         const markup = controller.renderVerticalActionMarkSections({

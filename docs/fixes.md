@@ -20,9 +20,15 @@ Return notes and revision metadata are persisted atomically.
 Legacy rows remain readable and labeled accurately.
 The deterministic mock mirrors live Supabase behavior.
 
-## Completed: 8/5/2026
+Remaining implementation:
+The dated migration, live database service, deterministic mock, and focused migration tests already implement the artifact-aware review contract. Do not replace or weaken them.
+Bring data/COMPLETE_SCHEMA.sql, data/updated_supabase_schema.sql, and data/updated_supabase_migration.sql into operational parity with the dated migration, including the review RPC, compatibility wrapper, normalization triggers, review-table RLS policies, grants, and comments. If these files are intentionally historical rather than installable schemas, deprecate them explicitly in their headers and setup documentation so no operator can treat them as a complete current install path.
+Strengthen migration contract tests to assert the operational functions, triggers, authorization predicates, stale-revision checks, completed-artifact rejection, atomic review insert, RLS policies, and grants rather than only column and table shape.
+Update Supabase setup and rollback documentation to name one authoritative migration order and to explain the non-destructive treatment of additive workflow objects and legacy returned_to_blue rows.
 
-[ ] Step 2 — Centralize artifact lifecycle, detail, and badge rendering
+## Completed: 8/10/2026
+
+[x] Step 2 — Centralize artifact lifecycle, detail, and badge rendering
 Prompt:
 Read the shared action, proposal, request, badge, and role-card helpers before editing. Create or extend shared view models so every role renders the same lifecycle labels and artifact details.
 Update src/features/actions/blueActionDetails.js and its tests so White Cell receives every recorded field, including all instruments of power, Red levers, supply-chain decision, action angles, supply-chain areas, sectors, countries, coordination, and informed/engaged selections.
@@ -50,7 +56,7 @@ Provide the commit title and description
 
 ## Completed: 8/5/2026
 
-[ ] Step 3 — Replace White Cell action and Strategic Orientation adjudication
+[X] Step 3 — Replace White Cell action and Strategic Orientation adjudication
 Prompt:
 Read whitecell.html, src/roles/whitecell.js, its unit tests, action-store behavior, timeline behavior, and the new workflow RPC from Step 1.
 Rename “Record Deliberation” to “Review Action.” Remove the outcome selector and offer only:
@@ -65,14 +71,19 @@ Action and SO review contains no outcome control.
 Blue and Red receive correct team-specific send-back behavior.
 Returned artifacts remain visible to White Cell.
 Accepting marks the artifact complete without assigning success or failure.
+
+Remaining implementation:
+The active White Cell controller already uses Review Action/Review Strategic Orientation, the revision-aware review RPC, outcome-free completion, team-aware returns, retained history, and full action detail rendering. Preserve that implementation.
+Retire or rewrite src/features/actions/ActionReview.js, which remains publicly exported and still renders an outcome selector, “Record Deliberation,” legacy adjudication writes, and outcome timeline entries. No exported or reachable shared component may provide an alternate path that can mint a current action or Strategic Orientation outcome.
+Add a regression test over src/features/actions/index.js and ActionReview.js that fails if the legacy adjudication control, actionsStore.adjudicate call, or current-workflow outcome choices are reintroduced. Update any component documentation that still advertises that contract.
 Tests:
 Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
 
-## Completed: 8/5/2026
+## Completed: 8/10/2026
 
-[ ] Step 4 — Complete the action return, layout, and informed-team experience
+[x] Step 4 — Complete the action return, layout, and informed-team experience
 Prompt:
 Read src/roles/facilitator.js, src/roles/scribe.js, their tests, the four team HTML surfaces, styles/pages/scribe.css, and the shared action serializers. Remember that teams/*/facilitator.html is the user-facing Scribe workspace and teams/*/scribe.html is the actual Facilitator workspace; preserve these legacy identifiers.
 Add a distinct action field allowing Blue and Red to select Green, Industry, or both as teams to inform. When at least one is selected, require a clarifying note. Do not overload the existing Facilitator Informed/Engaged Industry/Allies decision fields; persist this as separate action-notification metadata.
@@ -92,14 +103,19 @@ Green/Industry notification selections and notes survive edit and review.
 Returned actions can be corrected and resubmitted exactly once per revision.
 The latest mark is accessible without scrolling to the bottom of the page.
 The rail remains keyboard and mobile accessible.
+Remaining implementation:
+Action notification metadata, return notes, revision editing/resubmission, lifecycle cards, and the White Cell horizontal mark rail are already present. Do not duplicate those paths.
+Implement the accessible horizontal Strategic Orientation/Move 1–3 rail on the actual Blue Facilitator surface, teams/blue/scribe.html backed by src/roles/scribe.js. The current implementation there still calls the vertical mark-section renderer; the horizontal rail in src/roles/facilitator.js belongs to the legacy user-facing Scribe workspace and does not close this requirement.
+Give every mark a count and zero state, sort newest first within the active mark, support arrow-key navigation and focus management, and constrain narrow-screen overflow to the rail rather than the page.
+Add focused src/roles/scribe.js and styles/pages/scribe.css contract tests for grouping, counts, keyboard behavior, active-tab semantics, and mobile overflow. Remove the live-demo runbook instruction that still describes a vertical Facilitator action stack and retain one unambiguous horizontal-rail instruction.
 Tests:
 Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
 
-## Completed: 8/5/2026
+## Completed: 8/10/2026
 
-[ ] Step 5 — Rebuild Green and Industry proposal forms
+[x] Step 5 — Rebuild Green and Industry proposal forms
 Prompt:
 Read the current proposal form, serializer, view model, tests, export mappings, and Green/Industry role surfaces before editing.
 Remove Proposal Category and Delivery from all new Green and Industry proposal forms. Preserve them only when rendering historical records.
@@ -120,14 +136,19 @@ Partner and sector selections are independent checkbox groups.
 Industry has the required industry, country, and activity fields.
 Historical proposal fields remain readable.
 Returned proposals retain identity and revision history.
+Remaining implementation:
+The current Green and Industry forms, serializer/parser, cards, and unit coverage already implement the new partner, sector, supply-chain, Industry, and revision fields while retaining historical parsing. Do not reintroduce Category or Delivery into new-entry forms.
+Update docs/live-demo-runbook.md so its proposal checks require the current fields and distinguish the Green and Industry forms; remove its stale Category, Delivery, and Industry Instrument of Power requirements.
+Update docs/playthrough-automation.md so it no longer instructs Green to use a Proposal Category selector and instead verifies intended partners, focus sectors, conditional supply-chain fields, and the distinct Industry fields.
+Add or extend documentation contract tests so those retired new-entry labels cannot return while historical export/parser references remain allowed and explicitly labeled.
 Tests:
 Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
 
-## Completed: 8/5/2026
+## Completed: 8/10/2026
 
-[ ] Step 6 — Add per-recipient White Cell approval and multi-round proposal threads
+[x] Step 6 — Add per-recipient White Cell approval and multi-round proposal threads
 Prompt:
 Read the White Cell proposal review code, proposal recipient-state helpers, communications store, Realtime synchronization, data/2026-06-03_proposal_response_finalization_lock.sql, RLS policies, the mock backend, and existing proposal-response tests before editing.
 Replace one proposal-wide approval with independent recipient approval. If Blue and Red were selected, White Cell must see separate controls for each. Approving Blue must not forward to Red or alter Red’s state. Each recipient should independently support pending approval, approved/forwarded, response received, negotiation underway, and closed.
@@ -142,14 +163,18 @@ One recipient can be approved while the other remains pending.
 Multiple response rounds remain ordered and immutable.
 Every new round notifies White Cell exactly once.
 Cross-team and cross-session thread access fails closed.
+Remaining implementation:
+The additive migration, recipient-state helpers, append-only thread RPC, RLS, live service, deterministic mock, White Cell/Facilitator controllers, and focused unit tests already implement independent recipient approval and multi-round threads. Preserve their immutable and fail-closed behavior.
+Align docs/playthrough-automation.md and any remaining operator text with the actual route: the originating Scribe creates the proposal, the actual Facilitator submits it to White Cell, White Cell approves each recipient independently, and each recipient has an isolated append-only response thread. Remove the stale one-shot/direct-to-White-Cell description.
+Add a documentation contract test for the per-recipient and multi-round model. Authoritative export projection remains Step 9, and full dual-thread integrated verification remains Step 10.
 Tests:
 Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
 
-## Completed: 8/6/2026
+## Completed: 8/10/2026
 
-[ ] Step 7 — Move communications and RFI authority to the actual Facilitator
+[x] Step 7 — Move communications and RFI authority to the actual Facilitator
 Prompt:
 Read the role-routing compatibility note in README.md, all four teams/*/facilitator.html and teams/*/scribe.html files, src/roles/facilitator.js, src/roles/scribe.js, request-store code, communications targeting, database/RLS policies, and related tests.
 Add Communications and RFI sections to the actual user-facing Facilitator surface implemented by teams/*/scribe.html and src/roles/scribe.js. Do not rename legacy routes, role IDs, or storage keys.
@@ -169,7 +194,9 @@ Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
 
-[ ] Step 8 — Make inbound workflow notifications persist until dismissed
+## Audited as implemented: 8/10/2026
+
+[x] Step 8 — Make inbound workflow notifications persist until dismissed
 Prompt:
 Read src/components/ui/Toast.js, notification tests, Facilitator activity-bell logic, White Cell arrival cues, communications synchronization, and Realtime reconciliation before editing.
 Keep normal save confirmations, validation errors, and operational feedback timed. Make only inbound workflow notifications persistent until explicitly dismissed:
@@ -188,12 +215,19 @@ Ordinary success/error feedback retains its current timing.
 Startup does not replay historical notices.
 Reconnect does not duplicate notices.
 Dismissal and navigation work by keyboard and screen reader.
+Remaining implementation:
+The current inbound workflow cues still use timed Toast durations, including 5000 ms on the actual Facilitator surface and 10000 ms on White Cell queue/thread paths. They therefore do not satisfy durable-until-dismissed behavior.
+Introduce an explicit durable notification path using persisted event or communication IDs; do not make all toasts permanent. Include source, artifact, required action, keyboard dismissal, and destination navigation/focus in the durable model.
+Persist read/dismissed state appropriately, suppress the initial synchronization snapshot, and deduplicate both Realtime delivery and missed-event reconciliation after reconnect. Cover artifact submissions/returns, proposal responses and follow-up rounds, RFI returns/answers, and direct Facilitator/White Cell communications.
+Add focused tests for each event family, timed-versus-durable behavior, manual dismissal, unread clearing only when opened, startup suppression, reconnect deduplication, accessible announcements, reduced motion, and focus transfer. Update the live-demo notification checks.
 Tests:
 Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
 
-[ ] Step 9 — Align exports, audit evidence, and documentation
+## Completed: 8/10/2026
+
+[x] Step 9 — Align exports, audit evidence, and documentation
 Prompt:
 Read all research export builders and tests, the current schema version, README, Supabase setup guide, live-demo runbook, playthrough automation guide, deployment guide, and rollback guide.
 Extend exports to include:
@@ -214,10 +248,18 @@ Historical outcomes remain reproducible in exports.
 Current UI workflow states are not represented as adjudication outcomes.
 New revision and thread data reconcile across UI and exports.
 Operator documentation matches the implemented runtime.
+Remaining implementation:
+The current export is already schema version 1.7.0/revision 8 and includes the new proposal form fields. Preserve those fields and increment the version only once for the remaining contract changes.
+Fetch artifact_workflow_reviews in the research export bundle and project authoritative revision/return/reviewer history rather than reconstructing it only from timeline text. Add workflow state, revision, notification audiences/note, and review history to action records; add recipient approval and immutable thread/round metadata to proposal records; add workflow, revision, return, resubmission, answer, and answer-history data to RFI records.
+Carry the same contract through JSON, CSV, HTML, and LaTeX. Replace the current unqualified “Review Outcome” presentation with explicit historical/legacy adjudication labeling, while retaining the historical values needed for replay. Do not infer outcomes for current completed artifacts.
+Update manifest validation, the codebook, deterministic reconstruction checks, and export tests to reconcile review counts, proposal threads/rounds, RFI revisions, and UI-visible workflow data.
+Update README.md, which still advertises export schema 1.6.0, and reconcile the Supabase setup, live-demo, playthrough, deployment, and rollback guides. Remove stale Category/Delivery, RFI Priority, one-shot response, outcome-review, Blue-only return, and vertical-navigation instructions; document migration-first deployment and frontend-first rollback.
 Tests:
 Provide the commands for testing the updates
 Commit:
 Provide the commit title and description
+
+## Completed: 8/11/2026
 
 [ ] Step 10 — Add integrated gates and prepare the staged rollout
 Prompt:
@@ -254,6 +296,12 @@ No console or page errors occur.
 Database and deterministic mock results agree.
 Export counts and revision/thread histories reconcile with the UI.
 Rollback instructions are reproducible and non-destructive.
+Remaining implementation:
+The package scripts and baseline playthrough already cover normal Blue/Red completion, sequential approval of a dual-recipient proposal, one Blue negotiation response/follow-up, direct Facilitator communication, a simple RFI answer, unread counts, and basic export names/counts. Extend that suite rather than replacing it.
+Add integrated Blue and Red return/edit/resubmit scenarios; Strategic Orientation return followed by outcome-free completion; assertions for every action field in the White Cell detail modal; explicit absence of current outcome badges; independent Blue and Red threads from the same proposal with multiple immutable rounds; returned-RFI edit/resubmit and answered-history retention; persistent notification dismissal; and startup/reconnect deduplication for every inbound event family.
+Replace the current basic export count assertions with reconciliation of workflow states, revisions, return notes/reviewers/timestamps, recipient approvals, both proposal threads and rounds, notification metadata, and RFI return/answer history.
+Run the complete matrix against both live Supabase and the deterministic mock from the same commit and migration state. Capture current-head evidence without claiming historical runs as current.
+Finish the staged rollout documentation: migration-first rehearsal in a dedicated environment, frontend deployment second, frontend-first rollback, additive schema preservation, current-head artifact requirements, and explicit release blockers.
 Tests:
 Provide the commands for testing the updates
 Commit:
