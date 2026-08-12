@@ -1101,7 +1101,7 @@ describe('White Cell DOM contract', () => {
 
     it('labels the White Cell participant roster with the active session', async () => {
         const {
-            getWhiteCellDeleteSessionConfirmationOptions,
+            getWhiteCellArchiveSessionConfirmationOptions,
             getWhiteCellParticipantSessionLabel,
             getWhiteCellSessionLabel
         } = await loadWhiteCellModule();
@@ -1117,14 +1117,14 @@ describe('White Cell DOM contract', () => {
             sessionName: 'Bravo Session',
             sessionCode: 'BRAVO'
         }, session)).toBe('Bravo Session (BRAVO)');
-        expect(getWhiteCellDeleteSessionConfirmationOptions(session)).toMatchObject({
-            title: 'Delete session',
-            confirmLabel: 'Delete',
-            cancelLabel: 'Keep Session',
-            variant: 'danger'
+        expect(getWhiteCellArchiveSessionConfirmationOptions(session)).toMatchObject({
+            title: 'Archive session',
+            confirmLabel: 'Archive',
+            cancelLabel: 'Keep Active',
+            variant: 'warning'
         });
-        expect(getWhiteCellDeleteSessionConfirmationOptions(session).message).toContain(
-            'participant seats, timeline events, and exports'
+        expect(getWhiteCellArchiveSessionConfirmationOptions(session).message).toContain(
+            'immutable audit records will be retained'
         );
     });
 

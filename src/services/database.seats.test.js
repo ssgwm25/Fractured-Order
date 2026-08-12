@@ -581,7 +581,7 @@ describe('database live-demo seat contract', () => {
             session_code: 'WCAD1002'
         });
         const removedSeat = await database.removeSessionParticipant(primarySession.id, facilitatorSeat.id);
-        await database.deleteSession(secondarySession.id);
+        const archiveResult = await database.archiveSession(secondarySession.id);
 
         expect(secondarySession).toMatchObject({
             name: 'White Cell Admin Secondary',
@@ -592,6 +592,26 @@ describe('database live-demo seat contract', () => {
             role: 'blue_facilitator',
             is_active: false
         });
+        expect(archiveResult).toMatchObject({
+            archived_session_id: secondarySession.id,
+            status: 'archived',
+            already_archived: false
+        });
+        await expect(database.getSession(secondarySession.id)).resolves.toMatchObject({
+            id: secondarySession.id,
+            status: 'archived'
+        });
+
+        const archivedState = globalThis.__ESG_E2E_BACKEND__.dump();
+        expect(archivedState.tables.game_state).toEqual(expect.arrayContaining([
+            expect.objectContaining({ session_id: secondarySession.id })
+        ]));
+        expect(archivedState.tables.research_audit_event_log).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                session_id: secondarySession.id,
+                event_type: 'SESSION_CLOSED'
+            })
+        ]));
         await expect(database.getSessionParticipants(primarySession.id)).resolves.toEqual([
             expect.objectContaining({
                 role: 'whitecell_lead'

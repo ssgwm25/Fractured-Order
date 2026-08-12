@@ -278,7 +278,7 @@ const DATABASE_OPERATION_MESSAGES = {
     getActiveSessions: 'Could not load sessions. Refresh and try again.',
     lookupJoinableSessionByCode: 'Session not found. Please check the code and try again.',
     updateSession: 'Could not update the session. Refresh and try again.',
-    deleteSession: 'Could not delete the session. Refresh the session list and try again.',
+    archiveSession: 'Could not archive the session. Export its research archive, then refresh the session list and try again.',
     createGameState: 'Could not create the session state. Refresh and try again.',
     getGameState: 'Could not load the current game state. Refresh and try again.',
     updateGameState: 'Could not update the game state. Refresh and try again.',

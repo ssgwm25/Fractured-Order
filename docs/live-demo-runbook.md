@@ -312,6 +312,13 @@ Before closing the demo:
 - when research capture mode is enabled, export the research archive
 - if Session Recorder was used, keep the downloaded audio beside the ZIP and confirm the archive contains `session_recording_artifacts.csv` and `session_recording_artifacts.json`
 - inspect `data_quality_summary.json` before using quantitative claims
+- after the exports are saved and validated, select Archive from Game Master or White Cell; confirm the session leaves active lists, participants cannot rejoin, and its latest research audit event is `SESSION_CLOSED`
+
+Archiving preserves the session and all dependent evidence. Do not use a hard
+database delete for demo cleanup. If Archive reports that
+`research_audit_event_log_session_id_fkey` blocks deletion, the Supabase project
+is missing `data/2026-08-12_session_archive_transition.sql`; apply that migration
+before retrying.
 
 ## Stop Conditions
 

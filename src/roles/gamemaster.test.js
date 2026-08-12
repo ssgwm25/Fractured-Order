@@ -6,7 +6,7 @@ import {
     getCreateSessionFormHtml,
     buildRecentActivityModel,
     GameMasterController,
-    getGameMasterDeleteSessionConfirmationOptions,
+    getGameMasterArchiveSessionConfirmationOptions,
     getGameMasterAccessState,
     getAdminExportButtonConfig,
     getParticipantSessionLabel
@@ -170,15 +170,18 @@ describe('GameMaster session administration', () => {
         expect(html).not.toContain('id="sessionCode"');
     });
 
-    it('uses the destructive modal contract for session deletion', () => {
-        expect(getGameMasterDeleteSessionConfirmationOptions({ name: 'Alpha Session' })).toMatchObject({
-            title: 'Delete Session',
-            confirmLabel: 'Delete',
-            cancelLabel: 'Keep Session',
-            variant: 'danger'
+    it('explains that session archival closes joins while retaining evidence', () => {
+        expect(getGameMasterArchiveSessionConfirmationOptions({ name: 'Alpha Session' })).toMatchObject({
+            title: 'Archive Session',
+            confirmLabel: 'Archive',
+            cancelLabel: 'Keep Active',
+            variant: 'warning'
         });
-        expect(getGameMasterDeleteSessionConfirmationOptions({ name: 'Alpha Session' }).message).toContain(
-            'All actions, RFIs, participant seats, timeline events, and exports'
+        expect(getGameMasterArchiveSessionConfirmationOptions({ name: 'Alpha Session' }).message).toContain(
+            'immutable audit records will be retained'
+        );
+        expect(getGameMasterArchiveSessionConfirmationOptions({ name: 'Alpha Session' }).message).toContain(
+            'Export the research archive first'
         );
     });
 
