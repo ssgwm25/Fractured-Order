@@ -274,7 +274,7 @@ describe('landing secure join flow', () => {
         expect(mockHideLoader).not.toHaveBeenCalled();
     });
 
-    it('renders the resolved session name in the accessible join loading screen', async () => {
+    it('renders the brand mark and resolved session name in the accessible join loading screen', async () => {
         const body = createDomElement();
         global.document = {
             body,
@@ -289,17 +289,21 @@ describe('landing secure join flow', () => {
             metaLabel: 'Blue | Facilitator'
         });
         const overlay = body.children[0];
-        const card = overlay.children[0];
+        const brandMark = overlay.children.find((child) => child.className.includes('jc-brand-mark'));
+        const card = overlay.children.find((child) => child.className === 'jc-card');
         const sessionName = card.children.find((child) => child.className === 'jc-session');
 
         expect(overlay.attributes.role).toBe('status');
         expect(overlay.attributes['aria-live']).toBe('polite');
         expect(overlay.attributes['aria-atomic']).toBe('true');
+        expect(brandMark.attributes.src).toBe('./src/img/Gold No Background.png');
+        expect(brandMark.attributes.alt).toBe('');
+        expect(brandMark.attributes['aria-hidden']).toBe('true');
         expect(sessionName.hidden).toBe(true);
 
         confirmation.setSessionName('Alpha Session');
 
-        expect(sessionName.textContent).toBe('Session: Alpha Session');
+        expect(sessionName.textContent).toBe('Alpha Session');
         expect(sessionName.hidden).toBe(false);
     });
 

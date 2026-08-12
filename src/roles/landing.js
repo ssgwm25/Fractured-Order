@@ -515,6 +515,12 @@ export class LandingController {
         overlay.setAttribute('aria-atomic', 'true');
         overlay.setAttribute('aria-busy', 'true');
 
+        const brandMark = document.createElement('img');
+        brandMark.className = 'atm-mark jc-brand-mark';
+        brandMark.setAttribute('src', './src/img/Gold No Background.png');
+        brandMark.setAttribute('alt', '');
+        brandMark.setAttribute('aria-hidden', 'true');
+
         const card = document.createElement('div');
         card.className = 'jc-card';
 
@@ -547,7 +553,7 @@ export class LandingController {
         status.textContent = 'Joining session...';
 
         card.append(check, name, sessionName, meta, status);
-        overlay.appendChild(card);
+        overlay.append(brandMark, card);
         document.body.appendChild(overlay);
 
         const raf = typeof requestAnimationFrame === 'function'
@@ -574,7 +580,7 @@ export class LandingController {
                 const normalizedSessionName = String(resolvedSessionName || '').trim();
                 if (!normalizedSessionName) return;
 
-                sessionName.textContent = `Session: ${normalizedSessionName}`;
+                sessionName.textContent = normalizedSessionName;
                 sessionName.hidden = false;
             }
         };
