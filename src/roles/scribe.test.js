@@ -9,6 +9,7 @@ import {
     getScribeDeckAssignmentDetails,
     normalizeScribeDeckPath
 } from '../features/scribe/deckConfig.js';
+import { buildAppPath } from '../core/navigation.js';
 import { serializeBlueActionDetails } from '../features/actions/blueActionDetails.js';
 import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
@@ -663,10 +664,10 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             deckLabel: 'Missing Deck'
         });
 
-        expect(global.fetch).toHaveBeenNthCalledWith(1, '/decks/blue/missing-deck.html', {
+        expect(global.fetch).toHaveBeenNthCalledWith(1, buildAppPath('decks/blue/missing-deck.html'), {
             credentials: 'same-origin'
         });
-        expect(global.fetch).toHaveBeenNthCalledWith(2, `/${buildDefaultScribeDeckPath('blue')}`, {
+        expect(global.fetch).toHaveBeenNthCalledWith(2, buildAppPath(buildDefaultScribeDeckPath('blue')), {
             credentials: 'same-origin'
         });
         expect(controller.facilitatorDeckSlides).toEqual([{
@@ -736,7 +737,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             deckLabel: 'Uploaded Crisis Deck'
         });
 
-        expect(global.fetch).toHaveBeenCalledWith(`/${buildDefaultScribeDeckPath('blue')}`, {
+        expect(global.fetch).toHaveBeenCalledWith(buildAppPath(buildDefaultScribeDeckPath('blue')), {
             credentials: 'same-origin'
         });
         expect(showToast).toHaveBeenCalledWith({

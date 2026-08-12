@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { SESSION_CODE_MAX_LENGTH } from '../utils/validation.js';
 import { serializeBlueActionDetails } from '../features/actions/blueActionDetails.js';
 import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
+import { buildAppPath } from '../core/navigation.js';
 
 const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
 const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
@@ -1263,7 +1264,7 @@ describe('White Cell DOM contract', () => {
         await controller.handleScribeDeckAssignmentSubmit('blue');
 
         expect(global.fetch).toHaveBeenCalledWith(
-            '/decks/blue/custom-scribe-deck.html',
+            buildAppPath('decks/blue/custom-scribe-deck.html'),
             expect.objectContaining({ credentials: 'same-origin' })
         );
         expect(createCommunication).toHaveBeenCalledWith(expect.objectContaining({
