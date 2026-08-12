@@ -2,6 +2,12 @@
 
 This project deploys as a root-level Vite multi-page app through GitHub Pages.
 
+Builds and rehearsals must follow the
+[repository artifact policy](repository-artifact-policy.md): keep generated
+build, browser-test, coverage, recording, report-build, and local evidence
+output out of Git. Curated published artifacts under `pli/deliverables/` remain
+trackable and are not deployment output.
+
 ## Migration-First Release Order
 
 Rehearse every release in a dedicated, non-production Supabase project. Apply

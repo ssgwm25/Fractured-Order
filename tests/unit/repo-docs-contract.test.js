@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
@@ -7,6 +8,56 @@ function readText(relativePath) {
 }
 
 describe('repository operator docs contract', () => {
+    it('defines the source-versus-generated repository artifact boundary', () => {
+        const gitignore = readText('../../.gitignore');
+        const policy = readText('../../docs/repository-artifact-policy.md');
+        const readme = readText('../../README.md');
+        const deployment = readText('../../docs/deployment.md');
+        const generatedPaths = [
+            'node_modules/.vite/vitest/results.json',
+            'test-results/.last-run.json',
+            '.playwright-mcp/page-example.yml',
+            'dist/index.html',
+            'coverage/index.html',
+            'output/release-evidence/example/manifest.json',
+            'recordings/session-recording-example.webm',
+            'pli/reports/out/example/report.aux'
+        ];
+
+        generatedPaths.forEach((generatedPath) => {
+            const ignored = spawnSync(
+                'git',
+                ['check-ignore', '--no-index', '--quiet', generatedPath],
+                { cwd: new URL('../..', import.meta.url) }
+            );
+            expect(ignored.status, `${generatedPath} must be ignored`).toBe(0);
+        });
+
+        [
+            'tests/fixtures/example.json',
+            'tests/fixtures/example.aux',
+            'data/2099-01-01_example_migration.sql',
+            'package-lock.json',
+            'pli/deliverables/PLI_Master_Codebook.pdf'
+        ].forEach((sourcePath) => {
+            const ignored = spawnSync(
+                'git',
+                ['check-ignore', '--no-index', '--quiet', sourcePath],
+                { cwd: new URL('../..', import.meta.url) }
+            );
+            expect(ignored.status, `${sourcePath} must remain trackable`).toBe(1);
+        });
+
+        expect(gitignore).toContain('!pli/deliverables/**');
+        expect(policy).toContain('dependency lock files');
+        expect(policy).toContain('test fixtures');
+        expect(policy).toContain('additive, dated migration source');
+        expect(policy).toContain('intentionally published binary');
+        expect(policy).toContain('pli/deliverables/');
+        expect(readme).toContain('[repository artifact policy](docs/repository-artifact-policy.md)');
+        expect(deployment).toContain('[repository artifact policy](repository-artifact-policy.md)');
+    });
+
     it('documents the four team-specific Strategic Orientation workflows', () => {
         const readme = readText('../../README.md');
         const runbook = readText('../../docs/live-demo-runbook.md');

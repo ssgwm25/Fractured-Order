@@ -1,4 +1,47 @@
 .env
 .env.local
+
+# Installed dependencies
+node_modules/
+
+# Build output
 dist/
+
+# Unit, coverage, and browser-test output
+test-results/
+playwright-report/
+.playwright-mcp/
+coverage/
+.nyc_output/
+
+# Local release evidence and generated reports
+output/release-evidence/
+release-evidence/
+pli/reports/out/
+
+# Browser-downloaded session recordings
+recordings/
+session-recordings/
+session-recording-*.webm
+session-recording-*.ogg
+session-recording-*.mp4
+session-recording-*.wav
+
+# Temporary LaTeX report build files
+report.aux
+report.bbl
+report.bcf
+report.blg
+report.fdb_latexmk
+report.fls
+report.log
+report.out
+report.run.xml
+report.synctex.gz
+report.toc
+
+# Intentionally published PLI binaries remain trackable.
+!pli/deliverables/
+!pli/deliverables/**
+
 SSG_Strategic_Orientation_Modal_v2.html

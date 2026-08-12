@@ -62,6 +62,11 @@ The built-in teams are Blue, Red, Green, and Industry. Do not expand team geogra
 `-- tests/                     Vitest unit tests and Playwright e2e rehearsal tests
 ```
 
+Repository inputs, generated output, fixtures, migrations, and intentionally
+published binaries follow the [repository artifact policy](docs/repository-artifact-policy.md).
+In particular, the curated PDFs under `pli/deliverables/` remain versioned
+deliverables.
+
 ## PLI (Petrihos Lever Index)
 
 Multi-track adjudication for Fractured Order lives under `pli/` (vendored from [ssgwm25/petrihos-lever-index](https://github.com/ssgwm25/petrihos-lever-index)). After White Cell marks actions submitted, the GitHub Action **PLI Adjudication** writes `pli_adjudications` rows. White Cell Lead reviews three SME seats: **PLI Adjudication** (macro), **Diplomacy & Information**, and **NI & Escalation**. Apply `data/2026-07-17_pli_adjudications.sql` and see `pli/plenum/INTEGRATION.md`.
