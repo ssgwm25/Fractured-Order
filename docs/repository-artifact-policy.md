@@ -75,3 +75,23 @@ The curated contents of `pli/deliverables/` are the explicit exception to the
 generated-output rules above. Updating those files follows the existing PLI
 publishing workflow; this repository policy neither regenerates them nor
 changes their behavior.
+
+## Automated Enforcement
+
+Pull requests and pushes to `main` run `npm run verify:repo-artifacts` before
+installing dependencies, followed by the focused artifact contract tests. The
+cross-platform verifier inspects Git's tracked paths, normalizes Windows and
+POSIX separators, and fails closed when it finds dependency folders, runtime
+secrets, test or build output, browser storage, recordings, local evidence, or
+unapproved report binaries.
+
+The verifier's allowlist is deliberately narrow. Environment templates and
+the reviewed sample, briefing, codebook-evidence, and `pli/deliverables/`
+binaries are allowed only for the deny rule they intersect; an allowed binary
+location does not exempt a nested dependency, secret, or test-output path.
+
+When the gate reports a filename, follow its remediation message: remove the
+generated or sensitive path from the Git index, add or correct the narrow
+`.gitignore` rule, and rotate any credential that may have been exposed. A new
+published report binary requires a reviewed allowlist entry and documentation
+of its stable repository purpose in the same change.

@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "serve:test": "node --preserve-symlinks --preserve-symlinks-main ./tests/e2e/support/staticServer.mjs dist 4174",
+    "verify:repo-artifacts": "node scripts/verify-repository-artifacts.mjs",
     "test": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs run",
     "test:ui": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs --ui",
     "test:coverage": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs run --coverage",

@@ -13,6 +13,9 @@ describe('repository operator docs contract', () => {
         const policy = readText('../../docs/repository-artifact-policy.md');
         const readme = readText('../../README.md');
         const deployment = readText('../../docs/deployment.md');
+        const packageJson = JSON.parse(readText('../../package.json'));
+        const verifier = readText('../../scripts/verify-repository-artifacts.mjs');
+        const workflow = readText('../../.github/workflows/repository-artifacts.yml');
         const generatedPaths = [
             'node_modules/.vite/vitest/results.json',
             'test-results/.last-run.json',
@@ -54,6 +57,13 @@ describe('repository operator docs contract', () => {
         expect(policy).toContain('additive, dated migration source');
         expect(policy).toContain('intentionally published binary');
         expect(policy).toContain('pli/deliverables/');
+        expect(policy).toContain('npm run verify:repo-artifacts');
+        expect(packageJson.scripts['verify:repo-artifacts']).toBe('node scripts/verify-repository-artifacts.mjs');
+        expect(verifier).toContain("spawnSync('git', ['ls-files', '-z']");
+        expect(verifier).toContain('Remediation:');
+        expect(workflow).toContain('npm run verify:repo-artifacts');
+        expect(workflow).toContain('scripts/verify-repository-artifacts.test.js');
+        expect(workflow).toContain('pull_request:');
         expect(readme).toContain('[repository artifact policy](docs/repository-artifact-policy.md)');
         expect(deployment).toContain('[repository artifact policy](repository-artifact-policy.md)');
     });
