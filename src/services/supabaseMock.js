@@ -2003,6 +2003,30 @@ function operatorReviewArtifact(state, params) {
     };
 }
 
+function getInsertConstraintError(tableName, payloads, existingRows) {
+    if (tableName !== 'notetaker_data') {
+        return null;
+    }
+
+    const occupiedSessionMoves = new Set(existingRows.map((row) => (
+        `${String(row?.session_id ?? '')}::${String(row?.move ?? '')}`
+    )));
+
+    for (const payload of payloads) {
+        const key = `${String(payload?.session_id ?? '')}::${String(payload?.move ?? '')}`;
+        if (occupiedSessionMoves.has(key)) {
+            return {
+                code: '23505',
+                message: 'duplicate key value violates unique constraint "notetaker_data_session_id_move_key"',
+                details: `Key (session_id, move)=(${payload?.session_id}, ${payload?.move}) already exists.`
+            };
+        }
+        occupiedSessionMoves.add(key);
+    }
+
+    return null;
+}
+
 function canInsertFacilitatorDirectCommunication(state, row, authUserId) {
     const participantRole = String(getLiveDemoParticipantRole(state, authUserId, row?.session_id) || '')
         .trim()
@@ -2641,6 +2665,18 @@ class MockQueryBuilder {
                 return {
                     data: null,
                     error: buildRlsError(this.tableName)
+                };
+            }
+
+            const constraintError = getInsertConstraintError(
+                this.tableName,
+                this.payload,
+                tableRows
+            );
+            if (constraintError) {
+                return {
+                    data: null,
+                    error: constraintError
                 };
             }
 

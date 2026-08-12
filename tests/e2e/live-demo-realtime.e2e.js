@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js';
 
 import {
     authorizeGameMaster,
@@ -107,11 +107,12 @@ async function setActorConnectivity(actor, { online, hosted }) {
     });
 }
 
-test('@realtime fanout, outage recovery, reconciliation, and isolation stay correct', async ({ browser }, testInfo) => {
+test('@realtime fanout, outage recovery, reconciliation, and isolation stay correct', async ({ rehearsalBrowser: browser }, testInfo) => {
     // Keep the end-to-end envelope separate from the 15-second fanout SLO.
     // Hosted operator grants and six independent browser bootstraps may be
     // sequentially slow without implying that live event delivery is slow.
     test.setTimeout(8 * 60 * 1000);
+    recordRehearsalMetrics(testInfo, { actorCount: 6, sessionCount: 2 });
 
     const actorPool = await createActorPool(browser);
     const sessionCodes = buildSessionCodes(testInfo.retry);

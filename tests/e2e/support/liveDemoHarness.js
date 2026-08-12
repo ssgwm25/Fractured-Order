@@ -10,6 +10,7 @@ import {
     OPERATOR_AUTH_TIMEOUT_MS,
     resolveOperatorAccessCode
 } from './rehearsalRuntime.js';
+import { expectBrowserConsoleError } from './browserDiagnostics.js';
 
 const SHARED_LOCAL_STORAGE_KEYS = Object.freeze([
     'esg_e2e_backend_state',
@@ -324,6 +325,16 @@ export async function expectJoinFailure(page, joinOptions, expectedMessage) {
     await page.locator('#displayName').fill(joinOptions.displayName);
     await page.locator(`.chip[data-team="${joinOptions.team || 'blue'}"]`).click();
     await page.locator(`.chip[data-role-surface="${joinOptions.roleSurface || 'facilitator'}"]`).click();
+    const escapedExpectedMessage = String(expectedMessage)
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    expectBrowserConsoleError(
+        page,
+        new RegExp(`\\[Database\\].*Seat claim RPC failed:.*${escapedExpectedMessage}`)
+    );
+    expectBrowserConsoleError(
+        page,
+        new RegExp(`\\[Landing\\].*Failed to join session:.*${escapedExpectedMessage}`)
+    );
     await page.getByRole('button', { name: 'Join Session' }).click();
 
     await expect(page.locator('#joinForm')).toBeVisible();

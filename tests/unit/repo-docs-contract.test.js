@@ -25,12 +25,8 @@ describe('repository operator docs contract', () => {
         expect(workflow).toContain("node-version: '20'");
         expect(workflow).toContain('contents: read');
         expect(workflow).toContain('cancel-in-progress: true');
-        expect(workflow).toContain("- 'src/**'");
-        expect(workflow).toContain("- 'styles/**'");
-        expect(workflow).toContain("- 'tests/**'");
-        expect(workflow).toContain("- '*.html'");
-        expect(workflow).toContain("- 'package-lock.json'");
-        expect(workflow).toContain("- '.github/workflows/**'");
+        expect(workflow).toContain('push: {}');
+        expect(workflow).toContain('pull_request: {}');
 
         let priorCommandIndex = -1;
         requiredCommands.forEach((command) => {
@@ -52,6 +48,30 @@ describe('repository operator docs contract', () => {
         expect(deployment).toContain('Pull-Request Frontend Validation');
         requiredCommands.forEach((command) => expect(deployment).toContain(`\`${command}\``));
         expect(deployment).toMatch(/no production or repository\s+secret/);
+    });
+
+    it('pins deterministic pull-request smoke and protected-branch rehearsal gates', () => {
+        const workflow = readText('../../.github/workflows/frontend-ci.yml');
+        const playwrightConfig = readText('../../playwright.config.js');
+        const deployment = readText('../../docs/deployment.md');
+        const automation = readText('../../docs/playthrough-automation.md');
+
+        expect(workflow).toContain('browser-smoke:');
+        expect(workflow).toContain("github.event_name == 'pull_request'");
+        expect(workflow).toContain('browser-rehearsal:');
+        expect(workflow).toContain("github.event_name == 'push' && github.ref_protected");
+        expect(workflow.match(/npx playwright install --with-deps chromium/g)).toHaveLength(2);
+        expect(workflow).toContain('npm run test:e2e:smoke');
+        expect(workflow).toContain('npm run test:e2e:rehearsal');
+        expect(workflow).toContain('scripts/write-playwright-summary.mjs');
+        expect(workflow).toContain('playwright-report/');
+        expect(workflow).toContain('test-results/');
+        expect(workflow).toContain('if-no-files-found: error');
+        expect(playwrightConfig).toContain('playwrightGateReporter.js');
+        expect(playwrightConfig).toContain("trace: process.env.CI ? 'retain-on-failure'");
+        expect(deployment).toContain('Deterministic Browser Gates');
+        expect(deployment).toContain('GitHub access-controlled workflow artifacts');
+        expect(automation).toContain('zero skipped tests, zero retries');
     });
 
     it('defines the source-versus-generated repository artifact boundary', () => {

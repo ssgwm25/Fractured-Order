@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 
-import { test, expect } from '@playwright/test';
+import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js';
 
 import { dumpE2EMockBackend } from './support/mockBackend.js';
 import {
@@ -206,8 +206,9 @@ async function selectSessionForOperatorView(page, {
     return sessionId;
 }
 
-test('@playthrough eighteen-actor professional rehearsal covers the complete shipped role and workflow contract', async ({ browser }, testInfo) => {
+test('@playthrough eighteen-actor professional rehearsal covers the complete shipped role and workflow contract', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.setTimeout(10 * 60 * 1000);
+    recordRehearsalMetrics(testInfo, { actorCount: 18, sessionCount: 1 });
 
     const actorPool = await createActorPool(browser);
     const sourceRevision = getSourceRevisionEvidence();

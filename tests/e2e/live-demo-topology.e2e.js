@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js';
 
 import { dumpE2EMockBackend } from './support/mockBackend.js';
 import {
@@ -33,8 +33,9 @@ async function fillAndWaitForAutoSave(page, {
     await expect(page.locator(statusSelector)).toHaveText('Saved to your notes');
 }
 
-test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, the dedicated facilitator deck, and seat contention', async ({ browser }) => {
+test('@live-demo one-team topology covers operator session creation, onboarding, White Cell access, the dedicated facilitator deck, and seat contention', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.slow();
+    recordRehearsalMetrics(testInfo, { actorCount: 10, sessionCount: 1 });
 
     const context = await browser.newContext();
     const sessionCode = 'TOPO2026';
@@ -142,7 +143,11 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
         const orientationSlide = scribe.locator('#deckActionFrame .scribe-orientation-slide');
         await expect(orientationSlide).toBeVisible();
         await expect(orientationSlide.locator('.scribe-action-slide-title')).toContainText('Strategic Orientation');
-        await expect(orientationSlide.getByText('Pressure', { exact: true })).toBeVisible();
+        const ownOrientationCard = orientationSlide.locator('.scribe-action-slide-glance-card').filter({
+            hasText: 'Own Orientation'
+        });
+        await expect(ownOrientationCard.locator('.scribe-action-slide-glance-label')).toHaveText('Own Orientation');
+        await expect(ownOrientationCard.locator('.scribe-action-slide-glance-value')).toContainText('Pressure:');
         await expect(orientationSlide).toContainText(orientationRationale);
         await expect(scribe.locator('#newActionBtn')).toHaveCount(0);
 
@@ -183,8 +188,9 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
     await context.close();
 });
 
-test('@live-demo facilitator disconnect recovery and concurrent notetaker capture behavior hold under multi-user writes', async ({ browser }) => {
+test('@live-demo facilitator disconnect recovery and concurrent notetaker capture behavior hold under multi-user writes', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.slow();
+    recordRehearsalMetrics(testInfo, { actorCount: 5, sessionCount: 1 });
 
     const context = await browser.newContext();
     const sessionCode = 'RECOV2026';

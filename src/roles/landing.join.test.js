@@ -296,7 +296,8 @@ describe('landing secure join flow', () => {
         expect(overlay.attributes.role).toBe('status');
         expect(overlay.attributes['aria-live']).toBe('polite');
         expect(overlay.attributes['aria-atomic']).toBe('true');
-        expect(brandMark.attributes.src).toBe('./src/img/Gold No Background.png');
+        expect(brandMark.attributes.src).toMatch(/Gold(?:%20| )No(?:%20| )Background\.png$/);
+        expect(brandMark.attributes.src).not.toBe('./src/img/Gold No Background.png');
         expect(brandMark.attributes.alt).toBe('');
         expect(brandMark.attributes['aria-hidden']).toBe('true');
         expect(sessionName.hidden).toBe(true);

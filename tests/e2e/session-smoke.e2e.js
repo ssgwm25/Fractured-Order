@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js';
 
 import {
     dumpE2EMockBackend,
@@ -20,8 +20,9 @@ import {
     submitActionFromScribe
 } from './support/liveDemoHarness.js';
 
-test('@smoke session creation, Scribe handoff, Facilitator action submit, and White Cell adjudication', async ({ browser }) => {
+test('@smoke session creation, Scribe handoff, Facilitator action submit, and White Cell adjudication', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.setTimeout(180000);
+    recordRehearsalMetrics(testInfo, { actorCount: 1, sessionCount: 1 });
 
     const context = await browser.newContext();
     await enableE2EMockBackend(context);

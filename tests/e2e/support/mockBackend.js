@@ -11,29 +11,39 @@ const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
 
 export const E2E_MOCK_OPERATOR_ACCESS_CODE = 'admin2025';
 
+export function initializeE2EMockBackendStorage({
+    sessionKeys,
+    enablementKey,
+    configKey,
+    mockConfig,
+    mockStateKey,
+    mockAuthKey
+}, target = globalThis) {
+    // Context init scripts also run in the initial opaque about:blank document.
+    // Storage is unavailable there; the script runs again after app navigation.
+    if (target.location?.origin === 'null') {
+        return false;
+    }
+
+    const storage = target.localStorage;
+    const sessionStorageRef = target.sessionStorage;
+
+    sessionStorageRef.setItem(enablementKey, 'enabled');
+    sessionStorageRef.setItem(configKey, JSON.stringify(mockConfig));
+    storage.removeItem('esg_e2e_mock');
+
+    if (!sessionStorageRef.getItem('__esg_e2e_bootstrapped__')) {
+        storage.removeItem(mockStateKey);
+        storage.removeItem(mockAuthKey);
+        sessionKeys.forEach((key) => storage.removeItem(key));
+        sessionStorageRef.setItem('__esg_e2e_bootstrapped__', 'true');
+    }
+
+    return true;
+}
+
 export async function enableE2EMockBackend(context) {
-    await context.addInitScript(({
-        sessionKeys,
-        enablementKey,
-        configKey,
-        mockConfig,
-        mockStateKey,
-        mockAuthKey
-    }) => {
-        const storage = globalThis.localStorage;
-        const sessionStorageRef = globalThis.sessionStorage;
-
-        sessionStorageRef.setItem(enablementKey, 'enabled');
-        sessionStorageRef.setItem(configKey, JSON.stringify(mockConfig));
-        storage.removeItem('esg_e2e_mock');
-
-        if (!sessionStorageRef.getItem('__esg_e2e_bootstrapped__')) {
-            storage.removeItem(mockStateKey);
-            storage.removeItem(mockAuthKey);
-            sessionKeys.forEach((key) => storage.removeItem(key));
-            sessionStorageRef.setItem('__esg_e2e_bootstrapped__', 'true');
-        }
-    }, {
+    await context.addInitScript(initializeE2EMockBackendStorage, {
         sessionKeys: SESSION_KEYS,
         enablementKey: E2E_MOCK_ENABLEMENT_KEY,
         configKey: E2E_MOCK_CONFIG_KEY,

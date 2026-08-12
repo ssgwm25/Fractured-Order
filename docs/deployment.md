@@ -88,9 +88,8 @@ The Supabase anon key is browser-public runtime configuration. GitHub stores it 
 ## Pull-Request Frontend Validation
 
 `.github/workflows/frontend-ci.yml` is the secretless frontend validation gate
-for pushes and pull requests that change application code, tests, styles, HTML,
-package metadata, build configuration, or GitHub workflows. It runs on Node 20
-and executes, in order, `npm ci`, `npm run verify:repo-artifacts`,
+for every push and pull request. It runs on Node 20 and executes, in order,
+`npm ci`, `npm run verify:repo-artifacts`,
 `npm test -- --run`, `npm run test:coverage`, and `npm run build`.
 
 The production compilation receives only the exact, non-secret CI placeholder
@@ -117,6 +116,44 @@ npm run build
 Pass: all five commands succeed; the `Frontend validation` workflow has no
 secret reference, deployment action, or write permission; and its coverage and
 build artifact uploads execute under `always()`.
+
+## Deterministic Browser Gates
+
+The same workflow runs two secretless Playwright gates after `Frontend
+validation` succeeds:
+
+- every pull request runs `npm run test:e2e:smoke` against the local
+  deterministic backend
+- every push whose ref GitHub marks protected runs the complete
+  `npm run test:e2e:rehearsal` matrix against that same backend
+
+Each browser job installs Chromium explicitly. CI permits a retry only on a
+protected ref so that a first-attempt failure retains retry diagnostics, but
+the custom gate reporter still fails a test that retries to success. Any
+skipped test fails either job. A shared fixture observes every page created by
+the suites and fails on any console error or uncaught page error.
+
+The job summary records the browser actor count, created session count, retry
+count, skipped count, unexpected browser-error count, and diagnostic filenames.
+The HTML report, JSON diagnostics, failure screenshots, traces, and videos are
+uploaded only as GitHub access-controlled workflow artifacts named
+`playwright-smoke-<sha>` or `playwright-rehearsal-<sha>`. They are retained for
+14 days and are never published through GitHub Pages. Missing diagnostic output
+fails the artifact step instead of reusing historical evidence.
+
+Local verification:
+
+```powershell
+npx playwright install chromium
+npm run test:e2e:smoke
+npm run test:e2e:rehearsal
+```
+
+Pass: both commands use the local deterministic backend and finish with zero
+skipped tests, zero retries, zero unexpected console/page errors, and a fresh
+diagnostic JSON attachment for every test. The complete rehearsal summary
+reports 60 browser actors across seven created sessions; the smoke summary
+reports one browser actor and one created session.
 
 ## Build Contract
 

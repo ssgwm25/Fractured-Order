@@ -1,34 +1,8 @@
 name: Frontend validation
 
 on:
-  push:
-    paths:
-      - 'src/**'
-      - 'styles/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'decks/**'
-      - 'teams/**'
-      - 'public/**'
-      - '*.html'
-      - '*.js'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/**'
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'styles/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'decks/**'
-      - 'teams/**'
-      - 'public/**'
-      - '*.html'
-      - '*.js'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/**'
+  push: {}
+  pull_request: {}
 
 permissions:
   contents: read
@@ -97,4 +71,100 @@ jobs:
           name: frontend-build-${{ github.sha }}
           path: dist/
           if-no-files-found: warn
+          retention-days: 14
+
+  browser-smoke:
+    name: Deterministic browser smoke
+    if: ${{ github.event_name == 'pull_request' }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run deterministic browser smoke
+        id: browser_test
+        env:
+          PLAYWRIGHT_GATE_NAME: smoke
+          PLAYWRIGHT_PROTECTED_BRANCH: 'false'
+          PLAYWRIGHT_CI_ARTIFACT_NAME: playwright-smoke-${{ github.sha }}
+          VITE_SUPABASE_URL: https://frontend-ci-build-only.supabase.co
+          VITE_SUPABASE_ANON_KEY: frontend-ci-build-only-anon-value
+          VITE_PUBLIC_BASE_PATH: /
+        run: npm run test:e2e:smoke
+
+      - name: Publish smoke summary
+        if: ${{ always() && steps.browser_test.outcome != 'skipped' }}
+        run: node scripts/write-playwright-summary.mjs test-results/playwright-gate-summary.json
+
+      - name: Upload access-controlled smoke diagnostics
+        if: ${{ always() && steps.browser_test.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: error
+          retention-days: 14
+
+  browser-rehearsal:
+    name: Deterministic browser rehearsal
+    if: ${{ github.event_name == 'push' && github.ref_protected }}
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run full deterministic browser rehearsal
+        id: browser_test
+        env:
+          PLAYWRIGHT_GATE_NAME: rehearsal
+          PLAYWRIGHT_PROTECTED_BRANCH: 'true'
+          PLAYWRIGHT_CI_ARTIFACT_NAME: playwright-rehearsal-${{ github.sha }}
+          VITE_SUPABASE_URL: https://frontend-ci-build-only.supabase.co
+          VITE_SUPABASE_ANON_KEY: frontend-ci-build-only-anon-value
+          VITE_PUBLIC_BASE_PATH: /
+        run: npm run test:e2e:rehearsal
+
+      - name: Publish rehearsal summary
+        if: ${{ always() && steps.browser_test.outcome != 'skipped' }}
+        run: node scripts/write-playwright-summary.mjs test-results/playwright-gate-summary.json
+
+      - name: Upload access-controlled rehearsal diagnostics
+        if: ${{ always() && steps.browser_test.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-rehearsal-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: error
           retention-days: 14

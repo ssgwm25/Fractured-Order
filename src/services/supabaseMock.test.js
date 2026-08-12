@@ -759,4 +759,60 @@ describe('supabase mock bootstrap guardrails', () => {
         await mockClient.from('timeline').select('*');
         expect(requestedLocks).toHaveLength(3);
     });
+
+    it('enforces the notetaker session-and-move unique constraint used by concurrent-save retries', async () => {
+        installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'gamemaster',
+            requested_operator_code: 'playwright-test-code',
+            requested_operator_name: 'Mock GM'
+        });
+        const createdSession = await mockClient.rpc('create_live_demo_session', {
+            requested_name: 'Notetaker constraint session',
+            requested_session_code: 'NOTE19',
+            requested_description: 'Pins deterministic mock uniqueness.'
+        });
+
+        await mockClient.auth.signOut();
+        await mockClient.auth.signInAnonymously();
+        const claimedSeat = await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: createdSession.data.id,
+            requested_role: 'blue_notetaker',
+            requested_name: 'Mock Notetaker',
+            requested_client_id: 'mock-notetaker-client'
+        });
+        expect(claimedSeat.error).toBeNull();
+
+        const firstInsert = await mockClient.from('notetaker_data').insert({
+            session_id: createdSession.data.id,
+            move: 1,
+            phase: 1,
+            team: 'blue'
+        }).select().single();
+        const duplicateInsert = await mockClient.from('notetaker_data').insert({
+            session_id: createdSession.data.id,
+            move: 1,
+            phase: 2,
+            team: 'blue'
+        }).select().single();
+        const storedRows = await mockClient.from('notetaker_data')
+            .select('*')
+            .eq('session_id', createdSession.data.id)
+            .eq('move', 1);
+
+        expect(firstInsert.error).toBeNull();
+        expect(duplicateInsert.error).toMatchObject({
+            code: '23505',
+            message: expect.stringContaining('notetaker_data_session_id_move_key')
+        });
+        expect(storedRows.data).toHaveLength(1);
+    });
 });

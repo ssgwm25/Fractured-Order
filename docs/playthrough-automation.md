@@ -94,17 +94,47 @@ Run the complete rehearsal gate:
 npm run test:e2e:rehearsal
 ```
 
+In CI, the smoke path runs on every pull request and the complete deterministic
+matrix runs on pushes to refs GitHub marks protected. Both jobs use the local
+mock backend and attach `browser-diagnostics.json` for every test. The full
+matrix declares 60 browser actors across seven created sessions; the focused
+smoke path declares one browser actor and one created session. These are suite
+totals for the workflow summary, while the professional playthrough itself
+continues to require eighteen simultaneous actors and seventeen selected-session
+role seats.
+
+CI passes only with zero skipped tests, zero retries, and zero unexpected
+console or page errors. On protected refs, Playwright may execute one diagnostic
+retry after an initial failure, but a retry-to-success result still fails the
+gate. Review `playwright-gate-summary.json` together with the per-test browser,
+Realtime, and playthrough diagnostics. HTML reports, JSON, failure screenshots,
+traces, and videos are retained only in the access-controlled GitHub Actions
+artifact for the candidate SHA; do not publish or commit them.
+
+Tests that deliberately exercise a rejected seat claim register the two exact,
+bounded console messages produced by that attempted claim before submitting it.
+Those entries remain visible as `expectedConsoleErrors` in
+`browser-diagnostics.json`; another occurrence or any different console/page
+error remains unexpected and fails the gate.
+
 The local static server uses the deterministic E2E backend. Because that mock
 persists shared state through browser `localStorage`, actor operations that
 write shared records are deliberately serialized locally. The mock also places
 every state-changing RPC and table write behind an origin-wide browser lock so
 background participant heartbeats cannot overwrite a workflow write between
-the shared-state read and write. It initializes the PLI adjudication table even
-when hydrating state saved by an older mock build, so an empty White Cell PLI
-queue renders as an empty state instead of a missing-table error. Pending PLI
-rows remain restricted to White Cell and Game Master operators, matching the
-live RLS boundary. The static server decodes percent-encoded built asset paths
-while retaining its root-directory traversal guard. After the
+the shared-state read and write. It also enforces the production schema's
+`UNIQUE(session_id, move)` notetaker constraint so concurrent creates follow
+the application's deterministic `23505` retry path instead of creating rows
+that later make `.maybeSingle()` fail. The context initializer defers storage
+access for Playwright's opaque initial `about:blank` document and runs normally
+after navigation reaches the app origin; this setup event is prevented at its
+source, not ignored by the browser-diagnostics gate. It initializes the PLI
+adjudication table even when hydrating state saved by an older mock build, so an
+empty White Cell PLI queue renders as an empty state instead of a missing-table
+error. Pending PLI rows remain restricted to White Cell and Game Master
+operators, matching the live RLS boundary. The static server decodes
+percent-encoded built asset paths while retaining its root-directory traversal
+guard. After the
 multi-Notetaker capture batch, local actor pages reload from that shared
 persisted state before cross-page assertions because the mock does not emulate
 Supabase Realtime fanout. Hosted mode keeps the pages live and requires Realtime
@@ -274,6 +304,12 @@ video. The test also attaches `playthrough-diagnostics.json`, containing:
 - whether the run used the local mock or hosted real backend
 - uncaught page errors
 - browser console errors
+
+Every browser test also writes `browser-diagnostics.json` into its per-test
+output directory before attaching it to the report. Console entries include
+the originating resource URL and page errors include the page URL and stack;
+the terminal failure prints the first five entries so a missing built asset or
+uncaught exception can be identified without weakening the zero-error gate.
 
 Treat missing evidence, a partial export, or a stale historical session as a
 failed gate. Do not substitute a prior successful run.

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js';
 
 import { dumpE2EMockBackend } from './support/mockBackend.js';
 import {
@@ -114,8 +114,9 @@ async function expectRoleSurface(page, roleCase) {
     await expect(page.locator('#startTimerBtn')).toBeEnabled();
 }
 
-test('@live-demo browser role matrix covers all teams and roles through join, reload persistence, and operator roster visibility', async ({ browser }) => {
+test('@live-demo browser role matrix covers all teams and roles through join, reload persistence, and operator roster visibility', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.slow();
+    recordRehearsalMetrics(testInfo, { actorCount: 18, sessionCount: 1 });
 
     const context = await browser.newContext();
     const gameMaster = await createIsolatedActorPage(context, 'matrix-game-master', { resetBackend: true });

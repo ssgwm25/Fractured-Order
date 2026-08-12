@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js';
 
 import { dumpE2EMockBackend } from './support/mockBackend.js';
 import {
@@ -20,8 +20,9 @@ function getScaleRows(backendState, tableName, sessionId) {
     ));
 }
 
-test('@live-demo larger exercise seeded records keep operator and team views usable', async ({ browser }) => {
+test('@live-demo larger exercise seeded records keep operator and team views usable', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.slow();
+    recordRehearsalMetrics(testInfo, { actorCount: 3, sessionCount: 1 });
 
     const context = await browser.newContext();
     const gameMaster = await createIsolatedActorPage(context, 'scale-game-master', { resetBackend: true });

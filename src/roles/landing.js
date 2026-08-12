@@ -14,6 +14,7 @@ import { showToast } from '../components/ui/Toast.js';
 import { validateSessionCode } from '../utils/validation.js';
 import { navigateToApp } from '../core/navigation.js';
 import { getUserMessage } from '../core/errors.js';
+import brandMarkUrl from '../img/Gold No Background.png';
 import {
     OPERATOR_SURFACES,
     SME_ROLES,
@@ -517,7 +518,7 @@ export class LandingController {
 
         const brandMark = document.createElement('img');
         brandMark.className = 'atm-mark jc-brand-mark';
-        brandMark.setAttribute('src', './src/img/Gold No Background.png');
+        brandMark.setAttribute('src', brandMarkUrl);
         brandMark.setAttribute('alt', '');
         brandMark.setAttribute('aria-hidden', 'true');
 
