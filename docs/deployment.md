@@ -85,6 +85,39 @@ Optional repository secret:
 
 The Supabase anon key is browser-public runtime configuration. GitHub stores it as a repository secret so the workflow can inject it at build time, but after the Vite build it is visible to browser clients. Do not use a service-role key or any backend-only credential in a `VITE_*` variable.
 
+## Pull-Request Frontend Validation
+
+`.github/workflows/frontend-ci.yml` is the secretless frontend validation gate
+for pushes and pull requests that change application code, tests, styles, HTML,
+package metadata, build configuration, or GitHub workflows. It runs on Node 20
+and executes, in order, `npm ci`, `npm run verify:repo-artifacts`,
+`npm test -- --run`, `npm run test:coverage`, and `npm run build`.
+
+The production compilation receives only the exact, non-secret CI placeholder
+URL and anon value declared in the build step. An inline guard rejects changes
+to those values. The validation job references no production or repository
+secret, has only read access to repository contents, and has no deployment or
+identity-token permission.
+
+Coverage output and the production `dist` bundle are uploaded with the
+candidate SHA in their artifact names. Both upload steps run even when a check
+fails, so reviewers retain whatever diagnostic output was produced. Superseded
+runs for the same pull request or branch are cancelled automatically.
+
+Local validation uses the same command sequence:
+
+```powershell
+npm ci
+npm run verify:repo-artifacts
+npm test -- --run
+npm run test:coverage
+npm run build
+```
+
+Pass: all five commands succeed; the `Frontend validation` workflow has no
+secret reference, deployment action, or write permission; and its coverage and
+build artifact uploads execute under `always()`.
+
 ## Build Contract
 
 The workflow must publish the built `dist` artifact. It must not publish raw source HTML that points directly at `./src/main.js` or role modules.

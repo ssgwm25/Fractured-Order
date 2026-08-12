@@ -8,6 +8,52 @@ function readText(relativePath) {
 }
 
 describe('repository operator docs contract', () => {
+    it('pins secretless pull-request frontend validation and retained artifacts', () => {
+        const workflow = readText('../../.github/workflows/frontend-ci.yml');
+        const deployment = readText('../../docs/deployment.md');
+        const requiredCommands = [
+            'npm ci',
+            'npm run verify:repo-artifacts',
+            'npm test -- --run',
+            'npm run test:coverage',
+            'npm run build'
+        ];
+
+        expect(workflow).toContain('name: Frontend validation');
+        expect(workflow).toContain('push:');
+        expect(workflow).toContain('pull_request:');
+        expect(workflow).toContain("node-version: '20'");
+        expect(workflow).toContain('contents: read');
+        expect(workflow).toContain('cancel-in-progress: true');
+        expect(workflow).toContain("- 'src/**'");
+        expect(workflow).toContain("- 'styles/**'");
+        expect(workflow).toContain("- 'tests/**'");
+        expect(workflow).toContain("- '*.html'");
+        expect(workflow).toContain("- 'package-lock.json'");
+        expect(workflow).toContain("- '.github/workflows/**'");
+
+        let priorCommandIndex = -1;
+        requiredCommands.forEach((command) => {
+            const commandIndex = workflow.indexOf(command);
+            expect(commandIndex, `${command} must be present in workflow order`).toBeGreaterThan(priorCommandIndex);
+            priorCommandIndex = commandIndex;
+        });
+
+        expect(workflow.match(/if: \$\{\{ always\(\) \}\}/g)).toHaveLength(2);
+        expect(workflow).toContain('path: coverage/');
+        expect(workflow).toContain('path: dist/');
+        expect(workflow).toContain('https://frontend-ci-build-only.supabase.co');
+        expect(workflow).toContain('frontend-ci-build-only-anon-value');
+        expect(workflow).not.toContain('secrets.');
+        expect(workflow).not.toContain('pages: write');
+        expect(workflow).not.toContain('id-token: write');
+        expect(workflow).not.toContain('actions/deploy-pages');
+
+        expect(deployment).toContain('Pull-Request Frontend Validation');
+        requiredCommands.forEach((command) => expect(deployment).toContain(`\`${command}\``));
+        expect(deployment).toMatch(/no production or repository\s+secret/);
+    });
+
     it('defines the source-versus-generated repository artifact boundary', () => {
         const gitignore = readText('../../.gitignore');
         const policy = readText('../../docs/repository-artifact-policy.md');

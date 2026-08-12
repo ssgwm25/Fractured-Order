@@ -1,0 +1,100 @@
+name: Frontend validation
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'styles/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'decks/**'
+      - 'teams/**'
+      - 'public/**'
+      - '*.html'
+      - '*.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'styles/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'decks/**'
+      - 'teams/**'
+      - 'public/**'
+      - '*.html'
+      - '*.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Frontend validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        id: install
+        run: npm ci
+
+      - name: Verify repository artifacts
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: npm run verify:repo-artifacts
+
+      - name: Run unit tests
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: npm test -- --run
+
+      - name: Generate coverage
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        run: npm run test:coverage
+
+      - name: Build production bundle with CI-only browser configuration
+        if: ${{ always() && steps.install.outcome == 'success' }}
+        env:
+          VITE_SUPABASE_URL: https://frontend-ci-build-only.supabase.co
+          VITE_SUPABASE_ANON_KEY: frontend-ci-build-only-anon-value
+          VITE_PUBLIC_BASE_PATH: /
+        run: |
+          if [ "$VITE_SUPABASE_URL" != "https://frontend-ci-build-only.supabase.co" ] || [ "$VITE_SUPABASE_ANON_KEY" != "frontend-ci-build-only-anon-value" ]; then
+            echo "::error title=Unsafe frontend CI configuration::Build inputs must remain the reviewed, non-secret CI-only values."
+            exit 1
+          fi
+          npm run build
+
+      - name: Upload coverage artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-${{ github.sha }}
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload production build artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: dist/
+          if-no-files-found: warn
+          retention-days: 14
