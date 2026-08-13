@@ -154,7 +154,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
         evidence: [
             evidence('unit', 'src/roles/whitecell.test.js', 'gates Move 1 controls until all Strategic Orientation artifacts reach White Cell'),
             evidence('unit', 'src/roles/whitecell.test.js', 'saves White Cell timer allocations as seconds for each game-state mark'),
-            evidence('e2e', 'tests/e2e/live-demo-playthrough.e2e.js', 'synchronize timer state through White Cell Lead controls')
+            evidence('e2e', 'tests/e2e/live-demo-playthrough.e2e.js', 'operate allocations, timer reset, and reversible move and phase progression from White Cell Lead controls')
         ]
     },
     'white_cell.review': {
