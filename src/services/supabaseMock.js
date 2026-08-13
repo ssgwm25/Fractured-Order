@@ -2,6 +2,7 @@ const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
+const E2E_MOCK_BROADCAST_KEY = 'esg_e2e_realtime_broadcast';
 const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
 const E2E_MOCK_STATE_WRITE_LOCK = 'esg-e2e-backend-state-write';
 const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
@@ -308,7 +309,7 @@ function matchesRealtimeFilter(change, config = {}) {
     return String(candidateRow?.[parsedFilter.field] ?? '') === parsedFilter.value;
 }
 
-function createMockRealtimeChannel() {
+function createMockRealtimeChannel(channelName = '') {
     const subscriptions = [];
     const statusCallbacks = new Set();
     let storageListener = null;
@@ -326,6 +327,29 @@ function createMockRealtimeChannel() {
 
             if (!storageListener && typeof window !== 'undefined') {
                 storageListener = (event) => {
+                    if (event.key === E2E_MOCK_BROADCAST_KEY) {
+                        let envelope = null;
+                        try {
+                            envelope = event.newValue ? JSON.parse(event.newValue) : null;
+                        } catch (_error) {
+                            envelope = null;
+                        }
+
+                        if (!envelope || envelope.channel !== channelName) {
+                            return;
+                        }
+
+                        subscriptions.forEach((subscription) => {
+                            if (
+                                subscription.eventName === 'broadcast'
+                                && subscription.config?.event === envelope.event
+                            ) {
+                                subscription.callback({ payload: cloneValue(envelope.payload) });
+                            }
+                        });
+                        return;
+                    }
+
                     if (event.key !== E2E_MOCK_STATE_KEY) {
                         return;
                     }
@@ -380,6 +404,24 @@ function createMockRealtimeChannel() {
             }
 
             return channel;
+        },
+        async send(message = {}) {
+            if (message.type !== 'broadcast' || !message.event) {
+                return 'error';
+            }
+
+            const storage = getStorage();
+            if (!storage) {
+                return 'error';
+            }
+
+            storage.removeItem(E2E_MOCK_BROADCAST_KEY);
+            storage.setItem(E2E_MOCK_BROADCAST_KEY, JSON.stringify({
+                channel: channelName,
+                event: message.event,
+                payload: cloneValue(message.payload)
+            }));
+            return 'ok';
         },
         unsubscribe() {
             if (storageListener && typeof window !== 'undefined') {
@@ -1288,7 +1330,7 @@ function createLiveDemoSession(state, {
     };
 }
 
-function deleteLiveDemoSession(state, {
+function archiveLiveDemoSession(state, {
     requested_session_id
 }) {
     const authUserId = getCurrentAuthUserId();
@@ -1296,17 +1338,99 @@ function deleteLiveDemoSession(state, {
         return { data: null, error: { message: 'Game Master or White Cell authorization is required.' } };
     }
 
-    state.tables.sessions = state.tables.sessions.filter((entry) => entry.id !== requested_session_id);
-    Object.keys(state.tables).forEach((tableName) => {
-        if (tableName === 'sessions' || tableName === 'participants') {
-            return;
+    const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
+    if (!session) {
+        return { data: null, error: { message: 'Session not found. Please refresh and try again.' } };
+    }
+
+    if (session.status === 'archived') {
+        return {
+            data: {
+                archived_session_id: requested_session_id,
+                status: 'archived',
+                already_archived: true,
+                closed_seat_count: 0
+            },
+            error: null
+        };
+    }
+
+    const archivedAt = getTimestamp();
+    const previousSession = cloneValue(session);
+    session.status = 'archived';
+    session.updated_at = archivedAt;
+
+    let closedSeatCount = 0;
+    state.tables.session_participants = state.tables.session_participants.map((seat) => {
+        if (seat.session_id !== requested_session_id || seat.is_active !== true) {
+            return seat;
         }
 
-        state.tables[tableName] = state.tables[tableName].filter((entry) => entry.session_id !== requested_session_id);
+        closedSeatCount += 1;
+        return {
+            ...seat,
+            is_active: false,
+            disconnected_at: seat.disconnected_at || archivedAt,
+            left_at: seat.left_at || archivedAt,
+            last_seen: seat.last_seen || seat.heartbeat_at || seat.joined_at || archivedAt
+        };
+    });
+
+    const operatorGrant = state.tables.operator_grants.find((grant) => (
+        grant.auth_user_id === authUserId && ['gamemaster', 'whitecell'].includes(grant.surface)
+    ));
+    const priorEvents = state.tables.research_audit_event_log.filter((event) => (
+        event.session_id === requested_session_id
+    ));
+    const eventId = state.tables.research_audit_event_log.reduce((largest, event) => (
+        Math.max(largest, Number(event.event_id) || 0)
+    ), 0) + 1;
+    const previousEvent = priorEvents[priorEvents.length - 1] || null;
+
+    state.tables.research_audit_event_log.push({
+        event_id: eventId,
+        event_uuid: nextId(state, 'research_audit_event_log_event'),
+        session_id: requested_session_id,
+        event_ts_utc: archivedAt,
+        server_received_utc: archivedAt,
+        client_ts_utc: null,
+        actor_pseudonym: `${operatorGrant?.surface || 'operator'}-${String(operatorGrant?.id || authUserId).slice(0, 8)}`,
+        actor_role: operatorGrant?.role || operatorGrant?.surface || 'operator',
+        actor_team: operatorGrant?.team_id || null,
+        actor_seat_index: null,
+        event_type: 'SESSION_CLOSED',
+        entity_type: 'session',
+        entity_id: requested_session_id,
+        move_number: null,
+        action_sequence: null,
+        correlation_id: null,
+        causal_event_id: null,
+        before_state: {
+            id: previousSession.id,
+            status: previousSession.status,
+            updated_at: previousSession.updated_at
+        },
+        after_state: {
+            id: session.id,
+            status: session.status,
+            updated_at: session.updated_at
+        },
+        payload: {
+            archive_method: 'operator_rpc',
+            closed_seat_count: closedSeatCount
+        },
+        phase: null,
+        prev_event_hash: previousEvent?.event_hash || null,
+        event_hash: `mock-session-closed-${eventId}`
     });
 
     return {
-        data: { deleted_session_id: requested_session_id },
+        data: {
+            archived_session_id: requested_session_id,
+            status: 'archived',
+            already_archived: false,
+            closed_seat_count: closedSeatCount
+        },
         error: null
     };
 }
@@ -2845,8 +2969,8 @@ export function createE2EMockSupabaseClient() {
         from(tableName) {
             return new MockQueryBuilder(tableName);
         },
-        channel() {
-            return createMockRealtimeChannel();
+        channel(channelName) {
+            return createMockRealtimeChannel(channelName);
         },
         async removeChannel(channel) {
             channel?.unsubscribe?.();
@@ -2900,8 +3024,8 @@ export function createE2EMockSupabaseClient() {
                 return mutateMockState((state) => createLiveDemoSession(state, params));
             }
 
-            if (functionName === 'delete_live_demo_session') {
-                return mutateMockState((state) => deleteLiveDemoSession(state, params));
+            if (functionName === 'archive_live_demo_session' || functionName === 'delete_live_demo_session') {
+                return mutateMockState((state) => archiveLiveDemoSession(state, params));
             }
 
             if (functionName === 'claim_session_role_seat') {

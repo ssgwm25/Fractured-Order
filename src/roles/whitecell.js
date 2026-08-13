@@ -603,15 +603,15 @@ function getWhiteCellParticipantSessionFilterFallbackLabel(sessionValue = '') {
     return rawValue;
 }
 
-export function getWhiteCellDeleteSessionConfirmationOptions(session = {}) {
+export function getWhiteCellArchiveSessionConfirmationOptions(session = {}) {
     const label = session?.name || 'this session';
 
     return {
-        title: 'Delete session',
-        message: `Delete ${label}? All actions, RFIs, participant seats, timeline events, and exports tied to it will be removed. This cannot be undone.`,
-        confirmLabel: 'Delete',
-        cancelLabel: 'Keep Session',
-        variant: 'danger'
+        title: 'Archive session',
+        message: `Archive ${label}? Export the research archive first. Participants will no longer be able to join, and the session will leave active lists. Actions, RFIs, participant seats, timeline events, exports, and immutable audit records will be retained.`,
+        confirmLabel: 'Archive',
+        cancelLabel: 'Keep Active',
+        variant: 'warning'
     };
 }
 
@@ -1219,6 +1219,7 @@ export class WhiteCellController {
         this.storeUnsubscribers = [];
         this.currentTimerSeconds = CONFIG.DEFAULT_TIMER_SECONDS;
         this.timerAllocations = buildDefaultTimerAllocations();
+        this.timerAllocationFormDirty = false;
         this.pluginState = buildDefaultPluginState();
         this.mountedPlugins = new Map();
         this.timerRunning = false;
@@ -1664,6 +1665,11 @@ export class WhiteCellController {
             startTimerBtn?.addEventListener('click', () => this.startTimer());
             pauseTimerBtn?.addEventListener('click', () => this.pauseTimer());
             resetTimerBtn?.addEventListener('click', () => this.resetTimer());
+            timerAllocationForm?.addEventListener('input', (event) => {
+                if (event.target?.closest?.('[data-timer-allocation-mark]')) {
+                    this.timerAllocationFormDirty = true;
+                }
+            });
             timerAllocationForm?.addEventListener('submit', (event) => this.handleTimerAllocationSubmit(event));
             timerAllocationResetCurrentBtn?.addEventListener('click', () => this.resetTimerToCurrentAllocation());
             prevPhaseBtn?.addEventListener('click', () => this.regressPhase());
@@ -1809,9 +1815,9 @@ export class WhiteCellController {
             const sessionId = button.dataset.sessionId;
             if (action === 'create') {
                 this.showCreateSessionAdminModal();
-            } else if (action === 'delete' && sessionId) {
-                this.handleDeleteSessionAdmin(sessionId).catch((err) => {
-                    logger.error('Failed to delete session:', err);
+            } else if (action === 'archive' && sessionId) {
+                this.handleArchiveSessionAdmin(sessionId).catch((err) => {
+                    logger.error('Failed to archive session:', err);
                 });
             } else if (action === 'refresh') {
                 this.loadSessionsAdmin().catch((err) => {
@@ -2019,9 +2025,11 @@ export class WhiteCellController {
             const markKey = field.dataset?.timerAllocationMark;
             if (!markKey) return;
 
-            field.value = String(secondsToWholeMinutes(
-                getTimerAllocationSeconds(this.timerAllocations, markKey)
-            ));
+            if (!this.timerAllocationFormDirty) {
+                field.value = String(secondsToWholeMinutes(
+                    getTimerAllocationSeconds(this.timerAllocations, markKey)
+                ));
+            }
             field.disabled = !canControl;
             field.setAttribute?.('aria-disabled', field.disabled ? 'true' : 'false');
         });
@@ -2285,6 +2293,7 @@ export class WhiteCellController {
         try {
             const updatedState = await gameStateStore.setTimerAllocations(allocations);
             this.timerAllocations = normalizeTimerAllocations(updatedState?.timer_allocations || allocations);
+            this.timerAllocationFormDirty = false;
             this.updateTimerAllocationControls();
             showToast({ message: 'Timer allocations saved', type: 'success' });
         } catch (err) {
@@ -5785,10 +5794,9 @@ export class WhiteCellController {
                         <button
                             type="button"
                             class="btn btn-ghost btn-sm"
-                            data-session-action="delete"
+                            data-session-action="archive"
                             data-session-id="${this.escapeHtml(session.id)}"
-                            style="color: var(--color-alert);"
-                        >Delete</button>
+                        >Archive</button>
                     </div>
                 </div>
             `;
@@ -5862,21 +5870,21 @@ export class WhiteCellController {
         }
     }
 
-    async handleDeleteSessionAdmin(sessionId) {
+    async handleArchiveSessionAdmin(sessionId) {
         const session = (this.adminSessions || []).find((entry) => entry.id === sessionId);
-        const confirmed = await confirmModal(getWhiteCellDeleteSessionConfirmationOptions(session));
+        const confirmed = await confirmModal(getWhiteCellArchiveSessionConfirmationOptions(session));
         if (!confirmed) return;
 
-        const loader = showLoader({ message: 'Deleting session...' });
+        showLoader({ message: 'Archiving session...' });
         try {
-            await database.deleteSession(sessionId);
-            showToast({ message: 'Session deleted.', type: 'success' });
+            await database.archiveSession(sessionId);
+            showToast({ message: 'Session archived. Its audit evidence was retained.', type: 'success' });
             await this.loadSessionsAdmin();
         } catch (err) {
-            logger.error('Failed to delete session:', err);
+            logger.error('Failed to archive session:', err);
             showToast({
                 message: getUserMessage(err, {
-                    fallback: 'Failed to delete session. Refresh the session list and try again.'
+                    fallback: 'Failed to archive session. Export its research archive, then refresh and try again.'
                 }),
                 type: 'error'
             });

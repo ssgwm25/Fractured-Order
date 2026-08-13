@@ -77,6 +77,10 @@ const REQUESTS_RESPONDED_BY_SCHEMA_REPAIR_PATH = new URL(
     '../../data/2026-08-11_requests_responded_by_schema_repair.sql',
     import.meta.url
 );
+const SESSION_ARCHIVE_TRANSITION_PATH = new URL(
+    '../../data/2026-08-12_session_archive_transition.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -108,6 +112,23 @@ function extractFunctionBody(sql, functionName) {
 }
 
 describe('database migration contracts', () => {
+    it('archives sessions without deleting immutable evidence', () => {
+        const sql = readFileSync(SESSION_ARCHIVE_TRANSITION_PATH, 'utf8');
+        const archiveBody = extractFunctionBody(sql, 'archive_live_demo_session');
+        const compatibilityBody = extractFunctionBody(sql, 'delete_live_demo_session');
+        const writeAccessBody = extractFunctionBody(sql, 'live_demo_can_write_session');
+
+        expect(archiveBody).toContain("SET status = 'archived'");
+        expect(archiveBody).toContain('SET is_active = false');
+        expect(archiveBody).toContain("'SESSION_CLOSED'");
+        expect(archiveBody).toContain('public.record_research_event(');
+        expect(archiveBody).not.toMatch(/DELETE\s+FROM\s+public\.sessions/i);
+        expect(compatibilityBody).toContain('public.archive_live_demo_session(requested_session_id)');
+        expect(compatibilityBody).not.toMatch(/DELETE\s+FROM\s+public\.sessions/i);
+        expect(writeAccessBody).toContain("s.status = 'active'");
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.archive_live_demo_session(UUID) TO authenticated;');
+    });
+
     it('keeps first-time public seat claims on the internal stale-seat cleanup helper', () => {
         const sql = readFileSync(GLOBAL_WHITE_CELL_ROLE_CONTRACT_PATH, 'utf8');
         const claimSessionRoleSeatBody = extractFunctionBody(sql, 'claim_session_role_seat');

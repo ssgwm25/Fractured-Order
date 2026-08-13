@@ -180,15 +180,15 @@ export function getParticipantSessionLabel(participant = {}, session = null) {
     return getGameMasterSessionLabel(session) || 'Selected session';
 }
 
-export function getGameMasterDeleteSessionConfirmationOptions(session = {}) {
+export function getGameMasterArchiveSessionConfirmationOptions(session = {}) {
     const label = session?.name || 'this session';
 
     return {
-        title: 'Delete Session',
-        message: `Delete "${label}"? All actions, RFIs, participant seats, timeline events, and exports tied to this session will be removed. This cannot be undone.`,
-        confirmLabel: 'Delete',
-        cancelLabel: 'Keep Session',
-        variant: 'danger'
+        title: 'Archive Session',
+        message: `Archive "${label}"? Export the research archive first. Participants will no longer be able to join, and the session will leave active lists. Actions, RFIs, participant seats, timeline events, exports, and immutable audit records will be retained.`,
+        confirmLabel: 'Archive',
+        cancelLabel: 'Keep Active',
+        variant: 'warning'
     };
 }
 
@@ -838,7 +838,7 @@ export class GameMasterController {
 
             const viewBtn = card.querySelector('.view-session-btn');
             const selectBtn = card.querySelector('.select-session-btn');
-            const deleteBtn = card.querySelector('.delete-session-btn');
+            const archiveBtn = card.querySelector('.archive-session-btn');
 
             if (viewBtn) {
                 viewBtn.addEventListener('click', () => {
@@ -852,9 +852,9 @@ export class GameMasterController {
                 });
             }
 
-            if (deleteBtn) {
-                deleteBtn.addEventListener('click', () => {
-                    void this.confirmDeleteSession(session.id);
+            if (archiveBtn) {
+                archiveBtn.addEventListener('click', () => {
+                    void this.confirmArchiveSession(session.id);
                 });
             }
         });
@@ -903,7 +903,7 @@ export class GameMasterController {
                 <div class="session-card-actions">
                     <button class="btn btn-outline btn-sm select-session-btn">Select</button>
                     <button class="btn btn-primary btn-sm view-session-btn">View Details</button>
-                    <button class="btn btn-danger btn-sm delete-session-btn">Delete</button>
+                    <button class="btn btn-secondary btn-sm archive-session-btn">Archive</button>
                 </div>
             </div>
         `;
@@ -1286,14 +1286,14 @@ export class GameMasterController {
         return 'game_master_operator';
     }
 
-    async confirmDeleteSession(sessionId) {
+    async confirmArchiveSession(sessionId) {
         const session = this.sessions.find((entry) => entry.id === sessionId);
         if (!session) return;
 
-        const confirmed = await confirmModal(getGameMasterDeleteSessionConfirmationOptions(session));
+        const confirmed = await confirmModal(getGameMasterArchiveSessionConfirmationOptions(session));
 
         if (confirmed) {
-            await this.deleteSession(sessionId);
+            await this.archiveSession(sessionId);
         }
     }
 
@@ -1466,23 +1466,23 @@ export class GameMasterController {
         this.renderActiveParticipants(buildConnectedParticipantsModel(bundles));
     }
 
-    async deleteSession(sessionId) {
-        showLoader({ message: 'Deleting session...' });
+    async archiveSession(sessionId) {
+        showLoader({ message: 'Archiving session...' });
 
         try {
-            await database.deleteSession(sessionId);
+            await database.archiveSession(sessionId);
             this.sessionBundles.delete(sessionId);
 
             if (this.currentSessionId === sessionId) {
                 this.currentSessionId = null;
             }
 
-            showToast('Session deleted successfully', { type: 'success' });
+            showToast('Session archived. Its audit evidence was retained.', { type: 'success' });
             await this.loadSessions();
         } catch (err) {
-            logger.error('Failed to delete session:', err);
+            logger.error('Failed to archive session:', err);
             showToast(getUserMessage(err, {
-                fallback: 'Failed to delete session. Refresh the session list and try again.'
+                fallback: 'Failed to archive session. Export its research archive, then refresh and try again.'
             }), { type: 'error' });
         } finally {
             hideLoader();

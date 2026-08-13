@@ -7,7 +7,7 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
 3. Before deploying the matching frontend, apply and verify the database/RLS migrations in a dedicated rehearsal project. Confirm Supabase anonymous auth, RPCs, RLS checks, and the `intercom-announcements` Storage bucket pass. For existing Supabase projects, apply `data/2026-06-25_industry_team_role_contract.sql`, `data/2026-06-25_scribe_action_submit_policy.sql`, `data/2026-06-25_participant_role_resolver_normalization.sql`, `data/2026-06-25_timer_allocations_game_state.sql`, `data/2026-06-28_white_cell_plugins_game_state.sql`, `data/2026-06-28_intercom_storage_bucket.sql`, `data/2026-07-14_action_artifact_workflow_integrity.sql`, `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-21_scribe_proposal_submit_policy.sql`, `data/2026-07-29_industry_submission_permissions.sql`, `data/2026-07-29_return_action_to_blue.sql`, `data/2026-08-05_team_neutral_artifact_review.sql`, `data/2026-08-06_facilitator_rfi_communications.sql`, `data/2026-08-06_proposal_recipient_threads.sql`, and `data/2026-08-11_requests_responded_by_schema_repair.sql` in that order before testing Industry seats, Strategic Orientation forecasts, proposals, Facilitator-owned RFIs and direct text, team-neutral White Cell returns, Facilitator-to-White Cell submissions through the legacy `*_scribe` seat, independent recipient approvals and append-only response threads, White Cell time allocations, White Cell plugin toggles, or Intercom voice announcements. Existing projects that applied the July and August workflow files before the multi-field proposal update must reapply `data/2026-07-14_action_artifact_workflow_integrity.sql`, then `data/2026-08-05_team_neutral_artifact_review.sql`, then `data/2026-08-06_facilitator_rfi_communications.sql`, then `data/2026-08-06_proposal_recipient_threads.sql`, then apply `data/2026-08-11_requests_responded_by_schema_repair.sql`.
-4. Confirm the role matrix can join: Blue, Red, Green, and Industry Scribes, Facilitators, and Notetakers; White Cell Lead; and Game Master. White Cell Support is not a landing-page entry in the shipped SME workflow.
+4. Confirm the 23-actor role matrix can join and reload: Blue, Red, Green, and Industry Scribes, Facilitators, and both Notetaker seats; White Cell Lead; Game Master; and the Econ, NI/Escalation, Diplomacy & Information, TSJ, and Verba AI SME consoles. White Cell Support and Observer are not landing-page entries in the shipped workflow and are not counted as user-enterable role procedures.
 5. Confirm production source maps are not published by default.
 
 Commands:
@@ -17,13 +17,21 @@ npm test -- --run
 $env:VITE_SUPABASE_URL="https://<project-ref>.supabase.co"; $env:VITE_SUPABASE_ANON_KEY="<anon-key>"; $env:VITE_PUBLIC_BASE_PATH="/Fractured-Order/"; npm run build
 npm run test:e2e:smoke
 npm run test:e2e:live-demo
+npm run test:roles
+npm run test:operational
 ```
 
-Pass: unit tests, production build, smoke, the eighteen-actor professional
-playthrough, focused Realtime recovery gate, and live-demo role tests complete
-without failures. The focused
+Pass: unit tests, production build, smoke, the 23-actor role-entry matrix,
+the eighteen-actor professional playthrough, focused Realtime recovery gate,
+and live-demo role tests complete without failures. The auditable role/capability
+contract is documented in `docs/role-capability-test-matrix.md`. The focused
 playthrough command and hosted real-backend procedure are documented in
 `docs/playthrough-automation.md`.
+The complete non-PLI shipped-feature gate, its evidence manifest, and its explicit
+PLI exclusions are documented in `docs/operational-rehearsal.md`.
+The latest local pass (2026-08-13) covered 74 focused files / 659 tests and five
+browser components / 6 tests / 49 actors / 8 sessions, with zero skips, retries,
+unexpected browser errors, or gate violations. This is not hosted Supabase/RLS evidence.
 The smoke test completes the Blue and Green single-target orientation handoffs
 and the Red and Industry multi-target forecast handoffs before exercising the
 normal Scribe-to-Facilitator-to-White Cell action lifecycle.
@@ -273,6 +281,11 @@ Run the large-record e2e rehearsal before presentation week:
 npm run test:e2e:rehearsal
 ```
 
+For the complete non-PLI operational gate, use `npm run test:operational` instead.
+That command runs the topology, larger-exercise, realtime-recovery, expanded
+18-actor playthrough, and compact operator-controls components after focused non-PLI tests. It deliberately
+does not execute PLI or the five SME-console procedures.
+
 The target data shape is:
 
 - 50-150 decisions/actions/proposals/responses
@@ -312,6 +325,13 @@ Before closing the demo:
 - when research capture mode is enabled, export the research archive
 - if Session Recorder was used, keep the downloaded audio beside the ZIP and confirm the archive contains `session_recording_artifacts.csv` and `session_recording_artifacts.json`
 - inspect `data_quality_summary.json` before using quantitative claims
+- after the exports are saved and validated, select Archive from Game Master or White Cell; confirm the session leaves active lists, participants cannot rejoin, and its latest research audit event is `SESSION_CLOSED`
+
+Archiving preserves the session and all dependent evidence. Do not use a hard
+database delete for demo cleanup. If Archive reports that
+`research_audit_event_log_session_id_fkey` blocks deletion, the Supabase project
+is missing `data/2026-08-12_session_archive_transition.sql`; apply that migration
+before retrying.
 
 ## Stop Conditions
 

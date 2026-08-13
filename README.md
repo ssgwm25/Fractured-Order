@@ -97,6 +97,8 @@ npm run build
 npm test -- --run
 npm run test:e2e:smoke
 npm run test:e2e:live-demo
+npm run test:roles
+npm run test:operational
 ```
 
 Pass conditions:
@@ -105,6 +107,8 @@ Pass conditions:
 - The built site references bundled `assets/*.js`, not raw `./src/*.js` module paths.
 - Unit tests pass without stale layout or naming expectations.
 - E2E smoke/live-demo tests can create sessions, join role seats, exercise core flows, and render role surfaces without console failures.
+- `test:roles` fail-closes against the auditable [role capability matrix](docs/role-capability-test-matrix.md), joins every shipped role (including all five SME consoles), and runs the complete cross-role procedural playthrough.
+- `test:operational` runs the [complete non-PLI operational rehearsal](docs/operational-rehearsal.md): the Windows-safe `test:non-pli` focused suite plus topology, scale, realtime recovery, the expanded 18-actor operation, and compact operator controls. PLI is explicitly excluded from this gate.
 
 ## Deployment
 

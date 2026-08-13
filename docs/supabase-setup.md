@@ -82,16 +82,60 @@ Apply the authoritative ledger in this exact order:
 31. `data/2026-08-06_facilitator_rfi_communications.sql`
 32. `data/2026-08-06_proposal_recipient_threads.sql`
 33. `data/2026-08-11_requests_responded_by_schema_repair.sql`
+34. `data/2026-08-12_session_archive_transition.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
-communications RLS and proposal-review behavior. The final August 11 migration
-is an additive request-schema repair and does not replace any policy or
-function. If July 14, August 5, or the earlier August 6 policy migration is
-reapplied during repair, reapply
+communications RLS and proposal-review behavior. The August 11 migration is an
+additive request-schema repair and does not replace any policy or function. The
+final August 12 migration replaces evidence-destroying session deletion with
+audited archival. If July 14, August 5, or the earlier August 6 policy migration
+is reapplied during repair, reapply
 `data/2026-08-06_proposal_recipient_threads.sql`, then apply
-`data/2026-08-11_requests_responded_by_schema_repair.sql`. Verify RPCs,
+`data/2026-08-11_requests_responded_by_schema_repair.sql`, then apply
+`data/2026-08-12_session_archive_transition.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
+
+## Session Archival
+
+Apply `data/2026-08-12_session_archive_transition.sql` before deploying the
+matching frontend. Game Master and White Cell session controls then archive a
+session instead of deleting it. Archival changes the session status to
+`archived`, closes its active participant seats, blocks further live writes,
+and appends `SESSION_CLOSED` to the immutable research event chain. All session
+records and dependent evidence remain stored. The deprecated
+`delete_live_demo_session` RPC is retained only as a non-destructive rolling
+deployment wrapper and also archives.
+
+Export and validate the research archive before selecting Archive. Archived
+sessions leave active lists and cannot be joined. They remain available as
+database evidence; no browser RPC hard-deletes them.
+
+Verify the contract after applying the migration:
+
+```sql
+select proname
+from pg_proc
+join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
+where nspname = 'public'
+  and proname in ('archive_live_demo_session', 'delete_live_demo_session')
+order by proname;
+
+select id, name, status, updated_at
+from public.sessions
+where id = '<archived-session-uuid>';
+
+select event_type, entity_type, entity_id, event_ts_utc
+from public.research_audit_event_log
+where session_id = '<archived-session-uuid>'
+order by event_id desc
+limit 1;
+```
+
+Pass: both RPC names are returned; the selected session has status `archived`;
+and its newest audit row is `SESSION_CLOSED` for entity type `session`. Existing
+actions, RFIs, timeline rows, participant seats, and research rows are still
+present.
 
 ## Intercom Storage
 
@@ -297,6 +341,7 @@ and proname in (
   'lookup_joinable_session_by_code',
   'authorize_demo_operator',
   'create_live_demo_session',
+  'archive_live_demo_session',
   'delete_live_demo_session',
   'claim_session_role_seat',
   'heartbeat_session_role_seat',

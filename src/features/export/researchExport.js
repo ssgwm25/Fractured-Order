@@ -8305,7 +8305,7 @@ export async function openResearchPrintWindow(reportHtml, {
 
     const htmlBlob = new Blob([reportHtml], { type: 'text/html' });
     const blobUrl = URL.createObjectURL(htmlBlob);
-    const printWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    const printWindow = window.open('', '_blank');
 
     if (!printWindow) {
         URL.revokeObjectURL(blobUrl);
@@ -8313,13 +8313,14 @@ export async function openResearchPrintWindow(reportHtml, {
     }
 
     try {
-        printWindow.document.title = title;
+        printWindow.opener = null;
     } catch (_error) {
-        // Ignore cross-window title failures for blob URLs.
+        // The report remains isolated by its blob URL if the browser makes opener read-only.
     }
 
     const finalizePrint = () => {
         try {
+            printWindow.document.title = title;
             printWindow.focus?.();
             printWindow.print?.();
         } finally {
@@ -8331,7 +8332,9 @@ export async function openResearchPrintWindow(reportHtml, {
 
     try {
         printWindow.addEventListener('load', finalizePrint, { once: true });
+        printWindow.location.replace(blobUrl);
     } catch (_error) {
+        printWindow.location.href = blobUrl;
         window.setTimeout(finalizePrint, 300);
     }
 

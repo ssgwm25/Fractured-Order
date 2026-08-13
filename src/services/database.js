@@ -783,20 +783,22 @@ export const database = {
     },
 
     /**
-     * Delete a session (cascades to all related data)
+     * Archive a session while preserving its related evidence.
      * @param {string} sessionId - Session ID
+     * @returns {Promise<Object>} Archive result
      */
-    async deleteSession(sessionId) {
+    async archiveSession(sessionId) {
         await ensureAuthenticatedBrowser();
-        const { error } = await supabase.rpc('delete_live_demo_session', {
+        const { data, error } = await supabase.rpc('archive_live_demo_session', {
             requested_session_id: sessionId
         });
 
         if (error) {
-            throw fromSupabaseError(error, 'deleteSession');
+            throw fromSupabaseError(error, 'archiveSession');
         }
 
-        logger.info('Session deleted:', sessionId);
+        logger.info('Session archived:', sessionId);
+        return data;
     },
 
     // ==================== GAME STATE ====================
