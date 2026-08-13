@@ -164,6 +164,15 @@ Apply `data/2026-07-14_action_artifact_workflow_integrity.sql` to make action, p
 
 After the workflow-integrity migration, apply `data/2026-07-21_scribe_proposal_submit_policy.sql` and `data/2026-07-29_industry_submission_permissions.sql`. The first permits the legacy `*_scribe` Facilitator seat to submit a Scribe-forwarded proposal. The second normalizes existing Industry seat identities and reasserts Industry draft/submission permissions. The later August 6 migration intentionally replaces its older RFI policies. None of these migrations permits cross-team writes or participant adjudication.
 
+The `actions_artifact_team_check` constraint deliberately retains the original
+database compatibility classification: Blue Strategic Orientation rows use
+`strategic_orientation_selection`, while Red, Green, and Industry use
+`strategic_orientation_forecast`. Contract-v2 payloads still retain each
+team's complete own-orientation, forecast, and narrative envelope in
+`artifact_payload`; do not broaden or drop the team constraint. A Blue insert
+failing this constraint indicates a stale frontend that classified the
+combined envelope as a forecast, not a missing database migration.
+
 The migration fails closed instead of guessing when it finds any of these conditions:
 
 - an active proposal without a Blue or Red recipient

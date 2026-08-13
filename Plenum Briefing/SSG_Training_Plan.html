@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSG Undergrad Training Plan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #fffefb;
+            --bg-alt: #f6f4ee;
+            --text-main: #16191d;
+            --text-muted: #6e7178;
+            --accent-green: #5a7d56;
+            --accent-green-glow: rgba(90, 125, 86, 0.3);
+            --accent-gold: #d5b27a;
+            --accent-gold-glow: rgba(213, 178, 122, 0.4);
+            --card-bg: #ffffff;
+            --border-color: #e2ddd0;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% -10%, var(--bg-color), var(--bg-alt) 60%);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: var(--accent-green);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .session-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .session-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--accent-gold);
+            box-shadow: 0 0 10px var(--accent-gold-glow);
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .session-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.8rem;
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .session-number {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-green);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 25px;
+        }
+        
+        .timeline-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -30px;
+            top: 6px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+            box-shadow: 0 0 8px var(--accent-gold-glow);
+        }
+
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 20px;
+            width: 2px;
+            height: calc(100% + 5px);
+            background: var(--border-color);
+        }
+        
+        .timeline-item:last-child::after {
+            display: none;
+        }
+
+        .time-badge {
+            display: inline-block;
+            background: rgba(90, 125, 86, 0.1);
+            color: var(--accent-green);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .item-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin: 0 0 5px 0;
+            color: var(--text-main);
+        }
+
+        .item-desc {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .highlight {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SSG Platform Training</h1>
+            <div class="subtitle">4-Session Instructional Plan for Undergraduate Cohort</div>
+        </header>
+
+        <!-- Session 1 -->
+        <div class="session-card">
+            <div class="session-header">
+                <h2 class="session-title">Getting Comfortable with the Plenum Interface</h2>
+                <div class="session-number">Session 01</div>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="time-badge">0:00 - 0:30 (Introduction)</div>
+                    <h3 class="item-title">The Basics</h3>
+                    <p class="item-desc">We will go over what the Plenum platform is and the basic layout. You will learn the <span class="highlight">core interface areas</span> you need to know before using it for the first time.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:30 - 0:50 (Playthrough)</div>
+                    <h3 class="item-title">Guided Navigation</h3>
+                    <p class="item-desc">Everyone gets a role. We will specifically focus on basic navigation: logging in, finding your assigned role's dashboard, locating the main communication channels, and reading a basic brief without fear of breaking things.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:50 - 1:00 (Closing)</div>
+                    <h3 class="item-title">Wrapping Up a Turn</h3>
+                    <p class="item-desc">Learning how to log out and finish your session safely. We will close the current action and talk about what we just did.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session 2 -->
+        <div class="session-card">
+            <div class="session-header">
+                <h2 class="session-title">Making Your First Moves on Plenum</h2>
+                <div class="session-number">Session 02</div>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="time-badge">0:00 - 0:30 (Introduction)</div>
+                    <h3 class="item-title">How to Take Action</h3>
+                    <p class="item-desc">We will look at how actions work in Plenum and how to submit a decision using a <span class="highlight">simple 3-step checklist</span>.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:30 - 0:50 (Playthrough)</div>
+                    <h3 class="item-title">Submitting a Decision</h3>
+                    <p class="item-desc">Everyone gets a role. We will specifically focus on the action submission process: drafting a message, selecting an action type from the dropdowns, double-checking the details, and hitting submit to build muscle memory.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:50 - 1:00 (Closing)</div>
+                    <h3 class="item-title">Wrapping Up a Turn</h3>
+                    <p class="item-desc">We will review the choices we made and how they look in the system. Then, we will close the turn to make our final move.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session 3 -->
+        <div class="session-card">
+            <div class="session-header">
+                <h2 class="session-title">Tracking Intelligence and Global Metrics</h2>
+                <div class="session-number">Session 03</div>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="time-badge">0:00 - 0:30 (Introduction)</div>
+                    <h3 class="item-title">Following the Info</h3>
+                    <p class="item-desc">We will learn how to see the results of your actions. You will learn how to read <span class="highlight">Intelligence Reports</span> and track global metrics like the Escalation Scale and National Interest markers.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:30 - 0:50 (Playthrough)</div>
+                    <h3 class="item-title">Reading the Feedback Loop</h3>
+                    <p class="item-desc">Everyone gets a role. We will specifically focus on finding where new intelligence updates appear in the feed, monitoring changes to the global board, and tracing a piece of information from start to finish using the platform's tools.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:50 - 1:00 (Closing)</div>
+                    <h3 class="item-title">Wrapping Up a Turn</h3>
+                    <p class="item-desc">We will talk about what we learned from checking our intelligence feeds. Then, we will close the turn to save our work.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session 4 -->
+        <div class="session-card">
+            <div class="session-header">
+                <h2 class="session-title">Running a Full Turn in Plenum</h2>
+                <div class="session-number">Session 04</div>
+            </div>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="time-badge">0:00 - 0:30 (Introduction)</div>
+                    <h3 class="item-title">Putting It All Together</h3>
+                    <p class="item-desc">We will bring together navigation, making moves, and tracking information into a single, smooth process for a full turn.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:30 - 0:50 (Playthrough)</div>
+                    <h3 class="item-title">Smooth, Fast-Paced Practice</h3>
+                    <p class="item-desc">Everyone gets a role. We will specifically focus on speed and confidence. You will run a mini-game turn from start to finish: reading a brief, submitting an action, checking the intelligence feed for results, and finalizing the move without needing step-by-step guidance.</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="time-badge">0:50 - 1:00 (Closing)</div>
+                    <h3 class="item-title">Final Wrap Up</h3>
+                    <p class="item-desc">We will close our last turn. Then, we will have a final chat to make sure everyone is comfortable and ready to join the team!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

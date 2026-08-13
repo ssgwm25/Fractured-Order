@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plenum Playthrough Guides</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #fffefb;
+            --bg-alt: #f6f4ee;
+            --text-main: #16191d;
+            --text-muted: #6e7178;
+            --accent-green: #5a7d56;
+            --accent-green-glow: rgba(90, 125, 86, 0.3);
+            --accent-gold: #d5b27a;
+            --accent-gold-glow: rgba(213, 178, 122, 0.4);
+            --card-bg: #ffffff;
+            --border-color: #e2ddd0;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% -10%, var(--bg-color), var(--bg-alt) 60%);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: var(--accent-green);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .guide-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .guide-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 6px; height: 100%;
+            background: var(--accent-gold);
+        }
+
+        .guide-header {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+
+        .guide-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            margin: 0 0 10px 0;
+            color: var(--text-main);
+        }
+
+        .guide-focus {
+            display: inline-block;
+            background: rgba(90, 125, 86, 0.1);
+            color: var(--accent-green);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        h3 {
+            font-family: 'Playfair Display', serif;
+            color: var(--accent-green);
+            font-size: 1.4rem;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+
+        p {
+            margin-bottom: 20px;
+            font-size: 1.05rem;
+            color: var(--text-main);
+        }
+
+        .role-action {
+            padding: 15px 20px;
+            background-color: var(--bg-alt);
+            border-left: 3px solid var(--accent-green);
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .role-name {
+            font-weight: 700;
+            color: var(--accent-green);
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .highlight {
+            font-weight: 600;
+            color: var(--accent-gold);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Plenum Playthrough Guides</h1>
+            <div class="subtitle">Step-by-Step Scenario Scripts for Undergraduate Training Sessions</div>
+        </header>
+
+        <!-- Session 1 Guide -->
+        <div class="guide-card">
+            <div class="guide-header">
+                <h2 class="guide-title">Session 1: Getting Comfortable with the Interface</h2>
+                <div class="guide-focus">Focus: Basic Navigation & Dashboard Familiarity</div>
+            </div>
+            
+            <h3>Introduction</h3>
+            <p>The "Icebreaker" scenario begins in September 2027. The Arctic has become a focal point of geopolitical tension. A US-flagged multinational research vessel, ostensibly collecting data in the Bering Strait, has been boarded by Russian officials and the crew detained under accusations of espionage.</p>
+
+            <h3>The Playthrough Round</h3>
+            <p>To begin, the facilitator directs all teams to log into the Plenum platform. Global escalation starts at Level 5 on the Escalation scale. The focus of this turn is strictly on navigation; no actions will be submitted.</p>
+            
+            <div class="role-action">
+                <span class="role-name">The United States</span>
+                Navigates to their national dashboard. They verify their starting National Interest marker is set at the middle position. They practice switching between the 'Dashboard' and 'Communications' tabs.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">Russia</span>
+                Navigates to the Communications channel to read the initial intelligence brief detailing their boarding of the vessel. They practice opening and closing intelligence reports.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">Norway & The UN</span>
+                Practice locating the global metrics on the platform. They find the Escalation Scale and confirm it currently sits at Level 5, then locate the seasonal weather effects tracking.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">The PRC</span>
+                Explores the resource tokens tab on their interface, identifying their starting Diplomacy, Information, Military, and Economic tokens.
+            </div>
+            
+            <p>The session concludes once all teams confirm they can comfortably locate their starting conditions, read the initial briefs, and navigate the communication channels without errors.</p>
+        </div>
+
+        <!-- Session 2 Guide -->
+        <div class="guide-card">
+            <div class="guide-header">
+                <h2 class="guide-title">Session 2: Making Your First Moves</h2>
+                <div class="guide-focus">Focus: Submitting Actions & Raising Red Cards</div>
+            </div>
+            
+            <h3>Introduction</h3>
+            <p>With the crew still detained, the timeline remains at September 2027. Teams must now practice submitting their first official actions into the Plenum platform, focusing on the mechanics of creating and contesting a move.</p>
+
+            <h3>The Playthrough Round</h3>
+            <div class="role-action">
+                <span class="role-name">The United States</span>
+                Takes the first turn. They navigate to the Action Submission portal. <br>
+                <em>Step 1:</em> They draft a message proposing a closed-door meeting with the Russian ambassador.<br>
+                <em>Step 2:</em> They select a "Diplomacy token" from the dropdown menu.<br>
+                <em>Step 3:</em> They review their action and click Submit.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">Norway, UN, PRC, & Russia</span>
+                Practice the counter-action interface. They navigate to the active thread and click the <span class="highlight">Raise Red Card</span> button to contest the US action.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">Russia & Norway</span>
+                Russia types in a counterargument: "The US did not consult Russia beforehand." Norway adds a concern that Russia has more to gain by not coming to the table.
+            </div>
+
+            <p>The facilitator uses the backend interface to rule the opposition a Strong Counterargument. The US uses the platform's digital dice roller, rolling an 11. The facilitator logs the move as a Marginal success. No National Interest markers are affected.</p>
+            <p>The timeline on the platform is advanced to January 2028. The U.S. proposal fails, but outside negotiations facilitate the release of the detained crew.</p>
+        </div>
+
+        <!-- Session 3 Guide -->
+        <div class="guide-card">
+            <div class="guide-header">
+                <h2 class="guide-title">Session 3: Tracking Intelligence and Global Metrics</h2>
+                <div class="guide-focus">Focus: Reading Intelligence Reports & Feedback</div>
+            </div>
+            
+            <h3>Introduction</h3>
+            <p>It is now January 2028. Teams must now track how information and updates propagate through the Plenum's intelligence reports and update feeds.</p>
+
+            <h3>The Playthrough Round</h3>
+            <div class="role-action">
+                <span class="role-name">Norway</span>
+                Employs a Military token to build 3 Search and Rescue (SAR) stations, submitting the action via the portal.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">Russia</span>
+                Submits a red card citing a violation of the Svalbard treaty. The facilitator rules it a Strong Counterargument. Norway rolls a 4. The move fails, and the platform automatically drops their National Interest by 1.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">The UN</span>
+                Refreshes their dashboard to practice reading the update feed. They see the timeline update to March 2028 and Norway's failed action logged.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">The PRC</span>
+                Navigates to the Intelligence Dashboard. They use an Information token to share intelligence with Russia. They submit an action to counter U.S. intelligence operations.
+            </div>
+
+            <p>All teams click into their <span class="highlight">Intelligence Reports</span> to practice reading the intelligence updates. They observe how the PRC's action formally alerts both the PRC and Russia to a new shared intelligence link. Finally, they watch the Escalation marker drop to Level 4 in real-time as the facilitator updates the global board following the crew's release.</p>
+        </div>
+
+        <!-- Session 4 Guide -->
+        <div class="guide-card">
+            <div class="guide-header">
+                <h2 class="guide-title">Session 4: Running a Full Turn</h2>
+                <div class="guide-focus">Focus: Smooth, Fast-Paced Integration</div>
+            </div>
+            
+            <h3>Introduction</h3>
+            <p>It is now September 2028. Teams must run a full turn independently, combining navigation, action submission, and tracking without step-by-step guidance.</p>
+
+            <h3>The Playthrough Round</h3>
+            <div class="role-action">
+                <span class="role-name">Russia</span>
+                Acts first. Without facilitator prompting, the Russian team drafts a secret treaty with the PRC to grant Arctic trade route access in exchange for funds. They select a Diplomacy token and hit Submit.
+            </div>
+
+            <div class="role-action">
+                <span class="role-name">The United States & The UN</span>
+                Monitor the live feed, spot the Russian action, and immediately hit the Red Card button. The US types a counterargument stating Russia wouldn't logically allow open access to their waters.
+            </div>
+
+            <p>The facilitator logs a Neutral Argument. Russia rolls a 5. The platform automatically updates: the move is Unsuccessful, and Russia's National Interest token drops by 1 space.</p>
+
+            <div class="role-action">
+                <span class="role-name">The PRC</span>
+                Notices Russia's failure immediately on the Live Update Feed. The PRC submits a rapid counter-move. They roll a 6, and their National Interest drops by 1. The platform alerts them they have received a second chance marker for a future turn.
+            </div>
+
+            <p>Round 1 concludes with the end of 2028. Teams review the final Escalation level on the dashboard. They have successfully completed a high-tempo turn using all Plenum features smoothly.</p>
+        </div>
+
+    </div>
+</body>
+</html>

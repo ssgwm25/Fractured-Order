@@ -26,6 +26,7 @@ import {
 } from '../features/actions/moveResponseDetails.js';
 import {
     STRATEGIC_ORIENTATION_ACTION_MECHANISM,
+    STRATEGIC_ORIENTATION_ARTIFACT_TYPES,
     parseStrategicOrientationDetails
 } from '../features/actions/strategicOrientationDetails.js';
 import {
@@ -411,7 +412,10 @@ function resolveActionWritePayload(actionData = {}, operation = 'actionWrite', {
     };
 }
 
-function resolveStructuredArtifactFields(actionData = {}) {
+function resolveStructuredArtifactFields(actionData = {}, {
+    artifactTeam = actionData.team,
+    operation = 'actionWrite'
+} = {}) {
     if (!Object.prototype.hasOwnProperty.call(actionData, 'ally_contingencies')) {
         return {};
     }
@@ -438,7 +442,37 @@ function resolveStructuredArtifactFields(actionData = {}) {
 
     const strategicOrientationDetails = parseStrategicOrientationDetails(actionData.ally_contingencies);
     if (strategicOrientationDetails) {
-        const artifactType = strategicOrientationDetails.artifactType === 'selection'
+        const normalizedArtifactTeam = String(
+            artifactTeam || strategicOrientationDetails.team || ''
+        ).trim().toLowerCase();
+        const normalizedEnvelopeTeam = String(strategicOrientationDetails.team || '')
+            .trim()
+            .toLowerCase();
+        if (
+            normalizedArtifactTeam
+            && normalizedEnvelopeTeam
+            && normalizedArtifactTeam !== normalizedEnvelopeTeam
+        ) {
+            throw new DatabaseError(
+                'Strategic Orientation team does not match the action team.',
+                operation
+            );
+        }
+
+        // The database keeps the original team-scoped compatibility types:
+        // Blue is the selection owner; Red, Green, and Industry are forecast
+        // owners. Contract-v2 envelopes contain both concepts, so classify the
+        // row by its authoritative team while preserving the full envelope.
+        const isBlueCombinedOrientation = (
+            strategicOrientationDetails.artifactType
+                === STRATEGIC_ORIENTATION_ARTIFACT_TYPES.ORIENTATION_AND_FORECAST
+            && normalizedArtifactTeam === 'blue'
+        );
+        const artifactType = (
+            strategicOrientationDetails.artifactType
+                === STRATEGIC_ORIENTATION_ARTIFACT_TYPES.SELECTION
+            || isBlueCombinedOrientation
+        )
             ? 'strategic_orientation_selection'
             : 'strategic_orientation_forecast';
         return {
@@ -1233,7 +1267,9 @@ export const database = {
             allowEmptyMechanism: status === ENUMS.ACTION_STATUS.DRAFT,
             requireSector: true
         });
-        const structuredArtifactFields = resolveStructuredArtifactFields(resolvedActionData);
+        const structuredArtifactFields = resolveStructuredArtifactFields(resolvedActionData, {
+            operation: 'createAction'
+        });
         const submittedAt = status === ENUMS.ACTION_STATUS.SUBMITTED
             ? (resolvedActionData.submitted_at || new Date().toISOString())
             : (resolvedActionData.submitted_at || null);
@@ -1343,7 +1379,8 @@ export const database = {
      */
     async updateAction(actionId, updates, {
         allowEmptyMechanism = false,
-        expectedRowVersion = null
+        expectedRowVersion = null,
+        artifactTeam = updates.team
     } = {}) {
         await ensureAuthenticatedBrowser();
         if ('status' in updates && !isValidActionStatus(updates.status)) {
@@ -1352,7 +1389,10 @@ export const database = {
         const resolvedUpdates = resolveActionWritePayload(updates, 'updateAction', {
             allowEmptyMechanism
         });
-        const structuredArtifactFields = resolveStructuredArtifactFields(resolvedUpdates);
+        const structuredArtifactFields = resolveStructuredArtifactFields(resolvedUpdates, {
+            artifactTeam,
+            operation: 'updateAction'
+        });
 
         let updateQuery = supabase
             .from('actions')
@@ -1408,7 +1448,8 @@ export const database = {
 
         return this.updateAction(actionId, draftUpdates, {
             allowEmptyMechanism: true,
-            expectedRowVersion: existingAction.row_version
+            expectedRowVersion: existingAction.row_version,
+            artifactTeam: existingAction.team
         });
     },
 

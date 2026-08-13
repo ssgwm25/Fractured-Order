@@ -361,6 +361,81 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(payload.ally_contingencies).toContain('"key":"green_europe"');
     });
 
+    it.each([
+        {
+            team: 'blue',
+            label: 'Blue Team',
+            data: {
+                ownOrientation: 'pressure',
+                forecasts: { red: 'reframe' },
+                forecastActionDescription: 'Red will reframe its external position.'
+            },
+            expectedForecastKeys: ['red']
+        },
+        {
+            team: 'red',
+            label: 'Red Team',
+            data: {
+                ownOrientation: 'reframe',
+                forecasts: {
+                    blue: 'pressure',
+                    green_asian_pacific: 'reframe',
+                    green_europe: 'stabilization'
+                },
+                orientationRationale: 'Red explains its selected orientation.'
+            },
+            expectedForecastKeys: ['blue', 'green_asian_pacific', 'green_europe']
+        },
+        {
+            team: 'green',
+            label: 'Green Team',
+            data: {
+                ownOrientation: 'stabilization',
+                forecasts: { blue: 'pressure' },
+                strategyDescription: 'Green describes its strategy given the Blue forecast.'
+            },
+            expectedForecastKeys: ['blue']
+        },
+        {
+            team: 'industry',
+            label: 'Industry Team',
+            data: {
+                ownOrientation: 'reframe',
+                forecasts: { blue: 'stabilization' },
+                strategyDescription: 'Industry describes its strategy given the Blue forecast.'
+            },
+            expectedForecastKeys: ['blue']
+        }
+    ])('builds and validates the complete $team Strategic Orientation contract', async ({
+        team,
+        label,
+        data,
+        expectedForecastKeys
+    }) => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { parseStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        const controller = new FacilitatorController();
+        controller.teamId = team;
+        controller.teamLabel = label;
+
+        expect(controller.validateStrategicOrientationData(data)).toEqual([]);
+        const payload = controller.buildStrategicOrientationPayload(data);
+        const details = parseStrategicOrientationDetails(payload.ally_contingencies);
+
+        expect(payload).toMatchObject({
+            mechanism: 'Strategic Orientation',
+            sector: '',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH'
+        });
+        expect(details).toMatchObject({
+            artifactType: 'orientation_and_forecast',
+            team,
+            ownOrientation: expect.objectContaining({ id: data.ownOrientation })
+        });
+        expect(details.forecastTargets.map(({ key }) => key)).toEqual(expectedForecastKeys);
+    });
+
     it('records a multi-target Red forecast using its primary forecast in timeline metadata', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { sessionStore } = await import('../stores/session.js');

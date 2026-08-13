@@ -57,6 +57,33 @@ function mockUpdateChain(result = { id: 'action-updated' }) {
     return { update, eq };
 }
 
+const STRATEGIC_ORIENTATION_TEAM_WRITE_CASES = [
+    {
+        team: 'blue',
+        expectedArtifactType: 'strategic_orientation_selection',
+        forecastTargets: [{ key: 'red', orientation: 'reframe' }]
+    },
+    {
+        team: 'red',
+        expectedArtifactType: 'strategic_orientation_forecast',
+        forecastTargets: [
+            { key: 'blue', orientation: 'pressure' },
+            { key: 'green_asian_pacific', orientation: 'reframe' },
+            { key: 'green_europe', orientation: 'stabilization' }
+        ]
+    },
+    {
+        team: 'green',
+        expectedArtifactType: 'strategic_orientation_forecast',
+        forecastTargets: [{ key: 'blue', orientation: 'pressure' }]
+    },
+    {
+        team: 'industry',
+        expectedArtifactType: 'strategic_orientation_forecast',
+        forecastTargets: [{ key: 'blue', orientation: 'pressure' }]
+    }
+];
+
 describe('database action write contracts', () => {
     beforeEach(() => {
         vi.resetModules();
@@ -163,6 +190,149 @@ describe('database action write contracts', () => {
             }
         }));
     });
+
+    it.each(STRATEGIC_ORIENTATION_TEAM_WRITE_CASES)(
+        'stores the combined $team Strategic Orientation envelope under its allowed compatibility type',
+        async ({ team, expectedArtifactType, forecastTargets }) => {
+            const { database } = await import('./database.js');
+            const {
+                STRATEGIC_ORIENTATION_ARTIFACT_TYPES,
+                serializeStrategicOrientationDetails
+            } = await import('../features/actions/strategicOrientationDetails.js');
+            const { insert } = mockInsertChain();
+
+            await database.createAction({
+                session_id: 'session-1',
+                client_id: 'client-action-write-test',
+                move: 1,
+                phase: 1,
+                team,
+                mechanism: 'Strategic Orientation',
+                sector: '',
+                exposure_type: 'pre_move_1',
+                targets: [],
+                goal: `${team} Strategic Orientation: Pressure`,
+                expected_outcomes: 'Focus on affecting PRC GDP growth',
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: STRATEGIC_ORIENTATION_ARTIFACT_TYPES.ORIENTATION_AND_FORECAST,
+                    team,
+                    ownOrientation: 'pressure',
+                    forecastTargets,
+                    orientationRationale: team === 'red' ? 'Red explains its selected orientation.' : '',
+                    forecastActionDescription: 'Red is expected to reframe its external position.',
+                    strategyDescription: ['green', 'industry'].includes(team)
+                        ? `${team} describes its strategy given the Blue forecast.`
+                        : '',
+                    scribeHandoff: 'Forwarded'
+                }),
+                priority: 'HIGH',
+                status: 'draft'
+            });
+
+            expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+                team,
+                artifact_type: expectedArtifactType,
+                artifact_payload: {
+                    strategic_orientation: expect.objectContaining({
+                        artifactType: 'orientation_and_forecast',
+                        team,
+                        ownOrientation: expect.objectContaining({ id: 'pressure' }),
+                        forecastTargets: expect.arrayContaining(forecastTargets.map((target) => (
+                            expect.objectContaining(target)
+                        )))
+                    })
+                },
+                forecast_targets: expect.arrayContaining(forecastTargets.map((target) => (
+                    expect.objectContaining(target)
+                )))
+            }));
+        }
+    );
+
+    it('rejects a Strategic Orientation envelope that names a different team', async () => {
+        const { database } = await import('./database.js');
+        const {
+            STRATEGIC_ORIENTATION_ARTIFACT_TYPES,
+            serializeStrategicOrientationDetails
+        } = await import('../features/actions/strategicOrientationDetails.js');
+        const { insert } = mockInsertChain();
+
+        await expect(database.createAction({
+            session_id: 'session-1',
+            client_id: 'client-action-write-test',
+            move: 1,
+            phase: 1,
+            team: 'blue',
+            mechanism: 'Strategic Orientation',
+            sector: '',
+            exposure_type: 'pre_move_1',
+            targets: [],
+            goal: 'Mismatched Strategic Orientation',
+            expected_outcomes: '',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: STRATEGIC_ORIENTATION_ARTIFACT_TYPES.ORIENTATION_AND_FORECAST,
+                team: 'red',
+                ownOrientation: 'reframe',
+                forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
+                orientationRationale: 'This envelope belongs to Red.',
+                scribeHandoff: 'Forwarded'
+            }),
+            priority: 'HIGH',
+            status: 'draft'
+        })).rejects.toThrow('Strategic Orientation team does not match the action team.');
+        expect(insert).not.toHaveBeenCalled();
+    });
+
+    it.each(STRATEGIC_ORIENTATION_TEAM_WRITE_CASES)(
+        'keeps the $team compatibility type when editing a combined Strategic Orientation draft',
+        async ({ team, expectedArtifactType, forecastTargets }) => {
+            const { database } = await import('./database.js');
+            const {
+                STRATEGIC_ORIENTATION_ARTIFACT_TYPES,
+                serializeStrategicOrientationDetails
+            } = await import('../features/actions/strategicOrientationDetails.js');
+            const { update } = mockUpdateChain({
+                id: `${team}-orientation-draft`,
+                team,
+                status: 'draft',
+                row_version: 4
+            });
+            vi.spyOn(database, 'getAction').mockResolvedValue({
+                id: `${team}-orientation-draft`,
+                team,
+                status: 'draft',
+                row_version: 3
+            });
+
+            await database.updateDraftAction(`${team}-orientation-draft`, {
+                ally_contingencies: serializeStrategicOrientationDetails({
+                    artifactType: STRATEGIC_ORIENTATION_ARTIFACT_TYPES.ORIENTATION_AND_FORECAST,
+                    team,
+                    ownOrientation: 'reframe',
+                    forecastTargets,
+                    orientationRationale: team === 'red' ? 'Red explains its revised orientation.' : '',
+                    forecastActionDescription: 'Red is expected to apply pressure.',
+                    strategyDescription: ['green', 'industry'].includes(team)
+                        ? `${team} revises its strategy given the Blue forecast.`
+                        : '',
+                    scribeHandoff: 'Forwarded'
+                })
+            });
+
+            expect(update).toHaveBeenCalledWith(expect.objectContaining({
+                artifact_type: expectedArtifactType,
+                artifact_payload: {
+                    strategic_orientation: expect.objectContaining({
+                        artifactType: 'orientation_and_forecast',
+                        team
+                    })
+                },
+                forecast_targets: expect.arrayContaining(forecastTargets.map((target) => (
+                    expect.objectContaining(target)
+                )))
+            }));
+        }
+    );
 
     it('stamps submitted_at when creating an item directly in submitted state', async () => {
         vi.useFakeTimers();

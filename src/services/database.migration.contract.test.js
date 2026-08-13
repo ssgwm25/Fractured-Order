@@ -449,6 +449,8 @@ describe('database migration contracts', () => {
         expect(sql).toContain('ADD COLUMN IF NOT EXISTS row_version BIGINT NOT NULL DEFAULT 1');
         expect(sql).toContain("'strategic_orientation_selection'");
         expect(sql).toContain("'strategic_orientation_forecast'");
+        expect(sql).toContain("artifact_type <> 'strategic_orientation_selection' OR LOWER(team) = 'blue'");
+        expect(sql).toContain("OR LOWER(team) IN ('red', 'green', 'industry')");
         expect(sql).toContain("'proposal'");
         expect(sql).toContain("'move_response'");
         expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_one_orientation_per_session_team');
