@@ -46,7 +46,6 @@ def build_html(entry: dict, record: dict) -> str:
     classification = worksheet["classification"]
     precedent = worksheet["precedent"]
     impl = record["implementation"]
-    fit = record["fit"]
     trend = record["trend"]
     action_title = entry.get("title") or entry["action_id"]
 
@@ -73,11 +72,9 @@ def build_html(entry: dict, record: dict) -> str:
             f"Tier midpoint {impl['midpoint']} | Modifiers: {html.escape(modifiers)} | Raw {impl['raw']} -> floor, band-edge cap",
             f"Band {trend.get('implementation_band', '')}: controls magnitude class + onset delay",
         ] if impl else ["Non-economic — no Implementation score."]),
-        trace_block(f"Fit score: {fit['score']}/10" if fit else "Fit", [
-            f"Declared orientation: <strong>{html.escape(fit['orientation'] if fit else entry.get('orientation', 'reframing'))}</strong>",
-            f"Anchor band {html.escape(fit['band'] if fit else '')}",
-            f"<em>{html.escape(worksheet['fit']['rationale'])}</em>" if worksheet.get("fit") else "",
-        ] if fit else ["Non-economic — no Fit score."]),
+        trace_block("Declared orientation (intake)", [
+            f"<strong>{html.escape(str(entry.get('orientation', '—')))}</strong> — scored on National Interest (Source 12), not on this Macro path.",
+        ]),
     ]
 
     if trend.get("no_effect"):
@@ -143,7 +140,6 @@ def build_html(entry: dict, record: dict) -> str:
       <div><strong>Submission month</strong>{html.escape(record.get('submission_month') or entry.get('submission_month') or '—')}</div>
       <div><strong>Orientation</strong>{html.escape(pilot_orientation())}</div>
       <div><strong>Implementation</strong>{impl['score'] if impl else 'N/A'}</div>
-      <div><strong>Fit</strong>{fit['score'] if fit else 'N/A'}</div>
       <div><strong>Codebook</strong>{html.escape(record['codebook_version'])}</div>
       <div><strong>Status</strong>Pending SME review (sample)</div>
     </div>
@@ -182,10 +178,9 @@ def main() -> int:
     out.write_text(build_html(entry, record), encoding="utf-8")
 
     impl = record["implementation"]["score"] if record["implementation"] else None
-    fit = record["fit"]["score"] if record["fit"] else None
     print(f"Action:  {action_id} — {entry['title']}")
     print(f"Lever:   {entry['worksheet']['classification']['lever']} / {entry['worksheet']['classification'].get('instrument')}")
-    print(f"Scores:  Implementation {impl} | Fit {fit}")
+    print(f"Scores:  Implementation {impl}")
     print(f"Report:  {out}")
     return 0
 

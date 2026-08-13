@@ -241,7 +241,7 @@ export function createPliReview(options = {}) {
             overrideNote.innerHTML = `
                 <p class="text-sm" style="margin:0 0 var(--space-1) 0;"><strong>SME override</strong>${row.sme_reviewer ? ` by ${escapeHtml(row.sme_reviewer)}` : ''}:</p>
                 <p class="text-sm" style="margin:0 0 var(--space-1) 0;">${escapeHtml(row.override_rationale)}</p>
-                ${row.override_value ? `<p class="text-sm" style="margin:0;">New values: Implementation ${escapeHtml(String(row.override_value.implementation_score ?? '-'))}, Fit ${escapeHtml(String(row.override_value.fit_score ?? '-'))}</p>` : ''}
+                ${row.override_value ? `<p class="text-sm" style="margin:0;">New values: Implementation ${escapeHtml(String(row.override_value.implementation_score ?? '-'))}</p>` : ''}
             `;
             card.appendChild(overrideNote);
         }
@@ -276,7 +276,6 @@ export function createPliReview(options = {}) {
 
         const classification = worksheet?.classification;
         const precedent = worksheet?.precedent;
-        const fit = adjudication?.fit || worksheet?.fit;
         const implementation = adjudication?.implementation;
 
         if (classification) {
@@ -307,11 +306,12 @@ export function createPliReview(options = {}) {
             ]));
         }
 
-        if (fit) {
-            trace.appendChild(traceBlock(`Fit score: ${fit.score}/10`, [
-                `Declared orientation: <strong>${escapeHtml(fit.orientation || record?.declared_orientation || '')}</strong>`,
-                `Anchor band ${escapeHtml(fit.band || '')}${fit.anchor ? ` — ${escapeHtml(fit.anchor)}` : ''}`,
-                worksheet?.fit?.rationale ? `<em>${escapeHtml(worksheet.fit.rationale)}</em>` : ''
+        const declaredOrientation = record?.declared_orientation
+            || worksheet?.fit?.orientation
+            || '';
+        if (declaredOrientation) {
+            trace.appendChild(traceBlock('Declared orientation (intake)', [
+                `<strong>${escapeHtml(declaredOrientation)}</strong> — scored on the National Interest track (Source 12), not on this Macro path.`
             ]));
         }
 
@@ -525,11 +525,6 @@ export function createPliReview(options = {}) {
                         value="${adjudication?.implementation?.score ?? ''}" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="pliOverrideFit">Fit score (1-10) *</label>
-                    <input type="number" id="pliOverrideFit" class="form-input" min="1" max="10"
-                        value="${adjudication?.fit?.score ?? ''}" required>
-                </div>
-                <div class="form-group">
                     <label class="form-label" for="pliOverrideRationale">Rationale (required)</label>
                     <textarea id="pliOverrideRationale" class="form-input form-textarea" rows="4"
                         placeholder="Which codebook table entry is wrong, and why?"></textarea>
@@ -548,12 +543,10 @@ export function createPliReview(options = {}) {
                     variant: 'primary',
                     onClick: async (modal) => {
                         const implementationScore = parseInt(document.getElementById('pliOverrideImpl').value, 10);
-                        const fitScore = parseInt(document.getElementById('pliOverrideFit').value, 10);
                         const rationale = document.getElementById('pliOverrideRationale').value.trim();
 
-                        if (!Number.isInteger(implementationScore) || implementationScore < 1 || implementationScore > 10
-                            || !Number.isInteger(fitScore) || fitScore < 1 || fitScore > 10) {
-                            showToast({ message: 'Scores must be integers from 1 to 10', type: 'error' });
+                        if (!Number.isInteger(implementationScore) || implementationScore < 1 || implementationScore > 10) {
+                            showToast({ message: 'Implementation must be an integer from 1 to 10', type: 'error' });
                             return;
                         }
                         if (!rationale) {
@@ -566,8 +559,7 @@ export function createPliReview(options = {}) {
                                 status: 'overridden',
                                 sme_reviewer: getReviewerName?.() || 'White Cell',
                                 override_value: {
-                                    implementation_score: implementationScore,
-                                    fit_score: fitScore
+                                    implementation_score: implementationScore
                                 },
                                 override_rationale: rationale
                             });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     niDomainDelta,
     sumNiDeltas,
+    headlineNiNet,
     formatSigned,
     summarizeNiPath,
     renderOverallNiScore
@@ -48,6 +49,7 @@ describe('Overall NI score helpers', () => {
         expect(html).toContain('NI score');
         expect(html).toContain('pli-ni-score-bar');
         expect(html).toContain('Net <strong>+5</strong>');
+        expect(html).toContain('(Σ NI-1…NI-6 · legacy)');
         expect(html).toContain('pli-ni-overall-narrative');
         expect(html).toContain('NI-1:+1 · NI-2:-1 · NI-3:+2 · NI-4:0 · NI-5:+1 · NI-6:+2');
         expect(html).toContain('>1</span>');
@@ -66,5 +68,29 @@ describe('Overall NI score helpers', () => {
         const empty = renderOverallNiScore({});
         expect(empty).toContain('No domain deltas on record.');
         expect(empty).not.toContain('pli-ni-score-bar');
+    });
+
+    it('uses orientation_net as the headline when Source 12 assessment is present', () => {
+        const domains = {
+            'NI-1': { delta: 1 },
+            'NI-2': { delta: 2 },
+            'NI-3': { delta: -1 },
+            'NI-4': { delta: 0 },
+            'NI-5': { delta: 3 },
+            'NI-6': { delta: 0 }
+        };
+        expect(headlineNiNet(domains, { orientation_net: 2 })).toBe(2);
+        const html = renderOverallNiScore(domains, {
+            orientation: 'reframing',
+            orientation_net: 2,
+            orientation_assessment: {
+                alignment: 'advances',
+                primary_domains: ['NI-2', 'NI-5', 'NI-4'],
+                effect_horizon: 'long'
+            }
+        });
+        expect(html).toContain('Net <strong>+2</strong>');
+        expect(html).toContain('orientation_net');
+        expect(html).toContain('advances');
     });
 });

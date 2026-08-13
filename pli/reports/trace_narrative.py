@@ -36,7 +36,6 @@ def macro_narrative(macro: dict[str, Any] | None) -> str:
 
     classification = macro.get("classification") or {}
     impl = macro.get("implementation") or {}
-    fit = macro.get("fit") or {}
     trend = macro.get("trend") or {}
     lines = [
         f"Lever **{classification.get('lever')}** / instrument "
@@ -45,8 +44,7 @@ def macro_narrative(macro: dict[str, Any] | None) -> str:
         f"Rule cited: {classification.get('rule_citation')}",
         f"Implementation **{impl.get('score')}/10** "
         f"(band {trend.get('implementation_band')}).",
-        f"Fit **{fit.get('score')}/10** "
-        f"(band {fit.get('band')}, orientation {fit.get('orientation')}).",
+        "Path persistence follows the lever×indicator matrix (horizon hold or duration cap); Fit does not modulate the trend.",
         "",
         "Per-indicator verdicts:",
     ]
@@ -67,7 +65,24 @@ def ni_narrative(ni: dict[str, Any] | None, *, team: Any = None) -> str:
             title,
             [f"Needs human adjudication: {ni.get('needs_human_reason')}"],
         )
-    lines = [f"Orientation context: **{ni.get('orientation')}**", ""]
+    lines = [f"Orientation: **{ni.get('orientation')}**"]
+    assessment = ni.get("orientation_assessment") or {}
+    if assessment:
+        lines.append(
+            f"Alignment **{assessment.get('alignment')}** · "
+            f"horizon **{assessment.get('effect_horizon')}** · "
+            f"orientation_net **{ni.get('orientation_net'):+d}**"
+            if ni.get("orientation_net") is not None
+            else f"Alignment **{assessment.get('alignment')}** · "
+            f"horizon **{assessment.get('effect_horizon')}**"
+        )
+        if assessment.get("primary_domains"):
+            lines.append(
+                "Primary domains: " + ", ".join(assessment["primary_domains"])
+            )
+        if assessment.get("rationale"):
+            lines.append(assessment["rationale"])
+    lines.append("")
     for domain, entry in (ni.get("domain_deltas") or {}).items():
         lines.append(
             f"- **{domain}** ({entry.get('label')}): "

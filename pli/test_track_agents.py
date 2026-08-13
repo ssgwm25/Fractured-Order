@@ -145,7 +145,7 @@ def test_resolve_declared_orientation_uses_blue_so_for_green_proposals():
     assert orientation == "reframing"
     assert any(team == "eq.blue" for team, _ in calls)
     assert run_pli.missing_orientation_reason(green).startswith(
-        "Blue SO required for Green proposal Fit"
+        "Blue SO required for Green proposal NI"
     )
 
     blue = {

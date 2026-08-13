@@ -30,15 +30,33 @@
 
 ---
 
-## Orientation priors (analytic)
+## Orientation priors (scoring grammar — Source 12)
 
-| Orientation | Primary domains (typical) | Effect horizon |
-|-------------|---------------------------|----------------|
+Declared strategic orientation is a **required NI scoring input**. Priors are engine-enforced; the agent may not invent a domain list.
+
+| Orientation | Primary domains | Effect horizon |
+|-------------|-----------------|----------------|
 | **Pressure** | NI-4, NI-3, NI-5 | Immediate |
 | **Stabilization** | NI-3, NI-1, NI-6 | Medium (1–2 years) |
 | **Reframing** | NI-2, NI-5, NI-4 | Long (2–4 years) |
 
-Priors guide assessment order and expected lag; they are not hard rules.
+**Definitions (Fractured Order 1.0):** Pressure — impose costs to coerce or degrade adversary capacity. Stabilization — reduce volatility and escalation risk; reassure partners, markets, and domestic constituencies. Reframing — change the structure of the competition (alternative capacity, institutions, standards, or coalitions).
+
+### Alignment class (relocated Macro Fit diagnostic)
+
+| Alignment | Meaning | Engine coherence |
+|-----------|---------|------------------|
+| **advances** | Primary mechanism serves the declared orientation | At least one primary-domain delta ≥ +1 |
+| **mixed** | Orientation-agnostic, or advancing and contradicting elements roughly balance | Allowed; rationale required |
+| **contradicts** | Primary mechanism cuts against the declared orientation | At least one primary-domain delta ≤ −1 |
+
+Retired Macro Fit bands map as: 9–10 / 7–8 → `advances`; 5–6 → `mixed`; 3–4 / 1–2 → `contradicts`. Alignment is **not** a 1–10 and does **not** scale NWC intensity (Source 11 / Source 13: type vs intensity stay separate).
+
+### `orientation_net`
+
+Headline NI score = sum of **primary-domain** deltas only. All six domains remain on the record (Source 13: every interest type can carry intensity). Non-primary domains do not enter `orientation_net`.
+
+Effect horizon is SME context (expected lag). It does not time-discount tier deltas.
 
 ---
 
@@ -70,10 +88,11 @@ Record a short narrative for each factor. High Glasl stage with negative NI-3 of
 
 The NI agent returns JSON matching `schemas/ni_worksheet_schema.json`:
 
-- `orientation` echo
+- `orientation` echo (must match intake)
+- `orientation_assessment`: `alignment` (`advances` / `mixed` / `contradicts`), `primary_domains` (must equal the Source 12 prior), `effect_horizon` (must equal the prior row), `rationale`
 - `domain_deltas`: NI-1…NI-6 each with `delta`, `rationale`, optional `vital_justification`
 - `threat_cross_check`: required if any delta ≤ −1; else null
-- `evidence_refs`: NSS era / matrix / National War College citations
+- `evidence_refs`: NSS era / matrix / National War College / Source 12 citations
 - `needs_human` / reason when judgment is unclean
 
 ### Actor attribution (team field)
@@ -90,5 +109,8 @@ The NI agent returns JSON matching `schemas/ni_worksheet_schema.json`:
 1. Every domain present with delta ∈ {−2…+2}.
 2. ±2 without non-empty `vital_justification` → `needs_human` or reject.
 3. Any delta ≤ −1 without threat cross-check → reject.
-4. If Glasl stage_after ≥ 6 and NI-3 ≤ −1 and NI-2 ≥ +1 → set `cross_domain_alert` true.
-5. Emit full trace for SME audit and per-action reports.
+4. `orientation` must match intake. `primary_domains` and `effect_horizon` must match the Source 12 prior for that orientation.
+5. Alignment coherence: `advances` requires a primary-domain delta ≥ +1; `contradicts` requires a primary-domain delta ≤ −1.
+6. Emit `orientation_net` (sum of primary-domain deltas). Do not auto-write or scale domain deltas from orientation.
+7. If Glasl stage_after ≥ 6 and NI-3 ≤ −1 and NI-2 ≥ +1 → set `cross_domain_alert` true.
+8. Emit full trace for SME audit and per-action reports.
