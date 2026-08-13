@@ -133,6 +133,9 @@ function createFakeElement(id = null, tagName = 'div') {
         querySelectorAll() {
             return [];
         },
+        querySelector() {
+            return null;
+        },
         addEventListener(type, callback) {
             this.listeners[type] = callback;
         },
@@ -1032,6 +1035,7 @@ describe('White Cell DOM contract', () => {
             sessionId: 'session-42',
             role: 'whitecell_lead'
         });
+        vi.spyOn(database, 'fetchArtifactWorkflowReviews').mockResolvedValue([]);
         vi.spyOn(syncService, 'initialize').mockImplementation(async () => {
             expect(fakeDocument.elements.scribeDeckSettingsSummary.textContent).toBe(
                 "Set the slide deck each team's facilitator presents."
@@ -2910,7 +2914,7 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Name the accountable partner before resubmitting.');
     });
 
-    it('loads only returned action and Strategic Orientation revisions for the active session', async () => {
+    it('loads returned action, Strategic Orientation, and RFI revisions for the active session', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { database } = await import('../services/database.js');
         const { sessionStore } = await import('../stores/session.js');
@@ -2938,8 +2942,8 @@ describe('White Cell DOM contract', () => {
         await controller.loadReturnedRevisionHistory();
 
         expect(fetchHistory).toHaveBeenCalledWith('session-history-1', {
-            artifactKinds: ['action', 'strategic_orientation'],
-            decisions: ['return_to_team']
+            artifactKinds: ['action', 'strategic_orientation', 'rfi'],
+            decisions: ['return_to_team', 'return_for_clarification']
         });
         expect(global.document.elements.returnedRevisionHistoryList.innerHTML).toContain('History-loaded action');
         expect(global.document.elements.returnedRevisionHistoryList.innerHTML).toContain('Add an implementation owner.');
@@ -3685,6 +3689,22 @@ describe('White Cell DOM contract', () => {
             revision_number: 3,
             review_notes: 'Name the requested reporting window.'
         }];
+        controller.returnedRevisionHistory = [{
+            id: 'rfi-review-history',
+            artifact_kind: 'rfi',
+            artifact_id: 'rfi-pending',
+            team: 'industry',
+            decision: 'return_for_clarification',
+            revision_number: 1,
+            reviewer_role: 'whitecell_lead',
+            reviewer_notes: 'State the original implementation period.',
+            reviewed_at: '2026-08-06T12:00:00.000Z',
+            prior_state: {
+                id: 'rfi-pending',
+                team: 'industry',
+                query: 'What implementation period applies?'
+            }
+        }];
 
         controller.renderRfiQueue();
         expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('Pending');
@@ -3696,7 +3716,14 @@ describe('White Cell DOM contract', () => {
         controller.renderRfiQueue();
         expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('What baseline applies?');
         expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('Name the requested reporting window.');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('What implementation period applies?');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('State the original implementation period.');
         expect(fakeDocument.elements.rfiQueue.innerHTML).not.toContain('Respond</button>');
+
+        controller.returnedRevisionHistoryError = new Error('history unavailable');
+        controller.renderRfiQueue();
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('Immutable RFI revision history could not be loaded.');
+        expect(fakeDocument.elements.rfiQueue.innerHTML).toContain('data-rfi-history-retry');
     });
 
     it('refreshes and removes a stale RFI when completion wins the response race', async () => {

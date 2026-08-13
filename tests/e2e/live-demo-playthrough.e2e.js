@@ -54,7 +54,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-08-11_requests_responded_by_schema_repair';
+const REQUIRED_MIGRATION_STATE = '2026-08-13_rfi_answer_completion_trigger';
 
 function getSourceRevisionEvidence() {
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();

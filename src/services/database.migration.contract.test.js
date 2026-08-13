@@ -81,6 +81,10 @@ const SESSION_ARCHIVE_TRANSITION_PATH = new URL(
     '../../data/2026-08-12_session_archive_transition.sql',
     import.meta.url
 );
+const RFI_ANSWER_COMPLETION_TRIGGER_PATH = new URL(
+    '../../data/2026-08-13_rfi_answer_completion_trigger.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -670,6 +674,23 @@ describe('database migration contracts', () => {
         expect(repairSql).not.toMatch(/\bUPDATE\s+public\.requests\b/i);
         expect(repairSql).not.toMatch(/\bDROP\s+(?:COLUMN|TABLE|TRIGGER|POLICY)\b/i);
         expect(currentBuildPatch).toContain('ADD COLUMN IF NOT EXISTS responded_by TEXT');
+    });
+
+    it('keeps linked RFI response history without rewriting a terminal request', () => {
+        const repairSql = readFileSync(RFI_ANSWER_COMPLETION_TRIGGER_PATH, 'utf8');
+        const currentBuildPatch = readFileSync(CURRENT_BUILD_SUPABASE_PATCH_PATH, 'utf8');
+
+        for (const sql of [repairSql, currentBuildPatch]) {
+            const functionBody = extractFunctionBody(sql, 'update_request_response_time');
+            expect(functionBody).toContain("NEW.type IN ('rfi_response', 'RFI_RESPONSE')");
+            expect(functionBody).toContain("status NOT IN ('answered', 'withdrawn')");
+            expect(functionBody).toContain(
+                "COALESCE(workflow_state, 'submitted_to_white_cell') <> 'completed'"
+            );
+        }
+
+        expect(repairSql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|POLICY)/i);
+        expect(repairSql).toContain('operator_answer_request remains the single completion write');
     });
 
     it('marks obsolete consolidated SQL artifacts as non-installable', () => {

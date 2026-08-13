@@ -253,9 +253,13 @@ CREATE TRIGGER communications_default_move
     FOR EACH ROW
     EXECUTE FUNCTION public.set_communications_move_default();
 
--- Keep the legacy communication-linked request update path working.
+-- Keep the legacy communication-linked request update path for non-terminal
+-- rows without colliding with operator_answer_request() completion.
 CREATE OR REPLACE FUNCTION public.update_request_response_time()
-RETURNS TRIGGER AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $request_response$
 BEGIN
     IF NEW.linked_request_id IS NOT NULL AND NEW.type IN ('rfi_response', 'RFI_RESPONSE') THEN
         UPDATE public.requests
@@ -267,12 +271,14 @@ BEGIN
                 EXTRACT(EPOCH FROM (COALESCE(responded_at, NEW.created_at) - created_at))::INTEGER,
                 0
             )
-        WHERE id = NEW.linked_request_id;
+        WHERE id = NEW.linked_request_id
+          AND status NOT IN ('answered', 'withdrawn')
+          AND COALESCE(workflow_state, 'submitted_to_white_cell') <> 'completed';
     END IF;
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$request_response$;
 
 DROP TRIGGER IF EXISTS update_request_on_communication ON public.communications;
 

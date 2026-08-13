@@ -1942,6 +1942,9 @@ export class WhiteCellController {
         this.storeUnsubscribers.push(
             requestsStore.subscribe((event, payload) => {
                 this.syncRfisFromStore({ event, data: payload });
+                if (['updated', 'resubmitted', 'responded', 'reconciled'].includes(event)) {
+                    this.loadReturnedRevisionHistory().catch(() => {});
+                }
             })
         );
 
@@ -2872,8 +2875,11 @@ export class WhiteCellController {
 
         try {
             this.returnedRevisionHistory = (await database.fetchArtifactWorkflowReviews(sessionId, {
-                artifactKinds: ['action', 'strategic_orientation'],
-                decisions: [ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM]
+                artifactKinds: ['action', 'strategic_orientation', 'rfi'],
+                decisions: [
+                    ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM,
+                    ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_FOR_CLARIFICATION
+                ]
             })) || [];
             return this.returnedRevisionHistory;
         } catch (error) {
@@ -2886,11 +2892,16 @@ export class WhiteCellController {
         } finally {
             this.returnedRevisionHistoryLoading = false;
             this.renderReturnedRevisionHistory();
+            this.renderRfiQueue();
         }
     }
 
     retainWorkflowReview(review = null) {
-        if (!review || review.decision !== ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM) return;
+        const returnDecisions = new Set([
+            ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_TO_TEAM,
+            ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_FOR_CLARIFICATION
+        ]);
+        if (!review || !returnDecisions.has(review.decision)) return;
 
         const reviewKey = review.id
             || `${review.artifact_kind}:${review.artifact_id}:${review.revision_number}:${review.decision}`;
@@ -2902,6 +2913,9 @@ export class WhiteCellController {
         this.returnedRevisionHistory = [review, ...withoutDuplicate]
             .sort((left, right) => new Date(right.reviewed_at || 0) - new Date(left.reviewed_at || 0));
         this.renderReturnedRevisionHistory();
+        if (review.artifact_kind === 'rfi') {
+            this.renderRfiQueue();
+        }
     }
 
     updateSidebarBadge(badgeId, count) {
@@ -3639,7 +3653,7 @@ export class WhiteCellController {
         }
 
         if (this.returnedRevisionHistory.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-500">No actions, proposals, or Strategic Orientation artifacts have been returned for improvement.</p>';
+            container.innerHTML = '<p class="text-sm text-gray-500">No actions, proposals, Strategic Orientation artifacts, or RFIs have been returned.</p>';
             return;
         }
 
@@ -3661,6 +3675,7 @@ export class WhiteCellController {
             }
         }
 
+        const isRfi = review.artifact_kind === 'rfi';
         const isOrientation = review.artifact_kind === 'strategic_orientation'
             || isStrategicOrientationAction(artifact);
         const isProposal = !isOrientation && isProposalAction(artifact);
@@ -3673,6 +3688,10 @@ export class WhiteCellController {
         const reviewedAt = review.reviewed_at
             ? formatDateTime(review.reviewed_at)
             : 'Timestamp unavailable';
+        if (isRfi) {
+            return this.renderRfiRevisionHistoryCard(review, artifact);
+        }
+
         const orientation = getStrategicOrientationViewModel(artifact);
         const action = getBlueActionViewModel(artifact);
         const proposal = getProposalViewModel(artifact);
@@ -3724,6 +3743,48 @@ export class WhiteCellController {
                 ])}
                 <p class="entity-card__note"><strong>Return Notes:</strong> ${this.escapeHtml(review.reviewer_notes || 'No return notes recorded.')}</p>
                 ${this.renderDetailGrid(artifactDetails)}
+            </article>
+        `;
+    }
+
+    renderRfiRevisionHistoryCard(review = {}, artifact = null) {
+        let priorRequest = artifact || review.prior_state || {};
+        if (typeof priorRequest === 'string') {
+            try {
+                priorRequest = JSON.parse(priorRequest);
+            } catch (_error) {
+                priorRequest = {};
+            }
+        }
+
+        const teamLabel = this.formatTeamLabel(review.team || priorRequest.team);
+        const revisionNumber = Number(review.revision_number || priorRequest.revision_number) || 1;
+        const reviewerLabel = getRoleDisplayName(review.reviewer_role)
+            || review.reviewer_role
+            || 'White Cell';
+        const reviewedAt = review.reviewed_at
+            ? formatDateTime(review.reviewed_at)
+            : 'Timestamp unavailable';
+
+        return `
+            <article class="entity-card entity-card--submitted" data-review-id="${this.escapeHtml(review.id || '')}" data-rfi-history-id="${this.escapeHtml(review.artifact_id || priorRequest.id || '')}">
+                <div class="entity-card__head">
+                    <div>
+                        <p class="entity-card__eyebrow">RFI &middot; Returned revision ${this.escapeHtml(String(revisionNumber))}</p>
+                        <h3 class="entity-card__title">${this.escapeHtml(priorRequest.query || priorRequest.question || 'Request for Information')}</h3>
+                    </div>
+                    <div class="entity-card__badges">
+                        ${createBadge({ text: teamLabel, variant: 'primary', size: 'sm', rounded: true }).outerHTML}
+                        ${createBadge({ text: 'Returned for Clarification', variant: 'warning', size: 'sm', rounded: true }).outerHTML}
+                    </div>
+                </div>
+                ${this.renderDetailGrid([
+                    { label: 'Submitting Team', value: teamLabel },
+                    { label: 'Revision', value: revisionNumber },
+                    { label: 'Reviewer', value: reviewerLabel },
+                    { label: 'Returned At', value: reviewedAt }
+                ])}
+                <p class="entity-card__note"><strong>Clarification Notes:</strong> ${this.escapeHtml(review.reviewer_notes || 'No clarification notes recorded.')}</p>
             </article>
         `;
     }
@@ -4625,9 +4686,22 @@ export class WhiteCellController {
         if (!container) return;
 
         const activeRfis = this.rfiActiveView === 'history' ? this.rfiHistory : this.rfis;
+        const returnedRfiReviews = this.rfiActiveView === 'history'
+            ? this.returnedRevisionHistory.filter((review) => review.artifact_kind === 'rfi')
+            : [];
         const visibleRfis = activeRfis.slice(0, WHITE_CELL_RFI_RENDER_LIMIT);
-        const hiddenCount = Math.max(0, activeRfis.length - visibleRfis.length);
-        const cards = visibleRfis.length ? visibleRfis.map((rfi) => {
+        const visibleReturnedReviews = returnedRfiReviews.slice(
+            0,
+            Math.max(WHITE_CELL_RFI_RENDER_LIMIT - visibleRfis.length, 0)
+        );
+        const totalHistoryItems = activeRfis.length + returnedRfiReviews.length;
+        const hiddenCount = Math.max(
+            0,
+            (this.rfiActiveView === 'history' ? totalHistoryItems : activeRfis.length)
+                - visibleRfis.length
+                - visibleReturnedReviews.length
+        );
+        const currentCards = visibleRfis.map((rfi) => {
             const queryText = rfi.query || rfi.question || '';
             const isPending = isRfiAwaitingWhiteCellResponse(rfi);
             const isNew = this.newRfiIds.has(rfi.id);
@@ -4655,15 +4729,35 @@ export class WhiteCellController {
                     </div>
                 </div>
             `;
-        }).join('') : `<p class="text-sm text-gray-500">No ${this.rfiActiveView === 'history' ? 'answered or returned' : 'pending'} RFIs.</p>`;
+        }).join('');
+        const revisionCards = visibleReturnedReviews
+            .map((review) => this.renderRfiRevisionHistoryCard(review))
+            .join('');
+        const cards = currentCards || revisionCards
+            ? `${currentCards}${revisionCards}`
+            : `<p class="text-sm text-gray-500">No ${this.rfiActiveView === 'history' ? 'answered or returned' : 'pending'} RFIs.</p>`;
+        const historyCount = this.rfiHistory.length + this.returnedRevisionHistory.filter(
+            (review) => review.artifact_kind === 'rfi'
+        ).length;
+        const historyStatus = this.rfiActiveView === 'history' && this.returnedRevisionHistoryLoading
+            ? '<div class="empty-state" role="status"><p class="text-sm text-gray-500">Refreshing immutable RFI revision history...</p></div>'
+            : this.rfiActiveView === 'history' && this.returnedRevisionHistoryError
+                ? `
+                    <div class="empty-state" role="status">
+                        <p class="text-sm text-gray-500">Immutable RFI revision history could not be loaded. Current request records remain available.</p>
+                        <button type="button" class="btn btn-secondary btn-sm" data-rfi-history-retry>Retry history</button>
+                    </div>
+                `
+                : '';
 
         container.innerHTML = `
             <div class="tab-list" role="tablist" aria-label="RFI queue views">
                 <button type="button" id="rfiPendingTab" class="tab-button${this.rfiActiveView === 'pending' ? ' active' : ''}" role="tab" aria-controls="rfiQueuePanel" aria-selected="${this.rfiActiveView === 'pending'}" tabindex="${this.rfiActiveView === 'pending' ? '0' : '-1'}" data-rfi-view="pending">Pending <span class="tab-badge">${this.rfis.length}</span></button>
-                <button type="button" id="rfiHistoryTab" class="tab-button${this.rfiActiveView === 'history' ? ' active' : ''}" role="tab" aria-controls="rfiQueuePanel" aria-selected="${this.rfiActiveView === 'history'}" tabindex="${this.rfiActiveView === 'history' ? '0' : '-1'}" data-rfi-view="history">Answered / History <span class="tab-badge">${this.rfiHistory.length}</span></button>
+                <button type="button" id="rfiHistoryTab" class="tab-button${this.rfiActiveView === 'history' ? ' active' : ''}" role="tab" aria-controls="rfiQueuePanel" aria-selected="${this.rfiActiveView === 'history'}" tabindex="${this.rfiActiveView === 'history' ? '0' : '-1'}" data-rfi-view="history">Answered / History <span class="tab-badge">${historyCount}</span></button>
             </div>
             <div id="rfiQueuePanel" role="tabpanel" aria-labelledby="${this.rfiActiveView === 'history' ? 'rfiHistoryTab' : 'rfiPendingTab'}" tabindex="0" style="margin-top: var(--space-3);">
-                ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_RFI_RENDER_LIMIT} of ${activeRfis.length} ${this.rfiActiveView === 'history' ? 'answered/history' : 'pending'} RFIs.</p>` : ''}
+                ${historyStatus}
+                ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_RFI_RENDER_LIMIT} of ${this.rfiActiveView === 'history' ? totalHistoryItems : activeRfis.length} ${this.rfiActiveView === 'history' ? 'answered/history' : 'pending'} RFIs.</p>` : ''}
                 ${cards}
             </div>
         `;
@@ -4682,6 +4776,10 @@ export class WhiteCellController {
                 this.renderRfiQueue();
                 document.getElementById(this.rfiActiveView === 'history' ? 'rfiHistoryTab' : 'rfiPendingTab')?.focus?.();
             });
+        });
+
+        container.querySelector('[data-rfi-history-retry]')?.addEventListener('click', () => {
+            this.loadReturnedRevisionHistory({ announceError: true });
         });
 
         container.querySelectorAll('.respond-rfi-btn').forEach((button) => {

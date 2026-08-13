@@ -14,6 +14,7 @@ import { confirmModal, showModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import {
+    ENUMS,
     isAdjudicatedAction,
     isDraftAction,
     isSubmittedAction
@@ -557,7 +558,11 @@ function normalizeRecordTimestamp(record = {}) {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function buildFacilitatorRfiSlides(requests = [], { teamId = '' } = {}) {
+export function buildFacilitatorRfiSlides(requests = [], {
+    teamId = '',
+    revisionHistory = [],
+    revisionHistoryError = null
+} = {}) {
     const rfis = [...(requests || [])]
         .filter((request) => request?.team === teamId)
         .sort((left, right) => (
@@ -585,6 +590,11 @@ export function buildFacilitatorRfiSlides(requests = [], { teamId = '' } = {}) {
             slideKey: `rfi-${request.id}`,
             slideType: 'rfi',
             request,
+            revisionHistory: revisionHistory.filter((review) => (
+                review?.artifact_kind === 'rfi'
+                && review?.artifact_id === request.id
+            )),
+            revisionHistoryError,
             title: request.query || request.question || `RFI ${index + 1}`,
             sidebarOrdinal: String(index + 1),
             sidebarKicker: request.workflow_state === 'returned_to_team'
@@ -598,8 +608,16 @@ export function buildFacilitatorRfiSlides(requests = [], { teamId = '' } = {}) {
     };
 }
 
-function buildRfiSection(requests = [], { teamId = '' } = {}) {
-    const rfiSlides = buildFacilitatorRfiSlides(requests, { teamId });
+function buildRfiSection(requests = [], {
+    teamId = '',
+    revisionHistory = [],
+    revisionHistoryError = null
+} = {}) {
+    const rfiSlides = buildFacilitatorRfiSlides(requests, {
+        teamId,
+        revisionHistory,
+        revisionHistoryError
+    });
     return {
         id: RFIS_SECTION_ID,
         label: 'RFIs',
@@ -944,6 +962,8 @@ export class ScribeController {
         this.teamActions = [];
         this.receivedProposals = [];
         this.teamRfis = [];
+        this.rfiRevisionHistory = [];
+        this.rfiRevisionHistoryError = null;
         this.directCommunications = [];
         this.sections = [];
         this.deckSlides = [];
@@ -1032,6 +1052,7 @@ export class ScribeController {
         this.syncProposalsFromStore();
         this.syncRfisFromStore();
         this.syncCommunicationsFromStore();
+        await this.loadRfiRevisionHistory();
         await this.loadDeck();
         this.syncActionsFromStore();
         this.restoreDurableNotifications();
@@ -1222,6 +1243,12 @@ export class ScribeController {
                 if (request) {
                     this.showFacilitatorRfiModal(request);
                 }
+                return;
+            }
+
+            const retryRfiHistoryButton = event.target.closest('[data-facilitator-rfi-history-retry]');
+            if (retryRfiHistoryButton) {
+                this.loadRfiRevisionHistory().catch(() => {});
                 return;
             }
 
@@ -1728,6 +1755,44 @@ export class ScribeController {
         if (this.deckSlides.length) {
             this.renderSlide();
         }
+
+        if (['updated', 'resubmitted', 'responded', 'reconciled'].includes(event)) {
+            this.loadRfiRevisionHistory().catch(() => {});
+        }
+    }
+
+    async loadRfiRevisionHistory() {
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            this.rfiRevisionHistory = [];
+            return [];
+        }
+
+        try {
+            this.rfiRevisionHistoryError = null;
+            this.rfiRevisionHistory = (await database.fetchArtifactWorkflowReviews(sessionId, {
+                artifactKinds: ['rfi'],
+                decisions: [ENUMS.ARTIFACT_REVIEW_DECISION.RETURN_FOR_CLARIFICATION],
+                team: this.teamId
+            })) || [];
+        } catch (error) {
+            this.rfiRevisionHistoryError = error;
+            logger.warn('Could not load immutable RFI revision history:', error);
+            if (this.facilitatorDeckSlides.length || this.sections.length) {
+                this.rebuildDeck({ preferredSlideKey: this.getCurrentSlideKey() });
+                this.renderSections();
+                this.renderSlide();
+            }
+            return this.rfiRevisionHistory;
+        }
+
+        if (this.facilitatorDeckSlides.length || this.sections.length) {
+            this.rebuildDeck({ preferredSlideKey: this.getCurrentSlideKey() });
+            this.renderSections();
+            this.renderSlide();
+        }
+
+        return this.rfiRevisionHistory;
     }
 
     getRfiNotificationFingerprint(request = {}) {
@@ -2416,7 +2481,11 @@ export class ScribeController {
         const proposalSection = buildProposalSection(this.receivedProposals, {
             teamContext: this.teamContext
         });
-        const rfiSection = buildRfiSection(this.teamRfis, { teamId: this.teamId });
+        const rfiSection = buildRfiSection(this.teamRfis, {
+            teamId: this.teamId,
+            revisionHistory: this.rfiRevisionHistory,
+            revisionHistoryError: this.rfiRevisionHistoryError
+        });
         const communicationSection = buildCommunicationSection(this.directCommunications, {
             teamContext: this.teamContext
         });
@@ -4655,6 +4724,8 @@ export class ScribeController {
         const request = slide.request || {};
         const isReturned = request.workflow_state === 'returned_to_team';
         const categories = Array.isArray(request.categories) ? request.categories : [];
+        const revisionHistory = Array.isArray(slide.revisionHistory) ? slide.revisionHistory : [];
+        const revisionHistoryError = slide.revisionHistoryError;
         return `
             <article class="facilitator-workspace facilitator-rfi-workspace" data-rfi-id="${escapeHtml(String(request.id || ''))}" aria-labelledby="facilitator-rfi-title">
                 <header class="facilitator-workspace-header">
@@ -4688,6 +4759,37 @@ export class ScribeController {
                         <section class="facilitator-rfi-response" aria-labelledby="facilitator-rfi-response-title">
                             <h3 id="facilitator-rfi-response-title">White Cell response</h3>
                             <p>${escapeHtml(request.response)}</p>
+                        </section>
+                    ` : ''}
+                    ${revisionHistory.length ? `
+                        <section class="facilitator-rfi-response" aria-labelledby="facilitator-rfi-history-title">
+                            <h3 id="facilitator-rfi-history-title">Revision history</h3>
+                            <ol class="facilitator-rfi-history-list">
+                                ${revisionHistory.map((review) => {
+                                    let priorRequest = review.prior_state || {};
+                                    if (typeof priorRequest === 'string') {
+                                        try {
+                                            priorRequest = JSON.parse(priorRequest);
+                                        } catch (_error) {
+                                            priorRequest = {};
+                                        }
+                                    }
+                                    return `
+                                        <li>
+                                            <p><strong>Revision ${Number(review.revision_number || priorRequest.revision_number) || 1}:</strong> ${escapeHtml(priorRequest.query || priorRequest.question || 'Question unavailable')}</p>
+                                            <p><strong>White Cell clarification:</strong> ${escapeHtml(review.reviewer_notes || 'No clarification notes recorded.')}</p>
+                                            ${review.reviewed_at ? `<time datetime="${escapeHtml(review.reviewed_at)}">${escapeHtml(formatRelativeTime(review.reviewed_at))}</time>` : ''}
+                                        </li>
+                                    `;
+                                }).join('')}
+                            </ol>
+                        </section>
+                    ` : ''}
+                    ${revisionHistoryError ? `
+                        <section class="facilitator-rfi-response" role="status" aria-labelledby="facilitator-rfi-history-error-title">
+                            <h3 id="facilitator-rfi-history-error-title">Revision history unavailable</h3>
+                            <p>The current RFI state is still available. Retry to restore its immutable clarification history.</p>
+                            <button type="button" class="btn btn-secondary btn-sm" data-facilitator-rfi-history-retry>Retry history</button>
                         </section>
                     ` : ''}
                 </section>

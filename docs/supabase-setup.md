@@ -83,16 +83,20 @@ Apply the authoritative ledger in this exact order:
 32. `data/2026-08-06_proposal_recipient_threads.sql`
 33. `data/2026-08-11_requests_responded_by_schema_repair.sql`
 34. `data/2026-08-12_session_archive_transition.sql`
+35. `data/2026-08-13_rfi_answer_completion_trigger.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
 additive request-schema repair and does not replace any policy or function. The
 final August 12 migration replaces evidence-destroying session deletion with
-audited archival. If July 14, August 5, or the earlier August 6 policy migration
+audited archival. The August 13 migration prevents the legacy linked-response
+trigger from rewriting a terminal RFI after the protected answer procedure has
+already completed it. If July 14, August 5, or the earlier August 6 policy migration
 is reapplied during repair, reapply
 `data/2026-08-06_proposal_recipient_threads.sql`, then apply
 `data/2026-08-11_requests_responded_by_schema_repair.sql`, then apply
-`data/2026-08-12_session_archive_transition.sql`. Verify RPCs,
+`data/2026-08-12_session_archive_transition.sql`, then apply
+`data/2026-08-13_rfi_answer_completion_trigger.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -278,7 +282,8 @@ Apply `data/2026-08-06_facilitator_rfi_communications.sql` after the team-neutra
 
 Apply `data/2026-08-06_proposal_recipient_threads.sql` after the Facilitator RFI migration. It supersedes the June final-response lock and the earlier August communications policy without rewriting historical rows. New White Cell reviews approve one intended recipient at a time and create an independent round-zero thread; later messages may be written only through `append_proposal_thread_message`. Pass conditions are: the round and client-message unique indexes exist, thread rows reject update/delete, direct `PROPOSAL_RESPONSE` inserts fail, Blue/Red and cross-session access fail closed, and completing all intended approvals leaves `outcome` null.
 
-Apply `data/2026-08-11_requests_responded_by_schema_repair.sql` last. It adds
+Apply `data/2026-08-11_requests_responded_by_schema_repair.sql` after the
+proposal-recipient migration. It adds
 the nullable `requests.responded_by` field required by
 `guard_facilitator_request_write()` without rewriting historical RFIs or
 changing RLS. This is also the forward repair when a Facilitator RFI returns
@@ -299,6 +304,26 @@ Pass: exactly one row is returned with `data_type = text` and
 `is_nullable = YES`. A new Facilitator RFI remains pending with
 `responded_by IS NULL`; White Cell may populate it only when recording the
 answer through the existing authorized workflow.
+
+Apply `data/2026-08-13_rfi_answer_completion_trigger.sql` after the archival
+migration. It keeps `operator_answer_request()` as the only terminal request
+write while preserving the linked `rfi_response` communication used for answer
+history. Without this repair, inserting that communication invokes the legacy
+response synchronizer, which attempts to update the newly completed request;
+the immutability guard rejects the second write and rolls back the answer.
+
+Verify the repaired trigger function:
+
+```sql
+select pg_get_functiondef('public.update_request_response_time()'::regprocedure);
+```
+
+Pass: the function retains the linked `rfi_response` path and its request
+update is restricted by both `status NOT IN ('answered', 'withdrawn')` and
+`workflow_state <> 'completed'`. Rehearse submit, return, edit, resubmit, and
+answer on one RFI ID; the final request is `answered` / `completed`, the linked
+response communication exists once, and the immutable clarification review
+remains queryable.
 
 Verify the current policies:
 

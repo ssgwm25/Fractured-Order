@@ -1744,6 +1744,26 @@ body::before {
     font-size: var(--text-sm) !important;
 }
 
+.facilitator-rfi-history-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-3) 0 0;
+    padding-inline-start: var(--space-5);
+}
+
+.facilitator-rfi-history-list li {
+    padding-inline-start: var(--space-1);
+}
+
+.facilitator-rfi-history-list p {
+    margin: 0 0 var(--space-2);
+}
+
+.facilitator-rfi-history-list time {
+    color: var(--color-gray-500);
+    font-size: var(--text-xs);
+}
+
 .facilitator-rfi-response--returned {
     border-inline-start: var(--space-1) solid var(--color-warning);
 }

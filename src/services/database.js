@@ -1570,6 +1570,10 @@ export const database = {
             query = query.in('decision', filters.decisions);
         }
 
+        if (filters.team) {
+            query = query.eq('team', filters.team);
+        }
+
         const { data, error } = await query;
 
         if (error) {

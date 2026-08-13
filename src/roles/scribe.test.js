@@ -25,6 +25,7 @@ const {
     mockAppendProposalThreadMessage,
     mockCreateCommunication,
     mockCreateTimelineEvent,
+    mockFetchArtifactWorkflowReviews,
     mockHideLoader,
     mockMountFollowAlong,
     mockShowModal,
@@ -37,6 +38,7 @@ const {
     mockAppendProposalThreadMessage: vi.fn(),
     mockCreateCommunication: vi.fn(),
     mockCreateTimelineEvent: vi.fn(),
+    mockFetchArtifactWorkflowReviews: vi.fn().mockResolvedValue([]),
     mockHideLoader: vi.fn(),
     mockMountFollowAlong: vi.fn(() => ({ destroy: vi.fn() })),
     mockShowModal: vi.fn(),
@@ -90,7 +92,8 @@ vi.mock('../services/database.js', () => ({
         updateDraftAction: mockUpdateDraftAction,
         updateProposalRecipientStatus: mockUpdateProposalRecipientStatus,
         submitAction: mockSubmitAction,
-        createTimelineEvent: mockCreateTimelineEvent
+        createTimelineEvent: mockCreateTimelineEvent,
+        fetchArtifactWorkflowReviews: mockFetchArtifactWorkflowReviews
     }
 }));
 
@@ -439,6 +442,55 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(JSON.stringify(result)).not.toContain('blue-hidden');
     });
 
+    it('attaches immutable returned revisions to the same Facilitator RFI slide', async () => {
+        const { buildFacilitatorRfiSlides } = await loadScribeModule();
+        const result = buildFacilitatorRfiSlides([{
+            id: 'blue-rfi-loop',
+            team: 'blue',
+            query: 'Revised question',
+            status: 'pending',
+            workflow_state: 'resubmitted',
+            revision_number: 2
+        }], {
+            teamId: 'blue',
+            revisionHistory: [{
+                id: 'blue-rfi-return-review',
+                artifact_kind: 'rfi',
+                artifact_id: 'blue-rfi-loop',
+                decision: 'return_for_clarification',
+                revision_number: 1,
+                reviewer_notes: 'Name the decision window.',
+                prior_state: { query: 'Original question' }
+            }, {
+                id: 'other-rfi-return-review',
+                artifact_kind: 'rfi',
+                artifact_id: 'other-rfi',
+                prior_state: { query: 'Must stay isolated' }
+            }]
+        });
+
+        expect(result.slides[0].revisionHistory).toHaveLength(1);
+        expect(result.slides[0].revisionHistory[0].prior_state.query).toBe('Original question');
+        expect(JSON.stringify(result)).not.toContain('Must stay isolated');
+    });
+
+    it('loads immutable RFI history with an explicit Facilitator team scope', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { sessionStore } = await import('../stores/session.js');
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-rfi-history');
+        mockFetchArtifactWorkflowReviews.mockResolvedValueOnce([]);
+        const controller = new ScribeController();
+        controller.teamId = 'blue';
+
+        await controller.loadRfiRevisionHistory();
+
+        expect(mockFetchArtifactWorkflowReviews).toHaveBeenCalledWith('session-rfi-history', {
+            artifactKinds: ['rfi'],
+            decisions: ['return_for_clarification'],
+            team: 'blue'
+        });
+    });
+
     it('keeps Facilitator direct communications scoped to its exact role and White Cell recipients', async () => {
         const { buildFacilitatorCommunicationSlides } = await loadScribeModule();
         const teamContext = {
@@ -494,7 +546,18 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
                 revision_number: 2,
                 review_notes: 'Specify whether this concerns the current or next move.',
                 created_at: '2026-08-06T10:00:00.000Z'
-            }
+            },
+            revisionHistory: [{
+                artifact_kind: 'rfi',
+                artifact_id: 'industry-rfi-1',
+                revision_number: 1,
+                reviewer_notes: 'Name the original reporting window.',
+                reviewed_at: '2026-08-06T11:00:00.000Z',
+                prior_state: {
+                    query: 'What is the reporting window?'
+                }
+            }],
+            revisionHistoryError: new Error('history unavailable')
         });
 
         expect(html).toContain('class="facilitator-workspace facilitator-rfi-workspace"');
@@ -504,6 +567,11 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('REV 2');
         expect(html).toContain('data-facilitator-new-rfi');
         expect(html).toContain('data-facilitator-edit-rfi');
+        expect(html).toContain('Revision history');
+        expect(html).toContain('What is the reporting window?');
+        expect(html).toContain('Name the original reporting window.');
+        expect(html).toContain('Revision history unavailable');
+        expect(html).toContain('data-facilitator-rfi-history-retry');
         expect(html).not.toContain('class="scribe-action-slide facilitator-rfi-slide"');
     });
 
