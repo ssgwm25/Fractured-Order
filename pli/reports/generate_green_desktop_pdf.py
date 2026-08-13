@@ -447,14 +447,13 @@ def write_green_desktop_pdf(
             else:
                 clf = macro.get("classification") or {}
                 impl = macro.get("implementation") or {}
-                fit = macro.get("fit") or {}
                 trend = macro.get("trend") or {}
                 lines = [
                     f"Lever {clf.get('lever')} / instrument {clf.get('instrument')} "
                     f"({clf.get('direction')})",
                     f"Rule: {clf.get('rule_citation')}",
-                    f"Implementation {impl.get('score')}/10 | Fit {fit.get('score')}/10 "
-                    f"(band {fit.get('band')}, orientation {fit.get('orientation')})",
+                    f"Implementation {impl.get('score')}/10 "
+                    f"(band {trend.get('implementation_band')}; matrix persistence)",
                     "Indicator verdicts:",
                 ]
                 for key, ind in (trend.get("indicators") or {}).items():

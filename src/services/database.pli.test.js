@@ -30,7 +30,7 @@ describe('database PLI review helpers', () => {
     it('rejects override without rationale before network I/O', async () => {
         await expect(database.reviewPliSeat('id', 'macro', {
             status: 'overridden',
-            override_value: { fit_score: 5 }
+            override_value: { implementation_score: 5 }
         })).rejects.toThrow(/rationale/i);
     });
 

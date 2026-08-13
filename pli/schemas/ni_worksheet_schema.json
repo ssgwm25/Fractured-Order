@@ -11,6 +11,35 @@
       "type": "string",
       "enum": ["pressure", "stabilization", "reframing"]
     },
+    "orientation_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alignment", "primary_domains", "effect_horizon", "rationale"],
+      "description": "Source 12 orientation prior applied as NI scoring grammar. Alignment relocates the retired Macro Fit diagnostic without a 1-10 intensity scaler.",
+      "properties": {
+        "alignment": {
+          "type": "string",
+          "enum": ["advances", "mixed", "contradicts"]
+        },
+        "primary_domains": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "enum": ["NI-1", "NI-2", "NI-3", "NI-4", "NI-5", "NI-6"]
+          }
+        },
+        "effect_horizon": {
+          "type": "string",
+          "enum": ["immediate", "medium", "long"]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 12
+        }
+      }
+    },
     "domain_deltas": {
       "type": "object",
       "additionalProperties": false,

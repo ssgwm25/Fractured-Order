@@ -15,7 +15,7 @@ OUT_DIR = HERE / "out" / "simulation"
 
 MULTI_TRACK_FOOTNOTE = (
     "The Petrihos Lever Index (PLI) adjudicates Fractured Order actions across "
-    "parallel tracks. Macroeconomic adjudication (Implementation, Fit, and "
+    "parallel tracks. Macroeconomic adjudication (Implementation and "
     "quarterly indicator deltas under FO 2.0 stacking) runs when the Plenum Instrument of Power is "
     "Economic. Diplomatic filings receive a Diplomacy Index code (not a score). "
     "Informational filings receive an unscored SME information brief. All "

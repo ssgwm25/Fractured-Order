@@ -7,7 +7,8 @@ quarterly trend-line deltas, so an SME can recompute any number by hand from the
 codebook tables.
 
 FO 2.0 anchors actions to ``submission_month`` (YYYY-MM). Onset, Implementation
-delay, ramp-in, persistence, and decay are all measured in quarters.
+delay, ramp-in, persistence, and decay are all measured in quarters. Fit does
+not modulate the macroeconomic path; orientation alignment lives on the NI track.
 """
 from __future__ import annotations
 
@@ -120,37 +121,6 @@ def compute_implementation_score(tier: int, modifiers: dict[str, bool]) -> dict[
     }
 
 
-def validate_fit_score(
-    band: str,
-    score: int,
-    orientation: str,
-    *,
-    rationale: str | None = None,
-    mechanism_rationale: str | None = None,
-) -> dict[str, Any]:
-    """Validate the agent's Fit selection against the anchor bands."""
-    anchors = CODEBOOK["fit_anchors"]
-    if band not in anchors:
-        raise WorksheetError(f"Unknown Fit anchor band: {band!r}")
-    lo, hi = (int(part) for part in band.split("-"))
-    if not (lo <= score <= hi):
-        raise WorksheetError(f"Fit score {score} outside anchor band {band}")
-    if orientation not in CODEBOOK["orientations"]:
-        raise WorksheetError(f"Unknown orientation: {orientation!r}")
-    narrative = (rationale or mechanism_rationale or "").strip() or None
-    out: dict[str, Any] = {
-        "band": band,
-        "score": score,
-        "orientation": orientation,
-        "anchor": anchors[band],
-    }
-    if narrative:
-        # Keep both keys: schema uses rationale; SME UI also reads mechanism_rationale.
-        out["rationale"] = narrative
-        out["mechanism_rationale"] = narrative
-    return out
-
-
 def _band_for(score: int, table: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     for band, rules in table.items():
         lo, hi = (int(part) for part in band.split("-"))
@@ -256,15 +226,15 @@ def compute_deltas(
     lever: str,
     direction: str,
     implementation_score: int,
-    fit_score: int,
     exec_year: int | None = None,
     submission_month: str | None = None,
 ) -> dict[str, Any]:
     """Compute per-indicator quarterly deltas for one action.
 
     Traceability: (1) lever → matrix row; (2) direction → sign; (3) Implementation
-    → magnitude/onset delay; (4) Fit → persistence; (5) submission_month (or
-    legacy exec_year → YYYY-01).
+    → magnitude/onset delay; (4) submission_month (or legacy exec_year → YYYY-01).
+    Persistence follows the matrix (horizon hold, or ``duration_quarters`` cap).
+    Fit / strategic orientation does not enter this path.
     """
     if lever == "NE":
         return _no_effect_result(lever, "non-economic action: no lever vector")
@@ -284,25 +254,13 @@ def compute_deltas(
         raise WorksheetError("submission_month or exec_year is required")
 
     impl_band, impl_rules = _band_for(implementation_score, CODEBOOK["implementation_bands"])
-    fit_band, fit_rules = _band_for(fit_score, CODEBOOK["fit_bands"])
 
     flags: list[str] = []
-    if fit_rules.get("flag"):
-        flags.append(fit_rules["flag"])
 
     if impl_rules.get("no_effect"):
         result = _no_effect_result(lever, f"Implementation band {impl_band}: action fails to execute")
         result["flags"] = flags
         result["implementation_band"] = impl_band
-        result["fit_band"] = fit_band
-        result["submission_month"] = submission_month
-        result["submission_quarter"] = submission_quarter
-        return result
-    if fit_rules.get("no_effect"):
-        result = _no_effect_result(lever, f"Fit band {fit_band}: no sustained macroeconomic effect")
-        result["flags"] = flags
-        result["implementation_band"] = impl_band
-        result["fit_band"] = fit_band
         result["submission_month"] = submission_month
         result["submission_quarter"] = submission_quarter
         return result
@@ -312,13 +270,8 @@ def compute_deltas(
 
     class_values = CODEBOOK["magnitude_classes"]
     delay = int(impl_rules.get("onset_delay_quarters", impl_rules.get("onset_delay", 0) * 4))
-    persistence = fit_rules["persistence"]
-    dur_ext = int(
-        fit_rules.get(
-            "duration_extension_quarters",
-            fit_rules.get("duration_extension", 0) * 4,
-        )
-    )
+    persistence = "horizon"
+    dur_ext = 0
 
     submit_idx = QUARTER_INDEX[submission_quarter]
     indicators_out: dict[str, Any] = {}
@@ -400,7 +353,6 @@ def compute_deltas(
         "direction": direction,
         "direction_flip_applied": flip,
         "implementation_band": impl_band,
-        "fit_band": fit_band,
         "submission_month": submission_month,
         "submission_quarter": submission_quarter,
         "exec_year": int(submission_month[:4]),
@@ -453,7 +405,6 @@ def adjudicate_from_worksheet(
     """Run the deterministic half of the pipeline on an agent worksheet."""
     classification = worksheet["classification"]
     precedent = worksheet["precedent"]
-    fit = worksheet["fit"]
 
     month = submission_month or worksheet.get("submission_month")
     if month is None and exec_year is not None:
@@ -477,19 +428,11 @@ def adjudicate_from_worksheet(
         }
 
     impl = compute_implementation_score(precedent["tier"], worksheet.get("modifiers", {}))
-    fit_validated = validate_fit_score(
-        fit["band"],
-        fit["score"],
-        fit["orientation"],
-        rationale=fit.get("rationale"),
-        mechanism_rationale=fit.get("mechanism_rationale"),
-    )
 
     trend = compute_deltas(
         lever=classification["lever"],
         direction=classification["direction"],
         implementation_score=impl["score"],
-        fit_score=fit_validated["score"],
         submission_month=month,
     )
 
@@ -497,7 +440,7 @@ def adjudicate_from_worksheet(
         "classification": classification,
         "precedent": precedent,
         "implementation": impl,
-        "fit": fit_validated,
+        "fit": None,
         "trend": trend,
         "submission_month": month,
         "exec_year": int(month[:4]),

@@ -324,7 +324,6 @@ function compactMacro(macro) {
     if (!macro) return null;
     const classification = macro.classification || {};
     const implementation = macro.implementation || {};
-    const fit = macro.fit || {};
     const trend = macro.trend || {};
     const indicators = {};
     for (const [key, ind] of Object.entries(trend.indicators || {})) {
@@ -339,9 +338,7 @@ function compactMacro(macro) {
         instrument: classification.instrument || null,
         direction: classification.direction || null,
         implementationScore: implementation.score ?? null,
-        fitScore: fit.score ?? null,
-        fitBand: fit.band || null,
-        orientation: fit.orientation || null,
+        orientation: macro.orientation || null,
         noEffect: Boolean(trend.no_effect || macro.status === 'skipped_ne'),
         indicators
     };
@@ -416,6 +413,10 @@ function compactNi(ni) {
     return {
         status: ni.status || null,
         orientation: ni.orientation || null,
+        alignment: ni.orientation_assessment?.alignment || null,
+        effectHorizon: ni.orientation_assessment?.effect_horizon || null,
+        orientationNet: ni.orientation_net ?? null,
+        primaryDomains: ni.orientation_assessment?.primary_domains || null,
         domains
     };
 }
@@ -544,7 +545,7 @@ function renderCumulativeMacroChartsHtml(trend) {
     return `
         <section class="pli-report-cumulative-macro">
             <h2>Cumulative macroeconomic trends</h2>
-            <p class="pli-report-note">One chart per indicator (baseline vs cumulative post-action).${countNote} Per-action Macro sections below list lever / fit / verdicts only.</p>
+            <p class="pli-report-note">One chart per indicator (baseline vs cumulative post-action).${countNote} Per-action Macro sections below list lever / Implementation / verdicts only.</p>
             <div class="pli-report-chart-grid">
                 ${cards}
             </div>
@@ -561,7 +562,6 @@ function renderMacroHtml(macro) {
     }
     const classification = macro.classification || {};
     const implementation = macro.implementation || {};
-    const fit = macro.fit || {};
     const trend = macro.trend || {};
     const indicatorRows = Object.entries(trend.indicators || {}).map(([key, ind]) => `
         <tr>
@@ -574,7 +574,6 @@ function renderMacroHtml(macro) {
         <dl class="pli-report-dl">
             <div><dt>Lever / instrument</dt><dd>${escapeHtml(String(classification.lever || '—'))} / ${escapeHtml(String(classification.instrument || '—'))} (${escapeHtml(String(classification.direction || '—'))})</dd></div>
             <div><dt>Implementation</dt><dd>${escapeHtml(String(implementation.score ?? '—'))}/10</dd></div>
-            <div><dt>Fit</dt><dd>${escapeHtml(String(fit.score ?? '—'))}/10${fit.band ? ` · ${escapeHtml(String(fit.band))}` : ''}${fit.orientation ? ` · ${escapeHtml(String(fit.orientation))}` : ''}</dd></div>
             ${classification.rule_citation ? `<div><dt>Rule</dt><dd>${escapeHtml(String(classification.rule_citation))}</dd></div>` : ''}
         </dl>
         ${indicatorRows ? `
@@ -657,8 +656,12 @@ function renderNiHtml(ni) {
         </tr>
     `).join('');
 
+    const assessment = ni.orientation_assessment || {};
     return `
-        <p><strong>Orientation:</strong> ${escapeHtml(String(ni.orientation || '—'))}</p>
+        <p><strong>Orientation:</strong> ${escapeHtml(String(ni.orientation || '—'))}
+            ${assessment.alignment ? ` · alignment ${escapeHtml(String(assessment.alignment))}` : ''}
+            ${assessment.effect_horizon ? ` · horizon ${escapeHtml(String(assessment.effect_horizon))}` : ''}
+            ${ni.orientation_net != null ? ` · orientation_net ${escapeHtml(formatSigned(ni.orientation_net))}` : ''}</p>
         ${domainRows ? `
             <table class="pli-report-table">
                 <thead><tr><th>Domain</th><th>Delta</th><th>Rationale</th></tr></thead>

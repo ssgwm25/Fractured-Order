@@ -44,6 +44,12 @@ def economic_record(tmp_path, monkeypatch):
     }
     ni_ws = {
         "orientation": "reframing",
+        "orientation_assessment": {
+            "alignment": "advances",
+            "primary_domains": ["NI-2", "NI-5", "NI-4"],
+            "effect_horizon": "long",
+            "rationale": "Source 12 prior for reframing: industrial capacity is a primary domain.",
+        },
         "needs_human": False,
         "domain_deltas": {
             "NI-1": {"delta": 0, "rationale": "No homeland posture change."},
@@ -83,6 +89,10 @@ def economic_record(tmp_path, monkeypatch):
 def test_write_action_report_embeds_charts_and_full_narratives(economic_record, tmp_path):
     out = tmp_path / "reports"
     paths = write_action_report(economic_record, out_dir=out)
+
+    chart_err = out / "TEST-ECON-REPORT-1_chart_error.txt"
+    if chart_err.exists():
+        raise AssertionError(chart_err.read_text(encoding="utf-8"))
 
     md_path = paths["markdown"]
     pdf_path = paths["pdf"]
@@ -135,6 +145,12 @@ def green_proposal_dip_info_record(tmp_path, monkeypatch):
         },
         ni_worksheet={
             "orientation": "stabilization",
+            "orientation_assessment": {
+                "alignment": "advances",
+                "primary_domains": ["NI-3", "NI-1", "NI-6"],
+                "effect_horizon": "medium",
+                "rationale": "Source 12 prior for stabilization: consultations reinforce partners.",
+            },
             "needs_human": False,
             "domain_deltas": {
                 "NI-1": {"delta": 0, "rationale": "No homeland posture change."},
@@ -187,6 +203,10 @@ def test_green_proposal_report_embeds_diplomacy_and_information(
 
     out = tmp_path / "green_reports"
     paths = write_action_report(green_proposal_dip_info_record, out_dir=out)
+
+    chart_err = out / "TEST-GREEN-PROP-DIP-INFO_chart_error.txt"
+    if chart_err.exists():
+        raise AssertionError(chart_err.read_text(encoding="utf-8"))
 
     assert paths["pdf"].exists()
     assert paths["pdf"].stat().st_size > 15_000

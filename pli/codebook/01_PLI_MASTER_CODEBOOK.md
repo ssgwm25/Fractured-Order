@@ -15,7 +15,6 @@
 Layer 1 — PRIMARY LEVER (exactly one)      What economic domain are you operating in?
 Layer 2 — POLICY INSTRUMENT (one primary)  What specific tool executes the action?
 Layer 3 — IMPLEMENTATION (1-10)            Can it be executed, and on what timeline?
-          FIT (1-10)                       Does it advance the declared orientation?
 
 Facets (tie-breaks & context only)         Direction, Sector, Target, Coalition, Orientation
 ```
@@ -23,7 +22,7 @@ Facets (tie-breaks & context only)         Direction, Sector, Target, Coalition,
 - Levers answer **"where in economic statecraft?"**
 - Instruments answer **"how, specifically?"**
 - Implementation answers **"can it be done, and when do effects arrive?"**
-- Fit answers **"is it the right move for the declared strategy?"**
+- Declared orientation is scored on the **National Interest** track (Source 12 primary domains + alignment class), not as a macroeconomic Fit 1–10.
 
 **Operating principle — PLI adjudicates, the SME approves.** Scores and trend lines are produced from documented rules; White Cell approve/override is the adjudication of record.
 
@@ -210,32 +209,6 @@ Implementation is where timing realism lives. Every lever has a characteristic *
 | 1–2 | Not executable: legal dead-end or missing prerequisite that cannot be obtained |
 
 ---
-## Layer 3b — Fit score (1–10)
-
-Fit is **entirely an alignment score**: does the action advance the team's declared strategic orientation? PLI assigns Fit from the anchors below against the orientation declared at intake, and records the anchor band and a one-line mechanism rationale for SME approval. Orientations carry the Fractured Order 1.0 definitions:
-
-| Orientation | Definition |
-|-------------|------------|
-| **Pressure** | Impose costs on the adversary to coerce behavior change or degrade adversary capacity |
-| **Stabilization** | Reduce volatility and escalation risk; reassure partners, markets, and domestic constituencies |
-| **Reframing** | Change the structure of the competition — build alternative capacity, institutions, standards, or coalitions rather than contest the existing terms |
-
-### Scoring anchors
-
-| Score | Label | Criteria |
-|-------|-------|----------|
-| 9–10 | Direct advance | Primary mechanism directly advances the declared orientation; no contradicting element |
-| 7–8 | Advance with friction | Advances the orientation; secondary elements are neutral or slightly mixed |
-| 5–6 | Neutral / mixed | Orientation-agnostic, or advancing and contradicting elements roughly balance |
-| 3–4 | Partial contradiction | Primary mechanism cuts against the declared orientation even if the stated intent matches |
-| 1–2 | Direct contradiction | Action undermines the declared orientation (e.g., broad coercive escalation under a declared Stabilization strategy) |
-
-### Natural-home guidance (not a rule)
-
-Coercive levers (L1–L4) are the natural home of Pressure; L5, L6, and L8 of Stabilization; L6, L7, and L9 of Reframing. An action outside its orientation's natural home is not automatically penalized — score the mechanism, not the lever code — but the burden of explanation rises.
-
-
----
 ## Macroeconomic adjudication
 
 ### Purpose and output
@@ -262,7 +235,7 @@ Single-action adjudication is unchanged. Multi-action stacking uses `stack_actio
 
 ### Lever × indicator directionality matrix (static)
 
-Each lever carries a static directional impulse per indicator, with magnitude class and timing in **quarters** (`onset_quarters`, `ramp_in_quarters`, `decay_quarters`; optional `duration_quarters`). Default directions and sign-flip rules are unchanged from the Master Codebook; machine-readable values live in `codebook_data.json` (`trial-2026-07-13-quarterly`).
+Each lever carries a static directional impulse per indicator, with magnitude class and timing in **quarters** (`onset_quarters`, `ramp_in_quarters`, `decay_quarters`; optional `duration_quarters`). Default directions and sign-flip rules are unchanged from the Master Codebook; machine-readable values live in `codebook_data.json` (`trial-2026-08-13-quarterly`).
 
 | Lever | GDP | Inflation | Unemployment | Trade | Investment | Timing (bib) |
 |-------|-----|-----------|--------------|-------|------------|--------------|
@@ -288,28 +261,22 @@ Each lever carries a static directional impulse per indicator, with magnitude cl
 | 3–4 | Two classes down | Matrix + 8 quarters |
 | 1–2 | No macroeconomic effect | — |
 
-### How Fit modulates the trend line (persistence)
+### How the trend line persists (matrix, not Fit)
 
-| Fit | Persistence |
-|-----|-------------|
-| 9–10 | Horizon plateau; duration-limited effects +4 quarters |
-| 7–8 | Horizon plateau |
-| 5–6 | 8-quarter plateau after ramp, then decay |
-| 3–4 | 4-quarter plateau after ramp, then decay |
-| 1–2 | No sustained macroeconomic effect; strategic incoherence flag |
+Persistence is matrix-native (Sources 7–10). After Implementation delay, each indicator follows ramp → **horizon hold**, unless the cell sets `duration_quarters` (for example L7 inflation is transitory). Fit does not shorten, extend, or zero the path. A strategically misaligned action that still executes still moves the indicators.
 
 ### Traceability chain and SME approval
 
-Every adjudicated trend line must be reproducible from five recorded facts: **(1)** lever and instrument → matrix row; **(2)** Direction facet → sign check; **(3)** Implementation score → magnitude/onset-delay band; **(4)** Fit score → persistence/decay band; **(5)** `submission_month` → start quarter + profiled weights.
+Every adjudicated trend line must be reproducible from four recorded facts: **(1)** lever and instrument → matrix row; **(2)** Direction facet → sign check; **(3)** Implementation score → magnitude/onset-delay band; **(4)** `submission_month` → start quarter + profiled weights.
 
-The adjudication record carries this chain plus the Implementation worksheet (tier, modifiers) and the Fit anchor rationale. The SME reviews the record after PLI produces it and marks it **Approved** or **Overridden**; an override records the changed value and a one-line rationale, and the override — not the mechanical output — becomes the adjudication of record. The approval loop validates the rules themselves: repeated overrides of the same table entry are the signal to revise the table, not the scores.
+The adjudication record carries this chain plus the Implementation worksheet (tier, modifiers). The SME reviews the record after PLI produces it and marks it **Approved** or **Overridden**; an override records the changed value and a one-line rationale, and the override — not the mechanical output — becomes the adjudication of record. The approval loop validates the rules themselves: repeated overrides of the same table entry are the signal to revise the table, not the scores.
 
 ### Worked example — L7 / I7.01 domestic supply-chain investment
 
 Blue submits a domestic semiconductor supply-chain investment program in **2026-01**. Lever L7, instrument I7.01, Direction Inducement (default — no sign flip), Orientation Reframing.
 
 - **Implementation 6:** Tier 2 midpoint 6.5 → 6. Band 5–6: magnitudes one class down, onset delay +4 quarters.
-- **Fit 8:** band 7–8: horizon plateau after ramp.
+- Path persistence: matrix horizon hold after ramp; L7 inflation remains duration-capped (transitory).
 
 Illustrative path shape (not annual bricks): fixed investment starts **2028Q1** and ramps; GDP starts **2029Q1** and rises across multiple quarters (Source 10); inflation is duration-capped and transitory. Exact quarter weights are in `codebook_data.json` / `engine.py`.
 
@@ -326,7 +293,7 @@ Reading the chart: investment leads, GDP and jobs follow with multi-quarter ramp
 | **Sector** | Telecommunications, Biotech, Agriculture, Minerals, Semiconductors, Finance, Energy, Digital, General | Routes to sector-growth tracker; exposure weight |
 | **Target** | United States, People's Republic of China, All actors, Third countries, Mixed | People's Republic of China exposure for economic model |
 | **Coalition** | Unilateral, Bilateral, Plurilateral, Multilateral | Implementation modifier input — not a lever |
-| **Orientation** | Pressure, Stabilization, Reframing | **Required** — Fit cannot be scored without it |
+| **Orientation** | Pressure, Stabilization, Reframing | **Required** — National Interest scores Source 12 priors; Macro does not |
 
 **Not required for intake:** Implementation Tier (captured by the precedent test), Horizon (captured by matrix onset).
 
@@ -385,9 +352,9 @@ Target:             United States
 Coalition:          Unilateral
 Orientation:        Reframing
 Implementation:     6      (Tier 2: authority exists, appropriations new)
-Fit:                8      (capacity-building under Reframing)
+NIAlignment:        advances (Reframing primary domains NI-2 / NI-5 / NI-4)
 EscalationDelta:    0
-MacroAdjudication:  L7 row; Impl band 5-6; Fit band 7-8; executed 2026
+MacroAdjudication:  L7 row; Impl band 5-6; matrix persistence; executed 2026
 Notes:              Effects onset 2028-2029 per matrix + Implementation delay
 SMEReview:          Approved   (or: Overridden - new value + rationale)
 ```
@@ -397,7 +364,7 @@ SMEReview:          Approved   (or: Overridden - new value + rationale)
 ---
 ## Fractured Order 1.0 Blue corpus reference
 
-Reference Implementation and Fit scores for the eleven Blue actions (Blue orientation: Reframing).
+Reference Implementation scores and historical Fit labels for the eleven Blue actions (Blue orientation: Reframing). Live scoring uses NI alignment classes, not Macro Fit.
 
 | Action | Lever | Instr. | Implementation | Fit |
 |--------|-------|--------|----------------|-----|
@@ -446,15 +413,33 @@ Reference Implementation and Fit scores for the eleven Blue actions (Blue orient
 
 ---
 
-## Orientation priors (analytic)
+## Orientation priors (scoring grammar — Source 12)
 
-| Orientation | Primary domains (typical) | Effect horizon |
-|-------------|---------------------------|----------------|
+Declared strategic orientation is a **required NI scoring input**. Priors are engine-enforced; the agent may not invent a domain list.
+
+| Orientation | Primary domains | Effect horizon |
+|-------------|-----------------|----------------|
 | **Pressure** | NI-4, NI-3, NI-5 | Immediate |
 | **Stabilization** | NI-3, NI-1, NI-6 | Medium (1–2 years) |
 | **Reframing** | NI-2, NI-5, NI-4 | Long (2–4 years) |
 
-Priors guide assessment order and expected lag; they are not hard rules.
+**Definitions (Fractured Order 1.0):** Pressure — impose costs to coerce or degrade adversary capacity. Stabilization — reduce volatility and escalation risk; reassure partners, markets, and domestic constituencies. Reframing — change the structure of the competition (alternative capacity, institutions, standards, or coalitions).
+
+### Alignment class (relocated Macro Fit diagnostic)
+
+| Alignment | Meaning | Engine coherence |
+|-----------|---------|------------------|
+| **advances** | Primary mechanism serves the declared orientation | At least one primary-domain delta ≥ +1 |
+| **mixed** | Orientation-agnostic, or advancing and contradicting elements roughly balance | Allowed; rationale required |
+| **contradicts** | Primary mechanism cuts against the declared orientation | At least one primary-domain delta ≤ −1 |
+
+Retired Macro Fit bands map as: 9–10 / 7–8 → `advances`; 5–6 → `mixed`; 3–4 / 1–2 → `contradicts`. Alignment is **not** a 1–10 and does **not** scale NWC intensity (Source 11 / Source 13: type vs intensity stay separate).
+
+### `orientation_net`
+
+Headline NI score = sum of **primary-domain** deltas only. All six domains remain on the record (Source 13: every interest type can carry intensity). Non-primary domains do not enter `orientation_net`.
+
+Effect horizon is SME context (expected lag). It does not time-discount tier deltas.
 
 ---
 
@@ -486,10 +471,11 @@ Record a short narrative for each factor. High Glasl stage with negative NI-3 of
 
 The NI agent returns JSON matching `schemas/ni_worksheet_schema.json`:
 
-- `orientation` echo
+- `orientation` echo (must match intake)
+- `orientation_assessment`: `alignment` (`advances` / `mixed` / `contradicts`), `primary_domains` (must equal the Source 12 prior), `effect_horizon` (must equal the prior row), `rationale`
 - `domain_deltas`: NI-1…NI-6 each with `delta`, `rationale`, optional `vital_justification`
 - `threat_cross_check`: required if any delta ≤ −1; else null
-- `evidence_refs`: NSS era / matrix / National War College citations
+- `evidence_refs`: NSS era / matrix / National War College / Source 12 citations
 - `needs_human` / reason when judgment is unclean
 
 ### Actor attribution (team field)
@@ -506,8 +492,11 @@ The NI agent returns JSON matching `schemas/ni_worksheet_schema.json`:
 1. Every domain present with delta ∈ {−2…+2}.
 2. ±2 without non-empty `vital_justification` → `needs_human` or reject.
 3. Any delta ≤ −1 without threat cross-check → reject.
-4. If Glasl stage_after ≥ 6 and NI-3 ≤ −1 and NI-2 ≥ +1 → set `cross_domain_alert` true.
-5. Emit full trace for SME audit and per-action reports.
+4. `orientation` must match intake. `primary_domains` and `effect_horizon` must match the Source 12 prior for that orientation.
+5. Alignment coherence: `advances` requires a primary-domain delta ≥ +1; `contradicts` requires a primary-domain delta ≤ −1.
+6. Emit `orientation_net` (sum of primary-domain deltas). Do not auto-write or scale domain deltas from orientation.
+7. If Glasl stage_after ≥ 6 and NI-3 ≤ −1 and NI-2 ≥ +1 → set `cross_domain_alert` true.
+8. Emit full trace for SME audit and per-action reports.
 
 
 # Part III — Glasl Escalation

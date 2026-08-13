@@ -6,10 +6,26 @@ import pytest
 from tracks.diplomacy_engine import validate_diplomacy_worksheet
 from tracks.glasl_engine import validate_glasl_worksheet
 from tracks.info_brief import validate_info_brief
-from tracks.ni_engine import validate_ni_worksheet
+from tracks.ni_engine import (
+    prior_domains,
+    prior_horizon,
+    validate_ni_worksheet,
+)
 from tracks.router import build_routing_record, normalize_instrument_of_power, route_tracks
 from tracks import TrackError
 from adjudicate_router import adjudicate_multitrack
+
+
+def _oa(orientation: str, alignment: str = "mixed") -> dict:
+    return {
+        "alignment": alignment,
+        "primary_domains": prior_domains(orientation),
+        "effect_horizon": prior_horizon(orientation),
+        "rationale": (
+            f"Source 12 prior for {orientation}: primary domains assessed "
+            "against the declared strategic orientation."
+        ),
+    }
 
 
 def test_normalize_instrument_of_power():
@@ -72,6 +88,7 @@ def test_build_routing_maps_territory_basing_ui_lever_to_l10():
 def test_ni_engine_happy_path():
     ws = {
         "orientation": "reframing",
+        "orientation_assessment": _oa("reframing", "advances"),
         "needs_human": False,
         "domain_deltas": {
             f"NI-{i}": {"delta": 0, "rationale": "Neutral second-order effects noted."}
@@ -86,12 +103,15 @@ def test_ni_engine_happy_path():
     out = validate_ni_worksheet(ws, glasl_stage_after=4)
     assert out["status"] == "pending"
     assert out["domain_deltas"]["NI-2"]["delta"] == 1
+    assert out["orientation_net"] == 1
+    assert out["orientation_assessment"]["alignment"] == "advances"
     assert out["cross_domain_alert"] is False
 
 
 def test_ni_requires_threat_on_negative():
     ws = {
         "orientation": "pressure",
+        "orientation_assessment": _oa("pressure", "contradicts"),
         "needs_human": False,
         "domain_deltas": {
             f"NI-{i}": {"delta": 0, "rationale": "Neutral second-order effects noted."}
@@ -110,6 +130,7 @@ def test_ni_requires_threat_on_negative():
 def test_ni_vital_requires_justification():
     ws = {
         "orientation": "pressure",
+        "orientation_assessment": _oa("pressure", "mixed"),
         "needs_human": False,
         "domain_deltas": {
             f"NI-{i}": {"delta": 0, "rationale": "Neutral second-order effects noted."}
@@ -128,6 +149,7 @@ def test_ni_vital_requires_justification():
 def test_ni_cross_domain_alert():
     ws = {
         "orientation": "pressure",
+        "orientation_assessment": _oa("pressure", "contradicts"),
         "needs_human": False,
         "domain_deltas": {
             f"NI-{i}": {"delta": 0, "rationale": "Neutral second-order effects noted."}
@@ -149,6 +171,55 @@ def test_ni_cross_domain_alert():
     }
     out = validate_ni_worksheet(ws, glasl_stage_after=6)
     assert out["cross_domain_alert"] is True
+    assert out["orientation_net"] == -1
+
+
+def test_ni_rejects_wrong_primary_domains():
+    ws = {
+        "orientation": "reframing",
+        "orientation_assessment": {
+            **_oa("reframing", "mixed"),
+            "primary_domains": ["NI-1", "NI-2", "NI-3"],
+        },
+        "needs_human": False,
+        "domain_deltas": {
+            f"NI-{i}": {"delta": 0, "rationale": "Neutral second-order effects noted."}
+            for i in range(1, 7)
+        },
+        "threat_cross_check": None,
+    }
+    with pytest.raises(TrackError, match="primary_domains"):
+        validate_ni_worksheet(ws)
+
+
+def test_ni_advances_requires_primary_gain():
+    ws = {
+        "orientation": "reframing",
+        "orientation_assessment": _oa("reframing", "advances"),
+        "needs_human": False,
+        "domain_deltas": {
+            f"NI-{i}": {"delta": 0, "rationale": "Neutral second-order effects noted."}
+            for i in range(1, 7)
+        },
+        "threat_cross_check": None,
+    }
+    with pytest.raises(TrackError, match="advances"):
+        validate_ni_worksheet(ws)
+
+
+def test_ni_contradicts_requires_primary_loss():
+    ws = {
+        "orientation": "pressure",
+        "orientation_assessment": _oa("pressure", "contradicts"),
+        "needs_human": False,
+        "domain_deltas": {
+            f"NI-{i}": {"delta": 0, "rationale": "Neutral second-order effects noted."}
+            for i in range(1, 7)
+        },
+        "threat_cross_check": None,
+    }
+    with pytest.raises(TrackError, match="contradicts"):
+        validate_ni_worksheet(ws)
 
 
 def test_glasl_transition():
@@ -271,6 +342,7 @@ def test_multitrack_economic_offline(tmp_path, monkeypatch):
     }
     ni_ws = {
         "orientation": "reframing",
+        "orientation_assessment": _oa("reframing", "advances"),
         "needs_human": False,
         "domain_deltas": {
             "NI-1": {"delta": 0, "rationale": "No homeland posture change."},
@@ -326,6 +398,7 @@ def test_multitrack_informational_routes_info(tmp_path, monkeypatch):
     }
     ni_ws = {
         "orientation": "pressure",
+        "orientation_assessment": _oa("pressure", "mixed"),
         "needs_human": False,
         "domain_deltas": {
             f"NI-{i}": {"delta": 0, "rationale": "Limited domain movement this action."}
@@ -352,6 +425,7 @@ def test_multitrack_informational_routes_info(tmp_path, monkeypatch):
         glasl_worksheet=glasl_ws,
         info_brief=info,
         persist=True,
+        orientation="pressure",
     )
     assert record["tracks"]["routing"]["tracks"]["information"] is True
     assert record["tracks"]["routing"]["tracks"]["macro"] is False
@@ -362,6 +436,7 @@ def test_multitrack_informational_routes_info(tmp_path, monkeypatch):
 def _neutral_ni(orientation: str = "pressure") -> dict:
     return {
         "orientation": orientation,
+        "orientation_assessment": _oa(orientation, "mixed"),
         "needs_human": False,
         "domain_deltas": {
             f"NI-{i}": {"delta": 0, "rationale": "Limited domain movement this action."}
@@ -406,6 +481,7 @@ def test_multitrack_diplomatic_routes_diplomacy(tmp_path, monkeypatch):
         glasl_worksheet=_glasl(0, 3),
         diplomacy_worksheet=dipl,
         persist=True,
+        orientation="stabilization",
     )
     assert record["tracks"]["routing"]["tracks"]["diplomacy"] is True
     assert record["tracks"]["routing"]["tracks"]["macro"] is False
@@ -428,6 +504,7 @@ def test_multitrack_military_routes_ni_glasl_only(tmp_path, monkeypatch):
         ni_worksheet=_neutral_ni("pressure"),
         glasl_worksheet=_glasl(1, 5),
         persist=True,
+        orientation="pressure",
     )
     rt = record["tracks"]["routing"]["tracks"]
     assert rt["macro"] is False
@@ -491,6 +568,7 @@ def test_secondary_diplomacy_on_economic(tmp_path, monkeypatch):
         diplomacy_worksheet=dipl,
         secondary_diplomacy=True,
         persist=True,
+        orientation="pressure",
     )
     assert record["tracks"]["routing"]["tracks"]["macro"] is True
     assert record["tracks"]["routing"]["tracks"]["diplomacy"] is True
@@ -532,6 +610,7 @@ def test_secondary_information_on_diplomatic(tmp_path, monkeypatch):
         info_brief=info,
         secondary_information=True,
         persist=True,
+        orientation="stabilization",
     )
     assert record["tracks"]["routing"]["tracks"]["diplomacy"] is True
     assert record["tracks"]["routing"]["tracks"]["information"] is True
@@ -553,6 +632,7 @@ def test_glasl_session_state_persists_across_actions(tmp_path, monkeypatch):
         ni_worksheet=_neutral_ni("pressure"),
         glasl_worksheet=_glasl(1, 4),
         persist=True,
+        orientation="pressure",
     )
     assert first["tracks"]["glasl"]["stage_after"] == 5
     saved = __import__("json").loads(state_path.read_text(encoding="utf-8"))
@@ -583,6 +663,7 @@ def test_glasl_session_state_persists_across_actions(tmp_path, monkeypatch):
             "needs_human": False,
         },
         persist=True,
+        orientation="pressure",
     )
     assert second["tracks"]["glasl"]["stage_after"] == 6
     saved2 = __import__("json").loads(state_path.read_text(encoding="utf-8"))

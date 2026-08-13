@@ -577,7 +577,6 @@ def econ_action_narrative(record: dict[str, Any]) -> str:
     macro = (record.get("tracks") or {}).get("macro") or {}
     clf = macro.get("classification") or {}
     impl = macro.get("implementation") or {}
-    fit = macro.get("fit") or {}
     trend = macro.get("trend") or {}
     verdicts = []
     for key, ind in (trend.get("indicators") or {}).items():
@@ -585,8 +584,7 @@ def econ_action_narrative(record: dict[str, Any]) -> str:
     return (
         f"White Cell talking points — {record.get('action_id')}: "
         f"{action.get('goal')}. Lever {clf.get('lever')}/{clf.get('instrument')} "
-        f"({clf.get('direction')}); Implementation {impl.get('score')}/10; "
-        f"Fit {fit.get('score')}/10 vs {fit.get('orientation')} orientation. "
+        f"({clf.get('direction')}); Implementation {impl.get('score')}/10. "
         f"Indicator verdicts: {'; '.join(verdicts)}. "
         f"Board note: navy baseline is the U.S./Blue FO path — there is no Green "
         f"national macro baseline here. The post-action path is that Blue board plus "

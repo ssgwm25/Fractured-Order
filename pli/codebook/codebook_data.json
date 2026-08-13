@@ -1,5 +1,5 @@
 {
-  "version": "trial-2026-07-14-quarterly",
+  "version": "trial-2026-08-13-quarterly",
   "source": "01_PLI_MASTER_CODEBOOK.md / PLI_Annotated_Bibliography.md",
   "time_grid": "quarterly",
   "submission_anchor": "month",
@@ -750,27 +750,8 @@
       "no_effect": true
     }
   },
-  "fit_bands": {
-    "9-10": {
-      "persistence": "horizon",
-      "duration_extension_quarters": 4
-    },
-    "7-8": {
-      "persistence": "horizon",
-      "duration_extension_quarters": 0
-    },
-    "5-6": {
-      "persistence": 8,
-      "duration_extension_quarters": 0
-    },
-    "3-4": {
-      "persistence": 4,
-      "duration_extension_quarters": 0
-    },
-    "1-2": {
-      "no_effect": true,
-      "flag": "strategic_incoherence"
-    }
+  "fit_bands_retired": {
+    "note": "Fit no longer modulates macroeconomic persistence. Path shape uses matrix onset/ramp/duration with horizon hold (Sources 7-10). Orientation alignment is scored on the National Interest track (Source 12)."
   },
   "precedent_tiers": {
     "1": {
