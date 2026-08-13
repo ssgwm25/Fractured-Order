@@ -9,16 +9,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #fffefb;
-            --bg-alt: #f6f4ee;
-            --text-main: #16191d;
-            --text-muted: #6e7178;
-            --accent-green: #5a7d56;
-            --accent-green-glow: rgba(90, 125, 86, 0.3);
-            --accent-gold: #d5b27a;
-            --accent-gold-glow: rgba(213, 178, 122, 0.4);
+            --bg-color: #ffffff;
+            --bg-alt: #f4f5f4;
+            --text-main: #222222;
+            --text-muted: #555555;
+            --accent-green: #115740; /* W&M Green */
+            --accent-green-glow: rgba(17, 87, 64, 0.3);
+            --accent-gold: #B9975B; /* W&M Gold */
+            --accent-gold-glow: rgba(185, 151, 91, 0.4);
             --card-bg: #ffffff;
-            --border-color: #e2ddd0;
+            --border-color: #e0e3e1;
         }
         
         body {
@@ -40,6 +40,13 @@
         header {
             text-align: center;
             margin-bottom: 60px;
+        }
+
+        .logo {
+            width: 120px;
+            height: auto;
+            margin: 0 auto 20px auto;
+            display: block;
         }
 
         h1 {
@@ -64,8 +71,14 @@
             box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
             position: relative;
             overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         
+        .guide-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.08);
+        }
+
         .guide-card::before {
             content: '';
             position: absolute;
@@ -134,11 +147,51 @@
             font-weight: 600;
             color: var(--accent-gold);
         }
+
+        .outcomes-box {
+            margin-top: 40px;
+            padding: 20px 25px;
+            background-color: var(--bg-alt);
+            border-left: 4px solid var(--accent-gold);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .outcomes-box h4 {
+            color: var(--accent-gold);
+            font-family: 'Playfair Display', serif;
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .outcomes-box h4::before {
+            content: '✓';
+            margin-right: 8px;
+            font-size: 1.1rem;
+        }
+
+        .outcomes-box ul {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+        }
+        
+        .outcomes-box li {
+            margin-bottom: 8px;
+        }
+        
+        .outcomes-box li:last-child {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
+            <img src="img/Gold No Background.png" alt="Plenum Logo" class="logo">
             <h1>Plenum Playthrough Guides</h1>
             <div class="subtitle">Step-by-Step Scenario Scripts for Undergraduate Training Sessions</div>
         </header>
@@ -146,135 +199,160 @@
         <!-- Session 1 Guide -->
         <div class="guide-card">
             <div class="guide-header">
-                <h2 class="guide-title">Session 1: Getting Comfortable with the Interface</h2>
-                <div class="guide-focus">Focus: Basic Navigation & Dashboard Familiarity</div>
+                <h2 class="guide-title">Session 1: Platform Basics & Role Surfaces</h2>
+                <div class="guide-focus">Focus: Dashboard Familiarity & Communication</div>
             </div>
             
             <h3>Introduction</h3>
-            <p>The "Icebreaker" scenario begins in September 2027. The Arctic has become a focal point of geopolitical tension. A US-flagged multinational research vessel, ostensibly collecting data in the Bering Strait, has been boarded by Russian officials and the crew detained under accusations of espionage.</p>
+            <p>Welcome to Fractured Order on Plenum. In this simulation, participants form teams consisting of a Scribe, a Facilitator, and Notetakers. They are overseen by the White Cell game masters. Our first session ensures everyone knows how to log in and find their workspace.</p>
 
             <h3>The Playthrough Round</h3>
-            <p>To begin, the facilitator directs all teams to log into the Plenum platform. Global escalation starts at Level 5 on the Escalation scale. The focus of this turn is strictly on navigation; no actions will be submitted.</p>
+            <p>To begin, the Game Master opens the session and shares the short uppercase join code. Students navigate to the Landing page.</p>
             
             <div class="role-action">
-                <span class="role-name">The United States</span>
-                Navigates to their national dashboard. They verify their starting National Interest marker is set at the middle position. They practice switching between the 'Dashboard' and 'Communications' tabs.
+                <span class="role-name">The Scribes</span>
+                Join the session using the code and select their team (Blue, Red, Green, or Industry) and the Scribe role. They verify their workspace loads and that the Strategic Orientation button is the primary green control.
             </div>
 
             <div class="role-action">
-                <span class="role-name">Russia</span>
-                Navigates to the Communications channel to read the initial intelligence brief detailing their boarding of the vessel. They practice opening and closing intelligence reports.
+                <span class="role-name">The Facilitators</span>
+                Join the session and select the Facilitator role for their team. They open the Communications workspace and send a test direct message to White Cell.
             </div>
 
             <div class="role-action">
-                <span class="role-name">Norway & The UN</span>
-                Practice locating the global metrics on the platform. They find the Escalation Scale and confirm it currently sits at Level 5, then locate the seasonal weather effects tracking.
+                <span class="role-name">The Notetakers</span>
+                Join and access their observation interface to practice recording team dynamics and alliance tracking.
             </div>
 
-            <div class="role-action">
-                <span class="role-name">The PRC</span>
-                Explores the resource tokens tab on their interface, identifying their starting Diplomacy, Information, Military, and Economic tokens.
-            </div>
+            <p>The session concludes once all teams confirm they can comfortably locate their starting conditions and workspace features without errors.</p>
             
-            <p>The session concludes once all teams confirm they can comfortably locate their starting conditions, read the initial briefs, and navigate the communication channels without errors.</p>
+            <div class="outcomes-box">
+                <h4>Session Outcomes</h4>
+                <ul>
+                    <li>Understanding of the Fractured Order structure and team division.</li>
+                    <li>Successful login and navigation to role-specific workspaces.</li>
+                    <li>Ability to send and receive Direct Communications within the platform.</li>
+                </ul>
+            </div>
         </div>
 
         <!-- Session 2 Guide -->
         <div class="guide-card">
             <div class="guide-header">
-                <h2 class="guide-title">Session 2: Making Your First Moves</h2>
-                <div class="guide-focus">Focus: Submitting Actions & Raising Red Cards</div>
+                <h2 class="guide-title">Session 2: Strategic Orientation (Pre-Move 1)</h2>
+                <div class="guide-focus">Focus: Drafting & Submitting Pre-Game Artifacts</div>
             </div>
             
             <h3>Introduction</h3>
-            <p>With the crew still detained, the timeline remains at September 2027. Teams must now practice submitting their first official actions into the Plenum platform, focusing on the mechanics of creating and contesting a move.</p>
+            <p>Before Move 1 can begin, each team must clear the Strategic Orientation gate. This requires a coordinated handoff between the Scribe and Facilitator.</p>
 
             <h3>The Playthrough Round</h3>
             <div class="role-action">
-                <span class="role-name">The United States</span>
-                Takes the first turn. They navigate to the Action Submission portal. <br>
-                <em>Step 1:</em> They draft a message proposing a closed-door meeting with the Russian ambassador.<br>
-                <em>Step 2:</em> They select a "Diplomacy token" from the dropdown menu.<br>
-                <em>Step 3:</em> They review their action and click Submit.
+                <span class="role-name">Blue Scribe</span>
+                Opens the Strategic Orientation form. They choose Blue's orientation, forecast Red's orientation, and describe what Red is expected to do. They click "Forward to Facilitator".
             </div>
 
             <div class="role-action">
-                <span class="role-name">Norway, UN, PRC, & Russia</span>
-                Practice the counter-action interface. They navigate to the active thread and click the <span class="highlight">Raise Red Card</span> button to contest the US action.
+                <span class="role-name">Blue Facilitator</span>
+                Sees the drafted artifact appear. Before submitting, they open the RFIs workspace and submit an RFI to White Cell to clarify the prompt. Once answered, they project the artifact onto the venue screen for team alignment, and select "Forward to White Cell".
             </div>
 
             <div class="role-action">
-                <span class="role-name">Russia & Norway</span>
-                Russia types in a counterargument: "The US did not consult Russia beforehand." Norway adds a concern that Russia has more to gain by not coming to the table.
+                <span class="role-name">Red, Green, & Industry Teams</span>
+                Complete their specific Strategic Orientation matrices (e.g., Red forecasts Blue, Green (Asian Pacific), and Green (Europe)). The Scribes forward to their Facilitators, who submit to White Cell.
             </div>
 
-            <p>The facilitator uses the backend interface to rule the opposition a Strong Counterargument. The US uses the platform's digital dice roller, rolling an 11. The facilitator logs the move as a Marginal success. No National Interest markers are affected.</p>
-            <p>The timeline on the platform is advanced to January 2028. The U.S. proposal fails, but outside negotiations facilitate the release of the detained crew.</p>
+            <p>The timeline header on everyone's screen reads "Strategic Orientation / Pre-Move 1". Once White Cell receives all four artifacts, the header updates and Move 1 officially begins.</p>
+            
+            <div class="outcomes-box">
+                <h4>Session Outcomes</h4>
+                <ul>
+                    <li>Mastery of the Pre-Move 1 Strategic Orientation gate requirements.</li>
+                    <li>Ability for Scribes to draft and Facilitators to project and submit the artifact.</li>
+                    <li>Understanding of how to submit and monitor Requests for Information (RFIs).</li>
+                </ul>
+            </div>
         </div>
 
         <!-- Session 3 Guide -->
         <div class="guide-card">
             <div class="guide-header">
-                <h2 class="guide-title">Session 3: Tracking Intelligence and Global Metrics</h2>
-                <div class="guide-focus">Focus: Reading Intelligence Reports & Feedback</div>
+                <h2 class="guide-title">Session 3: Action & Proposal Workflows</h2>
+                <div class="guide-focus">Focus: Complex Form Submission & White Cell Handoffs</div>
             </div>
             
             <h3>Introduction</h3>
-            <p>It is now January 2028. Teams must now track how information and updates propagate through the Plenum's intelligence reports and update feeds.</p>
+            <p>It is now Move 1. Teams will practice drafting comprehensive Actions (Blue/Red) and Proposals (Green/Industry) and executing the final checks before submission.</p>
 
             <h3>The Playthrough Round</h3>
             <div class="role-action">
-                <span class="role-name">Norway</span>
-                Employs a Military token to build 3 Search and Rescue (SAR) stations, submitting the action via the portal.
+                <span class="role-name">Blue Scribe</span>
+                Drafts a new Action. They select "Diplomacy" under Instrument of Power. They answer "Yes" to the supply chain focus question, which reveals the Supply Chain Area options, where they select "Extraction". They specify the Focus Countries and expected outcomes, then forward the draft.
             </div>
 
             <div class="role-action">
-                <span class="role-name">Russia</span>
-                Submits a red card citing a violation of the Svalbard treaty. The facilitator rules it a Strong Counterargument. Norway rolls a 4. The move fails, and the platform automatically drops their National Interest by 1.
+                <span class="role-name">Blue Facilitator</span>
+                Receives the draft in the Team Action Review. They use the fixed bottom toolbar to answer the final checks: marking "Legislative" and "Executive" under Coordinated, and marking Industry "Yes" under Informed/Engaged. They submit to White Cell.
             </div>
 
             <div class="role-action">
-                <span class="role-name">The UN</span>
-                Refreshes their dashboard to practice reading the update feed. They see the timeline update to March 2028 and Norway's failed action logged.
+                <span class="role-name">Green Scribe</span>
+                Drafts a Proposal. They enter Intended Partners, Focus Sectors, and select Blue and Red under intended notifications with a clarifying note. They forward the draft.
             </div>
 
-            <div class="role-action">
-                <span class="role-name">The PRC</span>
-                Navigates to the Intelligence Dashboard. They use an Information token to share intelligence with Russia. They submit an action to counter U.S. intelligence operations.
+            <p>Teams successfully execute the drafts and verify that their artifacts are marked as "Submitted to White Cell" and locked for further editing.</p>
+            
+            <div class="outcomes-box">
+                <h4>Session Outcomes</h4>
+                <ul>
+                    <li>Ability to differentiate and submit Actions (Blue/Red) and Proposals (Green/Industry).</li>
+                    <li>Mastery of the internal Scribe-to-Facilitator handoff process.</li>
+                    <li>Understanding of how to execute coordination and engagement checks before final submission.</li>
+                </ul>
             </div>
-
-            <p>All teams click into their <span class="highlight">Intelligence Reports</span> to practice reading the intelligence updates. They observe how the PRC's action formally alerts both the PRC and Russia to a new shared intelligence link. Finally, they watch the Escalation marker drop to Level 4 in real-time as the facilitator updates the global board following the crew's release.</p>
         </div>
 
         <!-- Session 4 Guide -->
         <div class="guide-card">
             <div class="guide-header">
-                <h2 class="guide-title">Session 4: Running a Full Turn</h2>
-                <div class="guide-focus">Focus: Smooth, Fast-Paced Integration</div>
+                <h2 class="guide-title">Session 4: Full Turn Integration & Feedback Loops</h2>
+                <div class="guide-focus">Focus: Handling White Cell Returns & RFIs</div>
             </div>
             
             <h3>Introduction</h3>
-            <p>It is now September 2028. Teams must run a full turn independently, combining navigation, action submission, and tracking without step-by-step guidance.</p>
+            <p>During the move, White Cell may require more clarity, or teams may need more information to proceed. This session covers returns, resubmissions, and Requests for Information (RFIs).</p>
 
             <h3>The Playthrough Round</h3>
             <div class="role-action">
-                <span class="role-name">Russia</span>
-                Acts first. Without facilitator prompting, the Russian team drafts a secret treaty with the PRC to grant Arctic trade route access in exchange for funds. They select a Diplomacy token and hit Submit.
+                <span class="role-name">White Cell</span>
+                Reviews Blue's action. Finding the outcome description lacking, White Cell selects "Send Back for Improvement", adds a reviewer note, and returns it.
             </div>
 
             <div class="role-action">
-                <span class="role-name">The United States & The UN</span>
-                Monitor the live feed, spot the Russian action, and immediately hit the Red Card button. The US types a counterargument stating Russia wouldn't logically allow open access to their waters.
+                <span class="role-name">Blue Scribe & Facilitator</span>
+                Notice their action state change to "Returned by White Cell". The Facilitator clicks Edit, reads the White Cell notes in the revision history, adds the required details, and selects "Resubmit to White Cell".
             </div>
-
-            <p>The facilitator logs a Neutral Argument. Russia rolls a 5. The platform automatically updates: the move is Unsuccessful, and Russia's National Interest token drops by 1 space.</p>
 
             <div class="role-action">
-                <span class="role-name">The PRC</span>
-                Notices Russia's failure immediately on the Live Update Feed. The PRC submits a rapid counter-move. They roll a 6, and their National Interest drops by 1. The platform alerts them they have received a second chance marker for a future turn.
+                <span class="role-name">Industry Facilitator</span>
+                Needs clarification on a game mechanic. They open the RFIs workspace, submit a category-tagged question, and monitor the live feed.
             </div>
 
-            <p>Round 1 concludes with the end of 2028. Teams review the final Escalation level on the dashboard. They have successfully completed a high-tempo turn using all Plenum features smoothly.</p>
+            <div class="role-action">
+                <span class="role-name">White Cell</span>
+                Answers the Industry RFI. The response appears in the Industry Facilitator's History tab.
+            </div>
+
+            <p>The session concludes when all teams have successfully handled a return, processed an RFI, and White Cell allocates time to advance to the next move.</p>
+            
+            <div class="outcomes-box">
+                <h4>Session Outcomes</h4>
+                <ul>
+                    <li>Ability to navigate White Cell feedback and returns efficiently.</li>
+                    <li>Confidence in editing and resubmitting returned artifacts.</li>
+                    <li>Complete readiness to operate the Scribe and Facilitator surfaces independently during a live, fast-paced exercise.</li>
+                </ul>
+            </div>
         </div>
 
     </div>

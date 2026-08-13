@@ -2,7 +2,7 @@
 
 Database migrations in this repository are forward-only once live workflow records exist. Roll back the application first; preserve additive schema and review history unless a database owner has verified that the migration never accepted a production write.
 
-The sole authoritative forward migration order is the 35-step dated ledger in
+The sole authoritative forward migration order is the 36-step dated ledger in
 `docs/supabase-setup.md`. There is no reverse SQL order and the deprecated
 `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
 `data/updated_supabase_migration.sql` snapshots are never rollback inputs. A
@@ -55,6 +55,14 @@ linked response communication invokes the legacy trigger, and the completed
 artifact guard rolls the answer back. Contain with the prior frontend only if
 necessary and prefer a forward function repair; do not weaken request
 immutability or delete accepted review/communication history.
+
+For `data/2026-08-13_strategic_orientation_team_canonicalization.sql`, keep the
+canonicalization trigger in place after any accepted Strategic Orientation
+write. Removing it restores client-dependent type classification and allows a
+stale client to collide with `actions_artifact_team_check` during both create
+and draft edit. The trigger does not rewrite historical rows or broaden the
+four-team constraint. Contain with the prior frontend only if necessary and
+prefer a forward trigger repair; do not drop the team constraint.
 
 Do not reapply the July 29 policies as a live rollback: doing so restores the superseded Scribe-side RFI authority and broader request access. Prefer a forward policy fix. If the frontend must temporarily revert, treat every `returned_to_team` RFI as an operator-managed blocker until the corrected Facilitator surface returns. A database owner may restore older policies only in an isolated pre-write development project after verifying that no RFI or direct communication was created under the August 6 contract.
 

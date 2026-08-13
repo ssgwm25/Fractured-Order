@@ -85,6 +85,10 @@ const RFI_ANSWER_COMPLETION_TRIGGER_PATH = new URL(
     '../../data/2026-08-13_rfi_answer_completion_trigger.sql',
     import.meta.url
 );
+const STRATEGIC_ORIENTATION_TEAM_CANONICALIZATION_PATH = new URL(
+    '../../data/2026-08-13_strategic_orientation_team_canonicalization.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -693,6 +697,24 @@ describe('database migration contracts', () => {
 
         expect(repairSql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|POLICY)/i);
         expect(repairSql).toContain('operator_answer_request remains the single completion write');
+    });
+
+    it('canonicalizes all four Strategic Orientation team types before constraint enforcement', () => {
+        const sql = readFileSync(STRATEGIC_ORIENTATION_TEAM_CANONICALIZATION_PATH, 'utf8');
+        const functionBody = extractFunctionBody(
+            sql,
+            'canonicalize_strategic_orientation_artifact_type'
+        );
+
+        expect(functionBody).toContain("normalized_team = 'blue'");
+        expect(functionBody).toContain("NEW.artifact_type := 'strategic_orientation_selection'");
+        expect(functionBody).toContain("normalized_team IN ('red', 'green', 'industry')");
+        expect(functionBody).toContain("NEW.artifact_type := 'strategic_orientation_forecast'");
+        expect(functionBody).toContain("USING ERRCODE = '23514'");
+        expect(sql).toContain('CREATE TRIGGER canonicalize_strategic_orientation_artifact_type');
+        expect(sql).toContain('BEFORE INSERT OR UPDATE ON public.actions');
+        expect(sql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|CONSTRAINT|POLICY)/i);
+        expect(sql).not.toMatch(/UPDATE\s+public\.actions/i);
     });
 
     it('marks obsolete consolidated SQL artifacts as non-installable', () => {

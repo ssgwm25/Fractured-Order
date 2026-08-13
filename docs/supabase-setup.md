@@ -84,19 +84,23 @@ Apply the authoritative ledger in this exact order:
 33. `data/2026-08-11_requests_responded_by_schema_repair.sql`
 34. `data/2026-08-12_session_archive_transition.sql`
 35. `data/2026-08-13_rfi_answer_completion_trigger.sql`
+36. `data/2026-08-13_strategic_orientation_team_canonicalization.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
 additive request-schema repair and does not replace any policy or function. The
-final August 12 migration replaces evidence-destroying session deletion with
-audited archival. The August 13 migration prevents the legacy linked-response
+August 12 migration replaces evidence-destroying session deletion with audited
+archival. The first August 13 migration prevents the legacy linked-response
 trigger from rewriting a terminal RFI after the protected answer procedure has
-already completed it. If July 14, August 5, or the earlier August 6 policy migration
+already completed it. The final August 13 migration canonicalizes four-team
+Strategic Orientation types before constraint enforcement. If July 14, August
+5, or the earlier August 6 policy migration
 is reapplied during repair, reapply
 `data/2026-08-06_proposal_recipient_threads.sql`, then apply
 `data/2026-08-11_requests_responded_by_schema_repair.sql`, then apply
 `data/2026-08-12_session_archive_transition.sql`, then apply
-`data/2026-08-13_rfi_answer_completion_trigger.sql`. Verify RPCs,
+`data/2026-08-13_rfi_answer_completion_trigger.sql`, then apply
+`data/2026-08-13_strategic_orientation_team_canonicalization.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -333,6 +337,36 @@ update is restricted by both `status NOT IN ('answered', 'withdrawn')` and
 answer on one RFI ID; the final request is `answered` / `completed`, the linked
 response communication exists once, and the immutable clarification review
 remains queryable.
+
+Apply `data/2026-08-13_strategic_orientation_team_canonicalization.sql` last.
+It canonicalizes Strategic Orientation compatibility types before the existing
+workflow normalizer and `actions_artifact_team_check` run. It applies to both
+inserts and updates: Blue becomes `strategic_orientation_selection`; Red,
+Green, and Industry become `strategic_orientation_forecast`. It does not alter
+existing rows, expand the allowed teams, or weaken the team constraint.
+
+Verify the canonicalization trigger:
+
+```sql
+select
+    t.tgname,
+    p.proname
+from pg_trigger t
+join pg_proc p on p.oid = t.tgfoid
+where t.tgrelid = 'public.actions'::regclass
+  and not t.tgisinternal
+  and t.tgname in (
+      'canonicalize_strategic_orientation_artifact_type',
+      'normalize_action_workflow_write'
+  )
+order by t.tgname;
+```
+
+Pass: both rows are returned, with the canonicalization trigger sorting before
+the workflow normalizer. Rehearse create and draft-edit for Blue, Red, Green,
+and Industry; all four retain `orientation_and_forecast` inside
+`artifact_payload`, while the action row uses the team-compatible database
+type. Any fifth or mismatched team remains rejected.
 
 Verify the current policies:
 
