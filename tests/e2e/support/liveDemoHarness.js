@@ -816,7 +816,8 @@ export async function adjudicateAction(page, {
     section = 'actions',
     notes = 'Validated through the live-demo topology suite.',
     decision = 'complete',
-    expectedDetails = {}
+    expectedDetails = {},
+    notificationTeams = []
 } = {}) {
     const queueSelector = {
         actions: '#actionsList',
@@ -883,6 +884,14 @@ export async function adjudicateAction(page, {
         await expect(detail).toContainText(String(value));
     }
     await expect(modal.locator('[name*="outcome" i]')).toHaveCount(0);
+    for (const team of notificationTeams) {
+        const checkbox = modal.getByRole('checkbox', {
+            name: `Inform ${team} Team when this action is accepted`,
+            exact: true
+        });
+        await expect(checkbox).toBeVisible();
+        await expect(checkbox).toBeChecked();
+    }
     await modal.locator('#artifactReviewNotes').fill(notes);
     const reviewButton = decision === 'return'
         ? modal.getByRole('button', { name: 'Send Back for Improvement' })

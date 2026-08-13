@@ -54,7 +54,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-08-13_strategic_orientation_team_canonicalization';
+const REQUIRED_MIGRATION_STATE = '2026-08-13_action_notification_delivery';
 
 function getSourceRevisionEvidence() {
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -564,8 +564,28 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                     'Teams to Inform': 'Green, Industry',
                     'Notification Note': 'Notify Green and Industry after White Cell accepts the action.',
                     'Expected Outcomes': 'Reduce allied dependence and establish a joint review before the next move.'
-                }
+                },
+                notificationTeams: ['Green', 'Industry']
             });
+            for (const team of ['green', 'industry']) {
+                await openSidebarSection(actors.teams[team].facilitator, 'responses');
+                const responseList = actors.teams[team].facilitator.locator('#responsesList');
+                await expect(responseList).toContainText(actionTitles.blue);
+                await expect(responseList).toContainText(
+                    'Notify Green and Industry after White Cell accepts the action.'
+                );
+            }
+            await openSidebarSection(actors.teams.red.facilitator, 'responses');
+            await expect(actors.teams.red.facilitator.locator('#responsesList'))
+                .not.toContainText(actionTitles.blue);
+            const notificationBackendState = await dumpE2EMockBackend(actors.whiteCellLead);
+            const actionNotifications = notificationBackendState.tables.communications.filter((communication) => (
+                communication.type === 'ACTION_NOTIFICATION'
+                && communication.metadata?.shared_action_id
+                && communication.metadata?.source_team === 'blue'
+            ));
+            expect(actionNotifications.map((communication) => communication.to_role).sort())
+                .toEqual(['green', 'industry']);
             await adjudicateAction(actors.whiteCellLead, {
                 goal: actionTitles.red,
                 section: 'responses',

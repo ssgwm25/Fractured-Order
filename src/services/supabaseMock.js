@@ -2127,6 +2127,87 @@ function operatorReviewArtifact(state, params) {
     };
 }
 
+function operatorCompleteActionWithNotifications(state, params) {
+    const action = state.tables.actions.find((entry) => (
+        entry.id === params?.requested_action_id && entry.is_deleted !== true
+    ));
+    if (!action) {
+        return { data: null, error: { message: 'Action not found.' } };
+    }
+
+    const approvedTeams = [...new Set((Array.isArray(params?.requested_notification_teams)
+        ? params.requested_notification_teams
+        : [])
+        .map((team) => String(team || '').trim().toLowerCase())
+        .filter(Boolean))].sort();
+    if (approvedTeams.some((team) => !['green', 'industry'].includes(team))) {
+        return { data: null, error: { message: 'Action notifications are limited to Green and Industry.' } };
+    }
+
+    const authoredTeams = new Set((Array.isArray(action?.artifact_payload?.action?.notificationTeams)
+        ? action.artifact_payload.action.notificationTeams
+        : [])
+        .map((team) => String(team || '').trim().toLowerCase())
+        .filter((team) => ['green', 'industry'].includes(team)));
+    if (approvedTeams.some((team) => !authoredTeams.has(team))) {
+        return {
+            data: null,
+            error: { message: 'White Cell may only inform teams requested in the submitted action.' }
+        };
+    }
+
+    const notificationContent = String(params?.requested_notification_content || '').trim();
+    if (approvedTeams.length && !notificationContent) {
+        return {
+            data: null,
+            error: { message: 'Notification content is required when informing a requested team.' }
+        };
+    }
+
+    const reviewResult = operatorReviewArtifact(state, {
+        requested_artifact_kind: 'action',
+        requested_artifact_id: action.id,
+        requested_review_decision: 'complete',
+        requested_team: params?.requested_team,
+        requested_expected_revision: params?.requested_expected_revision,
+        requested_reviewer_notes: params?.requested_reviewer_notes
+    });
+    if (reviewResult.error) return reviewResult;
+
+    const communications = approvedTeams.map((recipientTeam) => {
+        const communicationResult = operatorSendCommunication(state, {
+            requested_session_id: action.session_id,
+            requested_to_role: recipientTeam,
+            requested_type: 'ACTION_NOTIFICATION',
+            requested_content: notificationContent,
+            requested_title: `${String(action.team || '').replace(/^./, (letter) => letter.toUpperCase())} Team Action Notification`,
+            requested_linked_request_id: null,
+            requested_metadata: {
+                recipient: recipientTeam,
+                recipient_scope: 'team',
+                recipient_team: recipientTeam,
+                recipient_role: null,
+                shared_action_id: action.id,
+                source_team: String(action.team || '').trim().toLowerCase(),
+                action_revision: Number(params?.requested_expected_revision),
+                notification_delivery: 'approved',
+                notification_request_note: action?.artifact_payload?.action?.notificationNote || null,
+                action_snapshot: cloneValue(action?.artifact_payload?.action || {})
+            }
+        });
+        return communicationResult.data;
+    });
+
+    return {
+        data: {
+            ...reviewResult.data,
+            communications,
+            notification_teams: approvedTeams
+        },
+        error: null
+    };
+}
+
 function getInsertConstraintError(tableName, payloads, existingRows) {
     if (tableName !== 'notetaker_data') {
         return null;
@@ -3085,6 +3166,10 @@ export function createE2EMockSupabaseClient() {
 
             if (functionName === 'operator_review_artifact') {
                 return mutateMockState((state) => operatorReviewArtifact(state, params));
+            }
+
+            if (functionName === 'operator_complete_action_with_notifications') {
+                return mutateMockState((state) => operatorCompleteActionWithNotifications(state, params));
             }
 
             if (functionName === 'operator_review_proposal') {

@@ -449,6 +449,82 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(snapshot.tables.pli_adjudications).toEqual([]);
     });
 
+    it('mirrors atomic action completion and requested-team notification delivery', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [{ id: 'session-1', status: 'active' }],
+                game_state: [{ session_id: 'session-1', move: 2 }],
+                actions: [{
+                    id: 'action-blue-notifications',
+                    session_id: 'session-1',
+                    team: 'blue',
+                    artifact_type: 'action',
+                    artifact_payload: {
+                        action: {
+                            title: 'Coordinate licensing controls',
+                            notificationTeams: ['Green', 'Industry'],
+                            notificationNote: 'Share the completed action with both teams.'
+                        }
+                    },
+                    status: 'submitted',
+                    workflow_state: 'submitted_to_white_cell',
+                    revision_number: 2,
+                    is_deleted: false
+                }]
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_lead'
+        });
+
+        const unrequested = await mockClient.rpc('operator_complete_action_with_notifications', {
+            requested_action_id: 'action-blue-notifications',
+            requested_team: 'blue',
+            requested_expected_revision: 2,
+            requested_reviewer_notes: null,
+            requested_notification_teams: ['red'],
+            requested_notification_content: 'Invalid delivery.'
+        });
+        expect(unrequested.error?.message).toBe('Action notifications are limited to Green and Industry.');
+
+        const completed = await mockClient.rpc('operator_complete_action_with_notifications', {
+            requested_action_id: 'action-blue-notifications',
+            requested_team: 'blue',
+            requested_expected_revision: 2,
+            requested_reviewer_notes: 'Approved.',
+            requested_notification_teams: ['green', 'industry'],
+            requested_notification_content: 'Completed Blue action detail.'
+        });
+
+        expect(completed.error).toBeNull();
+        expect(completed.data.artifact).toMatchObject({
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            outcome: null
+        });
+        expect(completed.data.notification_teams).toEqual(['green', 'industry']);
+        expect(completed.data.communications).toHaveLength(2);
+        expect(completed.data.communications.map((communication) => communication.to_role).sort())
+            .toEqual(['green', 'industry']);
+        expect(completed.data.communications[0].metadata).toMatchObject({
+            shared_action_id: 'action-blue-notifications',
+            source_team: 'blue',
+            notification_delivery: 'approved'
+        });
+    });
+
     it('fails closed for unauthorized, cross-team, stale, and completed mock reviews', async () => {
         const { localStorage } = installBrowserRuntime({
             hostname: '127.0.0.1',

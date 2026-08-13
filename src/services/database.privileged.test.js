@@ -341,6 +341,51 @@ describe('database privileged write contracts', () => {
         });
     });
 
+    it('atomically completes an action with only its approved Green and Industry notifications', async () => {
+        mockSupabase.rpc.mockResolvedValue({
+            data: {
+                artifact: {
+                    id: 'action-blue-notify-1',
+                    team: 'blue',
+                    status: 'adjudicated',
+                    workflow_state: 'completed',
+                    revision_number: 2
+                },
+                review: { decision: 'complete', revision_number: 2 },
+                communications: [
+                    { id: 'communication-green', to_role: 'green', type: 'ACTION_NOTIFICATION' },
+                    { id: 'communication-industry', to_role: 'industry', type: 'ACTION_NOTIFICATION' }
+                ],
+                notification_teams: ['green', 'industry']
+            },
+            error: null
+        });
+
+        const { database } = await import('./database.js');
+        const result = await database.completeActionWithNotifications('action-blue-notify-1', {
+            team: 'blue',
+            expectedRevision: 2,
+            notes: 'Approved for delivery.',
+            notificationTeams: ['Green', 'Industry', 'green'],
+            notificationContent: 'Completed action detail for the requested teams.'
+        });
+
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('operator_complete_action_with_notifications', {
+            requested_action_id: 'action-blue-notify-1',
+            requested_team: 'blue',
+            requested_expected_revision: 2,
+            requested_reviewer_notes: 'Approved for delivery.',
+            requested_notification_teams: ['green', 'industry'],
+            requested_notification_content: 'Completed action detail for the requested teams.'
+        });
+        expect(result.artifact).toMatchObject({
+            workflow_state: 'completed',
+            canonical_workflow_state: 'completed'
+        });
+        expect(result.communications).toHaveLength(2);
+        expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+
     it('routes proposal review and forwarding through one transactional RPC', async () => {
         mockSupabase.rpc.mockResolvedValue({
             data: {

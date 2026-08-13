@@ -2497,6 +2497,7 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('aria-label="Blue Team notification request"');
         expect(markup).toContain('Teams to Inform:</strong> Green, Industry');
         expect(markup).toContain('Notification Note:</strong> Notify both teams after White Cell accepts the action.');
+        expect(markup).toContain('Delivery Status:</strong> Awaiting White Cell review.');
         expect(markup).toContain('Blue Team | Move 2 | Action 2 &middot; Phase 2');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Objective: Constrain upstream dependency before the next move.');
         expect(buildSharedActionCommunicationContent(blueAction)).toContain('Instrument of Power: Economic, Information, Military');
@@ -2554,6 +2555,11 @@ describe('White Cell DOM contract', () => {
         expect(modalConfig?.content?.innerHTML).toContain('aria-label="Blue Team notification request"');
         expect(modalConfig?.content?.innerHTML).toContain('Teams to Inform:</strong> Green');
         expect(modalConfig?.content?.innerHTML).toContain('Notification Note:</strong> Notify Green after White Cell accepts the action.');
+        expect(modalConfig?.content?.innerHTML).toContain('<legend class="form-label">Requested team notifications</legend>');
+        expect(modalConfig?.content?.innerHTML).toContain('name="actionNotificationApproval"');
+        expect(modalConfig?.content?.innerHTML).toContain('value="green"');
+        expect(modalConfig?.content?.innerHTML).toContain('Inform Green Team when this action is accepted');
+        expect(modalConfig?.content?.innerHTML).toContain('checked');
         expect(modalConfig?.content?.innerHTML).not.toContain('id="outcomeSelect"');
         expect(modalConfig?.content?.innerHTML).not.toMatch(/Outcome \*/);
         expect(modalConfig?.content?.innerHTML).toContain('id="artifactReviewNotes"');
@@ -2788,6 +2794,102 @@ describe('White Cell DOM contract', () => {
             message: 'Red Team action accepted as complete.',
             type: 'success'
         });
+    });
+
+    it('atomically completes Blue action notification approvals and publishes each returned communication', async () => {
+        const { WhiteCellController, buildActionNotificationCommunicationContent } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const fakeDocument = createFakeDocument(['artifactReviewNotes']);
+        fakeDocument.querySelectorAll = (selector) => selector === 'input[name="actionNotificationApproval"]:checked'
+            ? [{ value: 'green' }, { value: 'industry' }]
+            : [];
+        global.document = fakeDocument;
+
+        const action = {
+            id: 'blue-action-notify-1',
+            artifact_type: 'action',
+            team: 'blue',
+            status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            revision_number: 2,
+            move: 2,
+            phase: 1,
+            goal: 'Coordinate allied licensing controls',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Coordinate allied licensing controls.',
+                notificationTeams: ['Green', 'Industry'],
+                notificationNote: 'Share the completed action with both teams.'
+            })
+        };
+        const completed = {
+            ...action,
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            outcome: null
+        };
+        const communications = [{
+            id: 'action-notification-green',
+            to_role: 'green',
+            type: 'ACTION_NOTIFICATION',
+            metadata: {
+                shared_action_id: action.id,
+                recipient_team: 'green',
+                notification_delivery: 'approved'
+            }
+        }, {
+            id: 'action-notification-industry',
+            to_role: 'industry',
+            type: 'ACTION_NOTIFICATION',
+            metadata: {
+                shared_action_id: action.id,
+                recipient_team: 'industry',
+                notification_delivery: 'approved'
+            }
+        }];
+
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue(null);
+        const completeWithNotifications = vi.spyOn(database, 'completeActionWithNotifications').mockResolvedValue({
+            artifact: completed,
+            review: { id: 'review-blue-notify-1', decision: 'complete', revision_number: 2 },
+            communications,
+            notification_teams: ['green', 'industry']
+        });
+        vi.spyOn(database, 'ensureSmeHandoffs').mockResolvedValue([]);
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({ id: 'timeline-blue-notify-1' });
+        const actionUpdate = vi.spyOn(actionsStore, 'updateFromServer').mockImplementation(() => {});
+        const communicationUpdate = vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+
+        await controller.handleArtifactReview({ close: vi.fn() }, action, 'complete');
+
+        expect(completeWithNotifications).toHaveBeenCalledWith(action.id, {
+            team: 'blue',
+            expectedRevision: 2,
+            notes: '',
+            notificationTeams: ['green', 'industry'],
+            notificationContent: buildActionNotificationCommunicationContent(action)
+        });
+        expect(actionUpdate).toHaveBeenCalledWith('UPDATE', completed);
+        expect(communicationUpdate).toHaveBeenNthCalledWith(1, 'INSERT', communications[0]);
+        expect(communicationUpdate).toHaveBeenNthCalledWith(2, 'INSERT', communications[1]);
+        expect(database.createTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+            metadata: expect.objectContaining({
+                requested_notification_teams: ['green', 'industry'],
+                notified_teams: ['green', 'industry']
+            })
+        }));
+        expect(showToast).toHaveBeenCalledWith({
+            message: 'Blue Team action accepted as complete and Green Team and Industry Team informed.',
+            type: 'success'
+        });
+        controller.communications = communications;
+        expect(controller.renderActionNotificationRequest(completed)).toContain(
+            'Delivery Status:</strong> Sent to Green Team, Industry Team.'
+        );
     });
 
     it('retains returned revisions with proposal identity, reviewer notes, and complete artifact fields', async () => {

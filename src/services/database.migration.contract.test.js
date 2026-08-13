@@ -89,6 +89,10 @@ const STRATEGIC_ORIENTATION_TEAM_CANONICALIZATION_PATH = new URL(
     '../../data/2026-08-13_strategic_orientation_team_canonicalization.sql',
     import.meta.url
 );
+const ACTION_NOTIFICATION_DELIVERY_PATH = new URL(
+    '../../data/2026-08-13_action_notification_delivery.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -713,6 +717,29 @@ describe('database migration contracts', () => {
         expect(functionBody).toContain("USING ERRCODE = '23514'");
         expect(sql).toContain('CREATE TRIGGER canonicalize_strategic_orientation_artifact_type');
         expect(sql).toContain('BEFORE INSERT OR UPDATE ON public.actions');
+        expect(sql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|CONSTRAINT|POLICY)/i);
+        expect(sql).not.toMatch(/UPDATE\s+public\.actions/i);
+    });
+
+    it('atomically completes actions and informs only authored Green or Industry recipients', () => {
+        const sql = normalizeLineEndings(readFileSync(ACTION_NOTIFICATION_DELIVERY_PATH, 'utf8'));
+        const functionBody = extractFunctionBody(sql, 'operator_complete_action_with_notifications');
+        const reviewCallIndex = functionBody.indexOf('public.operator_review_artifact(');
+        const communicationCallIndex = functionBody.indexOf('public.operator_send_communication(');
+
+        expect(functionBody).toContain("normalized_team NOT IN ('blue', 'red')");
+        expect(functionBody).toContain("action_row.artifact_type NOT IN ('action', 'move_response')");
+        expect(functionBody).toContain("selected.team NOT IN ('green', 'industry')");
+        expect(functionBody).toContain("action_row.artifact_payload -> 'action' -> 'notificationTeams'");
+        expect(functionBody).toContain('White Cell may only inform teams requested in the submitted action.');
+        expect(functionBody).toContain("'ACTION_NOTIFICATION'");
+        expect(functionBody).toContain("'notification_delivery', 'approved'");
+        expect(functionBody).toContain("'action_snapshot'");
+        expect(reviewCallIndex).toBeGreaterThan(-1);
+        expect(communicationCallIndex).toBeGreaterThan(reviewCallIndex);
+        expect(sql).toContain(
+            'GRANT EXECUTE ON FUNCTION public.operator_complete_action_with_notifications(\n    UUID, TEXT, BIGINT, TEXT, TEXT[], TEXT\n) TO authenticated;'
+        );
         expect(sql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|CONSTRAINT|POLICY)/i);
         expect(sql).not.toMatch(/UPDATE\s+public\.actions/i);
     });

@@ -85,6 +85,7 @@ Apply the authoritative ledger in this exact order:
 34. `data/2026-08-12_session_archive_transition.sql`
 35. `data/2026-08-13_rfi_answer_completion_trigger.sql`
 36. `data/2026-08-13_strategic_orientation_team_canonicalization.sql`
+37. `data/2026-08-13_action_notification_delivery.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
@@ -92,15 +93,18 @@ additive request-schema repair and does not replace any policy or function. The
 August 12 migration replaces evidence-destroying session deletion with audited
 archival. The first August 13 migration prevents the legacy linked-response
 trigger from rewriting a terminal RFI after the protected answer procedure has
-already completed it. The final August 13 migration canonicalizes four-team
-Strategic Orientation types before constraint enforcement. If July 14, August
+already completed it. The next August 13 migration canonicalizes four-team
+Strategic Orientation types before constraint enforcement. The final August 13
+migration atomically completes Blue/Red actions and delivers only the authored
+Green/Industry notification requests approved by White Cell. If July 14, August
 5, or the earlier August 6 policy migration
 is reapplied during repair, reapply
 `data/2026-08-06_proposal_recipient_threads.sql`, then apply
 `data/2026-08-11_requests_responded_by_schema_repair.sql`, then apply
 `data/2026-08-12_session_archive_transition.sql`, then apply
 `data/2026-08-13_rfi_answer_completion_trigger.sql`, then apply
-`data/2026-08-13_strategic_orientation_team_canonicalization.sql`. Verify RPCs,
+`data/2026-08-13_strategic_orientation_team_canonicalization.sql`, then apply
+`data/2026-08-13_action_notification_delivery.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -338,7 +342,8 @@ answer on one RFI ID; the final request is `answered` / `completed`, the linked
 response communication exists once, and the immutable clarification review
 remains queryable.
 
-Apply `data/2026-08-13_strategic_orientation_team_canonicalization.sql` last.
+Apply `data/2026-08-13_strategic_orientation_team_canonicalization.sql` before
+the action-notification delivery migration.
 It canonicalizes Strategic Orientation compatibility types before the existing
 workflow normalizer and `actions_artifact_team_check` run. It applies to both
 inserts and updates: Blue becomes `strategic_orientation_selection`; Red,
@@ -367,6 +372,39 @@ the workflow normalizer. Rehearse create and draft-edit for Blue, Red, Green,
 and Industry; all four retain `orientation_and_forecast` inside
 `artifact_payload`, while the action row uses the team-compatible database
 type. Any fifth or mismatched team remains rejected.
+
+Apply `data/2026-08-13_action_notification_delivery.sql` last. It adds
+`operator_complete_action_with_notifications`, which uses the existing
+fail-closed artifact-review and White Cell communication functions in one
+transaction. White Cell may approve only Green and/or Industry when that team
+appears in the submitted action's `artifact_payload.action.notificationTeams`.
+If completion or any approved delivery fails, neither the completion nor any
+notification is committed.
+
+Verify the atomic completion RPC:
+
+```sql
+select
+    p.proname,
+    has_function_privilege(
+        'authenticated',
+        p.oid,
+        'EXECUTE'
+    ) as authenticated_can_execute
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname = 'operator_complete_action_with_notifications';
+```
+
+Pass: exactly one row is returned and `authenticated_can_execute` is true.
+Rehearse a Blue action requesting both recipients: the Review Action modal
+shows both preselected approval controls, acceptance creates exactly one
+`ACTION_NOTIFICATION` communication for Green and one for Industry with the
+same action ID/revision, both teams receive the completed detail, and the
+completed White Cell card reports both deliveries. Deselecting a requested
+team creates no communication for it; selecting an unrequested or unsupported
+team fails without completing the action.
 
 Verify the current policies:
 

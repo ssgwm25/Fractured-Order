@@ -2,7 +2,7 @@
 
 Database migrations in this repository are forward-only once live workflow records exist. Roll back the application first; preserve additive schema and review history unless a database owner has verified that the migration never accepted a production write.
 
-The sole authoritative forward migration order is the 36-step dated ledger in
+The sole authoritative forward migration order is the 37-step dated ledger in
 `docs/supabase-setup.md`. There is no reverse SQL order and the deprecated
 `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
 `data/updated_supabase_migration.sql` snapshots are never rollback inputs. A
@@ -63,6 +63,15 @@ stale client to collide with `actions_artifact_team_check` during both create
 and draft edit. The trigger does not rewrite historical rows or broaden the
 four-team constraint. Contain with the prior frontend only if necessary and
 prefer a forward trigger repair; do not drop the team constraint.
+
+For `data/2026-08-13_action_notification_delivery.sql`, retain
+`operator_complete_action_with_notifications` and every accepted
+`ACTION_NOTIFICATION` communication after a write. The communication metadata
+links the recipient, source action, revision, authored request, and action
+snapshot; removing it destroys the delivery record. Contain with the prior
+frontend if necessary and use a forward function repair. Do not delete a team
+communication, reopen its completed action, or synthesize a missing recipient
+delivery outside the protected RPC.
 
 Do not reapply the July 29 policies as a live rollback: doing so restores the superseded Scribe-side RFI authority and broader request access. Prefer a forward policy fix. If the frontend must temporarily revert, treat every `returned_to_team` RFI as an operator-managed blocker until the corrected Facilitator surface returns. A database owner may restore older policies only in an isolated pre-write development project after verifying that no RFI or direct communication was created under the August 6 contract.
 

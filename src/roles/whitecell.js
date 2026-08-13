@@ -26,6 +26,7 @@ import {
 } from '../components/ui/Badge.js';
 import { resolveArtifactWorkflowState } from '../features/actions/artifactLifecycle.js';
 import {
+    BLUE_ACTION_NOTIFICATION_TEAMS,
     formatActionSequenceLabel,
     formatBlueActionSelection,
     getActionSequenceNumber,
@@ -175,6 +176,10 @@ export function isCompletedArtifactImmutabilityError(error) {
 }
 const WHITE_CELL_ALL_TEAMS_RECIPIENT = 'all';
 const WHITE_CELL_RED_TEAM_RECIPIENT = 'red';
+const ACTION_NOTIFICATION_COMMUNICATION_TYPE = 'ACTION_NOTIFICATION';
+const ACTION_NOTIFICATION_TEAM_IDS = new Set(
+    BLUE_ACTION_NOTIFICATION_TEAMS.map((team) => team.toLowerCase())
+);
 const WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE = 'scribe_deck_assignment';
 const WHITE_CELL_NOTIFICATIONS_MUTED_STORAGE_KEY = 'whitecell:notifications-muted';
 export const WHITE_CELL_SCRIBE_DECK_FETCH_TIMEOUT_MS = 10000;
@@ -848,6 +853,22 @@ export function canShareActionToRedTeam(action = {}) {
     return action?.team === 'blue' && !isStrategicOrientationAction(action);
 }
 
+export function normalizeActionNotificationTeams(teams = []) {
+    return [...new Set((Array.isArray(teams) ? teams : [])
+        .map((team) => String(team || '').trim().toLowerCase())
+        .filter((team) => ACTION_NOTIFICATION_TEAM_IDS.has(team)))];
+}
+
+export function getActionNotificationDeliveryTeams(action = {}, communications = []) {
+    return normalizeActionNotificationTeams((communications || [])
+        .filter((communication) => (
+            String(communication?.type || '').trim().toUpperCase() === ACTION_NOTIFICATION_COMMUNICATION_TYPE
+            && communication?.metadata?.shared_action_id === action?.id
+            && communication?.metadata?.notification_delivery === 'approved'
+        ))
+        .map((communication) => communication?.metadata?.recipient_team || communication?.to_role));
+}
+
 export function getArtifactReviewKind(action = {}) {
     return isStrategicOrientationAction(action) ? 'strategic_orientation' : 'action';
 }
@@ -866,8 +887,9 @@ export function canReviewArtifact(action = {}) {
 
 export function buildSharedActionCommunicationContent(action = {}) {
     const blueAction = getBlueActionViewModel(action);
+    const sourceTeamLabel = TEAM_LABELS[action?.team] || action?.team || 'Submitting Team';
     const contentParts = [
-        'Blue Team action shared by White Cell',
+        `${sourceTeamLabel} action shared by White Cell`,
         `Title: ${blueAction.title}`,
         `Move: ${action.move || 1}`,
         `Phase: ${action.phase || 1}`
@@ -886,6 +908,17 @@ export function buildSharedActionCommunicationContent(action = {}) {
     }
 
     return contentParts.join(' | ');
+}
+
+export function buildActionNotificationCommunicationContent(action = {}) {
+    const blueAction = getBlueActionViewModel(action);
+    const requestedTeams = normalizeActionNotificationTeams(blueAction.notificationTeams)
+        .map((team) => TEAM_LABELS[team] || team);
+    return [
+        'Action notification approved by White Cell',
+        `Requested recipients: ${requestedTeams.join(', ') || 'None'}`,
+        buildSharedActionCommunicationContent(action)
+    ].join(' | ');
 }
 
 export function getWhiteCellParticipantTeamFilterValue(participant = {}) {
@@ -3616,6 +3649,13 @@ export class WhiteCellController {
         }
 
         const sourceTeamLabel = this.formatTeamLabel(action.team);
+        const deliveredTeamIds = getActionNotificationDeliveryTeams(action, this.communications);
+        const deliveredTeamLabels = deliveredTeamIds.map((team) => this.formatTeamLabel(team));
+        const deliveryStatus = resolveArtifactWorkflowState(action) === ENUMS.ARTIFACT_WORKFLOW_STATE.COMPLETED
+            ? (deliveredTeamLabels.length
+                ? `Sent to ${deliveredTeamLabels.join(', ')}.`
+                : 'No requested team was informed when the action was completed.')
+            : 'Awaiting White Cell review.';
         return `
             <section
                 class="card card-bordered"
@@ -3629,7 +3669,43 @@ export class WhiteCellController {
                 <p class="text-sm" style="margin: 0;">
                     <strong>Notification Note:</strong> ${this.escapeHtml(notificationNote || 'No clarifying note provided.')}
                 </p>
+                <p class="text-sm" style="margin: var(--space-2) 0 0;">
+                    <strong>Delivery Status:</strong> ${this.escapeHtml(deliveryStatus)}
+                </p>
             </section>
+        `;
+    }
+
+    renderActionNotificationApprovalControls(blueAction = {}) {
+        const requestedTeamIds = normalizeActionNotificationTeams(blueAction.notificationTeams);
+        if (!requestedTeamIds.length) return '';
+
+        const controls = requestedTeamIds.map((team) => {
+            const inputId = `actionNotificationApproval-${team}`;
+            const teamLabel = this.formatTeamLabel(team);
+            return `
+                <label class="form-check form-check-card" for="${inputId}">
+                    <input
+                        id="${inputId}"
+                        class="form-checkbox"
+                        type="checkbox"
+                        name="actionNotificationApproval"
+                        value="${this.escapeHtml(team)}"
+                        checked
+                    >
+                    <span class="form-check-label">Inform ${this.escapeHtml(teamLabel)} when this action is accepted</span>
+                </label>
+            `;
+        }).join('');
+
+        return `
+            <fieldset class="form-group" aria-describedby="actionNotificationApprovalHint">
+                <legend class="form-label">Requested team notifications</legend>
+                <div class="form-check-grid">${controls}</div>
+                <p class="form-hint" id="actionNotificationApprovalHint">
+                    Checked teams receive the completed action and the submitting team's notification note. Sending the action back informs no team.
+                </p>
+            </fieldset>
         `;
     }
 
@@ -4050,6 +4126,7 @@ export class WhiteCellController {
             </div>
 
             <form id="artifactReviewForm">
+                ${this.renderActionNotificationApprovalControls(blueAction)}
                 <div class="form-group">
                     <label class="form-label" for="artifactReviewNotes">Review Notes</label>
                     <textarea id="artifactReviewNotes" class="form-input form-textarea" rows="4"
@@ -4345,6 +4422,16 @@ export class WhiteCellController {
         const artifactLabel = isOrientation ? 'Strategic Orientation' : 'action';
         const teamLabel = this.formatTeamLabel(action?.team);
         const expectedRevision = Number(action?.revision_number || 1);
+        const actionViewModel = isOrientation ? null : getBlueActionViewModel(action);
+        const requestedNotificationTeams = normalizeActionNotificationTeams(
+            actionViewModel?.notificationTeams
+        );
+        const approvedNotificationTeams = isComplete && requestedNotificationTeams.length
+            ? normalizeActionNotificationTeams(
+                [...document.querySelectorAll('input[name="actionNotificationApproval"]:checked')]
+                    .map((input) => input.value)
+            )
+            : [];
 
         if (!isReturn && !isComplete) {
             showToast({ message: 'Choose a supported review decision.', type: 'error' });
@@ -4370,11 +4457,19 @@ export class WhiteCellController {
                     expectedRevision,
                     notes
                 })
-                : await database.completeArtifact(artifactKind, action.id, {
-                    team: action.team,
-                    expectedRevision,
-                    notes
-                });
+                : requestedNotificationTeams.length
+                    ? await database.completeActionWithNotifications(action.id, {
+                        team: action.team,
+                        expectedRevision,
+                        notes,
+                        notificationTeams: approvedNotificationTeams,
+                        notificationContent: buildActionNotificationCommunicationContent(action)
+                    })
+                    : await database.completeArtifact(artifactKind, action.id, {
+                        team: action.team,
+                        expectedRevision,
+                        notes
+                    });
             const updatedAction = reviewResult?.artifact;
             if (!updatedAction) {
                 throw new Error('Artifact review did not return the updated artifact.');
@@ -4382,6 +4477,16 @@ export class WhiteCellController {
 
             actionsStore.updateFromServer('UPDATE', updatedAction);
             this.retainWorkflowReview(reviewResult.review);
+            (Array.isArray(reviewResult.communications) ? reviewResult.communications : [])
+                .forEach((communication) => {
+                    communicationsStore.updateFromServer('INSERT', communication);
+                });
+
+            const deliveredNotificationTeams = normalizeActionNotificationTeams(
+                reviewResult.notification_teams || approvedNotificationTeams
+            );
+            const deliveredNotificationLabels = deliveredNotificationTeams
+                .map((team) => this.formatTeamLabel(team));
 
             const gameState = this.getCurrentGameState();
             const timelineEvent = await database.createTimelineEvent({
@@ -4400,6 +4505,10 @@ export class WhiteCellController {
                     next_revision_number: reviewResult.review?.next_revision_number
                         || updatedAction.revision_number,
                     role: this.getTimelineActorRole(),
+                    ...(requestedNotificationTeams.length ? {
+                        requested_notification_teams: requestedNotificationTeams,
+                        notified_teams: deliveredNotificationTeams
+                    } : {}),
                     ...(isReturn ? { return_notes: notes } : {})
                 },
                 team: 'white_cell',
@@ -4432,7 +4541,9 @@ export class WhiteCellController {
             showToast({
                 message: isReturn
                     ? `${teamLabel} ${artifactLabel} sent back for improvement.`
-                    : `${teamLabel} ${artifactLabel} accepted as complete.`,
+                    : deliveredNotificationLabels.length
+                        ? `${teamLabel} ${artifactLabel} accepted as complete and ${deliveredNotificationLabels.join(' and ')} informed.`
+                        : `${teamLabel} ${artifactLabel} accepted as complete.`,
                 type: 'success'
             });
             modal?.close();

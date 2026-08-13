@@ -30,6 +30,7 @@ import {
     parseStrategicOrientationDetails
 } from '../features/actions/strategicOrientationDetails.js';
 import {
+    BLUE_ACTION_NOTIFICATION_TEAMS,
     parseBlueActionDetails
 } from '../features/actions/blueActionDetails.js';
 import {
@@ -1567,6 +1568,62 @@ export const database = {
             expectedRevision,
             notes
         });
+    },
+
+    async completeActionWithNotifications(actionId, {
+        team,
+        expectedRevision,
+        notes = '',
+        notificationTeams = [],
+        notificationContent = ''
+    } = {}) {
+        const normalizedTeam = String(team || '').trim().toLowerCase();
+        const normalizedNotes = String(notes || '').trim();
+        const normalizedContent = String(notificationContent || '').trim();
+        const normalizedNotificationTeams = [...new Set((Array.isArray(notificationTeams) ? notificationTeams : [])
+            .map((recipientTeam) => String(recipientTeam || '').trim().toLowerCase())
+            .filter(Boolean))];
+        const allowedNotificationTeams = new Set(
+            BLUE_ACTION_NOTIFICATION_TEAMS.map((recipientTeam) => recipientTeam.toLowerCase())
+        );
+
+        if (!actionId) {
+            throw new DatabaseError('Action ID is required', 'completeActionWithNotifications');
+        }
+        if (!['blue', 'red'].includes(normalizedTeam)) {
+            throw new DatabaseError('Submitting action team is required', 'completeActionWithNotifications');
+        }
+        if (!Number.isInteger(Number(expectedRevision)) || Number(expectedRevision) < 1) {
+            throw new DatabaseError('Expected revision number is required', 'completeActionWithNotifications');
+        }
+        if (normalizedNotificationTeams.some((recipientTeam) => !allowedNotificationTeams.has(recipientTeam))) {
+            throw new DatabaseError(
+                'Action notifications are limited to Green and Industry',
+                'completeActionWithNotifications'
+            );
+        }
+        if (normalizedNotificationTeams.length && !normalizedContent) {
+            throw new DatabaseError(
+                'Notification content is required when informing a requested team',
+                'completeActionWithNotifications'
+            );
+        }
+
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('operator_complete_action_with_notifications', {
+            requested_action_id: actionId,
+            requested_team: normalizedTeam,
+            requested_expected_revision: Number(expectedRevision),
+            requested_reviewer_notes: normalizedNotes || null,
+            requested_notification_teams: normalizedNotificationTeams,
+            requested_notification_content: normalizedContent || null
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'completeActionWithNotifications');
+        }
+
+        return normalizeArtifactReviewResult(data, 'action');
     },
 
     async returnArtifactToTeam(artifactKind, artifactId, {
