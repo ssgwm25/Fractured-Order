@@ -5,6 +5,7 @@ import { createE2EMockSupabaseClient, isE2EMockEnabled } from './supabaseMock.js
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
+const E2E_MOCK_BROADCAST_KEY = 'esg_e2e_realtime_broadcast';
 
 class MemoryStorage {
     constructor() {
@@ -45,6 +46,7 @@ function installBrowserRuntime({
 } = {}) {
     const localStorage = new MemoryStorage();
     const sessionStorage = new MemoryStorage();
+    const windowListeners = new Map();
 
     if (enableMock) {
         sessionStorage.setItem(E2E_MOCK_ENABLEMENT_KEY, 'enabled');
@@ -56,7 +58,20 @@ function installBrowserRuntime({
         }));
     }
 
-    setGlobalProperty('window', { localStorage, sessionStorage });
+    const windowRef = {
+        localStorage,
+        sessionStorage,
+        addEventListener(eventName, callback) {
+            if (!windowListeners.has(eventName)) {
+                windowListeners.set(eventName, new Set());
+            }
+            windowListeners.get(eventName).add(callback);
+        },
+        removeEventListener(eventName, callback) {
+            windowListeners.get(eventName)?.delete(callback);
+        }
+    };
+    setGlobalProperty('window', windowRef);
     setGlobalProperty('localStorage', localStorage);
     setGlobalProperty('sessionStorage', sessionStorage);
     setGlobalProperty('location', { hostname });
@@ -64,7 +79,10 @@ function installBrowserRuntime({
 
     return {
         localStorage,
-        sessionStorage
+        sessionStorage,
+        dispatchStorage(event) {
+            windowListeners.get('storage')?.forEach((callback) => callback(event));
+        }
     };
 }
 
@@ -80,6 +98,39 @@ afterEach(() => {
 });
 
 describe('supabase mock bootstrap guardrails', () => {
+    it('delivers session-scoped broadcast payloads through the local realtime contract', async () => {
+        const runtime = installBrowserRuntime();
+        const mockClient = createE2EMockSupabaseClient();
+        const received = [];
+        const ignored = [];
+
+        mockClient
+            .channel('intercom:session-1')
+            .on('broadcast', { event: 'intercom_announcement' }, (event) => received.push(event))
+            .subscribe();
+        mockClient
+            .channel('intercom:session-2')
+            .on('broadcast', { event: 'intercom_announcement' }, (event) => ignored.push(event))
+            .subscribe();
+
+        const sender = mockClient.channel('intercom:session-1');
+        await expect(sender.send({
+            type: 'broadcast',
+            event: 'intercom_announcement',
+            payload: { announcement_id: 'announcement-1', session_id: 'session-1' }
+        })).resolves.toBe('ok');
+
+        runtime.dispatchStorage({
+            key: E2E_MOCK_BROADCAST_KEY,
+            newValue: runtime.localStorage.getItem(E2E_MOCK_BROADCAST_KEY)
+        });
+
+        expect(received).toEqual([{
+            payload: { announcement_id: 'announcement-1', session_id: 'session-1' }
+        }]);
+        expect(ignored).toEqual([]);
+    });
+
     it('ignores legacy browser localStorage and global flags without explicit test bootstrap', () => {
         const { localStorage } = installBrowserRuntime({
             hostname: '127.0.0.1',

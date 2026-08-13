@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { serializeBlueActionDetails } from '../actions/blueActionDetails.js';
 import { serializeMoveResponseDetails } from '../actions/moveResponseDetails.js';
@@ -10,8 +10,47 @@ import {
     buildCrossSessionResearchExportBundle,
     buildResearchExportBundle,
     buildResearchReportHtml,
-    createResearchExportArchiveBlob
+    createResearchExportArchiveBlob,
+    openResearchPrintWindow
 } from './researchExport.js';
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
+
+describe('research print window', () => {
+    it('keeps a usable print handle while severing its opener before blob navigation', async () => {
+        const loadHandlers = [];
+        const printWindow = {
+            opener: {},
+            document: { title: '' },
+            focus: vi.fn(),
+            print: vi.fn(),
+            addEventListener: vi.fn((eventName, callback) => {
+                if (eventName === 'load') loadHandlers.push(callback);
+            }),
+            location: { replace: vi.fn() }
+        };
+        const open = vi.fn(() => printWindow);
+        vi.stubGlobal('window', { open, setTimeout: vi.fn() });
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:research-report');
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+        await expect(openResearchPrintWindow('<h1>Report</h1>', {
+            title: 'Operational Research Report'
+        })).resolves.toBe('blob:research-report');
+
+        expect(open).toHaveBeenCalledWith('', '_blank');
+        expect(printWindow.opener).toBeNull();
+        expect(printWindow.location.replace).toHaveBeenCalledWith('blob:research-report');
+        expect(loadHandlers).toHaveLength(1);
+
+        loadHandlers[0]();
+        expect(printWindow.document.title).toBe('Operational Research Report');
+        expect(printWindow.focus).toHaveBeenCalledOnce();
+        expect(printWindow.print).toHaveBeenCalledOnce();
+    });
+});
 
 function buildBundleFixture() {
     return {

@@ -206,7 +206,13 @@ async function selectSessionForOperatorView(page, {
     return sessionId;
 }
 
-test('@playthrough eighteen-actor professional rehearsal covers the complete shipped role and workflow contract', async ({ rehearsalBrowser: browser }, testInfo) => {
+async function confirmActiveModal(page, buttonName) {
+    const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)').last();
+    await expect(modal).toBeVisible();
+    await modal.getByRole('button', { name: buttonName, exact: true }).click();
+}
+
+test('@playthrough eighteen-actor professional rehearsal covers the complete shipped non-PLI role and workflow contract', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.setTimeout(10 * 60 * 1000);
     recordRehearsalMetrics(testInfo, { actorCount: 18, sessionCount: 1 });
 
@@ -438,15 +444,49 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             }
         });
 
-        await test.step('synchronize timer state through White Cell Lead controls', async () => {
+        await test.step('operate allocations, timer reset, and reversible move and phase progression from White Cell Lead controls', async () => {
             await openSidebarSection(actors.whiteCellLead, 'controls');
+
+            await actors.whiteCellLead.locator('#timerAllocationStrategicOrientation').fill('7');
+            await actors.whiteCellLead.locator('#timerAllocationMove1').fill('8');
+            await actors.whiteCellLead.locator('#timerAllocationMove2').fill('9');
+            await actors.whiteCellLead.locator('#timerAllocationMove3').fill('10');
+            await actors.whiteCellLead.evaluate(() => window.dispatchEvent(new Event('online')));
+            await expect(actors.whiteCellLead.locator('#timerAllocationStrategicOrientation')).toHaveValue('7');
+            await expect(actors.whiteCellLead.locator('#timerAllocationMove1')).toHaveValue('8');
+            await expect(actors.whiteCellLead.locator('#timerAllocationMove2')).toHaveValue('9');
+            await expect(actors.whiteCellLead.locator('#timerAllocationMove3')).toHaveValue('10');
+            await actors.whiteCellLead.locator('#timerAllocationSaveBtn').click();
+            await expect(actors.whiteCellLead.locator('#toast-container')).toContainText('Timer allocations saved');
+            await expect(actors.whiteCellLead.locator('#timerAllocationCurrentMark')).toContainText('Move 1 - 8 minutes');
+
+            await actors.whiteCellLead.locator('#timerAllocationResetCurrentBtn').click();
+            await confirmActiveModal(actors.whiteCellLead, 'Reset');
+            await expect(actors.whiteCellLead.locator('#controlTimerDisplay')).toHaveText('08:00');
+
             await actors.whiteCellLead.locator('#startTimerBtn').click();
             await expect(actors.whiteCellLead.locator('#pauseTimerBtn')).toBeEnabled();
             await Promise.all(publicActorPages.map((page) => (
-                expect(page.locator('#timerDisplay')).not.toHaveText('90:00', { timeout: 10000 })
+                expect(page.locator('#timerDisplay')).not.toHaveText('08:00', { timeout: 10000 })
             )));
             await actors.whiteCellLead.locator('#pauseTimerBtn').click();
             await expect(actors.whiteCellLead.locator('#pauseTimerBtn')).toBeDisabled();
+
+            await actors.whiteCellLead.locator('#nextPhaseBtn').click();
+            await confirmActiveModal(actors.whiteCellLead, 'Advance');
+            await expect(actors.whiteCellLead.locator('#currentPhase')).toHaveText('2');
+            await actors.whiteCellLead.locator('#prevPhaseBtn').click();
+            await confirmActiveModal(actors.whiteCellLead, 'Return');
+            await expect(actors.whiteCellLead.locator('#currentPhase')).toHaveText('1');
+
+            await actors.whiteCellLead.locator('#nextMoveBtn').click();
+            await confirmActiveModal(actors.whiteCellLead, 'Advance');
+            await expect(actors.whiteCellLead.locator('#currentMove')).toHaveText('2');
+            await expect(actors.whiteCellLead.locator('#controlTimerDisplay')).toHaveText('09:00');
+            await actors.whiteCellLead.locator('#prevMoveBtn').click();
+            await confirmActiveModal(actors.whiteCellLead, 'Return');
+            await expect(actors.whiteCellLead.locator('#currentMove')).toHaveText('1');
+            await expect(actors.whiteCellLead.locator('#controlTimerDisplay')).toHaveText('08:00');
         });
 
         const actionTitles = {
@@ -1112,6 +1152,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 expect(projection).toContain(returnedRfiNotes);
                 expect(projection).toContain(returnedRfiAnswer);
             }
+
         });
 
         await testInfo.attach('playthrough-diagnostics.json', {

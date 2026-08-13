@@ -2,6 +2,7 @@ const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
+const E2E_MOCK_BROADCAST_KEY = 'esg_e2e_realtime_broadcast';
 const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
 const E2E_MOCK_STATE_WRITE_LOCK = 'esg-e2e-backend-state-write';
 const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
@@ -308,7 +309,7 @@ function matchesRealtimeFilter(change, config = {}) {
     return String(candidateRow?.[parsedFilter.field] ?? '') === parsedFilter.value;
 }
 
-function createMockRealtimeChannel() {
+function createMockRealtimeChannel(channelName = '') {
     const subscriptions = [];
     const statusCallbacks = new Set();
     let storageListener = null;
@@ -326,6 +327,29 @@ function createMockRealtimeChannel() {
 
             if (!storageListener && typeof window !== 'undefined') {
                 storageListener = (event) => {
+                    if (event.key === E2E_MOCK_BROADCAST_KEY) {
+                        let envelope = null;
+                        try {
+                            envelope = event.newValue ? JSON.parse(event.newValue) : null;
+                        } catch (_error) {
+                            envelope = null;
+                        }
+
+                        if (!envelope || envelope.channel !== channelName) {
+                            return;
+                        }
+
+                        subscriptions.forEach((subscription) => {
+                            if (
+                                subscription.eventName === 'broadcast'
+                                && subscription.config?.event === envelope.event
+                            ) {
+                                subscription.callback({ payload: cloneValue(envelope.payload) });
+                            }
+                        });
+                        return;
+                    }
+
                     if (event.key !== E2E_MOCK_STATE_KEY) {
                         return;
                     }
@@ -380,6 +404,24 @@ function createMockRealtimeChannel() {
             }
 
             return channel;
+        },
+        async send(message = {}) {
+            if (message.type !== 'broadcast' || !message.event) {
+                return 'error';
+            }
+
+            const storage = getStorage();
+            if (!storage) {
+                return 'error';
+            }
+
+            storage.removeItem(E2E_MOCK_BROADCAST_KEY);
+            storage.setItem(E2E_MOCK_BROADCAST_KEY, JSON.stringify({
+                channel: channelName,
+                event: message.event,
+                payload: cloneValue(message.payload)
+            }));
+            return 'ok';
         },
         unsubscribe() {
             if (storageListener && typeof window !== 'undefined') {
@@ -2927,8 +2969,8 @@ export function createE2EMockSupabaseClient() {
         from(tableName) {
             return new MockQueryBuilder(tableName);
         },
-        channel() {
-            return createMockRealtimeChannel();
+        channel(channelName) {
+            return createMockRealtimeChannel(channelName);
         },
         async removeChannel(channel) {
             channel?.unsubscribe?.();

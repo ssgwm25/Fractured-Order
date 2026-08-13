@@ -1219,6 +1219,7 @@ export class WhiteCellController {
         this.storeUnsubscribers = [];
         this.currentTimerSeconds = CONFIG.DEFAULT_TIMER_SECONDS;
         this.timerAllocations = buildDefaultTimerAllocations();
+        this.timerAllocationFormDirty = false;
         this.pluginState = buildDefaultPluginState();
         this.mountedPlugins = new Map();
         this.timerRunning = false;
@@ -1664,6 +1665,11 @@ export class WhiteCellController {
             startTimerBtn?.addEventListener('click', () => this.startTimer());
             pauseTimerBtn?.addEventListener('click', () => this.pauseTimer());
             resetTimerBtn?.addEventListener('click', () => this.resetTimer());
+            timerAllocationForm?.addEventListener('input', (event) => {
+                if (event.target?.closest?.('[data-timer-allocation-mark]')) {
+                    this.timerAllocationFormDirty = true;
+                }
+            });
             timerAllocationForm?.addEventListener('submit', (event) => this.handleTimerAllocationSubmit(event));
             timerAllocationResetCurrentBtn?.addEventListener('click', () => this.resetTimerToCurrentAllocation());
             prevPhaseBtn?.addEventListener('click', () => this.regressPhase());
@@ -2019,9 +2025,11 @@ export class WhiteCellController {
             const markKey = field.dataset?.timerAllocationMark;
             if (!markKey) return;
 
-            field.value = String(secondsToWholeMinutes(
-                getTimerAllocationSeconds(this.timerAllocations, markKey)
-            ));
+            if (!this.timerAllocationFormDirty) {
+                field.value = String(secondsToWholeMinutes(
+                    getTimerAllocationSeconds(this.timerAllocations, markKey)
+                ));
+            }
             field.disabled = !canControl;
             field.setAttribute?.('aria-disabled', field.disabled ? 'true' : 'false');
         });
@@ -2285,6 +2293,7 @@ export class WhiteCellController {
         try {
             const updatedState = await gameStateStore.setTimerAllocations(allocations);
             this.timerAllocations = normalizeTimerAllocations(updatedState?.timer_allocations || allocations);
+            this.timerAllocationFormDirty = false;
             this.updateTimerAllocationControls();
             showToast({ message: 'Timer allocations saved', type: 'success' });
         } catch (err) {

@@ -633,6 +633,52 @@ describe('White Cell DOM contract', () => {
         expect(showToast).toHaveBeenCalledWith({ message: 'Timer allocations saved', type: 'success' });
     });
 
+    it('preserves unsaved timer allocation input across background game-state reconciliation', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const fakeDocument = createFakeDocument([
+            'timerAllocationStrategicOrientation',
+            'timerAllocationMove1',
+            'timerAllocationMove2',
+            'timerAllocationMove3',
+            'timerAllocationCurrentMark',
+            'timerAllocationSaveBtn',
+            'timerAllocationResetCurrentBtn',
+            'resetTimerBtn'
+        ]);
+        global.document = fakeDocument;
+
+        for (const [elementId, markKey, value] of [
+            ['timerAllocationStrategicOrientation', 'strategic_orientation', '7'],
+            ['timerAllocationMove1', 'move_1', '8'],
+            ['timerAllocationMove2', 'move_2', '9'],
+            ['timerAllocationMove3', 'move_3', '10']
+        ]) {
+            fakeDocument.elements[elementId].dataset.timerAllocationMark = markKey;
+            fakeDocument.elements[elementId].value = value;
+        }
+
+        const controller = new WhiteCellController();
+        controller.timerAllocationFormDirty = true;
+        controller.syncGameStateFromStore({
+            move: 1,
+            phase: 1,
+            timer_seconds: 5400,
+            timer_running: false,
+            timer_allocations: {
+                strategic_orientation: 5400,
+                move_1: 5400,
+                move_2: 5400,
+                move_3: 5400
+            }
+        });
+
+        expect(fakeDocument.elements.timerAllocationStrategicOrientation.value).toBe('7');
+        expect(fakeDocument.elements.timerAllocationMove1.value).toBe('8');
+        expect(fakeDocument.elements.timerAllocationMove2.value).toBe('9');
+        expect(fakeDocument.elements.timerAllocationMove3.value).toBe('10');
+        expect(controller.timerAllocationFormDirty).toBe(true);
+    });
+
     it('resets the timer to the active Strategic Orientation allocation before the Move 1 gate clears', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');

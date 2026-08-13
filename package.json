@@ -17,6 +17,11 @@
     "test:e2e:smoke": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/session-smoke.e2e.js",
     "test:e2e:live-demo": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js tests/e2e/live-demo-scale.e2e.js tests/e2e/live-demo-realtime.e2e.js tests/e2e/live-demo-playthrough.e2e.js",
     "test:e2e:live-demo:matrix": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-role-matrix.e2e.js",
+    "test:e2e:roles": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-role-matrix.e2e.js tests/e2e/live-demo-playthrough.e2e.js",
+    "test:roles": "npm test -- tests/unit/role-capability-matrix.test.js src/roles/sme.test.js src/services/database.pli.test.js && npm run test:e2e:roles",
+    "test:non-pli": "node --preserve-symlinks --preserve-symlinks-main ./node_modules/vitest/vitest.mjs run --config vitest.operational.config.js",
+    "test:e2e:operational": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-scale.e2e.js tests/e2e/live-demo-realtime.e2e.js tests/e2e/live-demo-playthrough.e2e.js tests/e2e/live-demo-operator-controls.e2e.js",
+    "test:operational": "npm run test:non-pli && npm run test:e2e:operational",
     "test:e2e:playthrough": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-playthrough.e2e.js",
     "test:e2e:realtime": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-realtime.e2e.js",
     "test:e2e:rehearsal": "npm run build && node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/live-demo-topology.e2e.js tests/e2e/live-demo-role-matrix.e2e.js tests/e2e/live-demo-scale.e2e.js tests/e2e/live-demo-realtime.e2e.js tests/e2e/live-demo-playthrough.e2e.js"

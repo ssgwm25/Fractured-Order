@@ -216,6 +216,96 @@ export async function createIsolatedActorPage(context, actorName, { resetBackend
     return page;
 }
 
+/**
+ * Install a deterministic in-page microphone/MediaRecorder implementation.
+ * Operational rehearsals use the real plugin controls and delivery/storage
+ * paths without depending on CI audio hardware or an interactive permission
+ * prompt.
+ */
+export async function installDeterministicAudioCapture(page) {
+    await page.evaluate(() => {
+        const tracks = [];
+
+        class DeterministicMediaRecorder extends EventTarget {
+            static isTypeSupported(mimeType) {
+                return String(mimeType || '').startsWith('audio/');
+            }
+
+            constructor(stream, options = {}) {
+                super();
+                this.stream = stream;
+                this.mimeType = options.mimeType || 'audio/webm';
+                this.audioBitsPerSecond = options.audioBitsPerSecond || 128000;
+                this.state = 'inactive';
+            }
+
+            start() {
+                this.state = 'recording';
+            }
+
+            pause() {
+                if (this.state !== 'recording') {
+                    throw new Error('Recorder is not recording.');
+                }
+                this.state = 'paused';
+            }
+
+            resume() {
+                if (this.state !== 'paused') {
+                    throw new Error('Recorder is not paused.');
+                }
+                this.state = 'recording';
+            }
+
+            stop() {
+                if (this.state === 'inactive') return;
+                this.state = 'inactive';
+                const dataEvent = new Event('dataavailable');
+                Object.defineProperty(dataEvent, 'data', {
+                    value: new Blob(['deterministic-operational-audio'], { type: this.mimeType })
+                });
+                this.dispatchEvent(dataEvent);
+                this.dispatchEvent(new Event('stop'));
+            }
+        }
+
+        const mediaDevices = {
+            getSupportedConstraints: () => ({
+                autoGainControl: true,
+                channelCount: true,
+                echoCancellation: true,
+                noiseSuppression: true,
+                sampleRate: true
+            }),
+            getUserMedia: async () => {
+                const track = {
+                    kind: 'audio',
+                    readyState: 'live',
+                    stop() {
+                        this.readyState = 'ended';
+                    }
+                };
+                tracks.push(track);
+                return {
+                    active: true,
+                    getAudioTracks: () => [track],
+                    getTracks: () => [track]
+                };
+            }
+        };
+
+        Object.defineProperty(globalThis.navigator, 'mediaDevices', {
+            configurable: true,
+            value: mediaDevices
+        });
+        Object.defineProperty(globalThis, 'MediaRecorder', {
+            configurable: true,
+            value: DeterministicMediaRecorder
+        });
+        globalThis.__ESG_E2E_AUDIO_TRACKS__ = tracks;
+    });
+}
+
 export async function openOperatorAccessSection(page) {
     await prepareLandingPage(page);
 
@@ -365,6 +455,39 @@ export async function authorizeWhiteCell(page, {
     await page.locator('#operatorAccessCode').fill(operatorAccessCode);
     await page.locator('#operatorWhiteCellLeadBtn').click();
     await waitForOperatorAuthorizationRoute(page, /whitecell\.html/, `White Cell ${operatorRole}`);
+}
+
+const SME_ACCESS_BUTTONS = Object.freeze({
+    econ: '#smeEconBtn',
+    ni_escalation: '#smeNiEscalationBtn',
+    diplomacy_information: '#smeDiplomacyInfoBtn',
+    tsj: '#smeTsjBtn',
+    verba: '#smeVerbaBtn'
+});
+
+export async function authorizeSme(page, {
+    sessionCode,
+    smeRole,
+    operatorAccessCode = OPERATOR_ACCESS_CODE
+} = {}) {
+    const accessButton = SME_ACCESS_BUTTONS[smeRole];
+    if (!accessButton) {
+        throw new Error(`authorizeSme received unsupported SME role "${smeRole || ''}".`);
+    }
+
+    requireHostedOperatorAccessCode();
+    await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
+    await prepareLandingPage(page);
+
+    const smeAccessSection = page.locator('#smeAccessSection');
+    if (!(await smeAccessSection.evaluate((element) => element.hasAttribute('open')))) {
+        await smeAccessSection.evaluate((element) => element.setAttribute('open', ''));
+    }
+
+    await page.locator('#smeSessionCode').fill(sessionCode);
+    await page.locator('#smeAccessCode').fill(operatorAccessCode);
+    await page.locator(accessButton).click();
+    await waitForOperatorAuthorizationRoute(page, /sme\.html/, `SME ${smeRole}`);
 }
 
 export async function openSidebarSection(page, section) {

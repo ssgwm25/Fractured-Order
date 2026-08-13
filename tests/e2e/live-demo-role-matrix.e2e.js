@@ -3,6 +3,7 @@ import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js
 import { dumpE2EMockBackend } from './support/mockBackend.js';
 import {
     authorizeGameMaster,
+    authorizeSme,
     authorizeWhiteCell,
     createIsolatedActorPage,
     createSessionFromMaster,
@@ -31,6 +32,14 @@ const WHITE_CELL_OPERATOR_ROLES = Object.freeze({
     LEAD: 'lead'
 });
 
+const SME_ROLES = Object.freeze([
+    { id: 'econ', label: 'Econ SME' },
+    { id: 'ni_escalation', label: 'NI/Escalation SME' },
+    { id: 'diplomacy_information', label: 'Diplomacy & Information SME' },
+    { id: 'tsj', label: 'TSJ (Tribe Street Journal)' },
+    { id: 'verba', label: 'Verba AI SME' }
+]);
+
 const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
     {
         actorName: `${team.id}-facilitator-matrix`,
@@ -57,7 +66,14 @@ const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
         teamId: null,
         roleSurface: ROLE_SURFACES.WHITECELL,
         operatorRole: WHITE_CELL_OPERATOR_ROLES.LEAD
-    }
+    },
+    ...SME_ROLES.map((role) => ({
+        actorName: `sme-${role.id.replaceAll('_', '-')}-matrix`,
+        displayName: role.label,
+        teamId: null,
+        roleSurface: 'sme',
+        smeRole: role.id
+    }))
 ]);
 
 function buildExpectedSeatCounts() {
@@ -67,11 +83,22 @@ function buildExpectedSeatCounts() {
         [`${team.id}_scribe`]: 1,
         [`${team.id}_notetaker`]: 2
     }), {
-        whitecell_lead: 1
+        whitecell_lead: 1,
+        ...Object.fromEntries(SME_ROLES.map((role) => [`sme_${role.id}`, 1]))
     });
 }
 
 async function expectRoleSurface(page, roleCase) {
+    if (roleCase.roleSurface === 'sme') {
+        await expect(page).toHaveURL(/\/sme\.html(?:\?.*)?$/);
+        await expect(page.locator('#headerSessionMeta')).toContainText(SESSION_NAME);
+        await expect(page.locator('#headerTitle')).toHaveText(roleCase.displayName);
+        await expect(page.locator('#smeQueueSectionTitle')).toHaveText(roleCase.displayName);
+        await expect(page.locator('#smeQueuePanel')).toBeVisible();
+        await expect(page.locator('#smeQueuePanel .pli-sme-panel')).toBeVisible();
+        return;
+    }
+
     await expect(page.locator('#sessionName')).toContainText(SESSION_NAME);
 
     if (roleCase.roleSurface === ROLE_SURFACES.FACILITATOR) {
@@ -114,9 +141,9 @@ async function expectRoleSurface(page, roleCase) {
     await expect(page.locator('#startTimerBtn')).toBeEnabled();
 }
 
-test('@live-demo browser role matrix covers all teams and roles through join, reload persistence, and operator roster visibility', async ({ rehearsalBrowser: browser }, testInfo) => {
+test('@live-demo browser role matrix covers every shipped team and role through join, queue mount, reload persistence, and operator roster visibility', async ({ rehearsalBrowser: browser }, testInfo) => {
     test.slow();
-    recordRehearsalMetrics(testInfo, { actorCount: 18, sessionCount: 1 });
+    recordRehearsalMetrics(testInfo, { actorCount: 23, sessionCount: 1 });
 
     const context = await browser.newContext();
     const gameMaster = await createIsolatedActorPage(context, 'matrix-game-master', { resetBackend: true });
@@ -144,6 +171,11 @@ test('@live-demo browser role matrix covers all teams and roles through join, re
                     sessionCode: SESSION_CODE,
                     displayName: roleCase.displayName,
                     operatorRole: roleCase.operatorRole
+                });
+            } else if (roleCase.roleSurface === 'sme') {
+                await authorizeSme(actorPage, {
+                    sessionCode: SESSION_CODE,
+                    smeRole: roleCase.smeRole
                 });
             } else {
                 await joinPublicParticipant(actorPage, {
