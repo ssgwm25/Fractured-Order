@@ -83,7 +83,7 @@ White Cell Lead **PLI Reports** narratives use the same Cursor key via the Supab
 
 ## Step 4 — Routing, seats, and Glasl
 
-`run_pli.py` looks up each team's declared **Strategic Orientation** before scoring Fit. Missing orientation still writes a stub row with **routing-aware** `seat_reviews` (Dip `skipped` when not routed; Macro `needs_human` only when routed; NI always `needs_human`).
+`run_pli.py` looks up each team's declared **Strategic Orientation** before National Interest scoring (Source 12). Missing orientation still writes a stub row with **routing-aware** `seat_reviews` (Dip `skipped` when not routed; Macro `needs_human` only when routed; NI always `needs_human`).
 
 | Concept | Meaning |
 |---------|---------|

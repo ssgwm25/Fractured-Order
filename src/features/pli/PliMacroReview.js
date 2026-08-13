@@ -135,18 +135,17 @@ export function createPliMacroReview(options = {}) {
         const classification = worksheet?.classification || adjudication?.classification || {};
         const precedent = worksheet?.precedent || adjudication?.precedent || {};
         const implementation = adjudication?.implementation || {};
-        const fit = mergeFit(adjudication?.fit, worksheet?.fit, record.declared_orientation);
         const modifiers = precedent.modifiers || worksheet?.precedent?.modifiers || {};
         const implementationNarrative = (
             (precedent.statutory_basis || []).join('; ')
             || precedent.rationale
             || ''
         ).trim();
-        const fitNarrative = (
-            fit.mechanism_rationale
-            || fit.rationale
-            || ''
-        ).trim();
+        const declaredOrientation = record.declared_orientation
+            || record.tracks?.orientation
+            || worksheet?.fit?.orientation
+            || '';
+        const legacyFit = adjudication?.fit || worksheet?.fit;
 
         card.innerHTML = `
             <header class="pli-sme-card-header">
@@ -177,11 +176,13 @@ export function createPliMacroReview(options = {}) {
                         <p class="text-sm"><strong>Implementation score:</strong> ${escapeHtml(String(implementation.score ?? '—'))}</p>
                     </div>
                     <div class="pli-block">
-                        <div class="pli-label">2.3 Fit score (orientation anchor)</div>
-                        <p class="text-sm"><strong>Orientation:</strong> ${escapeHtml(fit.orientation || '—')}
-                            ${fit.band ? ` · <strong>Band:</strong> ${escapeHtml(String(fit.band))}` : ''}
-                            · <strong>Fit:</strong> ${escapeHtml(String(fit.score ?? '—'))}</p>
-                        <p class="pli-cite text-sm">${escapeHtml(fitNarrative || 'No fit mechanism narrative on worksheet.')}</p>
+                        <div class="pli-label">2.3 Declared orientation (intake)</div>
+                        <p class="text-sm"><strong>Orientation:</strong> ${escapeHtml(declaredOrientation || '—')}
+                            <span class="text-sm text-gray-500"> — scored on the NI seat (Source 12), not on this Macro path.</span></p>
+                        ${legacyFit && (legacyFit.score != null || legacyFit.band) ? `
+                            <p class="pli-cite text-sm">Legacy Fit ${escapeHtml(String(legacyFit.score ?? '—'))}/10
+                            ${legacyFit.band ? ` (band ${escapeHtml(String(legacyFit.band))})` : ''}
+                            — orientation not scored under current Macro grammar.</p>` : ''}
                     </div>
                     ${(status === 'needs_human' || !adjudication) ? `
                         <div class="pli-notice pli-notice-danger">
@@ -222,27 +223,6 @@ export function createPliMacroReview(options = {}) {
         card.querySelector('[data-pli-sendback]')?.addEventListener('click', () => handleSendBack(row));
 
         return card;
-    }
-
-    function mergeFit(adjudicationFit, worksheetFit, declaredOrientation) {
-        const fromAdj = adjudicationFit && typeof adjudicationFit === 'object' ? adjudicationFit : {};
-        const fromWs = worksheetFit && typeof worksheetFit === 'object' ? worksheetFit : {};
-        const narrative = (
-            fromAdj.mechanism_rationale
-            || fromAdj.rationale
-            || fromWs.mechanism_rationale
-            || fromWs.rationale
-            || ''
-        ).trim();
-        return {
-            ...fromWs,
-            ...fromAdj,
-            orientation: fromAdj.orientation || fromWs.orientation || declaredOrientation || null,
-            band: fromAdj.band || fromWs.band || null,
-            score: fromAdj.score ?? fromWs.score ?? null,
-            rationale: narrative,
-            mechanism_rationale: narrative
-        };
     }
 
     function renderModifiers(modifiers, implementation) {
@@ -358,11 +338,6 @@ export function createPliMacroReview(options = {}) {
                         value="${adjudication?.implementation?.score ?? ''}" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="pliOverrideFit">Fit score (1-10) *</label>
-                    <input type="number" id="pliOverrideFit" class="form-input" min="1" max="10"
-                        value="${adjudication?.fit?.score ?? ''}" required>
-                </div>
-                <div class="form-group">
                     <label class="form-label" for="pliOverrideRationale">Rationale (required)</label>
                     <textarea id="pliOverrideRationale" class="form-input form-textarea" rows="4"
                         placeholder="Which codebook table entry is wrong, and why?"></textarea>
@@ -380,11 +355,9 @@ export function createPliMacroReview(options = {}) {
                     variant: 'primary',
                     onClick: async (modal) => {
                         const implementationScore = parseInt(document.getElementById('pliOverrideImpl').value, 10);
-                        const fitScore = parseInt(document.getElementById('pliOverrideFit').value, 10);
                         const rationale = document.getElementById('pliOverrideRationale').value.trim();
-                        if (!Number.isInteger(implementationScore) || implementationScore < 1 || implementationScore > 10
-                            || !Number.isInteger(fitScore) || fitScore < 1 || fitScore > 10) {
-                            showToast({ message: 'Scores must be integers from 1 to 10', type: 'error' });
+                        if (!Number.isInteger(implementationScore) || implementationScore < 1 || implementationScore > 10) {
+                            showToast({ message: 'Implementation must be an integer from 1 to 10', type: 'error' });
                             return;
                         }
                         if (!rationale) {
@@ -396,8 +369,7 @@ export function createPliMacroReview(options = {}) {
                                 status: 'overridden',
                                 sme_reviewer: getReviewerName?.() || 'White Cell',
                                 override_value: {
-                                    implementation_score: implementationScore,
-                                    fit_score: fitScore
+                                    implementation_score: implementationScore
                                 },
                                 override_rationale: rationale
                             });

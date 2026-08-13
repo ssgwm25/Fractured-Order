@@ -69,6 +69,7 @@ RESCORE_REASON_MARKERS = (
     "Missing Diplomacy agent worksheet",
     "Missing Information brief",
     MISSING_SO_MARKER,
+    "Blue SO required for Green proposal NI",
     "Blue SO required for Green proposal Fit",
     "Macro agent worksheet missing",
     "Placeholder; replace with agent worksheet",
@@ -122,7 +123,11 @@ def _is_missing_so_only_stub(row: dict[str, Any]) -> bool:
     markers = _rescore_markers_present(_collect_needs_human_reasons(row))
     if not markers:
         return False
-    so_markers = {MISSING_SO_MARKER, "Blue SO required for Green proposal Fit"}
+    so_markers = {
+        MISSING_SO_MARKER,
+        "Blue SO required for Green proposal Fit",
+        "Blue SO required for Green proposal NI",
+    }
     return all(marker in so_markers for marker in markers)
 
 
@@ -145,7 +150,11 @@ def _should_skip_existing_adjudication(
     markers = _rescore_markers_present(_collect_needs_human_reasons(row))
     if not markers:
         return True
-    so_markers = {MISSING_SO_MARKER, "Blue SO required for Green proposal Fit"}
+    so_markers = {
+        MISSING_SO_MARKER,
+        "Blue SO required for Green proposal Fit",
+        "Blue SO required for Green proposal NI",
+    }
     if all(marker in so_markers for marker in markers):
         if orientation_now_available is True:
             return False
@@ -423,10 +432,10 @@ def resolve_declared_orientation(
     *,
     cache: dict[tuple[str, str], str | None] | None = None,
 ) -> str | None:
-    """Resolve Fit orientation for an action.
+    """Resolve declared orientation for an action.
 
-    Green proposals do not carry a Green Strategic Orientation. FO 2.0 Fit
-    anchors to Blue's declared SO for those filings.
+    Green proposals do not carry a Green Strategic Orientation. FO 2.0 NI
+    scoring uses Blue's declared orientation as the Source 12 prior.
     """
     session_id = action.get("session_id") or ""
     team = str(action.get("team") or "").strip().lower()
@@ -443,13 +452,13 @@ def resolve_declared_orientation(
 def missing_orientation_reason(action: dict[str, Any]) -> str:
     if is_green_proposal(action):
         return (
-            "Blue SO required for Green proposal Fit — no declared Strategic "
-            "Orientation on record for team 'blue' (trial codebook, Layer 3b)."
+            "Blue SO required for Green proposal NI — no declared Strategic "
+            "Orientation on record for team 'blue' (Source 12)."
         )
     team = action.get("team") or ""
     return (
         f"No declared Strategic Orientation on record for team "
-        f"'{team}' - Fit cannot be scored (trial codebook, Layer 3b)."
+        f"'{team}' — NI orientation scoring requires it (Source 12)."
     )
 
 
@@ -521,7 +530,7 @@ def _macro_aliases(mt_record: dict[str, Any], worksheet: dict[str, Any] | None) 
             "classification": macro.get("classification"),
             "precedent": macro.get("precedent"),
             "implementation": macro.get("implementation"),
-            "fit": macro.get("fit"),
+            "fit": None,
             "trend": macro.get("trend"),
             "flags": macro.get("flags"),
         }
@@ -626,12 +635,6 @@ def build_record(
                     "multi_authority_coordination": False,
                 },
             },
-            "fit": {
-                "orientation": orientation,
-                "band": "weak",
-                "score": 1,
-                "mechanism_rationale": "needs_human",
-            },
             "ne_facets": {"diplomacy": False, "information": False},
             "submission_month": submission_month,
         }
@@ -654,11 +657,11 @@ def build_record(
     macro_summary = ""
     if worksheet is not None:
         classification = worksheet.get("classification") or {}
-        fit = worksheet.get("fit") or {}
+        impl = worksheet.get("implementation") or {}
         macro_summary = (
             f"lever={classification.get('lever')} "
             f"instrument={classification.get('instrument')} "
-            f"fit={fit.get('band')}/{fit.get('score')}"
+            f"implementation={impl.get('score')}"
         )
 
     ni_result = adjudicate.adjudicate_ni(

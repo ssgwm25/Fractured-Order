@@ -1,10 +1,11 @@
 """PLI interpretive layer: a Cursor agent strictly executing the codebook.
 
-The agent handles only the three interpretive steps of PLI — lever/instrument
-classification, precedent-tier assignment (with real statutory citations,
-found via web research when needed), and the Fit anchor band. It must return
-strict JSON matching ``worksheet_schema.json`` and must cite the codebook rule
-used at every step. All arithmetic happens afterwards in ``engine.py``.
+The agent handles the interpretive steps of PLI — lever/instrument
+classification and precedent-tier assignment (with real statutory citations,
+found via web research when needed). It must return strict JSON matching
+``worksheet_schema.json`` and must cite the codebook rule used at every step.
+All arithmetic happens afterwards in ``engine.py``. Strategic orientation is
+intake context for National Interest; it is not scored on this Macro worksheet.
 
 Failure policy: one retry on invalid output, then the action is marked
 ``needs_human`` so the SME adjudicates it manually. The agent never guesses
@@ -124,16 +125,10 @@ Your job for the single action below, in order:
    the action text and game state. Only set a modifier true when the
    submission provides evidence for it; give a one-line justification in
    `modifier_rationales` for each true value. For NE, set all false.
+   Do NOT score Fit. Do not emit a `fit` object. Declared orientation is
+   intake context only; National Interest scores orientation alignment.
 
-5. FIT ANCHOR: score alignment with the team's DECLARED strategic
-   orientation (given below) against the trial codebook anchor table. Pick
-   the band first, then a score inside the band, and write `fit.rationale`
-   as a short mechanism narrative (2–4 sentences) comparable in depth to
-   the precedent rationale — how the action's mechanism advances, conflicts
-   with, or only weakly serves the declared orientation, and why that
-   score/band. For NE, use band 5-6 score 5 with rationale noting N/A macro Fit.
-
-6. SUBMISSION MONTH: include ``submission_month`` as the GAME SUBMISSION MONTH
+5. SUBMISSION MONTH: include ``submission_month`` as the GAME SUBMISSION MONTH
    shown below (YYYY-MM). The orchestrator already grounded that value on a
    fixed 6-month action cadence (not the Plenum wall-clock timer) and will
    overwrite any other month you invent — treat it as informational context,
@@ -197,9 +192,10 @@ def build_prompt(
         [
             SYSTEM_BRIEF,
             "=== MASTER CODEBOOK (Layers 1-2, boundaries, tie-breaks) ===\n" + MASTER_CODEBOOK,
-            "=== TRIAL CODEBOOK (Implementation & Fit, precedent tiers, anchors) ===\n" + TRIAL_CODEBOOK,
+            "=== TRIAL CODEBOOK (Implementation, precedent tiers) ===\n" + TRIAL_CODEBOOK,
             "=== JSON SCHEMA for your worksheet output ===\n" + json.dumps(SCHEMA, indent=2),
-            f"=== TEAM'S DECLARED STRATEGIC ORIENTATION ===\n{orientation}",
+            "=== TEAM'S DECLARED STRATEGIC ORIENTATION (intake context; not scored here) ===\n"
+            + f"{orientation}",
             month_block,
             ("=== GAME STATE NOTES (White Cell) ===\n" + game_state_notes) if game_state_notes else "",
             "=== ACTION TO ADJUDICATE ===\n" + action_block,
@@ -284,11 +280,6 @@ def _cross_check(worksheet: dict[str, Any]) -> None:
         raise ValueError(f"Instrument {instrument} does not belong to lever {lever}")
     if lever_match.group(1) != instrument_match.group(1):
         raise ValueError(f"Instrument {instrument} does not belong to lever {lever}")
-
-    fit = worksheet["fit"]
-    lo, hi = (int(part) for part in fit["band"].split("-"))
-    if not (lo <= fit["score"] <= hi):
-        raise ValueError(f"Fit score {fit['score']} outside band {fit['band']}")
 
 
 def run_agent(prompt: str, *, api_key: str | None = None, model: str = DEFAULT_MODEL) -> str:

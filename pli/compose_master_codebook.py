@@ -1,9 +1,9 @@
 """Compose the final PLI Master Codebook markdown (not a trial collage).
 
 Uses Layer 1-2 and supporting tables from the economic master codebook,
-Layer 3 Implementation/Fit + macro adjudication from the current scoring
+Layer 3 Implementation + macro adjudication from the current scoring
 revision, then NI / Glasl / Diplomacy / Information tracks.
-Omits retired Implementation Fit (0-4), trial change notes, and open items.
+Omits retired Implementation Fit (0–4), retired Macro Fit 1–10, trial change notes, and open items.
 """
 from __future__ import annotations
 
@@ -49,7 +49,6 @@ ARCHITECTURE = """## Architecture: three layers, one hierarchy
 Layer 1 — PRIMARY LEVER (exactly one)      What economic domain are you operating in?
 Layer 2 — POLICY INSTRUMENT (one primary)  What specific tool executes the action?
 Layer 3 — IMPLEMENTATION (1-10)            Can it be executed, and on what timeline?
-          FIT (1-10)                       Does it advance the declared orientation?
 
 Facets (tie-breaks & context only)         Direction, Sector, Target, Coalition, Orientation
 ```
@@ -57,7 +56,7 @@ Facets (tie-breaks & context only)         Direction, Sector, Target, Coalition,
 - Levers answer **"where in economic statecraft?"**
 - Instruments answer **"how, specifically?"**
 - Implementation answers **"can it be done, and when do effects arrive?"**
-- Fit answers **"is it the right move for the declared strategy?"**
+- Declared orientation is scored on the **National Interest** track (Source 12 primary domains + alignment class), not as a macroeconomic Fit 1–10.
 
 **Operating principle — PLI adjudicates, the SME approves.** Scores and trend lines are produced from documented rules; White Cell approve/override is the adjudication of record.
 
@@ -86,7 +85,6 @@ def main() -> None:
         trial,
         [
             "Layer 3a — Implementation score (1–10)",
-            "Layer 3b — Fit score (1–10)",
             "Section 6 — Macroeconomic adjudication",
             "Facets — tie-breaks and context only",
             "Intake and adjudication record (revised)",
@@ -97,8 +95,7 @@ def main() -> None:
     # Clean trial-only wording in retained sections
     intake = t["Intake and adjudication record (revised)"]
     intake = intake.replace(
-        "Retired fields: `ImplementationFit`, `Feasibility` (absorbed into Implementation), "
-        "`Alignment` (absorbed into Fit). `DesignScore` remains a rubric matter outside PLI. "
+        "Retired fields: `ImplementationFit`, `Feasibility` (absorbed into Implementation), Macro `Fit` 1–10 (relocated to NI `orientation_assessment`). `DesignScore` remains a rubric matter outside PLI. "
         "New field: `SMEReview` — no adjudication is final until it carries an SME approval "
         "or a documented override.",
         "`DesignScore` remains outside PLI. No adjudication is final until `SMEReview` "
@@ -107,9 +104,9 @@ def main() -> None:
 
     corpus = t["Fractured Order 1.0 Blue corpus — provisional rescoring"]
     corpus = re.sub(
-        r"^Provisional Implementation and Fit scores.*?rationale each\.\s*",
-        "Reference Implementation and Fit scores for the eleven Blue actions "
-        "(Blue orientation: Reframing).\n\n",
+        r"^Provisional Implementation scores and historical Fit labels.*?rationale each\.\s*",
+        "Reference Implementation scores and historical Fit labels for the eleven Blue actions "
+        "(Blue orientation: Reframing). Live scoring uses NI alignment classes, not Macro Fit.\n\n",
         corpus,
         count=1,
         flags=re.S,
@@ -122,13 +119,6 @@ def main() -> None:
     )
 
     macro = t["Section 6 — Macroeconomic adjudication"]
-
-    fit = t["Layer 3b — Fit score (1–10)"]
-    fit = re.sub(
-        r"\n\*\*Intake change:\*\*.*\n?",
-        "\n",
-        fit,
-    )
 
     parts: list[str] = []
     parts.append(
@@ -148,7 +138,6 @@ def main() -> None:
     parts.append(section("Layer 1 — The ten economic levers", m["Layer 1 — The ten economic levers"]))
     parts.append(section("Layer 2 — Policy instruments (by lever)", m["Layer 2 — Policy instruments (by lever)"]))
     parts.append(section("Layer 3a — Implementation score (1–10)", t["Layer 3a — Implementation score (1–10)"]))
-    parts.append(section("Layer 3b — Fit score (1–10)", fit))
     parts.append(section("Macroeconomic adjudication", macro))
     parts.append(section("Facets — tie-breaks and context only", t["Facets — tie-breaks and context only"]))
     parts.append(section("Tie-break hierarchy (lever assignment)", m["Tie-break hierarchy (lever assignment)"]))

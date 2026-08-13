@@ -328,6 +328,11 @@
     padding: var(--space-2) var(--space-3);
 }
 
+.pli-ni-domain.is-primary {
+    border-color: var(--color-navy, #1f3b6e);
+    box-shadow: inset 3px 0 0 var(--color-navy, #1f3b6e);
+}
+
 .pli-ni-domain-head {
     display: flex;
     justify-content: space-between;

@@ -4,7 +4,7 @@
   "description": "The interpretive output the Cursor agent must produce for one action. Everything downstream is deterministic table lookup in engine.py.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["classification", "precedent", "modifiers", "fit", "needs_human", "instrument_of_power", "ne_facets", "submission_month"],
+  "required": ["classification", "precedent", "modifiers", "needs_human", "instrument_of_power", "ne_facets", "submission_month"],
   "properties": {
     "submission_month": {
       "type": "string",
@@ -115,29 +115,9 @@
       "additionalProperties": {"type": "string"}
     },
     "fit": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["band", "score", "orientation", "rationale"],
-      "properties": {
-        "band": {
-          "type": "string",
-          "enum": ["9-10", "7-8", "5-6", "3-4", "1-2"]
-        },
-        "score": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10
-        },
-        "orientation": {
-          "type": "string",
-          "enum": ["pressure", "stabilization", "reframing"]
-        },
-        "rationale": {
-          "type": "string",
-          "minLength": 12,
-          "description": "Mechanism narrative tying the anchor band/score to the declared orientation (prefer 2–4 sentences, comparable to precedent.rationale)."
-        }
-      }
+      "type": ["object", "null"],
+      "description": "Retired: Fit no longer modulates the macroeconomic path. Orientation alignment is scored on the National Interest track. Legacy worksheets may still include this object; the engine ignores it.",
+      "additionalProperties": true
     }
   }
 }

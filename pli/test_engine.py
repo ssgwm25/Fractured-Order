@@ -1,8 +1,9 @@
 """Unit tests for the deterministic PLI engine (quarterly grid).
 
 Acceptance: capacity (L7) ramps across quarters after submission; coercive
-trade (L1) moves within the first 1–2 quarters; mid-Fit decays over quarters
-rather than annual cliffs. Constant annual bricks alone must not satisfy these.
+trade (L1) moves within the first 1–2 quarters; matrix duration caps transitory
+effects. Constant annual bricks alone must not satisfy these.
+Fit does not modulate the macroeconomic path.
 """
 import pytest
 
@@ -14,7 +15,6 @@ from engine import (
     compute_implementation_score,
     compute_quarter_weights,
     month_to_quarter,
-    validate_fit_score,
 )
 
 
@@ -58,18 +58,8 @@ def test_unknown_tier_rejected():
 
 
 # ---------------------------------------------------------------------------
-# Fit validation / month mapping
+# Month mapping
 # ---------------------------------------------------------------------------
-
-def test_fit_band_and_score_must_agree():
-    assert validate_fit_score("7-8", 8, "reframing")["score"] == 8
-    with pytest.raises(WorksheetError):
-        validate_fit_score("7-8", 5, "reframing")
-    with pytest.raises(WorksheetError):
-        validate_fit_score("7-8", 8, "dominance")
-
-
-def test_month_to_quarter_mapping():
     assert month_to_quarter("2026-01") == "2026Q1"
     assert month_to_quarter("2026-04") == "2026Q2"
     assert month_to_quarter("2026-07") == "2026Q3"
@@ -117,7 +107,7 @@ def test_horizon_persistence_holds_after_ramp():
 
 
 # ---------------------------------------------------------------------------
-# Worked example (L7 / Impl 6 / Fit 8 / submit 2026-01)
+# Worked example (L7 / Impl 6 / submit 2026-01)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
@@ -126,7 +116,6 @@ def worked_example():
         lever="L7",
         direction="inducement",
         implementation_score=6,
-        fit_score=8,
         submission_month="2026-01",
     )
 
@@ -186,7 +175,7 @@ def test_post_action_equals_baseline_plus_delta(worked_example):
 
 def test_l1_trade_moves_within_first_two_quarters():
     result = compute_deltas(
-        "L1", "coercive", 10, 9, submission_month="2026-04"
+        "L1", "coercive", 10, submission_month="2026-04"
     )
     trade = result["indicators"]["trade_volume_growth"]
     assert result["submission_quarter"] == "2026Q2"
@@ -201,7 +190,7 @@ def test_l1_trade_moves_within_first_two_quarters():
 
 def test_direction_flip_inverts_signs():
     result = compute_deltas(
-        "L1", "inducement", 10, 9, submission_month="2026-01"
+        "L1", "inducement", 10, submission_month="2026-01"
     )
     trade = result["indicators"]["trade_volume_growth"]
     assert trade["sign_flipped"] is True
@@ -213,42 +202,42 @@ def test_direction_flip_inverts_signs():
 # ---------------------------------------------------------------------------
 
 def test_implementation_band_1_2_produces_no_effect():
-    result = compute_deltas("L7", "inducement", 2, 8, submission_month="2026-01")
+    result = compute_deltas("L7", "inducement", 2, submission_month="2026-01")
     assert result["no_effect"] is True
     assert all(ind["deltas"] == [0.0] * 36 for ind in result["indicators"].values())
 
 
-def test_fit_band_1_2_produces_no_effect_and_flag():
-    result = compute_deltas("L1", "coercive", 9, 1, submission_month="2026-01")
-    assert result["no_effect"] is True
-    assert "strategic_incoherence" in result["flags"]
+def test_low_alignment_does_not_zero_macro_path():
+    """Retired Fit 1–2 no-effect: orientation alignment must not zero GDP paths."""
+    result = compute_deltas("L1", "coercive", 9, submission_month="2026-01")
+    assert result.get("no_effect") is not True
+    trade = result["indicators"]["trade_volume_growth"]
+    assert any(abs(d) > 0 for d in trade["deltas"])
+    assert "strategic_incoherence" not in result.get("flags", [])
 
 
-def test_mid_fit_decays_over_quarters_not_annual_cliff():
+def test_matrix_duration_caps_l7_inflation_not_annual_cliff():
     result = compute_deltas(
-        "L7", "inducement", 10, 5, submission_month="2026-01"
+        "L7", "inducement", 10, submission_month="2026-01"
     )
+    infl = result["indicators"]["pce_inflation"]
+    assert infl["duration_quarters"] == 8
+    nonzero = [d for d in infl["deltas"] if abs(d) > 1e-12]
+    assert 1 < len(nonzero) <= 8
     inv = result["indicators"]["fixed_investment_growth"]
-    # Fit 5-6: persistence 8Q after ramp; decay 8Q — multi-quarter fade
-    deltas = inv["deltas"]
-    nonzero = [d for d in deltas if abs(d) > 1e-12]
-    assert len(nonzero) > 4
-    # Find peak region then decay: last nonzero should be smaller than peak
-    peak = max(nonzero, key=abs)
-    last = nonzero[-1]
-    assert abs(last) < abs(peak)
-    # Must not be a single 2-year brick pattern of length 2
-    assert len(nonzero) != 2
+    # Horizon hold after ramp: investment remains active well past inflation cap
+    inv_nonzero = [d for d in inv["deltas"] if abs(d) > 1e-12]
+    assert len(inv_nonzero) > len(nonzero)
 
 
 def test_ne_lever_has_no_macro_effect():
-    result = compute_deltas("NE", "mixed", 5, 5, submission_month="2026-01")
+    result = compute_deltas("NE", "mixed", 5, submission_month="2026-01")
     assert result["no_effect"] is True
 
 
 def test_effect_starting_beyond_horizon_is_all_zero():
     result = compute_deltas(
-        "L7", "inducement", 6, 8, submission_month="2032-01"
+        "L7", "inducement", 6, submission_month="2032-01"
     )
     gdp = result["indicators"]["real_gdp_growth"]
     assert gdp["start_quarter"] is None
@@ -258,11 +247,11 @@ def test_effect_starting_beyond_horizon_is_all_zero():
 
 def test_invalid_submission_month_rejected():
     with pytest.raises(WorksheetError):
-        compute_deltas("L7", "inducement", 6, 8, submission_month="2035-01")
+        compute_deltas("L7", "inducement", 6, submission_month="2035-01")
 
 
 def test_exec_year_backcompat_maps_to_january():
-    result = compute_deltas("L1", "coercive", 10, 9, exec_year=2026)
+    result = compute_deltas("L1", "coercive", 10, exec_year=2026)
     assert result["submission_month"] == "2026-01"
     assert result["submission_quarter"] == "2026Q1"
 
@@ -270,7 +259,7 @@ def test_exec_year_backcompat_maps_to_january():
 def test_rejects_constant_annual_brick_as_only_dynamic():
     """Guard: profiled series must vary within the first active year for L1."""
     result = compute_deltas(
-        "L1", "coercive", 10, 9, submission_month="2026-01"
+        "L1", "coercive", 10, submission_month="2026-01"
     )
     trade = result["indicators"]["trade_volume_growth"]["deltas"][:4]
     assert len(set(round(x, 4) for x in trade)) > 1
@@ -304,9 +293,7 @@ def test_adjudicate_from_worksheet_roundtrip():
     }
     record = adjudicate_from_worksheet(worksheet)
     assert record["implementation"]["score"] == 6
-    assert record["fit"]["score"] == 8
-    assert record["fit"]["rationale"] == "Capacity-building under declared Reframing orientation"
-    assert record["fit"]["mechanism_rationale"] == record["fit"]["rationale"]
+    assert record["fit"] is None
     assert record["submission_month"] == "2026-01"
     gdp = record["trend"]["indicators"]["real_gdp_growth"]
     assert gdp["start_quarter"] == "2029Q1"
@@ -437,7 +424,7 @@ def test_per_move_is_order_independent():
 
 def test_onset_beyond_horizon_flagged():
     result = compute_deltas(
-        "L7", "inducement", 6, 8, submission_month="2034-10"
+        "L7", "inducement", 6, submission_month="2034-10"
     )
     assert "onset_beyond_horizon" in result["flags"]
     assert all(d == 0.0 for d in result["indicators"]["real_gdp_growth"]["deltas"])
@@ -445,8 +432,8 @@ def test_onset_beyond_horizon_flagged():
 
 def test_stack_from_adjudication_records():
     from engine import stack_from_adjudication_records
-    a = compute_deltas("L1", "coercive", 10, 9, submission_month="2027-01")
-    b = compute_deltas("L1", "coercive", 10, 9, submission_month="2027-06")
+    a = compute_deltas("L1", "coercive", 10, submission_month="2027-01")
+    b = compute_deltas("L1", "coercive", 10, submission_month="2027-06")
     rows = [
         {"action_id": "a1", "record": {"move": 1, "adjudication": {"trend": a}}},
         {"action_id": "a2", "record": {"move": 1, "adjudication": {"trend": b}}},

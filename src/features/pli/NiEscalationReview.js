@@ -94,6 +94,19 @@ export function summarizeNiPath(domains, ni = {}) {
     return parts.length ? parts.join(' · ') : 'No domain deltas.';
 }
 
+export function headlineNiNet(domains, ni = {}) {
+    if (ni.orientation_net != null && Number.isFinite(Number(ni.orientation_net))) {
+        return Number(ni.orientation_net);
+    }
+    return sumNiDeltas(domains);
+}
+
+export function primaryDomainSet(ni = {}) {
+    const listed = ni.orientation_assessment?.primary_domains || ni.primary_domains;
+    if (Array.isArray(listed) && listed.length) return new Set(listed);
+    return new Set();
+}
+
 /** Outputs-column NI block: numbered net + path narrative + 1–6 bar (mirrors Glasl). */
 export function renderOverallNiScore(domains, ni = {}) {
     if (ni.needs_human || ni.status === 'needs_human') {
@@ -104,7 +117,7 @@ export function renderOverallNiScore(domains, ni = {}) {
             </div>
         `;
     }
-    const net = sumNiDeltas(domains);
+    const net = headlineNiNet(domains, ni);
     if (net == null) {
         return `
             <div class="pli-block pli-ni-overall">
@@ -115,6 +128,11 @@ export function renderOverallNiScore(domains, ni = {}) {
     }
     const netTone = net > 0 ? 'is-positive' : (net < 0 ? 'is-negative' : 'is-zero');
     const path = summarizeNiPath(domains, ni);
+    const assessment = ni.orientation_assessment || {};
+    const hasPrior = Array.isArray(assessment.primary_domains) && assessment.primary_domains.length;
+    const netLabel = hasPrior
+        ? '(orientation_net · Source 12 primaries)'
+        : '(Σ NI-1…NI-6 · legacy)';
     const chips = Object.keys(NI_DOMAIN_LABELS).map((key, index) => {
         const domainNum = String(index + 1);
         const delta = niDomainDelta(domains[key]);
@@ -132,8 +150,11 @@ export function renderOverallNiScore(domains, ni = {}) {
             <div class="pli-label">NI score</div>
             <p class="text-sm pli-ni-overall-net ${netTone}">
                 Net <strong>${escapeHtml(formatSigned(net))}</strong>
-                <span class="pli-ni-overall-delta">(Σ NI-1…NI-6)</span>
+                <span class="pli-ni-overall-delta">${escapeHtml(netLabel)}</span>
             </p>
+            ${assessment.alignment ? `<p class="text-sm">Alignment <strong>${escapeHtml(assessment.alignment)}</strong>
+                ${ni.orientation ? ` · ${escapeHtml(String(ni.orientation))}` : ''}
+                ${assessment.effect_horizon ? ` · horizon ${escapeHtml(assessment.effect_horizon)}` : ''}</p>` : ''}
             <p class="text-sm pli-ni-overall-narrative">${escapeHtml(path)}</p>
             <div class="pli-ni-score-bar" aria-label="National Interest domains 1 through 6" aria-hidden="true">
                 ${chips}
@@ -265,6 +286,7 @@ export function createNiEscalationReview(options = {}) {
                 ${sourceActionColumn(action, row, record)}
                 <section class="pli-col pli-col-chain">
                     <h3 class="pli-col-title">Panel A — National Interest</h3>
+                    ${renderOrientationBanner(ni)}
                     <div class="pli-ni-grid">
                         ${renderNiDomains(domains, ni)}
                     </div>
@@ -333,8 +355,35 @@ export function createNiEscalationReview(options = {}) {
         return card;
     }
 
+    function renderOrientationBanner(ni) {
+        const assessment = ni.orientation_assessment || {};
+        if (!ni.orientation && !assessment.alignment && ni.orientation_net == null) {
+            return `
+                <div class="pli-notice pli-notice-gold" style="margin-bottom: var(--space-2);">
+                    Legacy record — orientation not scored under current grammar (Source 12).
+                </div>`;
+        }
+        const primaries = Array.isArray(assessment.primary_domains)
+            ? assessment.primary_domains.join(', ')
+            : '—';
+        const net = ni.orientation_net;
+        return `
+            <div class="pli-block" style="margin-bottom: var(--space-2);">
+                <div class="pli-label">Orientation assessment (Source 12)</div>
+                <p class="text-sm">
+                    <strong>${escapeHtml(String(ni.orientation || '—'))}</strong>
+                    ${assessment.alignment ? ` · alignment <strong>${escapeHtml(assessment.alignment)}</strong>` : ''}
+                    ${assessment.effect_horizon ? ` · horizon ${escapeHtml(assessment.effect_horizon)}` : ''}
+                    ${net != null ? ` · orientation_net ${escapeHtml(formatSigned(Number(net)))}` : ''}
+                </p>
+                <p class="text-sm text-gray-600">Primary domains: ${escapeHtml(primaries)}</p>
+                ${assessment.rationale ? `<p class="pli-cite text-sm">${escapeHtml(assessment.rationale)}</p>` : ''}
+            </div>`;
+    }
+
     function renderNiDomains(domains, ni) {
         const keys = Object.keys(NI_DOMAIN_LABELS);
+        const primaries = primaryDomainSet(ni);
         if (!keys.some((k) => domains[k])) {
             return `<p class="text-sm text-gray-500">${escapeHtml(ni.needs_human_reason || 'No NI domain deltas on record yet.')}</p>`;
         }
@@ -342,10 +391,11 @@ export function createNiEscalationReview(options = {}) {
             const entry = domains[key] || {};
             const delta = entry.delta ?? entry;
             const rationale = typeof entry === 'object' ? (entry.rationale || '') : '';
+            const isPrimary = primaries.has(key);
             return `
-                <div class="pli-ni-domain">
+                <div class="pli-ni-domain${isPrimary ? ' is-primary' : ''}">
                     <div class="pli-ni-domain-head">
-                        <strong>${escapeHtml(key)}</strong>
+                        <strong>${escapeHtml(key)}${isPrimary ? ' · primary' : ''}</strong>
                         <span class="pli-ni-delta">${escapeHtml(String(delta))}</span>
                     </div>
                     <div class="text-sm text-gray-600">${escapeHtml(NI_DOMAIN_LABELS[key])}</div>

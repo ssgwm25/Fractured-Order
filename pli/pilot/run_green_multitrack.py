@@ -18,6 +18,7 @@ from adjudicate_router import (  # noqa: E402
     SESSION_STATE_PATH,
     adjudicate_multitrack,
 )
+from tracks.ni_engine import prior_domains, prior_horizon  # noqa: E402
 from reports.generate_action_report import write_action_report  # noqa: E402
 from reports.generate_green_desktop_pdf import write_green_desktop_pdf  # noqa: E402
 from reports.trace_narrative import move_rollups  # noqa: E402
@@ -137,8 +138,26 @@ def _ni_worksheet(entry: dict) -> dict:
             "will": "Demonstrated willingness to contest Green alignment choices.",
             "vulnerability": "Domestic and allied audiences remain sensitive to escalation costs.",
         }
+    orientation = entry["orientation"]
+    primary = prior_domains(orientation)
+    primary_vals = [int((deltas.get(d) or {}).get("delta") or 0) for d in primary]
+    if any(v >= 1 for v in primary_vals):
+        alignment = "advances"
+    elif any(v <= -1 for v in primary_vals):
+        alignment = "contradicts"
+    else:
+        alignment = "mixed"
     return {
-        "orientation": entry["orientation"],
+        "orientation": orientation,
+        "orientation_assessment": {
+            "alignment": alignment,
+            "primary_domains": primary,
+            "effect_horizon": prior_horizon(orientation),
+            "rationale": (
+                f"Source 12 prior for {orientation}: primary domains "
+                f"{', '.join(primary)} assessed against this filing."
+            ),
+        },
         "needs_human": False,
         "domain_deltas": deltas,
         "threat_cross_check": threat,

@@ -217,6 +217,7 @@ def adjudicate_multitrack(
     ni_record = validate_ni_worksheet(
         ni_worksheet,
         glasl_stage_after=glasl_record.get("stage_after"),
+        declared_orientation=orientation,
     )
     tracks_out["national_interest"] = ni_record
 

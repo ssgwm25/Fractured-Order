@@ -161,13 +161,13 @@ The four sources below anchor the lever × indicator directionality matrix (whic
 
 ## Quarterly adjudication grid and month anchors
 
-**Codebook version:** `trial-2026-07-13-quarterly`.
+**Codebook version:** `trial-2026-08-13-quarterly`.
 
 PLI adjudicates on a **quarterly grid** (`2026Q1` … `2034Q4`), not annual bricks. FO 2.0 worksheets carry a required `submission_month` (`YYYY-MM`); the engine maps month → calendar quarter and measures onset, Implementation delay, ramp-in, plateau, and decay in quarters:
 
 `start_quarter = submission_quarter + onset_quarters + impl_delay_quarters`
 
-`delta[q] = sign × magnitude × weight(q)` with `weight ∈ [0,1]` from ramp → plateau → decay (bib-cited profile fields on each lever×indicator cell).
+`delta[q] = sign × magnitude × weight(q)` with `weight ∈ [0,1]` from ramp → plateau → decay (bib-cited profile fields on each lever×indicator cell). Persistence is **matrix-native** (horizon hold after ramp, or `duration_quarters` when the cell is transitory). Implementation modulates magnitude and onset delay only (Source 9 completeness). Fit / strategic orientation does **not** enter the path.
 
 | Timing behavior | Bib anchor | How it enters PLI |
 |---|---|---|
@@ -228,7 +228,7 @@ Primary anchor: IMF Article IV (Source 1). Convergence tail checked against Fed 
 
 **Reliability:** Game-agnostic research layer grounded in the public NSS corpus and National War College tier grammar; matrix provides era-by-era citation rows for SME traceability.
 
-**Use in PLI:** Authoritative domain definitions and orientation priors for the NI adjudication engine.
+**Use in PLI:** Authoritative domain definitions and **engine-enforced** orientation priors: primary-domain scoring, alignment class (`advances` / `mixed` / `contradicts`), effect-horizon echo, and headline `orientation_net`. Macro Fit 1–10 does not modulate GDP paths.
 
 ---
 
