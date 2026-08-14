@@ -79,6 +79,19 @@ export function getWhiteCellCommunicationUpdateKind(communication = {}) {
     return metadata.content_kind || null;
 }
 
+export function isActionNotificationCommunication(communication = {}) {
+    const type = String(communication?.type || '').trim().toUpperCase();
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? communication.metadata
+        : {};
+
+    if (type === 'ACTION_NOTIFICATION') {
+        return true;
+    }
+
+    return type === 'GUIDANCE' && Boolean(metadata.shared_action_id);
+}
+
 export function isWhiteCellSectionUpdate(communication = {}, kind = null) {
     return isWhiteCellSenderRole(communication?.from_role)
         && Boolean(kind)

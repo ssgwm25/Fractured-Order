@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 
 import {
     buildWhiteCellRecipientMetadata,
@@ -6,7 +6,8 @@ import {
     isWhiteCellCommunicationVisibleToLead,
     isWhiteCellCommunicationVisibleToScribe,
     isWhiteCellTimelineEventVisibleToLead,
-    isWhiteCellTimelineEventVisibleToNotetaker
+    isWhiteCellTimelineEventVisibleToNotetaker,
+    isActionNotificationCommunication
 } from './targeting.js';
 
 const BLUE_TEAM_CONTEXT = {
@@ -113,5 +114,44 @@ describe('white cell targeting helpers', () => {
         expect(isWhiteCellTimelineEventVisibleToNotetaker(notetakerVisibleEvent, BLUE_TEAM_CONTEXT)).toBe(true);
         expect(isWhiteCellTimelineEventVisibleToNotetaker(leadVisibleEvent, BLUE_TEAM_CONTEXT)).toBe(false);
         expect(isWhiteCellTimelineEventVisibleToNotetaker(hiddenEvent, BLUE_TEAM_CONTEXT)).toBe(false);
+    });
+});
+
+describe('isActionNotificationCommunication', () => {
+    it('returns true for ACTION_NOTIFICATION communications', () => {
+        expect(isActionNotificationCommunication({
+            type: 'ACTION_NOTIFICATION',
+            metadata: { shared_action_id: 'action-1', source_team: 'blue' }
+        })).toBe(true);
+    });
+
+    it('returns true for GUIDANCE communications carrying a shared_action_id', () => {
+        expect(isActionNotificationCommunication({
+            type: 'GUIDANCE',
+            metadata: { shared_action_id: 'action-2', source_team: 'blue' }
+        })).toBe(true);
+    });
+
+    it('returns false for plain GUIDANCE communications without a shared_action_id', () => {
+        expect(isActionNotificationCommunication({
+            type: 'GUIDANCE',
+            metadata: { content_kind: 'TRIBE_STREET_JOURNAL' }
+        })).toBe(false);
+    });
+
+    it('returns false for other communication types', () => {
+        expect(isActionNotificationCommunication({
+            type: 'PROPOSAL_FORWARDED',
+            metadata: { shared_action_id: 'action-3' }
+        })).toBe(false);
+        expect(isActionNotificationCommunication({
+            type: 'DIRECT',
+            metadata: {}
+        })).toBe(false);
+    });
+
+    it('handles missing metadata without throwing', () => {
+        expect(isActionNotificationCommunication({})).toBe(false);
+        expect(isActionNotificationCommunication(undefined)).toBe(false);
     });
 });
