@@ -3479,6 +3479,11 @@ describe('White Cell DOM contract', () => {
                 actor_role: 'whitecell_lead'
             })
         }));
+        expect(createCommunication.mock.calls[0][0].title).toBe('Blue Team Action Notification');
+        expect(createCommunication.mock.calls[0][0].metadata.action_snapshot).toMatchObject({
+            title: 'Stabilize port access',
+            objective: 'Stabilize port access'
+        });
         expect(createCommunication.mock.calls[0][0].content).toContain('Blue Team action shared by White Cell');
         expect(createCommunication.mock.calls[0][0].content).toContain('Title: Stabilize port access');
         expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'comm-1' }));
