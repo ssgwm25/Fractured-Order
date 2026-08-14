@@ -1441,6 +1441,84 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(sectionButtonMarkup(sectionList.innerHTML, 'Proposals')).toContain('aria-label="Proposals, 1 proposal"');
     });
 
+    it('builds action notification slides from ACTION_NOTIFICATION and enriched Red-share GUIDANCE communications', async () => {
+        const { buildFacilitatorActionNotificationSlides } = await loadScribeModule();
+        const teamContext = {
+            teamId: 'industry',
+            scribeRole: 'industry_scribe'
+        };
+        const greenIndustryNotification = {
+            id: 'notif-1',
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'white_cell',
+            to_role: 'industry',
+            created_at: '2026-08-14T09:00:00.000Z',
+            content: 'Blue is adjusting export controls on rare-earth materials.',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'industry',
+                source_team: 'blue',
+                shared_action_id: 'action-1',
+                action_snapshot: { title: 'Rare-earth export controls', objective: 'Limit outbound rare-earth shipments.' }
+            }
+        };
+        const otherTeamNotification = {
+            id: 'notif-2',
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'white_cell',
+            to_role: 'green',
+            created_at: '2026-08-14T09:05:00.000Z',
+            content: 'Not for Industry.',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'green',
+                source_team: 'blue',
+                shared_action_id: 'action-2',
+                action_snapshot: { title: 'Other action' }
+            }
+        };
+
+        const slides = buildFacilitatorActionNotificationSlides(
+            [greenIndustryNotification, otherTeamNotification],
+            { teamContext }
+        );
+        const emptySlides = buildFacilitatorActionNotificationSlides([], { teamContext });
+
+        expect(slides.slideCount).toBe(1);
+        expect(slides.slides[0]).toMatchObject({
+            slideKey: 'action-notification-notif-1',
+            slideType: 'action-notification',
+            title: 'Rare-earth export controls'
+        });
+        expect(slides.slides[0].sidebarKicker).toContain('Blue Team');
+        expect(emptySlides).toMatchObject({
+            slideCount: 0,
+            slides: [{ slideKey: 'action-notifications-placeholder', slideType: 'action-notification-placeholder' }]
+        });
+    });
+
+    it('excludes action notifications from the direct Communications thread', async () => {
+        const { isFacilitatorDirectCommunication } = await loadScribeModule();
+        const teamContext = {
+            teamId: 'industry',
+            scribeRole: 'industry_scribe'
+        };
+        const notification = {
+            id: 'notif-3',
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'white_cell',
+            to_role: 'industry',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'industry',
+                shared_action_id: 'action-3',
+                source_team: 'blue'
+            }
+        };
+
+        expect(isFacilitatorDirectCommunication(notification, teamContext)).toBe(false);
+    });
+
     it('scopes RFI navigation and the communication summary to their selected workspaces', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();

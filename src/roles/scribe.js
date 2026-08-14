@@ -19,7 +19,10 @@ import {
     isDraftAction,
     isSubmittedAction
 } from '../core/enums.js';
-import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
+import {
+    isActionNotificationCommunication,
+    isWhiteCellCommunicationVisibleToScribe
+} from '../features/communications/targeting.js';
 import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 import { createArtifactLifecycleBadge, createBadge } from '../components/ui/Badge.js';
 import {
@@ -95,22 +98,26 @@ const ACTIONS_SECTION_ID = 'actions';
 const PROPOSALS_SECTION_ID = 'proposals';
 const RFIS_SECTION_ID = 'rfis';
 const COMMUNICATIONS_SECTION_ID = 'direct-communications';
+const NOTIFICATIONS_SECTION_ID = 'action-notifications';
 const LIVE_SECTION_IDS = Object.freeze([
     ACTIONS_SECTION_ID,
     PROPOSALS_SECTION_ID,
     RFIS_SECTION_ID,
-    COMMUNICATIONS_SECTION_ID
+    COMMUNICATIONS_SECTION_ID,
+    NOTIFICATIONS_SECTION_ID
 ]);
-const FACILITATOR_VIEW_IDS = Object.freeze(['actions', 'deck', 'rfis', 'communications']);
+const FACILITATOR_VIEW_IDS = Object.freeze(['actions', 'deck', 'rfis', 'communications', 'notifications']);
 const FACILITATOR_VIEW_BUTTON_IDS = Object.freeze({
     actions: 'teamActionReviewViewBtn',
     deck: 'deckViewBtn',
     rfis: 'rfiViewBtn',
-    communications: 'communicationsViewBtn'
+    communications: 'communicationsViewBtn',
+    notifications: 'notificationsViewBtn'
 });
 
 function getFacilitatorViewForSectionId(sectionId = '') {
     if (sectionId === RFIS_SECTION_ID) return 'rfis';
+    if (sectionId === NOTIFICATIONS_SECTION_ID) return 'notifications';
     if (sectionId === COMMUNICATIONS_SECTION_ID) return 'communications';
     if (sectionId === ACTIONS_SECTION_ID || sectionId === PROPOSALS_SECTION_ID) return 'actions';
     return 'deck';
@@ -638,6 +645,10 @@ export function isFacilitatorDirectCommunication(communication = {}, teamContext
         return false;
     }
 
+    if (isActionNotificationCommunication(communication)) {
+        return false;
+    }
+
     const isOutbound = communication?.from_role === teamContext.scribeRole
         && String(communication?.to_role || '').trim().toLowerCase() === 'white_cell';
     const isInbound = isWhiteCellRole(communication?.from_role)
@@ -693,6 +704,79 @@ function buildCommunicationSection(communications = [], { teamContext = resolveT
         description: 'Session-scoped direct text history between this Facilitator and White Cell.',
         slideCount: communicationSlides.slideCount,
         slides: communicationSlides.slides
+    };
+}
+
+function getActionNotificationSnapshot(communication = {}) {
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? communication.metadata
+        : {};
+    const snapshot = metadata.action_snapshot && typeof metadata.action_snapshot === 'object'
+        ? metadata.action_snapshot
+        : {};
+
+    return {
+        metadata,
+        snapshot,
+        title: snapshot.title || communication.title || 'Untitled action',
+        sourceTeam: metadata.source_team || 'unknown'
+    };
+}
+
+export function buildFacilitatorActionNotificationSlides(communications = [], {
+    teamContext = resolveTeamContext()
+} = {}) {
+    const notifications = [...(communications || [])]
+        .filter((communication) => (
+            isActionNotificationCommunication(communication)
+            && isWhiteCellCommunicationVisibleToScribe(communication, teamContext)
+        ))
+        .sort((left, right) => (
+            normalizeRecordTimestamp(right) - normalizeRecordTimestamp(left)
+            || String(left?.id || '').localeCompare(String(right?.id || ''))
+        ));
+
+    if (!notifications.length) {
+        return {
+            slideCount: 0,
+            slides: [{
+                slideKey: 'action-notifications-placeholder',
+                slideType: 'action-notification-placeholder',
+                title: 'No action notifications yet',
+                sidebarOrdinal: '0',
+                sidebarKicker: 'Nothing shared yet',
+                summary: 'Informational updates about another team’s action, shared for awareness, will appear here.'
+            }]
+        };
+    }
+
+    return {
+        slideCount: notifications.length,
+        slides: notifications.map((communication, index) => {
+            const snapshot = getActionNotificationSnapshot(communication);
+            return {
+                slideKey: `action-notification-${communication.id}`,
+                slideType: 'action-notification',
+                communication,
+                title: snapshot.title,
+                sidebarOrdinal: String(index + 1),
+                sidebarKicker: `${formatTeamLabel(snapshot.sourceTeam)} | Informational`
+            };
+        })
+    };
+}
+
+function buildActionNotificationSection(communications = [], {
+    teamContext = resolveTeamContext()
+} = {}) {
+    const notificationSlides = buildFacilitatorActionNotificationSlides(communications, { teamContext });
+
+    return {
+        id: NOTIFICATIONS_SECTION_ID,
+        label: 'Notifications',
+        description: 'Informational updates about another team’s action, shared for awareness. No response needed.',
+        slideCount: notificationSlides.slideCount,
+        slides: notificationSlides.slides
     };
 }
 
