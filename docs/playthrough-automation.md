@@ -27,7 +27,20 @@ playthrough. It covers:
   every populated action-detail field in the review modal, concurrent on the
   hosted real backend
 - stable Facilitator finalization controls during unchanged live-data refreshes,
-  preserving in-progress Coordinated and Informed/Engaged choices
+  preserving in-progress and returned-revision Coordinated and Informed/Engaged choices across changed and unchanged action snapshots
+- actor write and handoff helpers restore and verify their required workspace
+  before opening a form or forwarded artifact, so an earlier Responses,
+  Requests, Communications, or deck view cannot hide a valid control or record
+  and consume the playthrough timeout
+- inbound communication and RFI lifecycle events update durable alerts, counts,
+  and history without moving a Facilitator away from another workspace; only
+  the corresponding already-active workspace advances to the newly arrived
+  message or updated RFI
+- repeated proposal handoffs wait for the current confirmation modal to close
+  and then reopen that proposal through Team Action Review to verify its
+  persisted `Submitted to White Cell` lifecycle state; a success toast retained
+  from an earlier proposal or an asynchronous workspace switch is not
+  completion evidence
 - distinct proposal entry contracts: Green requires Proposal Title, Originator,
   and Objective, while Industry requires Proposal Title, Industry of Focus,
   Country of Focus, and Proposed Activity
@@ -232,7 +245,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=(git rev-parse HEAD).Trim()
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-13_action_notification_delivery"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-13_action_notification_type_contract"
 npm run test:e2e:playthrough
 ```
 
@@ -332,7 +345,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=$candidateCommit
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-13_action_notification_delivery"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-13_action_notification_type_contract"
 npm run test:e2e:rehearsal
 ```
 

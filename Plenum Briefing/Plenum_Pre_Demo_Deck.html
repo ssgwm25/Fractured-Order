@@ -1657,6 +1657,251 @@
       line-height: 1.55;
     }
 
+
+
+    /* ===== Role-to-role information flow network ===== */
+    .info-flow-slide .content {
+      max-width: 1280px;
+    }
+
+    .info-flow-slide h2 {
+      max-width: 24ch;
+      margin-bottom: clamp(12px, 2vh, 20px);
+    }
+
+    .info-flow-slide .graph-wrap {
+      margin-top: 0;
+    }
+
+    .info-flow-slide .graph-controls {
+      gap: clamp(12px, 2.2vw, 30px);
+      margin-bottom: clamp(8px, 1.4vh, 14px);
+    }
+
+    .info-flow-slide .graph-controls button {
+      position: relative;
+      padding-left: 14px;
+    }
+
+    .info-flow-slide .graph-controls button::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      transform: translateY(-60%);
+      background: var(--flow-color, var(--accent));
+      opacity: .72;
+    }
+
+    .info-flow-slide .graph-controls button[data-mode="all"] { --flow-color: var(--ink); }
+    .info-flow-slide .graph-controls button[data-mode="orientation"] { --flow-color: var(--accent); }
+    .info-flow-slide .graph-controls button[data-mode="action"] { --flow-color: var(--t-blue); }
+    .info-flow-slide .graph-controls button[data-mode="proposal"] { --flow-color: var(--t-industry); }
+    .info-flow-slide .graph-controls button[data-mode="rfi"] { --flow-color: var(--t-green); }
+    .info-flow-slide .graph-controls button[data-mode="evidence"] { --flow-color: var(--slate); }
+
+    .info-flow-key {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: clamp(6px, 1vh, 10px);
+      color: var(--muted);
+      font-size: clamp(.67rem, .82vw, .76rem);
+      line-height: 1.35;
+    }
+
+    .info-flow-caption {
+      color: var(--slate);
+      font-weight: 600;
+    }
+
+    .info-flow-hint {
+      text-align: right;
+    }
+
+    .information-network {
+      width: 100%;
+      height: auto;
+      max-height: clamp(360px, 52vh, 500px);
+      display: block;
+      overflow: visible;
+    }
+
+    .information-network .lane-label {
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      fill: var(--muted);
+    }
+
+    .information-network .lane-rule {
+      stroke: var(--hair);
+      stroke-width: 1;
+    }
+
+    .information-network .info-node rect {
+      fill: rgba(255, 254, 251, .98);
+      stroke: var(--hair-strong);
+      stroke-width: 1.2;
+      rx: 12;
+      transition: opacity .24s ease, stroke .24s ease, stroke-width .24s ease;
+    }
+
+    .information-network .info-node.white-cell rect {
+      fill: var(--graphite-deep);
+      stroke: var(--graphite-deep);
+    }
+
+    .information-network .info-node.record rect {
+      fill: var(--accent-soft);
+      stroke: rgba(27, 54, 93, .35);
+      stroke-dasharray: 5 4;
+    }
+
+    .information-network .node-role {
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      fill: var(--accent);
+    }
+
+    .information-network .white-cell .node-role {
+      fill: var(--accent-bright);
+    }
+
+    .information-network .node-title {
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 600;
+      fill: var(--ink);
+    }
+
+    .information-network .white-cell .node-title {
+      fill: #fffefb;
+    }
+
+    .information-network .node-copy {
+      font-family: var(--sans);
+      font-size: 10.5px;
+      fill: var(--muted);
+    }
+
+    .information-network .white-cell .node-copy {
+      fill: rgba(255, 255, 255, .72);
+    }
+
+    .information-network .team-chip-svg circle {
+      fill: var(--chip-color);
+      stroke: rgba(255,255,255,.9);
+      stroke-width: 1;
+    }
+
+    .information-network .team-chip-svg text {
+      font-family: var(--sans);
+      font-size: 8.5px;
+      font-weight: 700;
+      fill: #fff;
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    .information-network .team-chip-row {
+      opacity: .98;
+    }
+
+    .information-network .team-chip-rule {
+      stroke: var(--hair);
+      stroke-width: .8;
+    }
+
+    .information-network .info-edge {
+      opacity: .70;
+      transition: opacity .24s ease;
+    }
+
+    .information-network .info-edge path {
+      fill: none;
+      stroke: var(--edge-color);
+      stroke-width: 1.75;
+      marker-end: url(#arrow-neutral);
+    }
+
+    .information-network .edge-orientation { --edge-color: var(--accent); }
+    .information-network .edge-action { --edge-color: var(--t-blue); }
+    .information-network .edge-proposal { --edge-color: var(--t-industry); }
+    .information-network .edge-rfi { --edge-color: var(--t-green); }
+    .information-network .edge-evidence { --edge-color: var(--slate); }
+
+    .information-network .edge-evidence path {
+      stroke-dasharray: 5 5;
+    }
+
+    .information-network .edge-label rect {
+      fill: rgba(255, 254, 251, .96);
+      stroke: var(--hair);
+      stroke-width: .7;
+      rx: 7;
+    }
+
+    .information-network .edge-label text {
+      font-family: var(--sans);
+      font-size: 9px;
+      font-weight: 650;
+      fill: var(--ink);
+      text-anchor: middle;
+    }
+
+    .information-network .edge-label .edge-meta {
+      font-size: 8px;
+      font-weight: 600;
+      fill: var(--muted);
+    }
+
+    .graph-wrap[data-mode="orientation"] .info-edge:not(.edge-orientation),
+    .graph-wrap[data-mode="action"] .info-edge:not(.edge-action),
+    .graph-wrap[data-mode="proposal"] .info-edge:not(.edge-proposal),
+    .graph-wrap[data-mode="rfi"] .info-edge:not(.edge-rfi),
+    .graph-wrap[data-mode="evidence"] .info-edge:not(.edge-evidence) {
+      opacity: .055;
+    }
+
+    .graph-wrap[data-mode="orientation"] .edge-orientation,
+    .graph-wrap[data-mode="action"] .edge-action,
+    .graph-wrap[data-mode="proposal"] .edge-proposal,
+    .graph-wrap[data-mode="rfi"] .edge-rfi,
+    .graph-wrap[data-mode="evidence"] .edge-evidence {
+      opacity: 1;
+    }
+
+    .graph-wrap:not([data-mode="all"]) .info-edge:not(.edge-orientation):not(.edge-action):not(.edge-proposal):not(.edge-rfi):not(.edge-evidence) {
+      opacity: .055;
+    }
+
+    .graph-wrap[data-mode="all"] .edge-label {
+      opacity: .88;
+    }
+
+    @media (max-width: 760px) {
+      .info-flow-key {
+        display: block;
+      }
+      .info-flow-hint {
+        margin-top: 4px;
+        text-align: left;
+      }
+      .information-network {
+        max-height: none;
+      }
+    }
+
     .footer {
       display: none !important;
     }
@@ -2053,7 +2298,64 @@
         grid-template-columns: 1fr;
       }
     }
-  </style>
+  
+    /* compact information-flow refinement */
+    .compact-flow .content { max-width: 1220px; }
+    .compact-flow h2 { margin-bottom: 8px; }
+    .compact-flow .flow-note {
+      max-width: 70ch;
+      margin: 0 0 clamp(10px, 1.6vh, 16px);
+      color: var(--slate);
+      font-size: clamp(.82rem, 1.05vw, .96rem);
+      line-height: 1.45;
+    }
+    .compact-flow .information-network {
+      max-height: clamp(330px, 48vh, 430px);
+    }
+    .compact-flow .hub-ring {
+      fill: none;
+      stroke: rgba(27,54,93,.10);
+      stroke-width: 1;
+      stroke-dasharray: 3 6;
+    }
+    .compact-flow .information-network .info-node rect {
+      fill: rgba(255,254,251,.94);
+      stroke: var(--hair-strong);
+      stroke-width: 1;
+      rx: 10;
+      filter: none;
+    }
+    .compact-flow .information-network .info-node.white-cell rect {
+      fill: var(--graphite-deep);
+      stroke: var(--graphite-deep);
+      stroke-width: 1.4;
+    }
+    .compact-flow .information-network .info-node.record rect {
+      fill: rgba(27,54,93,.055);
+      stroke: rgba(27,54,93,.28);
+      stroke-dasharray: 4 4;
+    }
+    .compact-flow .information-network .node-role {
+      font-size: 9px;
+      letter-spacing: .12em;
+    }
+    .compact-flow .information-network .node-title { font-size: 17px; }
+    .compact-flow .information-network .node-copy { font-size: 10px; }
+    .compact-flow .information-network .info-edge { opacity: .76; }
+    .compact-flow .information-network .info-edge path { stroke-width: 1.45; }
+    .compact-flow .information-network .edge-evidence path { stroke-dasharray: 4 5; }
+    .compact-flow .information-network .compact-label rect {
+      fill: rgba(246,244,238,.98);
+      stroke: none;
+      rx: 8;
+    }
+    .compact-flow .information-network .compact-label text {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      fill: var(--muted);
+    }
+</style>
 </head>
 
 <body>
@@ -2268,115 +2570,123 @@
       </div>
     </section>
 
-    <!-- 7 · Role-accurate information flow -->
-    <section class="slide">
+    <!-- 7 · Orientation information flow -->
+    <section class="slide info-flow-slide compact-flow">
       <div class="content">
-        <p class="eyebrow">The flow of information</p>
-        <h2>How work moves through Plenum.</h2>
-        <div class="graph-wrap" id="graphWrap">
-          <div class="graph-controls" id="graphControls" role="tablist" aria-label="Choose an information workflow">
-            <button id="flow-tab-orientation" data-mode="orientation" class="active" type="button" role="tab"
-              aria-selected="true" aria-controls="flow-orientation" tabindex="0">01 &middot; Strategic Orientations</button>
-            <button id="flow-tab-action" data-mode="action" type="button" role="tab" aria-selected="false"
-              aria-controls="flow-action" tabindex="-1">02 &middot; Actions</button>
-            <button id="flow-tab-proposal" data-mode="proposal" type="button" role="tab" aria-selected="false"
-              aria-controls="flow-proposal" tabindex="-1">03 &middot; Proposals</button>
-            <button id="flow-tab-rfi" data-mode="rfi" type="button" role="tab" aria-selected="false"
-              aria-controls="flow-rfi" tabindex="-1">04 &middot; RFIs</button>
-          </div>
+        <p class="eyebrow">Information flow graph</p>
+        <h2>Orientations</h2>
+        <p class="flow-note">Every team records an orientation. The Facilitator finalizes it; White Cell clears the gate and preserves the record.</p>
+        <div class="graph-wrap" data-mode="orientation">
+          <svg class="information-network" viewBox="0 0 1180 410" role="img" aria-label="Orientation information flow centered on White Cell.">
+            <defs><marker id="arr-o2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--slate)"/></marker></defs>
+            <circle class="hub-ring" cx="590" cy="205" r="82"></circle>
 
-          <div class="workflow-stage">
-            <div class="workflow-panel" id="flow-orientation" data-flow-panel="orientation" role="tabpanel"
-              aria-labelledby="flow-tab-orientation">
-              <div class="workflow-source" aria-label="Team Scribes record Strategic Orientations">
-                <span class="workflow-role">Team Scribes</span>
-                <div class="team-chip blue"><span class="chip-mark">B</span><span><strong>Blue</strong><small>Selects its orientation</small></span></div>
-                <div class="team-chip green"><span class="chip-mark">G</span><span><strong>Green</strong><small>Forecasts all other teams</small></span></div>
-                <div class="team-chip red"><span class="chip-mark">R</span><span><strong>Red</strong><small>Forecasts all other teams</small></span></div>
-                <div class="team-chip industry"><span class="chip-mark">I</span><span><strong>Industry</strong><small>Forecasts all other teams</small></span></div>
-              </div>
-              <div class="workflow-arrow"><span>Record rationale</span></div>
-              <article class="workflow-node facilitator">
-                <span class="workflow-role">Same-team Facilitator</span>
-                <h3>Review and submit</h3>
-                <p>Projects the selection or forecast, resolves edits with the team, and submits the finalized record.</p>
-              </article>
-              <div class="workflow-arrow"><span>Submit</span></div>
-              <article class="workflow-node white-cell">
-                <span class="workflow-role">White Cell</span>
-                <h3>Clear the orientation gate</h3>
-                <p>Reviews the submitted orientation set and forecasts before play advances.</p>
-              </article>
-            </div>
+            <g class="info-node scribe team-node" transform="translate(90 66)"><rect width="190" height="96"></rect><text class="node-role" x="15" y="20">Authoring role</text><text class="node-title" x="15" y="43">Team Scribe</text><text class="node-copy" x="15" y="59">Orientation + rationale</text><g class="team-chip-row"><line class="team-chip-rule" x1="15" y1="68" x2="175" y2="68"></line><g class="team-chip-svg" style="--chip-color: var(--t-blue)" transform="translate(54.5 80)"><circle r="9"></circle><text y=".5">B</text></g><g class="team-chip-svg" style="--chip-color: var(--t-green)" transform="translate(81.5 80)"><circle r="9"></circle><text y=".5">G</text></g><g class="team-chip-svg" style="--chip-color: var(--t-red)" transform="translate(108.5 80)"><circle r="9"></circle><text y=".5">R</text></g><g class="team-chip-svg" style="--chip-color: var(--t-industry)" transform="translate(135.5 80)"><circle r="9"></circle><text y=".5">I</text></g></g></g>
+            <g class="info-node facilitator" transform="translate(90 270)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Same team</text><text class="node-title" x="15" y="45">Facilitator</text><text class="node-copy" x="15" y="61">Review + finalize</text></g>
+            <g class="info-node white-cell" transform="translate(485 157)"><rect width="210" height="96"></rect><text class="node-role" x="18" y="23">Control authority</text><text class="node-title" x="18" y="52">White Cell</text><text class="node-copy" x="18" y="73">Review · clear gate</text></g>
+            <g class="info-node recipient" transform="translate(900 78)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Progression</text><text class="node-title" x="15" y="45">Orientation Gate</text><text class="node-copy" x="15" y="61">Advance play</text></g>
+            <g class="info-node record" transform="translate(900 270)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Evidence</text><text class="node-title" x="15" y="45">Session Record</text><text class="node-copy" x="15" y="61">Orientation + gate status</text></g>
 
-            <div class="workflow-panel" id="flow-action" data-flow-panel="action" role="tabpanel"
-              aria-labelledby="flow-tab-action" hidden>
-              <div class="workflow-source" aria-label="Blue and Red Scribes author actions">
-                <span class="workflow-role">Team Scribes</span>
-                <div class="team-chip blue"><span class="chip-mark">B</span><span><strong>Blue</strong><small>Authors an action</small></span></div>
-                <div class="team-chip red"><span class="chip-mark">R</span><span><strong>Red</strong><small>Authors an action</small></span></div>
-              </div>
-              <div class="workflow-arrow"><span>Draft + forward</span></div>
-              <article class="workflow-node facilitator">
-                <span class="workflow-role">Same-team Facilitator</span>
-                <h3>Review and submit</h3>
-                <p>Confirms the team artifact, completes coordination and engagement choices, then forwards it.</p>
-              </article>
-              <div class="workflow-arrow"><span>Submit</span></div>
-              <article class="workflow-node white-cell">
-                <span class="workflow-role">White Cell</span>
-                <h3>Deliberate and adjudicate</h3>
-                <p>Reviews the submitted action and records the authoritative exercise outcome.</p>
-              </article>
-            </div>
-
-            <div class="workflow-panel" id="flow-proposal" data-flow-panel="proposal" role="tabpanel"
-              aria-labelledby="flow-tab-proposal" hidden>
-              <div class="workflow-source" aria-label="Green and Industry Scribes author proposals">
-                <span class="workflow-role">Team Scribes</span>
-                <div class="team-chip green"><span class="chip-mark">G</span><span><strong>Green</strong><small>Authors a proposal</small></span></div>
-                <div class="team-chip industry"><span class="chip-mark">I</span><span><strong>Industry</strong><small>Authors a proposal</small></span></div>
-              </div>
-              <div class="workflow-arrow"><span>Draft + forward</span></div>
-              <article class="workflow-node facilitator">
-                <span class="workflow-role">Same-team Facilitator</span>
-                <h3>Review and submit</h3>
-                <p>Confirms the intended Blue or Red recipient and submits the completed proposal.</p>
-              </article>
-              <div class="workflow-arrow"><span>Submit</span></div>
-              <article class="workflow-node white-cell">
-                <span class="workflow-role">White Cell</span>
-                <h3>Review and route</h3>
-                <p>Forwards to the recipient, requests changes, or rejects with an explicit reason.</p>
-              </article>
-            </div>
-
-            <div class="workflow-panel" id="flow-rfi" data-flow-panel="rfi" role="tabpanel"
-              aria-labelledby="flow-tab-rfi" hidden>
-              <div class="workflow-source"
-                aria-label="Blue, Green, Red, and Industry Scribes can submit requests for information">
-                <span class="workflow-role">Team Scribes</span>
-                <div class="team-chip blue"><span class="chip-mark">B</span><span><strong>Blue Scribe</strong><small>Submits an RFI during play</small></span></div>
-                <div class="team-chip green"><span class="chip-mark">G</span><span><strong>Green Scribe</strong><small>Submits an RFI during play</small></span></div>
-                <div class="team-chip red"><span class="chip-mark">R</span><span><strong>Red Scribe</strong><small>Submits an RFI during play</small></span></div>
-                <div class="team-chip industry"><span class="chip-mark">I</span><span><strong>Industry Scribe</strong><small>Submits an RFI during play</small></span></div>
-              </div>
-              <div class="workflow-arrow"><span>Submit question</span></div>
-              <article class="workflow-node facilitator">
-                <span class="workflow-role">Structured request</span>
-                <h3>Category, priority, context</h3>
-                <p>The RFI preserves who asked, what guidance is needed, and where the question sits in the move.</p>
-              </article>
-              <div class="workflow-arrow"><span>Route</span></div>
-              <article class="workflow-node white-cell">
-                <span class="workflow-role">White Cell</span>
-                <h3>Provide guidance during play</h3>
-                <p>Reviews and answers the linked RFI so teams receive authoritative guidance during the simulation.</p>
-              </article>
-            </div>
-          </div>
+            <g class="info-edge edge-orientation"><path style="marker-end:url(#arr-o2)" d="M185 162 L185 270"></path><g class="edge-label compact-label" transform="translate(185 210)"><rect x="-33" y="-10" width="66" height="20"/><text y="3">FORWARD</text></g></g>
+            <g class="info-edge edge-orientation"><path style="marker-end:url(#arr-o2)" d="M280 306 C365 306 402 258 485 230"></path><g class="edge-label compact-label" transform="translate(386 286)"><rect x="-32" y="-10" width="64" height="20"/><text y="3">SUBMIT</text></g></g>
+            <g class="info-edge edge-orientation"><path style="marker-end:url(#arr-o2)" d="M695 184 C776 153 821 126 900 114"></path><g class="edge-label compact-label" transform="translate(800 151)"><rect x="-31" y="-10" width="62" height="20"/><text y="3">CLEAR</text></g></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-o2)" d="M695 227 C776 257 823 291 900 306"></path><g class="edge-label compact-label" transform="translate(801 270)"><rect x="-29" y="-10" width="58" height="20"/><text y="3">LOG</text></g></g>
+          </svg>
         </div>
+      </div>
+    </section>
 
+    <!-- 8 · Action information flow -->
+    <section class="slide info-flow-slide compact-flow">
+      <div class="content">
+        <p class="eyebrow">Information flow graph</p>
+        <h2>Actions</h2>
+        <p class="flow-note">Blue and Red actions are finalized by the team, adjudicated by White Cell, then returned as authoritative outcomes.</p>
+        <div class="graph-wrap" data-mode="action">
+          <svg class="information-network" viewBox="0 0 1180 410" role="img" aria-label="Action information flow centered on White Cell.">
+            <defs><marker id="arr-a2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--slate)"/></marker></defs>
+            <circle class="hub-ring" cx="590" cy="205" r="82"></circle>
+            <g class="info-node scribe team-node" transform="translate(90 66)"><rect width="190" height="96"></rect><text class="node-role" x="15" y="20">Authoring role</text><text class="node-title" x="15" y="43">Action Scribe</text><text class="node-copy" x="15" y="59">Draft action</text><g class="team-chip-row"><line class="team-chip-rule" x1="15" y1="68" x2="175" y2="68"></line><g class="team-chip-svg" style="--chip-color: var(--t-blue)" transform="translate(81.5 80)"><circle r="9"></circle><text y=".5">B</text></g><g class="team-chip-svg" style="--chip-color: var(--t-red)" transform="translate(108.5 80)"><circle r="9"></circle><text y=".5">R</text></g></g></g>
+            <g class="info-node facilitator" transform="translate(90 270)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Same team</text><text class="node-title" x="15" y="45">Facilitator</text><text class="node-copy" x="15" y="61">Confirm + submit</text></g>
+            <g class="info-node white-cell" transform="translate(485 157)"><rect width="210" height="96"></rect><text class="node-role" x="18" y="23">Control authority</text><text class="node-title" x="18" y="52">White Cell</text><text class="node-copy" x="18" y="73">Deliberate · adjudicate</text></g>
+            <g class="info-node recipient" transform="translate(900 78)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Outcome</text><text class="node-title" x="15" y="45">Submitting Team</text><text class="node-copy" x="15" y="61">Status + adjudication</text></g>
+            <g class="info-node record" transform="translate(900 270)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Evidence</text><text class="node-title" x="15" y="45">Session Record</text><text class="node-copy" x="15" y="61">Action + outcome</text></g>
+            <g class="info-edge edge-action"><path style="marker-end:url(#arr-a2)" d="M185 162 L185 270"></path><g class="edge-label compact-label" transform="translate(185 210)"><rect x="-33" y="-10" width="66" height="20"/><text y="3">FORWARD</text></g></g>
+            <g class="info-edge edge-action"><path style="marker-end:url(#arr-a2)" d="M280 306 C365 306 402 258 485 230"></path><g class="edge-label compact-label" transform="translate(386 286)"><rect x="-32" y="-10" width="64" height="20"/><text y="3">SUBMIT</text></g></g>
+            <g class="info-edge edge-action"><path style="marker-end:url(#arr-a2)" d="M695 184 C776 153 821 126 900 114"></path><g class="edge-label compact-label" transform="translate(800 151)"><rect x="-38" y="-10" width="76" height="20"/><text y="3">RETURN</text></g></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-a2)" d="M695 227 C776 257 823 291 900 306"></path><g class="edge-label compact-label" transform="translate(801 270)"><rect x="-29" y="-10" width="58" height="20"/><text y="3">LOG</text></g></g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 · Proposal information flow -->
+    <section class="slide info-flow-slide compact-flow">
+      <div class="content">
+        <p class="eyebrow">Information flow graph</p>
+        <h2>Proposals</h2>
+        <p class="flow-note">Green and Industry proposals are reviewed by White Cell before reaching a Blue or Red recipient; the recipient decision returns through the control layer.</p>
+        <div class="graph-wrap" data-mode="proposal">
+          <svg class="information-network" viewBox="0 0 1180 410" role="img" aria-label="Proposal information flow centered on White Cell.">
+            <defs><marker id="arr-p2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--slate)"/></marker></defs>
+            <circle class="hub-ring" cx="590" cy="205" r="82"></circle>
+            <g class="info-node scribe team-node" transform="translate(90 66)"><rect width="190" height="96"></rect><text class="node-role" x="15" y="20">Authoring role</text><text class="node-title" x="15" y="43">Proposal Scribe</text><text class="node-copy" x="15" y="59">Draft proposal</text><g class="team-chip-row"><line class="team-chip-rule" x1="15" y1="68" x2="175" y2="68"></line><g class="team-chip-svg" style="--chip-color: var(--t-green)" transform="translate(81.5 80)"><circle r="9"></circle><text y=".5">G</text></g><g class="team-chip-svg" style="--chip-color: var(--t-industry)" transform="translate(108.5 80)"><circle r="9"></circle><text y=".5">I</text></g></g></g>
+            <g class="info-node facilitator" transform="translate(90 270)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Same team</text><text class="node-title" x="15" y="45">Facilitator</text><text class="node-copy" x="15" y="61">Confirm recipient + submit</text></g>
+            <g class="info-node white-cell" transform="translate(485 157)"><rect width="210" height="96"></rect><text class="node-role" x="18" y="23">Control authority</text><text class="node-title" x="18" y="52">White Cell</text><text class="node-copy" x="18" y="73">Review · route · return</text></g>
+            <g class="info-node recipient team-node" transform="translate(900 66)"><rect width="190" height="96"></rect><text class="node-role" x="15" y="20">Receiving team</text><text class="node-title" x="15" y="43">Recipient Team</text><text class="node-copy" x="15" y="59">Accept / reject</text><g class="team-chip-row"><line class="team-chip-rule" x1="15" y1="68" x2="175" y2="68"></line><g class="team-chip-svg" style="--chip-color: var(--t-blue)" transform="translate(81.5 80)"><circle r="9"></circle><text y=".5">B</text></g><g class="team-chip-svg" style="--chip-color: var(--t-red)" transform="translate(108.5 80)"><circle r="9"></circle><text y=".5">R</text></g></g></g>
+            <g class="info-node record" transform="translate(900 270)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Evidence</text><text class="node-title" x="15" y="45">Session Record</text><text class="node-copy" x="15" y="61">Route + decision</text></g>
+            <g class="info-edge edge-proposal"><path style="marker-end:url(#arr-p2)" d="M185 162 L185 270"></path><g class="edge-label compact-label" transform="translate(185 210)"><rect x="-33" y="-10" width="66" height="20"/><text y="3">FORWARD</text></g></g>
+            <g class="info-edge edge-proposal"><path style="marker-end:url(#arr-p2)" d="M280 306 C365 306 402 258 485 230"></path><g class="edge-label compact-label" transform="translate(386 286)"><rect x="-32" y="-10" width="64" height="20"/><text y="3">SUBMIT</text></g></g>
+            <g class="info-edge edge-proposal"><path style="marker-end:url(#arr-p2)" d="M695 184 C776 153 821 126 900 114"></path><g class="edge-label compact-label" transform="translate(800 151)"><rect x="-33" y="-10" width="66" height="20"/><text y="3">ROUTE</text></g></g>
+            <g class="info-edge edge-proposal"><path style="marker-end:url(#arr-p2)" d="M900 150 C820 185 772 216 695 226"></path><g class="edge-label compact-label" transform="translate(803 211)"><rect x="-38" y="-10" width="76" height="20"/><text y="3">DECIDE</text></g></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-p2)" d="M695 238 C776 267 823 294 900 306"></path><g class="edge-label compact-label" transform="translate(801 276)"><rect x="-29" y="-10" width="58" height="20"/><text y="3">LOG</text></g></g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 · RFI information flow -->
+    <section class="slide info-flow-slide compact-flow">
+      <div class="content">
+        <p class="eyebrow">Information flow graph</p>
+        <h2>RFIs</h2>
+        <p class="flow-note">Any team Scribe can ask White Cell for guidance during play. The answer returns to the requester and is retained in the session record.</p>
+        <div class="graph-wrap" data-mode="rfi">
+          <svg class="information-network" viewBox="0 0 1180 410" role="img" aria-label="RFI information flow centered on White Cell.">
+            <defs><marker id="arr-r2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--slate)"/></marker></defs>
+            <circle class="hub-ring" cx="590" cy="205" r="82"></circle>
+            <g class="info-node scribe team-node" transform="translate(90 157)"><rect width="210" height="96"></rect><text class="node-role" x="15" y="20">Requesting role</text><text class="node-title" x="15" y="43">Requesting Scribe</text><text class="node-copy" x="15" y="59">Category · priority · context</text><g class="team-chip-row"><line class="team-chip-rule" x1="15" y1="68" x2="195" y2="68"></line><g class="team-chip-svg" style="--chip-color: var(--t-blue)" transform="translate(64.5 80)"><circle r="9"></circle><text y=".5">B</text></g><g class="team-chip-svg" style="--chip-color: var(--t-green)" transform="translate(91.5 80)"><circle r="9"></circle><text y=".5">G</text></g><g class="team-chip-svg" style="--chip-color: var(--t-red)" transform="translate(118.5 80)"><circle r="9"></circle><text y=".5">R</text></g><g class="team-chip-svg" style="--chip-color: var(--t-industry)" transform="translate(145.5 80)"><circle r="9"></circle><text y=".5">I</text></g></g></g>
+            <g class="info-node white-cell" transform="translate(485 157)"><rect width="210" height="96"></rect><text class="node-role" x="18" y="23">Control authority</text><text class="node-title" x="18" y="52">White Cell</text><text class="node-copy" x="18" y="73">Review · answer</text></g>
+            <g class="info-node record" transform="translate(880 169)"><rect width="200" height="72"></rect><text class="node-role" x="15" y="20">Evidence</text><text class="node-title" x="15" y="45">Session Record</text><text class="node-copy" x="15" y="61">Question + answer + timing</text></g>
+            <g class="info-edge edge-rfi"><path style="marker-end:url(#arr-r2)" d="M300 191 C368 177 421 177 485 191"></path><g class="edge-label compact-label" transform="translate(391 174)"><rect x="-27" y="-10" width="54" height="20"/><text y="3">ASK</text></g></g>
+            <g class="info-edge edge-rfi"><path style="marker-end:url(#arr-r2)" d="M485 221 C420 235 369 235 300 221"></path><g class="edge-label compact-label" transform="translate(391 241)"><rect x="-35" y="-10" width="70" height="20"/><text y="3">ANSWER</text></g></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-r2)" d="M695 205 L880 205"></path><g class="edge-label compact-label" transform="translate(787 189)"><rect x="-29" y="-10" width="58" height="20"/><text y="3">LOG</text></g></g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11 · Observation information flow -->
+    <section class="slide info-flow-slide compact-flow">
+      <div class="content">
+        <p class="eyebrow">Information flow graph</p>
+        <h2>Observations</h2>
+        <p class="flow-note">Notetakers and Facilitators capture distinct qualitative evidence. White Cell adds rulings and guidance before the evidence is consolidated.</p>
+        <div class="graph-wrap" data-mode="evidence">
+          <svg class="information-network" viewBox="0 0 1180 410" role="img" aria-label="Observation information flow centered on White Cell.">
+            <defs><marker id="arr-e2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--slate)"/></marker></defs>
+            <circle class="hub-ring" cx="590" cy="205" r="82"></circle>
+            <g class="info-node note-one" transform="translate(90 70)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Observation</text><text class="node-title" x="15" y="45">Notetaker 1</text><text class="node-copy" x="15" y="61">Reasoning · decisions · quotes</text></g>
+            <g class="info-node facilitator" transform="translate(90 278)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Team control</text><text class="node-title" x="15" y="45">Facilitator</text><text class="node-copy" x="15" y="61">Artifacts + team context</text></g>
+            <g class="info-node white-cell" transform="translate(485 157)"><rect width="210" height="96"></rect><text class="node-role" x="18" y="23">Control authority</text><text class="node-title" x="18" y="52">White Cell</text><text class="node-copy" x="18" y="73">Consolidate · validate</text></g>
+            <g class="info-node note-two" transform="translate(900 70)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Observation</text><text class="node-title" x="15" y="45">Notetaker 2</text><text class="node-copy" x="15" y="61">Dynamics · relationships · context</text></g>
+            <g class="info-node record" transform="translate(900 278)"><rect width="190" height="72"></rect><text class="node-role" x="15" y="20">Evidence</text><text class="node-title" x="15" y="45">Session Record</text><text class="node-copy" x="15" y="61">Linked qualitative archive</text></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-e2)" d="M280 106 C368 119 419 155 485 184"></path><g class="edge-label compact-label" transform="translate(386 130)"><rect x="-33" y="-10" width="66" height="20"/><text y="3">CAPTURE</text></g></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-e2)" d="M280 314 C368 300 419 258 485 228"></path><g class="edge-label compact-label" transform="translate(386 289)"><rect x="-33" y="-10" width="66" height="20"/><text y="3">CONTEXT</text></g></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-e2)" d="M900 106 C812 119 761 155 695 184"></path><g class="edge-label compact-label" transform="translate(794 130)"><rect x="-33" y="-10" width="66" height="20"/><text y="3">CAPTURE</text></g></g>
+            <g class="info-edge edge-evidence"><path style="marker-end:url(#arr-e2)" d="M695 228 C781 260 824 300 900 314"></path><g class="edge-label compact-label" transform="translate(796 289)"><rect x="-29" y="-10" width="58" height="20"/><text y="3">STORE</text></g></g>
+          </svg>
+        </div>
       </div>
     </section>
 
@@ -2645,28 +2955,35 @@
         }
       });
 
-      // Switch the role-accurate information workflow without advancing the deck.
+      // Filter the role-to-role information network without advancing the deck.
       var wrap = document.getElementById("graphWrap");
       if (wrap) { wrap.addEventListener("click", function (e) { e.stopPropagation(); }); }
       var ctrl = document.getElementById("graphControls");
-      if (ctrl) {
+      var flowCaption = document.getElementById("flowCaption");
+      if (ctrl && wrap) {
         var btns = Array.prototype.slice.call(ctrl.querySelectorAll("button"));
-        var panels = Array.prototype.slice.call(document.querySelectorAll("[data-flow-panel]"));
-        function selectWorkflowTab(button) {
+        var captions = {
+          all: "All operational flows: authoring, review, routing, response, and evidence capture.",
+          orientation: "Strategic orientations: every team Scribe records the selection or forecast; the Facilitator finalizes it; White Cell clears the gate.",
+          action: "Actions: Blue and Red move from Scribe to Facilitator to White Cell, where the submission is adjudicated and its status returns to the team.",
+          proposal: "Proposals: Green and Industry move through their Facilitator and White Cell to a Blue or Red recipient, whose decision becomes part of the record.",
+          rfi: "RFIs: any team Scribe can send a structured question to White Cell; authoritative guidance returns to the requesting team.",
+          evidence: "Observations: Notetakers, Facilitators, and White Cell write qualitative evidence, finalized artifacts, rulings, and guidance into the time-stamped session record."
+        };
+        function selectFlow(button) {
           btns.forEach(function (x) {
             var selected = x === button;
             x.classList.toggle("active", selected);
             x.setAttribute("aria-selected", selected ? "true" : "false");
             x.tabIndex = selected ? 0 : -1;
           });
-          panels.forEach(function (panel) {
-            panel.hidden = panel.dataset.flowPanel !== button.dataset.mode;
-          });
+          wrap.dataset.mode = button.dataset.mode;
+          if (flowCaption) { flowCaption.textContent = captions[button.dataset.mode] || captions.all; }
         }
         btns.forEach(function (b) {
           b.addEventListener("click", function (e) {
             e.stopPropagation();
-            selectWorkflowTab(b);
+            selectFlow(b);
           });
         });
         ctrl.addEventListener("keydown", function (e) {
@@ -2676,7 +2993,7 @@
           var current = Math.max(0, btns.indexOf(document.activeElement));
           var direction = e.key === "ArrowRight" ? 1 : -1;
           var nextTab = btns[(current + direction + btns.length) % btns.length];
-          selectWorkflowTab(nextTab);
+          selectFlow(nextTab);
           nextTab.focus();
         });
       }

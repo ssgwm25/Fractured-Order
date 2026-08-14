@@ -1815,6 +1815,103 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(controller.closeMobileSidebar).toHaveBeenCalledTimes(4);
     });
 
+    it('does not let an inbound direct communication steal the active Facilitator workspace', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+        const communication = {
+            id: 'communication-new-guidance',
+            type: 'DIRECT',
+            from_role: 'white_cell',
+            to_role: 'blue_scribe',
+            content: 'New White Cell guidance'
+        };
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([communication]);
+        const controller = new ScribeController();
+        controller.teamContext = { teamId: 'blue', scribeRole: 'blue_scribe' };
+        controller.sections = [{ id: 'actions', slides: [] }];
+        controller.deckSlides = [{ slideKey: 'action-live-1', slideType: 'action' }];
+        controller.activeFacilitatorView = 'actions';
+        controller.getCurrentSlideKey = vi.fn().mockReturnValue('action-live-1');
+        controller.rebuildDeck = vi.fn();
+        controller.renderSlide = vi.fn();
+
+        controller.syncCommunicationsFromStore({
+            event: 'created',
+            data: communication
+        });
+
+        expect(controller.rebuildDeck).toHaveBeenCalledWith({
+            preferredSlideKey: 'action-live-1',
+            preferLiveSection: ''
+        });
+        expect(controller.renderSlide).toHaveBeenCalledTimes(1);
+
+        controller.activeFacilitatorView = 'communications';
+        controller.rebuildDeck.mockClear();
+        controller.renderSlide.mockClear();
+        controller.syncCommunicationsFromStore({
+            event: 'created',
+            data: communication
+        });
+
+        expect(controller.rebuildDeck).toHaveBeenCalledWith({
+            preferredSlideKey: 'communication-communication-new-guidance',
+            preferLiveSection: 'direct-communications'
+        });
+        expect(controller.renderSlide).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not let a delayed RFI update steal the active Facilitator workspace', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { requestsStore } = await import('../stores/requests.js');
+        const rfi = {
+            id: 'rfi-delayed-answer',
+            team: 'industry',
+            status: 'responded',
+            question: 'When does implementation begin?'
+        };
+        vi.spyOn(requestsStore, 'getByTeam').mockReturnValue([rfi]);
+        const controller = new ScribeController();
+        controller.teamId = 'industry';
+        controller.sections = [{ id: 'direct-communications', slides: [] }];
+        controller.deckSlides = [{
+            slideKey: 'communication-live-1',
+            slideType: 'communication'
+        }];
+        controller.activeFacilitatorView = 'communications';
+        controller.getCurrentSlideKey = vi.fn().mockReturnValue('communication-live-1');
+        controller.rebuildDeck = vi.fn();
+        controller.renderSlide = vi.fn();
+        controller.loadRfiRevisionHistory = vi.fn().mockResolvedValue([]);
+
+        controller.syncRfisFromStore({
+            event: 'responded',
+            data: rfi
+        });
+
+        expect(controller.rebuildDeck).toHaveBeenCalledWith({
+            preferredSlideKey: 'communication-live-1',
+            preferLiveSection: ''
+        });
+        expect(controller.renderSlide).toHaveBeenCalledTimes(1);
+        expect(controller.loadRfiRevisionHistory).toHaveBeenCalledTimes(1);
+
+        controller.activeFacilitatorView = 'rfis';
+        controller.rebuildDeck.mockClear();
+        controller.renderSlide.mockClear();
+        controller.syncRfisFromStore({
+            event: 'responded',
+            data: rfi
+        });
+
+        expect(controller.rebuildDeck).toHaveBeenCalledWith({
+            preferredSlideKey: 'rfi-rfi-delayed-answer',
+            preferLiveSection: 'rfis'
+        });
+        expect(controller.renderSlide).toHaveBeenCalledTimes(1);
+        expect(controller.loadRfiRevisionHistory).toHaveBeenCalledTimes(2);
+    });
+
     it('builds live scribe action slides from forwarded drafts and submitted actions instead of deck images', async () => {
         const { buildScribeActionSlides } = await loadScribeModule();
 
@@ -2102,6 +2199,59 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(controller.renderSlide).not.toHaveBeenCalled();
 
         getByTeamSpy.mockRestore();
+    });
+
+    it('restores in-progress Facilitator finalization choices after a changed live action rerender', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+        const action = {
+            id: 'draft-live-changing-1',
+            team: controller.teamId,
+            status: 'draft',
+            ally_contingencies: serializeBlueActionDetails({
+                objective: 'Keep finalization state while the action snapshot changes.',
+                scribeHandoff: 'Forwarded'
+            })
+        };
+        const coordinatedCheckbox = { value: 'Executive', checked: true, disabled: false };
+        const informedCheckbox = { value: 'Allies', checked: true, disabled: false };
+        const submitButton = {
+            hidden: true,
+            disabled: true,
+            toggleAttribute: vi.fn()
+        };
+        const panel = {
+            dataset: { actionId: action.id },
+            matches: () => false,
+            querySelector: (selector) => ({
+                '[data-scribe-action-radio="coordinated"]:checked': { value: 'yes' },
+                '[data-scribe-action-radio="informed-engaged"]:checked': { value: 'yes' },
+                '[data-scribe-action-submit]': submitButton
+            })[selector] || null,
+            querySelectorAll: (selector) => ({
+                '[data-scribe-action-checkbox="coordinated"]': [coordinatedCheckbox],
+                '[data-scribe-action-checkbox="coordinated"]:checked': [coordinatedCheckbox],
+                '[data-scribe-action-checkbox="informed-engaged"]': [informedCheckbox],
+                '[data-scribe-action-checkbox="informed-engaged"]:checked': [informedCheckbox]
+            })[selector] || []
+        };
+
+        controller.updateScribeActionSubmitState(panel);
+
+        const html = controller.renderScribeActionSubmissionControls(action);
+
+        expect(controller.draftActionSelectionsById.get(action.id)).toEqual({
+            coordinatedDecision: 'yes',
+            coordinatedValues: ['Executive'],
+            informedEngagedDecision: 'yes',
+            informedValues: ['Allies']
+        });
+        expect(submitButton).toMatchObject({ hidden: false, disabled: false });
+        expect(html).toMatch(/value="yes"[^>]*data-scribe-action-radio="coordinated"[^>]*checked/);
+        expect(html).toMatch(/value="Executive"[^>]*data-scribe-action-checkbox="coordinated"[^>]*checked[^>]*>/);
+        expect(html).not.toMatch(/value="Executive"[^>]*data-scribe-action-checkbox="coordinated"[^>]*disabled[^>]*>/);
+        expect(html).toMatch(/value="yes"[^>]*data-scribe-action-radio="informed-engaged"[^>]*checked/);
+        expect(html).toMatch(/value="Allies"[^>]*data-scribe-action-checkbox="informed-engaged"[^>]*checked[^>]*>/);
     });
 
     it('renders forwarded draft actions as room-ready Facilitator submission slides before White Cell submission', async () => {

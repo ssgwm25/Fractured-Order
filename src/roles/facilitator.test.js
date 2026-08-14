@@ -1890,6 +1890,38 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(markup).toContain('Coordinate the notice before resubmission.');
     });
 
+    it('rehydrates Facilitator finalization decisions when a returned action is edited', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeBlueActionDetails } = await import('../features/actions/blueActionDetails.js');
+        const form = createFakeElement('blueActionWizardForm', 'form');
+        const content = createFakeElement(null, 'div');
+        content.querySelector = vi.fn((selector) => (
+            selector === '#blueActionWizardForm' ? form : null
+        ));
+        global.document = {
+            createElement: vi.fn(() => content)
+        };
+        const controller = new FacilitatorController();
+        controller.teamId = 'blue';
+
+        controller.createBlueActionWizardContent({
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            revision_number: 2,
+            ally_contingencies: serializeBlueActionDetails({
+                coordinatedDecision: 'Yes',
+                coordinated: ['Executive'],
+                informedEngagedDecision: 'Yes',
+                informed: ['Allies']
+            })
+        }, { isEdit: true });
+
+        expect(form.dataset.blueActionCoordinatedDecision).toBe('Yes');
+        expect(JSON.parse(form.dataset.blueActionCoordinated)).toEqual(['Executive']);
+        expect(form.dataset.blueActionInformedEngagedDecision).toBe('Yes');
+        expect(JSON.parse(form.dataset.blueActionInformed)).toEqual(['Allies']);
+    });
+
     it('reopens a custom Blue instrument as Other with the saved value preserved', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         global.document = createFakeDocument();
@@ -1951,7 +1983,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(detailsOpeningTag).not.toContain('hidden');
     });
 
-    it('collects Blue wizard values while preserving stored levers from existing actions', async () => {
+    it('collects Blue wizard values while preserving stored levers and Facilitator handoff state', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
 
@@ -1971,7 +2003,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         const wizardData = controller.getBlueActionWizardData({
             dataset: {
                 blueActionLevers: JSON.stringify(['Export Controls', 'Sanctions']),
+                blueActionCoordinatedDecision: 'Yes',
                 blueActionCoordinated: JSON.stringify(['Executive']),
+                blueActionInformedEngagedDecision: 'Yes',
                 blueActionInformed: JSON.stringify(['Allies'])
             },
             querySelector(selector) {
@@ -2019,7 +2053,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(wizardData.supplyChainFocuses).toEqual(['Extraction', 'Advanced Manufacturing']);
         expect(wizardData.focusCountries).toEqual(['Kenya', 'BRICS+']);
         expect(wizardData.selectedFocusCountryValues).toEqual(['Kenya', 'BRICS+']);
+        expect(wizardData.coordinatedDecision).toBe('Yes');
         expect(wizardData.coordinated).toEqual(['Executive']);
+        expect(wizardData.informedEngagedDecision).toBe('Yes');
         expect(wizardData.informed).toEqual(['Allies']);
 
         const payload = controller.buildBlueActionPayload(wizardData);
@@ -2034,6 +2070,10 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(payload.ally_contingencies).toContain(
             'Supply Chain Areas: ["Extraction","Advanced Manufacturing"]'
         );
+        expect(payload.ally_contingencies).toContain('Coordinated Decision: Yes');
+        expect(payload.ally_contingencies).toContain('Coordinated: ["Executive"]');
+        expect(payload.ally_contingencies).toContain('Informed/Engaged Decision: Yes');
+        expect(payload.ally_contingencies).toContain('Informed: ["Allies"]');
 
         global.document = {
             getElementById(id) {

@@ -491,7 +491,10 @@ export async function authorizeSme(page, {
 }
 
 export async function openSidebarSection(page, section) {
-    await page.locator(`.sidebar-link[data-section="${section}"]`).click({ timeout: 20000 });
+    const link = page.locator(`.sidebar-link[data-section="${section}"]`);
+    await link.click({ timeout: 20000 });
+    await expect(link).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator(`#${section}Section`)).toBeVisible();
 }
 
 export async function openWhiteCellSettingsTab(page, tab) {
@@ -527,6 +530,8 @@ export async function createDraftAction(page, {
         : [supplyChainActionAngle];
     const supplyChainFocuses = Array.isArray(supplyChainFocus) ? supplyChainFocus : [supplyChainFocus];
 
+    await openSidebarSection(page, 'actions');
+    await expect(page.locator('#newActionBtn')).toBeVisible();
     await page.locator('#newActionBtn').click();
 
     const modal = page
@@ -751,11 +756,15 @@ export async function openFacilitatorActionSlide(page, goal) {
 
 export async function submitActionFromScribe(page, goal, {
     coordinated = ['Executive'],
-    informed = ['Allies']
+    informed = ['Allies'],
+    expectedContent = ''
 } = {}) {
     const actionSlideLink = await openFacilitatorActionSlide(page, goal);
 
     const actionFrame = page.locator('#deckActionFrame');
+    if (expectedContent) {
+        await expect(actionFrame).toContainText(expectedContent, { timeout: 20000 });
+    }
     const detailsToggle = actionFrame.locator('[data-scribe-action-toggle]');
     await expect(detailsToggle).toBeVisible();
     if (await detailsToggle.getAttribute('aria-expanded') !== 'true') {
@@ -767,12 +776,16 @@ export async function submitActionFromScribe(page, goal, {
     await expect(panel).toBeVisible();
     await panel.locator('[data-scribe-action-radio="coordinated"][value="yes"]').check();
     for (const coordinatedValue of coordinated) {
-        await panel.locator(`[data-scribe-action-checkbox="coordinated"][value="${coordinatedValue}"]`).check();
+        const checkbox = panel.locator(`[data-scribe-action-checkbox="coordinated"][value="${coordinatedValue}"]`);
+        await expect(checkbox).toBeEnabled();
+        await checkbox.check();
     }
 
     await panel.locator('[data-scribe-action-radio="informed-engaged"][value="yes"]').check();
     for (const informedValue of informed) {
-        await panel.locator(`[data-scribe-action-checkbox="informed-engaged"][value="${informedValue}"]`).check();
+        const checkbox = panel.locator(`[data-scribe-action-checkbox="informed-engaged"][value="${informedValue}"]`);
+        await expect(checkbox).toBeEnabled();
+        await checkbox.check();
     }
 
     const submitButton = panel.getByRole('button', { name: /^(?:Submit|Resubmit) to White Cell$/ });
@@ -1066,6 +1079,8 @@ export async function createProposal(page, {
         throw new Error('createProposal requires a title.');
     }
 
+    await openSidebarSection(page, 'actions');
+    await expect(page.locator('#newActionBtn')).toBeVisible();
     await page.locator('#newActionBtn').click();
 
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#proposalTitle') });
@@ -1117,19 +1132,19 @@ export async function submitForwardedProposalFromFacilitator(page, { title } = {
         timeout: 20000
     });
 
-    const actionSlideLink = page.locator('#scribeSectionList button[data-slide-key^="action-"]').filter({
-        hasText: title
-    }).first();
-    await expect(actionSlideLink).toBeVisible({ timeout: 20000 });
-    await actionSlideLink.click();
+    await openFacilitatorActionSlide(page, title);
 
     const actionFrame = page.locator('#deckActionFrame');
     await expect(actionFrame).toContainText(title);
     await actionFrame.locator('[data-scribe-action-submit]').first().click();
 
-    const confirmModal = page.locator('.modal-overlay').filter({ hasText: 'Submit Proposal to White Cell' });
+    const confirmModal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)')
+        .filter({ hasText: 'Submit Proposal to White Cell' });
     await expect(confirmModal).toBeVisible();
     await confirmModal.getByRole('button', { name: 'Submit' }).click();
+    await expect(confirmModal).toBeHidden();
+    const submittedSlideLink = await openFacilitatorActionSlide(page, title);
+    await expect(submittedSlideLink).toContainText('Submitted to White Cell', { timeout: 20000 });
     await expect(page.locator('#toast-container')).toContainText('Proposal submitted to White Cell');
 }
 

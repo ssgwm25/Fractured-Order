@@ -86,6 +86,7 @@ Apply the authoritative ledger in this exact order:
 35. `data/2026-08-13_rfi_answer_completion_trigger.sql`
 36. `data/2026-08-13_strategic_orientation_team_canonicalization.sql`
 37. `data/2026-08-13_action_notification_delivery.sql`
+38. `data/2026-08-13_action_notification_type_contract.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
@@ -94,9 +95,11 @@ August 12 migration replaces evidence-destroying session deletion with audited
 archival. The first August 13 migration prevents the legacy linked-response
 trigger from rewriting a terminal RFI after the protected answer procedure has
 already completed it. The next August 13 migration canonicalizes four-team
-Strategic Orientation types before constraint enforcement. The final August 13
+Strategic Orientation types before constraint enforcement. The action-delivery
 migration atomically completes Blue/Red actions and delivers only the authored
-Green/Industry notification requests approved by White Cell. If July 14, August
+Green/Industry notification requests approved by White Cell. The final repair
+extends the communications type constraint to admit those `ACTION_NOTIFICATION`
+records while retaining every previously supported type. If July 14, August
 5, or the earlier August 6 policy migration
 is reapplied during repair, reapply
 `data/2026-08-06_proposal_recipient_threads.sql`, then apply
@@ -104,7 +107,8 @@ is reapplied during repair, reapply
 `data/2026-08-12_session_archive_transition.sql`, then apply
 `data/2026-08-13_rfi_answer_completion_trigger.sql`, then apply
 `data/2026-08-13_strategic_orientation_team_canonicalization.sql`, then apply
-`data/2026-08-13_action_notification_delivery.sql`. Verify RPCs,
+`data/2026-08-13_action_notification_delivery.sql`, then apply
+`data/2026-08-13_action_notification_type_contract.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -373,13 +377,16 @@ and Industry; all four retain `orientation_and_forecast` inside
 `artifact_payload`, while the action row uses the team-compatible database
 type. Any fifth or mismatched team remains rejected.
 
-Apply `data/2026-08-13_action_notification_delivery.sql` last. It adds
+Apply `data/2026-08-13_action_notification_delivery.sql`, then apply
+`data/2026-08-13_action_notification_type_contract.sql` last. The first adds
 `operator_complete_action_with_notifications`, which uses the existing
 fail-closed artifact-review and White Cell communication functions in one
 transaction. White Cell may approve only Green and/or Industry when that team
 appears in the submitted action's `artifact_payload.action.notificationTeams`.
 If completion or any approved delivery fails, neither the completion nor any
-notification is committed.
+notification is committed. The forward repair expands
+`communications_type_check` to include `ACTION_NOTIFICATION`; projects that
+already installed the RPC must apply the repair before retrying acceptance.
 
 Verify the atomic completion RPC:
 
@@ -398,6 +405,19 @@ where n.nspname = 'public'
 ```
 
 Pass: exactly one row is returned and `authenticated_can_execute` is true.
+
+Verify the repaired communication type contract:
+
+```sql
+select pg_get_constraintdef(c.oid) as constraint_definition
+from pg_constraint c
+where c.conrelid = 'public.communications'::regclass
+  and c.conname = 'communications_type_check';
+```
+
+Pass: exactly one row is returned and `constraint_definition` contains
+`ACTION_NOTIFICATION` together with the previously supported communication
+types. Absence is a deployment blocker.
 Rehearse a Blue action requesting both recipients: the Review Action modal
 shows both preselected approval controls, acceptance creates exactly one
 `ACTION_NOTIFICATION` communication for Green and one for Industry with the

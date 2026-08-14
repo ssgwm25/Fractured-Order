@@ -4511,7 +4511,9 @@ export class FacilitatorController {
         const form = content.querySelector('#blueActionWizardForm');
         if (form) {
             form.dataset.blueActionLevers = JSON.stringify(selectedLeverValues);
+            form.dataset.blueActionCoordinatedDecision = blueAction.coordinatedDecision || '';
             form.dataset.blueActionCoordinated = JSON.stringify(blueAction.coordinated || []);
+            form.dataset.blueActionInformedEngagedDecision = blueAction.informedEngagedDecision || '';
             form.dataset.blueActionInformed = JSON.stringify(blueAction.informed || []);
             form.dataset.blueActionEnforcementTimeline = blueAction.enforcementTimeline || '';
         }
@@ -4806,6 +4808,8 @@ export class FacilitatorController {
         const informed = informedControlsExist
             ? getCheckedValues(form, '[data-blue-action-checkbox="informed"]')
             : storedInformed;
+        const coordinatedDecision = form?.dataset?.blueActionCoordinatedDecision || '';
+        const informedEngagedDecision = form?.dataset?.blueActionInformedEngagedDecision || '';
 
         const legacyInstrumentSelectValue = form.querySelector('#actionInstrument')?.value || '';
         if (!selectedInstrumentValues.length && legacyInstrumentSelectValue) {
@@ -4866,7 +4870,9 @@ export class FacilitatorController {
             expectedOutcomes: form.querySelector('#actionExpectedOutcomes')?.value?.trim() || '',
             notificationTeams,
             notificationNote: form.querySelector('#actionNotificationNote')?.value?.trim() || '',
+            coordinatedDecision,
             coordinated,
+            informedEngagedDecision,
             informed
         };
     }
@@ -5000,7 +5006,9 @@ export class FacilitatorController {
                 legislativeOptions: wizardData.legislativeOptions,
                 enforcementTimeline: wizardData.enforcementTimeline,
                 scribeHandoff,
+                coordinatedDecision: wizardData.coordinatedDecision,
                 coordinated: wizardData.coordinated,
+                informedEngagedDecision: wizardData.informedEngagedDecision,
                 informed: wizardData.informed,
                 notificationTeams: wizardData.notificationTeams,
                 notificationNote: wizardData.notificationNote

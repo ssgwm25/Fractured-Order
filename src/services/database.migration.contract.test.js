@@ -93,6 +93,10 @@ const ACTION_NOTIFICATION_DELIVERY_PATH = new URL(
     '../../data/2026-08-13_action_notification_delivery.sql',
     import.meta.url
 );
+const ACTION_NOTIFICATION_TYPE_CONTRACT_PATH = new URL(
+    '../../data/2026-08-13_action_notification_type_contract.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -742,6 +746,33 @@ describe('database migration contracts', () => {
         );
         expect(sql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|CONSTRAINT|POLICY)/i);
         expect(sql).not.toMatch(/UPDATE\s+public\.actions/i);
+    });
+
+    it('extends the communication type constraint for atomic action notifications', () => {
+        const sql = normalizeLineEndings(readFileSync(ACTION_NOTIFICATION_TYPE_CONTRACT_PATH, 'utf8'));
+        const allowedTypes = [
+            'INJECT',
+            'ANNOUNCEMENT',
+            'GUIDANCE',
+            'PROPOSAL_FORWARDED',
+            'PROPOSAL_RESPONSE',
+            'ACTION_NOTIFICATION',
+            'rfi_response',
+            'RFI_RESPONSE',
+            'broadcast',
+            'direct',
+            'system',
+            'game_update',
+            'message'
+        ];
+
+        expect(sql).toContain('BEGIN;');
+        expect(sql).toContain('DROP CONSTRAINT IF EXISTS communications_type_check');
+        expect(sql).toContain('ADD CONSTRAINT communications_type_check');
+        allowedTypes.forEach((type) => expect(sql).toContain(`'${type}'`));
+        expect(sql).toContain('COMMIT;');
+        expect(sql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|POLICY)/i);
+        expect(sql).not.toMatch(/(?:UPDATE|DELETE\s+FROM)\s+public\.communications/i);
     });
 
     it('marks obsolete consolidated SQL artifacts as non-installable', () => {

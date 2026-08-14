@@ -998,6 +998,7 @@ export class ScribeController {
         this.rfisSeeded = false;
         this.durableNotifications = null;
         this.collapsedStrategicActionIds = new Set();
+        this.draftActionSelectionsById = new Map();
         this.presentationEditActionId = null;
         this.presentationEditHost = null;
     }
@@ -1459,6 +1460,14 @@ export class ScribeController {
         const teamActionsChanged = previousRenderState !== serializeTeamActionRenderState(nextTeamActions);
 
         this.teamActions = nextTeamActions;
+        const editableActionIds = new Set(
+            nextTeamActions.filter(isDraftAction).map((action) => String(action.id || '')).filter(Boolean)
+        );
+        for (const actionId of this.draftActionSelectionsById.keys()) {
+            if (!editableActionIds.has(actionId)) {
+                this.draftActionSelectionsById.delete(actionId);
+            }
+        }
         this.processActionNotification({ event, data });
 
         if (!this.facilitatorDeckSlides.length && !this.sections.length) {
@@ -1746,7 +1755,12 @@ export class ScribeController {
             return;
         }
 
-        const shouldFocusRfi = ['created', 'updated', 'resubmitted', 'responded'].includes(event)
+        // RFI lifecycle events update counts, history, and durable alerts, but a
+        // delayed White Cell response must not pull the Facilitator out of a
+        // workspace they deliberately selected. Advance the RFI only while the
+        // RFI workspace is already active.
+        const shouldFocusRfi = this.activeFacilitatorView === 'rfis'
+            && ['created', 'updated', 'resubmitted', 'responded'].includes(event)
             && data?.team === this.teamId;
         this.rebuildDeck({
             preferredSlideKey: shouldFocusRfi ? `rfi-${data.id}` : this.getCurrentSlideKey(),
@@ -1844,7 +1858,12 @@ export class ScribeController {
             return;
         }
 
-        const shouldFocusCommunication = ['created', 'updated'].includes(event)
+        // Incoming messages update the activity count and durable notification,
+        // but must not take the Facilitator away from an action, RFI, or deck
+        // they are actively using. Advance to the new message only when the
+        // Communications workspace is already selected.
+        const shouldFocusCommunication = this.activeFacilitatorView === 'communications'
+            && ['created', 'updated'].includes(event)
             && isFacilitatorDirectCommunication(data, this.teamContext);
         this.rebuildDeck({
             preferredSlideKey: shouldFocusCommunication
@@ -3417,10 +3436,15 @@ export class ScribeController {
 
         const actionId = String(action.id || '');
         const lifecycle = getArtifactLifecycleViewModel(getActionSlideLifecycleArtifact(action));
-        const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
-        const informedEngagedDecision = normalizeScribeDecision(actionViewModel.informedEngagedDecision);
-        const coordinatedValues = actionViewModel.coordinated || [];
-        const informedValues = actionViewModel.informed || [];
+        const transientSelections = this.draftActionSelectionsById.get(actionId) || null;
+        const coordinatedDecision = normalizeScribeDecision(
+            transientSelections?.coordinatedDecision ?? actionViewModel.coordinatedDecision
+        );
+        const informedEngagedDecision = normalizeScribeDecision(
+            transientSelections?.informedEngagedDecision ?? actionViewModel.informedEngagedDecision
+        );
+        const coordinatedValues = transientSelections?.coordinatedValues ?? actionViewModel.coordinated ?? [];
+        const informedValues = transientSelections?.informedValues ?? actionViewModel.informed ?? [];
         const selections = {
             coordinatedDecision,
             informedEngagedDecision,
@@ -3542,8 +3566,19 @@ export class ScribeController {
             });
         });
 
+        const selections = this.getScribeActionSelections(panel);
+        const actionId = String(panel.dataset?.actionId || '');
+        if (actionId) {
+            this.draftActionSelectionsById.set(actionId, {
+                coordinatedDecision: selections.coordinatedDecision,
+                coordinatedValues: [...(selections.coordinatedValues || [])],
+                informedEngagedDecision: selections.informedEngagedDecision,
+                informedValues: [...(selections.informedValues || [])]
+            });
+        }
+
         const submitButton = panel.querySelector('[data-scribe-action-submit]');
-        const isComplete = this.isScribeActionSelectionsComplete(this.getScribeActionSelections(panel));
+        const isComplete = this.isScribeActionSelectionsComplete(selections);
         if (submitButton) {
             submitButton.hidden = !isComplete;
             submitButton.disabled = !isComplete;

@@ -54,7 +54,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-08-13_action_notification_delivery';
+const REQUIRED_MIGRATION_STATE = '2026-08-13_action_notification_type_contract';
 
 function getSourceRevisionEvidence() {
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -568,15 +568,15 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 notificationTeams: ['Green', 'Industry']
             });
             for (const team of ['green', 'industry']) {
-                await openSidebarSection(actors.teams[team].facilitator, 'responses');
-                const responseList = actors.teams[team].facilitator.locator('#responsesList');
+                await openSidebarSection(actors.teams[team].scribe, 'responses');
+                const responseList = actors.teams[team].scribe.locator('#responsesList');
                 await expect(responseList).toContainText(actionTitles.blue);
                 await expect(responseList).toContainText(
                     'Notify Green and Industry after White Cell accepts the action.'
                 );
             }
-            await openSidebarSection(actors.teams.red.facilitator, 'responses');
-            await expect(actors.teams.red.facilitator.locator('#responsesList'))
+            await openSidebarSection(actors.teams.red.scribe, 'responses');
+            await expect(actors.teams.red.scribe.locator('#responsesList'))
                 .not.toContainText(actionTitles.blue);
             const notificationBackendState = await dumpE2EMockBackend(actors.whiteCellLead);
             const actionNotifications = notificationBackendState.tables.communications.filter((communication) => (
@@ -624,7 +624,11 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                     goal: returnedActionTitles[team],
                     expectedOutcomes: correctedActionOutcomes[team]
                 });
-                await submitActionFromScribe(actors.teams[team].facilitator, returnedActionTitles[team]);
+                await submitActionFromScribe(
+                    actors.teams[team].facilitator,
+                    returnedActionTitles[team],
+                    { expectedContent: correctedActionOutcomes[team] }
+                );
                 await adjudicateAction(actors.whiteCellLead, {
                     goal: returnedActionTitles[team],
                     section: team === 'red' ? 'responses' : 'actions',
