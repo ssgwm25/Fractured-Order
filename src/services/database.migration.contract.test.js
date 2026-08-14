@@ -97,6 +97,10 @@ const ACTION_NOTIFICATION_TYPE_CONTRACT_PATH = new URL(
     '../../data/2026-08-13_action_notification_type_contract.sql',
     import.meta.url
 );
+const ACTION_NOTIFICATION_TITLE_SNAPSHOT_PATH = new URL(
+    '../../data/2026-08-14_action_notification_title_snapshot.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -741,6 +745,19 @@ describe('database migration contracts', () => {
         expect(functionBody).toContain("'action_snapshot'");
         expect(reviewCallIndex).toBeGreaterThan(-1);
         expect(communicationCallIndex).toBeGreaterThan(reviewCallIndex);
+        expect(sql).toContain(
+            'GRANT EXECUTE ON FUNCTION public.operator_complete_action_with_notifications(\n    UUID, TEXT, BIGINT, TEXT, TEXT[], TEXT\n) TO authenticated;'
+        );
+        expect(sql).not.toMatch(/DROP\s+(?:TABLE|COLUMN|CONSTRAINT|POLICY)/i);
+        expect(sql).not.toMatch(/UPDATE\s+public\.actions/i);
+    });
+
+    it('includes the action title in the atomic notification snapshot', () => {
+        const sql = normalizeLineEndings(readFileSync(ACTION_NOTIFICATION_TITLE_SNAPSHOT_PATH, 'utf8'));
+        const functionBody = extractFunctionBody(sql, 'operator_complete_action_with_notifications');
+
+        expect(functionBody).toContain("'action_snapshot', COALESCE(action_row.artifact_payload -> 'action', '{}'::jsonb)");
+        expect(functionBody).toContain("COALESCE(NULLIF(BTRIM(action_row.goal), ''), 'Untitled action')");
         expect(sql).toContain(
             'GRANT EXECUTE ON FUNCTION public.operator_complete_action_with_notifications(\n    UUID, TEXT, BIGINT, TEXT, TEXT[], TEXT\n) TO authenticated;'
         );
