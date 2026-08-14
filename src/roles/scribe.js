@@ -4966,6 +4966,76 @@ export class ScribeController {
         `;
     }
 
+    renderActionNotificationSlide(slide = {}) {
+        if (slide.slideType === 'action-notification-placeholder') {
+            return `
+                <article class="scribe-action-slide scribe-action-slide-placeholder scribe-action-notification-slide">
+                    <p class="scribe-action-slide-eyebrow">Notifications</p>
+                    <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
+                    <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
+                </article>
+            `;
+        }
+
+        const communication = slide.communication || {};
+        const metadata = communication?.metadata && typeof communication.metadata === 'object'
+            ? communication.metadata
+            : {};
+        const snapshot = metadata.action_snapshot && typeof metadata.action_snapshot === 'object'
+            ? metadata.action_snapshot
+            : {};
+        const sourceTeam = metadata.source_team || 'unknown';
+        const sourceTeamLabel = formatTeamLabel(sourceTeam);
+        const title = snapshot.title || communication.title || 'Untitled action';
+        const actionViewModel = getBlueActionViewModel({ artifact_payload: { action: snapshot } });
+        const informationalBadge = createBadge({
+            text: 'Informational',
+            variant: 'default',
+            size: 'sm',
+            rounded: true
+        }).outerHTML;
+        // buildBlueActionArtifactDetails (inside getBlueActionViewModel) already strips
+        // empty/null/undefined fields, so artifactDetails only ever contains fields with
+        // real values — no further filtering needed here.
+        const glanceCards = actionViewModel.artifactDetails?.length
+            ? actionViewModel.artifactDetails.map((field) => renderActionSlideGlanceCard(field)).join('')
+            : '';
+
+        return `
+            <article class="scribe-action-slide scribe-action-notification-slide" data-source-team="${escapeHtml(sourceTeam)}">
+                <header class="scribe-action-slide-header">
+                    <div>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(sourceTeamLabel)} Action Notification</p>
+                        <h2 class="scribe-action-slide-title">${escapeHtml(title)}</h2>
+                        <p class="scribe-action-slide-summary">No response needed — shared for awareness by White Cell on behalf of ${escapeHtml(sourceTeamLabel)}.</p>
+                    </div>
+                    <div class="scribe-action-slide-badges">
+                        ${informationalBadge}
+                    </div>
+                </header>
+
+                <section class="scribe-action-slide-panel">
+                    ${glanceCards ? `
+                        <section class="scribe-action-slide-glance" aria-label="Action details">
+                            <div class="scribe-action-slide-section-header">
+                                <h3 class="scribe-action-slide-section-title">Action details</h3>
+                            </div>
+                            <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
+                                ${glanceCards}
+                            </div>
+                        </section>
+                    ` : ''}
+                    ${communication.content ? `
+                        <section class="scribe-action-slide-lead" aria-label="Note from White Cell">
+                            <p class="scribe-action-slide-section-label">Note from White Cell</p>
+                            <p class="scribe-action-slide-body">${escapeHtml(communication.content)}</p>
+                        </section>
+                    ` : ''}
+                </section>
+            </article>
+        `;
+    }
+
     showFacilitatorRfiModal(request = null) {
         if (request && request.workflow_state !== 'returned_to_team') {
             showToast({ message: 'Only an RFI returned for clarification can be edited.', type: 'error' });

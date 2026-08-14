@@ -609,6 +609,53 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).not.toContain('Direct Communication</h2>');
     });
 
+    it('renders an action notification slide with the source team and an explicit no-response-needed statement', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamId = 'industry';
+        controller.teamLabel = 'Industry Team';
+
+        const html = controller.renderActionNotificationSlide({
+            slideType: 'action-notification',
+            title: 'Rare-earth export controls',
+            communication: {
+                id: 'notif-1',
+                content: 'Heads up before your next move.',
+                created_at: '2026-08-14T09:00:00.000Z',
+                metadata: {
+                    source_team: 'blue',
+                    action_snapshot: {
+                        title: 'Rare-earth export controls',
+                        objective: 'Limit outbound rare-earth shipments.',
+                        instruments: ['Economic']
+                    }
+                }
+            }
+        });
+
+        expect(html).toContain('Blue Team');
+        expect(html).toContain('Rare-earth export controls');
+        expect(html).toContain('No response needed');
+        expect(html).toContain('Limit outbound rare-earth shipments.');
+        expect(html).toContain('Heads up before your next move.');
+        expect(html).not.toContain('<button');
+    });
+
+    it('renders an action notification placeholder when there is nothing to show', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+
+        const html = controller.renderActionNotificationSlide({
+            slideType: 'action-notification-placeholder',
+            title: 'No action notifications yet',
+            summary: 'Informational updates about another team\'s action, shared for awareness, will appear here.'
+        });
+
+        expect(html).toContain('No action notifications yet');
+        expect(html).toContain('shared for awareness');
+    });
+
     it('resolves the latest visible White Cell deck assignment for the active scribe team', async () => {
         const { resolveAssignedScribeDeck } = await loadScribeModule();
 
