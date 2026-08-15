@@ -2908,6 +2908,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(responsesList.innerHTML).toContain('Forwarded Proposals<span class="tab-badge">1</span>');
         expect(responsesList.innerHTML).toContain('data-responses-tab="action-notification"');
         expect(responsesList.innerHTML).toContain('Team Action Notifications<span class="tab-badge">1</span>');
+        expect(responsesList.innerHTML).toContain('Green Team Action: Agricultural tariff adjustment');
         expect(responsesList.innerHTML).toContain('data-responses-panel="communication"');
         expect(responsesList.innerHTML).toContain('data-responses-panel="rfi"');
         expect(responsesList.innerHTML).toContain('data-responses-panel="white-cell-update"');

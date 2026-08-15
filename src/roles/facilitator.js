@@ -1328,7 +1328,7 @@ export class FacilitatorController {
         const snapshot = metadata.action_snapshot && typeof metadata.action_snapshot === 'object'
             ? metadata.action_snapshot
             : {};
-        const sourceTeamLabel = this.formatTeamLabel(metadata.source_team || '');
+        const sourceTeamLabel = this.formatProposalRecipientTeamLabel(metadata.source_team || '');
         const actionTitle = snapshot.title || communication.title || 'Untitled action';
         const actionViewModel = getBlueActionViewModel({ artifact_payload: { action: snapshot } });
         const summaryParts = [];
@@ -1346,7 +1346,7 @@ export class FacilitatorController {
             id: communication.id,
             kind: 'action_notification',
             created_at: communication.created_at,
-            title: `${sourceTeamLabel} Team Action: ${actionTitle}`,
+            title: `${sourceTeamLabel} Action: ${actionTitle}`,
             subtitle: 'Informational — no response needed',
             content,
             badgeText: 'INFORMATIONAL',
