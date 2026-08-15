@@ -807,6 +807,10 @@ function getLiveSlideTypeClass(slide = {}) {
         return ' is-communication';
     }
 
+    if (slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder') {
+        return ' is-action-notification';
+    }
+
     return slide.slideType !== 'image' ? ' is-action' : '';
 }
 
@@ -1045,6 +1049,7 @@ export class ScribeController {
         this.facilitatorDeckSlides = [];
         this.teamActions = [];
         this.receivedProposals = [];
+        this.actionNotifications = [];
         this.teamRfis = [];
         this.rfiRevisionHistory = [];
         this.rfiRevisionHistoryError = null;
@@ -1135,6 +1140,7 @@ export class ScribeController {
         this.primeNotifications();
         this.syncDeckAssignmentFromStore({ reload: false });
         this.syncProposalsFromStore();
+        this.syncActionNotificationsFromStore();
         this.syncRfisFromStore();
         this.syncCommunicationsFromStore();
         await this.loadRfiRevisionHistory();
@@ -1530,6 +1536,7 @@ export class ScribeController {
                         || event === 'reconciled'
                 });
                 this.syncProposalsFromStore({ event, data });
+                this.syncActionNotificationsFromStore({ event, data });
                 this.syncCommunicationsFromStore({ event, data });
             })
         );
@@ -1824,6 +1831,34 @@ export class ScribeController {
             preferLiveSection: shouldFocusProposal || activeSectionId === PROPOSALS_SECTION_ID
                 ? PROPOSALS_SECTION_ID
                 : ''
+        });
+
+        if (this.deckSlides.length) {
+            this.renderSlide();
+        }
+    }
+
+    syncActionNotificationsFromStore({
+        event = '',
+        data = null
+    } = {}) {
+        this.actionNotifications = communicationsStore.getAll()
+            .filter((communication) => isActionNotificationCommunication(communication));
+
+        if (!this.facilitatorDeckSlides.length && !this.sections.length) {
+            return;
+        }
+
+        const shouldFocusNotification = (
+            event === 'created'
+            && data
+            && isActionNotificationCommunication(data)
+        );
+        this.rebuildDeck({
+            preferredSlideKey: shouldFocusNotification
+                ? `action-notification-${data.id}`
+                : this.getCurrentSlideKey(),
+            preferLiveSection: shouldFocusNotification ? NOTIFICATIONS_SECTION_ID : ''
         });
 
         if (this.deckSlides.length) {
@@ -2592,11 +2627,14 @@ export class ScribeController {
         const communicationSection = buildCommunicationSection(this.directCommunications, {
             teamContext: this.teamContext
         });
+        const notificationSection = buildActionNotificationSection(this.actionNotifications, {
+            teamContext: this.teamContext
+        });
         const staticSections = expandScribeDeckSections(this.facilitatorDeckSlides)
             .filter((section) => !LIVE_SECTION_IDS.includes(section.id));
         const staticSlides = flattenScribeDeckSlides(staticSections);
 
-        const liveSections = [actionSection, proposalSection, rfiSection, communicationSection];
+        const liveSections = [actionSection, proposalSection, rfiSection, communicationSection, notificationSection];
         this.sections = [...liveSections, ...staticSections];
         this.deckSlides = [...staticSlides, ...liveSections.flatMap((section) => section.slides)];
 
@@ -3118,7 +3156,9 @@ export class ScribeController {
                         ? this.renderRfiSlide(slide)
                         : slide.slideType === 'communication' || slide.slideType === 'communication-placeholder'
                             ? this.renderCommunicationSlide(slide)
-                            : this.renderActionSlide(slide);
+                            : slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder'
+                                ? this.renderActionNotificationSlide(slide)
+                                : this.renderActionSlide(slide);
             }
         }
 
@@ -3131,6 +3171,8 @@ export class ScribeController {
                         ? `${activeSection.label}. ${slide.title}. RFI ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
                         : slide.slideType === 'communication' || slide.slideType === 'communication-placeholder'
                             ? `${activeSection.label}. Direct message thread. ${activeSection.slideCount || 0} ${activeSection.slideCount === 1 ? 'message' : 'messages'}.`
+                            : slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder'
+                                ? `${activeSection.label}. Informational, no response needed. ${slide.title}. Notification ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
                     : `${activeSection.label}. ${slide.title}. ${getActionSlideAnnouncementLabel(slide.action)} ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
         }
 
@@ -5210,18 +5252,26 @@ export class ScribeController {
 
         const rfiCount = this.teamRfis.length;
         const messageCount = this.directCommunications.length;
+        const notificationCount = this.actionNotifications.length;
         const rfiCountElement = document.getElementById('rfiViewCount');
         const messageCountElement = document.getElementById('communicationsViewCount');
+        const notificationCountElement = document.getElementById('notificationsViewCount');
         const rfiButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.rfis);
         const communicationsButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.communications);
+        const notificationsButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.notifications);
         const workspacePanel = document.getElementById('facilitatorWorkspacePanel');
 
         if (rfiCountElement) rfiCountElement.textContent = String(rfiCount);
         if (messageCountElement) messageCountElement.textContent = String(messageCount);
+        if (notificationCountElement) notificationCountElement.textContent = String(notificationCount);
         rfiButton?.setAttribute('aria-label', `RFIs, ${rfiCount} ${rfiCount === 1 ? 'record' : 'records'}`);
         communicationsButton?.setAttribute(
             'aria-label',
             `Communications, ${messageCount} ${messageCount === 1 ? 'message' : 'messages'}`
+        );
+        notificationsButton?.setAttribute(
+            'aria-label',
+            `Notifications, ${notificationCount} ${notificationCount === 1 ? 'item' : 'items'}`
         );
         workspacePanel?.setAttribute('aria-labelledby', FACILITATOR_VIEW_BUTTON_IDS[normalizedView]);
     }

@@ -1488,6 +1488,47 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(sectionButtonMarkup(sectionList.innerHTML, 'Proposals')).toContain('aria-label="Proposals, 1 proposal"');
     });
 
+    it('adds action notifications as a live deck section and updates the Notifications tab count', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const notificationsButton = fakeDocument.register(createFakeElement('notificationsViewBtn'));
+        const notificationsCount = fakeDocument.register(createFakeElement('notificationsViewCount'));
+        global.document = fakeDocument;
+
+        const controller = new ScribeController();
+        controller.teamId = 'industry';
+        controller.teamContext = { teamId: 'industry', scribeRole: 'industry_scribe' };
+        // rebuildDeck reads action notifications from this.actionNotifications, not
+        // this.directCommunications — Task 4's exclusion means the same communication
+        // would never appear in directCommunications once isFacilitatorDirectCommunication
+        // is updated, so the two arrays must be populated independently here.
+        controller.actionNotifications = [{
+            id: 'notif-1',
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'white_cell',
+            to_role: 'industry',
+            created_at: '2026-08-14T09:00:00.000Z',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'industry',
+                source_team: 'blue',
+                shared_action_id: 'action-1',
+                action_snapshot: { title: 'Rare-earth export controls' }
+            }
+        }];
+
+        controller.rebuildDeck();
+
+        const notificationsSection = controller.sections.find((section) => section.id === 'action-notifications');
+        expect(notificationsSection).toBeDefined();
+        expect(notificationsSection.slideCount).toBe(1);
+
+        controller.updateFacilitatorViewSwitch('notifications');
+
+        expect(notificationsCount.textContent).toBe('1');
+        expect(notificationsButton.classList.contains('is-active')).toBe(true);
+    });
+
     it('builds action notification slides from ACTION_NOTIFICATION and enriched Red-share GUIDANCE communications', async () => {
         const { buildFacilitatorActionNotificationSlides } = await loadScribeModule();
         const teamContext = {
