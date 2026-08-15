@@ -55,6 +55,9 @@ function getCommunicationMetadata(communication = null) {
 }
 
 export function getProposalThreadMetadata(communication = null) {
+    if (normalizeString(communication?.type).toUpperCase() === 'PROPOSAL_RESPONSE_REVIEW') {
+        return null;
+    }
     const metadata = getCommunicationMetadata(communication);
     const threadId = normalizeString(metadata.thread_id);
     const recipientTeam = normalizeTeam(metadata.recipient_team);
@@ -94,8 +97,67 @@ export function getProposalThreadMetadata(communication = null) {
         sentAt,
         messageType,
         facilitatorDecision: normalizeString(metadata.facilitator_decision).toLowerCase() || null,
-        clientMessageId: normalizeString(metadata.client_message_id) || null
+        clientMessageId: normalizeString(metadata.client_message_id) || null,
+        reviewRequestId: normalizeString(metadata.review_request_id) || null
     };
+}
+
+export function getProposalResponseReviewMetadata(communication = null) {
+    if (normalizeString(communication?.type).toUpperCase() !== 'PROPOSAL_RESPONSE_REVIEW') return null;
+
+    const metadata = getCommunicationMetadata(communication);
+    const review = {
+        threadId: normalizeString(metadata.thread_id),
+        recipientTeam: normalizeTeam(metadata.recipient_team),
+        sourceProposalId: normalizeString(metadata.source_proposal_id),
+        sourceRevision: Number(metadata.source_revision),
+        sourceTeam: normalizeTeam(metadata.source_team),
+        parentMessageId: normalizeString(metadata.parent_message_id),
+        proposedRoundNumber: normalizeRound(metadata.proposed_round_number),
+        senderTeam: normalizeTeam(metadata.sender_team),
+        senderRole: normalizeString(metadata.sender_role),
+        proposedMessageType: normalizeString(metadata.proposed_message_type).toLowerCase(),
+        facilitatorDecision: normalizeString(metadata.facilitator_decision).toLowerCase() || null,
+        clientMessageId: normalizeString(metadata.client_message_id) || null,
+        submittedAt: normalizeString(metadata.submitted_at || communication.created_at)
+    };
+
+    if (
+        !communication?.id
+        || !review.threadId
+        || !review.recipientTeam
+        || !review.sourceProposalId
+        || !Number.isInteger(review.sourceRevision)
+        || review.sourceRevision < 1
+        || !review.parentMessageId
+        || review.proposedRoundNumber === null
+        || !review.senderTeam
+        || !review.senderRole
+        || !Object.values(PROPOSAL_THREAD_MESSAGE_TYPES).includes(review.proposedMessageType)
+    ) return null;
+
+    return review;
+}
+
+export function getPendingProposalResponseReviews(communications = [], sourceProposalId = '') {
+    const normalizedProposalId = normalizeString(sourceProposalId);
+    if (!normalizedProposalId || !Array.isArray(communications)) return [];
+
+    const forwardedReviewIds = new Set(communications
+        .map((communication) => getProposalThreadMetadata(communication)?.reviewRequestId)
+        .filter(Boolean));
+
+    return communications
+        .filter((communication) => {
+            const review = getProposalResponseReviewMetadata(communication);
+            return review
+                && review.sourceProposalId === normalizedProposalId
+                && !forwardedReviewIds.has(String(communication.id));
+        })
+        .sort((left, right) => (
+            new Date(left.created_at || 0).getTime() - new Date(right.created_at || 0).getTime()
+            || String(left.id).localeCompare(String(right.id))
+        ));
 }
 
 export function isProposalThreadMessage(communication = null) {

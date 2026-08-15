@@ -41,6 +41,8 @@ For `data/2026-08-06_facilitator_rfi_communications.sql`, roll back the applicat
 
 For `data/2026-08-06_proposal_recipient_threads.sql`, roll back the frontend first and stop proposal approval/message writes. Do not drop the thread indexes, immutability trigger, or append-only rows after any thread has been created. Export `actions`, `communications`, `artifact_workflow_reviews`, and proposal timeline rows, including metadata, then prefer a forward fix. Reapplying the June finalization lock or the earlier August communications policy would restore superseded proposal-wide mutable responses and is not a safe live rollback.
 
+For `data/2026-08-15_proposal_forwarding_integrity.sql`, contain by rolling back the frontend and stopping proposal response submissions. Do not delete `PROPOSAL_RESPONSE_REVIEW` rows or their forwarded `PROPOSAL_RESPONSE` rounds. Keep `operator_forward_proposal_response`, the snapshot-preparation trigger, and the reconciled recipient payloads in place; repair forward if a response is stuck. Removing the trigger while newer clients are active can bypass White Cell review or re-expose partner-routing fields.
+
 For `data/2026-08-11_requests_responded_by_schema_repair.sql`, keep the nullable
 `requests.responded_by` column in place. Older clients ignore it, while the
 current Facilitator RFI guard requires the row field even for unanswered

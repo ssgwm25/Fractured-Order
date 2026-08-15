@@ -52,6 +52,7 @@ import {
 } from '../features/actions/proposalDetails.js';
 import {
     PROPOSAL_RECIPIENT_STATUSES,
+    PROPOSAL_THREAD_MESSAGE_TYPES,
     getLatestProposalThreadMessage,
     getProposalThreadForRecipient,
     getProposalThreadMessageKey,
@@ -61,6 +62,8 @@ import {
     getProposalRecipientEntry,
     getProposalRecipientStatus,
     getProposalResponseEntry,
+    getProposalResponseReviewMetadata,
+    getPendingProposalResponseReviews,
     isProposalNegotiationRequest,
     isProposalThreadMessage
 } from '../features/actions/proposalRecipientState.js';
@@ -95,6 +98,7 @@ import { ENUMS, canAdjudicateAction, getPhaseLabel, isAdjudicatedAction, isDraft
 import { getUserMessage, ValidationError } from '../core/errors.js';
 import {
     buildDirectCommunicationNotification,
+    buildProposalResponseReviewNotification,
     buildProposalRoundNotification,
     buildRfiWorkflowNotification,
     buildWhiteCellArtifactNotification
@@ -3519,6 +3523,11 @@ export class WhiteCellController {
     }
 
     renderProposals() {
+        const pendingCount = this.proposalTeamProposals.filter((action) => (
+            canAdjudicateAction(action)
+            || getPendingProposalResponseReviews(communicationsStore.getAll(), action.id).length > 0
+        )).length;
+        this.updateSidebarBadge('proposalsBadge', pendingCount);
         this.renderReviewQueue(document.getElementById('proposalsList'), this.proposalTeamProposals, {
             section: 'proposals',
             newIds: this.newGreenProposalIds,
@@ -3535,18 +3544,22 @@ export class WhiteCellController {
             return;
         }
 
+        const hasPendingProposalResponse = (action) => (
+            section === 'proposals'
+            && getPendingProposalResponseReviews(communicationsStore.getAll(), action?.id).length > 0
+        );
         const groups = [
             {
                 key: 'pending',
                 label: 'Awaiting Review',
                 emptyHint: 'Nothing is awaiting review right now.',
-                items: items.filter((action) => canAdjudicateAction(action))
+                items: items.filter((action) => canAdjudicateAction(action) || hasPendingProposalResponse(action))
             },
             {
                 key: 'deliberated',
                 label: 'Completed',
                 emptyHint: 'No items have been accepted as complete yet.',
-                items: items.filter((action) => isAdjudicatedAction(action))
+                items: items.filter((action) => isAdjudicatedAction(action) && !hasPendingProposalResponse(action))
             }
         ];
 
@@ -3961,6 +3974,9 @@ export class WhiteCellController {
             ].filter(Boolean).join(' ')
         }).outerHTML;
         const actionButtons = [];
+        const pendingProposalResponses = proposalViewModel.hasProposalDetails
+            ? getPendingProposalResponseReviews(communicationsStore.getAll(), action.id)
+            : [];
         const deliberationBadgeMarkup = canAdjudicateAction(action)
             ? createBadge({ text: 'Deliberation Underway', variant: 'warning', size: 'sm', rounded: true }).outerHTML
             : '';
@@ -3968,6 +3984,11 @@ export class WhiteCellController {
         if (showAdjudicateAction) {
             actionButtons.push(`<button class="btn btn-primary btn-sm adjudicate-btn" data-action-id="${action.id}">${isStrategicOrientationFlow ? 'Review Strategic Orientation' : (proposalViewModel.hasProposalDetails ? 'Review Proposal' : 'Review Action')}</button>`);
         }
+        pendingProposalResponses.forEach((response) => {
+            const review = getProposalResponseReviewMetadata(response);
+            const senderLabel = this.formatProposalRecipientTeamLabel(review?.senderTeam || '');
+            actionButtons.push(`<button type="button" class="btn btn-primary btn-sm proposal-response-review-btn" data-action-id="${this.escapeHtml(String(action.id))}" data-response-review-id="${this.escapeHtml(String(response.id))}">Review ${this.escapeHtml(senderLabel)} Response</button>`);
+        });
 
         return `
             <div class="entity-card${statusAccent ? ` entity-card--${statusAccent}` : ''}" data-action-id="${action.id}"${isNew ? ' style="background: var(--color-surface-alt);"' : ''}>
@@ -3992,7 +4013,7 @@ export class WhiteCellController {
                 ${revisionMarkup}
                 ${notesMarkup}
                 ${actionButtons.length ? `
-                    <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
+                    <div class="card-actions" style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
                         ${actionButtons.join('')}
                     </div>
                 ` : ''}
@@ -4013,6 +4034,16 @@ export class WhiteCellController {
                     this.markWhiteCellRecordOpened(this.getQueueNameForAction(action), actionId);
                     this.showAdjudicateModal(action);
                 }
+            });
+        });
+
+        container.querySelectorAll('.proposal-response-review-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                const action = this.actions.find((candidate) => candidate.id === button.dataset.actionId);
+                const response = communicationsStore.getAll().find((candidate) => (
+                    String(candidate?.id) === String(button.dataset.responseReviewId)
+                ));
+                if (action && response) this.showProposalResponseReviewModal(action, response);
             });
         });
     }
@@ -4421,6 +4452,89 @@ export class WhiteCellController {
                 }
             ]
         });
+    }
+
+    showProposalResponseReviewModal(action, response) {
+        const review = getProposalResponseReviewMetadata(response);
+        if (!review) {
+            showToast({ message: 'This proposal response is not available for White Cell review.', type: 'error' });
+            return;
+        }
+
+        const proposal = getProposalViewModel(action);
+        const senderLabel = this.formatProposalRecipientTeamLabel(review.senderTeam);
+        const sourceLabel = this.formatProposalRecipientTeamLabel(review.sourceTeam || action.team);
+        const responseLabel = review.facilitatorDecision === 'negotiate'
+            ? 'Negotiation request'
+            : review.proposedMessageType === PROPOSAL_THREAD_MESSAGE_TYPES.THREAD_CLOSED
+                ? 'Thread closure'
+                : 'Proposal response';
+        const content = document.createElement('div');
+        content.innerHTML = `
+            <div class="mb-4">
+                <p class="text-sm text-gray-500" style="margin: 0 0 var(--space-2);">${this.escapeHtml(responseLabel)} from ${this.escapeHtml(senderLabel)} for ${this.escapeHtml(sourceLabel)}</p>
+                <h4 class="font-semibold" style="margin: 0;">${this.escapeHtml(proposal.title)}</h4>
+            </div>
+            ${this.renderSummaryCard('Response Details', [
+                { label: 'Response type', value: responseLabel },
+                { label: 'From', value: senderLabel },
+                { label: 'Forward to', value: sourceLabel },
+                { label: 'Submitted', value: review.submittedAt ? formatDateTime(review.submittedAt) : '' }
+            ])}
+            <section class="card card-bordered" style="margin-top: var(--space-3); padding: var(--space-3);" aria-labelledby="proposalResponseReviewContentLabel">
+                <h4 id="proposalResponseReviewContentLabel" class="font-semibold" style="margin: 0 0 var(--space-2);">${this.escapeHtml(review.facilitatorDecision === 'negotiate' ? 'Negotiation terms' : 'Response')}</h4>
+                <p class="text-sm" style="margin: 0; white-space: pre-wrap;">${this.escapeHtml(response.content || '')}</p>
+            </section>
+        `;
+
+        const modalRef = { current: null };
+        modalRef.current = showModal({
+            title: 'Review Proposal Response',
+            content,
+            size: 'md',
+            buttons: [
+                { label: 'Cancel', variant: 'secondary', onClick: () => {} },
+                {
+                    label: `Forward to ${sourceLabel}`,
+                    variant: 'primary',
+                    onClick: () => {
+                        this.handleProposalResponseForward(modalRef.current, response).catch((error) => {
+                            logger.error('Failed to forward proposal response:', error);
+                        });
+                        return false;
+                    }
+                }
+            ]
+        });
+    }
+
+    async handleProposalResponseForward(modal, response) {
+        const review = getProposalResponseReviewMetadata(response);
+        if (!review) {
+            showToast({ message: 'This proposal response is no longer awaiting review.', type: 'warning' });
+            return;
+        }
+
+        const loader = showLoader({ message: 'Forwarding proposal response...' });
+        try {
+            const result = await database.forwardProposalResponse(response.id);
+            if (!result?.communication) {
+                throw new Error('Proposal response forwarding did not return a thread message.');
+            }
+            communicationsStore.updateFromServer('INSERT', result.communication);
+            if (result.timeline_event) timelineStore.updateFromServer('INSERT', result.timeline_event);
+            showToast({
+                message: `Proposal response forwarded to ${this.formatProposalRecipientTeamLabel(review.sourceTeam)}.`,
+                type: 'success'
+            });
+            modal?.close();
+            this.renderProposals();
+        } catch (error) {
+            logger.error('Failed to forward proposal response:', error);
+            showToast({ message: `Failed to forward proposal response. ${getUserMessage(error)}`, type: 'error' });
+        } finally {
+            hideLoader(loader);
+        }
     }
 
     async handleArtifactReview(modal, action, decision) {
@@ -5333,6 +5447,7 @@ export class WhiteCellController {
             ))
             .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         this.renderCommunicationHistory();
+        this.renderProposals();
         this.renderScribeDeckSettings();
         this.renderVerbaAiList();
     }
@@ -5380,7 +5495,9 @@ export class WhiteCellController {
             ))
             .map((communication) => ({
                 communication,
-                notification: buildDirectCommunicationNotification(communication, { audience: 'whitecell' })
+                notification: getProposalResponseReviewMetadata(communication)
+                    ? buildProposalResponseReviewNotification(communication)
+                    : buildDirectCommunicationNotification(communication, { audience: 'whitecell' })
             }))
             .filter(({ notification }) => notification);
 
@@ -5396,7 +5513,13 @@ export class WhiteCellController {
             if (this.seenInboundCommunicationIds.has(notification.id)) return;
             this.seenInboundCommunicationIds.add(notification.id);
             if (!['created', 'reconciled'].includes(event) || !changedIds.has(communication.id)) return;
-            this.newCommunicationIds.add(String(communication.id));
+            const responseReview = getProposalResponseReviewMetadata(communication);
+            if (responseReview) {
+                this.newGreenProposalIds.add(responseReview.sourceProposalId);
+                this.renderProposals();
+            } else {
+                this.newCommunicationIds.add(String(communication.id));
+            }
             this.durableNotifications?.notify(notification, {
                 onOpen: (durableNotification) => this.openDurableDestination(durableNotification)
             });

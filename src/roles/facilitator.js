@@ -1718,12 +1718,6 @@ export class FacilitatorController {
                         ...(snapshot.instruments?.length ? [{ label: 'Instrument of Power', value: formatList(snapshot.instruments) }] : []),
                         ...(snapshot.category ? [{ label: 'Category (historical)', value: snapshot.category }] : []),
                         {
-                            label: 'Intended Partners',
-                            value: snapshot.recipientTeams?.length
-                                ? formatProposalRecipientTeams(snapshot.recipientTeams)
-                                : (snapshot.intendedPartners || 'Not specified')
-                        },
-                        {
                             label: 'Focus Sectors',
                             value: formatList(snapshot.focusSectors?.length
                                 ? snapshot.focusSectors

@@ -54,8 +54,10 @@ import {
     PROPOSAL_THREAD_MESSAGE_TYPES,
     formatProposalRecipientStatus,
     getLatestProposalThreadMessage,
+    getPendingProposalResponseReviews,
     getProposalThreadForRecipient,
     getProposalThreadMetadata,
+    getProposalResponseReviewMetadata,
     getProposalThreadStatus,
     getProposalRecipientEntry,
     getProposalRecipientStatus,
@@ -4408,6 +4410,13 @@ export class ScribeController {
             metadata.source_proposal_id,
             metadata.recipient_team
         );
+        const pendingResponse = getPendingProposalResponseReviews(
+            communicationsStore.getAll(),
+            metadata.source_proposal_id
+        ).find((candidate) => {
+            const review = getProposalResponseReviewMetadata(candidate);
+            return review?.threadId === metadata.thread_id && review.senderTeam === this.teamId;
+        }) || null;
         const legacyEntry = getProposalRecipientEntry(communication);
         const legacyDecision = legacyEntry?.facilitator_decision || '';
         const status = isThreadBacked
@@ -4418,9 +4427,9 @@ export class ScribeController {
         const isClosed = isThreadBacked
             ? status === PROPOSAL_RECIPIENT_STATUSES.CLOSED
             : isProposalRecipientFinal(communication);
-        const awaitingThisTeam = isThreadBacked
+        const awaitingThisTeam = !pendingResponse && (isThreadBacked
             ? latestMetadata?.senderTeam !== this.teamId && !isClosed
-            : !isClosed;
+            : !isClosed);
         const isFirstResponse = isThreadBacked ? latestMetadata?.roundNumber === 0 : true;
         const legacyDecisionLabel = {
             accept: 'Accepted',
@@ -4461,12 +4470,6 @@ export class ScribeController {
                                 value: formatList(proposal.instruments?.length ? proposal.instruments : proposal.category)
                             }) : ''}
                             ${renderActionSlideGlanceCard({
-                                label: 'Intended partners',
-                                value: proposal.recipientTeams?.length
-                                    ? formatProposalRecipientTeams(proposal.recipientTeams)
-                                    : (proposal.intendedPartners || 'Not specified')
-                            })}
-                            ${renderActionSlideGlanceCard({
                                 label: 'Focus sectors',
                                 value: formatList(proposal.focusSectors?.length
                                     ? proposal.focusSectors
@@ -4494,8 +4497,13 @@ export class ScribeController {
                         <div>
                             <p class="scribe-action-slide-section-label">Recipient-isolated thread</p>
                             <p id="${escapeHtml(decisionStatusId)}" class="scribe-proposal-decision-status" role="status" aria-live="polite">
-                                ${isThreadBacked ? escapeHtml(formatProposalRecipientStatus(status)) : (isClosed ? `Recorded response: ${escapeHtml(legacyDecisionLabel)}` : 'Choose one response. It will be shared with White Cell and the proposing team.')}
+                                ${pendingResponse
+                                    ? 'Awaiting White Cell forwarding'
+                                    : isThreadBacked
+                                        ? escapeHtml(formatProposalRecipientStatus(status))
+                                        : (isClosed ? `Recorded response: ${escapeHtml(legacyDecisionLabel)}` : 'Choose one response. White Cell must review and forward it to the proposing team.')}
                             </p>
+                            ${pendingResponse ? '<p class="scribe-proposal-negotiation-terms">Your response is recorded and cannot be changed while White Cell reviews it.</p>' : ''}
                             ${isThreadBacked ? `<ol class="proposal-thread-list" aria-label="Ordered proposal messages">
                                 ${messages.map((message) => {
                                     const thread = getProposalThreadMetadata(message);
@@ -4742,7 +4750,7 @@ export class ScribeController {
                 clientMessageId
             });
             communicationsStore.updateFromServer('INSERT', responseCommunication);
-            showToast({ message: `Proposal thread updated: ${decisionContract.label}`, type: 'success' });
+            showToast({ message: `${decisionContract.label} sent to White Cell for forwarding.`, type: 'success' });
             return true;
         } catch (error) {
             logger.error('Failed to append proposal thread round:', error);

@@ -1233,8 +1233,32 @@ export async function respondToForwardedProposal(page, {
     const expectedLabel = decision === 'negotiate'
         ? 'Negotiation requested'
         : (decision === 'not_interested' ? 'Not Interested' : 'Accepted');
-    await expect(page.locator('#toast-container')).toContainText(`Proposal thread updated: ${expectedLabel}`);
-    await expect(proposalFrame).toContainText(decision === 'negotiate' ? 'Negotiation underway' : 'Response received');
+    await expect(page.locator('#toast-container')).toContainText(`${expectedLabel} sent to White Cell for forwarding.`);
+}
+
+export async function reviewProposalResponse(page, { title, senderTeam } = {}) {
+    if (!title) throw new Error('reviewProposalResponse requires a title.');
+    if (!senderTeam) throw new Error('reviewProposalResponse requires a senderTeam.');
+
+    const senderLabel = {
+        blue: 'Blue Team',
+        green: 'Green Team',
+        red: 'Red Team',
+        industry: 'Industry Team'
+    }[String(senderTeam).trim().toLowerCase()];
+    if (!senderLabel) throw new Error(`Unsupported proposal response sender: ${senderTeam}`);
+
+    await openSidebarSection(page, 'proposals');
+    const proposalCard = getVisibleReviewCard(page, '#proposalsList', title).first();
+    await expect(proposalCard).toBeVisible();
+    await proposalCard.getByRole('button', { name: `Review ${senderLabel} Response` }).first().click();
+
+    const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)')
+        .filter({ hasText: 'Review Proposal Response' });
+    await expect(modal).toBeVisible();
+    await modal.getByRole('button', { name: /^Forward to / }).click();
+    await expect(page.locator('#toast-container')).toContainText('Proposal response forwarded to');
+    await expect(modal).toBeHidden();
 }
 
 export async function openReceivedProposalSlide(page, title) {
@@ -1302,9 +1326,7 @@ export async function replyToProposalThread(page, {
     await modal.locator('#facilitatorProposalNegotiationTerms').fill(message);
     await modal.getByRole('button', { name: 'Send Follow-up' }).click();
     await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('Proposal thread updated: Follow-up sent');
-    await openFacilitatorActionSlide(page, title);
-    await expect(frame).toContainText(message);
+    await expect(page.locator('#toast-container')).toContainText('Follow-up sent to White Cell for forwarding.');
 }
 
 export async function submitRfi(page, {

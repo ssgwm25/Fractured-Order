@@ -27,6 +27,7 @@ import {
     respondToForwardedProposal,
     returnRfi,
     reviewProposal,
+    reviewProposalResponse,
     reviewStrategicOrientation,
     reviseAndResubmitRfi,
     reviseReturnedAction,
@@ -54,7 +55,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-08-14_action_notification_title_snapshot';
+const REQUIRED_MIGRATION_STATE = '2026-08-15_proposal_forwarding_integrity';
 
 function getSourceRevisionEvidence() {
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -712,6 +713,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                         ? blueNegotiationTerms
                         : 'Add a six-month review clause and a shared delivery checkpoint.'
                 });
+                await reviewProposalResponse(actors.whiteCellLead, {
+                    title: proposal.title,
+                    senderTeam: proposal.recipient
+                });
             }
 
             await respondToForwardedProposal(actors.teams.red.facilitator, {
@@ -719,16 +724,28 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 decision: 'negotiate',
                 negotiationTerms: redNegotiationTerms
             });
+            await reviewProposalResponse(actors.whiteCellLead, {
+                title: dualProposalTitle,
+                senderTeam: 'red'
+            });
 
             await replyToProposalThread(actors.teams.green.facilitator, {
                 title: dualProposalTitle,
                 recipientTeam: 'blue',
                 message: blueFollowUp
             });
+            await reviewProposalResponse(actors.whiteCellLead, {
+                title: dualProposalTitle,
+                senderTeam: 'green'
+            });
             await replyToProposalThread(actors.teams.green.facilitator, {
                 title: dualProposalTitle,
                 recipientTeam: 'red',
                 message: redFollowUp
+            });
+            await reviewProposalResponse(actors.whiteCellLead, {
+                title: dualProposalTitle,
+                senderTeam: 'green'
             });
 
             await openFacilitatorActionSlide(

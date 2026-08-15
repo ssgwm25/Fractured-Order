@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     buildDirectCommunicationNotification,
+    buildProposalResponseReviewNotification,
     buildFacilitatorArtifactReturnNotification,
     buildProposalRoundNotification,
     buildRfiWorkflowNotification,
@@ -58,6 +59,33 @@ describe('workflow notification event families', () => {
             family: 'proposal-follow-up',
             source: 'Green Team',
             destination: { communicationId: 'round-2' }
+        });
+    });
+
+    it('routes pending proposal responses to the White Cell proposal review surface', () => {
+        const notification = buildProposalResponseReviewNotification({
+            id: 'response-review-1',
+            type: 'PROPOSAL_RESPONSE_REVIEW',
+            title: 'Regional logistics compact',
+            created_at: '2026-08-15T12:00:00.000Z',
+            metadata: {
+                thread_id: 'thread-1', recipient_team: 'blue', parent_message_id: 'root-1',
+                source_proposal_id: 'proposal-1', source_revision: 1, source_team: 'green',
+                sender_team: 'blue', sender_role: 'blue_scribe', proposed_round_number: 1,
+                proposed_message_type: 'negotiation_message', facilitator_decision: 'negotiate',
+                submitted_at: '2026-08-15T12:00:00.000Z'
+            }
+        });
+
+        expect(notification).toMatchObject({
+            family: 'proposal-response-review',
+            source: 'Blue Team',
+            requiredAction: 'Review and forward the response to the proposing team.',
+            destination: {
+                section: 'proposals',
+                recordId: 'proposal-1',
+                communicationId: 'response-review-1'
+            }
         });
     });
 

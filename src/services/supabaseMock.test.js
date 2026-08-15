@@ -615,12 +615,23 @@ describe('supabase mock bootstrap guardrails', () => {
                     session_id: 'session-1',
                     team: 'green',
                     artifact_type: 'proposal',
-                    artifact_payload: { proposal: { recipientTeams: ['blue', 'red'] } },
+                    artifact_payload: { proposal: { recipientTeams: ['blue'] } },
                     status: 'submitted',
                     workflow_state: 'submitted_to_white_cell',
                     revision_number: 1,
                     outcome: null,
                     goal: 'Dual recipient proposal',
+                    expected_outcomes: 'Preserve joint access.',
+                    ally_contingencies: [
+                        'Proposal Details',
+                        'Originators: ["EU", "Japan"]',
+                        'Objective: Coordinate the shared logistics corridor.',
+                        'Instruments: ["Economic"]',
+                        'Intended Partners: Blue Team, Red Team',
+                        'Timing And Conditions: Before Move 3.',
+                        'Recipient Teams: ["blue", "red"]',
+                        'Focus Sectors: ["Logistics", "Critical minerals"]'
+                    ].join('\n'),
                     is_deleted: false
                 }]
             }
@@ -645,6 +656,15 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(approveBlue.data.action.artifact_payload.proposal_recipient_reviews).toEqual({
             blue: expect.objectContaining({ status: 'approved_forwarded' })
         });
+        expect(approveBlue.data.communication.metadata.proposal).toMatchObject({
+            originators: ['EU', 'Japan'],
+            objective: 'Coordinate the shared logistics corridor.',
+            focusSectors: ['Logistics', 'Critical minerals'],
+            timingAndConditions: 'Before Move 3.',
+            expectedOutcomes: 'Preserve joint access.'
+        });
+        expect(approveBlue.data.communication.metadata.proposal).not.toHaveProperty('recipientTeams');
+        expect(approveBlue.data.communication.metadata.proposal).not.toHaveProperty('intendedPartners');
         expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.communications).toHaveLength(1);
 
         const approveRed = await mockClient.rpc('operator_review_proposal', {
@@ -682,14 +702,15 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(blueResponse.data.metadata).toMatchObject({
             thread_id: blueRoot.metadata.thread_id,
             recipient_team: 'blue',
-            round_number: 1,
             parent_message_id: blueRoot.id,
             source_proposal_id: 'proposal-1',
             source_revision: 1,
             sender_team: 'blue',
             sender_role: 'blue_scribe',
-            message_type: 'negotiation_message'
+            proposed_round_number: 1,
+            proposed_message_type: 'negotiation_message'
         });
+        expect(blueResponse.data).toMatchObject({ type: 'PROPOSAL_RESPONSE_REVIEW', to_role: 'white_cell' });
         const idempotentRetry = await mockClient.rpc('append_proposal_thread_message', {
             requested_parent_message_id: blueRoot.id,
             requested_content: 'Add an implementation checkpoint.',
@@ -707,6 +728,24 @@ describe('supabase mock bootstrap guardrails', () => {
 
         await mockClient.auth.signOut();
         await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_lead'
+        });
+        const blueForward = await mockClient.rpc('operator_forward_proposal_response', {
+            requested_review_communication_id: blueResponse.data.id
+        });
+        expect(blueForward.error).toBeNull();
+        expect(blueForward.data.communication.metadata).toMatchObject({
+            round_number: 1,
+            message_type: 'negotiation_message',
+            review_request_id: blueResponse.data.id
+        });
+
+        await mockClient.auth.signOut();
+        await mockClient.auth.signInAnonymously();
         await mockClient.rpc('claim_session_role_seat', {
             requested_session_id: 'session-1',
             requested_role: 'green_scribe',
@@ -714,7 +753,7 @@ describe('supabase mock bootstrap guardrails', () => {
             requested_client_id: 'green-client'
         });
         const greenFollowUp = await mockClient.rpc('append_proposal_thread_message', {
-            requested_parent_message_id: blueResponse.data.id,
+            requested_parent_message_id: blueForward.data.communication.id,
             requested_content: 'Green accepts the checkpoint and proposes a joint review.',
             requested_message_type: 'negotiation_message',
             requested_client_message_id: '00000000-0000-4000-8000-000000000004'
@@ -723,12 +762,27 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(greenFollowUp.data.metadata).toMatchObject({
             thread_id: blueRoot.metadata.thread_id,
             recipient_team: 'blue',
-            round_number: 2,
-            parent_message_id: blueResponse.data.id,
-            sender_team: 'green'
+            proposed_round_number: 2,
+            parent_message_id: blueForward.data.communication.id,
+            sender_team: 'green',
+            proposed_message_type: 'negotiation_message'
         });
+
+        await mockClient.auth.signOut();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_lead'
+        });
+        const greenForward = await mockClient.rpc('operator_forward_proposal_response', {
+            requested_review_communication_id: greenFollowUp.data.id
+        });
+        expect(greenForward.error).toBeNull();
         expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.communications
-            .filter((row) => row.metadata?.thread_id === blueRoot.metadata.thread_id)
+            .filter((row) => ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE'].includes(row.type)
+                && row.metadata?.thread_id === blueRoot.metadata.thread_id)
             .map((row) => row.metadata.round_number)
             .sort()).toEqual([0, 1, 2]);
 
@@ -741,7 +795,7 @@ describe('supabase mock bootstrap guardrails', () => {
             requested_client_id: 'red-client'
         });
         const crossTeam = await mockClient.rpc('append_proposal_thread_message', {
-            requested_parent_message_id: greenFollowUp.data.id,
+            requested_parent_message_id: greenForward.data.communication.id,
             requested_content: 'Red must not enter the Blue thread.',
             requested_message_type: 'negotiation_message',
             requested_client_message_id: '00000000-0000-4000-8000-000000000002'

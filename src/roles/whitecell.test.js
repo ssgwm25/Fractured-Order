@@ -3262,6 +3262,123 @@ describe('White Cell DOM contract', () => {
         expect(modal.close).toHaveBeenCalled();
     });
 
+    it('uses a response-specific modal and forwards the reviewed negotiation round', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { database } = await import('../services/database.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        global.document = createFakeDocument();
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        const proposal = {
+            id: 'proposal-response-source-1',
+            team: 'green',
+            goal: 'Regional logistics compact',
+            mechanism: 'Proposal',
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU'],
+                objective: 'Coordinate regional logistics.',
+                recipientTeams: ['blue', 'red']
+            })
+        };
+        const review = {
+            id: 'proposal-response-review-1',
+            type: 'PROPOSAL_RESPONSE_REVIEW',
+            content: 'Add a six-month review checkpoint.',
+            created_at: '2026-08-15T12:00:00.000Z',
+            metadata: {
+                thread_id: 'thread-blue-1',
+                recipient_team: 'blue',
+                parent_message_id: 'thread-blue-root',
+                source_proposal_id: proposal.id,
+                source_revision: 1,
+                source_team: 'green',
+                sender_team: 'blue',
+                sender_role: 'blue_scribe',
+                proposed_round_number: 1,
+                proposed_message_type: 'negotiation_message',
+                facilitator_decision: 'negotiate',
+                submitted_at: '2026-08-15T12:00:00.000Z'
+            }
+        };
+
+        controller.showProposalResponseReviewModal(proposal, review);
+        const modalConfig = showModal.mock.calls.at(-1)?.[0];
+        expect(modalConfig?.title).toBe('Review Proposal Response');
+        expect(modalConfig?.content?.innerHTML).toContain('Negotiation terms');
+        expect(modalConfig?.content?.innerHTML).toContain('Add a six-month review checkpoint.');
+        expect(modalConfig?.buttons?.at(-1)?.label).toBe('Forward to Green Team');
+        expect(modalConfig?.content?.innerHTML).not.toContain('Independent recipient approvals');
+
+        const forwardProposalResponse = vi.spyOn(database, 'forwardProposalResponse').mockResolvedValue({
+            communication: { id: 'proposal-round-1', type: 'PROPOSAL_RESPONSE' },
+            timeline_event: { id: 'proposal-response-timeline-1', type: 'PROPOSAL_RESPONSE' }
+        });
+        const communicationsUpdate = vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        const timelineUpdate = vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+        const modal = { close: vi.fn() };
+
+        await controller.handleProposalResponseForward(modal, review);
+
+        expect(forwardProposalResponse).toHaveBeenCalledWith(review.id);
+        expect(communicationsUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'proposal-round-1' }));
+        expect(timelineUpdate).toHaveBeenCalledWith('INSERT', expect.objectContaining({ id: 'proposal-response-timeline-1' }));
+        expect(modal.close).toHaveBeenCalled();
+    });
+
+    it('returns a completed proposal to Awaiting Review while a response needs forwarding', async () => {
+        const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
+        global.document = fakeDocument;
+
+        const proposal = {
+            id: 'proposal-awaiting-response-review-1',
+            team: 'green',
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            goal: 'Regional logistics compact',
+            mechanism: 'Proposal',
+            move: 2,
+            phase: 1,
+            ally_contingencies: serializeProposalDetails({
+                originators: ['EU'],
+                objective: 'Coordinate regional logistics.',
+                recipientTeams: ['blue']
+            })
+        };
+        const pendingResponse = {
+            id: 'proposal-response-review-queue-1',
+            type: 'PROPOSAL_RESPONSE_REVIEW',
+            content: 'Add a six-month checkpoint.',
+            created_at: '2026-08-15T12:00:00.000Z',
+            metadata: {
+                thread_id: 'thread-blue-1', recipient_team: 'blue', parent_message_id: 'root-blue-1',
+                source_proposal_id: proposal.id, source_revision: 1, source_team: 'green',
+                sender_team: 'blue', sender_role: 'blue_scribe', proposed_round_number: 1,
+                proposed_message_type: 'negotiation_message', facilitator_decision: 'negotiate',
+                submitted_at: '2026-08-15T12:00:00.000Z'
+            }
+        };
+        vi.spyOn(actionsStore, 'getPending').mockReturnValue([]);
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([proposal]);
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([pendingResponse]);
+
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.syncActionsFromStore();
+
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Awaiting Review');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('Review Blue Team Response');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('class="tab-button tab-button-active"');
+        expect(fakeDocument.elements.proposalsList.innerHTML).toContain('data-review-tab="pending"');
+        expect(fakeDocument.elements.proposalsBadge.hidden).toBe(false);
+    });
+
     it('forwards a proposal even when the adjudication response omits proposal details', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');

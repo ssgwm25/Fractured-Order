@@ -2335,11 +2335,11 @@ function operatorReviewProposalThreaded(state, params) {
     }
 
     const payloadProposal = action?.artifact_payload?.proposal || {};
-    const intendedRecipients = [...new Set((
-        Array.isArray(payloadProposal.recipientTeams) && payloadProposal.recipientTeams.length
-            ? payloadProposal.recipientTeams
-            : readLegacyActionList(action.ally_contingencies, 'Recipient Teams')
-    ).map(normalizeTeamId).filter((team) => ['blue', 'red'].includes(team)))];
+    const intendedRecipients = [...new Set([
+        ...(Array.isArray(payloadProposal.recipientTeams) ? payloadProposal.recipientTeams : []),
+        ...readLegacyActionList(action.ally_contingencies, 'Recipient Teams'),
+        action.proposal_recipient_team
+    ].map(normalizeTeamId).filter((team) => ['blue', 'red'].includes(team)))];
     if (!intendedRecipients.length && action.proposal_recipient_team) {
         intendedRecipients.push(normalizeTeamId(action.proposal_recipient_team));
     }
@@ -2373,11 +2373,30 @@ function operatorReviewProposalThreaded(state, params) {
 
     const timestamp = getTimestamp();
     const threadId = nextId(state, 'proposal_threads');
+    const {
+        recipientTeams: _recipientTeams,
+        recipientTeam: _recipientTeam,
+        intendedPartners: _intendedPartners,
+        recipientApprovalStates: _recipientApprovalStates,
+        ...safePayloadProposal
+    } = cloneValue(payloadProposal);
     const proposalSnapshot = {
-        ...cloneValue(payloadProposal),
+        ...safePayloadProposal,
         title: action.goal || null,
-        expectedOutcomes: action.expected_outcomes || null,
-        recipientTeams: intendedRecipients
+        originators: safePayloadProposal.originators?.length
+            ? safePayloadProposal.originators
+            : readLegacyActionList(action.ally_contingencies, 'Originators'),
+        objective: safePayloadProposal.objective
+            || readLegacyActionDetail(action.ally_contingencies, 'Objective'),
+        instruments: safePayloadProposal.instruments?.length
+            ? safePayloadProposal.instruments
+            : readLegacyActionList(action.ally_contingencies, 'Instruments'),
+        focusSectors: safePayloadProposal.focusSectors?.length
+            ? safePayloadProposal.focusSectors
+            : readLegacyActionList(action.ally_contingencies, 'Focus Sectors'),
+        timingAndConditions: safePayloadProposal.timingAndConditions
+            || readLegacyActionDetail(action.ally_contingencies, 'Timing And Conditions'),
+        expectedOutcomes: action.expected_outcomes || safePayloadProposal.expectedOutcomes || null
     };
     const communication = normalizeInsertRow('communications', {
         session_id: action.session_id,
@@ -2535,7 +2554,8 @@ function appendProposalThreadMessage(state, params) {
 
     const messages = state.tables.communications
         .filter((entry) => (
-            entry.metadata?.thread_id === parent.metadata.thread_id
+            ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE'].includes(entry.type)
+            && entry.metadata?.thread_id === parent.metadata.thread_id
             && normalizeTeamId(entry.metadata?.recipient_team) === recipientTeam
         ))
         .sort((left, right) => Number(right.metadata.round_number) - Number(left.metadata.round_number));
@@ -2553,13 +2573,23 @@ function appendProposalThreadMessage(state, params) {
         return { data: null, error: { message: 'The proposing team must use a negotiation follow-up or close the thread.' } };
     }
 
+    const pendingReview = state.tables.communications.find((entry) => (
+        entry.type === 'PROPOSAL_RESPONSE_REVIEW'
+        && entry.metadata?.parent_message_id === parent.id
+        && normalizeTeamId(entry.metadata?.sender_team) === participantTeam
+        && !state.tables.communications.some((candidate) => candidate.metadata?.review_request_id === entry.id)
+    ));
+    if (pendingReview) {
+        return { data: null, error: { message: 'This proposal response is awaiting White Cell review.' } };
+    }
+
     const timestamp = getTimestamp();
     const communication = normalizeInsertRow('communications', {
         session_id: parent.session_id,
         move: parent.move,
         from_role: participantRole,
-        to_role: participantTeam === sourceTeam ? recipientTeam : sourceTeam,
-        type: 'PROPOSAL_RESPONSE',
+        to_role: 'white_cell',
+        type: 'PROPOSAL_RESPONSE_REVIEW',
         title: parent.title || null,
         content,
         client_id: authUserId,
@@ -2575,12 +2605,109 @@ function appendProposalThreadMessage(state, params) {
             sender_role: participantRole,
             sent_at: timestamp,
             message_type: messageType,
+            submitted_at: timestamp,
+            proposed_round_number: Number(parent.metadata.round_number) + 1,
+            proposed_message_type: messageType,
             facilitator_decision: facilitatorDecision,
             client_message_id: clientMessageId
         }
     }, state);
     state.tables.communications.push(communication);
     return { data: cloneValue(communication), error: null };
+}
+
+function operatorForwardProposalResponse(state, params) {
+    const authUserId = getCurrentAuthUserId();
+    const review = state.tables.communications.find((entry) => (
+        entry.id === params?.requested_review_communication_id
+    ));
+    if (!review || review.type !== 'PROPOSAL_RESPONSE_REVIEW') {
+        return { data: null, error: { message: 'Proposal response review not found.' } };
+    }
+
+    const grant = getOperatorGrant(state, authUserId, 'whitecell', review.session_id);
+    if (!grant) return { data: null, error: { message: 'White Cell operator authorization is required.' } };
+
+    const existing = state.tables.communications.find((entry) => (
+        entry.metadata?.review_request_id === review.id
+    ));
+    if (existing) {
+        return { data: { communication: cloneValue(existing), timeline_event: null, idempotent_replay: true }, error: null };
+    }
+
+    const metadata = review.metadata || {};
+    const parent = state.tables.communications.find((entry) => entry.id === metadata.parent_message_id);
+    const latest = state.tables.communications
+        .filter((entry) => (
+            ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE'].includes(entry.type)
+            && entry.metadata?.thread_id === metadata.thread_id
+            && normalizeTeamId(entry.metadata?.recipient_team) === normalizeTeamId(metadata.recipient_team)
+        ))
+        .sort((left, right) => Number(right.metadata.round_number) - Number(left.metadata.round_number))[0];
+    if (!parent || latest?.id !== parent.id) {
+        return { data: null, error: { message: 'A newer proposal thread round already exists.' } };
+    }
+
+    const timestamp = getTimestamp();
+    const communication = normalizeInsertRow('communications', {
+        session_id: review.session_id,
+        move: review.move,
+        from_role: metadata.sender_role,
+        to_role: normalizeTeamId(metadata.sender_team) === normalizeTeamId(metadata.source_team)
+            ? normalizeTeamId(metadata.recipient_team)
+            : normalizeTeamId(metadata.source_team),
+        type: 'PROPOSAL_RESPONSE',
+        title: review.title || parent.title || null,
+        content: review.content,
+        client_id: review.client_id,
+        metadata: {
+            thread_id: metadata.thread_id,
+            recipient_team: normalizeTeamId(metadata.recipient_team),
+            round_number: Number(metadata.proposed_round_number),
+            parent_message_id: parent.id,
+            source_proposal_id: metadata.source_proposal_id,
+            source_revision: Number(metadata.source_revision),
+            source_team: normalizeTeamId(metadata.source_team),
+            sender_team: normalizeTeamId(metadata.sender_team),
+            sender_role: metadata.sender_role,
+            sent_at: timestamp,
+            message_type: metadata.proposed_message_type,
+            facilitator_decision: metadata.facilitator_decision || null,
+            client_message_id: metadata.client_message_id || null,
+            review_request_id: review.id,
+            forwarded_by_role: grant.role,
+            forwarded_at: timestamp
+        }
+    }, state);
+    state.tables.communications.push(communication);
+
+    const timeline = normalizeInsertRow('timeline', {
+        session_id: review.session_id,
+        move: review.move,
+        phase: state.tables.actions.find((entry) => entry.id === metadata.source_proposal_id)?.phase || 1,
+        team: 'white_cell',
+        type: 'PROPOSAL_RESPONSE',
+        content: `White Cell forwarded a proposal response from ${metadata.sender_team} to ${communication.to_role}.`,
+        client_id: authUserId,
+        metadata: {
+            related_id: metadata.source_proposal_id,
+            communication_id: communication.id,
+            review_request_id: review.id,
+            recipient_team: metadata.recipient_team,
+            thread_id: metadata.thread_id,
+            round_number: Number(metadata.proposed_round_number)
+        }
+    }, state);
+    state.tables.timeline.push(timeline);
+
+    return {
+        data: {
+            communication: cloneValue(communication),
+            timeline_event: cloneValue(timeline),
+            idempotent_replay: false
+        },
+        error: null
+    };
 }
 
 function operatorAnswerRequest(state, params) {
@@ -3181,6 +3308,10 @@ export function createE2EMockSupabaseClient() {
 
             if (functionName === 'append_proposal_thread_message') {
                 return mutateMockState((state) => appendProposalThreadMessage(state, params));
+            }
+
+            if (functionName === 'operator_forward_proposal_response') {
+                return mutateMockState((state) => operatorForwardProposalResponse(state, params));
             }
 
             if (functionName === 'operator_answer_request') {

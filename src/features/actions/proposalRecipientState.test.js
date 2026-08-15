@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     PROPOSAL_RECIPIENT_STATUSES,
+    getPendingProposalResponseReviews,
+    getProposalResponseReviewMetadata,
     getProposalThreadForRecipient,
     getProposalThreadMetadata,
     getProposalThreadStatus,
@@ -78,5 +80,39 @@ describe('proposal recipient threads', () => {
     it('recognises current and historical negotiation shapes', () => {
         expect(isProposalNegotiationRequest(message({ id: 'round-1', threadId: 'thread-1', recipientTeam: 'blue', round: 1, parentId: 'round-0', senderTeam: 'blue', messageType: 'negotiation_message', content: 'Terms' }))).toBe(true);
         expect(isProposalNegotiationRequest({ metadata: { proposal_recipient_state: { status: 'responded', facilitator_decision: 'negotiate' } } })).toBe(true);
+    });
+
+    it('keeps a response pending until White Cell appends its reviewed thread round', () => {
+        const pending = {
+            id: 'review-1',
+            type: 'PROPOSAL_RESPONSE_REVIEW',
+            content: 'Add a six-month checkpoint.',
+            created_at: '2026-08-06T12:01:00.000Z',
+            metadata: {
+                thread_id: 'blue-thread',
+                recipient_team: 'blue',
+                parent_message_id: 'blue-0',
+                source_proposal_id: 'proposal-1',
+                source_revision: 2,
+                source_team: 'green',
+                sender_team: 'blue',
+                sender_role: 'blue_scribe',
+                proposed_round_number: 1,
+                proposed_message_type: 'negotiation_message',
+                facilitator_decision: 'negotiate',
+                submitted_at: '2026-08-06T12:01:00.000Z'
+            }
+        };
+        expect(getProposalResponseReviewMetadata(pending)).toMatchObject({
+            sourceProposalId: 'proposal-1',
+            senderTeam: 'blue',
+            proposedRoundNumber: 1,
+            proposedMessageType: 'negotiation_message'
+        });
+        expect(getPendingProposalResponseReviews([pending], 'proposal-1')).toEqual([pending]);
+
+        const forwarded = message({ id: 'blue-1', threadId: 'blue-thread', recipientTeam: 'blue', round: 1, parentId: 'blue-0', senderTeam: 'blue', messageType: 'negotiation_message', content: pending.content });
+        forwarded.metadata.review_request_id = pending.id;
+        expect(getPendingProposalResponseReviews([pending, forwarded], 'proposal-1')).toEqual([]);
     });
 });

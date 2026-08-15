@@ -101,6 +101,10 @@ const ACTION_NOTIFICATION_TITLE_SNAPSHOT_PATH = new URL(
     '../../data/2026-08-14_action_notification_title_snapshot.sql',
     import.meta.url
 );
+const PROPOSAL_FORWARDING_INTEGRITY_PATH = new URL(
+    '../../data/2026-08-15_proposal_forwarding_integrity.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -859,5 +863,24 @@ describe('database migration contracts', () => {
         expect(sql).toContain("type IN ('PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE')");
         expect(sql).toContain("public.live_demo_participant_team(session_id) IN (");
         expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.append_proposal_thread_message');
+    });
+
+    it('reconciles all proposal recipients and requires White Cell to forward response rounds', () => {
+        const sql = readFileSync(PROPOSAL_FORWARDING_INTEGRITY_PATH, 'utf8');
+        const forwardBody = extractFunctionBody(sql, 'operator_forward_proposal_response');
+
+        expect(sql).toContain('public.proposal_all_recipient_teams');
+        expect(sql).toContain("'recipientTeams'");
+        expect(sql).toContain("NEW.type := 'PROPOSAL_RESPONSE_REVIEW'");
+        expect(sql).toContain("NEW.to_role := 'white_cell'");
+        expect(sql).toContain('AND session_id = NEW.session_id;');
+        expect(sql).toContain("ELSIF NEW.type = 'PROPOSAL_RESPONSE'");
+        expect(sql).toContain("'PROPOSAL_RESPONSE_REVIEW'");
+        expect(sql).not.toContain("'intendedPartners',");
+        expect(forwardBody).toContain("review_row.type <> 'PROPOSAL_RESPONSE_REVIEW'");
+        expect(forwardBody).toContain("metadata ->> 'review_request_id'");
+        expect(forwardBody).toContain("'review_request_id', review_row.id");
+        expect(forwardBody).toContain("'PROPOSAL_RESPONSE'");
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.operator_forward_proposal_response(UUID) TO authenticated;');
     });
 });

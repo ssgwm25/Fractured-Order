@@ -88,6 +88,7 @@ Apply the authoritative ledger in this exact order:
 37. `data/2026-08-13_action_notification_delivery.sql`
 38. `data/2026-08-13_action_notification_type_contract.sql`
 39. `data/2026-08-14_action_notification_title_snapshot.sql`
+40. `data/2026-08-15_proposal_forwarding_integrity.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
@@ -110,7 +111,8 @@ is reapplied during repair, reapply
 `data/2026-08-13_strategic_orientation_team_canonicalization.sql`, then apply
 `data/2026-08-13_action_notification_delivery.sql`, then apply
 `data/2026-08-13_action_notification_type_contract.sql`, then apply
-`data/2026-08-14_action_notification_title_snapshot.sql`. Verify RPCs,
+`data/2026-08-14_action_notification_title_snapshot.sql`, then apply
+`data/2026-08-15_proposal_forwarding_integrity.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -361,6 +363,8 @@ missing.
 Apply `data/2026-08-06_facilitator_rfi_communications.sql` after the team-neutral artifact-review migration. The compatibility identifiers remain inverted: the actual Facilitator is stored as `*_scribe`, and the user-facing Scribe is stored as `*_facilitator`. The migration therefore gives the `scribe` surface same-team RFI insert and returned-RFI resubmission authority, removes write authority from the `facilitator` surface, limits participant reads to their own team's RFIs, and allows session-scoped direct text between the actual Facilitator and White Cell. It also reasserts Industry Facilitator submission of forwarded Strategic Orientation and proposal drafts.
 
 Apply `data/2026-08-06_proposal_recipient_threads.sql` after the Facilitator RFI migration. It supersedes the June final-response lock and the earlier August communications policy without rewriting historical rows. New White Cell reviews approve one intended recipient at a time and create an independent round-zero thread; later messages may be written only through `append_proposal_thread_message`. Pass conditions are: the round and client-message unique indexes exist, thread rows reject update/delete, direct `PROPOSAL_RESPONSE` inserts fail, Blue/Red and cross-session access fail closed, and completing all intended approvals leaves `outcome` null.
+
+Apply `data/2026-08-15_proposal_forwarding_integrity.sql` after the August 14 snapshot repair. It reconciles structured and legacy recipient lists before proposal completion, builds recipient snapshots with full proposal substance but no intended-partner routing fields, and converts proposed response rounds into immutable White Cell review records. White Cell forwards each response through `operator_forward_proposal_response`; only that RPC creates the next team-visible thread round. Pass: a Blue-and-Red proposal creates both round-zero threads, each snapshot includes objective/originators/focus/timing/outcomes without `recipientTeams` or `intendedPartners`, the proposing team cannot see a pending response, and the response appears after White Cell forwards it.
 
 Apply `data/2026-08-11_requests_responded_by_schema_repair.sql` after the
 proposal-recipient migration. It adds

@@ -60,8 +60,8 @@ playthrough. It covers:
   `Category (historical)` and `Delivery (historical)`
 - White Cell request-changes review and independent approval of each intended
   recipient, including Blue approval while Red remains pending
-- recipient Accept, Not Interested, and Negotiate decisions appended to
-  isolated threads; the same dual-recipient proposal creates independent Blue
+- recipient Accept, Not Interested, and Negotiate decisions reviewed and
+  forwarded by White Cell into isolated threads; the same dual-recipient proposal creates independent Blue
   and Red round-zero, response, and proposing-Facilitator follow-up rounds
   without overwriting or cross-team disclosure
 - multi-team RFI submission from each Facilitator, White Cell response, and
@@ -245,7 +245,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=(git rev-parse HEAD).Trim()
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-14_action_notification_title_snapshot"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-15_proposal_forwarding_integrity"
 npm run test:e2e:playthrough
 ```
 
@@ -345,7 +345,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=$candidateCommit
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-14_action_notification_title_snapshot"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-15_proposal_forwarding_integrity"
 npm run test:e2e:rehearsal
 ```
 
@@ -370,9 +370,10 @@ that recipient's round-zero message and isolated, append-only response thread;
 it does not approve another recipient or expose either recipient's messages to
 the other thread.
 
-The approved recipient's actual Facilitator appends the first response as round
-1 using Accept, Not Interested, or Negotiate. The proposing Facilitator may
-append round 2, and later replies continue in order without updating or deleting
+The approved recipient's actual Facilitator submits Accept, Not Interested, or
+Negotiate to White Cell. White Cell reviews it in the proposal-response modal
+and forwards the first response as round 1. The proposing Facilitator may
+submit round 2 through the same gate, and later forwarded replies continue in order without updating or deleting
 prior messages. The professional playthrough pins sequential approval of a
 dual-recipient proposal, then exercises independent Blue and Red responses and
 separate proposing-Facilitator follow-ups. The resulting schema `1.9.0` / format

@@ -1,5 +1,8 @@
 import { resolveArtifactWorkflowState } from '../actions/artifactLifecycle.js';
-import { getProposalThreadMetadata } from '../actions/proposalRecipientState.js';
+import {
+    getProposalResponseReviewMetadata,
+    getProposalThreadMetadata
+} from '../actions/proposalRecipientState.js';
 
 function text(value = '') {
     return String(value || '').trim();
@@ -146,6 +149,32 @@ export function buildProposalRoundNotification(communication = {}, { audience = 
             ? { surface: 'whitecell', section: 'proposals', recordId: String(thread.sourceProposalId), communicationId: String(communication.id) }
             : { surface: 'facilitator', slideKey, recordId: String(thread.sourceProposalId), communicationId: String(communication.id) },
         createdAt: text(thread.sentAt || communication.created_at),
+        type: 'warning'
+    };
+}
+
+export function buildProposalResponseReviewNotification(communication = {}) {
+    const review = getProposalResponseReviewMetadata(communication);
+    if (!review) return null;
+
+    const sender = teamLabel(review.senderTeam);
+    const responseType = review.facilitatorDecision === 'negotiate'
+        ? 'Negotiation request'
+        : 'Proposal response';
+    return {
+        id: buildWorkflowNotificationId('proposal-response-review', communication.id),
+        family: 'proposal-response-review',
+        source: sender,
+        artifact: `${responseType}: ${artifactTitle(communication, 'Untitled proposal')}`,
+        requiredAction: 'Review and forward the response to the proposing team.',
+        destinationLabel: 'Review proposal response',
+        destination: {
+            surface: 'whitecell',
+            section: 'proposals',
+            recordId: String(review.sourceProposalId),
+            communicationId: String(communication.id)
+        },
+        createdAt: review.submittedAt || communication.created_at,
         type: 'warning'
     };
 }

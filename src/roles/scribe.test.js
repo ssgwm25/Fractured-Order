@@ -1788,6 +1788,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Coordinate a shared stockpile.');
         expect(html).toContain('Instrument of Power');
         expect(html).not.toContain('>Category<');
+        expect(html).not.toContain('Intended partners');
+        expect(html).not.toContain('Blue Team and Red Team');
         expect(html.match(/data-facilitator-proposal-decision=/g)).toHaveLength(3);
         expect(html).toContain('data-facilitator-proposal-decision="accept"');
         expect(html).toContain('>Accept</button>');

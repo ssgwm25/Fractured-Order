@@ -1732,8 +1732,8 @@ export const database = {
     },
 
     /**
-     * Append one immutable round to a recipient-scoped proposal thread.
-     * The RPC derives all routing and source fields from the locked parent row.
+     * Submit one recipient-scoped proposal response for White Cell review.
+     * The immutable thread round is created only after White Cell forwards it.
      */
     async appendProposalThreadMessage(parentMessageId, {
         content,
@@ -1761,6 +1761,23 @@ export const database = {
 
         if (error) {
             throw fromSupabaseError(error, 'appendProposalThreadMessage');
+        }
+
+        return data;
+    },
+
+    async forwardProposalResponse(reviewCommunicationId) {
+        if (!reviewCommunicationId) {
+            throw new DatabaseError('Proposal response review is required', 'forwardProposalResponse');
+        }
+
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('operator_forward_proposal_response', {
+            requested_review_communication_id: reviewCommunicationId
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'forwardProposalResponse');
         }
 
         return data;
