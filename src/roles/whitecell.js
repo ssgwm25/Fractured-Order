@@ -30,7 +30,8 @@ import {
     formatActionSequenceLabel,
     formatBlueActionSelection,
     getActionSequenceNumber,
-    getBlueActionViewModel
+    getBlueActionViewModel,
+    parseBlueActionDetails
 } from '../features/actions/blueActionDetails.js';
 import {
     ACTION_MARKS,
@@ -4039,16 +4040,25 @@ export class WhiteCellController {
 
         try {
             const gameState = this.getCurrentGameState();
+            const actionDetails = action.artifact_payload?.action || parseBlueActionDetails(action.ally_contingencies) || {};
+            const actionTitle = action.goal || 'Untitled action';
+            const actionSnapshot = {
+                ...actionDetails,
+                title: actionTitle,
+                objective: actionDetails.objective || actionTitle
+            };
             const recipientMetadata = buildWhiteCellRecipientMetadata(WHITE_CELL_RED_TEAM_RECIPIENT, {
                 shared_action_id: action.id,
                 source_team: action.team,
-                actor_role: this.getTimelineActorRole()
+                actor_role: this.getTimelineActorRole(),
+                action_snapshot: actionSnapshot
             });
             const communication = await database.createCommunication({
                 session_id: sessionId,
                 from_role: 'white_cell',
                 to_role: WHITE_CELL_RED_TEAM_RECIPIENT,
                 type: 'GUIDANCE',
+                title: `${String(action.team || '').replace(/^./, (letter) => letter.toUpperCase())} Team Action Notification`,
                 content: buildSharedActionCommunicationContent(action),
                 metadata: recipientMetadata
             });

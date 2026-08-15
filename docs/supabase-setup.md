@@ -87,6 +87,7 @@ Apply the authoritative ledger in this exact order:
 36. `data/2026-08-13_strategic_orientation_team_canonicalization.sql`
 37. `data/2026-08-13_action_notification_delivery.sql`
 38. `data/2026-08-13_action_notification_type_contract.sql`
+39. `data/2026-08-14_action_notification_title_snapshot.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
@@ -108,7 +109,8 @@ is reapplied during repair, reapply
 `data/2026-08-13_rfi_answer_completion_trigger.sql`, then apply
 `data/2026-08-13_strategic_orientation_team_canonicalization.sql`, then apply
 `data/2026-08-13_action_notification_delivery.sql`, then apply
-`data/2026-08-13_action_notification_type_contract.sql`. Verify RPCs,
+`data/2026-08-13_action_notification_type_contract.sql`, then apply
+`data/2026-08-14_action_notification_title_snapshot.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -418,6 +420,27 @@ where c.conrelid = 'public.communications'::regclass
 Pass: exactly one row is returned and `constraint_definition` contains
 `ACTION_NOTIFICATION` together with the previously supported communication
 types. Absence is a deployment blocker.
+
+Apply `data/2026-08-14_action_notification_title_snapshot.sql` after the
+delivery and type-contract migrations above. It replaces
+`operator_complete_action_with_notifications` again, this time merging the
+submitting action's title into the `action_snapshot` metadata so Green and
+Industry recipients can render the same team-labeled, informational
+notification card as the Red Team share path. No table, trigger, or policy
+changes; only the function body changes.
+
+Verify the snapshot now carries a title:
+
+```sql
+select pg_get_functiondef(p.oid) as function_definition
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname = 'operator_complete_action_with_notifications';
+```
+
+Pass: `function_definition` contains `COALESCE(NULLIF(BTRIM(action_row.goal), ''), 'Untitled action')`.
+
 Rehearse a Blue action requesting both recipients: the Review Action modal
 shows both preselected approval controls, acceptance creates exactly one
 `ACTION_NOTIFICATION` communication for Green and one for Industry with the

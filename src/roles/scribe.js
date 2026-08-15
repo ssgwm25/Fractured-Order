@@ -19,7 +19,10 @@ import {
     isDraftAction,
     isSubmittedAction
 } from '../core/enums.js';
-import { isWhiteCellCommunicationVisibleToScribe } from '../features/communications/targeting.js';
+import {
+    isActionNotificationCommunication,
+    isWhiteCellCommunicationVisibleToScribe
+} from '../features/communications/targeting.js';
 import { getArtifactLifecycleViewModel } from '../features/actions/artifactLifecycle.js';
 import { createArtifactLifecycleBadge, createBadge } from '../components/ui/Badge.js';
 import {
@@ -95,22 +98,26 @@ const ACTIONS_SECTION_ID = 'actions';
 const PROPOSALS_SECTION_ID = 'proposals';
 const RFIS_SECTION_ID = 'rfis';
 const COMMUNICATIONS_SECTION_ID = 'direct-communications';
+const NOTIFICATIONS_SECTION_ID = 'action-notifications';
 const LIVE_SECTION_IDS = Object.freeze([
     ACTIONS_SECTION_ID,
     PROPOSALS_SECTION_ID,
     RFIS_SECTION_ID,
-    COMMUNICATIONS_SECTION_ID
+    COMMUNICATIONS_SECTION_ID,
+    NOTIFICATIONS_SECTION_ID
 ]);
-const FACILITATOR_VIEW_IDS = Object.freeze(['actions', 'deck', 'rfis', 'communications']);
+const FACILITATOR_VIEW_IDS = Object.freeze(['actions', 'deck', 'rfis', 'communications', 'notifications']);
 const FACILITATOR_VIEW_BUTTON_IDS = Object.freeze({
     actions: 'teamActionReviewViewBtn',
     deck: 'deckViewBtn',
     rfis: 'rfiViewBtn',
-    communications: 'communicationsViewBtn'
+    communications: 'communicationsViewBtn',
+    notifications: 'notificationsViewBtn'
 });
 
 function getFacilitatorViewForSectionId(sectionId = '') {
     if (sectionId === RFIS_SECTION_ID) return 'rfis';
+    if (sectionId === NOTIFICATIONS_SECTION_ID) return 'notifications';
     if (sectionId === COMMUNICATIONS_SECTION_ID) return 'communications';
     if (sectionId === ACTIONS_SECTION_ID || sectionId === PROPOSALS_SECTION_ID) return 'actions';
     return 'deck';
@@ -638,6 +645,10 @@ export function isFacilitatorDirectCommunication(communication = {}, teamContext
         return false;
     }
 
+    if (isActionNotificationCommunication(communication)) {
+        return false;
+    }
+
     const isOutbound = communication?.from_role === teamContext.scribeRole
         && String(communication?.to_role || '').trim().toLowerCase() === 'white_cell';
     const isInbound = isWhiteCellRole(communication?.from_role)
@@ -696,6 +707,79 @@ function buildCommunicationSection(communications = [], { teamContext = resolveT
     };
 }
 
+function getActionNotificationSnapshot(communication = {}) {
+    const metadata = communication?.metadata && typeof communication.metadata === 'object'
+        ? communication.metadata
+        : {};
+    const snapshot = metadata.action_snapshot && typeof metadata.action_snapshot === 'object'
+        ? metadata.action_snapshot
+        : {};
+
+    return {
+        metadata,
+        snapshot,
+        title: snapshot.title || communication.title || 'Untitled action',
+        sourceTeam: metadata.source_team || 'unknown'
+    };
+}
+
+export function buildFacilitatorActionNotificationSlides(communications = [], {
+    teamContext = resolveTeamContext()
+} = {}) {
+    const notifications = [...(communications || [])]
+        .filter((communication) => (
+            isActionNotificationCommunication(communication)
+            && isWhiteCellCommunicationVisibleToScribe(communication, teamContext)
+        ))
+        .sort((left, right) => (
+            normalizeRecordTimestamp(right) - normalizeRecordTimestamp(left)
+            || String(left?.id || '').localeCompare(String(right?.id || ''))
+        ));
+
+    if (!notifications.length) {
+        return {
+            slideCount: 0,
+            slides: [{
+                slideKey: 'action-notifications-placeholder',
+                slideType: 'action-notification-placeholder',
+                title: 'No action notifications yet',
+                sidebarOrdinal: '0',
+                sidebarKicker: 'Nothing shared yet',
+                summary: 'Informational updates about another team’s action, shared for awareness, will appear here.'
+            }]
+        };
+    }
+
+    return {
+        slideCount: notifications.length,
+        slides: notifications.map((communication, index) => {
+            const snapshot = getActionNotificationSnapshot(communication);
+            return {
+                slideKey: `action-notification-${communication.id}`,
+                slideType: 'action-notification',
+                communication,
+                title: snapshot.title,
+                sidebarOrdinal: String(index + 1),
+                sidebarKicker: `${formatTeamLabel(snapshot.sourceTeam)} | Informational`
+            };
+        })
+    };
+}
+
+function buildActionNotificationSection(communications = [], {
+    teamContext = resolveTeamContext()
+} = {}) {
+    const notificationSlides = buildFacilitatorActionNotificationSlides(communications, { teamContext });
+
+    return {
+        id: NOTIFICATIONS_SECTION_ID,
+        label: 'Notifications',
+        description: 'Informational updates about another team’s action, shared for awareness. No response needed.',
+        slideCount: notificationSlides.slideCount,
+        slides: notificationSlides.slides
+    };
+}
+
 function formatTeamLabel(team = '') {
     switch (String(team || '').trim().toLowerCase()) {
     case 'blue': return 'Blue Team';
@@ -721,6 +805,10 @@ function getLiveSlideTypeClass(slide = {}) {
 
     if (slide.slideType === 'communication' || slide.slideType === 'communication-placeholder') {
         return ' is-communication';
+    }
+
+    if (slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder') {
+        return ' is-action-notification';
     }
 
     return slide.slideType !== 'image' ? ' is-action' : '';
@@ -961,6 +1049,7 @@ export class ScribeController {
         this.facilitatorDeckSlides = [];
         this.teamActions = [];
         this.receivedProposals = [];
+        this.actionNotifications = [];
         this.teamRfis = [];
         this.rfiRevisionHistory = [];
         this.rfiRevisionHistoryError = null;
@@ -1051,6 +1140,7 @@ export class ScribeController {
         this.primeNotifications();
         this.syncDeckAssignmentFromStore({ reload: false });
         this.syncProposalsFromStore();
+        this.syncActionNotificationsFromStore();
         this.syncRfisFromStore();
         this.syncCommunicationsFromStore();
         await this.loadRfiRevisionHistory();
@@ -1446,6 +1536,7 @@ export class ScribeController {
                         || event === 'reconciled'
                 });
                 this.syncProposalsFromStore({ event, data });
+                this.syncActionNotificationsFromStore({ event, data });
                 this.syncCommunicationsFromStore({ event, data });
             })
         );
@@ -1740,6 +1831,38 @@ export class ScribeController {
             preferLiveSection: shouldFocusProposal || activeSectionId === PROPOSALS_SECTION_ID
                 ? PROPOSALS_SECTION_ID
                 : ''
+        });
+
+        if (this.deckSlides.length) {
+            this.renderSlide();
+        }
+    }
+
+    syncActionNotificationsFromStore({
+        event = '',
+        data = null
+    } = {}) {
+        this.actionNotifications = communicationsStore.getAll()
+            .filter((communication) => (
+                isActionNotificationCommunication(communication)
+                && isWhiteCellCommunicationVisibleToScribe(communication, this.teamContext)
+            ));
+
+        if (!this.facilitatorDeckSlides.length && !this.sections.length) {
+            return;
+        }
+
+        const shouldFocusNotification = (
+            event === 'created'
+            && data
+            && isActionNotificationCommunication(data)
+            && isWhiteCellCommunicationVisibleToScribe(data, this.teamContext)
+        );
+        this.rebuildDeck({
+            preferredSlideKey: shouldFocusNotification
+                ? `action-notification-${data.id}`
+                : this.getCurrentSlideKey(),
+            preferLiveSection: shouldFocusNotification ? NOTIFICATIONS_SECTION_ID : ''
         });
 
         if (this.deckSlides.length) {
@@ -2508,11 +2631,14 @@ export class ScribeController {
         const communicationSection = buildCommunicationSection(this.directCommunications, {
             teamContext: this.teamContext
         });
+        const notificationSection = buildActionNotificationSection(this.actionNotifications, {
+            teamContext: this.teamContext
+        });
         const staticSections = expandScribeDeckSections(this.facilitatorDeckSlides)
             .filter((section) => !LIVE_SECTION_IDS.includes(section.id));
         const staticSlides = flattenScribeDeckSlides(staticSections);
 
-        const liveSections = [actionSection, proposalSection, rfiSection, communicationSection];
+        const liveSections = [actionSection, proposalSection, rfiSection, communicationSection, notificationSection];
         this.sections = [...liveSections, ...staticSections];
         this.deckSlides = [...staticSlides, ...liveSections.flatMap((section) => section.slides)];
 
@@ -2619,7 +2745,7 @@ export class ScribeController {
         const activeView = getFacilitatorViewForSectionId(activeSection?.id);
         this.activeFacilitatorView = activeView;
 
-        const sectionGroups = { actions: [], proposals: [], rfis: [], communications: [] };
+        const sectionGroups = { actions: [], proposals: [], rfis: [], communications: [], notifications: [] };
         const liveSectionIds = new Set(LIVE_SECTION_IDS);
 
         this.sections.forEach((section, sectionIndex) => {
@@ -2631,7 +2757,9 @@ export class ScribeController {
 
             const sectionKind = section.id === COMMUNICATIONS_SECTION_ID
                 ? 'communications'
-                : section.id;
+                : section.id === NOTIFICATIONS_SECTION_ID
+                    ? 'notifications'
+                    : section.id;
             const sectionView = getFacilitatorViewForSectionId(section.id);
             if (sectionView !== activeView) {
                 return;
@@ -2653,7 +2781,8 @@ export class ScribeController {
             const itemLabels = {
                 proposals: ['proposal', 'proposals'],
                 rfis: ['RFI', 'RFIs'],
-                communications: ['message', 'messages']
+                communications: ['message', 'messages'],
+                notifications: ['notification', 'notifications']
             };
             const labels = itemLabels[sectionKind] || ['live decision', 'live decisions'];
             const visibleDecisionLabel = visibleSlideCount === 1 ? labels[0] : labels[1];
@@ -2752,6 +2881,11 @@ export class ScribeController {
 
         if (activeView === 'rfis') {
             sectionList.innerHTML = renderRegion('rfis', 'RFI history', 'Questions and responses');
+            return;
+        }
+
+        if (activeView === 'notifications') {
+            sectionList.innerHTML = renderRegion('notifications', 'Notifications', 'Informational updates from other teams');
             return;
         }
 
@@ -3034,7 +3168,9 @@ export class ScribeController {
                         ? this.renderRfiSlide(slide)
                         : slide.slideType === 'communication' || slide.slideType === 'communication-placeholder'
                             ? this.renderCommunicationSlide(slide)
-                            : this.renderActionSlide(slide);
+                            : slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder'
+                                ? this.renderActionNotificationSlide(slide)
+                                : this.renderActionSlide(slide);
             }
         }
 
@@ -3047,6 +3183,8 @@ export class ScribeController {
                         ? `${activeSection.label}. ${slide.title}. RFI ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
                         : slide.slideType === 'communication' || slide.slideType === 'communication-placeholder'
                             ? `${activeSection.label}. Direct message thread. ${activeSection.slideCount || 0} ${activeSection.slideCount === 1 ? 'message' : 'messages'}.`
+                            : slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder'
+                                ? `${activeSection.label}. Informational, no response needed. ${slide.title}. Notification ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`
                     : `${activeSection.label}. ${slide.title}. ${getActionSlideAnnouncementLabel(slide.action)} ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`;
         }
 
@@ -4882,6 +5020,76 @@ export class ScribeController {
         `;
     }
 
+    renderActionNotificationSlide(slide = {}) {
+        if (slide.slideType === 'action-notification-placeholder') {
+            return `
+                <article class="scribe-action-slide scribe-action-slide-placeholder scribe-action-notification-slide">
+                    <p class="scribe-action-slide-eyebrow">Notifications</p>
+                    <h2 class="scribe-action-slide-title">${escapeHtml(slide.title)}</h2>
+                    <p class="scribe-action-slide-summary">${escapeHtml(slide.summary || '')}</p>
+                </article>
+            `;
+        }
+
+        const communication = slide.communication || {};
+        const metadata = communication?.metadata && typeof communication.metadata === 'object'
+            ? communication.metadata
+            : {};
+        const snapshot = metadata.action_snapshot && typeof metadata.action_snapshot === 'object'
+            ? metadata.action_snapshot
+            : {};
+        const sourceTeam = metadata.source_team || 'unknown';
+        const sourceTeamLabel = formatTeamLabel(sourceTeam);
+        const title = snapshot.title || communication.title || 'Untitled action';
+        const actionViewModel = getBlueActionViewModel({ artifact_payload: { action: snapshot } });
+        const informationalBadge = createBadge({
+            text: 'Informational',
+            variant: 'default',
+            size: 'sm',
+            rounded: true
+        }).outerHTML;
+        // buildBlueActionArtifactDetails (inside getBlueActionViewModel) already strips
+        // empty/null/undefined fields, so artifactDetails only ever contains fields with
+        // real values — no further filtering needed here.
+        const glanceCards = actionViewModel.artifactDetails?.length
+            ? actionViewModel.artifactDetails.map((field) => renderActionSlideGlanceCard(field)).join('')
+            : '';
+
+        return `
+            <article class="scribe-action-slide scribe-action-notification-slide" data-source-team="${escapeHtml(sourceTeam)}">
+                <header class="scribe-action-slide-header">
+                    <div>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(sourceTeamLabel)} Action Notification</p>
+                        <h2 class="scribe-action-slide-title">${escapeHtml(title)}</h2>
+                        <p class="scribe-action-slide-summary">No response needed — shared for awareness by White Cell on behalf of ${escapeHtml(sourceTeamLabel)}.</p>
+                    </div>
+                    <div class="scribe-action-slide-badges">
+                        ${informationalBadge}
+                    </div>
+                </header>
+
+                <section class="scribe-action-slide-panel">
+                    ${glanceCards ? `
+                        <section class="scribe-action-slide-glance" aria-label="Action details">
+                            <div class="scribe-action-slide-section-header">
+                                <h3 class="scribe-action-slide-section-title">Action details</h3>
+                            </div>
+                            <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
+                                ${glanceCards}
+                            </div>
+                        </section>
+                    ` : ''}
+                    ${communication.content ? `
+                        <section class="scribe-action-slide-lead" aria-label="Note from White Cell">
+                            <p class="scribe-action-slide-section-label">Note from White Cell</p>
+                            <p class="scribe-action-slide-body">${escapeHtml(communication.content)}</p>
+                        </section>
+                    ` : ''}
+                </section>
+            </article>
+        `;
+    }
+
     showFacilitatorRfiModal(request = null) {
         if (request && request.workflow_state !== 'returned_to_team') {
             showToast({ message: 'Only an RFI returned for clarification can be edited.', type: 'error' });
@@ -5056,18 +5264,26 @@ export class ScribeController {
 
         const rfiCount = this.teamRfis.length;
         const messageCount = this.directCommunications.length;
+        const notificationCount = this.actionNotifications.length;
         const rfiCountElement = document.getElementById('rfiViewCount');
         const messageCountElement = document.getElementById('communicationsViewCount');
+        const notificationCountElement = document.getElementById('notificationsViewCount');
         const rfiButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.rfis);
         const communicationsButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.communications);
+        const notificationsButton = document.getElementById(FACILITATOR_VIEW_BUTTON_IDS.notifications);
         const workspacePanel = document.getElementById('facilitatorWorkspacePanel');
 
         if (rfiCountElement) rfiCountElement.textContent = String(rfiCount);
         if (messageCountElement) messageCountElement.textContent = String(messageCount);
+        if (notificationCountElement) notificationCountElement.textContent = String(notificationCount);
         rfiButton?.setAttribute('aria-label', `RFIs, ${rfiCount} ${rfiCount === 1 ? 'record' : 'records'}`);
         communicationsButton?.setAttribute(
             'aria-label',
             `Communications, ${messageCount} ${messageCount === 1 ? 'message' : 'messages'}`
+        );
+        notificationsButton?.setAttribute(
+            'aria-label',
+            `Notifications, ${notificationCount} ${notificationCount === 1 ? 'item' : 'items'}`
         );
         workspacePanel?.setAttribute('aria-labelledby', FACILITATOR_VIEW_BUTTON_IDS[normalizedView]);
     }

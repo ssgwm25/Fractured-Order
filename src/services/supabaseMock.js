@@ -2192,7 +2192,10 @@ function operatorCompleteActionWithNotifications(state, params) {
                 action_revision: Number(params?.requested_expected_revision),
                 notification_delivery: 'approved',
                 notification_request_note: action?.artifact_payload?.action?.notificationNote || null,
-                action_snapshot: cloneValue(action?.artifact_payload?.action || {})
+                action_snapshot: cloneValue({
+                    ...(action?.artifact_payload?.action || {}),
+                    title: String(action?.goal || '').trim() || 'Untitled action'
+                })
             }
         });
         return communicationResult.data;

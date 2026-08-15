@@ -537,7 +537,8 @@ body::before {
 .scribe-section-region--actions,
 .scribe-section-region--proposals,
 .scribe-section-region--rfis,
-.scribe-section-region--communications {
+.scribe-section-region--communications,
+.scribe-section-region--notifications {
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -547,7 +548,8 @@ body::before {
 .scribe-section-region--actions .scribe-section-region-heading,
 .scribe-section-region--proposals .scribe-section-region-heading,
 .scribe-section-region--rfis .scribe-section-region-heading,
-.scribe-section-region--communications .scribe-section-region-heading {
+.scribe-section-region--communications .scribe-section-region-heading,
+.scribe-section-region--notifications .scribe-section-region-heading {
     padding: 0 var(--space-3) var(--space-2);
 }
 
@@ -558,7 +560,9 @@ body::before {
 .scribe-section-region--rfis .scribe-section-region-title,
 .scribe-section-region--rfis .scribe-section-region-summary,
 .scribe-section-region--communications .scribe-section-region-title,
-.scribe-section-region--communications .scribe-section-region-summary {
+.scribe-section-region--communications .scribe-section-region-summary,
+.scribe-section-region--notifications .scribe-section-region-title,
+.scribe-section-region--notifications .scribe-section-region-summary {
     color: var(--color-text-muted);
 }
 
@@ -902,6 +906,24 @@ body::before {
     color: var(--color-navy);
 }
 
+.scribe-slide-link.is-action-notification {
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-action-notification:hover,
+.scribe-slide-link.is-action-notification:focus-visible {
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-action-notification.is-active {
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
+}
+
 .scribe-slide-link-number {
     display: inline-flex;
     align-items: center;
@@ -1152,6 +1174,22 @@ body::before {
 
 .scribe-proposal-slide::before {
     background: var(--color-success);
+}
+
+.scribe-action-notification-slide[data-source-team="blue"]::before {
+    background: var(--color-team-blue);
+}
+
+.scribe-action-notification-slide[data-source-team="red"]::before {
+    background: var(--color-team-red);
+}
+
+.scribe-action-notification-slide[data-source-team="green"]::before {
+    background: var(--color-team-green);
+}
+
+.scribe-action-notification-slide[data-source-team="industry"]::before {
+    background: var(--color-team-industry);
 }
 
 .scribe-proposal-slide .scribe-action-slide-eyebrow,

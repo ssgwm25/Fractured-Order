@@ -2875,6 +2875,20 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                         title: 'Joint Port Proposal'
                     }
                 })
+            },
+            {
+                id: 'comm-action-notification-group-1',
+                from_role: 'white_cell',
+                to_role: 'blue',
+                type: 'ACTION_NOTIFICATION',
+                title: 'Green Team Action Notification',
+                content: 'Green is adjusting tariffs on agricultural imports.',
+                created_at: '2026-04-09T10:12:00.000Z',
+                metadata: buildWhiteCellRecipientMetadata('blue', {
+                    source_team: 'green',
+                    shared_action_id: 'action-1',
+                    action_snapshot: { title: 'Agricultural tariff adjustment', objective: 'Protect domestic agriculture.' }
+                })
             }
         ]);
 
@@ -2892,6 +2906,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(responsesList.innerHTML).toContain('RFI Answers<span class="tab-badge">1</span>');
         expect(responsesList.innerHTML).toContain('White Cell Updates<span class="tab-badge">1</span>');
         expect(responsesList.innerHTML).toContain('Forwarded Proposals<span class="tab-badge">1</span>');
+        expect(responsesList.innerHTML).toContain('data-responses-tab="action-notification"');
+        expect(responsesList.innerHTML).toContain('Team Action Notifications<span class="tab-badge">1</span>');
+        expect(responsesList.innerHTML).toContain('Green Team Action: Agricultural tariff adjustment');
         expect(responsesList.innerHTML).toContain('data-responses-panel="communication"');
         expect(responsesList.innerHTML).toContain('data-responses-panel="rfi"');
         expect(responsesList.innerHTML).toContain('data-responses-panel="white-cell-update"');
@@ -2919,7 +2936,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(responsesList.innerHTML.indexOf('Forwarded Proposals')).toBeLessThan(
             responsesList.innerHTML.indexOf('Received Proposal: Joint Port Proposal')
         );
-        expect(responsesBadge.textContent).toBe('4');
+        expect(responsesBadge.textContent).toBe('5');
         expect(responsesBadge.hidden).toBe(false);
     });
 
