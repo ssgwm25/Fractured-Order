@@ -649,6 +649,7 @@
     color: var(--color-text);
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed);
+    white-space: pre-line;
 }
 
 /* Card title and subtitle */

@@ -89,6 +89,7 @@ import {
 import {
     WHITE_CELL_UPDATE_KINDS,
     getWhiteCellCommunicationUpdateKind,
+    isActionNotificationCommunication,
     isWhiteCellCommunicationVisibleToLead,
     isWhiteCellSectionUpdate,
     isWhiteCellTimelineEventVisibleToLead
@@ -153,6 +154,12 @@ const RESPONSE_TYPE_GROUPS = [
         kind: 'white_cell_update',
         title: 'White Cell Updates',
         description: 'Scenario, journal, and Verba AI updates pushed by White Cell.'
+    },
+    {
+        key: 'action-notification',
+        kind: 'action_notification',
+        title: 'Team Action Notifications',
+        description: 'Informational updates about another team’s action, shared for awareness. No response needed.'
     },
     {
         key: 'proposal',
@@ -1272,6 +1279,10 @@ export class FacilitatorController {
         const updateKind = getWhiteCellCommunicationUpdateKind(communication);
         const audienceLabel = this.getCommunicationAudienceLabel(communication);
 
+        if (isActionNotificationCommunication(communication)) {
+            return this.buildActionNotificationResponseEntry(communication);
+        }
+
         if (updateKind === WHITE_CELL_UPDATE_KINDS.TRIBE_STREET_JOURNAL) {
             return {
                 id: communication.id,
@@ -1307,6 +1318,39 @@ export class FacilitatorController {
             content: communication.content,
             badgeText: communication.type || 'MESSAGE',
             badgeVariant: 'info'
+        };
+    }
+
+    buildActionNotificationResponseEntry(communication = {}) {
+        const metadata = communication?.metadata && typeof communication.metadata === 'object'
+            ? communication.metadata
+            : {};
+        const snapshot = metadata.action_snapshot && typeof metadata.action_snapshot === 'object'
+            ? metadata.action_snapshot
+            : {};
+        const sourceTeamLabel = this.formatTeamLabel(metadata.source_team || '');
+        const actionTitle = snapshot.title || communication.title || 'Untitled action';
+        const actionViewModel = getBlueActionViewModel({ artifact_payload: { action: snapshot } });
+        const summaryParts = [];
+        if (actionViewModel.objective) {
+            summaryParts.push(`Objective: ${actionViewModel.objective}`);
+        }
+        if (actionViewModel.instrumentOfPower) {
+            summaryParts.push(`Instrument: ${actionViewModel.instrumentOfPower}`);
+        }
+        const summaryLine = summaryParts.join(' | ');
+        const noteText = communication.content || '';
+        const content = [summaryLine, noteText].filter(Boolean).join('\n\n');
+
+        return {
+            id: communication.id,
+            kind: 'action_notification',
+            created_at: communication.created_at,
+            title: `${sourceTeamLabel} Team Action: ${actionTitle}`,
+            subtitle: 'Informational — no response needed',
+            content,
+            badgeText: 'INFORMATIONAL',
+            badgeVariant: 'default'
         };
     }
 
