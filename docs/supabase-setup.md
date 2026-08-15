@@ -299,6 +299,63 @@ where schemaname = 'public'
 
 Pass: fourteen metadata columns are returned; both RPCs exist with authenticated execution; and `artifact_workflow_reviews` has a SELECT policy but no authenticated INSERT, UPDATE, or DELETE policy. A transactional rehearsal should additionally show one review row with matching prior/new snapshots and no outcome for a completed Action or Strategic Orientation.
 
+### White Cell proposal-review schema drift
+
+The current browser intentionally depends on both of these exact RPC
+signatures:
+
+```text
+operator_review_artifact(text,uuid,text,text,bigint,text)
+operator_review_proposal(uuid,text,text,text,integer)
+```
+
+A PostgREST 404 saying that it cannot find the five-argument
+`operator_review_proposal`, together with a database error saying that only
+Blue or Red action artifacts can use the action-review path, is not a frontend
+routing failure. It means the deployed database is still exposing pre-August
+review functions: the recipient-thread owner from
+`data/2026-08-06_proposal_recipient_threads.sql` is absent, and the
+team-neutral proposal-return behavior from
+`data/2026-08-05_team_neutral_artifact_review.sql` is absent or has been
+superseded.
+
+Inspect function identities rather than checking names alone:
+
+```sql
+select p.oid::regprocedure::text as function_signature
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('operator_review_artifact', 'operator_review_proposal')
+order by function_signature;
+```
+
+Pass: exactly the two signatures above are returned. An older four-argument
+`operator_review_proposal`, a missing five-argument overload, or any extra
+legacy overload is a deployment blocker.
+
+Repair migration-first; do not add a browser fallback to an older RPC because
+the older proposal function finalizes the proposal as one unit and cannot
+preserve independent recipient approvals. Compare the environment's verified
+migration record with the ledger above. Starting at the first absent entry,
+apply `data/2026-08-05_team_neutral_artifact_review.sql`,
+`data/2026-08-06_facilitator_rfi_communications.sql`, and
+`data/2026-08-06_proposal_recipient_threads.sql` in ledger order, followed by
+every absent later migration through the current final migration. If the
+migration record claims these owners ran but the signatures are stale, treat
+that mismatch as a reviewed repair: reapply the August 5 owner, the two August
+6 migrations in order, and every later owner listed in the repair sequence at
+the top of this document. After the transaction commits, request a PostgREST
+schema-cache reload:
+
+```sql
+notify pgrst, 'reload schema';
+```
+
+Then rerun the signature query before retrying either White Cell operation.
+Do not treat the cache reload alone as a repair when either exact signature is
+missing.
+
 ## Facilitator RFIs And Direct Communications
 
 Apply `data/2026-08-06_facilitator_rfi_communications.sql` after the team-neutral artifact-review migration. The compatibility identifiers remain inverted: the actual Facilitator is stored as `*_scribe`, and the user-facing Scribe is stored as `*_facilitator`. The migration therefore gives the `scribe` surface same-team RFI insert and returned-RFI resubmission authority, removes write authority from the `facilitator` surface, limits participant reads to their own team's RFIs, and allows session-scoped direct text between the actual Facilitator and White Cell. It also reasserts Industry Facilitator submission of forwarded Strategic Orientation and proposal drafts.
@@ -482,11 +539,13 @@ The participant recording notice is driven by bounded runtime fields in `game_st
 Run this in Supabase SQL editor:
 
 ```sql
-select proname
-from pg_proc
-join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
-where nspname = 'public'
-and proname in (
+select
+  p.proname,
+  p.oid::regprocedure::text as function_signature
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+and p.proname in (
   'lookup_joinable_session_by_code',
   'authorize_demo_operator',
   'create_live_demo_session',
@@ -506,10 +565,15 @@ and proname in (
   'update_proposal_recipient_status',
   'live_demo_research_capture_mode',
   'live_demo_software_build_hash'
-);
+)
+order by p.proname, function_signature;
 ```
 
-Pass: every listed RPC exists.
+Pass: every listed RPC exists, there are no unintended legacy overloads, and
+the review rows include exactly
+`operator_review_artifact(text,uuid,text,text,bigint,text)` and
+`operator_review_proposal(uuid,text,text,text,integer)`. Checking `proname`
+alone is insufficient because PostgREST resolves calls by parameter signature.
 
 ## RLS Broad-Policy Check
 

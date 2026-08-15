@@ -184,6 +184,29 @@ describe('repository operator docs contract', () => {
         expect(runbook).toContain('data/2026-07-29_industry_submission_permissions.sql');
     });
 
+    it('documents exact White Cell review RPC signatures and migration-first drift repair', () => {
+        const supabase = readText('../../docs/supabase-setup.md');
+        const repairSection = supabase.slice(supabase.indexOf('White Cell proposal-review schema drift'));
+        const teamNeutralIndex = repairSection.indexOf('data/2026-08-05_team_neutral_artifact_review.sql');
+        const facilitatorIndex = repairSection.indexOf(
+            'data/2026-08-06_facilitator_rfi_communications.sql',
+            teamNeutralIndex
+        );
+        const recipientThreadsIndex = repairSection.indexOf(
+            'data/2026-08-06_proposal_recipient_threads.sql',
+            facilitatorIndex
+        );
+
+        expect(repairSection).toContain('operator_review_artifact(text,uuid,text,text,bigint,text)');
+        expect(repairSection).toContain('operator_review_proposal(uuid,text,text,text,integer)');
+        expect(repairSection).toContain('p.oid::regprocedure::text as function_signature');
+        expect(repairSection).toContain("notify pgrst, 'reload schema';");
+        expect(repairSection).toContain('do not add a browser fallback to an older RPC');
+        expect(teamNeutralIndex).toBeGreaterThan(-1);
+        expect(facilitatorIndex).toBeGreaterThan(teamNeutralIndex);
+        expect(recipientThreadsIndex).toBeGreaterThan(facilitatorIndex);
+    });
+
     it('pins one dated Supabase ledger and deprecates consolidated SQL snapshots', () => {
         const supabase = readText('../../docs/supabase-setup.md');
         const rollback = readText('../../docs/supabase-rollback.md');

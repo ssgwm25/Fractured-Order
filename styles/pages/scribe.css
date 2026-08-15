@@ -1002,6 +1002,8 @@ body::before {
 .scribe-stage-frame {
     position: relative;
     display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     flex: 1 1 auto;
     height: 100%;
     align-items: center;
@@ -1058,6 +1060,8 @@ body::before {
 
 .scribe-stage-action-shell {
     display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     place-items: center;
     width: 100%;
     height: 100%;
@@ -1088,6 +1092,7 @@ body::before {
 .scribe-action-slide {
     position: relative;
     width: min(100%, 72rem);
+    max-height: 100%;
     display: grid;
     align-content: start;
     gap: var(--space-5);
@@ -1096,7 +1101,8 @@ body::before {
     border-radius: var(--radius-2xl);
     background: linear-gradient(135deg, var(--color-info-100) 0%, var(--color-surface) 22%, var(--color-surface) 100%);
     box-shadow: var(--shadow-card);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .scribe-action-slide.is-collapsed {
