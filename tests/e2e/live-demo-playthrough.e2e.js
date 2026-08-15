@@ -54,7 +54,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-08-13_action_notification_type_contract';
+const REQUIRED_MIGRATION_STATE = '2026-08-14_action_notification_title_snapshot';
 
 function getSourceRevisionEvidence() {
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();

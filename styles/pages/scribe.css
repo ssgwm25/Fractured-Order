@@ -537,7 +537,8 @@ body::before {
 .scribe-section-region--actions,
 .scribe-section-region--proposals,
 .scribe-section-region--rfis,
-.scribe-section-region--communications {
+.scribe-section-region--communications,
+.scribe-section-region--notifications {
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -547,7 +548,8 @@ body::before {
 .scribe-section-region--actions .scribe-section-region-heading,
 .scribe-section-region--proposals .scribe-section-region-heading,
 .scribe-section-region--rfis .scribe-section-region-heading,
-.scribe-section-region--communications .scribe-section-region-heading {
+.scribe-section-region--communications .scribe-section-region-heading,
+.scribe-section-region--notifications .scribe-section-region-heading {
     padding: 0 var(--space-3) var(--space-2);
 }
 
@@ -558,7 +560,9 @@ body::before {
 .scribe-section-region--rfis .scribe-section-region-title,
 .scribe-section-region--rfis .scribe-section-region-summary,
 .scribe-section-region--communications .scribe-section-region-title,
-.scribe-section-region--communications .scribe-section-region-summary {
+.scribe-section-region--communications .scribe-section-region-summary,
+.scribe-section-region--notifications .scribe-section-region-title,
+.scribe-section-region--notifications .scribe-section-region-summary {
     color: var(--color-text-muted);
 }
 

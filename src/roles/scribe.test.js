@@ -1529,6 +1529,104 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(notificationsButton.classList.contains('is-active')).toBe(true);
     });
 
+    it('renders the Notifications tab sidebar region without throwing when a notification slide is active', async () => {
+        const { ScribeController, buildFacilitatorActionNotificationSlides } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const sectionList = fakeDocument.register(createFakeElement('scribeSectionList'));
+        global.document = fakeDocument;
+        const teamContext = {
+            teamId: 'industry',
+            scribeRole: 'industry_scribe'
+        };
+        const notification = {
+            id: 'notif-1',
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'white_cell',
+            to_role: 'industry',
+            created_at: '2026-08-14T09:00:00.000Z',
+            content: 'Blue is adjusting export controls on rare-earth materials.',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'industry',
+                source_team: 'blue',
+                shared_action_id: 'action-1',
+                action_snapshot: { title: 'Rare-earth export controls' }
+            }
+        };
+        const notificationSlides = buildFacilitatorActionNotificationSlides([notification], { teamContext });
+        const controller = new ScribeController();
+        controller.teamId = 'industry';
+        controller.teamContext = teamContext;
+        controller.sections = [{
+            id: 'actions',
+            label: 'Actions',
+            slideCount: 0,
+            slides: [{ slideKey: 'actions-placeholder', slideType: 'action-placeholder', title: 'No actions' }]
+        }, {
+            id: 'action-notifications',
+            label: 'Notifications',
+            slideCount: notificationSlides.slideCount,
+            slides: notificationSlides.slides
+        }];
+        controller.deckSlides = [...controller.sections[0].slides, ...notificationSlides.slides];
+        controller.currentSlideIndex = 1;
+        controller.expandedSectionIds = new Set(['actions', 'action-notifications']);
+        controller.sectionExpansionInitialized = true;
+
+        expect(notificationSlides.slideCount).toBe(1);
+        expect(() => controller.renderSections()).not.toThrow();
+
+        expect(controller.activeFacilitatorView).toBe('notifications');
+        expect(sectionList.innerHTML).toContain('scribe-section-region--notifications');
+        expect(sectionList.innerHTML).toContain('<h2 class="scribe-section-region-title">Notifications</h2>');
+        expect(sectionList.innerHTML).toContain('Rare-earth export controls');
+    });
+
+    it('excludes action notifications addressed to another team when syncing from the communications store', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { communicationsStore } = await import('../stores/communications.js');
+
+        global.document = createFakeDocument();
+        const getAll = vi.spyOn(communicationsStore, 'getAll');
+        const controller = new ScribeController();
+        controller.teamId = 'industry';
+        controller.teamContext = { teamId: 'industry', scribeRole: 'industry_scribe' };
+
+        const ownTeamNotification = {
+            id: 'notif-own',
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'white_cell',
+            to_role: 'industry',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'industry',
+                source_team: 'blue',
+                shared_action_id: 'action-1',
+                action_snapshot: { title: 'Own team notification' }
+            }
+        };
+        const otherTeamNotification = {
+            id: 'notif-other',
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'white_cell',
+            to_role: 'green',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'green',
+                source_team: 'blue',
+                shared_action_id: 'action-2',
+                action_snapshot: { title: 'Other team notification' }
+            }
+        };
+
+        getAll.mockReturnValue([ownTeamNotification, otherTeamNotification]);
+
+        controller.syncActionNotificationsFromStore();
+
+        expect(controller.actionNotifications).toHaveLength(1);
+        expect(controller.actionNotifications[0].id).toBe('notif-own');
+    });
+
     it('builds action notification slides from ACTION_NOTIFICATION and enriched Red-share GUIDANCE communications', async () => {
         const { buildFacilitatorActionNotificationSlides } = await loadScribeModule();
         const teamContext = {
@@ -3627,14 +3725,14 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
     it('styles the scribe section nav as a minimalist facilitator-style sidebar', () => {
         const css = normalizeLineEndings(readFileSync(SCRIBE_CSS_PATH, 'utf8'));
 
-        expect(css).toContain('.scribe-section-region--actions,\n.scribe-section-region--proposals,\n.scribe-section-region--rfis,\n.scribe-section-region--communications {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
+        expect(css).toContain('.scribe-section-region--actions,\n.scribe-section-region--proposals,\n.scribe-section-region--rfis,\n.scribe-section-region--communications,\n.scribe-section-region--notifications {\n    padding: 0;\n    border: 0;\n    border-radius: 0;\n    background: transparent;');
         expect(css).toContain('.scribe-view-switch {');
         expect(css).toContain('.scribe-view-switch-button:focus-visible {');
         expect(css).toContain('.scribe-view-switch-button[aria-selected="true"] {');
         expect(css).toContain('.scribe-view-switch-count {');
         expect(css).toContain('#sidebar.sidebar-collapsed .scribe-view-switch');
         expect(css).not.toContain('.scribe-section-region--actions + .scribe-section-region--deck');
-        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary,\n.scribe-section-region--proposals .scribe-section-region-title,\n.scribe-section-region--proposals .scribe-section-region-summary,\n.scribe-section-region--rfis .scribe-section-region-title,\n.scribe-section-region--rfis .scribe-section-region-summary,\n.scribe-section-region--communications .scribe-section-region-title,\n.scribe-section-region--communications .scribe-section-region-summary');
+        expect(css).toContain('.scribe-section-region--actions .scribe-section-region-title,\n.scribe-section-region--actions .scribe-section-region-summary,\n.scribe-section-region--proposals .scribe-section-region-title,\n.scribe-section-region--proposals .scribe-section-region-summary,\n.scribe-section-region--rfis .scribe-section-region-title,\n.scribe-section-region--rfis .scribe-section-region-summary,\n.scribe-section-region--communications .scribe-section-region-title,\n.scribe-section-region--communications .scribe-section-region-summary,\n.scribe-section-region--notifications .scribe-section-region-title,\n.scribe-section-region--notifications .scribe-section-region-summary');
         expect(css).toContain('.scribe-section-region--proposals {\n    margin-top: var(--space-5);');
         expect(css).toContain('.facilitator-workspace {\n    width: 100%;');
         expect(css).toContain('.facilitator-thread-message.is-outbound {');

@@ -1843,7 +1843,10 @@ export class ScribeController {
         data = null
     } = {}) {
         this.actionNotifications = communicationsStore.getAll()
-            .filter((communication) => isActionNotificationCommunication(communication));
+            .filter((communication) => (
+                isActionNotificationCommunication(communication)
+                && isWhiteCellCommunicationVisibleToScribe(communication, this.teamContext)
+            ));
 
         if (!this.facilitatorDeckSlides.length && !this.sections.length) {
             return;
@@ -1853,6 +1856,7 @@ export class ScribeController {
             event === 'created'
             && data
             && isActionNotificationCommunication(data)
+            && isWhiteCellCommunicationVisibleToScribe(data, this.teamContext)
         );
         this.rebuildDeck({
             preferredSlideKey: shouldFocusNotification
@@ -2741,7 +2745,7 @@ export class ScribeController {
         const activeView = getFacilitatorViewForSectionId(activeSection?.id);
         this.activeFacilitatorView = activeView;
 
-        const sectionGroups = { actions: [], proposals: [], rfis: [], communications: [] };
+        const sectionGroups = { actions: [], proposals: [], rfis: [], communications: [], notifications: [] };
         const liveSectionIds = new Set(LIVE_SECTION_IDS);
 
         this.sections.forEach((section, sectionIndex) => {
@@ -2753,7 +2757,9 @@ export class ScribeController {
 
             const sectionKind = section.id === COMMUNICATIONS_SECTION_ID
                 ? 'communications'
-                : section.id;
+                : section.id === NOTIFICATIONS_SECTION_ID
+                    ? 'notifications'
+                    : section.id;
             const sectionView = getFacilitatorViewForSectionId(section.id);
             if (sectionView !== activeView) {
                 return;
@@ -2775,7 +2781,8 @@ export class ScribeController {
             const itemLabels = {
                 proposals: ['proposal', 'proposals'],
                 rfis: ['RFI', 'RFIs'],
-                communications: ['message', 'messages']
+                communications: ['message', 'messages'],
+                notifications: ['notification', 'notifications']
             };
             const labels = itemLabels[sectionKind] || ['live decision', 'live decisions'];
             const visibleDecisionLabel = visibleSlideCount === 1 ? labels[0] : labels[1];
@@ -2874,6 +2881,11 @@ export class ScribeController {
 
         if (activeView === 'rfis') {
             sectionList.innerHTML = renderRegion('rfis', 'RFI history', 'Questions and responses');
+            return;
+        }
+
+        if (activeView === 'notifications') {
+            sectionList.innerHTML = renderRegion('notifications', 'Notifications', 'Informational updates from other teams');
             return;
         }
 
