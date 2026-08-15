@@ -902,6 +902,24 @@ body::before {
     color: var(--color-navy);
 }
 
+.scribe-slide-link.is-action-notification {
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-action-notification:hover,
+.scribe-slide-link.is-action-notification:focus-visible {
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    box-shadow: none;
+}
+
+.scribe-slide-link.is-action-notification.is-active {
+    background: var(--color-navy-soft);
+    color: var(--color-navy);
+}
+
 .scribe-slide-link-number {
     display: inline-flex;
     align-items: center;
@@ -1152,6 +1170,22 @@ body::before {
 
 .scribe-proposal-slide::before {
     background: var(--color-success);
+}
+
+.scribe-action-notification-slide[data-source-team="blue"]::before {
+    background: var(--color-team-blue);
+}
+
+.scribe-action-notification-slide[data-source-team="red"]::before {
+    background: var(--color-team-red);
+}
+
+.scribe-action-notification-slide[data-source-team="green"]::before {
+    background: var(--color-team-green);
+}
+
+.scribe-action-notification-slide[data-source-team="industry"]::before {
+    background: var(--color-team-industry);
 }
 
 .scribe-proposal-slide .scribe-action-slide-eyebrow,
