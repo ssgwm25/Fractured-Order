@@ -70,6 +70,14 @@ const TRAINING_INTRO_CAPTIONS = {
     url: fileUrl('public/training/intro/plenum-onboarding.en.vtt')
 };
 
+const TRAINING_SHELL_STYLES = Object.freeze({
+    variables: fileUrl('styles/base/variables.css'),
+    header: fileUrl('styles/layouts/header.css'),
+    appLayout: fileUrl('styles/layouts/app-layout.css'),
+    sidebar: fileUrl('styles/layouts/sidebar.css'),
+    scribe: fileUrl('styles/pages/scribe.css')
+});
+
 describe('UI source accessibility checks', () => {
     it('marks every inline SVG in role shells as hidden decorative art', () => {
         const failures = [];
@@ -119,6 +127,27 @@ describe('UI source accessibility checks', () => {
         expect(captions).toContain('Plenum addresses this problem');
         expect(captions).toContain('observable, and reviewable simulation');
         expect(captions).not.toContain('awaiting an approved transcript');
+    });
+
+    it('reserves the persistent training banner above every role shell', () => {
+        const variables = readFileSync(TRAINING_SHELL_STYLES.variables, 'utf8');
+        const header = readFileSync(TRAINING_SHELL_STYLES.header, 'utf8');
+        const appLayout = readFileSync(TRAINING_SHELL_STYLES.appLayout, 'utf8');
+        const sidebar = readFileSync(TRAINING_SHELL_STYLES.sidebar, 'utf8');
+        const scribe = readFileSync(TRAINING_SHELL_STYLES.scribe, 'utf8');
+
+        expect(variables).toContain('--app-shell-top-offset: var(--header-height)');
+        expect(header).toContain('body.training-sandbox-visible');
+        expect(header).toContain('--app-shell-top-offset: calc(var(--header-height) + var(--training-sandbox-banner-height))');
+        expect(appLayout).toContain('padding-top: var(--app-shell-top-offset)');
+        expect(sidebar).toContain('top: var(--app-shell-top-offset)');
+        expect(scribe).toContain('padding-top: var(--app-shell-top-offset)');
+        expect(scribe).toContain('top: var(--app-shell-top-offset)');
+
+        for (const team of ['blue', 'red', 'green', 'industry']) {
+            const facilitatorShell = readFileSync(fileUrl(`teams/${team}/scribe.html`), 'utf8');
+            expect(facilitatorShell).toContain('styles/layouts/header.css');
+        }
     });
 
     it('keeps the shared modal close icon decorative for assistive technology', () => {

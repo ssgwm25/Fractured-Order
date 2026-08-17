@@ -445,6 +445,15 @@ profile coach introduced by Prompts 07–09. A persistent `Replay intro` trainin
 coach control remains on the sandbox banner even after the first-run marker is
 stored.
 
+The persistent sandbox banner measures its rendered height and publishes that
+value to the shared role-shell offset. Standard content, fixed sidebars, the
+Facilitator deck shell, mobile drawers, presentation panels, and alert panels
+therefore begin below both the application header and the banner. A resize
+observer updates the reservation when controls or text wrap, so browser zoom,
+text enlargement, and narrow viewports do not leave interface elements hidden
+under the fixed banner. If observation is unavailable, the tokenized desktop
+and mobile minimum heights remain as the layout fallback.
+
 Media provenance and the delivery checklist live under
 `public/training/intro/`. Playback uses only repository-local assets and creates
 no tracker, credential, recorder, live participant, or remote-player request.

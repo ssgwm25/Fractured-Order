@@ -344,6 +344,10 @@ captions-unavailable message:
 5. Confirm `Replay intro` remains keyboard reachable in the Training sandbox
    controls. Replaying must not create a new attempt or clear walkthrough
    progress.
+6. At 200% browser zoom and at the supported narrow viewport, confirm the
+   Training sandbox banner wraps without covering role navigation, fixed
+   sidebars, deck controls, alerts, or the first focusable content. The shared
+   shell should move those surfaces below the full rendered banner height.
 
 For deployment diagnosis, verify the built application contains the Vite-emitted
 MP4 and poster plus

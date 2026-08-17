@@ -45,7 +45,7 @@ body::before {
     position: relative;
     display: flex;
     height: 100%;
-    padding-top: var(--header-height);
+    padding-top: var(--app-shell-top-offset);
     min-height: 0;
     max-width: 100%;
     overflow: hidden;
@@ -2182,7 +2182,7 @@ body[data-scribe-presentation="active"] .scribe-stage-frame {
 
 body[data-scribe-presentation="active"] .scribe-stage-image-wrap {
     width: auto;
-    height: min(100%, calc(100vh - var(--header-height) - (var(--space-5) * 2)));
+    height: min(100%, calc(100vh - var(--app-shell-top-offset) - (var(--space-5) * 2)));
     max-width: 100%;
     border-radius: var(--radius-lg);
 }
@@ -2194,7 +2194,7 @@ body[data-scribe-presentation="active"] .scribe-stage-action-shell {
 body[data-scribe-presentation="active"] .scribe-action-slide {
     width: 100%;
     height: 100%;
-    max-height: calc(100vh - var(--header-height) - var(--scribe-presentation-toolbar-reserve));
+    max-height: calc(100vh - var(--app-shell-top-offset) - var(--scribe-presentation-toolbar-reserve));
     align-content: center;
     padding: clamp(var(--space-5), 3vw, var(--space-8));
     border-radius: var(--radius-lg);
@@ -2283,7 +2283,7 @@ body[data-scribe-presentation="active"][data-scribe-presentation-edit="active"] 
     display: flex;
     flex-direction: column;
     min-width: 0;
-    max-height: calc(100vh - var(--header-height) - var(--scribe-presentation-toolbar-reserve) - (var(--space-4) * 2));
+    max-height: calc(100vh - var(--app-shell-top-offset) - var(--scribe-presentation-toolbar-reserve) - (var(--space-4) * 2));
     overflow: hidden;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -2292,7 +2292,7 @@ body[data-scribe-presentation="active"][data-scribe-presentation-edit="active"] 
 }
 
 body[data-scribe-presentation="active"][data-scribe-presentation-edit="active"] .scribe-action-slide {
-    max-height: calc(100vh - var(--header-height) - var(--scribe-presentation-toolbar-reserve) - (var(--space-4) * 2));
+    max-height: calc(100vh - var(--app-shell-top-offset) - var(--scribe-presentation-toolbar-reserve) - (var(--space-4) * 2));
 }
 
 .scribe-presentation-edit-shell {
@@ -2357,7 +2357,7 @@ body[data-scribe-presentation="active"] .scribe-stage-nav {
 }
 
 body[data-scribe-presentation="active"] .scribe-stage-state {
-    min-height: calc(100vh - var(--header-height) - (var(--space-5) * 2));
+    min-height: calc(100vh - var(--app-shell-top-offset) - (var(--space-5) * 2));
     padding: var(--space-5);
 }
 
@@ -2486,7 +2486,7 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
 
     .scribe-sidebar {
         position: fixed;
-        top: var(--header-height);
+        top: var(--app-shell-top-offset);
         bottom: 0;
         left: 0;
         width: min(22rem, 88vw);
@@ -2717,7 +2717,7 @@ body[data-scribe-presentation="active"] .scribe-stage-state {
 
 .scribe-alerts-panel {
     position: fixed;
-    top: calc(var(--header-height) - 4px);
+    top: calc(var(--app-shell-top-offset) - var(--space-1));
     right: var(--space-4);
     width: min(360px, calc(100vw - var(--space-6)));
     max-height: min(70vh, 540px);

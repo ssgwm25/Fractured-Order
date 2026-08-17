@@ -55,6 +55,36 @@ function createElement(documentRef, tagName, className, textContent = '') {
     return element;
 }
 
+export function syncTrainingSandboxBannerLayout({
+    banner,
+    documentRef = typeof document !== 'undefined' ? document : null
+} = {}) {
+    const measuredHeight = Number(banner?.getBoundingClientRect?.().height || banner?.offsetHeight || 0);
+    if (!documentRef?.body?.style?.setProperty || !Number.isFinite(measuredHeight) || measuredHeight <= 0) {
+        return 0;
+    }
+
+    const reservedHeight = Math.ceil(measuredHeight);
+    documentRef.body.style.setProperty('--training-sandbox-banner-height', `${reservedHeight}px`);
+    return reservedHeight;
+}
+
+function observeTrainingSandboxBannerLayout({ banner, documentRef }) {
+    const syncLayout = () => syncTrainingSandboxBannerLayout({ banner, documentRef });
+    syncLayout();
+
+    const ResizeObserverConstructor = documentRef?.defaultView?.ResizeObserver
+        || (typeof ResizeObserver !== 'undefined' ? ResizeObserver : null);
+    if (ResizeObserverConstructor) {
+        const resizeObserver = new ResizeObserverConstructor(syncLayout);
+        resizeObserver.observe(banner);
+        return resizeObserver;
+    }
+
+    documentRef?.defaultView?.addEventListener?.('resize', syncLayout);
+    return null;
+}
+
 export function hydrateTrainingFixtures(context) {
     // Importing and resolving the module makes schema/catalog validation part
     // of normal application startup, not a test-only content check.
@@ -122,6 +152,8 @@ export function mountTrainingSandboxBanner({
 
     const existing = documentRef.getElementById?.('trainingSandboxBanner');
     if (existing) {
+        documentRef.body.classList?.add?.('training-sandbox-visible');
+        syncTrainingSandboxBannerLayout({ banner: existing, documentRef });
         return existing;
     }
 
@@ -177,6 +209,7 @@ export function mountTrainingSandboxBanner({
     banner.append(copy, controls);
     documentRef.body.appendChild(banner);
     documentRef.body.classList?.add?.('training-sandbox-visible');
+    observeTrainingSandboxBannerLayout({ banner, documentRef });
 
     const liveLogout = documentRef.getElementById?.('logoutBtn');
     if (liveLogout) {

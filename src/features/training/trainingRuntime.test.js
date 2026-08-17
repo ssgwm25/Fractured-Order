@@ -7,6 +7,7 @@ import {
     BLUE_SCRIBE_PRACTICE_ARTIFACT,
     TRAINING_RECOVERY_MESSAGE,
     hydrateTrainingFixtures,
+    syncTrainingSandboxBannerLayout,
     trainingRuntime
 } from './trainingRuntime.js';
 
@@ -179,6 +180,17 @@ describe('isolated training runtime', () => {
         expect(second.actions).toEqual(first.actions);
         expect(second.actions).not.toBe(first.actions);
         expect(hydrateTrainingFixtures({ team: 'red', semanticRole: 'scribe' }).actions).toEqual([]);
+    });
+
+    it('reserves the full measured banner height when its content wraps', () => {
+        const setProperty = vi.fn();
+        const documentRef = { body: { style: { setProperty } } };
+        const banner = {
+            getBoundingClientRect: vi.fn(() => ({ height: 97.2 }))
+        };
+
+        expect(syncTrainingSandboxBannerLayout({ banner, documentRef })).toBe(98);
+        expect(setProperty).toHaveBeenCalledWith('--training-sandbox-banner-height', '98px');
     });
 
     it('fails closed on unrecognized training writes with recovery copy', async () => {
