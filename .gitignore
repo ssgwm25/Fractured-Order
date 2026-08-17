@@ -18,6 +18,10 @@ coverage/
 output/release-evidence/
 release-evidence/
 pli/reports/out/
+/Plenum Briefing/Plenum_Pre_Demo_Deck.pdf
+
+# Unused local duplicate; the authored runtime video stays under Plenum Briefing.
+/src/video/PLenum Onboarding Video.mp4
 
 # Browser-downloaded session recordings
 recordings/
