@@ -13,7 +13,15 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
-import { trainingRuntime } from '../features/training/trainingRuntime.js';
+import {
+    SCRIBE_COMMANDS,
+    getScribeTrainingCommand,
+    trainingRuntime
+} from '../features/training/trainingRuntime.js';
+import {
+    mountScribeTrainingCoach,
+    shouldMountScribeTrainingCoach
+} from '../features/training/ScribeTrainingCoach.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
@@ -304,16 +312,19 @@ export class FacilitatorController {
         this.hasHydratedAuthoredProposalResponses = false;
         this.strategicOrientationSubmissionInFlight = false;
         this.intercomReceiver = null;
+        this.trainingCoach = null;
+        this.trainingActivation = null;
     }
 
     async init() {
         logger.info('Initializing Scribe workspace');
 
         if (sessionStore.hasTrainingContext?.()) {
-            await trainingRuntime.initializeRolePage({
+            const activation = await trainingRuntime.initializeRolePage({
                 expectedSemanticRole: 'scribe',
                 team: this.teamId
             });
+            this.mountVerifiedTrainingCoach(activation);
             return;
         }
 
@@ -372,6 +383,172 @@ export class FacilitatorController {
         this.mountFollowAlongOnboarding();
 
         logger.info('Scribe workspace initialized');
+    }
+
+    mountVerifiedTrainingCoach(activation, {
+        mountCoachRef = mountScribeTrainingCoach,
+        documentRef = globalThis.document
+    } = {}) {
+        if (!shouldMountScribeTrainingCoach(activation, this.teamId)) return null;
+
+        this.trainingCoach?.destroy?.();
+        this.trainingActivation = activation;
+        this.roleSurface = 'training';
+        this.isReadOnly = false;
+        this.renderTrainingReadOnlyFixtures(activation.fixtureBundle, documentRef);
+        this.trainingCoach = mountCoachRef({
+            activation,
+            documentRef,
+            onOpenOrientation: (callbacks) => this.openTrainingOrientation(callbacks),
+            onOpenArtifact: (options) => this.openTrainingArtifact(options),
+            onNavigate: (section) => this.navigateTrainingSection(section, documentRef),
+            renderLifecycleBadge: (state) => this.renderTrainingLifecycleBadge(state, documentRef)
+        });
+        return this.trainingCoach;
+    }
+
+    renderTrainingReadOnlyFixtures(fixtureBundle, documentRef = globalThis.document) {
+        if (!fixtureBundle || !documentRef) return;
+        const sessionName = documentRef.getElementById?.('sessionName');
+        if (sessionName) sessionName.textContent = `${this.teamLabel} Scribe training`;
+
+        this.rfis = [fixtureBundle.rfi].filter(Boolean);
+        this.responses = [fixtureBundle.communication, fixtureBundle.rfiAnswer].filter(Boolean);
+        this.timelineEvents = [...(fixtureBundle.timelineEntries || [])];
+        this.journalEntries = this.timelineEvents.filter((event) => (
+            TRIBE_STREET_JOURNAL_EVENT_TYPES.has(event?.type)
+        ));
+        this.renderRfiList();
+        this.renderResponsesList();
+        this.renderTribeStreetJournalList();
+        this.renderTimeline();
+    }
+
+    navigateTrainingSection(section, documentRef = globalThis.document) {
+        documentRef?.querySelector?.(`.sidebar-link[data-section="${section}"]`)?.click?.();
+    }
+
+    renderTrainingLifecycleBadge(state, documentRef = globalThis.document) {
+        if (!documentRef?.createElement) return '';
+        const artifact = state === 'returned'
+            ? { status: 'draft', workflow_state: 'returned_to_team', review_notes: 'Training return' }
+            : state === 'completed'
+            ? { status: 'draft', workflow_state: 'forwarded_to_facilitator' }
+            : { status: 'draft', workflow_state: 'draft' };
+        return createArtifactLifecycleBadge(artifact, { size: 'sm' }).outerHTML;
+    }
+
+    async executeTrainingPracticeCommand(suffix, artifact) {
+        const command = getScribeTrainingCommand(this.teamId, suffix);
+        if (!command) throw new Error('Unsupported Scribe training command.');
+        return trainingRuntime.executeCommand(command, { artifact });
+    }
+
+    openTrainingOrientation({ onComplete = () => {}, onRetry = () => {} } = {}) {
+        const content = this.createStrategicOrientationContent({});
+        const modal = showModal({
+            title: `${this.teamLabel} Strategic Orientation practice`,
+            content,
+            size: 'xl'
+        });
+        this.bindStrategicOrientationModal(content, modal, {
+            onValidationError: onRetry,
+            onSubmit: async (data) => {
+                try {
+                    const payload = this.buildStrategicOrientationPayload(data);
+                    const state = await this.executeTrainingPracticeCommand(
+                        SCRIBE_COMMANDS.ORIENTATION_COMPLETED,
+                        payload
+                    );
+                    modal?.close?.();
+                    onComplete(state);
+                } catch (error) {
+                    onRetry(getUserMessage(error, { fallback: 'Strategic Orientation could not be saved. Try again.' }));
+                }
+            }
+        });
+    }
+
+    getTrainingArtifactSource(practiceState, mode) {
+        const fixture = this.trainingActivation?.fixtureBundle?.artifact || {};
+        const source = practiceState?.artifact || fixture;
+        const clone = JSON.parse(JSON.stringify(source));
+        if (mode === 'new' && this.teamId === 'blue') clone.expected_outcomes = '';
+        return clone;
+    }
+
+    createTrainingPracticeArtifactContent(practiceState = null, mode = 'new') {
+        const source = this.getTrainingArtifactSource(practiceState, mode);
+        if (this.teamId === 'red') {
+            return this.createRedResponseContent(source, {
+                isEdit: mode === 'revision',
+                submitLabel: mode === 'revision'
+                    ? 'Revise and Forward to Facilitator'
+                    : 'Forward to Facilitator'
+            });
+        }
+        if (this.teamId === 'green') return this.createGreenProposalContent(source, { isEdit: mode === 'revision' });
+        if (this.teamId === 'industry') return this.createIndustryProposalContent(source, { isEdit: mode === 'revision' });
+        return this.createBlueActionWizardContent(source, {
+            isEdit: mode === 'revision',
+            sequenceContext: { label: 'TRAINING FIXTURE — Blue Action' }
+        });
+    }
+
+    openTrainingArtifact({
+        mode = 'new',
+        practiceState = null,
+        onDraft = () => {},
+        onForward = () => {},
+        onRetry = () => {}
+    } = {}) {
+        const source = this.getTrainingArtifactSource(practiceState, mode);
+        const content = this.createTrainingPracticeArtifactContent(practiceState, mode);
+        const title = this.teamId === 'red'
+            ? 'Red Move Response practice'
+            : this.isProposalTeam()
+            ? `${this.teamLabel} proposal practice`
+            : 'Structured Blue action practice';
+        const modal = showModal({ title, content, size: 'xl' });
+
+        const saveArtifact = async (payload, suffix, callback) => {
+            if (mode === 'revision' && JSON.stringify(payload) === JSON.stringify(source)) {
+                onRetry('Change the returned artifact so the revision answers the feedback.');
+                return;
+            }
+            try {
+                const state = await this.executeTrainingPracticeCommand(suffix, payload);
+                modal?.close?.();
+                callback(state);
+            } catch (error) {
+                onRetry(getUserMessage(error, { fallback: 'The training artifact could not be saved. Try again.' }));
+            }
+        };
+
+        const callbacks = {
+            onValidationError: onRetry,
+            onSaveDraft: mode === 'revision'
+                ? null
+                : (payload) => saveArtifact(payload, SCRIBE_COMMANDS.ARTIFACT_DRAFT_SAVED, onDraft),
+            onForward: (payload) => saveArtifact(
+                payload,
+                mode === 'revision'
+                    ? SCRIBE_COMMANDS.RETURNED_ARTIFACT_REVISED
+                    : SCRIBE_COMMANDS.ARTIFACT_FORWARDED,
+                onForward
+            )
+        };
+
+        if (this.teamId === 'red') {
+            this.bindRedResponseModal(content, modal, callbacks);
+        } else if (this.isProposalTeam()) {
+            this.bindGreenProposalModal(content, modal, callbacks);
+        } else {
+            this.bindBlueActionWizard(content, modal, {
+                sequenceContext: { label: 'TRAINING FIXTURE — Blue Action' },
+                ...callbacks
+            });
+        }
     }
 
     mountFollowAlongOnboarding() {
@@ -2934,7 +3111,12 @@ export class FacilitatorController {
         return content;
     }
 
-    bindStrategicOrientationModal(content, modal, { actionId = null, isEdit = false } = {}) {
+    bindStrategicOrientationModal(content, modal, {
+        actionId = null,
+        isEdit = false,
+        onSubmit = null,
+        onValidationError = null
+    } = {}) {
         const profile = getStrategicOrientationTeamProfile(this.teamId);
         const initial = content.__strategicOrientationInitialState || {};
         const state = {
@@ -3002,9 +3184,13 @@ export class FacilitatorController {
             const errors = this.validateStrategicOrientationData(state);
             if (errors.length) {
                 this.renderStrategicOrientationErrors(content, errors);
+                onValidationError?.(errors[0].message);
                 return;
             }
-            this.submitStrategicOrientation(modal, state, { actionId, isEdit }).catch((err) => {
+            const submission = onSubmit
+                ? onSubmit(state, { actionId, isEdit })
+                : this.submitStrategicOrientation(modal, state, { actionId, isEdit });
+            Promise.resolve(submission).catch((err) => {
                 logger.error('Failed to forward Strategic Orientation:', err);
             });
         });
@@ -3235,7 +3421,7 @@ export class FacilitatorController {
         });
     }
 
-    createRedResponseContent(action = {}, { isEdit = false } = {}) {
+    createRedResponseContent(action = {}, { isEdit = false, submitLabel = null } = {}) {
         const content = document.createElement('div');
         const viewModel = getMoveResponseViewModel(action);
         const titleValue = viewModel.title === 'Untitled response' ? '' : viewModel.title;
@@ -3317,7 +3503,7 @@ export class FacilitatorController {
                 <div style="display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
                     <button type="button" class="btn btn-secondary" data-response-nav="cancel">Cancel</button>
                     <button type="button" class="btn btn-primary" data-response-nav="submit">
-                        ${isEdit ? 'Save Changes' : 'Submit for White Cell Review'}
+                        ${this.escapeHtml(submitLabel || (isEdit ? 'Save Changes' : 'Submit for White Cell Review'))}
                     </button>
                 </div>
             </form>
@@ -3326,14 +3512,55 @@ export class FacilitatorController {
         return content;
     }
 
-    bindRedResponseModal(content, modal, { actionId = null, isEdit = false } = {}) {
+    bindRedResponseModal(content, modal, {
+        actionId = null,
+        isEdit = false,
+        onSaveDraft = null,
+        onForward = null,
+        onValidationError = null
+    } = {}) {
         const form = content.querySelector('#redResponseForm');
+        const forwardButton = content.querySelector('[data-response-nav="submit"]');
+
+        if (onSaveDraft && forwardButton?.parentElement) {
+            const saveDraftButton = document.createElement('button');
+            saveDraftButton.type = 'button';
+            saveDraftButton.className = 'btn btn-secondary';
+            saveDraftButton.textContent = 'Save Draft';
+            saveDraftButton.dataset.responseNav = 'saveDraft';
+            forwardButton.parentElement.insertBefore(saveDraftButton, forwardButton);
+            saveDraftButton.addEventListener('click', () => {
+                const data = this.getRedResponseData(form);
+                const error = this.validateRedResponse(data);
+                if (error) {
+                    showToast({ message: error, type: 'error' });
+                    onValidationError?.(error);
+                    return;
+                }
+                Promise.resolve(onSaveDraft(this.buildRedResponsePayload(data))).catch((err) => {
+                    logger.error('Failed to save Red Team training draft:', err);
+                });
+            });
+        }
 
         content.querySelector('[data-response-nav="cancel"]')?.addEventListener('click', () => {
             modal?.close();
         });
 
-        content.querySelector('[data-response-nav="submit"]')?.addEventListener('click', () => {
+        forwardButton?.addEventListener('click', () => {
+            if (onForward) {
+                const data = this.getRedResponseData(form);
+                const error = this.validateRedResponse(data);
+                if (error) {
+                    showToast({ message: error, type: 'error' });
+                    onValidationError?.(error);
+                    return;
+                }
+                Promise.resolve(onForward(this.buildRedResponsePayload(data))).catch((err) => {
+                    logger.error('Failed to forward Red Team training response:', err);
+                });
+                return;
+            }
             this.submitRedResponse(modal, form, { actionId, isEdit }).catch((err) => {
                 logger.error('Failed to submit Red Team move response:', err);
             });
@@ -3705,9 +3932,26 @@ export class FacilitatorController {
         return content;
     }
 
-    bindGreenProposalModal(content, modal, { actionId = null, isEdit = false } = {}) {
+    bindGreenProposalModal(content, modal, {
+        actionId = null,
+        isEdit = false,
+        onSaveDraft = null,
+        onForward = null,
+        onValidationError = null
+    } = {}) {
         const form = content.querySelector(`#${this.teamId}ProposalForm`);
         if (!form) return;
+
+        const getTrainingPayload = (scribeHandoff) => {
+            const data = this.getGreenProposalData(form);
+            const error = this.validateGreenProposal(data);
+            if (error) {
+                showToast({ message: error, type: 'error' });
+                onValidationError?.(error);
+                return null;
+            }
+            return this.buildGreenProposalPayload(data, { scribeHandoff });
+        };
 
         const updateSectorOtherField = () => {
             const group = form.querySelector('#proposalFocusSectorOtherGroup');
@@ -3739,6 +3983,11 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="saveDraft"]')?.addEventListener('click', () => {
+            if (onSaveDraft) {
+                const payload = getTrainingPayload(PROPOSAL_SCRIBE_HANDOFF.DRAFT);
+                if (payload) void Promise.resolve(onSaveDraft(payload));
+                return;
+            }
             this.saveGreenProposalDraft(modal, form, {
                 actionId,
                 isEdit,
@@ -3749,6 +3998,11 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="saveChanges"]')?.addEventListener('click', () => {
+            if (onForward) {
+                const payload = getTrainingPayload(PROPOSAL_SCRIBE_HANDOFF.FORWARDED);
+                if (payload) void Promise.resolve(onForward(payload));
+                return;
+            }
             this.saveGreenProposalDraft(modal, form, {
                 actionId,
                 isEdit: true,
@@ -3759,6 +4013,11 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="forward"]')?.addEventListener('click', () => {
+            if (onForward) {
+                const payload = getTrainingPayload(PROPOSAL_SCRIBE_HANDOFF.FORWARDED);
+                if (payload) void Promise.resolve(onForward(payload));
+                return;
+            }
             this.forwardGreenProposalToFacilitator(modal, form, {
                 actionId,
                 isEdit
@@ -4568,7 +4827,13 @@ export class FacilitatorController {
         return content;
     }
 
-    bindBlueActionWizard(content, modal, { actionId = null, sequenceContext = null } = {}) {
+    bindBlueActionWizard(content, modal, {
+        actionId = null,
+        sequenceContext = null,
+        onSaveDraft = null,
+        onForward = null,
+        onValidationError = null
+    } = {}) {
         const form = content.querySelector('#blueActionWizardForm');
         const pages = Array.from(content.querySelectorAll('[data-blue-action-page]'));
         const wizardPageTotal = pages.length || this.getBlueActionWizardPageTotal();
@@ -4767,6 +5032,7 @@ export class FacilitatorController {
             const error = this.validateBlueActionWizardPage(wizardData, currentPage);
             if (error) {
                 showToast({ message: error, type: 'error' });
+                onValidationError?.(error);
                 return;
             }
 
@@ -4775,18 +5041,61 @@ export class FacilitatorController {
         });
 
         saveDraftButton?.addEventListener('click', () => {
+            if (onSaveDraft) {
+                const wizardData = this.getBlueActionWizardData(form);
+                const error = this.getBlueActionDraftSaveValidationError(wizardData, currentPage);
+                if (error) {
+                    showToast({ message: error, type: 'error' });
+                    onValidationError?.(error);
+                    return;
+                }
+                void Promise.resolve(onSaveDraft(this.buildBlueActionPayload(wizardData, {
+                    scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.DRAFT
+                })));
+                return;
+            }
             this.saveBlueActionDraft(modal, form, currentPage).catch((error) => {
                 logger.error('Failed to save team draft action:', error);
             });
         });
 
         submitButton?.addEventListener('click', () => {
+            if (onForward) {
+                const wizardData = this.getBlueActionWizardData(form);
+                const error = Array.from({ length: wizardPageTotal }, (_, pageIndex) => (
+                    this.validateBlueActionWizardPage(wizardData, pageIndex)
+                )).find(Boolean);
+                if (error) {
+                    showToast({ message: error, type: 'error' });
+                    onValidationError?.(error);
+                    return;
+                }
+                void Promise.resolve(onForward(this.buildBlueActionPayload(wizardData, {
+                    scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
+                })));
+                return;
+            }
             this.forwardBlueActionFromWizard(modal, form).catch((error) => {
                 logger.error('Failed to forward team action from wizard:', error);
             });
         });
 
         saveChangesButton?.addEventListener('click', () => {
+            if (onForward) {
+                const wizardData = this.getBlueActionWizardData(form);
+                const error = Array.from({ length: wizardPageTotal }, (_, pageIndex) => (
+                    this.validateBlueActionWizardPage(wizardData, pageIndex)
+                )).find(Boolean);
+                if (error) {
+                    showToast({ message: error, type: 'error' });
+                    onValidationError?.(error);
+                    return;
+                }
+                void Promise.resolve(onForward(this.buildBlueActionPayload(wizardData, {
+                    scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
+                })));
+                return;
+            }
             this.saveBlueActionChanges(modal, form, actionId, currentPage).catch((error) => {
                 logger.error('Failed to update team draft action:', error);
             });
@@ -6128,6 +6437,9 @@ export class FacilitatorController {
     }
 
     destroy() {
+        this.trainingCoach?.destroy?.();
+        this.trainingCoach = null;
+        this.trainingActivation = null;
         if (this.intercomReceiver) {
             unmountScribeIntercomReceiver(this.intercomReceiver);
             this.intercomReceiver = null;

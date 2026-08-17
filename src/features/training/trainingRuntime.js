@@ -23,6 +23,37 @@ export const TRAINING_RECOVERY_MESSAGE =
 const blueScribeFixture = getTrainingProfileFixtureBundle('blue', 'scribe').artifact;
 const blueScribeViewModel = getBlueActionViewModel(blueScribeFixture);
 
+const SCRIBE_COMMANDS = Object.freeze({
+    ORIENTATION_COMPLETED: 'orientation-completed',
+    ARTIFACT_DRAFT_SAVED: 'artifact-draft-saved',
+    ARTIFACT_FORWARDED: 'artifact-forwarded',
+    RETURNED_ARTIFACT_REVISED: 'returned-artifact-revised'
+});
+const SCRIBE_COMMAND_DEFINITIONS = Object.freeze({
+    [SCRIBE_COMMANDS.ORIENTATION_COMPLETED]: Object.freeze({
+        stage: 'show',
+        eventType: 'step_completed',
+        resultCode: 'completed'
+    }),
+    [SCRIBE_COMMANDS.ARTIFACT_DRAFT_SAVED]: Object.freeze({
+        stage: 'practice',
+        eventType: 'step_started',
+        resultCode: null
+    }),
+    [SCRIBE_COMMANDS.ARTIFACT_FORWARDED]: Object.freeze({
+        stage: 'practice',
+        eventType: 'step_completed',
+        resultCode: 'completed'
+    }),
+    [SCRIBE_COMMANDS.RETURNED_ARTIFACT_REVISED]: Object.freeze({
+        stage: 'respond',
+        eventType: 'step_completed',
+        resultCode: 'completed'
+    })
+});
+const TRAINING_PRACTICE_PAYLOAD_LIMIT = 32 * 1024;
+const practiceStates = new Map();
+
 export const BLUE_SCRIBE_PRACTICE_ARTIFACT = Object.freeze({
     id: blueScribeFixture.id,
     artifactType: 'action',
@@ -37,6 +68,121 @@ let rolePageActivationPromise = null;
 
 function cloneFixture(value) {
     return JSON.parse(JSON.stringify(value));
+}
+
+function clonePracticePayload(value, operation) {
+    let serialized;
+    try {
+        serialized = JSON.stringify(value ?? null);
+    } catch (_error) {
+        throw makeBoundaryError(operation);
+    }
+
+    if (serialized.length > TRAINING_PRACTICE_PAYLOAD_LIMIT) {
+        throw makeBoundaryError(operation);
+    }
+
+    const clone = JSON.parse(serialized);
+    if (!clone || typeof clone !== 'object' || Array.isArray(clone)) {
+        throw makeBoundaryError(operation);
+    }
+    return clone;
+}
+
+function buildEmptyScribePracticeState(context) {
+    return {
+        attemptId: context.attemptId,
+        team: context.team,
+        semanticRole: 'scribe',
+        orientation: null,
+        artifact: null,
+        artifactState: 'empty',
+        revision: 0,
+        facilitatorReceipt: null,
+        returnedArtifact: null
+    };
+}
+
+function getPracticeState(context) {
+    const existing = practiceStates.get(context.attemptId);
+    if (
+        existing
+        && existing.team === context.team
+        && existing.semanticRole === context.semanticRole
+    ) {
+        return existing;
+    }
+
+    const created = buildEmptyScribePracticeState(context);
+    practiceStates.set(context.attemptId, created);
+    return created;
+}
+
+function clonePracticeState(state) {
+    return Object.freeze(cloneFixture(state));
+}
+
+function parseScribeCommand(command, context) {
+    const prefix = `scribe.${context.team}.`;
+    if (context.semanticRole !== 'scribe' || !String(command || '').startsWith(prefix)) {
+        return null;
+    }
+
+    const suffix = command.slice(prefix.length);
+    const definition = SCRIBE_COMMAND_DEFINITIONS[suffix];
+    return definition ? { suffix, definition } : null;
+}
+
+function applyScribeCommand(state, suffix, payload, fixtureBundle) {
+    if (suffix === SCRIBE_COMMANDS.ORIENTATION_COMPLETED) {
+        if (state.orientation) {
+            throw makeBoundaryError(`scribe.${state.team}.${suffix}`);
+        }
+        state.orientation = payload.artifact;
+        return;
+    }
+
+    if (!state.orientation) {
+        throw makeBoundaryError(`scribe.${state.team}.${suffix}`);
+    }
+
+    if (suffix === SCRIBE_COMMANDS.ARTIFACT_DRAFT_SAVED) {
+        if (!['empty', 'draft'].includes(state.artifactState)) {
+            throw makeBoundaryError(`scribe.${state.team}.${suffix}`);
+        }
+        state.artifact = payload.artifact;
+        state.artifactState = 'draft';
+        return;
+    }
+
+    if (suffix === SCRIBE_COMMANDS.ARTIFACT_FORWARDED) {
+        if (state.artifactState !== 'draft') {
+            throw makeBoundaryError(`scribe.${state.team}.${suffix}`);
+        }
+        state.artifact = payload.artifact;
+        state.artifactState = 'returned';
+        state.revision = Math.max(1, state.revision);
+        state.facilitatorReceipt = cloneFixture(fixtureBundle.handoff);
+        state.returnedArtifact = cloneFixture(fixtureBundle.whiteCellReturn);
+        return;
+    }
+
+    if (suffix === SCRIBE_COMMANDS.RETURNED_ARTIFACT_REVISED) {
+        if (state.artifactState !== 'returned' || !state.returnedArtifact) {
+            throw makeBoundaryError(`scribe.${state.team}.${suffix}`);
+        }
+        state.artifact = payload.artifact;
+        state.artifactState = 'completed';
+        state.revision += 1;
+        return;
+    }
+
+    throw makeBoundaryError(`scribe.${state.team}.${suffix}`);
+}
+
+export function getScribeTrainingCommand(team, suffix) {
+    if (!SCRIBE_COMMAND_DEFINITIONS[suffix]) return null;
+    return `scribe.${team}.${suffix}`;
 }
 
 function makeBoundaryError(operation) {
@@ -352,7 +498,8 @@ export const trainingRuntime = {
                                 }));
                             }
 
-                            const walkthroughStart = documentRef?.querySelector?.('main');
+                            const walkthroughStart = documentRef?.getElementById?.('scribeTrainingCoach')
+                                || documentRef?.querySelector?.('main');
                             if (walkthroughStart?.focus) {
                                 if (!walkthroughStart.hasAttribute?.('tabindex')) {
                                     walkthroughStart.setAttribute?.('tabindex', '-1');
@@ -381,13 +528,11 @@ export const trainingRuntime = {
                 control.title = 'Live write controls are unavailable in the training sandbox.';
             });
             const fixtures = hydrateTrainingFixtures(context);
-            if (context.team === 'blue' && context.semanticRole === 'scribe') {
-                renderBlueScribePracticeArtifact({ documentRef, fixture: fixtures.actions[0] });
-            }
+            const fixtureBundle = getTrainingProfileFixtureBundle(context.team, context.semanticRole);
 
             openIntro();
 
-            return { active: true, context, fixtures };
+            return { active: true, context, fixtures, fixtureBundle };
         } catch (_error) {
             sessionStoreRef.clearTrainingContext?.();
             showToastRef({ message: TRAINING_RECOVERY_MESSAGE, type: 'error' });
@@ -456,11 +601,54 @@ export const trainingRuntime = {
         });
     },
 
+    getPracticeState({ sessionStoreRef = sessionStore } = {}) {
+        const context = sessionStoreRef.getTrainingContext?.();
+        if (!context || context.semanticRole !== 'scribe') {
+            return null;
+        }
+        return clonePracticeState(getPracticeState(context));
+    },
+
+    async executeCommand(command, payload, {
+        databaseRef = database,
+        sessionStoreRef = sessionStore
+    } = {}) {
+        const context = sessionStoreRef.getTrainingContext?.();
+        const parsed = context ? parseScribeCommand(command, context) : null;
+        if (!context || !parsed) {
+            throw makeBoundaryError(command || 'training-command');
+        }
+
+        const safePayload = clonePracticePayload(payload, command);
+        if (!safePayload.artifact || typeof safePayload.artifact !== 'object') {
+            throw makeBoundaryError(command);
+        }
+
+        const fixtureBundle = getTrainingProfileFixtureBundle(context.team, 'scribe');
+        if (!fixtureBundle) {
+            throw makeBoundaryError(command);
+        }
+
+        const nextState = cloneFixture(getPracticeState(context));
+        applyScribeCommand(nextState, parsed.suffix, safePayload, fixtureBundle);
+
+        await this.executeWrite('record-progress', {
+            eventType: parsed.definition.eventType,
+            stepId: `training.v1.scribe.${context.team}.${parsed.definition.stage}`,
+            resultCode: parsed.definition.resultCode
+        }, { databaseRef, sessionStoreRef });
+
+        practiceStates.set(context.attemptId, nextState);
+        return clonePracticeState(nextState);
+    },
+
     exitTraining({
         sessionStoreRef = sessionStore,
         navigateRef = navigateToApp,
         documentRef = typeof document !== 'undefined' ? document : null
     } = {}) {
+        const context = sessionStoreRef.getTrainingContext?.({ requireServerValidation: false });
+        if (context?.attemptId) practiceStates.delete(context.attemptId);
         const EventConstructor = documentRef?.defaultView?.CustomEvent
             || (typeof CustomEvent !== 'undefined' ? CustomEvent : null);
         if (EventConstructor) {
@@ -470,5 +658,7 @@ export const trainingRuntime = {
         navigateRef('');
     }
 };
+
+export { SCRIBE_COMMANDS };
 
 export default trainingRuntime;

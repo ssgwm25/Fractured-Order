@@ -15,13 +15,13 @@ const FALLBACK_TARGET = Object.freeze({ selector: 'main', label: 'Main role work
 
 const ROLE_TARGETS = Object.freeze({
     scribe: Object.freeze({
-        orient: '.sidebar-session',
+        orient: '.header-game-state',
         show: '.header-game-state',
-        guide: '[data-section="actions"]',
-        practice: '#newActionBtn',
-        respond: '[data-section="responses"]',
-        retrieve: '#actionsSection',
-        reflect: '.sidebar-session'
+        guide: '#scribeTrainingCoach',
+        practice: '#scribeTrainingCoach',
+        respond: '[data-training-state="returned-dummy-artifact"]',
+        retrieve: '.training-coach__retrieval',
+        reflect: '#scribeTrainingCoach'
     }),
     facilitator: Object.freeze({
         orient: '.sidebar-session',

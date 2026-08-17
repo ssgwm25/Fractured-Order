@@ -5,7 +5,9 @@ import { sessionStore } from '../../stores/session.js';
 import { getTrainingRoleRoute } from './trainingContext.js';
 import {
     BLUE_SCRIBE_PRACTICE_ARTIFACT,
+    SCRIBE_COMMANDS,
     TRAINING_RECOVERY_MESSAGE,
+    getScribeTrainingCommand,
     hydrateTrainingFixtures,
     syncTrainingSandboxBannerLayout,
     trainingRuntime
@@ -213,6 +215,86 @@ describe('isolated training runtime', () => {
         })).rejects.toThrow(TRAINING_RECOVERY_MESSAGE);
         expect(databaseRef.recordTrainingProgressEvent).not.toHaveBeenCalled();
         expect(databaseRef.createAction).not.toHaveBeenCalled();
+    });
+
+    it.each(['blue', 'red', 'green', 'industry'])(
+        'routes the %s Scribe draft, handoff, and returned revision through the bounded command registry',
+        async (team) => {
+            const sessionStoreRef = createSessionStoreDouble();
+            sessionStoreRef.setTrainingContext({
+                attemptId: `attempt-${team}-scribe-command`,
+                curriculumVersion: '1.0',
+                semanticRole: 'scribe',
+                team,
+                trainingMode: true
+            });
+            const databaseRef = {
+                recordTrainingProgressEvent: vi.fn().mockResolvedValue({ ok: true })
+            };
+            const execute = (suffix, artifact) => trainingRuntime.executeCommand(
+                getScribeTrainingCommand(team, suffix),
+                { artifact },
+                { databaseRef, sessionStoreRef }
+            );
+
+            await execute(SCRIBE_COMMANDS.ORIENTATION_COMPLETED, { id: `${team}-orientation` });
+            const draft = await execute(SCRIBE_COMMANDS.ARTIFACT_DRAFT_SAVED, { id: `${team}-artifact`, revision: 1 });
+            expect(draft).toMatchObject({ team, artifactState: 'draft', revision: 0 });
+
+            const returned = await execute(SCRIBE_COMMANDS.ARTIFACT_FORWARDED, { id: `${team}-artifact`, revision: 1 });
+            expect(returned).toMatchObject({
+                team,
+                artifactState: 'returned',
+                revision: 1,
+                facilitatorReceipt: expect.objectContaining({ team }),
+                returnedArtifact: expect.objectContaining({
+                    workflow_state: 'returned_to_team'
+                })
+            });
+            expect(returned.returnedArtifact).not.toHaveProperty('review_record_id');
+
+            const completed = await execute(SCRIBE_COMMANDS.RETURNED_ARTIFACT_REVISED, {
+                id: `${team}-artifact`,
+                revision: 2
+            });
+            expect(completed).toMatchObject({ artifactState: 'completed', revision: 2 });
+            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenCalledTimes(4);
+            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith({
+                attemptId: `attempt-${team}-scribe-command`,
+                eventType: 'step_completed',
+                stepId: `training.v1.scribe.${team}.respond`,
+                resultCode: 'completed'
+            });
+        }
+    );
+
+    it('fails closed on unknown, cross-team, and out-of-order Scribe training commands', async () => {
+        const sessionStoreRef = createSessionStoreDouble();
+        sessionStoreRef.setTrainingContext({
+            attemptId: 'attempt-blue-scribe-closed-command',
+            curriculumVersion: '1.0',
+            semanticRole: 'scribe',
+            team: 'blue',
+            trainingMode: true
+        });
+        const databaseRef = { recordTrainingProgressEvent: vi.fn().mockResolvedValue({ ok: true }) };
+
+        await expect(trainingRuntime.executeCommand(
+            'scribe.red.artifact-forwarded',
+            { artifact: { id: 'cross-team' } },
+            { databaseRef, sessionStoreRef }
+        )).rejects.toThrow(TRAINING_RECOVERY_MESSAGE);
+        await expect(trainingRuntime.executeCommand(
+            'scribe.blue.submit-to-white-cell',
+            { artifact: { id: 'forbidden' } },
+            { databaseRef, sessionStoreRef }
+        )).rejects.toThrow(TRAINING_RECOVERY_MESSAGE);
+        await expect(trainingRuntime.executeCommand(
+            'scribe.blue.artifact-forwarded',
+            { artifact: { id: 'out-of-order' } },
+            { databaseRef, sessionStoreRef }
+        )).rejects.toThrow(TRAINING_RECOVERY_MESSAGE);
+        expect(databaseRef.recordTrainingProgressEvent).not.toHaveBeenCalled();
     });
 
     it('blocks every live database method while a training attempt hint is present', () => {

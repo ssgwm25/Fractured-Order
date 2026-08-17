@@ -507,6 +507,55 @@ Until that approval and generation occur,
 no fabricated generation date or output checksums, and no generated narration
 binary is a release artifact.
 
+## Scribe learning paths (Prompt 07)
+
+The Scribe coach mounts inside the existing `.page-container` only after
+`initializeRolePage` has revalidated the protected attempt and returned the
+same semantic Scribe/team context as the route. A cached flag, query parameter,
+live session, rejected activation, or mismatched team does not mount the coach.
+Controller teardown destroys both the coach and its narration controller.
+
+All four paths use the real Strategic Orientation renderer and team profile.
+Blue then uses the current structured action wizard; Red uses the structured
+Move Response renderer, validator, and serializer; Green and Industry use the
+current proposal renderer with distinct conditional branches. Green retains
+Originator and Objective, while Industry instead requires Industry of Focus,
+Country of Focus, and Proposed Activity. Both proposal paths retain intended
+partner, sector, supply-chain, timing, and outcome validation. The coach never
+offers RFI creation, direct communication, projection, or final submission.
+
+Practice mutations call a closed training command registry. The registry
+accepts only the current attempt's exact `scribe.<team>` orientation, draft,
+Facilitator-handoff, and returned-revision commands. It records only bounded
+step/result metadata, keeps dummy artifact bodies in memory, requires Draft
+before Forward, and requires the returned state before revision. Unknown,
+cross-team, direct-to-White-Cell, oversized, and out-of-order commands fail
+before progress or local practice state changes. The deterministic Facilitator
+receipt and White Cell/Facilitator return are fixture data; neither creates an
+`artifact_workflow_reviews` row or any live action, request, communication, or
+timeline record.
+
+The mounted coach provides explicit empty, retry, Draft, returned-dummy-artifact,
+revised, retrieval, and completed states. Its retrieval check presents Draft,
+Forward to Facilitator, and Submit to White Cell together and accepts only the
+Facilitator handoff. The common landmark controls use the shipped sidebar
+section navigation for read-only RFI history, White Cell updates, timeline,
+Tribe Street Journal, and Quick Capture. The visible move, phase, timer, and
+handoff chain remain text, not color-only status.
+
+Implementation exposed two selector/capability differences from the original
+curriculum draft. First, `#newActionBtn` is a disabled live-write control in a
+verified training context, so interactive Scribe stages now target the mounted
+`#scribeTrainingCoach`, its retrieval form, or its returned-artifact state;
+`main` remains the accessible fallback. Second, the reusable Red Move Response
+form still carries a legacy direct-to-White-Cell submit label and handler, while
+the ordinary Red create button currently opens the shared action wizard. Prompt
+07 requires Move Response practice, so training reuses only that form's current
+fields, validation, view model, and serializer, replaces its action with
+`Forward to Facilitator`, and never calls the legacy submit handler. This is a
+documented live/training selector difference, not authority for restoring
+Scribe-side final submission.
+
 ## Documentation gate
 
 Repository documentation tests must fail if this contract loses:

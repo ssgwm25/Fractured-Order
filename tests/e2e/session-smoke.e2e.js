@@ -175,8 +175,11 @@ test('@smoke TRAINING2026 reaches the isolated Blue Scribe role page', async ({ 
 
     await expect(page).toHaveURL(/teams\/blue\/facilitator\.html/);
     await expect(page.getByRole('status', { name: 'Training sandbox' })).toContainText('Training sandbox');
-    await expect(page.locator('[data-training-artifact-id="training-fixture:artifact:blue-action"]'))
-        .toContainText('Coordinate allied semiconductor export controls');
+    await expect(page.getByRole('region', { name: 'Blue Scribe coach' })).toBeVisible();
+    await expect(page.getByRole('progressbar', { name: 'Scribe training: step 1 of 7' }))
+        .toContainText('Step 1 of 7');
+    await expect(page.getByRole('button', { name: 'I understand the Scribe handoff' })).toBeVisible();
+    await expect(page.locator('[data-training-artifact-id]')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Exit training' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reset' })).toBeDisabled();
 

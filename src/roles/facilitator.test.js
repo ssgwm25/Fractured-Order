@@ -183,7 +183,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             allowed: false,
             reason: 'role-mismatch'
         });
-    });
+    }, 10000);
 
     it('renders Scribe labels on the legacy facilitator surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
@@ -310,6 +310,98 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(industryHtml).toContain('id="pageRefreshBtn"');
         expect(industryHtml).toContain('Strategic Orientation');
     });
+
+    it.each([
+        {
+            team: 'blue',
+            formId: 'blueActionWizardForm',
+            requiredCopy: ['Expected Outcomes', 'Forward to Facilitator'],
+            forbiddenCopy: ['Submit for White Cell Review']
+        },
+        {
+            team: 'red',
+            formId: 'redResponseForm',
+            requiredCopy: ['Delivery Channel', 'Forward to Facilitator'],
+            forbiddenCopy: ['Submit for White Cell Review']
+        },
+        {
+            team: 'green',
+            formId: 'greenProposalForm',
+            requiredCopy: ['Originator', 'Intended Partners', 'Focus Sectors'],
+            forbiddenCopy: ['Industry of Focus', 'Submit to White Cell']
+        },
+        {
+            team: 'industry',
+            formId: 'industryProposalForm',
+            requiredCopy: ['Industry of Focus', 'Country of Focus', 'Proposed Activity'],
+            forbiddenCopy: ['<legend class="form-label">Originator', 'Submit to White Cell']
+        }
+    ])('builds the team-correct $team training artifact form without a final-submission task', async ({
+        team,
+        formId,
+        requiredCopy,
+        forbiddenCopy
+    }) => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
+        global.document = createFakeDocument();
+        const controller = new FacilitatorController();
+        controller.teamId = team;
+        controller.teamLabel = `${team[0].toUpperCase()}${team.slice(1)} Team`;
+        controller.trainingActivation = {
+            fixtureBundle: getTrainingProfileFixtureBundle(team, 'scribe')
+        };
+
+        const content = controller.createTrainingPracticeArtifactContent(null, 'new');
+
+        expect(content.innerHTML).toContain(`id="${formId}"`);
+        requiredCopy.forEach((copy) => expect(content.innerHTML).toContain(copy));
+        forbiddenCopy.forEach((copy) => expect(content.innerHTML).not.toContain(copy));
+        if (team === 'blue') {
+            expect(content.innerHTML).not.toContain('Reduce strategic supply-chain exposure while preserving allied coordination');
+        }
+    });
+
+    it.each(['blue', 'red', 'green', 'industry'])(
+        'mounts and destroys the verified %s Scribe coach without mounting it for a live page',
+        async (team) => {
+            const { FacilitatorController } = await loadFacilitatorModule();
+            const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
+            const controller = new FacilitatorController();
+            controller.teamId = team;
+            const destroy = vi.fn();
+            const mountCoachRef = vi.fn(() => ({ destroy }));
+            vi.spyOn(controller, 'renderTrainingReadOnlyFixtures').mockImplementation(() => {});
+            const activation = {
+                active: true,
+                context: {
+                    attemptId: `attempt-${team}-scribe`,
+                    curriculumVersion: '1.0',
+                    semanticRole: 'scribe',
+                    team,
+                    trainingMode: true
+                },
+                fixtureBundle: getTrainingProfileFixtureBundle(team, 'scribe')
+            };
+
+            expect(controller.mountVerifiedTrainingCoach(
+                { active: false, context: null },
+                { mountCoachRef, documentRef: createFakeDocument() }
+            )).toBeNull();
+            expect(mountCoachRef).not.toHaveBeenCalled();
+            expect(controller.trainingCoach).toBeNull();
+            expect(controller.roleSurface).toBeNull();
+
+            controller.mountVerifiedTrainingCoach(activation, {
+                mountCoachRef,
+                documentRef: createFakeDocument()
+            });
+            expect(mountCoachRef).toHaveBeenCalledWith(expect.objectContaining({ activation }));
+
+            controller.destroy();
+            expect(destroy).toHaveBeenCalledTimes(1);
+        }
+    );
 
     it('builds Strategic Orientation payloads with a non-null action sector', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();

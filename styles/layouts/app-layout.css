@@ -145,6 +145,125 @@ body.sync-status-banner-visible {
     font-weight: var(--font-medium);
 }
 
+.training-coach {
+    display: grid;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+    padding: var(--space-5);
+    border-color: var(--color-border-focus);
+    background: var(--color-surface);
+}
+
+.training-coach__header,
+.training-coach__landmarks,
+.training-coach__artifact-state,
+.training-coach__returned {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.training-coach__header {
+    justify-content: space-between;
+}
+
+.training-coach__eyebrow,
+.training-coach__stage {
+    margin: 0 0 var(--space-1);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-wide);
+}
+
+.training-coach__title,
+.training-coach__lesson h3,
+.training-coach__common h3,
+.training-coach__returned h4,
+.training-coach__artifact-state h4 {
+    margin: 0;
+}
+
+.training-coach__progress {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+}
+
+.training-coach__audio,
+.training-coach__common,
+.training-coach__lesson,
+.training-coach__artifact-state,
+.training-coach__returned {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+}
+
+.training-coach__common,
+.training-coach__lesson {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.training-coach__context {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+}
+
+.training-coach__context dt {
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+}
+
+.training-coach__context dd {
+    margin: var(--space-1) 0 0;
+    overflow-wrap: anywhere;
+}
+
+.training-coach__artifact-state,
+.training-coach__returned {
+    flex-direction: column;
+}
+
+.training-coach__feedback {
+    min-height: var(--space-5);
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+.training-coach__lesson[data-training-state="retry"] {
+    border-color: var(--color-error);
+}
+
+.training-coach__lesson[data-training-state="completed"] {
+    border-color: var(--color-success);
+}
+
+@media (max-width: 767px) {
+    .training-coach {
+        padding: var(--space-4);
+    }
+
+    .training-coach__context {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .training-coach__landmarks .btn {
+        width: 100%;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .training-practice-artifact {
         animation: none;

@@ -1,0 +1,360 @@
+import { TrainingAudioController } from './TrainingAudioController.js';
+import { getTrainingModule } from './content/curriculum.js';
+
+const TEAM_ARTIFACTS = Object.freeze({
+    blue: Object.freeze({
+        label: 'Structured Blue action',
+        guidance: 'Connect the objective, instruments of power, sectors, supply-chain choices, implementation, countries, and expected outcomes.'
+    }),
+    red: Object.freeze({
+        label: 'Red Move Response',
+        guidance: 'State the assessment, response strategy, key actions, targets or pressure points, a concrete delivery mechanism, and expected effect.'
+    }),
+    green: Object.freeze({
+        label: 'Green multi-partner proposal',
+        guidance: 'Choose Green originators, intended Blue or Red partners, focus sectors, the conditional supply-chain fields, timing, and outcomes.'
+    }),
+    industry: Object.freeze({
+        label: 'Industry proposal',
+        guidance: 'Record Industry of Focus, Country of Focus, Proposed Activity, intended partners, sectors, conditional supply-chain fields, timing, and outcomes.'
+    })
+});
+
+function createElement(documentRef, tagName, className = '', text = '') {
+    const element = documentRef.createElement(tagName);
+    if (className) element.className = className;
+    if (text) element.textContent = text;
+    return element;
+}
+
+function appendText(documentRef, parent, tagName, className, text) {
+    const element = createElement(documentRef, tagName, className, text);
+    parent.appendChild(element);
+    return element;
+}
+
+function makeButton(documentRef, text, onClick, variant = 'primary') {
+    const button = createElement(documentRef, 'button', `btn btn-${variant}`, text);
+    button.type = 'button';
+    button.addEventListener('click', onClick);
+    return button;
+}
+
+function readHeaderContext(documentRef) {
+    return {
+        move: documentRef.getElementById?.('headerMove')?.textContent?.trim() || '1',
+        phase: documentRef.getElementById?.('headerPhase')?.textContent?.trim() || 'Internal Deliberation',
+        timer: documentRef.getElementById?.('timerDisplay')?.textContent?.trim() || '90:00',
+        timerStatus: documentRef.getElementById?.('timerStatus')?.textContent?.trim() || 'Paused'
+    };
+}
+
+export function getScribeTrainingArtifactDescriptor(team) {
+    return TEAM_ARTIFACTS[team] || null;
+}
+
+export function shouldMountScribeTrainingCoach(activation, expectedTeam) {
+    const context = activation?.context;
+    return Boolean(
+        activation?.active === true
+        && context?.trainingMode === true
+        && context.semanticRole === 'scribe'
+        && context.team === expectedTeam
+        && TEAM_ARTIFACTS[context.team]
+    );
+}
+
+export function mountScribeTrainingCoach({
+    activation,
+    documentRef = typeof document !== 'undefined' ? document : null,
+    onOpenOrientation = () => {},
+    onOpenArtifact = () => {},
+    onNavigate = () => {},
+    renderLifecycleBadge = () => '',
+    AudioController = TrainingAudioController
+} = {}) {
+    const context = activation?.context;
+    const fixtureBundle = activation?.fixtureBundle;
+    const module = context ? getTrainingModule('scribe', context.team) : null;
+    const descriptor = context ? getScribeTrainingArtifactDescriptor(context.team) : null;
+    const host = documentRef?.querySelector?.('.page-container') || documentRef?.querySelector?.('main');
+    if (!host || !module || !descriptor || !fixtureBundle) return null;
+
+    documentRef.getElementById?.('scribeTrainingCoach')?.remove?.();
+    const root = createElement(documentRef, 'section', 'training-coach card card-bordered');
+    root.id = 'scribeTrainingCoach';
+    root.setAttribute('aria-labelledby', 'scribeTrainingCoachTitle');
+    root.dataset.trainingTeam = context.team;
+
+    const header = createElement(documentRef, 'div', 'training-coach__header');
+    const headingGroup = createElement(documentRef, 'div');
+    appendText(documentRef, headingGroup, 'p', 'training-coach__eyebrow', 'GUIDED SCRIBE PRACTICE');
+    const title = appendText(documentRef, headingGroup, 'h2', 'training-coach__title', `${context.team[0].toUpperCase()}${context.team.slice(1)} Scribe coach`);
+    title.id = 'scribeTrainingCoachTitle';
+    const progress = createElement(documentRef, 'div', 'training-coach__progress');
+    progress.setAttribute('role', 'progressbar');
+    progress.setAttribute('aria-valuemin', '1');
+    progress.setAttribute('aria-valuemax', String(module.steps.length));
+    header.append(headingGroup, progress);
+
+    const audioHost = createElement(documentRef, 'div', 'training-coach__audio');
+    const common = createElement(documentRef, 'section', 'training-coach__common');
+    common.setAttribute('aria-labelledby', 'scribeTrainingCommonTitle');
+    const commonTitle = appendText(documentRef, common, 'h3', '', 'Workspace landmarks');
+    commonTitle.id = 'scribeTrainingCommonTitle';
+    appendText(
+        documentRef,
+        common,
+        'p',
+        'text-sm',
+        'These are Scribe views. RFI history and White Cell updates are read-only here; the Facilitator owns RFI creation and direct communication.'
+    );
+    const landmarks = createElement(documentRef, 'div', 'training-coach__landmarks');
+    [
+        ['requests', 'RFI history'],
+        ['responses', 'White Cell updates'],
+        ['timeline', 'Timeline'],
+        ['tribeStreetJournal', 'Journal'],
+        ['capture', 'Quick Capture']
+    ].forEach(([section, label]) => {
+        landmarks.appendChild(makeButton(documentRef, label, () => onNavigate(section), 'secondary'));
+    });
+    common.appendChild(landmarks);
+
+    const lesson = createElement(documentRef, 'section', 'training-coach__lesson');
+    lesson.setAttribute('aria-live', 'polite');
+    lesson.setAttribute('aria-atomic', 'true');
+    const feedback = createElement(documentRef, 'p', 'training-coach__feedback');
+    feedback.setAttribute('role', 'status');
+    feedback.setAttribute('aria-live', 'polite');
+    feedback.setAttribute('aria-atomic', 'true');
+    root.append(header, audioHost, common, lesson, feedback);
+    host.insertBefore(root, host.firstChild || null);
+
+    const audio = new AudioController({ documentRef, windowRef: documentRef.defaultView });
+    audio.mountControls(audioHost, { documentRef });
+
+    const state = {
+        stepIndex: 0,
+        status: 'empty',
+        practiceState: null,
+        retryMessage: '',
+        completed: false
+    };
+
+    const setRetry = (message) => {
+        state.status = 'retry';
+        state.retryMessage = String(message || 'Review the highlighted field and try again.');
+        feedback.textContent = `Try again: ${state.retryMessage}`;
+        render();
+    };
+
+    const advance = (stepIndex, message = '') => {
+        state.stepIndex = Math.min(stepIndex, module.steps.length - 1);
+        if (state.status === 'retry') {
+            state.status = state.practiceState?.artifactState || 'empty';
+        }
+        state.retryMessage = '';
+        feedback.textContent = message;
+        render();
+    };
+
+    const renderStateBadge = (container, lifecycleState) => {
+        const markup = renderLifecycleBadge(lifecycleState);
+        if (!markup) return;
+        const wrapper = createElement(documentRef, 'span', 'training-coach__lifecycle');
+        wrapper.innerHTML = markup;
+        container.appendChild(wrapper);
+    };
+
+    const renderContext = (container) => {
+        const current = readHeaderContext(documentRef);
+        const grid = createElement(documentRef, 'dl', 'training-coach__context');
+        [
+            ['Move', current.move],
+            ['Phase', current.phase],
+            ['Timer', `${current.timer} — ${current.timerStatus}`],
+            ['Handoff', 'Scribe → Facilitator → White Cell']
+        ].forEach(([term, value]) => {
+            appendText(documentRef, grid, 'dt', '', term);
+            appendText(documentRef, grid, 'dd', '', value);
+        });
+        container.appendChild(grid);
+    };
+
+    const renderArtifactStatus = (container) => {
+        const status = createElement(documentRef, 'div', 'training-coach__artifact-state');
+        if (state.status === 'empty') {
+            appendText(documentRef, status, 'h4', '', 'No practice artifact yet');
+            appendText(documentRef, status, 'p', 'text-sm', 'Complete Strategic Orientation before drafting the move artifact.');
+        } else if (state.practiceState?.artifactState === 'draft') {
+            appendText(documentRef, status, 'h4', '', `${descriptor.label} draft`);
+            renderStateBadge(status, 'draft');
+            appendText(documentRef, status, 'p', 'text-sm', 'The draft remains inside this training attempt. It has not reached the Facilitator.');
+        }
+        container.appendChild(status);
+    };
+
+    const renderOrient = (container) => {
+        renderContext(container);
+        appendText(documentRef, container, 'p', '', 'Read the live move, phase, and timer before recording a decision. Your handoff ends at the Facilitator; you do not submit to White Cell.');
+        container.appendChild(makeButton(documentRef, 'I understand the Scribe handoff', () => advance(1, module.steps[0].correctFeedback)));
+    };
+
+    const renderShow = (container) => {
+        appendText(documentRef, container, 'p', '', `Complete ${context.team[0].toUpperCase()}${context.team.slice(1)}'s current Strategic Orientation and forecast fields.`);
+        container.appendChild(makeButton(documentRef, 'Open Strategic Orientation', () => {
+            onOpenOrientation({
+                onComplete: (practiceState) => {
+                    state.practiceState = practiceState;
+                    state.status = 'empty';
+                    advance(2, module.steps[1].correctFeedback);
+                },
+                onRetry: setRetry
+            });
+        }));
+    };
+
+    const renderGuide = (container) => {
+        appendText(documentRef, container, 'h4', '', `Worked example: ${descriptor.label}`);
+        appendText(documentRef, container, 'p', '', fixtureBundle.artifact.goal);
+        appendText(documentRef, container, 'p', 'text-sm', descriptor.guidance);
+        container.appendChild(makeButton(documentRef, 'Start my practice artifact', () => advance(3, module.steps[2].correctFeedback)));
+    };
+
+    const renderPractice = (container) => {
+        renderArtifactStatus(container);
+        appendText(documentRef, container, 'p', '', 'Save a Draft first. Then reopen it, resolve any validation feedback, and use Forward to Facilitator.');
+        container.appendChild(makeButton(
+            documentRef,
+            state.practiceState?.artifactState === 'draft' ? 'Continue draft' : `Draft ${descriptor.label}`,
+            () => {
+                onOpenArtifact({
+                    mode: state.practiceState?.artifactState === 'draft' ? 'draft' : 'new',
+                    practiceState: state.practiceState,
+                    onDraft: (practiceState) => {
+                        state.practiceState = practiceState;
+                        state.status = 'draft';
+                        feedback.textContent = 'Draft saved in the isolated training attempt.';
+                        render();
+                    },
+                    onForward: (practiceState) => {
+                        state.practiceState = practiceState;
+                        state.status = 'returned';
+                        advance(4, module.steps[3].correctFeedback);
+                    },
+                    onRetry: setRetry
+                });
+            }
+        ));
+    };
+
+    const renderRespond = (container) => {
+        const returned = createElement(documentRef, 'article', 'training-coach__returned');
+        returned.dataset.trainingState = 'returned-dummy-artifact';
+        appendText(documentRef, returned, 'h4', '', 'Returned training artifact');
+        renderStateBadge(returned, 'returned');
+        appendText(documentRef, returned, 'p', 'text-sm', `Simulated Facilitator receipt: ${state.practiceState?.facilitatorReceipt?.visibleLabel || 'Artifact received.'}`);
+        appendText(documentRef, returned, 'p', 'text-sm', `Simulated White Cell / Facilitator return: ${state.practiceState?.returnedArtifact?.review_notes || 'Clarify the timing and observable outcome.'}`);
+        appendText(documentRef, returned, 'p', 'text-sm', 'This is deterministic instructional feedback. It does not create a White Cell review record.');
+        container.appendChild(returned);
+        container.appendChild(makeButton(documentRef, 'Revise the same artifact', () => {
+            onOpenArtifact({
+                mode: 'revision',
+                practiceState: state.practiceState,
+                onForward: (practiceState) => {
+                    state.practiceState = practiceState;
+                    state.status = 'completed';
+                    advance(5, module.steps[4].correctFeedback);
+                },
+                onRetry: setRetry
+            });
+        }));
+    };
+
+    const renderRetrieve = (container) => {
+        const form = createElement(documentRef, 'form', 'training-coach__retrieval');
+        const fieldset = createElement(documentRef, 'fieldset', 'form-group');
+        appendText(documentRef, fieldset, 'legend', 'form-label', 'The artifact is complete. What does the Scribe do next?');
+        [
+            ['save-draft', 'Save Draft'],
+            ['forward-to-facilitator', 'Forward to Facilitator'],
+            ['submit-to-white-cell', 'Submit to White Cell']
+        ].forEach(([value, label], index) => {
+            const row = createElement(documentRef, 'label', 'form-check');
+            const input = createElement(documentRef, 'input', 'form-radio');
+            input.type = 'radio';
+            input.name = 'scribeTrainingRetrieval';
+            input.value = value;
+            input.id = `scribeTrainingRetrieval-${index}`;
+            row.htmlFor = input.id;
+            row.append(input, createElement(documentRef, 'span', 'form-check-label', label));
+            fieldset.appendChild(row);
+        });
+        const checkButton = makeButton(documentRef, 'Check answer', () => {}, 'primary');
+        checkButton.type = 'submit';
+        form.append(fieldset, checkButton);
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const answer = form.querySelector('[name="scribeTrainingRetrieval"]:checked')?.value || '';
+            if (answer !== 'forward-to-facilitator') {
+                setRetry(module.steps[5].retryFeedback);
+                return;
+            }
+            advance(6, module.steps[5].correctFeedback);
+        });
+        container.appendChild(form);
+    };
+
+    const renderReflect = (container) => {
+        appendText(documentRef, container, 'p', '', 'Confirm the lifecycle badge and timeline handoff, then remember where RFI history, White Cell updates, the journal, and Quick Capture live.');
+        renderStateBadge(container, 'completed');
+        container.appendChild(makeButton(documentRef, 'Complete Scribe practice', () => {
+            state.completed = true;
+            feedback.textContent = 'Scribe learning path completed in this training attempt.';
+            render();
+        }));
+    };
+
+    function render() {
+        lesson.replaceChildren();
+        const step = module.steps[state.stepIndex];
+        progress.setAttribute('aria-valuenow', String(state.stepIndex + 1));
+        progress.setAttribute('aria-label', `Scribe training: step ${state.stepIndex + 1} of ${module.steps.length}`);
+        progress.textContent = `Step ${state.stepIndex + 1} of ${module.steps.length}`;
+        void audio.setClip(step.id, {
+            nextClipId: module.steps[state.stepIndex + 1]?.id || null,
+            autoplay: false
+        });
+
+        if (state.completed) {
+            lesson.dataset.trainingState = 'completed';
+            appendText(documentRef, lesson, 'h3', '', 'Scribe practice complete');
+            appendText(documentRef, lesson, 'p', '', `${descriptor.label} was revised and handed to the simulated Facilitator. No live action, RFI, communication, or review record was created.`);
+            renderStateBadge(lesson, 'completed');
+            return;
+        }
+
+        lesson.dataset.trainingState = state.status === 'retry' ? 'retry' : state.status;
+        appendText(documentRef, lesson, 'p', 'training-coach__stage', step.stage.toUpperCase());
+        appendText(documentRef, lesson, 'h3', '', step.learningObjective);
+        appendText(documentRef, lesson, 'p', '', step.coachCopy);
+        if (state.retryMessage) appendText(documentRef, lesson, 'p', 'form-error', state.retryMessage);
+
+        [renderOrient, renderShow, renderGuide, renderPractice, renderRespond, renderRetrieve, renderReflect][state.stepIndex](lesson);
+    }
+
+    const handleExit = () => destroy();
+    documentRef.addEventListener?.('training:exit', handleExit);
+
+    function destroy() {
+        audio.destroy();
+        documentRef.removeEventListener?.('training:exit', handleExit);
+        root.remove?.();
+    }
+
+    render();
+    return Object.freeze({ root, destroy, getState: () => ({ ...state }) });
+}
+
+export default mountScribeTrainingCoach;
