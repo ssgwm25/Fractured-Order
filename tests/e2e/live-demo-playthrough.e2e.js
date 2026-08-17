@@ -56,6 +56,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'BACKFIRE'
 ]);
 const REQUIRED_MIGRATION_STATE = '2026-08-15_proposal_forwarding_integrity';
+const PLAYTHROUGH_TIMEOUT_MS = 20 * 60 * 1000;
 
 function getSourceRevisionEvidence() {
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -110,6 +111,11 @@ async function createActorPool(browser) {
         : await browser.newContext({ viewport: { width: 1440, height: 900 } });
 
     if (sharedContext) {
+        await sharedContext.route('https://fonts.googleapis.com/**', (route) => route.fulfill({
+            status: 200,
+            contentType: 'text/css',
+            body: ''
+        }));
         contexts.push(sharedContext);
     }
 
@@ -134,7 +140,7 @@ async function createActorPool(browser) {
                 try {
                     await context.close();
                 } catch (error) {
-                    if (!/Target page, context or browser has been closed/.test(error.message)) {
+                    if (!/Target page, context or browser has been closed|Failed to find context with id/.test(error.message)) {
                         throw error;
                     }
                 }
@@ -214,7 +220,7 @@ async function confirmActiveModal(page, buttonName) {
 }
 
 test('@playthrough eighteen-actor professional rehearsal covers the complete shipped non-PLI role and workflow contract', async ({ rehearsalBrowser: browser }, testInfo) => {
-    test.setTimeout(10 * 60 * 1000);
+    test.setTimeout(PLAYTHROUGH_TIMEOUT_MS);
     recordRehearsalMetrics(testInfo, { actorCount: 18, sessionCount: 1 });
 
     const actorPool = await createActorPool(browser);

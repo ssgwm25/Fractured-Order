@@ -32,6 +32,29 @@ playthrough. It covers:
   before opening a form or forwarded artifact, so an earlier Responses,
   Requests, Communications, or deck view cannot hide a valid control or record
   and consume the playthrough timeout
+- Live queue and returned-artifact helpers verify that the current review or
+  edit control is visible and enabled, then activate its latest DOM instance so
+  reconciliation cannot detach a valid control between Playwright stability
+  frames; White Cell review helpers explicitly select `Awaiting Review` while
+  preserving the product's non-disruptive live-update tab behavior, and proposal
+  response review uses the stable queue-level event path across rerenders and
+  re-resolves the non-mutating review control until its expected modal is
+  attached, stopping before the forwarding write is activated;
+  recipient approval checkboxes are selected atomically on the current visible,
+  enabled input with normal `input` and `change` events, and re-resolved until
+  the current instance is verified checked before submission;
+  proposal persistence, review, and recipient-thread follow-up commands dispatch
+  directly and arm toast-mutation capture before activation, retaining the
+  resulting evidence even after the timed notification leaves the DOM; an error
+  toast fails the helper with its message, while the success event and modal
+  closure remain required completion evidence; recipient-thread replies require
+  the exact success copy `Follow-up sent to White Cell for forwarding.`
+- shared actor-navigation helpers foreground the page before interaction so the
+  local single-context rehearsal does not apply background-tab timer throttling
+  to modal teardown or workflow feedback
+- confirmed workflow modals release their DOM node, focus trap, and body scroll
+  lock immediately and idempotently on close; teardown does not depend on a
+  background animation timer
 - inbound communication and RFI lifecycle events update durable alerts, counts,
   and history without moving a Facilitator away from another workspace; only
   the corresponding already-active workspace advances to the newly arrived
@@ -101,6 +124,15 @@ Run the focused playthrough:
 npm run test:e2e:playthrough
 ```
 
+The expanded eighteen-actor scenario has a 20-minute orchestration budget.
+Each actor page keeps a 30-second default action timeout, so a blocked locator
+fails with its concrete operation instead of consuming the full scenario
+budget. Proposal handoff and atomic proposal-response forwarding have a
+60-second completion window for authentication, the shared-state write lock,
+persistence, and reconciliation; each must still produce its success toast and
+close its workflow modal. The orchestration limit is not a performance pass
+criterion.
+
 Run the complete rehearsal gate:
 
 ```powershell
@@ -115,6 +147,11 @@ smoke path declares one browser actor and one created session. These are suite
 totals for the workflow summary, while the professional playthrough itself
 continues to require eighteen simultaneous actors and seventeen selected-session
 role seats.
+
+The local deterministic playthrough fulfills the Google Fonts stylesheet with
+an empty response so the gate does not depend on external font-host availability;
+`tests/font-loading.test.js` separately pins the production shell font links.
+Hosted rehearsals do not apply this route stub and still fail on real asset errors.
 
 CI passes only with zero skipped tests, zero retries, and zero unexpected
 console or page errors. On protected refs, Playwright may execute one diagnostic

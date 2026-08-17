@@ -1805,6 +1805,14 @@ export class WhiteCellController {
                     this.setBlueActionMark(markButton.dataset.actionMarkTab, queueEl);
                     return;
                 }
+                const proposalResponseButton = event.target.closest('.proposal-response-review-btn');
+                if (proposalResponseButton && queueEl.contains(proposalResponseButton)) {
+                    this.openProposalResponseReviewById(
+                        proposalResponseButton.dataset.actionId,
+                        proposalResponseButton.dataset.responseReviewId
+                    );
+                    return;
+                }
                 const tabButton = event.target.closest('.tab-button[data-review-tab]');
                 if (!tabButton || !queueEl.contains(tabButton)) return;
                 this.setReviewActiveTab(section, tabButton.dataset.reviewTab, queueEl);
@@ -2870,7 +2878,11 @@ export class WhiteCellController {
         ));
         const pendingStrategicOrientationArtifacts = this.strategicOrientationArtifacts.filter((action) => canAdjudicateAction(action));
         const pendingBlueTeamActions = this.blueTeamActions.filter((action) => canAdjudicateAction(action));
-        const pendingProposalTeamProposals = this.proposalTeamProposals.filter((action) => canAdjudicateAction(action));
+        const proposalCommunications = communicationsStore.getAll();
+        const pendingProposalTeamProposals = this.proposalTeamProposals.filter((action) => (
+            canAdjudicateAction(action)
+            || getPendingProposalResponseReviews(proposalCommunications, action.id).length > 0
+        ));
         const pendingRedTeamResponses = this.redTeamResponses.filter((action) => canAdjudicateAction(action));
         this.captureQueueArrivals({
             strategicOrientationArtifacts: this.strategicOrientationArtifacts,
@@ -4021,6 +4033,29 @@ export class WhiteCellController {
         `;
     }
 
+    openProposalResponseReviewById(actionId, responseId) {
+        if (!this.isLeadOperator()) return false;
+
+        const normalizedActionId = String(actionId || '');
+        const action = [...this.actions, ...this.proposalTeamProposals].find((candidate) => (
+            String(candidate?.id) === normalizedActionId
+        ));
+        const response = communicationsStore.getAll().find((candidate) => (
+            String(candidate?.id) === String(responseId || '')
+        ));
+        if (!action || !response) {
+            showToast({
+                message: 'This proposal response is no longer available. Refresh the queue and try again.',
+                type: 'error'
+            });
+            return false;
+        }
+
+        this.markWhiteCellRecordOpened('proposals', normalizedActionId);
+        this.showProposalResponseReviewModal(action, response);
+        return true;
+    }
+
     bindActionCardButtons(container) {
         if (!this.isLeadOperator()) {
             return;
@@ -4037,15 +4072,6 @@ export class WhiteCellController {
             });
         });
 
-        container.querySelectorAll('.proposal-response-review-btn').forEach((button) => {
-            button.addEventListener('click', () => {
-                const action = this.actions.find((candidate) => candidate.id === button.dataset.actionId);
-                const response = communicationsStore.getAll().find((candidate) => (
-                    String(candidate?.id) === String(button.dataset.responseReviewId)
-                ));
-                if (action && response) this.showProposalResponseReviewModal(action, response);
-            });
-        });
     }
 
     async shareActionWithRedTeam(action) {

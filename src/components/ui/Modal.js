@@ -180,7 +180,8 @@ export function showModal({
  * @param {HTMLElement} overlay - Modal overlay element
  */
 export function closeModal(overlay = activeModal) {
-    if (!overlay) return;
+    if (!overlay || overlay._closing) return;
+    overlay._closing = true;
 
     overlay.classList.remove('modal-visible');
     overlay.classList.add('modal-hiding');
@@ -190,9 +191,11 @@ export function closeModal(overlay = activeModal) {
         document.removeEventListener('keydown', overlay._escapeHandler);
     }
 
-    setTimeout(() => {
+    try {
         // Call onClose callback
         overlay._onClose?.();
+    } finally {
+        overlay._onClose = null;
 
         // Remove from DOM
         if (overlay.parentNode) {
@@ -213,7 +216,7 @@ export function closeModal(overlay = activeModal) {
         if (activeModal === overlay) {
             activeModal = null;
         }
-    }, 260);
+    }
 }
 
 /**

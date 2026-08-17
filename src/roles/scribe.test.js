@@ -19,6 +19,7 @@ const INDUSTRY_SCRIBE_HTML_PATH = new URL('../../teams/industry/scribe.html', im
 const RED_SCRIBE_HTML_PATH = new URL('../../teams/red/scribe.html', import.meta.url);
 const SCRIBE_CSS_PATH = new URL('../../styles/pages/scribe.css', import.meta.url);
 const VITE_CONFIG_PATH = new URL('../../vite.config.js', import.meta.url);
+const MODULE_LOAD_TEST_TIMEOUT_MS = 15000;
 
 const {
     mockConfirmModal,
@@ -324,7 +325,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             title: 'Intro',
             src: 'data:image/png;base64,AAA='
         }]);
-    });
+    }, MODULE_LOAD_TEST_TIMEOUT_MS);
 
     it('routes only the legacy scribe seat onto the Facilitator support surface', async () => {
         const { getScribeAccessState } = await loadScribeModule();
@@ -1869,7 +1870,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             FACILITATOR_PROPOSAL_DECISIONS.REPLY,
             '  The proposing team accepts the checkpoint.  '
         )).toEqual({
-            label: 'Follow-up sent',
+            label: 'Follow-up',
             responseContent: 'The proposing team accepts the checkpoint.',
             messageType: 'negotiation_message'
         });

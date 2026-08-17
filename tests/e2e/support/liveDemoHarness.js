@@ -11,6 +11,10 @@ import {
     resolveOperatorAccessCode
 } from './rehearsalRuntime.js';
 import { expectBrowserConsoleError } from './browserDiagnostics.js';
+import {
+    classifyWorkflowToastEntries,
+    WORKFLOW_TOAST_CAPTURE_KEY
+} from './workflowToastCapture.js';
 
 const SHARED_LOCAL_STORAGE_KEYS = Object.freeze([
     'esg_e2e_backend_state',
@@ -23,6 +27,8 @@ const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const HOSTED_OPERATOR_ACCESS_CODE = getHostedOperatorAccessCode();
 const JOIN_FAILURE_FALLBACK_MESSAGE = 'We couldn\'t claim that seat. Check whether the role is still available, then try again.';
+const ACTOR_ACTION_TIMEOUT_MS = 30000;
+const DURABLE_WORKFLOW_WRITE_TIMEOUT_MS = 60000;
 
 export { buildAppUrl } from './rehearsalRuntime.js';
 
@@ -69,6 +75,149 @@ function getVisibleReviewCard(page, containerSelector, title) {
     return page.locator(`${containerSelector} .tab-panel:not([hidden]) .entity-card`).filter({
         has: page.getByRole('heading', { name: title, exact: true })
     });
+}
+
+async function activateReconciledControl(control) {
+    await expect(control).toBeVisible();
+    await expect(control).toBeEnabled();
+    await control.dispatchEvent('click');
+}
+
+async function activateAndCaptureWorkflowToast(page, control, expectedMessage, {
+    timeout = DURABLE_WORKFLOW_WRITE_TIMEOUT_MS
+} = {}) {
+    await page.evaluate((captureKey) => {
+        globalThis[captureKey]?.observer?.disconnect?.();
+
+        const entries = [];
+        const captureToast = (toast) => {
+            if (!(toast instanceof HTMLElement) || !toast.matches('.toast')) return;
+
+            const typeClass = Array.from(toast.classList)
+                .find((className) => className.startsWith('toast-')
+                    && !['toast-visible', 'toast-hiding', 'toast-durable'].includes(className));
+            entries.push({
+                type: typeClass?.slice('toast-'.length) || 'info',
+                text: toast.textContent?.trim() || ''
+            });
+        };
+        const observer = new MutationObserver((records) => {
+            for (const record of records) {
+                for (const node of record.addedNodes) {
+                    if (!(node instanceof HTMLElement)) continue;
+                    captureToast(node);
+                    node.querySelectorAll?.('.toast').forEach(captureToast);
+                }
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        globalThis[captureKey] = { entries, observer };
+    }, WORKFLOW_TOAST_CAPTURE_KEY);
+
+    try {
+        await activateReconciledControl(control);
+        const outcomeHandle = await page.waitForFunction(({ captureKey, expected }) => {
+            const capturedEntries = globalThis[captureKey]?.entries || [];
+            const success = capturedEntries.find((entry) => entry.text.includes(expected));
+            if (success) return success;
+
+            return capturedEntries.find((entry) => entry.type === 'error') || null;
+        }, {
+            captureKey: WORKFLOW_TOAST_CAPTURE_KEY,
+            expected: expectedMessage
+        }, { timeout });
+        const capturedEntries = await page.evaluate(
+            (captureKey) => globalThis[captureKey]?.entries || [],
+            WORKFLOW_TOAST_CAPTURE_KEY
+        );
+        const outcome = classifyWorkflowToastEntries(capturedEntries, expectedMessage);
+        await outcomeHandle.dispose();
+
+        if (outcome.status === 'error') {
+            throw new Error(`Workflow reported an error: ${outcome.entry.text}`);
+        }
+        if (outcome.status !== 'success') {
+            throw new Error(`Workflow did not report the expected notification: ${expectedMessage}`);
+        }
+    } catch (error) {
+        const capturedEntries = await page.evaluate(
+            (captureKey) => globalThis[captureKey]?.entries || [],
+            WORKFLOW_TOAST_CAPTURE_KEY
+        ).catch(() => []);
+        const capturedSummary = capturedEntries
+            .map((entry) => `${entry.type}: ${entry.text}`)
+            .join(' | ');
+        if (capturedSummary && !String(error?.message || '').includes(capturedSummary)) {
+            throw new Error(
+                `${error.message} Captured workflow notifications: ${capturedSummary}`,
+                { cause: error }
+            );
+        }
+        throw error;
+    } finally {
+        await page.evaluate((captureKey) => {
+            globalThis[captureKey]?.observer?.disconnect?.();
+            delete globalThis[captureKey];
+        }, WORKFLOW_TOAST_CAPTURE_KEY).catch(() => {});
+    }
+}
+
+async function openModalFromReconciledControl(control, modal) {
+    await expect.poll(async () => {
+        if (await modal.count() > 0) return true;
+
+        const isAvailable = await control.isVisible().catch(() => false)
+            && await control.isEnabled().catch(() => false);
+        if (!isAvailable) return false;
+
+        await control.evaluate((element) => {
+            if (!element.isConnected) return;
+            element.click();
+        }).catch(() => {});
+        return await modal.count() > 0;
+    }, {
+        timeout: ACTOR_ACTION_TIMEOUT_MS,
+        intervals: [100, 250, 500, 1000],
+        message: 'Expected the live review control to open its modal.'
+    }).toBe(true);
+
+    await expect(modal).toBeVisible({ timeout: ACTOR_ACTION_TIMEOUT_MS });
+}
+
+async function checkReconciledCheckbox(checkbox) {
+    await expect.poll(async () => {
+        const state = await checkbox.evaluateAll((elements) => {
+            const input = elements.find((element) => {
+                if (!(element instanceof HTMLInputElement) || element.disabled) return false;
+                const style = window.getComputedStyle(element);
+                return style.display !== 'none'
+                    && style.visibility !== 'hidden'
+                    && element.getClientRects().length > 0;
+            });
+            if (!input) return { available: false, checked: false };
+
+            if (!input.checked) {
+                input.checked = true;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            return { available: true, checked: input.checked };
+        }).catch(() => ({ available: false, checked: false }));
+        return state.available && state.checked;
+    }, {
+        timeout: ACTOR_ACTION_TIMEOUT_MS,
+        intervals: [100, 250, 500, 1000],
+        message: 'Expected the live recipient approval checkbox to remain selected.'
+    }).toBe(true);
+}
+
+async function selectReviewQueueTab(page, containerSelector, tab = 'pending') {
+    const tabControl = page.locator(`${containerSelector} .tab-button[data-review-tab="${tab}"]`);
+    await expect(tabControl).toBeVisible();
+    if (await tabControl.getAttribute('aria-selected') !== 'true') {
+        await activateReconciledControl(tabControl);
+    }
+    await expect(tabControl).toHaveAttribute('aria-selected', 'true');
 }
 
 function requireHostedOperatorAccessCode() {
@@ -119,6 +268,7 @@ async function waitForOperatorAuthorizationRoute(page, urlPattern, operatorLabel
 
 export async function createIsolatedActorPage(context, actorName, { resetBackend = false } = {}) {
     const page = await context.newPage();
+    page.setDefaultTimeout(ACTOR_ACTION_TIMEOUT_MS);
 
     await page.addInitScript(({
         actorName: isolatedActorName,
@@ -491,8 +641,12 @@ export async function authorizeSme(page, {
 }
 
 export async function openSidebarSection(page, section) {
+    await page.bringToFront();
     const link = page.locator(`.sidebar-link[data-section="${section}"]`);
-    await link.click({ timeout: 20000 });
+    await expect(link).toBeVisible({ timeout: 20000 });
+    if (await link.getAttribute('aria-current') !== 'page') {
+        await link.dispatchEvent('click');
+    }
     await expect(link).toHaveAttribute('aria-current', 'page');
     await expect(page.locator(`#${section}Section`)).toBeVisible();
 }
@@ -649,6 +803,7 @@ export async function recordStrategicOrientationFromScribe(page, {
     strategyDescription = '',
     rationale = 'Topology rehearsal orientation recorded before the normal move gate.'
 } = {}) {
+    await page.bringToFront();
     const normalizedTeam = String(team).toLowerCase();
     const resolvedOwnOrientation = orientation || ownOrientation;
     const defaultForecasts = {
@@ -699,6 +854,7 @@ export async function recordStrategicOrientationFromScribe(page, {
 }
 
 async function selectFacilitatorWorkspace(page, viewButtonId) {
+    await page.bringToFront();
     const viewButton = page.locator(`#${viewButtonId}`);
     if (!await viewButton.count()) {
         return;
@@ -884,7 +1040,7 @@ export async function adjudicateAction(page, {
         ).filter({ has: cardHeading }).first();
     }
     await expect(adjudicationCard).toContainText(goal);
-    await adjudicationCard.locator('.adjudicate-btn').click();
+    await activateReconciledControl(adjudicationCard.locator('.adjudicate-btn'));
 
     const modal = page.locator('.modal-overlay');
     await expect(modal).toBeVisible();
@@ -923,6 +1079,7 @@ export async function reviewStrategicOrientation(page, {
     decision = 'complete'
 } = {}) {
     await openSidebarSection(page, 'strategicOrientation');
+    await selectReviewQueueTab(page, '#strategicOrientationList');
 
     const normalizedTeam = String(team || '').trim().toLowerCase();
     if (normalizedTeam && !/^(blue|red|green|industry)$/.test(normalizedTeam)) {
@@ -938,7 +1095,7 @@ export async function reviewStrategicOrientation(page, {
     }
     const orientationCard = orientationCards.first();
     await expect(orientationCard).toContainText(reviewTitle);
-    await orientationCard.locator('.adjudicate-btn').click();
+    await activateReconciledControl(orientationCard.locator('.adjudicate-btn'));
 
     const modal = page.locator('.modal-overlay');
     await expect(modal).toBeVisible();
@@ -973,11 +1130,11 @@ export async function reviseReturnedAction(page, {
     }
     const detailsToggle = card.locator('.toggle-action-card-btn');
     if (await detailsToggle.count() && await detailsToggle.getAttribute('aria-expanded') !== 'true') {
-        await detailsToggle.click();
+        await activateReconciledControl(detailsToggle);
     }
     await expect(card).toContainText('Returned by White Cell');
     await expect(card).toContainText(/REV 2|Revision:\s*2/);
-    await card.locator('.edit-action-btn').click();
+    await activateReconciledControl(card.locator('.edit-action-btn'));
 
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#blueActionWizardForm') });
     await expect(modal).toBeVisible();
@@ -1019,11 +1176,11 @@ export async function reviseReturnedStrategicOrientation(page, {
     }
     const detailsToggle = card.locator('.toggle-action-card-btn');
     if (await detailsToggle.count() && await detailsToggle.getAttribute('aria-expanded') !== 'true') {
-        await detailsToggle.click();
+        await activateReconciledControl(detailsToggle);
     }
     await expect(card).toContainText('Returned by White Cell');
     await expect(card).toContainText(/REV 2|Revision:\s*2/);
-    await card.locator('.edit-action-btn').click();
+    await activateReconciledControl(card.locator('.edit-action-btn'));
 
     const modal = page.locator('.modal-overlay').filter({
         has: page.locator('[data-strategic-orientation-modal]')
@@ -1117,9 +1274,12 @@ export async function createProposal(page, {
     await modal.locator('#proposalTimingConditions').fill(timingAndConditions);
     await modal.locator('#proposalExpectedOutcomes').fill(expectedOutcomes);
 
-    await modal.locator('[data-proposal-nav="forward"]').click();
-    await expect(page.locator('#toast-container')).toContainText('Proposal forwarded to Facilitator');
-    await expect(modal).toBeHidden();
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.locator('[data-proposal-nav="forward"]'),
+        'Proposal forwarded to Facilitator'
+    );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
     await expect(page.locator('#actionsList')).toContainText(title);
 }
 
@@ -1159,27 +1319,34 @@ export async function reviewProposal(page, {
     }
 
     await openSidebarSection(page, 'proposals');
+    await selectReviewQueueTab(page, '#proposalsList');
     const proposalCard = getVisibleReviewCard(page, '#proposalsList', title).first();
     await expect(proposalCard).toBeVisible();
-    await proposalCard.locator('.adjudicate-btn').click();
+    await activateReconciledControl(proposalCard.locator('.adjudicate-btn'));
 
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#proposalReviewForm') });
     await expect(modal).toBeVisible();
     await modal.locator('#adjudicationNotes').fill(notes);
     if (decision === 'request_changes') {
-        await modal.getByRole('button', { name: 'Send Back for Improvement' }).click();
+        await activateAndCaptureWorkflowToast(
+            page,
+            modal.getByRole('button', { name: 'Send Back for Improvement' }),
+            'Proposal sent back for improvement'
+        );
     } else {
         const approvals = recipientTeams.length ? recipientTeams : ['blue'];
         for (const team of approvals) {
-            await modal.locator(`input[name="proposalRecipientApproval"][value="${team}"]`).check();
+            await checkReconciledCheckbox(
+                modal.locator(`input[name="proposalRecipientApproval"][value="${team}"]`)
+            );
         }
-        await modal.getByRole('button', { name: 'Apply Recipient Approvals' }).click();
+        await activateAndCaptureWorkflowToast(
+            page,
+            modal.getByRole('button', { name: 'Apply Recipient Approvals' }),
+            'Proposal approved and forwarded to'
+        );
     }
 
-    const expectedToast = decision === 'request_changes'
-        ? 'Proposal sent back for improvement'
-        : /Proposal approved and forwarded to/;
-    await expect(page.locator('#toast-container')).toContainText(expectedToast);
     await expect(modal).toBeHidden();
 }
 
@@ -1249,16 +1416,21 @@ export async function reviewProposalResponse(page, { title, senderTeam } = {}) {
     if (!senderLabel) throw new Error(`Unsupported proposal response sender: ${senderTeam}`);
 
     await openSidebarSection(page, 'proposals');
+    await selectReviewQueueTab(page, '#proposalsList');
     const proposalCard = getVisibleReviewCard(page, '#proposalsList', title).first();
     await expect(proposalCard).toBeVisible();
-    await proposalCard.getByRole('button', { name: `Review ${senderLabel} Response` }).first().click();
-
-    const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)')
+    const modal = page.locator('.modal-overlay:not(.modal-hiding)')
         .filter({ hasText: 'Review Proposal Response' });
-    await expect(modal).toBeVisible();
-    await modal.getByRole('button', { name: /^Forward to / }).click();
-    await expect(page.locator('#toast-container')).toContainText('Proposal response forwarded to');
-    await expect(modal).toBeHidden();
+    await openModalFromReconciledControl(
+        proposalCard.getByRole('button', { name: `Review ${senderLabel} Response` }).first(),
+        modal
+    );
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: /^Forward to / }),
+        'Proposal response forwarded to'
+    );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function openReceivedProposalSlide(page, title) {
@@ -1324,9 +1496,12 @@ export async function replyToProposalThread(page, {
     });
     await expect(modal).toBeVisible();
     await modal.locator('#facilitatorProposalNegotiationTerms').fill(message);
-    await modal.getByRole('button', { name: 'Send Follow-up' }).click();
-    await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('Follow-up sent to White Cell for forwarding.');
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: 'Send Follow-up' }),
+        'Follow-up sent to White Cell for forwarding.'
+    );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function submitRfi(page, {

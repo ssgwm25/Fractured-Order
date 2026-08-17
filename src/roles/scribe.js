@@ -172,7 +172,7 @@ export function getFacilitatorProposalDecisionContract(decision = '', negotiatio
             messageType: PROPOSAL_THREAD_MESSAGE_TYPES.NEGOTIATION_MESSAGE
         },
         [FACILITATOR_PROPOSAL_DECISIONS.REPLY]: {
-            label: 'Follow-up sent',
+            label: 'Follow-up',
             responseContent: String(negotiationTerms || '').trim(),
             messageType: PROPOSAL_THREAD_MESSAGE_TYPES.NEGOTIATION_MESSAGE
         },

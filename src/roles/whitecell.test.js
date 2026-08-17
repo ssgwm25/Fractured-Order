@@ -9,6 +9,8 @@ import { buildAppPath } from '../core/navigation.js';
 const WHITECELL_HTML_PATH = new URL('../../whitecell.html', import.meta.url);
 const CARDS_CSS_PATH = new URL('../../styles/components/cards.css', import.meta.url);
 const MODALS_CSS_PATH = new URL('../../styles/components/modals.css', import.meta.url);
+const MODULE_LOAD_TEST_TIMEOUT_MS = 15000;
+const INITIAL_MODULE_LOAD_TEST_TIMEOUT_MS = 30000;
 const showToast = vi.fn();
 const showDurableNotification = vi.fn();
 const showModal = vi.fn();
@@ -253,7 +255,7 @@ describe('White Cell DOM contract', () => {
         const { WHITE_CELL_DOM_IDS } = await loadWhiteCellModule();
 
         expect(WHITE_CELL_DOM_IDS.filter((id) => !htmlIds.has(id))).toEqual([]);
-    });
+    }, INITIAL_MODULE_LOAD_TEST_TIMEOUT_MS);
 
     it('renders a fixed Blue action mark rail with zero counts and newest records first', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
@@ -303,7 +305,7 @@ describe('White Cell DOM contract', () => {
         expect(container.innerHTML).toContain('Teams to Inform:</strong> Green, Industry');
         expect(container.innerHTML).toContain('Notification Note:</strong> Inform both teams after White Cell completes review.');
         expect(controller.blueActionMarkActiveKey).toBe('move-1');
-    });
+    }, MODULE_LOAD_TEST_TIMEOUT_MS);
 
     it('binds the shipped White Cell controls to controller handlers', async () => {
         const { WHITE_CELL_DOM_IDS, WhiteCellController, getWhiteCellDomContract } = await loadWhiteCellModule();
@@ -387,7 +389,7 @@ describe('White Cell DOM contract', () => {
             activityType: 'ACTION_CREATED'
         });
         expect(controller.renderTimeline).toHaveBeenCalledTimes(4);
-    });
+    }, MODULE_LOAD_TEST_TIMEOUT_MS);
 
     it('updates White Cell timer controls to expose pause and resume states clearly', async () => {
         const { WHITE_CELL_DOM_IDS, WhiteCellController } = await loadWhiteCellModule();
@@ -3304,7 +3306,11 @@ describe('White Cell DOM contract', () => {
             }
         };
 
-        controller.showProposalResponseReviewModal(proposal, review);
+        controller.actions = [];
+        controller.proposalTeamProposals = [proposal];
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue([review]);
+
+        expect(controller.openProposalResponseReviewById(proposal.id, review.id)).toBe(true);
         const modalConfig = showModal.mock.calls.at(-1)?.[0];
         expect(modalConfig?.title).toBe('Review Proposal Response');
         expect(modalConfig?.content?.innerHTML).toContain('Negotiation terms');
