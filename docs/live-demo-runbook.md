@@ -362,6 +362,42 @@ times end at 1:28. If the approved video or script changes, the media owner must
 update both text alternatives and re-verify WebVTT timing within 0.5 seconds, as
 recorded in `public/training/intro/media-manifest.json`.
 
+## Training Narration Recovery And Approval
+
+Guided narration must load only repository-local, owner-approved files described
+by `public/training/audio/provenance.json`. No operator should add a hosted TTS
+endpoint, API key, or remote voice service to recover audio.
+
+If a learner sees the degraded narration message:
+
+1. Confirm the complete narration transcript remains visible and the learner
+   can continue without sound.
+2. Confirm the message explicitly says the browser's default system voice is a
+   degraded fallback before Web Speech begins. If the message is absent, stop
+   the walkthrough; a silent voice substitution is a release failure.
+3. Retry Play once. Record the clip ID, browser/version, exact visible message,
+   and whether the file request failed, playback was rejected, or Web Speech was
+   unavailable. Do not record the learner's free text.
+4. Confirm changing steps, closing the coach/modal, selecting Exit training,
+   hiding the page, and navigating away stop both file audio and system speech.
+5. Verify only the current and next clip are requested and that mute, volume,
+   and playback rate persist in the same browser profile.
+
+Before publishing a narration batch, follow
+`scripts/training-audio/README.md`. The owner must approve the common intro and
+representative Scribe, Facilitator, and Notetaker samples using the full
+listen-through checklist. Bulk generation is prohibited while provenance says
+`pending-owner-review`. A valid approved record must include the exact engine,
+model revision, voice and voice checksum, license, settings, generation date,
+script bundle and per-script checksums, per-output checksums, durations, byte
+sizes, captions, and cue timings.
+
+The proposed 256 KiB per-file and 12 MiB total media ceilings are provisional
+until approved samples are measured. Update the documented values and contract
+test from those measurements before owner approval if either projection is not
+supported. Missing, stale, oversized, or unapproved narration is a production
+media gate failure, not a reason to weaken fallback or text access.
+
 ## Export/AAR Check
 
 Before closing the demo:

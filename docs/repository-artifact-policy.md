@@ -21,6 +21,10 @@ specific repository revision:
 - intentionally published binary assets such as approved images, briefing
   material, and reference PDFs when the binary itself is a reviewed product
   input or deliverable and its provenance is documented
+- owner-approved training audio and video under `public/training/` when the
+  encoded media is an authored product asset accompanied by its exact script,
+  transcript/captions, timings, checksums, generation settings, model/voice
+  provenance, license, and approval record
 - the curated PLI PDFs under `pli/deliverables/`; these are intentionally
   published deliverables, remain trackable, and this policy does not alter PLI
   generation or adjudication behavior
@@ -45,6 +49,11 @@ must remain outside version control:
 - generated PLI reports under `pli/reports/out/`
 - downloaded session recordings in `recordings/`, `session-recordings/`, or
   root-level `session-recording-*` audio files
+- neural-media model weights and local training-media generation output,
+  including raw WAVs, review renders, loudness measurements, caches, and
+  approval evidence under `scripts/training-audio/work/` or
+  `scripts/training-audio/models/`; signed approval evidence belongs in the
+  approved release system, not Git
 - temporary LaTeX `report.*` build files such as `report.aux`,
   `report.fdb_latexmk`, `report.fls`, `report.log`, `report.synctex.gz`, and
   `report.toc`
@@ -66,7 +75,10 @@ Before committing a new artifact:
    session evidence.
 3. For a fixture, keep it narrowly scoped and document how it was synthesized.
 4. For a binary, document why the binary must be versioned and retain its
-   editable source or reproducible generator where available.
+   editable source or reproducible generator where available. Training media
+   additionally requires visible text, captions where applicable, output and
+   script checksums, exact engine/model/voice/license provenance, and owner
+   approval before it enters `public/training/`.
 5. If a generated path is accidentally tracked, remove it from the Git index
    without deleting the developer's local copy, then verify the applicable
    `.gitignore` rule.
@@ -75,6 +87,11 @@ The curated contents of `pli/deliverables/` are the explicit exception to the
 generated-output rules above. Updating those files follows the existing PLI
 publishing workflow; this repository policy neither regenerates them nor
 changes their behavior.
+
+Approved training media is a separate authored-product exception, not a broad
+generated-output exception. Only final encoded deliverables and their small
+text sidecars are versioned. Model weights, raw generation output, rejected
+samples, editing caches, and listen-through evidence remain untracked.
 
 ## Automated Enforcement
 

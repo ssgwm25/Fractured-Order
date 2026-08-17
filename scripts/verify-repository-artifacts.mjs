@@ -81,6 +81,16 @@ export const DENYLIST = Object.freeze([
         remediation: 'Remove recordings from the Git index and store approved evidence outside the source repository.'
     }),
     Object.freeze({
+        id: 'training-media-work-output',
+        pattern: /^scripts\/training-audio\/(?:work|models)(?:\/|$)/i,
+        remediation: 'Remove local narration models, raw output, samples, and review evidence; publish only owner-approved encoded assets under public/training/audio/.'
+    }),
+    Object.freeze({
+        id: 'model-weight',
+        pattern: /\.(?:ckpt|gguf|onnx|pth|pt|safetensors)$/i,
+        remediation: 'Remove neural model weights from the Git index and keep the pinned model in an external local cache.'
+    }),
+    Object.freeze({
         id: 'generated-report-output',
         pattern: /(?:^|\/)(?:output\/release-evidence|release-evidence|pli\/reports\/out|generated[-_]?reports?|report-output)(?:\/|$)|(?:^|\/)report\.(?:aux|bbl|bcf|blg|fdb_latexmk|fls|log|out|run\.xml|synctex\.gz|toc)$/i,
         remediation: 'Remove generated reports or local evidence from the Git index and publish them through the approved evidence workflow.'

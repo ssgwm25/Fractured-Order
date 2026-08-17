@@ -1,0 +1,12 @@
+{
+  "approved": true,
+  "voiceId": "af_heart",
+  "modelRevision": "8542409da2986c0ab5d41b3cf0411f7a58caab38",
+  "scriptBundleSha256": "replace-with-exported-bundle-checksum",
+  "sampleMeasurementsReviewed": true,
+  "perFileBudgetBytes": 262144,
+  "totalBudgetBytes": 12582912,
+  "reviewer": "replace-with-owner-name",
+  "reviewedAt": "replace-with-ISO-8601-UTC-timestamp",
+  "notes": "Intro plus representative Scribe, Facilitator, and Notetaker samples approved after the full checklist."
+}

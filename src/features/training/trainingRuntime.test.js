@@ -229,4 +229,26 @@ describe('isolated training runtime', () => {
         expect(() => database.createAction({})).toThrow(TRAINING_RECOVERY_MESSAGE);
         expect(() => database.fetchActions('forged-live-session')).toThrow(TRAINING_RECOVERY_MESSAGE);
     });
+
+    it('announces training exit before clearing context and navigating', () => {
+        const order = [];
+        class FakeCustomEvent {
+            constructor(type) {
+                this.type = type;
+            }
+        }
+        const documentRef = {
+            defaultView: { CustomEvent: FakeCustomEvent },
+            dispatchEvent: vi.fn((event) => order.push(`event:${event.type}`))
+        };
+        const sessionStoreRef = {
+            clear: vi.fn(() => order.push('clear'))
+        };
+        const navigateRef = vi.fn(() => order.push('navigate'));
+
+        trainingRuntime.exitTraining({ documentRef, sessionStoreRef, navigateRef });
+
+        expect(order).toEqual(['event:training:exit', 'clear', 'navigate']);
+        expect(navigateRef).toHaveBeenCalledWith('');
+    });
 });

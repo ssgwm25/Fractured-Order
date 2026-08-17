@@ -144,7 +144,7 @@ export function mountTrainingSandboxBanner({
     context,
     documentRef = typeof document !== 'undefined' ? document : null,
     onReplayIntro = null,
-    onExit = () => trainingRuntime.exitTraining()
+    onExit = null
 } = {}) {
     if (!documentRef?.body || !context) {
         return null;
@@ -203,7 +203,10 @@ export function mountTrainingSandboxBanner({
     const exitButton = createElement(documentRef, 'button', 'btn btn-primary btn-sm', 'Exit training');
     exitButton.type = 'button';
     exitButton.id = 'exitTrainingBtn';
-    exitButton.addEventListener('click', onExit);
+    exitButton.addEventListener('click', () => {
+        if (onExit) onExit();
+        else trainingRuntime.exitTraining({ documentRef });
+    });
 
     controls.append(resetHelp, replayIntroButton, resetButton, exitButton);
     banner.append(copy, controls);
@@ -328,7 +331,11 @@ export const trainingRuntime = {
                         forceReplay,
                         documentRef,
                         windowRef: documentRef?.defaultView || (typeof window !== 'undefined' ? window : null),
-                        onChangeProfile: () => this.exitTraining({ sessionStoreRef, navigateRef }),
+                        onChangeProfile: () => this.exitTraining({
+                            sessionStoreRef,
+                            navigateRef,
+                            documentRef
+                        }),
                         onContinue: (introContext, detail) => {
                             const eventName = 'training:intro-complete';
                             const EventConstructor = documentRef?.defaultView?.CustomEvent
@@ -451,8 +458,14 @@ export const trainingRuntime = {
 
     exitTraining({
         sessionStoreRef = sessionStore,
-        navigateRef = navigateToApp
+        navigateRef = navigateToApp,
+        documentRef = typeof document !== 'undefined' ? document : null
     } = {}) {
+        const EventConstructor = documentRef?.defaultView?.CustomEvent
+            || (typeof CustomEvent !== 'undefined' ? CustomEvent : null);
+        if (EventConstructor) {
+            documentRef?.dispatchEvent?.(new EventConstructor('training:exit'));
+        }
         sessionStoreRef.clear();
         navigateRef('');
     }

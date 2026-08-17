@@ -1,4 +1,4 @@
-const DEFAULT_APP_BASE_PATH = import.meta.env.BASE_URL || '/';
+const DEFAULT_APP_BASE_PATH = import.meta.env?.BASE_URL || '/';
 const APP_URL_ORIGIN = 'https://app.local';
 
 export function normalizeBasePath(basePath = DEFAULT_APP_BASE_PATH) {

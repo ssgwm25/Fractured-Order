@@ -3,6 +3,7 @@
 
 # Installed dependencies
 node_modules/
+.venv/
 
 # Build output
 dist/
@@ -30,6 +31,16 @@ session-recording-*.webm
 session-recording-*.ogg
 session-recording-*.mp4
 session-recording-*.wav
+
+# Local neural narration generation (only approved encoded public assets ship)
+scripts/training-audio/work/
+scripts/training-audio/models/
+scripts/training-audio/**/*.pth
+scripts/training-audio/**/*.pt
+scripts/training-audio/**/*.onnx
+scripts/training-audio/**/*.safetensors
+scripts/training-audio/**/*.ckpt
+scripts/training-audio/**/*.gguf
 
 # Temporary LaTeX report build files
 report.aux

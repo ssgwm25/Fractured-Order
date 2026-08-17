@@ -262,6 +262,11 @@ participant credentials, live artifact IDs, or a claim about adjudication.
   transcript. Narrated coach text is also available as persistent text.
 - [ ] Play/pause, replay, mute, volume, captions, transcript, and skip controls
   are keyboard and screen-reader operable.
+- [ ] Narration preferences persist per browser; step changes, modal close,
+  training exit, page hide, and document-hidden transitions stop speech.
+- [ ] Only the current and next approved clips are loaded. A missing approved
+  file visibly labels Web Speech as a degraded system-voice fallback before it
+  speaks; a voice change is never silent.
 - [ ] Captions identify meaningful non-speech audio and do not obscure controls.
 - [ ] If video, recorded audio, browser speech synthesis, or media metadata
   fails or times out, a visible degraded-media state provides transcript-first
@@ -468,6 +473,40 @@ the WebVTT track for assistive technology. A media owner must recheck the WebVTT
 cues against the approved audio within 0.5 seconds whenever the script or video
 changes. Failed caption delivery is not a reason to block a learner at runtime.
 
+## Guided narration asset boundary (Prompt 06)
+
+`TrainingAudioController.js` owns narration state, lazy loading, persistent
+mute/volume/rate preferences, synchronized caption text, teardown, and the
+explicitly labelled Web Speech fallback. The controller never makes a network
+TTS call. Curriculum step changes replace the current clip and invalidate older
+play promises so rapid navigation cannot restart stale speech. The coach added
+in Prompts 07–09 must mount the controller's accessible controls and call its
+stop/destroy boundary when its modal or surface closes.
+
+`audioManifest.js` derives the common introduction, all 12 module
+introductions, and all 84 ordered steps from curriculum version `1.0`. An entry
+is playable as an authored file only when the owner-approved provenance record
+contains its exact transcript, duration, byte size, script SHA-256, output
+SHA-256, captions, cue timings, and shared provenance ID. Pending, missing, or
+partially generated metadata fails closed to the labelled fallback; it is never
+treated as approved audio.
+
+The reproducible workflow and approval checklist live under
+`scripts/training-audio/`. It pins the Apache-2.0 `kokoro==0.9.4` engine and
+Apache-2.0 Kokoro-82M v1.0 model revision
+`8542409da2986c0ab5d41b3cf0411f7a58caab38`, uses the candidate `af_heart`
+voice, keeps weights and raw/review output outside version control, and masters
+final delivery at mono 48 kHz, -18 LUFS, -2 dBTP, LRA 7, and 64 kbps MP3.
+
+Release is currently blocked at the required human voice gate. The owner must
+review the intro plus representative Scribe, Facilitator, and Notetaker samples
+for voice fit, pronunciation, pacing, clipping, pauses, prosody, transcript
+identity, caption sync, and measured media budgets before bulk generation.
+Until that approval and generation occur,
+`public/training/audio/provenance.json` remains `pending-owner-review`, contains
+no fabricated generation date or output checksums, and no generated narration
+binary is a release artifact.
+
 ## Documentation gate
 
 Repository documentation tests must fail if this contract loses:
@@ -481,8 +520,9 @@ Repository documentation tests must fail if this contract loses:
 - the explicit exclusion of all operator, SME, and compatibility routes.
 
 The runtime spine, Blue Scribe smoke slice, version `1.0` declarative
-curriculum/fixture catalog, and accessible video-first introduction are
-implemented. Media timing approval, interactive walkthrough mounting, mastery
+curriculum/fixture catalog, accessible video-first introduction, and fail-closed
+narration controller/generation workflow are implemented. Narration voice
+approval and bulk encoded assets, interactive walkthrough mounting, mastery
 persistence, completion, attempt replay, profile switching after completion,
 and reset behavior remain deferred. This document does not claim that any
 learner has completed the curriculum.

@@ -1,0 +1,2601 @@
+{
+  "id": "training-audio-kokoro-v1",
+  "schemaVersion": 1,
+  "curriculumVersion": "1.0",
+  "language": "en-US",
+  "engine": {
+    "name": "kokoro",
+    "version": "0.9.4",
+    "packageUrl": "https://pypi.org/project/kokoro/0.9.4/",
+    "license": "Apache-2.0",
+    "licenseUrl": "https://github.com/hexgrad/kokoro/blob/main/LICENSE"
+  },
+  "model": {
+    "name": "hexgrad/Kokoro-82M",
+    "version": "v1.0",
+    "revision": "8542409da2986c0ab5d41b3cf0411f7a58caab38",
+    "modelSha256": "496dba118d1a58f5f3db2efc88dbdc216e0483fc89fe6e47ee1f2c53f18ad1e4",
+    "modelCardUrl": "https://huggingface.co/hexgrad/Kokoro-82M/blob/8542409da2986c0ab5d41b3cf0411f7a58caab38/README.md",
+    "license": "Apache-2.0",
+    "licenseUrl": "https://huggingface.co/hexgrad/Kokoro-82M/blob/8542409da2986c0ab5d41b3cf0411f7a58caab38/README.md"
+  },
+  "voice": {
+    "id": "af_heart",
+    "language": "American English",
+    "selectionRationale": "Candidate friendly, confident peer-coach voice; owner approval is required before distribution.",
+    "voiceFileSha256": "0ab5709b8ffab19bfd849cd11d98f75b60af7733253ad0d67b12382a102cb4ff"
+  },
+  "settings": {
+    "synthesisSampleRateHz": 24000,
+    "deliverySampleRateHz": 48000,
+    "channels": 1,
+    "speed": 1.0,
+    "integratedLoudnessLufs": -18,
+    "truePeakDbtp": -2,
+    "loudnessRangeLu": 7,
+    "format": "audio/mpeg",
+    "bitrateKbps": 64
+  },
+  "mediaBudget": {
+    "perFileBytes": 262144,
+    "totalBytes": 12582912,
+    "status": "approved-from-sample-measurement",
+    "sampleMeasurementsReviewed": true,
+    "actualTotalBytes": 5977293,
+    "largestFileBytes": 91245,
+    "clipCount": 97
+  },
+  "generationDate": "2026-08-17T21:22:16.841728Z",
+  "scriptBundleSha256": "b8a5f992dbf304d5a409404b2bc371e6d23593384be93c217aaea2a35266ea89",
+  "approval": {
+    "status": "approved",
+    "scope": "full-batch",
+    "owner": "ssnguna",
+    "reviewedAt": "2026-08-17T21:30:06.065Z",
+    "notes": "Owner listened to all 97 narration clips and approved the voice, tone, and quality.",
+    "fullListenThrough": true,
+    "clipCount": 97,
+    "qualityReview": {
+      "pronunciation": true,
+      "pacing": true,
+      "clippingFree": true,
+      "pausesNatural": true,
+      "prosodyAccepted": true
+    },
+    "checklistPath": "scripts/training-audio/README.md"
+  },
+  "clips": {
+    "training.intro": {
+      "scriptSha256": "c796412967bffcb0b8880b39a7a336ce6c36d734add6b3c568aa8d0b9eb948ac",
+      "outputPath": "training/audio/clips/training-intro.mp3",
+      "captionsPath": "training/audio/captions/training-intro.en.vtt",
+      "durationSeconds": 11.35,
+      "byteLength": 91245,
+      "outputSha256": "5114944236a85167eaa220974ba8e9cee9f781d4e15e0f7bf46f30c3f24fa5ad",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 1.387,
+          "text": "Welcome in."
+        },
+        {
+          "startSeconds": 1.387,
+          "endSeconds": 4.65,
+          "text": "This guided practice is private to your training attempt."
+        },
+        {
+          "startSeconds": 4.65,
+          "endSeconds": 6.975,
+          "text": "You can pause, replay, or mute me at"
+        },
+        {
+          "startSeconds": 6.975,
+          "endSeconds": 10.4,
+          "text": "any time \u2014 and every spoken instruction stays visible on"
+        },
+        {
+          "startSeconds": 10.4,
+          "endSeconds": 11.25,
+          "text": "screen."
+        }
+      ]
+    },
+    "training.v1.scribe.blue": {
+      "scriptSha256": "3411222888a9188fda1a4135f9819d38de378bc19a2abaf4c484b4e1194dca42",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue.en.vtt",
+      "durationSeconds": 6.925,
+      "byteLength": 55917,
+      "outputSha256": "7378e5bc0d9ac5bc91b348180d030bb2dd98ecfe7b8f75fe0c7e7fb54e5d88ad",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "As Scribe, you'll turn the team's discussion into a"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 5.675,
+          "text": "clear, complete record \u2014 then hand it to the"
+        },
+        {
+          "startSeconds": 5.675,
+          "endSeconds": 6.825,
+          "text": "Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.blue.orient": {
+      "scriptSha256": "a645ae4fa225fad498292c8bc102003fe93bc0c0fe69c6bfc7bcce418f828b36",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue-orient.en.vtt",
+      "durationSeconds": 8.1,
+      "byteLength": 65325,
+      "outputSha256": "186a2da41232e567831c1dd1413d9c5e8a1f4a9ab20bacff6517f49e367f2fdf",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 1.812,
+          "text": "Your job is simple:"
+        },
+        {
+          "startSeconds": 1.812,
+          "endSeconds": 5.775,
+          "text": "capture Blue decisions accurately, check every required field,"
+        },
+        {
+          "startSeconds": 5.775,
+          "endSeconds": 8.0,
+          "text": "and pass the record to the Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.blue.show": {
+      "scriptSha256": "f4a203e0cce213f712bbc9fa8992f95932cb8aa76aa9cc85bb81fb270c2a2a1f",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue-show.en.vtt",
+      "durationSeconds": 9.2,
+      "byteLength": 74157,
+      "outputSha256": "07dbbc24cbdf25e012522851a016b176e99af1ae699aeba131fadd185f1f50e0",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 4.112,
+          "text": "Start with Strategic Orientation \u2014 the team's north star."
+        },
+        {
+          "startSeconds": 4.112,
+          "endSeconds": 7.588,
+          "text": "This fixture uses the current choices and the exact narrative"
+        },
+        {
+          "startSeconds": 7.588,
+          "endSeconds": 9.1,
+          "text": "fields Blue needs."
+        }
+      ]
+    },
+    "training.v1.scribe.blue.guide": {
+      "scriptSha256": "d9be359c563fc1e16105bc036cb08bea6b2d8de92013860d5807c428ec00a431",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue-guide.en.vtt",
+      "durationSeconds": 7.875,
+      "byteLength": 63597,
+      "outputSha256": "07bacb655087fa5acbfff7ed70763165e02496a1e9ee35ba423adf9fdfb0ddf3",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.875,
+          "text": "This example uses the same shape as the live shared-action"
+        },
+        {
+          "startSeconds": 3.875,
+          "endSeconds": 6.975,
+          "text": "workflow, so what you practice here will feel familiar"
+        },
+        {
+          "startSeconds": 6.975,
+          "endSeconds": 7.775,
+          "text": "later."
+        }
+      ]
+    },
+    "training.v1.scribe.blue.practice": {
+      "scriptSha256": "d6ca9d57f539e007ae7b73e4427805295197e32050c1b8f6bb61fd6111da26d1",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue-practice.en.vtt",
+      "durationSeconds": 7.55,
+      "byteLength": 60909,
+      "outputSha256": "3c59aae371de1990ac82dbac01af424ab0fe9f93537bfd1eed40e4d17e00dcd3",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.2,
+          "text": "Complete the required fields."
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 5.388,
+          "text": "If validation flags something, fix it \u2014 then use"
+        },
+        {
+          "startSeconds": 5.388,
+          "endSeconds": 7.45,
+          "text": "the Scribe-to-Facilitator handoff."
+        }
+      ]
+    },
+    "training.v1.scribe.blue.respond": {
+      "scriptSha256": "b3c6a1ff8549030e12e4dc288177dc5a486a599b7ea1209a2ff6790056b1636a",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue-respond.en.vtt",
+      "durationSeconds": 8.0,
+      "byteLength": 64557,
+      "outputSha256": "05dd505181ad3ec00ea068286af782c3c3fa76c74794df701ea217feae4c71e2",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "This return is for practice \u2014 it is not an"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 4.338,
+          "text": "adjudication."
+        },
+        {
+          "startSeconds": 4.338,
+          "endSeconds": 7.9,
+          "text": "Revise the same record so its identity stays intact."
+        }
+      ]
+    },
+    "training.v1.scribe.blue.retrieve": {
+      "scriptSha256": "46b3fb9f1aab915b7407544566adbeec9c74cd404587cb7b4f76958e7d1bb344",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue-retrieve.en.vtt",
+      "durationSeconds": 7.125,
+      "byteLength": 57453,
+      "outputSha256": "2bfa81e69cfbaac71eb61c489b411bb0e10d4bd3bf9656c4b4884aff1f031179",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.362,
+          "text": "Choose the action that keeps the role boundary clear."
+        },
+        {
+          "startSeconds": 3.362,
+          "endSeconds": 5.325,
+          "text": "Remember, the Scribe hands off;"
+        },
+        {
+          "startSeconds": 5.325,
+          "endSeconds": 7.025,
+          "text": "the Facilitator submits."
+        }
+      ]
+    },
+    "training.v1.scribe.blue.reflect": {
+      "scriptSha256": "7186deda3a3a9b488124a2d028a2854d9a5a04b189f63cc3f73489e3a6458cef",
+      "outputPath": "training/audio/clips/training-v1-scribe-blue-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-blue-reflect.en.vtt",
+      "durationSeconds": 6.25,
+      "byteLength": 50541,
+      "outputSha256": "36c97a3a5d1a6a714ba3d4a2ac4d002e78ba349d37f71f15a9e3aae9ab9a50ed",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.1,
+          "text": "In a live session, check that the handoff landed"
+        },
+        {
+          "startSeconds": 3.1,
+          "endSeconds": 3.263,
+          "text": "."
+        },
+        {
+          "startSeconds": 3.263,
+          "endSeconds": 6.15,
+          "text": "Don't assume one button press finished the workflow."
+        }
+      ]
+    },
+    "training.v1.scribe.red": {
+      "scriptSha256": "3411222888a9188fda1a4135f9819d38de378bc19a2abaf4c484b4e1194dca42",
+      "outputPath": "training/audio/clips/training-v1-scribe-red.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red.en.vtt",
+      "durationSeconds": 6.925,
+      "byteLength": 55917,
+      "outputSha256": "226edcc38103b8b6ec05c2ea26674391a673b56d4d056c72860556356b2c3e4e",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "As Scribe, you'll turn the team's discussion into a"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 5.675,
+          "text": "clear, complete record \u2014 then hand it to the"
+        },
+        {
+          "startSeconds": 5.675,
+          "endSeconds": 6.825,
+          "text": "Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.red.orient": {
+      "scriptSha256": "516cb131139943003db056983d90342a7e1505cea055e4274ab084e786f8acd4",
+      "outputPath": "training/audio/clips/training-v1-scribe-red-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red-orient.en.vtt",
+      "durationSeconds": 8.025,
+      "byteLength": 64749,
+      "outputSha256": "e90f05168a585442de955316baddad8b9fb2c4780e0ed7ff5cee03800f163e8e",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 1.788,
+          "text": "Your job is simple:"
+        },
+        {
+          "startSeconds": 1.788,
+          "endSeconds": 5.7,
+          "text": "capture Red decisions accurately, check every required field,"
+        },
+        {
+          "startSeconds": 5.7,
+          "endSeconds": 7.925,
+          "text": "and pass the record to the Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.red.show": {
+      "scriptSha256": "d5d8a5439a9443ae16303a7b52d260478a5cf3de36142207bb251bf1ce4b6f2d",
+      "outputPath": "training/audio/clips/training-v1-scribe-red-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red-show.en.vtt",
+      "durationSeconds": 9.275,
+      "byteLength": 74733,
+      "outputSha256": "d5dd2243ced2d4813eae8b10b729459adab3e7380416412e74f8fb0dc289f4ac",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 4.162,
+          "text": "Start with Strategic Orientation \u2014 the team's north star."
+        },
+        {
+          "startSeconds": 4.162,
+          "endSeconds": 7.662,
+          "text": "This fixture uses the current choices and the exact narrative"
+        },
+        {
+          "startSeconds": 7.662,
+          "endSeconds": 9.175,
+          "text": "fields Red needs."
+        }
+      ]
+    },
+    "training.v1.scribe.red.guide": {
+      "scriptSha256": "d9be359c563fc1e16105bc036cb08bea6b2d8de92013860d5807c428ec00a431",
+      "outputPath": "training/audio/clips/training-v1-scribe-red-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red-guide.en.vtt",
+      "durationSeconds": 7.875,
+      "byteLength": 63597,
+      "outputSha256": "e7b1b9bb2a02f04e7498405eafd171cec64eb2a94d59b1603c3d5afd6b0e7db4",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.875,
+          "text": "This example uses the same shape as the live shared-action"
+        },
+        {
+          "startSeconds": 3.875,
+          "endSeconds": 6.975,
+          "text": "workflow, so what you practice here will feel familiar"
+        },
+        {
+          "startSeconds": 6.975,
+          "endSeconds": 7.775,
+          "text": "later."
+        }
+      ]
+    },
+    "training.v1.scribe.red.practice": {
+      "scriptSha256": "d6ca9d57f539e007ae7b73e4427805295197e32050c1b8f6bb61fd6111da26d1",
+      "outputPath": "training/audio/clips/training-v1-scribe-red-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red-practice.en.vtt",
+      "durationSeconds": 7.55,
+      "byteLength": 60909,
+      "outputSha256": "cb565433380e42bbfea3202147cefac764341136690b3269d37b8d60413644b3",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.2,
+          "text": "Complete the required fields."
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 5.388,
+          "text": "If validation flags something, fix it \u2014 then use"
+        },
+        {
+          "startSeconds": 5.388,
+          "endSeconds": 7.45,
+          "text": "the Scribe-to-Facilitator handoff."
+        }
+      ]
+    },
+    "training.v1.scribe.red.respond": {
+      "scriptSha256": "b3c6a1ff8549030e12e4dc288177dc5a486a599b7ea1209a2ff6790056b1636a",
+      "outputPath": "training/audio/clips/training-v1-scribe-red-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red-respond.en.vtt",
+      "durationSeconds": 8.0,
+      "byteLength": 64557,
+      "outputSha256": "6cd845f746292fd245c14a94c8d68ef86ae5bfe8ef3747e11be4a2f21e79ed10",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "This return is for practice \u2014 it is not an"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 4.338,
+          "text": "adjudication."
+        },
+        {
+          "startSeconds": 4.338,
+          "endSeconds": 7.9,
+          "text": "Revise the same record so its identity stays intact."
+        }
+      ]
+    },
+    "training.v1.scribe.red.retrieve": {
+      "scriptSha256": "46b3fb9f1aab915b7407544566adbeec9c74cd404587cb7b4f76958e7d1bb344",
+      "outputPath": "training/audio/clips/training-v1-scribe-red-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red-retrieve.en.vtt",
+      "durationSeconds": 7.125,
+      "byteLength": 57453,
+      "outputSha256": "14bfddbfe1630bbed1da7e74781dee06134c96596942c15de70f49f37b229fc1",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.362,
+          "text": "Choose the action that keeps the role boundary clear."
+        },
+        {
+          "startSeconds": 3.362,
+          "endSeconds": 5.325,
+          "text": "Remember, the Scribe hands off;"
+        },
+        {
+          "startSeconds": 5.325,
+          "endSeconds": 7.025,
+          "text": "the Facilitator submits."
+        }
+      ]
+    },
+    "training.v1.scribe.red.reflect": {
+      "scriptSha256": "7186deda3a3a9b488124a2d028a2854d9a5a04b189f63cc3f73489e3a6458cef",
+      "outputPath": "training/audio/clips/training-v1-scribe-red-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-red-reflect.en.vtt",
+      "durationSeconds": 6.25,
+      "byteLength": 50541,
+      "outputSha256": "14b325cb06548815316bc01abb07e45906c2d6386fffa4842667c16ce09234ca",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.1,
+          "text": "In a live session, check that the handoff landed"
+        },
+        {
+          "startSeconds": 3.1,
+          "endSeconds": 3.263,
+          "text": "."
+        },
+        {
+          "startSeconds": 3.263,
+          "endSeconds": 6.15,
+          "text": "Don't assume one button press finished the workflow."
+        }
+      ]
+    },
+    "training.v1.scribe.green": {
+      "scriptSha256": "3411222888a9188fda1a4135f9819d38de378bc19a2abaf4c484b4e1194dca42",
+      "outputPath": "training/audio/clips/training-v1-scribe-green.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green.en.vtt",
+      "durationSeconds": 6.925,
+      "byteLength": 55917,
+      "outputSha256": "8fcaeba7e1b3ed5b880d52ec0f3bf4c50ed66c94c16bd583006b1569e14667c9",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "As Scribe, you'll turn the team's discussion into a"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 5.675,
+          "text": "clear, complete record \u2014 then hand it to the"
+        },
+        {
+          "startSeconds": 5.675,
+          "endSeconds": 6.825,
+          "text": "Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.green.orient": {
+      "scriptSha256": "f08ccb01f7c8905bf0362bf85e54ff82cfd75e392520d765a442908c58e6c960",
+      "outputPath": "training/audio/clips/training-v1-scribe-green-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green-orient.en.vtt",
+      "durationSeconds": 8.15,
+      "byteLength": 65709,
+      "outputSha256": "2d168d4a88b1d6e7a482cdd3558cf8ddcc19656bc95ea93b48ba37076a4a4796",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 1.812,
+          "text": "Your job is simple:"
+        },
+        {
+          "startSeconds": 1.812,
+          "endSeconds": 5.825,
+          "text": "capture Green decisions accurately, check every required field,"
+        },
+        {
+          "startSeconds": 5.825,
+          "endSeconds": 8.05,
+          "text": "and pass the record to the Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.green.show": {
+      "scriptSha256": "2156fbbb9f1342f646920adc2960a7e81d6de46cef9c6b2ca57df86d61f1277c",
+      "outputPath": "training/audio/clips/training-v1-scribe-green-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green-show.en.vtt",
+      "durationSeconds": 9.325,
+      "byteLength": 75117,
+      "outputSha256": "55767214114a34273ca72bdaf74c6f0aad272624f4e667882a6211d9e4113df5",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 4.138,
+          "text": "Start with Strategic Orientation \u2014 the team's north star."
+        },
+        {
+          "startSeconds": 4.138,
+          "endSeconds": 7.638,
+          "text": "This fixture uses the current choices and the exact narrative"
+        },
+        {
+          "startSeconds": 7.638,
+          "endSeconds": 9.225,
+          "text": "fields Green needs."
+        }
+      ]
+    },
+    "training.v1.scribe.green.guide": {
+      "scriptSha256": "d9be359c563fc1e16105bc036cb08bea6b2d8de92013860d5807c428ec00a431",
+      "outputPath": "training/audio/clips/training-v1-scribe-green-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green-guide.en.vtt",
+      "durationSeconds": 7.875,
+      "byteLength": 63597,
+      "outputSha256": "0978a7fe40176bb9de144111f8b267357e4215da0f100a014afddd3208f5483b",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.875,
+          "text": "This example uses the same shape as the live shared-action"
+        },
+        {
+          "startSeconds": 3.875,
+          "endSeconds": 6.975,
+          "text": "workflow, so what you practice here will feel familiar"
+        },
+        {
+          "startSeconds": 6.975,
+          "endSeconds": 7.775,
+          "text": "later."
+        }
+      ]
+    },
+    "training.v1.scribe.green.practice": {
+      "scriptSha256": "d6ca9d57f539e007ae7b73e4427805295197e32050c1b8f6bb61fd6111da26d1",
+      "outputPath": "training/audio/clips/training-v1-scribe-green-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green-practice.en.vtt",
+      "durationSeconds": 7.55,
+      "byteLength": 60909,
+      "outputSha256": "23080a0a2963e17891f84c205c039ec51c80b384f34d6e9f4be0dd5269ecd6e4",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.2,
+          "text": "Complete the required fields."
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 5.388,
+          "text": "If validation flags something, fix it \u2014 then use"
+        },
+        {
+          "startSeconds": 5.388,
+          "endSeconds": 7.45,
+          "text": "the Scribe-to-Facilitator handoff."
+        }
+      ]
+    },
+    "training.v1.scribe.green.respond": {
+      "scriptSha256": "b3c6a1ff8549030e12e4dc288177dc5a486a599b7ea1209a2ff6790056b1636a",
+      "outputPath": "training/audio/clips/training-v1-scribe-green-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green-respond.en.vtt",
+      "durationSeconds": 8.0,
+      "byteLength": 64557,
+      "outputSha256": "da7041ee80ce7d8efeed0faedd2768ec7c8ea6aeaa323d526ea3e6c1985243b3",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "This return is for practice \u2014 it is not an"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 4.338,
+          "text": "adjudication."
+        },
+        {
+          "startSeconds": 4.338,
+          "endSeconds": 7.9,
+          "text": "Revise the same record so its identity stays intact."
+        }
+      ]
+    },
+    "training.v1.scribe.green.retrieve": {
+      "scriptSha256": "46b3fb9f1aab915b7407544566adbeec9c74cd404587cb7b4f76958e7d1bb344",
+      "outputPath": "training/audio/clips/training-v1-scribe-green-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green-retrieve.en.vtt",
+      "durationSeconds": 7.125,
+      "byteLength": 57453,
+      "outputSha256": "2a0a0742541ab972dcf2df904dd41cd99d6b237dd8ec80d7eba5379e02db8022",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.362,
+          "text": "Choose the action that keeps the role boundary clear."
+        },
+        {
+          "startSeconds": 3.362,
+          "endSeconds": 5.325,
+          "text": "Remember, the Scribe hands off;"
+        },
+        {
+          "startSeconds": 5.325,
+          "endSeconds": 7.025,
+          "text": "the Facilitator submits."
+        }
+      ]
+    },
+    "training.v1.scribe.green.reflect": {
+      "scriptSha256": "7186deda3a3a9b488124a2d028a2854d9a5a04b189f63cc3f73489e3a6458cef",
+      "outputPath": "training/audio/clips/training-v1-scribe-green-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-green-reflect.en.vtt",
+      "durationSeconds": 6.25,
+      "byteLength": 50541,
+      "outputSha256": "af7d4baf7e30c00cb8c4ef06735d5cccefe5af4685ee21b406c5f821ba7668ae",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.1,
+          "text": "In a live session, check that the handoff landed"
+        },
+        {
+          "startSeconds": 3.1,
+          "endSeconds": 3.263,
+          "text": "."
+        },
+        {
+          "startSeconds": 3.263,
+          "endSeconds": 6.15,
+          "text": "Don't assume one button press finished the workflow."
+        }
+      ]
+    },
+    "training.v1.scribe.industry": {
+      "scriptSha256": "3411222888a9188fda1a4135f9819d38de378bc19a2abaf4c484b4e1194dca42",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry.en.vtt",
+      "durationSeconds": 6.925,
+      "byteLength": 55917,
+      "outputSha256": "e9f3bba5e042ecf5575bd7e23945cb73b1c7758637a538f1a33e9f1447bb64c9",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "As Scribe, you'll turn the team's discussion into a"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 5.675,
+          "text": "clear, complete record \u2014 then hand it to the"
+        },
+        {
+          "startSeconds": 5.675,
+          "endSeconds": 6.825,
+          "text": "Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.industry.orient": {
+      "scriptSha256": "bd25f8bd647c31e5213f72c3d5d08b76ae3592a391c8160d2fa1f65daf080e0e",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry-orient.en.vtt",
+      "durationSeconds": 8.3,
+      "byteLength": 66861,
+      "outputSha256": "d3115a311b825f7d4ad3bea80862985707e2f50958e5d420d26c9d0fe70c9d21",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 1.812,
+          "text": "Your job is simple:"
+        },
+        {
+          "startSeconds": 1.812,
+          "endSeconds": 5.9,
+          "text": "capture Industry decisions accurately, check every required field"
+        },
+        {
+          "startSeconds": 5.9,
+          "endSeconds": 8.2,
+          "text": ", and pass the record to the Facilitator."
+        }
+      ]
+    },
+    "training.v1.scribe.industry.show": {
+      "scriptSha256": "7c5274684152c41376fcb03914dd4917b735d6b849ae85378e3ec2ac7bdcbbc1",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry-show.en.vtt",
+      "durationSeconds": 9.575,
+      "byteLength": 77037,
+      "outputSha256": "00e89d8f9ad17db2ac18a77ec58a14cc8a963cd94178d348df127aff4693a1c7",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 4.188,
+          "text": "Start with Strategic Orientation \u2014 the team's north star."
+        },
+        {
+          "startSeconds": 4.188,
+          "endSeconds": 7.838,
+          "text": "This fixture uses the current choices and the exact narrative"
+        },
+        {
+          "startSeconds": 7.838,
+          "endSeconds": 9.475,
+          "text": "fields Industry needs."
+        }
+      ]
+    },
+    "training.v1.scribe.industry.guide": {
+      "scriptSha256": "d9be359c563fc1e16105bc036cb08bea6b2d8de92013860d5807c428ec00a431",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry-guide.en.vtt",
+      "durationSeconds": 7.875,
+      "byteLength": 63597,
+      "outputSha256": "aca69084b795c935a58e95d39979fa75f8e7a03984715b77b12f9481025cc2b3",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.875,
+          "text": "This example uses the same shape as the live shared-action"
+        },
+        {
+          "startSeconds": 3.875,
+          "endSeconds": 6.975,
+          "text": "workflow, so what you practice here will feel familiar"
+        },
+        {
+          "startSeconds": 6.975,
+          "endSeconds": 7.775,
+          "text": "later."
+        }
+      ]
+    },
+    "training.v1.scribe.industry.practice": {
+      "scriptSha256": "d6ca9d57f539e007ae7b73e4427805295197e32050c1b8f6bb61fd6111da26d1",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry-practice.en.vtt",
+      "durationSeconds": 7.55,
+      "byteLength": 60909,
+      "outputSha256": "77d4b2d065ece8cc5042a162d7d192477127ba90c2aa76d469fea57c8879c44b",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.2,
+          "text": "Complete the required fields."
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 5.388,
+          "text": "If validation flags something, fix it \u2014 then use"
+        },
+        {
+          "startSeconds": 5.388,
+          "endSeconds": 7.45,
+          "text": "the Scribe-to-Facilitator handoff."
+        }
+      ]
+    },
+    "training.v1.scribe.industry.respond": {
+      "scriptSha256": "b3c6a1ff8549030e12e4dc288177dc5a486a599b7ea1209a2ff6790056b1636a",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry-respond.en.vtt",
+      "durationSeconds": 8.0,
+      "byteLength": 64557,
+      "outputSha256": "6b5b7c8c6808a9b97ffac1d0ea51123b5fc1293e7d1a5d7a12442c60b438cb14",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.025,
+          "text": "This return is for practice \u2014 it is not an"
+        },
+        {
+          "startSeconds": 3.025,
+          "endSeconds": 4.338,
+          "text": "adjudication."
+        },
+        {
+          "startSeconds": 4.338,
+          "endSeconds": 7.9,
+          "text": "Revise the same record so its identity stays intact."
+        }
+      ]
+    },
+    "training.v1.scribe.industry.retrieve": {
+      "scriptSha256": "46b3fb9f1aab915b7407544566adbeec9c74cd404587cb7b4f76958e7d1bb344",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry-retrieve.en.vtt",
+      "durationSeconds": 7.125,
+      "byteLength": 57453,
+      "outputSha256": "c5aef2054fe877a52b705d5e1cf8936cac3455fdde95b173b6035eaad27d076b",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.362,
+          "text": "Choose the action that keeps the role boundary clear."
+        },
+        {
+          "startSeconds": 3.362,
+          "endSeconds": 5.325,
+          "text": "Remember, the Scribe hands off;"
+        },
+        {
+          "startSeconds": 5.325,
+          "endSeconds": 7.025,
+          "text": "the Facilitator submits."
+        }
+      ]
+    },
+    "training.v1.scribe.industry.reflect": {
+      "scriptSha256": "7186deda3a3a9b488124a2d028a2854d9a5a04b189f63cc3f73489e3a6458cef",
+      "outputPath": "training/audio/clips/training-v1-scribe-industry-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-scribe-industry-reflect.en.vtt",
+      "durationSeconds": 6.25,
+      "byteLength": 50541,
+      "outputSha256": "d0023b3d73dbf6733da3da176f014c12b9a959e327a8f5341aa1b7ce7e851fb3",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.1,
+          "text": "In a live session, check that the handoff landed"
+        },
+        {
+          "startSeconds": 3.1,
+          "endSeconds": 3.263,
+          "text": "."
+        },
+        {
+          "startSeconds": 3.263,
+          "endSeconds": 6.15,
+          "text": "Don't assume one button press finished the workflow."
+        }
+      ]
+    },
+    "training.v1.facilitator.blue": {
+      "scriptSha256": "7f48e0f991d02758d77d2dd700002f5165d3f80e7c75f3e954ff635d5582c618",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue.en.vtt",
+      "durationSeconds": 6.5,
+      "byteLength": 52461,
+      "outputSha256": "3a957b5903bab56e8217bfdfca1773ad46b365a86939aff3dd294aedc9394d72",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 3.2,
+          "text": "As Facilitator, you'll check the team record, coordinate"
+        },
+        {
+          "startSeconds": 3.2,
+          "endSeconds": 5.688,
+          "text": "support, and own the final handoff \u2014 to White"
+        },
+        {
+          "startSeconds": 5.688,
+          "endSeconds": 6.4,
+          "text": "Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.blue.orient": {
+      "scriptSha256": "c46dfe437df7cb5ce60cc75a69c5130e88f4712e49584c38952c8928d55447ad",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue-orient.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "cc8bf8c4a10072fd1ee74941a7f1ba8588cdea3527feb04dfbf54dc4ba790892",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.625,
+          "text": "Review the team record, use the support workspaces,"
+        },
+        {
+          "startSeconds": 3.625,
+          "endSeconds": 6.875,
+          "text": "and submit only when the artifact is genuinely ready."
+        }
+      ]
+    },
+    "training.v1.facilitator.blue.show": {
+      "scriptSha256": "0791d1cadc5082e2857db7009b75216aeb979377854b2d5d85db2101c0a20234",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue-show.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "d9a61d2b0801c6e3293889c4760c5a2caad77fecd0e6d68b2d1b25243f2f411a",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.862,
+          "text": "Each workspace answers one question:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.237,
+          "text": "what changed, what should we project, what should"
+        },
+        {
+          "startSeconds": 5.237,
+          "endSeconds": 7.312,
+          "text": "we ask, what should we message, and what"
+        },
+        {
+          "startSeconds": 7.312,
+          "endSeconds": 8.7,
+          "text": "needs attention now?"
+        }
+      ]
+    },
+    "training.v1.facilitator.blue.guide": {
+      "scriptSha256": "53a9b3666223fd02c1722802da261028aefe71280bd575f142b951dbcba962bc",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue-guide.en.vtt",
+      "durationSeconds": 5.55,
+      "byteLength": 44973,
+      "outputSha256": "5c0d05a862fd05ae762ad4c76cc641b25b6624bbf2ab470f10e0183ca6b37bd6",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.312,
+          "text": "A forwarded artifact is ready for your review \u2014 not"
+        },
+        {
+          "startSeconds": 3.312,
+          "endSeconds": 5.45,
+          "text": "automatically ready for White Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.blue.practice": {
+      "scriptSha256": "a7f210c037f8f3418f747b59ae88a9e8019a66273a05aff52ce691a7d64b3c81",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue-practice.en.vtt",
+      "durationSeconds": 9.9,
+      "byteLength": 79725,
+      "outputSha256": "2619b1a5567257874a6040e6015c818103e2aab0e269c5cc484f496827bbbb46",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.938,
+          "text": "An R F I \u2014 a Request for Information \u2014"
+        },
+        {
+          "startSeconds": 2.938,
+          "endSeconds": 5.85,
+          "text": "asks White Cell for a ruling, clarification, or"
+        },
+        {
+          "startSeconds": 5.85,
+          "endSeconds": 7.375,
+          "text": "scenario detail."
+        },
+        {
+          "startSeconds": 7.375,
+          "endSeconds": 9.8,
+          "text": "When you revise it, keep the same record."
+        }
+      ]
+    },
+    "training.v1.facilitator.blue.respond": {
+      "scriptSha256": "32f775ebb5d5cecbae18be1641905b103c653cc03adf21c861d0f20b13bb8315",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue-respond.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "24b0bcd6cdfc15120ea37305760b31d230ac0b2dab848af7145c1fba7a755b8e",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 1.887,
+          "text": "Keep the channels straight."
+        },
+        {
+          "startSeconds": 1.887,
+          "endSeconds": 4.838,
+          "text": "Answers stay with the R F I, direct messages"
+        },
+        {
+          "startSeconds": 4.838,
+          "endSeconds": 7.625,
+          "text": "live in Communications, and alerts point you to the"
+        },
+        {
+          "startSeconds": 7.625,
+          "endSeconds": 8.7,
+          "text": "right record."
+        }
+      ]
+    },
+    "training.v1.facilitator.blue.retrieve": {
+      "scriptSha256": "637583d3e100f92ec1eb788f88ca3f826bfde5354fc57b5d84990e40237fb0cb",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue-retrieve.en.vtt",
+      "durationSeconds": 7.0,
+      "byteLength": 56493,
+      "outputSha256": "912fdb1a2f2f7996e2458fbf5885dee97772b3ebe8b2d6df09c97c409eaa838d",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.862,
+          "text": "Before you finish, recall the role boundary:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.562,
+          "text": "who reviews, communicates, projects, and makes the"
+        },
+        {
+          "startSeconds": 5.562,
+          "endSeconds": 6.9,
+          "text": "final submission?"
+        }
+      ]
+    },
+    "training.v1.facilitator.blue.reflect": {
+      "scriptSha256": "008498182dfc8e03b7a6d4d4d804b16383bef09a1ccac597bdfec56fd28dfdf9",
+      "outputPath": "training/audio/clips/training-v1-facilitator-blue-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-blue-reflect.en.vtt",
+      "durationSeconds": 8.15,
+      "byteLength": 65709,
+      "outputSha256": "4501f750cd6ca9414a6f0c68ddb6d4bb23c110955940451cfb898bd1a85a1164",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 4.075,
+          "text": "Use lifecycle and timeline evidence to verify submission."
+        },
+        {
+          "startSeconds": 4.075,
+          "endSeconds": 7.112,
+          "text": "Projection \u2014 or one button press \u2014 does not prove"
+        },
+        {
+          "startSeconds": 7.112,
+          "endSeconds": 8.05,
+          "text": "it landed."
+        }
+      ]
+    },
+    "training.v1.facilitator.red": {
+      "scriptSha256": "7f48e0f991d02758d77d2dd700002f5165d3f80e7c75f3e954ff635d5582c618",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red.en.vtt",
+      "durationSeconds": 6.5,
+      "byteLength": 52461,
+      "outputSha256": "cc4342a7b1b1bd75e81a8acc2a27eea5f9a1e03a9c532ac757d88d4df44f13ae",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 3.2,
+          "text": "As Facilitator, you'll check the team record, coordinate"
+        },
+        {
+          "startSeconds": 3.2,
+          "endSeconds": 5.688,
+          "text": "support, and own the final handoff \u2014 to White"
+        },
+        {
+          "startSeconds": 5.688,
+          "endSeconds": 6.4,
+          "text": "Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.red.orient": {
+      "scriptSha256": "c46dfe437df7cb5ce60cc75a69c5130e88f4712e49584c38952c8928d55447ad",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red-orient.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "50472069208c15d6b42ebc1b790ed759f060288240e63f82b2f9ba7165f169c1",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.625,
+          "text": "Review the team record, use the support workspaces,"
+        },
+        {
+          "startSeconds": 3.625,
+          "endSeconds": 6.875,
+          "text": "and submit only when the artifact is genuinely ready."
+        }
+      ]
+    },
+    "training.v1.facilitator.red.show": {
+      "scriptSha256": "0791d1cadc5082e2857db7009b75216aeb979377854b2d5d85db2101c0a20234",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red-show.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "36b3d5693cb27fd86f153722131e299608ce5823bcabb8fe20c19ec259373af6",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.862,
+          "text": "Each workspace answers one question:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.237,
+          "text": "what changed, what should we project, what should"
+        },
+        {
+          "startSeconds": 5.237,
+          "endSeconds": 7.312,
+          "text": "we ask, what should we message, and what"
+        },
+        {
+          "startSeconds": 7.312,
+          "endSeconds": 8.7,
+          "text": "needs attention now?"
+        }
+      ]
+    },
+    "training.v1.facilitator.red.guide": {
+      "scriptSha256": "53a9b3666223fd02c1722802da261028aefe71280bd575f142b951dbcba962bc",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red-guide.en.vtt",
+      "durationSeconds": 5.55,
+      "byteLength": 44973,
+      "outputSha256": "f40dedd5e9f116160b28ee2f055984754170c8903e6912033ef1e8aececc465a",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.312,
+          "text": "A forwarded artifact is ready for your review \u2014 not"
+        },
+        {
+          "startSeconds": 3.312,
+          "endSeconds": 5.45,
+          "text": "automatically ready for White Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.red.practice": {
+      "scriptSha256": "a7f210c037f8f3418f747b59ae88a9e8019a66273a05aff52ce691a7d64b3c81",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red-practice.en.vtt",
+      "durationSeconds": 9.9,
+      "byteLength": 79725,
+      "outputSha256": "5ddd5452e0618a1e2a00743b442384d3724a883a653c9d374511b407bafc9211",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.938,
+          "text": "An R F I \u2014 a Request for Information \u2014"
+        },
+        {
+          "startSeconds": 2.938,
+          "endSeconds": 5.85,
+          "text": "asks White Cell for a ruling, clarification, or"
+        },
+        {
+          "startSeconds": 5.85,
+          "endSeconds": 7.375,
+          "text": "scenario detail."
+        },
+        {
+          "startSeconds": 7.375,
+          "endSeconds": 9.8,
+          "text": "When you revise it, keep the same record."
+        }
+      ]
+    },
+    "training.v1.facilitator.red.respond": {
+      "scriptSha256": "32f775ebb5d5cecbae18be1641905b103c653cc03adf21c861d0f20b13bb8315",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red-respond.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "4f05edd0649991de3a4bc0a7dbb8e2a94722b2203357a8d62cf79ad925457bf6",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 1.887,
+          "text": "Keep the channels straight."
+        },
+        {
+          "startSeconds": 1.887,
+          "endSeconds": 4.838,
+          "text": "Answers stay with the R F I, direct messages"
+        },
+        {
+          "startSeconds": 4.838,
+          "endSeconds": 7.625,
+          "text": "live in Communications, and alerts point you to the"
+        },
+        {
+          "startSeconds": 7.625,
+          "endSeconds": 8.7,
+          "text": "right record."
+        }
+      ]
+    },
+    "training.v1.facilitator.red.retrieve": {
+      "scriptSha256": "637583d3e100f92ec1eb788f88ca3f826bfde5354fc57b5d84990e40237fb0cb",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red-retrieve.en.vtt",
+      "durationSeconds": 7.0,
+      "byteLength": 56493,
+      "outputSha256": "7767afdfacb03422a521ee8b91cd44fb82a8153259db14d382a1015c753144b9",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.862,
+          "text": "Before you finish, recall the role boundary:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.562,
+          "text": "who reviews, communicates, projects, and makes the"
+        },
+        {
+          "startSeconds": 5.562,
+          "endSeconds": 6.9,
+          "text": "final submission?"
+        }
+      ]
+    },
+    "training.v1.facilitator.red.reflect": {
+      "scriptSha256": "008498182dfc8e03b7a6d4d4d804b16383bef09a1ccac597bdfec56fd28dfdf9",
+      "outputPath": "training/audio/clips/training-v1-facilitator-red-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-red-reflect.en.vtt",
+      "durationSeconds": 8.15,
+      "byteLength": 65709,
+      "outputSha256": "f25e99ca24c9acc850e7eadeec4c7f54e965b82f8c30157641efce30488b09af",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 4.075,
+          "text": "Use lifecycle and timeline evidence to verify submission."
+        },
+        {
+          "startSeconds": 4.075,
+          "endSeconds": 7.112,
+          "text": "Projection \u2014 or one button press \u2014 does not prove"
+        },
+        {
+          "startSeconds": 7.112,
+          "endSeconds": 8.05,
+          "text": "it landed."
+        }
+      ]
+    },
+    "training.v1.facilitator.green": {
+      "scriptSha256": "7f48e0f991d02758d77d2dd700002f5165d3f80e7c75f3e954ff635d5582c618",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green.en.vtt",
+      "durationSeconds": 6.5,
+      "byteLength": 52461,
+      "outputSha256": "c9b8408271b11187f0e63c63a873f2059d71abbb698aec54b6e3eda4978a211b",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 3.2,
+          "text": "As Facilitator, you'll check the team record, coordinate"
+        },
+        {
+          "startSeconds": 3.2,
+          "endSeconds": 5.688,
+          "text": "support, and own the final handoff \u2014 to White"
+        },
+        {
+          "startSeconds": 5.688,
+          "endSeconds": 6.4,
+          "text": "Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.green.orient": {
+      "scriptSha256": "c46dfe437df7cb5ce60cc75a69c5130e88f4712e49584c38952c8928d55447ad",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green-orient.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "a054f9636ca2f18aefa78ea4395e035032420f3ac1ad4d0930903c75b42e6a04",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.625,
+          "text": "Review the team record, use the support workspaces,"
+        },
+        {
+          "startSeconds": 3.625,
+          "endSeconds": 6.875,
+          "text": "and submit only when the artifact is genuinely ready."
+        }
+      ]
+    },
+    "training.v1.facilitator.green.show": {
+      "scriptSha256": "0791d1cadc5082e2857db7009b75216aeb979377854b2d5d85db2101c0a20234",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green-show.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "4452643382c7a917c6f87b6d4217b34ec892a29b8739ceddc242dae4485c12dd",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.862,
+          "text": "Each workspace answers one question:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.237,
+          "text": "what changed, what should we project, what should"
+        },
+        {
+          "startSeconds": 5.237,
+          "endSeconds": 7.312,
+          "text": "we ask, what should we message, and what"
+        },
+        {
+          "startSeconds": 7.312,
+          "endSeconds": 8.7,
+          "text": "needs attention now?"
+        }
+      ]
+    },
+    "training.v1.facilitator.green.guide": {
+      "scriptSha256": "53a9b3666223fd02c1722802da261028aefe71280bd575f142b951dbcba962bc",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green-guide.en.vtt",
+      "durationSeconds": 5.55,
+      "byteLength": 44973,
+      "outputSha256": "2fd54011fbc406d693d1a2c0fd998186c94cc4d5efb67918472006f8c0bc49ee",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.312,
+          "text": "A forwarded artifact is ready for your review \u2014 not"
+        },
+        {
+          "startSeconds": 3.312,
+          "endSeconds": 5.45,
+          "text": "automatically ready for White Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.green.practice": {
+      "scriptSha256": "a7f210c037f8f3418f747b59ae88a9e8019a66273a05aff52ce691a7d64b3c81",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green-practice.en.vtt",
+      "durationSeconds": 9.9,
+      "byteLength": 79725,
+      "outputSha256": "5c277578d6a661c79d31c3ce15a602f38b3f41cae5206ba5924723e450ec9029",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.938,
+          "text": "An R F I \u2014 a Request for Information \u2014"
+        },
+        {
+          "startSeconds": 2.938,
+          "endSeconds": 5.85,
+          "text": "asks White Cell for a ruling, clarification, or"
+        },
+        {
+          "startSeconds": 5.85,
+          "endSeconds": 7.375,
+          "text": "scenario detail."
+        },
+        {
+          "startSeconds": 7.375,
+          "endSeconds": 9.8,
+          "text": "When you revise it, keep the same record."
+        }
+      ]
+    },
+    "training.v1.facilitator.green.respond": {
+      "scriptSha256": "32f775ebb5d5cecbae18be1641905b103c653cc03adf21c861d0f20b13bb8315",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green-respond.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "c5c9582e435e5219c14240ffe4f5ee83cbc10654e5294ef250e5c23c3e99db3c",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 1.887,
+          "text": "Keep the channels straight."
+        },
+        {
+          "startSeconds": 1.887,
+          "endSeconds": 4.838,
+          "text": "Answers stay with the R F I, direct messages"
+        },
+        {
+          "startSeconds": 4.838,
+          "endSeconds": 7.625,
+          "text": "live in Communications, and alerts point you to the"
+        },
+        {
+          "startSeconds": 7.625,
+          "endSeconds": 8.7,
+          "text": "right record."
+        }
+      ]
+    },
+    "training.v1.facilitator.green.retrieve": {
+      "scriptSha256": "637583d3e100f92ec1eb788f88ca3f826bfde5354fc57b5d84990e40237fb0cb",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green-retrieve.en.vtt",
+      "durationSeconds": 7.0,
+      "byteLength": 56493,
+      "outputSha256": "9f32eceb2c31e6b78524a2345e48e6e5970a8b1ed570189da53ca0af4edcb6aa",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.862,
+          "text": "Before you finish, recall the role boundary:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.562,
+          "text": "who reviews, communicates, projects, and makes the"
+        },
+        {
+          "startSeconds": 5.562,
+          "endSeconds": 6.9,
+          "text": "final submission?"
+        }
+      ]
+    },
+    "training.v1.facilitator.green.reflect": {
+      "scriptSha256": "008498182dfc8e03b7a6d4d4d804b16383bef09a1ccac597bdfec56fd28dfdf9",
+      "outputPath": "training/audio/clips/training-v1-facilitator-green-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-green-reflect.en.vtt",
+      "durationSeconds": 8.15,
+      "byteLength": 65709,
+      "outputSha256": "cd40bb183750dc40ad41f3a2e74b30744ba343ce0b3f2581138bae4eec7d8318",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 4.075,
+          "text": "Use lifecycle and timeline evidence to verify submission."
+        },
+        {
+          "startSeconds": 4.075,
+          "endSeconds": 7.112,
+          "text": "Projection \u2014 or one button press \u2014 does not prove"
+        },
+        {
+          "startSeconds": 7.112,
+          "endSeconds": 8.05,
+          "text": "it landed."
+        }
+      ]
+    },
+    "training.v1.facilitator.industry": {
+      "scriptSha256": "7f48e0f991d02758d77d2dd700002f5165d3f80e7c75f3e954ff635d5582c618",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry.en.vtt",
+      "durationSeconds": 6.5,
+      "byteLength": 52461,
+      "outputSha256": "cc78e23daaba1808a47fd7a877c8a5cd89410b4edf77a5a7e446111c682e60bd",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 3.2,
+          "text": "As Facilitator, you'll check the team record, coordinate"
+        },
+        {
+          "startSeconds": 3.2,
+          "endSeconds": 5.688,
+          "text": "support, and own the final handoff \u2014 to White"
+        },
+        {
+          "startSeconds": 5.688,
+          "endSeconds": 6.4,
+          "text": "Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.industry.orient": {
+      "scriptSha256": "c46dfe437df7cb5ce60cc75a69c5130e88f4712e49584c38952c8928d55447ad",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry-orient.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "5213d4919d917c717128117467c7375e9a5bbfa1f0ce3e33fefc0e63e2183aa1",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.625,
+          "text": "Review the team record, use the support workspaces,"
+        },
+        {
+          "startSeconds": 3.625,
+          "endSeconds": 6.875,
+          "text": "and submit only when the artifact is genuinely ready."
+        }
+      ]
+    },
+    "training.v1.facilitator.industry.show": {
+      "scriptSha256": "0791d1cadc5082e2857db7009b75216aeb979377854b2d5d85db2101c0a20234",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry-show.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "86d51b937754782e718c9d25e75a819311d1af82bcffeb84c9ead1784dddda45",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.862,
+          "text": "Each workspace answers one question:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.237,
+          "text": "what changed, what should we project, what should"
+        },
+        {
+          "startSeconds": 5.237,
+          "endSeconds": 7.312,
+          "text": "we ask, what should we message, and what"
+        },
+        {
+          "startSeconds": 7.312,
+          "endSeconds": 8.7,
+          "text": "needs attention now?"
+        }
+      ]
+    },
+    "training.v1.facilitator.industry.guide": {
+      "scriptSha256": "53a9b3666223fd02c1722802da261028aefe71280bd575f142b951dbcba962bc",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry-guide.en.vtt",
+      "durationSeconds": 5.55,
+      "byteLength": 44973,
+      "outputSha256": "e81a5dbc0c84839c8e3f200fa596c9b9d4ffb5518bedb312e368aad15390a9df",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.312,
+          "text": "A forwarded artifact is ready for your review \u2014 not"
+        },
+        {
+          "startSeconds": 3.312,
+          "endSeconds": 5.45,
+          "text": "automatically ready for White Cell."
+        }
+      ]
+    },
+    "training.v1.facilitator.industry.practice": {
+      "scriptSha256": "a7f210c037f8f3418f747b59ae88a9e8019a66273a05aff52ce691a7d64b3c81",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry-practice.en.vtt",
+      "durationSeconds": 9.9,
+      "byteLength": 79725,
+      "outputSha256": "37dc9462513b7e0deecdbb40ccae9a9f2c297dcd41285985e030589ce4abf666",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.938,
+          "text": "An R F I \u2014 a Request for Information \u2014"
+        },
+        {
+          "startSeconds": 2.938,
+          "endSeconds": 5.85,
+          "text": "asks White Cell for a ruling, clarification, or"
+        },
+        {
+          "startSeconds": 5.85,
+          "endSeconds": 7.375,
+          "text": "scenario detail."
+        },
+        {
+          "startSeconds": 7.375,
+          "endSeconds": 9.8,
+          "text": "When you revise it, keep the same record."
+        }
+      ]
+    },
+    "training.v1.facilitator.industry.respond": {
+      "scriptSha256": "32f775ebb5d5cecbae18be1641905b103c653cc03adf21c861d0f20b13bb8315",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry-respond.en.vtt",
+      "durationSeconds": 8.8,
+      "byteLength": 70893,
+      "outputSha256": "21e563ce094e78eb6c6526e6c81da2591cf73706ee27529bfb135e8f5ce1214b",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 1.887,
+          "text": "Keep the channels straight."
+        },
+        {
+          "startSeconds": 1.887,
+          "endSeconds": 4.838,
+          "text": "Answers stay with the R F I, direct messages"
+        },
+        {
+          "startSeconds": 4.838,
+          "endSeconds": 7.625,
+          "text": "live in Communications, and alerts point you to the"
+        },
+        {
+          "startSeconds": 7.625,
+          "endSeconds": 8.7,
+          "text": "right record."
+        }
+      ]
+    },
+    "training.v1.facilitator.industry.retrieve": {
+      "scriptSha256": "637583d3e100f92ec1eb788f88ca3f826bfde5354fc57b5d84990e40237fb0cb",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry-retrieve.en.vtt",
+      "durationSeconds": 7.0,
+      "byteLength": 56493,
+      "outputSha256": "4602b15dccbfaa9bee4fc7f49417b5a4f08bd6f19c19364fecb97bbafe07f6d7",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.862,
+          "text": "Before you finish, recall the role boundary:"
+        },
+        {
+          "startSeconds": 2.862,
+          "endSeconds": 5.562,
+          "text": "who reviews, communicates, projects, and makes the"
+        },
+        {
+          "startSeconds": 5.562,
+          "endSeconds": 6.9,
+          "text": "final submission?"
+        }
+      ]
+    },
+    "training.v1.facilitator.industry.reflect": {
+      "scriptSha256": "008498182dfc8e03b7a6d4d4d804b16383bef09a1ccac597bdfec56fd28dfdf9",
+      "outputPath": "training/audio/clips/training-v1-facilitator-industry-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-facilitator-industry-reflect.en.vtt",
+      "durationSeconds": 8.15,
+      "byteLength": 65709,
+      "outputSha256": "d838a39d1bbea95aa68a5ca9dbc720d2d8385b952f70aa2b57f901a8ea726393",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 4.075,
+          "text": "Use lifecycle and timeline evidence to verify submission."
+        },
+        {
+          "startSeconds": 4.075,
+          "endSeconds": 7.112,
+          "text": "Projection \u2014 or one button press \u2014 does not prove"
+        },
+        {
+          "startSeconds": 7.112,
+          "endSeconds": 8.05,
+          "text": "it landed."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue": {
+      "scriptSha256": "2c39e0de6339f05bd3bbb9847b520c4a518f3a5d51706d33db76ea0558d2afc4",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue.en.vtt",
+      "durationSeconds": 7.025,
+      "byteLength": 56685,
+      "outputSha256": "58643f3abfe26f85a6f4d143a43c781dd1683e458abdac8266870407b2538665",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.925,
+          "text": "As Notetaker, you'll capture how the team reached a"
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 6.775,
+          "text": "decision \u2014 while keeping your notes separate from official artifacts"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 6.925,
+          "text": "."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue.orient": {
+      "scriptSha256": "5e9f1c3d60012dd2971a98742171d48721b3f0d641745d7a6b6e501590248f06",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue-orient.en.vtt",
+      "durationSeconds": 6.725,
+      "byteLength": 54381,
+      "outputSha256": "09b50072fb180a641038a1e750c49a9d266f59979e72f1cc18321e3baf5509a7",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.925,
+          "text": "Your notes preserve the why behind a decision."
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 5.375,
+          "text": "They do not author, approve, or submit the"
+        },
+        {
+          "startSeconds": 5.375,
+          "endSeconds": 6.625,
+          "text": "team's action."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue.show": {
+      "scriptSha256": "19a9bf1ce6a502e6b0bebfb25e6ae7f1d9ca699ab164d601d1806e0b37e3e5a8",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue-show.en.vtt",
+      "durationSeconds": 6.675,
+      "byteLength": 53997,
+      "outputSha256": "f8a0d312b2f1c6054761e035692cb7908af52148a9ccc5ec8d39dbee184c2c93",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.812,
+          "text": "Context makes a note useful later."
+        },
+        {
+          "startSeconds": 2.812,
+          "endSeconds": 5.55,
+          "text": "Capture when the reasoning happened \u2014 and which decision it"
+        },
+        {
+          "startSeconds": 5.55,
+          "endSeconds": 6.575,
+          "text": "informed."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue.guide": {
+      "scriptSha256": "70be2cc1eed573ecd3885d98542594d9355dc0a060837720e0ca16296fa5665e",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue-guide.en.vtt",
+      "durationSeconds": 8.85,
+      "byteLength": 71277,
+      "outputSha256": "a16ab21c0a6c58e0d6a1dec1a267ca5c0ae438ff1bf034b8783a59b54ff62582",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.375,
+          "text": "Use the right kind of evidence:"
+        },
+        {
+          "startSeconds": 2.375,
+          "endSeconds": 5.7,
+          "text": "an observation explains reasoning, a key moment marks a"
+        },
+        {
+          "startSeconds": 5.7,
+          "endSeconds": 8.75,
+          "text": "turn, and a quote preserves exact words."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue.practice": {
+      "scriptSha256": "ac5baf84accfa7fcb600edc2c2f90049e4052a00692e3019160acf3cebf1675c",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue-practice.en.vtt",
+      "durationSeconds": 9.125,
+      "byteLength": 73581,
+      "outputSha256": "31388ec52635327de82cabb1d2773b0e354da71f5264d13ed9782b9ad62b0419",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.038,
+          "text": "Your move notes belong to your Notetaker seat."
+        },
+        {
+          "startSeconds": 3.038,
+          "endSeconds": 6.775,
+          "text": "A manual save can publish a structured timeline snapshot \u2014"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 9.025,
+          "text": "without replacing another seat's work."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue.respond": {
+      "scriptSha256": "cada837165371425ec4511a2b0b9b875e8ef2427cccaff08c846244628ec4b41",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue-respond.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "6488d35a2df4c98a7c6dc7f175c4e725e908ef02fc96cbb4d2d3f36124bc97f8",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.638,
+          "text": "This inject changes the scenario."
+        },
+        {
+          "startSeconds": 2.638,
+          "endSeconds": 5.2,
+          "text": "Capture how the team interprets it \u2014 but do not"
+        },
+        {
+          "startSeconds": 5.2,
+          "endSeconds": 6.875,
+          "text": "edit the official action."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue.retrieve": {
+      "scriptSha256": "1a7f12fd6a9312cc694dce0cda1afef067a28aa286534c83ea1bc0f03b9d7472",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue-retrieve.en.vtt",
+      "durationSeconds": 7.05,
+      "byteLength": 56877,
+      "outputSha256": "0e3d5dac51c2e3bcc0d17fd482f2e0dc4a51ab4007b16fb797ced4c25007e6d5",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.487,
+          "text": "Choose the Notetaker record for the explanation."
+        },
+        {
+          "startSeconds": 3.487,
+          "endSeconds": 6.95,
+          "text": "Then confirm that the official timeline stays read-only."
+        }
+      ]
+    },
+    "training.v1.notetaker.blue.reflect": {
+      "scriptSha256": "b5ba0bb176ce7654e66a2e5525838afd94b5eb5bb45a9498e46a9eaba1650190",
+      "outputPath": "training/audio/clips/training-v1-notetaker-blue-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-blue-reflect.en.vtt",
+      "durationSeconds": 7.075,
+      "byteLength": 57069,
+      "outputSha256": "c416de40b0bb5d10e9f65f566bb30fc70817bde606b043d550a0dfe67b44146a",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.2,
+          "text": "Finish with the ownership map:"
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 4.575,
+          "text": "what stays with your seat, what is shared,"
+        },
+        {
+          "startSeconds": 4.575,
+          "endSeconds": 6.975,
+          "text": "and which official surfaces stay read-only."
+        }
+      ]
+    },
+    "training.v1.notetaker.red": {
+      "scriptSha256": "2c39e0de6339f05bd3bbb9847b520c4a518f3a5d51706d33db76ea0558d2afc4",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red.en.vtt",
+      "durationSeconds": 7.025,
+      "byteLength": 56685,
+      "outputSha256": "0a22f7807bea1ce09af63631f99547fa8d2f120ed965d3769b77ad4e719c76c1",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.925,
+          "text": "As Notetaker, you'll capture how the team reached a"
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 6.775,
+          "text": "decision \u2014 while keeping your notes separate from official artifacts"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 6.925,
+          "text": "."
+        }
+      ]
+    },
+    "training.v1.notetaker.red.orient": {
+      "scriptSha256": "5e9f1c3d60012dd2971a98742171d48721b3f0d641745d7a6b6e501590248f06",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red-orient.en.vtt",
+      "durationSeconds": 6.725,
+      "byteLength": 54381,
+      "outputSha256": "c49258eced8587f01a60360f86691169dd8dfc77fbf9e8f835ce034259e8c330",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.925,
+          "text": "Your notes preserve the why behind a decision."
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 5.375,
+          "text": "They do not author, approve, or submit the"
+        },
+        {
+          "startSeconds": 5.375,
+          "endSeconds": 6.625,
+          "text": "team's action."
+        }
+      ]
+    },
+    "training.v1.notetaker.red.show": {
+      "scriptSha256": "19a9bf1ce6a502e6b0bebfb25e6ae7f1d9ca699ab164d601d1806e0b37e3e5a8",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red-show.en.vtt",
+      "durationSeconds": 6.675,
+      "byteLength": 53997,
+      "outputSha256": "bd23c803f25a507c89f8020bd18f219fd42718452d6a10b89e9234a43d302642",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.812,
+          "text": "Context makes a note useful later."
+        },
+        {
+          "startSeconds": 2.812,
+          "endSeconds": 5.55,
+          "text": "Capture when the reasoning happened \u2014 and which decision it"
+        },
+        {
+          "startSeconds": 5.55,
+          "endSeconds": 6.575,
+          "text": "informed."
+        }
+      ]
+    },
+    "training.v1.notetaker.red.guide": {
+      "scriptSha256": "70be2cc1eed573ecd3885d98542594d9355dc0a060837720e0ca16296fa5665e",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red-guide.en.vtt",
+      "durationSeconds": 8.85,
+      "byteLength": 71277,
+      "outputSha256": "2148d82ee677e7132bef7272878a9257f1d1f0f58b78441237db9b075eef84a8",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.375,
+          "text": "Use the right kind of evidence:"
+        },
+        {
+          "startSeconds": 2.375,
+          "endSeconds": 5.7,
+          "text": "an observation explains reasoning, a key moment marks a"
+        },
+        {
+          "startSeconds": 5.7,
+          "endSeconds": 8.75,
+          "text": "turn, and a quote preserves exact words."
+        }
+      ]
+    },
+    "training.v1.notetaker.red.practice": {
+      "scriptSha256": "ac5baf84accfa7fcb600edc2c2f90049e4052a00692e3019160acf3cebf1675c",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red-practice.en.vtt",
+      "durationSeconds": 9.125,
+      "byteLength": 73581,
+      "outputSha256": "c0235ed4bd85f0eb914569689a0db5fb2da8c807153d4db461fa7526778fde34",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.038,
+          "text": "Your move notes belong to your Notetaker seat."
+        },
+        {
+          "startSeconds": 3.038,
+          "endSeconds": 6.775,
+          "text": "A manual save can publish a structured timeline snapshot \u2014"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 9.025,
+          "text": "without replacing another seat's work."
+        }
+      ]
+    },
+    "training.v1.notetaker.red.respond": {
+      "scriptSha256": "cada837165371425ec4511a2b0b9b875e8ef2427cccaff08c846244628ec4b41",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red-respond.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "f3f437bb9afa5fe64072549baa4ae39ba80ce9e8ace77681744dbf662bef359b",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.638,
+          "text": "This inject changes the scenario."
+        },
+        {
+          "startSeconds": 2.638,
+          "endSeconds": 5.2,
+          "text": "Capture how the team interprets it \u2014 but do not"
+        },
+        {
+          "startSeconds": 5.2,
+          "endSeconds": 6.875,
+          "text": "edit the official action."
+        }
+      ]
+    },
+    "training.v1.notetaker.red.retrieve": {
+      "scriptSha256": "1a7f12fd6a9312cc694dce0cda1afef067a28aa286534c83ea1bc0f03b9d7472",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red-retrieve.en.vtt",
+      "durationSeconds": 7.05,
+      "byteLength": 56877,
+      "outputSha256": "a10491da6eb4bc348096e3ea1f3e1e901515279eb295a1480b7fdb5759c8e7cf",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.487,
+          "text": "Choose the Notetaker record for the explanation."
+        },
+        {
+          "startSeconds": 3.487,
+          "endSeconds": 6.95,
+          "text": "Then confirm that the official timeline stays read-only."
+        }
+      ]
+    },
+    "training.v1.notetaker.red.reflect": {
+      "scriptSha256": "b5ba0bb176ce7654e66a2e5525838afd94b5eb5bb45a9498e46a9eaba1650190",
+      "outputPath": "training/audio/clips/training-v1-notetaker-red-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-red-reflect.en.vtt",
+      "durationSeconds": 7.075,
+      "byteLength": 57069,
+      "outputSha256": "68084d020fef6803286ce71df213e0d767630f8ed83f2804540711e43e653760",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.2,
+          "text": "Finish with the ownership map:"
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 4.575,
+          "text": "what stays with your seat, what is shared,"
+        },
+        {
+          "startSeconds": 4.575,
+          "endSeconds": 6.975,
+          "text": "and which official surfaces stay read-only."
+        }
+      ]
+    },
+    "training.v1.notetaker.green": {
+      "scriptSha256": "2c39e0de6339f05bd3bbb9847b520c4a518f3a5d51706d33db76ea0558d2afc4",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green.en.vtt",
+      "durationSeconds": 7.025,
+      "byteLength": 56685,
+      "outputSha256": "3b8c534dc1bb67331b1165225fe21e9ec46c115b988d07491c7fe733e6b8e402",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.925,
+          "text": "As Notetaker, you'll capture how the team reached a"
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 6.775,
+          "text": "decision \u2014 while keeping your notes separate from official artifacts"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 6.925,
+          "text": "."
+        }
+      ]
+    },
+    "training.v1.notetaker.green.orient": {
+      "scriptSha256": "5e9f1c3d60012dd2971a98742171d48721b3f0d641745d7a6b6e501590248f06",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green-orient.en.vtt",
+      "durationSeconds": 6.725,
+      "byteLength": 54381,
+      "outputSha256": "6a74d6d9185704c7c6234b92946e06562fc1d256575cf79dbc6b18d667900b74",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.925,
+          "text": "Your notes preserve the why behind a decision."
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 5.375,
+          "text": "They do not author, approve, or submit the"
+        },
+        {
+          "startSeconds": 5.375,
+          "endSeconds": 6.625,
+          "text": "team's action."
+        }
+      ]
+    },
+    "training.v1.notetaker.green.show": {
+      "scriptSha256": "19a9bf1ce6a502e6b0bebfb25e6ae7f1d9ca699ab164d601d1806e0b37e3e5a8",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green-show.en.vtt",
+      "durationSeconds": 6.675,
+      "byteLength": 53997,
+      "outputSha256": "32298c6a4b52a8c0c90fd11b2c1eb0516815d241e33febfe61e9d161631e05b4",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.812,
+          "text": "Context makes a note useful later."
+        },
+        {
+          "startSeconds": 2.812,
+          "endSeconds": 5.55,
+          "text": "Capture when the reasoning happened \u2014 and which decision it"
+        },
+        {
+          "startSeconds": 5.55,
+          "endSeconds": 6.575,
+          "text": "informed."
+        }
+      ]
+    },
+    "training.v1.notetaker.green.guide": {
+      "scriptSha256": "70be2cc1eed573ecd3885d98542594d9355dc0a060837720e0ca16296fa5665e",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green-guide.en.vtt",
+      "durationSeconds": 8.85,
+      "byteLength": 71277,
+      "outputSha256": "a735d2ad6b13dc9e668f4b991ba20c24ac0766444fbebcdc17f2b39621402479",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.375,
+          "text": "Use the right kind of evidence:"
+        },
+        {
+          "startSeconds": 2.375,
+          "endSeconds": 5.7,
+          "text": "an observation explains reasoning, a key moment marks a"
+        },
+        {
+          "startSeconds": 5.7,
+          "endSeconds": 8.75,
+          "text": "turn, and a quote preserves exact words."
+        }
+      ]
+    },
+    "training.v1.notetaker.green.practice": {
+      "scriptSha256": "ac5baf84accfa7fcb600edc2c2f90049e4052a00692e3019160acf3cebf1675c",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green-practice.en.vtt",
+      "durationSeconds": 9.125,
+      "byteLength": 73581,
+      "outputSha256": "58a87cb678a8193f456c7671fe5fdd47a36b552a763562737353f2ddb1a4d9eb",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.038,
+          "text": "Your move notes belong to your Notetaker seat."
+        },
+        {
+          "startSeconds": 3.038,
+          "endSeconds": 6.775,
+          "text": "A manual save can publish a structured timeline snapshot \u2014"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 9.025,
+          "text": "without replacing another seat's work."
+        }
+      ]
+    },
+    "training.v1.notetaker.green.respond": {
+      "scriptSha256": "cada837165371425ec4511a2b0b9b875e8ef2427cccaff08c846244628ec4b41",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green-respond.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "c3f4ca51b022e6d0d4415f2327d9ebcb0a36573b45eca0230d1ca96590a7f84a",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.638,
+          "text": "This inject changes the scenario."
+        },
+        {
+          "startSeconds": 2.638,
+          "endSeconds": 5.2,
+          "text": "Capture how the team interprets it \u2014 but do not"
+        },
+        {
+          "startSeconds": 5.2,
+          "endSeconds": 6.875,
+          "text": "edit the official action."
+        }
+      ]
+    },
+    "training.v1.notetaker.green.retrieve": {
+      "scriptSha256": "1a7f12fd6a9312cc694dce0cda1afef067a28aa286534c83ea1bc0f03b9d7472",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green-retrieve.en.vtt",
+      "durationSeconds": 7.05,
+      "byteLength": 56877,
+      "outputSha256": "d2435b969b0ef0ab787289b719e57ee59562cd222c1f8159549a413d19da5c73",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.487,
+          "text": "Choose the Notetaker record for the explanation."
+        },
+        {
+          "startSeconds": 3.487,
+          "endSeconds": 6.95,
+          "text": "Then confirm that the official timeline stays read-only."
+        }
+      ]
+    },
+    "training.v1.notetaker.green.reflect": {
+      "scriptSha256": "b5ba0bb176ce7654e66a2e5525838afd94b5eb5bb45a9498e46a9eaba1650190",
+      "outputPath": "training/audio/clips/training-v1-notetaker-green-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-green-reflect.en.vtt",
+      "durationSeconds": 7.075,
+      "byteLength": 57069,
+      "outputSha256": "27f85dd0962e5e9fceaa5d7038162b3da879f81cd576c082e1822b808e8a27b3",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.2,
+          "text": "Finish with the ownership map:"
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 4.575,
+          "text": "what stays with your seat, what is shared,"
+        },
+        {
+          "startSeconds": 4.575,
+          "endSeconds": 6.975,
+          "text": "and which official surfaces stay read-only."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry": {
+      "scriptSha256": "2c39e0de6339f05bd3bbb9847b520c4a518f3a5d51706d33db76ea0558d2afc4",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry.en.vtt",
+      "durationSeconds": 7.025,
+      "byteLength": 56685,
+      "outputSha256": "fccc1b085d8b1ca7cfd43d122f9affcebeb134bec41bec147724a0a9ecd90b4a",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.25,
+          "endSeconds": 2.925,
+          "text": "As Notetaker, you'll capture how the team reached a"
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 6.775,
+          "text": "decision \u2014 while keeping your notes separate from official artifacts"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 6.925,
+          "text": "."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry.orient": {
+      "scriptSha256": "5e9f1c3d60012dd2971a98742171d48721b3f0d641745d7a6b6e501590248f06",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry-orient.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry-orient.en.vtt",
+      "durationSeconds": 6.725,
+      "byteLength": 54381,
+      "outputSha256": "9ef34642127b115d8822f080d15be2fa1de388258e3baac53d6632a1ff7e7590",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.925,
+          "text": "Your notes preserve the why behind a decision."
+        },
+        {
+          "startSeconds": 2.925,
+          "endSeconds": 5.375,
+          "text": "They do not author, approve, or submit the"
+        },
+        {
+          "startSeconds": 5.375,
+          "endSeconds": 6.625,
+          "text": "team's action."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry.show": {
+      "scriptSha256": "19a9bf1ce6a502e6b0bebfb25e6ae7f1d9ca699ab164d601d1806e0b37e3e5a8",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry-show.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry-show.en.vtt",
+      "durationSeconds": 6.675,
+      "byteLength": 53997,
+      "outputSha256": "472fad296a69c3fbe38d938129ced3639e481529156fe24bc72b2ca235015475",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.812,
+          "text": "Context makes a note useful later."
+        },
+        {
+          "startSeconds": 2.812,
+          "endSeconds": 5.55,
+          "text": "Capture when the reasoning happened \u2014 and which decision it"
+        },
+        {
+          "startSeconds": 5.55,
+          "endSeconds": 6.575,
+          "text": "informed."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry.guide": {
+      "scriptSha256": "70be2cc1eed573ecd3885d98542594d9355dc0a060837720e0ca16296fa5665e",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry-guide.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry-guide.en.vtt",
+      "durationSeconds": 8.85,
+      "byteLength": 71277,
+      "outputSha256": "dbbe4ae4d6b7c7b2abcef3a6709962780837abf7bc6420eada017c00171cef9c",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.375,
+          "text": "Use the right kind of evidence:"
+        },
+        {
+          "startSeconds": 2.375,
+          "endSeconds": 5.7,
+          "text": "an observation explains reasoning, a key moment marks a"
+        },
+        {
+          "startSeconds": 5.7,
+          "endSeconds": 8.75,
+          "text": "turn, and a quote preserves exact words."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry.practice": {
+      "scriptSha256": "ac5baf84accfa7fcb600edc2c2f90049e4052a00692e3019160acf3cebf1675c",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry-practice.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry-practice.en.vtt",
+      "durationSeconds": 9.125,
+      "byteLength": 73581,
+      "outputSha256": "1050239796c8c02b709ce1aafc88cce62fdb88907677698909014ae17b088261",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 3.038,
+          "text": "Your move notes belong to your Notetaker seat."
+        },
+        {
+          "startSeconds": 3.038,
+          "endSeconds": 6.775,
+          "text": "A manual save can publish a structured timeline snapshot \u2014"
+        },
+        {
+          "startSeconds": 6.775,
+          "endSeconds": 9.025,
+          "text": "without replacing another seat's work."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry.respond": {
+      "scriptSha256": "cada837165371425ec4511a2b0b9b875e8ef2427cccaff08c846244628ec4b41",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry-respond.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry-respond.en.vtt",
+      "durationSeconds": 6.975,
+      "byteLength": 56301,
+      "outputSha256": "4dc0738631ce9825edc9f9c2d5055a57732b69e0629a9184b19f0d573a7ddc28",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.275,
+          "endSeconds": 2.638,
+          "text": "This inject changes the scenario."
+        },
+        {
+          "startSeconds": 2.638,
+          "endSeconds": 5.2,
+          "text": "Capture how the team interprets it \u2014 but do not"
+        },
+        {
+          "startSeconds": 5.2,
+          "endSeconds": 6.875,
+          "text": "edit the official action."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry.retrieve": {
+      "scriptSha256": "1a7f12fd6a9312cc694dce0cda1afef067a28aa286534c83ea1bc0f03b9d7472",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry-retrieve.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry-retrieve.en.vtt",
+      "durationSeconds": 7.05,
+      "byteLength": 56877,
+      "outputSha256": "f146b69f8230964b16dfd40ed1b8c286c1c4fdccb1b52c44b8f43f83cf430263",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 3.487,
+          "text": "Choose the Notetaker record for the explanation."
+        },
+        {
+          "startSeconds": 3.487,
+          "endSeconds": 6.95,
+          "text": "Then confirm that the official timeline stays read-only."
+        }
+      ]
+    },
+    "training.v1.notetaker.industry.reflect": {
+      "scriptSha256": "b5ba0bb176ce7654e66a2e5525838afd94b5eb5bb45a9498e46a9eaba1650190",
+      "outputPath": "training/audio/clips/training-v1-notetaker-industry-reflect.mp3",
+      "captionsPath": "training/audio/captions/training-v1-notetaker-industry-reflect.en.vtt",
+      "durationSeconds": 7.075,
+      "byteLength": 57069,
+      "outputSha256": "06031f12d3540dadbc8a16148a140a5c86a8c85cc7c76712771566e1d5b21097",
+      "approvalStatus": "approved",
+      "cues": [
+        {
+          "startSeconds": 0.3,
+          "endSeconds": 2.2,
+          "text": "Finish with the ownership map:"
+        },
+        {
+          "startSeconds": 2.2,
+          "endSeconds": 4.575,
+          "text": "what stays with your seat, what is shared,"
+        },
+        {
+          "startSeconds": 4.575,
+          "endSeconds": 6.975,
+          "text": "and which official surfaces stay read-only."
+        }
+      ]
+    }
+  }
+}

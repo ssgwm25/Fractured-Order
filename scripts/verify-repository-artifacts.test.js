@@ -23,6 +23,8 @@ describe('repository artifact verifier', () => {
             'build-output',
             'browser-storage',
             'recording',
+            'training-media-work-output',
+            'model-weight',
             'generated-report-output',
             'unapproved-report-binary'
         ]);
@@ -37,6 +39,8 @@ describe('repository artifact verifier', () => {
             'packages/site/dist/assets/index.js',
             'tests/e2e/.auth/storage.json',
             'evidence/recordings/session.webm',
+            'scripts/training-audio/work/raw/intro.wav',
+            'scripts/training-audio/models/kokoro-v1_0.pth',
             'tools/output/release-evidence/run-42/manifest.json',
             'docs/generated-assessment.pdf'
         ];
@@ -51,6 +55,8 @@ describe('repository artifact verifier', () => {
             'build-output',
             'browser-storage',
             'recording',
+            'training-media-work-output',
+            'model-weight',
             'generated-report-output',
             'unapproved-report-binary'
         ]));
@@ -67,7 +73,12 @@ describe('repository artifact verifier', () => {
     });
 
     it('allows authored application audio outside recording conventions', () => {
-        expect(findProhibitedArtifacts(['src/audio/notification.mp3'])).toEqual([]);
+        expect(findProhibitedArtifacts([
+            'src/audio/notification.mp3',
+            'public/training/audio/clips/training-intro.mp3',
+            'public/training/audio/captions/training-intro.en.vtt',
+            'public/training/intro/plenum-onboarding.mp4'
+        ])).toEqual([]);
     });
 
     it('applies deny rules to Windows paths', () => {
