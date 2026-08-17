@@ -110,11 +110,11 @@ export const SHIPPED_NON_PLI_OPERATIONAL_FEATURES = Object.freeze({
         ]
     },
     'operator.participant_session_admin': {
-        label: 'Participant roster filters, bulk removal, session creation/archive, join closure, and retained audit evidence',
+        label: 'Participant roster filters, bulk removal, session creation/archive/deletion, join closure, and retained audit evidence',
         evidence: [
             evidence('unit', 'src/roles/gamemaster.live.test.js', 'removes multiple selected participants and clears the local roster immediately'),
             evidence('unit', 'src/roles/whitecell.test.js', 'filters White Cell participants by session, team, and role plus timeline event filters'),
-            evidence('e2e', 'tests/e2e/live-demo-operator-controls.e2e.js', 'filter and bulk-remove seats, archive the session, reject rejoin, and retain closure audit evidence')
+            evidence('e2e', 'tests/e2e/live-demo-operator-controls.e2e.js', 'filter and bulk-remove seats, archive and delete the session, reject rejoin, and retain audit evidence')
         ]
     },
     'exports.evidence_bundle': {

@@ -89,12 +89,16 @@ Apply the authoritative ledger in this exact order:
 38. `data/2026-08-13_action_notification_type_contract.sql`
 39. `data/2026-08-14_action_notification_title_snapshot.sql`
 40. `data/2026-08-15_proposal_forwarding_integrity.sql`
+41. `data/2026-08-17_game_master_session_retirement.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
 additive request-schema repair and does not replace any policy or function. The
 August 12 migration replaces evidence-destroying session deletion with audited
-archival. The first August 13 migration prevents the legacy linked-response
+archival. The August 17 migration adds the Game Master-only archived-session
+retirement state: the UI calls it Delete, while the database retains the session
+row and all dependent evidence with status `deleted` and a `SESSION_DELETED`
+audit event. The first August 13 migration prevents the legacy linked-response
 trigger from rewriting a terminal RFI after the protected answer procedure has
 already completed it. The next August 13 migration canonicalizes four-team
 Strategic Orientation types before constraint enforcement. The action-delivery
@@ -112,26 +116,32 @@ is reapplied during repair, reapply
 `data/2026-08-13_action_notification_delivery.sql`, then apply
 `data/2026-08-13_action_notification_type_contract.sql`, then apply
 `data/2026-08-14_action_notification_title_snapshot.sql`, then apply
-`data/2026-08-15_proposal_forwarding_integrity.sql`. Verify RPCs,
+`data/2026-08-15_proposal_forwarding_integrity.sql`, then apply
+`data/2026-08-17_game_master_session_retirement.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
-## Session Archival
+## Session Archival And Game Master Deletion
 
 Apply `data/2026-08-12_session_archive_transition.sql` before deploying the
 matching frontend. Game Master and White Cell session controls then archive a
 session instead of deleting it. Archival changes the session status to
 `archived`, closes its active participant seats, blocks further live writes,
 and appends `SESSION_CLOSED` to the immutable research event chain. All session
-records and dependent evidence remain stored. The deprecated
-`delete_live_demo_session` RPC is retained only as a non-destructive rolling
-deployment wrapper and also archives.
+records and dependent evidence remain stored.
+
+Apply `data/2026-08-17_game_master_session_retirement.sql` after the archive
+transition. The Game Master console then lists archived sessions separately and
+offers Delete only on archived sessions. Delete changes status to `deleted`,
+records `deleted_at`, and appends `SESSION_DELETED`; it does not physically
+delete the session or a dependent row. White Cell may archive but cannot delete.
 
 Export and validate the research archive before selecting Archive. Archived
-sessions leave active lists and cannot be joined. They remain available as
-database evidence; no browser RPC hard-deletes them.
+sessions leave active lists, cannot be joined, and remain visible to Game Master
+for review or deletion. Deleted sessions leave both Game Master lists but remain
+available as database evidence; no browser RPC hard-deletes them.
 
-Verify the contract after applying the migration:
+Verify the contract after applying both lifecycle migrations:
 
 ```sql
 select proname
@@ -141,21 +151,23 @@ where nspname = 'public'
   and proname in ('archive_live_demo_session', 'delete_live_demo_session')
 order by proname;
 
-select id, name, status, updated_at
+select id, name, status, updated_at, deleted_at
 from public.sessions
-where id = '<archived-session-uuid>';
+where id = '<session-uuid>';
 
 select event_type, entity_type, entity_id, event_ts_utc
 from public.research_audit_event_log
-where session_id = '<archived-session-uuid>'
+where session_id = '<session-uuid>'
 order by event_id desc
-limit 1;
+limit 2;
 ```
 
-Pass: both RPC names are returned; the selected session has status `archived`;
-and its newest audit row is `SESSION_CLOSED` for entity type `session`. Existing
-actions, RFIs, timeline rows, participant seats, and research rows are still
-present.
+Pass after Archive: both RPC names are returned; the selected session has status
+`archived`; and its newest audit row is `SESSION_CLOSED` for entity type
+`session`. Pass after Game Master Delete: the same row has status `deleted`,
+`deleted_at` is populated, the newest audit row is `SESSION_DELETED`, the prior
+`SESSION_CLOSED` row remains, and existing actions, RFIs, timeline rows,
+participant seats, and research rows are still present.
 
 ## Intercom Storage
 

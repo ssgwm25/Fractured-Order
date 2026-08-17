@@ -238,10 +238,27 @@
                     </div>
 
                     <div class="section-body">
-                        <div class="card-list" id="sessionsList">
-                            <!-- Sessions will be populated here -->
-                            <div class="card p-8 text-center">
-                                <p class="text-muted">Loading available sessions...</p>
+                        <div class="session-list-group" aria-labelledby="activeSessionsHeading">
+                            <div class="session-list-group-header">
+                                <h3 id="activeSessionsHeading">Active Sessions</h3>
+                                <p>Joinable sessions available for live game management.</p>
+                            </div>
+                            <div class="card-list" id="sessionsList">
+                                <div class="card p-8 text-center">
+                                    <p class="text-muted">Loading active sessions...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="session-list-group" aria-labelledby="archivedSessionsHeading">
+                            <div class="session-list-group-header">
+                                <h3 id="archivedSessionsHeading">Archived Sessions</h3>
+                                <p>Read-only session records retained for export, review, or Game Master deletion.</p>
+                            </div>
+                            <div class="card-list" id="archivedSessionsList">
+                                <div class="card p-8 text-center">
+                                    <p class="text-muted">Loading archived sessions...</p>
+                                </div>
                             </div>
                         </div>
                     </div>

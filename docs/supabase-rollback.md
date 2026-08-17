@@ -2,12 +2,22 @@
 
 Database migrations in this repository are forward-only once live workflow records exist. Roll back the application first; preserve additive schema and review history unless a database owner has verified that the migration never accepted a production write.
 
-The sole authoritative forward migration order is the 38-step dated ledger in
+The sole authoritative forward migration order is the 41-step dated ledger in
 `docs/supabase-setup.md`. There is no reverse SQL order and the deprecated
 `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
 `data/updated_supabase_migration.sql` snapshots are never rollback inputs. A
 rollback means frontend-first containment followed by a forward fix; it does
 not mean replaying historical schemas or dropping additive workflow objects.
+
+## Game Master Session Retirement Rollback
+
+For `data/2026-08-17_game_master_session_retirement.sql`, roll back the frontend
+first to remove the archived-session Delete control. Keep `sessions.deleted_at`,
+the expanded status constraint, the protected `delete_live_demo_session` RPC,
+every `deleted` session tombstone, and every `SESSION_DELETED` research event in
+place after any accepted write. Older clients already exclude non-active rows.
+Do not relabel a deleted session as archived or remove its audit event; repair
+forward if the management surface needs correction.
 
 ## Team-Neutral Artifact Review Rollback
 

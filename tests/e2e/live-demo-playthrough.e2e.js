@@ -55,7 +55,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-08-15_proposal_forwarding_integrity';
+const REQUIRED_MIGRATION_STATE = '2026-08-17_game_master_session_retirement';
 const PLAYTHROUGH_TIMEOUT_MS = 20 * 60 * 1000;
 
 function getSourceRevisionEvidence() {

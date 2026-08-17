@@ -6,7 +6,7 @@ Use this runbook before a J7/JFSC or professional military education demonstrati
 
 1. Confirm the latest GitHub Pages deploy succeeded.
 2. Confirm hosted source is built output, not raw source.
-3. Before deploying the matching frontend, apply and verify the database/RLS migrations in a dedicated rehearsal project. Confirm Supabase anonymous auth, RPCs, RLS checks, and the `intercom-announcements` Storage bucket pass. Follow the exact dated ledger in `docs/supabase-setup.md`, including `data/2026-07-29_industry_submission_permissions.sql` and `data/2026-08-06_proposal_recipient_threads.sql`, through `data/2026-08-15_proposal_forwarding_integrity.sql`; do not omit the final proposal repair, which reconciles multi-recipient routing, redacts partner-routing data from recipient snapshots, and gates response rounds through White Cell.
+3. Before deploying the matching frontend, apply and verify the database/RLS migrations in a dedicated rehearsal project. Confirm Supabase anonymous auth, RPCs, RLS checks, and the `intercom-announcements` Storage bucket pass. Follow the exact dated ledger in `docs/supabase-setup.md`, including `data/2026-07-29_industry_submission_permissions.sql` and `data/2026-08-06_proposal_recipient_threads.sql`, through `data/2026-08-17_game_master_session_retirement.sql`; do not omit the proposal repair or the final Game Master session-retirement migration.
 4. Confirm the 23-actor role matrix can join and reload: Blue, Red, Green, and Industry Scribes, Facilitators, and both Notetaker seats; White Cell Lead; Game Master; and the Econ, NI/Escalation, Diplomacy & Information, TSJ, and Verba AI SME consoles. White Cell Support and Observer are not landing-page entries in the shipped workflow and are not counted as user-enterable role procedures.
 5. Confirm production source maps are not published by default.
 
@@ -326,13 +326,16 @@ Before closing the demo:
 - when research capture mode is enabled, export the research archive
 - if Session Recorder was used, keep the downloaded audio beside the ZIP and confirm the archive contains `session_recording_artifacts.csv` and `session_recording_artifacts.json`
 - inspect `data_quality_summary.json` before using quantitative claims
-- after the exports are saved and validated, select Archive from Game Master or White Cell; confirm the session leaves active lists, participants cannot rejoin, and its latest research audit event is `SESSION_CLOSED`
+- after the exports are saved and validated, select Archive from Game Master or White Cell; confirm the session leaves active lists, appears under Archived Sessions in Game Master, participants cannot rejoin, and its latest research audit event is `SESSION_CLOSED`
+- from Game Master only, select Delete on the archived session; confirm it leaves the Archived Sessions list, its stored status becomes `deleted`, `deleted_at` is populated, and the immutable event chain retains `SESSION_CLOSED` followed by `SESSION_DELETED`
 
-Archiving preserves the session and all dependent evidence. Do not use a hard
-database delete for demo cleanup. If Archive reports that
+Archiving and Game Master deletion preserve the session and all dependent
+evidence. Delete is an operator-facing tombstone, not a hard database delete.
+If Archive reports that
 `research_audit_event_log_session_id_fkey` blocks deletion, the Supabase project
 is missing `data/2026-08-12_session_archive_transition.sql`; apply that migration
-before retrying.
+before retrying. If archived sessions are missing or Delete still archives, apply
+`data/2026-08-17_game_master_session_retirement.sql` before retrying.
 
 ## Stop Conditions
 

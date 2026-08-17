@@ -105,6 +105,10 @@ const PROPOSAL_FORWARDING_INTEGRITY_PATH = new URL(
     '../../data/2026-08-15_proposal_forwarding_integrity.sql',
     import.meta.url
 );
+const GAME_MASTER_SESSION_RETIREMENT_PATH = new URL(
+    '../../data/2026-08-17_game_master_session_retirement.sql',
+    import.meta.url
+);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -151,6 +155,24 @@ describe('database migration contracts', () => {
         expect(compatibilityBody).not.toMatch(/DELETE\s+FROM\s+public\.sessions/i);
         expect(writeAccessBody).toContain("s.status = 'active'");
         expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.archive_live_demo_session(UUID) TO authenticated;');
+    });
+
+    it('lets Game Master soft-delete only archived sessions while retaining evidence', () => {
+        const sql = readFileSync(GAME_MASTER_SESSION_RETIREMENT_PATH, 'utf8');
+        const deleteBody = extractFunctionBody(sql, 'delete_live_demo_session');
+        const tombstoneGuardBody = extractFunctionBody(sql, 'prevent_deleted_session_mutation');
+
+        expect(sql).toContain("CHECK (status IN ('active', 'archived', 'deleted'))");
+        expect(sql).toContain("'SESSION_CREATED','SESSION_CONFIG_UPDATED','SESSION_CLOSED','SESSION_DELETED'");
+        expect(deleteBody).toContain("public.live_demo_has_operator_grant('gamemaster')");
+        expect(deleteBody).toContain("previous_session.status <> 'archived'");
+        expect(deleteBody).toContain("SET status = 'deleted'");
+        expect(deleteBody).toContain("'SESSION_DELETED'");
+        expect(deleteBody).toContain('public.record_research_event(');
+        expect(deleteBody).not.toMatch(/DELETE\s+FROM\s+public\.sessions/i);
+        expect(tombstoneGuardBody).toContain("OLD.status = 'deleted'");
+        expect(sql).toContain('CREATE TRIGGER protect_deleted_sessions');
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.delete_live_demo_session(UUID) TO authenticated;');
     });
 
     it('keeps first-time public seat claims on the internal stale-seat cleanup helper', () => {

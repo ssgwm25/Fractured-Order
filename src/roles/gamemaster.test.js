@@ -7,6 +7,7 @@ import {
     buildRecentActivityModel,
     GameMasterController,
     getGameMasterArchiveSessionConfirmationOptions,
+    getGameMasterDeleteSessionConfirmationOptions,
     getGameMasterAccessState,
     getAdminExportButtonConfig,
     getParticipantSessionLabel
@@ -183,6 +184,51 @@ describe('GameMaster session administration', () => {
         expect(getGameMasterArchiveSessionConfirmationOptions({ name: 'Alpha Session' }).message).toContain(
             'Export the research archive first'
         );
+    });
+
+    it('gives archived sessions a Game Master delete confirmation that preserves evidence', () => {
+        const options = getGameMasterDeleteSessionConfirmationOptions({ name: 'Alpha Session' });
+
+        expect(options).toMatchObject({
+            title: 'Delete Archived Session',
+            confirmLabel: 'Delete Session',
+            cancelLabel: 'Keep Archived',
+            variant: 'danger'
+        });
+        expect(options.message).toContain('no longer appear in active or archived lists');
+        expect(options.message).toContain('immutable audit records will remain stored');
+    });
+
+    it('renders delete only for archived session cards', () => {
+        const restoreDocument = installBadgeDocument();
+
+        try {
+            const controller = new GameMasterController();
+            const archivedHtml = controller.renderSessionCard({
+                id: 'archived-session',
+                name: 'Archived Session',
+                session_code: 'ARCHIVE1',
+                status: 'archived',
+                created_at: '2026-08-01T10:00:00.000Z',
+                updated_at: '2026-08-02T10:00:00.000Z'
+            });
+            const activeHtml = controller.renderSessionCard({
+                id: 'active-session',
+                name: 'Active Session',
+                session_code: 'ACTIVE01',
+                status: 'active',
+                created_at: '2026-08-01T10:00:00.000Z',
+                updated_at: '2026-08-02T10:00:00.000Z'
+            });
+
+            expect(archivedHtml).toContain('delete-session-btn');
+            expect(archivedHtml).not.toContain('archive-session-btn');
+            expect(archivedHtml).not.toContain('select-session-btn');
+            expect(activeHtml).toContain('archive-session-btn');
+            expect(activeHtml).not.toContain('delete-session-btn');
+        } finally {
+            restoreDocument();
+        }
     });
 
     it('labels participant rows with the selected or joined session', () => {

@@ -497,6 +497,7 @@ function normalizeInsertRow(tableName, payload, state) {
                 status: 'active',
                 session_code: null,
                 metadata: {},
+                deleted_at: null,
                 updated_at: timestamp,
                 ...cloneValue(payload)
             };
@@ -1341,6 +1342,10 @@ function archiveLiveDemoSession(state, {
     const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
     if (!session) {
         return { data: null, error: { message: 'Session not found. Please refresh and try again.' } };
+    }
+
+    if (session.status === 'deleted') {
+        return { data: null, error: { message: 'Deleted sessions are immutable.' } };
     }
 
     if (session.status === 'archived') {
@@ -2710,6 +2715,102 @@ function operatorForwardProposalResponse(state, params) {
     };
 }
 
+function deleteLiveDemoSession(state, {
+    requested_session_id
+}) {
+    const authUserId = getCurrentAuthUserId();
+    if (!liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')) {
+        return { data: null, error: { message: 'Game Master authorization is required.' } };
+    }
+
+    const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
+    if (!session) {
+        return { data: null, error: { message: 'Session not found. Please refresh and try again.' } };
+    }
+
+    if (session.status === 'deleted') {
+        return {
+            data: {
+                deleted_session_id: requested_session_id,
+                status: 'deleted',
+                already_deleted: true,
+                deleted_at: session.deleted_at || null
+            },
+            error: null
+        };
+    }
+
+    if (session.status !== 'archived') {
+        return { data: null, error: { message: 'Archive the session before deleting it.' } };
+    }
+
+    const deletedAt = getTimestamp();
+    const previousSession = cloneValue(session);
+    session.status = 'deleted';
+    session.deleted_at = deletedAt;
+    session.updated_at = deletedAt;
+
+    const operatorGrant = state.tables.operator_grants.find((grant) => (
+        grant.auth_user_id === authUserId && grant.surface === 'gamemaster'
+    ));
+    const priorEvents = state.tables.research_audit_event_log.filter((event) => (
+        event.session_id === requested_session_id
+    ));
+    const eventId = state.tables.research_audit_event_log.reduce((largest, event) => (
+        Math.max(largest, Number(event.event_id) || 0)
+    ), 0) + 1;
+    const previousEvent = priorEvents[priorEvents.length - 1] || null;
+
+    state.tables.research_audit_event_log.push({
+        event_id: eventId,
+        event_uuid: nextId(state, 'research_audit_event_log_event'),
+        session_id: requested_session_id,
+        event_ts_utc: deletedAt,
+        server_received_utc: deletedAt,
+        client_ts_utc: null,
+        actor_pseudonym: `gamemaster-${String(operatorGrant?.id || authUserId).slice(0, 8)}`,
+        actor_role: operatorGrant?.role || 'gamemaster',
+        actor_team: operatorGrant?.team_id || null,
+        actor_seat_index: null,
+        event_type: 'SESSION_DELETED',
+        entity_type: 'session',
+        entity_id: requested_session_id,
+        move_number: null,
+        action_sequence: null,
+        correlation_id: null,
+        causal_event_id: null,
+        before_state: {
+            id: previousSession.id,
+            status: previousSession.status,
+            updated_at: previousSession.updated_at,
+            deleted_at: previousSession.deleted_at || null
+        },
+        after_state: {
+            id: session.id,
+            status: session.status,
+            updated_at: session.updated_at,
+            deleted_at: session.deleted_at
+        },
+        payload: {
+            delete_method: 'operator_soft_delete',
+            evidence_retained: true
+        },
+        phase: null,
+        prev_event_hash: previousEvent?.event_hash || null,
+        event_hash: `mock-session-deleted-${eventId}`
+    });
+
+    return {
+        data: {
+            deleted_session_id: requested_session_id,
+            status: 'deleted',
+            already_deleted: false,
+            deleted_at: deletedAt
+        },
+        error: null
+    };
+}
+
 function operatorAnswerRequest(state, params) {
     const authUserId = getCurrentAuthUserId();
     const grant = getOperatorGrant(state, authUserId, 'whitecell');
@@ -3235,8 +3336,12 @@ export function createE2EMockSupabaseClient() {
                 return mutateMockState((state) => createLiveDemoSession(state, params));
             }
 
-            if (functionName === 'archive_live_demo_session' || functionName === 'delete_live_demo_session') {
+            if (functionName === 'archive_live_demo_session') {
                 return mutateMockState((state) => archiveLiveDemoSession(state, params));
+            }
+
+            if (functionName === 'delete_live_demo_session') {
+                return mutateMockState((state) => deleteLiveDemoSession(state, params));
             }
 
             if (functionName === 'claim_session_role_seat') {

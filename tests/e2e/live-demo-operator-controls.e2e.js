@@ -238,7 +238,7 @@ test('@operator-controls rehearses every shipped non-PLI administration, deck, p
         await expect(gameMaster.locator('#gameMasterPluginMounts [data-plugin-mount="session-recorder"]')).toBeVisible();
     });
 
-    await test.step('filter and bulk-remove seats, archive the session, reject rejoin, and retain closure audit evidence', async () => {
+    await test.step('filter and bulk-remove seats, archive and delete the session, reject rejoin, and retain audit evidence', async () => {
         await openSidebarSection(whiteCell, 'controls');
         await whiteCell.locator('[data-settings-tab="participants"]').click();
         await whiteCell.locator('#participantsTeamFilter').selectOption('blue');
@@ -272,6 +272,7 @@ test('@operator-controls rehearses every shipped non-PLI administration, deck, p
         await sessionCard.locator('.archive-session-btn').click();
         await confirmActiveModal(gameMaster, 'Archive');
         await expect(gameMaster.locator('#sessionsList')).not.toContainText(SESSION_NAME);
+        await expect(gameMaster.locator('#archivedSessionsList')).toContainText(SESSION_NAME);
 
         const postArchiveJoin = await createIsolatedActorPage(context, 'operator-controls-post-archive');
         expectBrowserConsoleError(postArchiveJoin, /Failed to join session:.*This session is not currently joinable\./);
@@ -282,12 +283,22 @@ test('@operator-controls rehearses every shipped non-PLI administration, deck, p
             roleSurface: 'facilitator'
         }, 'Session not found. Please check the code and try again.');
 
+        const archivedSessionCard = gameMaster.locator('#archivedSessionsList .session-card').filter({
+            has: gameMaster.getByRole('heading', { name: SESSION_NAME, exact: true })
+        });
+        await archivedSessionCard.locator('.delete-session-btn').click();
+        await confirmActiveModal(gameMaster, 'Delete Session');
+        await expect(gameMaster.locator('#archivedSessionsList')).not.toContainText(SESSION_NAME);
+
         const backendState = await dumpE2EMockBackend(gameMaster);
         if (backendState) {
-            const archivedSession = getSessionFromState(backendState, SESSION_CODE);
-            expect(archivedSession?.status).toBe('archived');
+            const deletedSession = getSessionFromState(backendState, SESSION_CODE);
+            expect(deletedSession?.status).toBe('deleted');
             expect(backendState.tables.research_audit_event_log.filter((event) => (
-                event.session_id === archivedSession.id && event.event_type === 'SESSION_CLOSED'
+                event.session_id === deletedSession.id && event.event_type === 'SESSION_CLOSED'
+            ))).toHaveLength(1);
+            expect(backendState.tables.research_audit_event_log.filter((event) => (
+                event.session_id === deletedSession.id && event.event_type === 'SESSION_DELETED'
             ))).toHaveLength(1);
         }
     });

@@ -129,6 +129,30 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* ==================== SESSION MANAGEMENT ==================== */
+
+.master-page .session-list-group + .session-list-group {
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border-light);
+}
+
+.master-page .session-list-group-header {
+    margin-bottom: var(--space-4);
+}
+
+.master-page .session-list-group-header h3 {
+    margin: 0 0 var(--space-1);
+    color: var(--color-navy);
+    font-size: var(--text-lg);
+}
+
+.master-page .session-list-group-header p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+}
+
 /* ==================== PLUGINS SECTION ==================== */
 
 /* Stack mounted plugins with consistent spacing. */

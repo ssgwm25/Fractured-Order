@@ -19,7 +19,7 @@ The executable inventory is `tests/contracts/operationalFeatureManifest.js`. Rem
 | Two Notetaker seats per team, structured notes, captures, inbox, timeline, autosave, and concurrency | `notetaker.operational_record` |
 | Orientation gate, allocations, timer, reset, and reversible move/phase controls | `white_cell.game_controls` |
 | Plugin persistence, Intercom audio delivery, Session Recorder lifecycle/download, and participant notice | `plugins.intercom_recorder` |
-| Participant filters, bulk removal, session administration, archival, join closure, and closure audit evidence | `operator.participant_session_admin` |
+| Participant filters, bulk removal, session administration, archival/deletion, join closure, tombstones, and retained audit evidence | `operator.participant_session_admin` |
 | JSON, all CSVs, research ZIP, printable report, recording references, reconciliation, and cross-session ZIP | `exports.evidence_bundle` |
 | Large-session bounded rendering, outage visibility, deterministic recovery, and isolation | `resilience.scale_degraded_sync` |
 | Shared tokens, accessible interaction contracts, onboarding, mobile layout, empty/error/retry states, and DOM integrity | `quality.accessibility_mobile_ui` |
@@ -41,7 +41,7 @@ This excludes the PLI pipeline and triggers, PLI-derived queues and reports, all
 2. `live-demo-scale.e2e.js` loads a large deterministic exercise and verifies bounded, usable Game Master, White Cell, team, RFI, response, and timeline surfaces.
 3. `live-demo-realtime.e2e.js` rehearses participant, timer, action, RFI, timeline, and communication fanout; outage warning; missed-event reconciliation; dedupe; and session isolation.
 4. `live-demo-playthrough.e2e.js` runs the 18-actor cross-role operation. It adds every team workflow, returns and revisions, proposal threads, RFIs, direct communications, durable notifications, all eight Notetakers, reload, mobile/document checks, allocations, timer reset, move/phase progression, and deep export reconciliation.
-5. `live-demo-operator-controls.e2e.js` runs a compact seven-actor/two-session operation for deck assignment, plugin persistence, Intercom, Session Recorder and participant notices, all operator exports, recording references, participant filtering and bulk removal, archival, post-archive join denial, and closure audit evidence.
+5. `live-demo-operator-controls.e2e.js` runs a compact seven-actor/two-session operation for deck assignment, plugin persistence, Intercom, Session Recorder and participant notices, all operator exports, recording references, participant filtering and bulk removal, archival/deletion, post-archive join denial, tombstone retention, and closure/deletion audit evidence.
 
 The audio procedure installs a deterministic browser `MediaRecorder` and microphone implementation. The local mock's session-scoped broadcast transport then drives the actual Intercom receiver, while the actual Intercom and Session Recorder UI, state, artifact, and download code runs. CI therefore does not require physical audio hardware, an interactive permission prompt, or hosted Supabase Realtime. Device fidelity, real microphone permission, and hosted Supabase broadcast delivery remain environment checks, not deterministic automation claims.
 
@@ -72,7 +72,7 @@ A pass requires all of the following from the same working revision:
 - browser diagnostics report zero unexpected console errors and zero page errors;
 - the Playwright gate summary reports zero violations and records the expected actor/session annotations;
 - all downloads are emitted, the research manifest reconciliation is `passed`, and required HTML/LaTeX/JSON/CSV evidence exists;
-- archival rejects a new join and records one `SESSION_CLOSED` audit event in the deterministic browser backend;
+- archival rejects a new join and records one `SESSION_CLOSED` audit event; Game Master deletion then hides the archived session, stores a `deleted` tombstone, and appends one `SESSION_DELETED` event without removing evidence;
 - `tests/unit/operational-feature-manifest.test.js` confirms every in-scope feature still has focused and browser evidence and all PLI exclusions remain explicit.
 
 A local pass is browser/workflow evidence only. For hosted evidence, set `PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_OPERATOR_ACCESS_CODE`, `PLAYWRIGHT_DEPLOYED_COMMIT`, and `PLAYWRIGHT_MIGRATION_STATE`, then run `npm run test:e2e:operational`. Hosted success proves the deployed browser and live backend path for the tested revision; infrastructure, database migration, storage, and device checks in the live-demo runbook remain separate release gates.

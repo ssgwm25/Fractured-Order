@@ -764,6 +764,26 @@ export const database = {
     },
 
     /**
+     * Get archived sessions for the authenticated Game Master operator.
+     * Deleted session tombstones are intentionally excluded from this list.
+     * @returns {Promise<Object[]>} List of archived sessions
+     */
+    async getArchivedSessions() {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase
+            .from('sessions')
+            .select('*')
+            .eq('status', 'archived')
+            .order('updated_at', { ascending: false });
+
+        if (error) {
+            throw fromSupabaseError(error, 'getArchivedSessions');
+        }
+
+        return data || [];
+    },
+
+    /**
      * Resolve a participant-facing session code through the server-side RPC.
      * Operator note: do not restore browser-side session listing for public joins.
      * Public join prompts must call this contract instead of filtering getActiveSessions().
@@ -833,6 +853,25 @@ export const database = {
         }
 
         logger.info('Session archived:', sessionId);
+        return data;
+    },
+
+    /**
+     * Soft-delete an archived session while retaining its audit and research evidence.
+     * @param {string} sessionId - Archived session ID
+     * @returns {Promise<Object>} Delete result
+     */
+    async deleteSession(sessionId) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('delete_live_demo_session', {
+            requested_session_id: sessionId
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'deleteSession');
+        }
+
+        logger.info('Session deleted:', sessionId);
         return data;
     },
 

@@ -282,7 +282,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=(git rev-parse HEAD).Trim()
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-15_proposal_forwarding_integrity"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-17_game_master_session_retirement"
 npm run test:e2e:playthrough
 ```
 
@@ -382,7 +382,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=$candidateCommit
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-15_proposal_forwarding_integrity"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-17_game_master_session_retirement"
 npm run test:e2e:rehearsal
 ```
 

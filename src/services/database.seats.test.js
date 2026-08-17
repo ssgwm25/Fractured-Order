@@ -623,6 +623,48 @@ describe('database live-demo seat contract', () => {
             expect.objectContaining({ id: primarySession.id })
         ]));
         expect(activeSessions.map((session) => session.id)).not.toContain(secondarySession.id);
+
+        await expect(database.deleteSession(secondarySession.id)).rejects.toMatchObject({
+            message: expect.stringContaining('Game Master authorization is required.')
+        });
+
+        setClientIdentity(sessionStore, 'client-admin-gm');
+        await database.authorizeOperatorAccess({
+            surface: 'gamemaster',
+            accessCode: 'admin2025',
+            operatorName: 'GM Admin'
+        });
+        const archivedSessions = await database.getArchivedSessions();
+        expect(archivedSessions).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: secondarySession.id, status: 'archived' })
+        ]));
+
+        const deleteResult = await database.deleteSession(secondarySession.id);
+        expect(deleteResult).toMatchObject({
+            deleted_session_id: secondarySession.id,
+            status: 'deleted',
+            already_deleted: false
+        });
+        const remainingArchivedSessions = await database.getArchivedSessions();
+        expect(remainingArchivedSessions.map((session) => session.id)).not.toContain(secondarySession.id);
+        await expect(database.getSession(secondarySession.id)).resolves.toMatchObject({
+            id: secondarySession.id,
+            status: 'deleted'
+        });
+        await expect(database.archiveSession(secondarySession.id)).rejects.toMatchObject({
+            message: expect.stringContaining('Deleted sessions are immutable.')
+        });
+
+        const deletedState = globalThis.__ESG_E2E_BACKEND__.dump();
+        expect(deletedState.tables.game_state).toEqual(expect.arrayContaining([
+            expect.objectContaining({ session_id: secondarySession.id })
+        ]));
+        expect(deletedState.tables.research_audit_event_log).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                session_id: secondarySession.id,
+                event_type: 'SESSION_DELETED'
+            })
+        ]));
     });
 
     it('persists proposal recipient statuses in communication metadata as shared backend state', async () => {
@@ -688,7 +730,7 @@ describe('database live-demo seat contract', () => {
         });
     });
 
-    it('lets the addressed facilitator append the first immutable proposal thread response', async () => {
+    it('lets the addressed facilitator submit the first immutable proposal response for White Cell review', async () => {
         const { sessionStore, database } = await loadModules();
         setClientIdentity(sessionStore, 'client-response-gm');
         await database.authorizeOperatorAccess({
@@ -758,8 +800,8 @@ describe('database live-demo seat contract', () => {
         expect(responseCommunication).toMatchObject({
             session_id: session.id,
             from_role: 'blue_facilitator',
-            to_role: 'green',
-            type: 'PROPOSAL_RESPONSE',
+            to_role: 'white_cell',
+            type: 'PROPOSAL_RESPONSE_REVIEW',
             content: 'Blue Team can support this proposal with customs coordination.',
             metadata: expect.objectContaining({
                 thread_id: forwardedProposal.metadata.thread_id,
@@ -772,6 +814,8 @@ describe('database live-demo seat contract', () => {
                 sender_team: 'blue',
                 sender_role: 'blue_facilitator',
                 message_type: 'recipient_response',
+                proposed_round_number: 1,
+                proposed_message_type: 'recipient_response',
                 facilitator_decision: 'accept',
                 client_message_id: 'seat-contract-blue-round-1'
             })

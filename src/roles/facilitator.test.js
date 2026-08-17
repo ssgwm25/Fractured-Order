@@ -978,8 +978,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
     });
 
     it('styles facilitator action marks with the shared White Cell rail', () => {
-        const cardsCss = readFileSync(CARDS_CSS_PATH, 'utf8');
-        const gridCss = readFileSync(GRID_CSS_PATH, 'utf8');
+        const cardsCss = readFileSync(CARDS_CSS_PATH, 'utf8').replace(/\r\n?/g, '\n');
+        const gridCss = readFileSync(GRID_CSS_PATH, 'utf8').replace(/\r\n?/g, '\n');
 
         expect(gridCss).toContain('.tab-list {');
         expect(gridCss).toContain('.tab-button {');

@@ -32,6 +32,12 @@ const {
                 updated_at: '2026-04-07T10:00:00.000Z'
             }
         ])),
+        getArchivedSessions: vi.fn(() => Promise.resolve([])),
+        deleteSession: vi.fn(() => Promise.resolve({
+            deleted_session_id: 'session-gm-archived',
+            status: 'deleted',
+            already_deleted: false
+        })),
         fetchSessionBundle: vi.fn((sessionId) => Promise.resolve({
             session: {
                 id: sessionId,
@@ -231,6 +237,7 @@ describe('GameMaster live session monitoring', () => {
             'printResearchReportBtn',
             'exportResearchIncludeNotes',
             'sessionsList',
+            'archivedSessionsList',
             'statsGrid',
             'recentActivity',
             'activeParticipants',
@@ -307,6 +314,32 @@ describe('GameMaster live session monitoring', () => {
             ['research-archive'],
             ['research-print']
         ]);
+    });
+
+    it('deletes a confirmed archived session and reloads both session lists', async () => {
+        const { GameMasterController } = await loadGameMasterModule();
+        const controller = new GameMasterController();
+        controller.archivedSessions = [{
+            id: 'session-gm-archived',
+            name: 'Archived Session',
+            status: 'archived'
+        }];
+        const reloadSpy = vi.spyOn(controller, 'loadSessions').mockResolvedValue();
+        mockConfirmModal.mockResolvedValueOnce(true);
+
+        await controller.confirmDeleteSession('session-gm-archived');
+
+        expect(mockConfirmModal).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Delete Archived Session',
+            confirmLabel: 'Delete Session',
+            variant: 'danger'
+        }));
+        expect(mockDatabase.deleteSession).toHaveBeenCalledWith('session-gm-archived');
+        expect(reloadSpy).toHaveBeenCalledTimes(1);
+        expect(mockShowToast).toHaveBeenCalledWith(
+            'Session deleted from Game Master lists. Its audit evidence was retained.',
+            { type: 'success' }
+        );
     });
 
     it('renders remove controls in the participant roster table', async () => {

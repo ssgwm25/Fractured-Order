@@ -192,6 +192,18 @@ export function getGameMasterArchiveSessionConfirmationOptions(session = {}) {
     };
 }
 
+export function getGameMasterDeleteSessionConfirmationOptions(session = {}) {
+    const label = session?.name || 'this session';
+
+    return {
+        title: 'Delete Archived Session',
+        message: `Delete "${label}" from Game Master session management? The session will no longer appear in active or archived lists. Its actions, RFIs, participant seats, timeline events, exports, and immutable audit records will remain stored for research replay.`,
+        confirmLabel: 'Delete Session',
+        cancelLabel: 'Keep Archived',
+        variant: 'danger'
+    };
+}
+
 export function buildDashboardModel(sessionBundles = []) {
     return {
         activeSessions: sessionBundles.length,
@@ -277,6 +289,7 @@ export function buildExportSelectionState(sessionBundle = null, {
 export class GameMasterController {
     constructor() {
         this.sessions = [];
+        this.archivedSessions = [];
         this.currentSessionId = null;
         this.sessionBundles = new Map();
         this.storeUnsubscribers = [];
@@ -400,17 +413,24 @@ export class GameMasterController {
 
     async loadSessions() {
         const sessionsList = document.getElementById('sessionsList');
+        const archivedSessionsList = document.getElementById('archivedSessionsList');
         const loader = sessionsList
             ? showInlineLoader(sessionsList, { message: 'Loading sessions...', replace: false })
             : null;
 
         try {
             await this.loadResearchExportRuntime();
-            this.sessions = await database.getActiveSessions() || [];
+            const [activeSessions, archivedSessions] = await Promise.all([
+                database.getActiveSessions(),
+                database.getArchivedSessions()
+            ]);
+            this.sessions = activeSessions || [];
+            this.archivedSessions = archivedSessions || [];
 
             if (loader) loader.hide();
 
-            if (this.currentSessionId && !this.sessions.some((session) => session.id === this.currentSessionId)) {
+            const visibleSessions = [...this.sessions, ...this.archivedSessions];
+            if (this.currentSessionId && !visibleSessions.some((session) => session.id === this.currentSessionId)) {
                 this.currentSessionId = null;
                 const sessionDetailSection = document.getElementById('sessionDetailSection');
                 const sessionsSection = document.getElementById('sessionsSection');
@@ -422,14 +442,31 @@ export class GameMasterController {
             this.renderSessionSelectors();
             await this.loadDashboardData();
             await this.refreshSelectedSessionViews();
-            logger.info(`Loaded ${this.sessions.length} sessions`);
+            logger.info(`Loaded ${this.sessions.length} active and ${this.archivedSessions.length} archived sessions`);
         } catch (err) {
             logger.error('Failed to load sessions:', err);
             showToast(getUserMessage(err, {
                 fallback: 'Failed to load sessions. Refresh and try again.'
             }), { type: 'error' });
             if (loader) loader.hide();
+            this.renderSessionLoadError(sessionsList, true);
+            this.renderSessionLoadError(archivedSessionsList);
         }
+    }
+
+    renderSessionLoadError(container, announce = false) {
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="empty-state"${announce ? ' role="alert"' : ''}>
+                <h4 class="empty-state-title">Sessions unavailable</h4>
+                <p class="empty-state-message">The session list could not be loaded.</p>
+                <button type="button" class="btn btn-secondary btn-sm retry-session-load-btn">Retry</button>
+            </div>
+        `;
+        container.querySelector('.retry-session-load-btn')?.addEventListener('click', () => {
+            void this.loadSessions();
+        });
     }
 
     async loadResearchExportRuntime() {
@@ -546,6 +583,7 @@ export class GameMasterController {
         const session = baseBundle?.session
             || cachedBundle?.session
             || this.sessions.find((entry) => entry.id === this.currentSessionId)
+            || this.archivedSessions.find((entry) => entry.id === this.currentSessionId)
             || null;
 
         if (!session) {
@@ -573,10 +611,12 @@ export class GameMasterController {
         }
 
         this.sessionBundles.set(this.currentSessionId, liveBundle);
-        const bundles = [...this.sessionBundles.values()];
-        this.renderDashboardStats(buildDashboardModel(bundles));
-        this.renderRecentActivity(buildRecentActivityModel(bundles));
-        this.renderActiveParticipants(buildConnectedParticipantsModel(bundles));
+        const activeBundles = [...this.sessionBundles.values()].filter((bundle) => (
+            bundle?.session?.status === 'active'
+        ));
+        this.renderDashboardStats(buildDashboardModel(activeBundles));
+        this.renderRecentActivity(buildRecentActivityModel(activeBundles));
+        this.renderActiveParticipants(buildConnectedParticipantsModel(activeBundles));
         this.updateHeaderSessionState(liveBundle.session, liveBundle.gameState, liveBundle.actions);
         this.renderParticipantsPanel(liveBundle);
         this.updateExportAvailability(liveBundle);
@@ -700,6 +740,8 @@ export class GameMasterController {
     }
 
     renderSessionSelectors() {
+        const selectableSessions = [...this.sessions, ...this.archivedSessions];
+
         ['participantsSessionSelect', 'exportSessionSelect'].forEach((selectId) => {
             const select = document.getElementById(selectId);
             if (!select) return;
@@ -707,12 +749,13 @@ export class GameMasterController {
             const previousValue = this.currentSessionId || '';
             select.innerHTML = `
                 <option value="">Select session</option>
-                ${this.sessions.map((session) => {
+                ${selectableSessions.map((session) => {
                     const sessionCode = getGameMasterSessionCode(session);
-                    return `<option value="${session.id}">${this.escapeHtml(session.name)} (${this.escapeHtml(sessionCode)})</option>`;
+                    const lifecycleLabel = session.status === 'archived' ? ' — Archived' : '';
+                    return `<option value="${session.id}">${this.escapeHtml(session.name)} (${this.escapeHtml(sessionCode)})${lifecycleLabel}</option>`;
                 }).join('')}
             `;
-            select.value = this.sessions.some((session) => session.id === previousValue) ? previousValue : '';
+            select.value = selectableSessions.some((session) => session.id === previousValue) ? previousValue : '';
         });
     }
 
@@ -813,32 +856,46 @@ export class GameMasterController {
 
     renderSessionsList() {
         const sessionsList = document.getElementById('sessionsList');
-        if (!sessionsList) return;
+        const archivedSessionsList = document.getElementById('archivedSessionsList');
 
-        if (this.sessions.length === 0) {
-            sessionsList.innerHTML = `
+        this.renderSessionCollection(sessionsList, this.sessions, {
+            emptyTitle: 'No Active Sessions',
+            emptyMessage: 'Create a session to get started.'
+        });
+        this.renderSessionCollection(archivedSessionsList, this.archivedSessions, {
+            emptyTitle: 'No Archived Sessions',
+            emptyMessage: 'Archived sessions will appear here until a Game Master deletes them.'
+        });
+    }
+
+    renderSessionCollection(container, sessions, emptyState) {
+        if (!container) return;
+
+        if (sessions.length === 0) {
+            container.innerHTML = `
                 <div class="empty-state">
-                    <div class="empty-state-icon">
-                        <svg viewBox="0 0 20 20" fill="currentColor">
+                    <div class="empty-state-icon" aria-hidden="true">
+                        <svg viewBox="0 0 20 20" fill="currentColor" focusable="false">
                             <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
                         </svg>
                     </div>
-                    <h3 class="empty-state-title">No Sessions</h3>
-                    <p class="empty-state-message">Create your first session to get started</p>
+                    <h4 class="empty-state-title">${this.escapeHtml(emptyState.emptyTitle)}</h4>
+                    <p class="empty-state-message">${this.escapeHtml(emptyState.emptyMessage)}</p>
                 </div>
             `;
             return;
         }
 
-        sessionsList.innerHTML = this.sessions.map((session) => this.renderSessionCard(session)).join('');
+        container.innerHTML = sessions.map((session) => this.renderSessionCard(session)).join('');
 
-        this.sessions.forEach((session) => {
-            const card = sessionsList.querySelector(`[data-session-id="${session.id}"]`);
+        sessions.forEach((session) => {
+            const card = container.querySelector(`[data-session-id="${session.id}"]`);
             if (!card) return;
 
             const viewBtn = card.querySelector('.view-session-btn');
             const selectBtn = card.querySelector('.select-session-btn');
             const archiveBtn = card.querySelector('.archive-session-btn');
+            const deleteBtn = card.querySelector('.delete-session-btn');
 
             if (viewBtn) {
                 viewBtn.addEventListener('click', () => {
@@ -857,6 +914,12 @@ export class GameMasterController {
                     void this.confirmArchiveSession(session.id);
                 });
             }
+
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
+                    void this.confirmDeleteSession(session.id);
+                });
+            }
         });
     }
 
@@ -871,13 +934,25 @@ export class GameMasterController {
             ? createBadge({ text: 'Selected', variant: 'primary', size: 'sm' }).outerHTML
             : '';
         const sessionCode = getGameMasterSessionCode(session);
+        const isArchived = session.status === 'archived';
+        const escapedSessionName = this.escapeHtml(session.name);
+        const actions = isArchived
+            ? `
+                    <button type="button" class="btn btn-primary btn-sm view-session-btn" aria-label="View details for ${escapedSessionName}">View Details</button>
+                    <button type="button" class="btn btn-danger btn-sm delete-session-btn" aria-label="Delete archived session ${escapedSessionName}">Delete</button>
+                `
+            : `
+                    <button type="button" class="btn btn-outline btn-sm select-session-btn" aria-label="Select ${escapedSessionName}">Select</button>
+                    <button type="button" class="btn btn-primary btn-sm view-session-btn" aria-label="View details for ${escapedSessionName}">View Details</button>
+                    <button type="button" class="btn btn-secondary btn-sm archive-session-btn" aria-label="Archive ${escapedSessionName}">Archive</button>
+                `;
 
         return `
             <div class="session-card card card-bordered card-hoverable" data-session-id="${session.id}">
                 <div class="session-card-header">
                     <div class="session-card-title-group">
                         <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
-                            <h3 class="card-title">${this.escapeHtml(session.name)}</h3>
+                            <h4 class="card-title">${escapedSessionName}</h4>
                             ${selectedBadge}
                         </div>
                         <p class="card-subtitle">Code: <strong>${this.escapeHtml(sessionCode)}</strong></p>
@@ -901,9 +976,7 @@ export class GameMasterController {
                     </div>
                 </div>
                 <div class="session-card-actions">
-                    <button class="btn btn-outline btn-sm select-session-btn">Select</button>
-                    <button class="btn btn-primary btn-sm view-session-btn">View Details</button>
-                    <button class="btn btn-secondary btn-sm archive-session-btn">Archive</button>
+                    ${actions}
                 </div>
             </div>
         `;
@@ -1011,6 +1084,7 @@ export class GameMasterController {
         const currentPhase = gameState?.phase ?? 1;
         const pendingRequests = requests.filter((request) => request.status === 'pending').length;
         const participantSummary = buildParticipantSummary(participants);
+        const isActiveSession = session.status === 'active';
 
         detailContainer.innerHTML = `
             <div class="session-detail-header" style="margin-bottom: var(--space-6);">
@@ -1022,6 +1096,7 @@ export class GameMasterController {
                 </button>
                 <h2 class="section-title" style="margin-top: var(--space-3);">${this.escapeHtml(session.name)}</h2>
                 <p class="text-gray-500">Code: <strong>${this.escapeHtml(sessionCode)}</strong></p>
+                ${isActiveSession ? '' : '<p class="text-sm text-gray-500">Archived session details are read-only.</p>'}
             </div>
 
             <div class="section-grid section-grid-4" style="margin-bottom: var(--space-6);">
@@ -1048,7 +1123,7 @@ export class GameMasterController {
                 <h3 class="text-base font-semibold mb-4">Participants</h3>
                 <div id="participantsListDetail">
                     ${this.renderParticipantsTable(participants, {
-                        includeActions: true,
+                        includeActions: isActiveSession,
                         session,
                         sessionName: session.name,
                         sessionCode,
@@ -1086,7 +1161,9 @@ export class GameMasterController {
             });
         }
 
-        this.bindParticipantRemovalControls(detailContainer, session, participants);
+        if (isActiveSession) {
+            this.bindParticipantRemovalControls(detailContainer, session, participants);
+        }
     }
 
     renderParticipantsTable(participants, {
@@ -1197,7 +1274,10 @@ export class GameMasterController {
         }
 
         const sessionCode = getGameMasterSessionCode(sessionBundle.session);
-        stateLabel.textContent = `Showing live participant data for ${getGameMasterSessionLabel(sessionBundle.session)}.`;
+        const isActiveSession = sessionBundle.session.status === 'active';
+        stateLabel.textContent = isActiveSession
+            ? `Showing live participant data for ${getGameMasterSessionLabel(sessionBundle.session)}.`
+            : `Showing retained participant records for archived session ${getGameMasterSessionLabel(sessionBundle.session)}. These records are read-only.`;
         container.style.display = 'block';
         container.style.minHeight = 'auto';
         container.innerHTML = `
@@ -1210,10 +1290,12 @@ export class GameMasterController {
                     <span class="text-sm text-gray-500">${formatParticipantSummaryLabel(sessionBundle.participants)}</span>
                 </div>
                 <p class="text-xs text-gray-500" style="margin-bottom: var(--space-3);">
-                    Remove clears a participant from the session immediately. They must join again to return.
+                    ${isActiveSession
+                        ? 'Remove clears a participant from the session immediately. They must join again to return.'
+                        : 'Archived participant records are retained as session evidence and cannot be changed here.'}
                 </p>
                 ${this.renderParticipantsTable(sessionBundle.participants, {
-                    includeActions: true,
+                    includeActions: isActiveSession,
                     session: sessionBundle.session,
                     sessionName: sessionBundle.session.name,
                     sessionCode,
@@ -1222,7 +1304,9 @@ export class GameMasterController {
             </div>
         `;
 
-        this.bindParticipantRemovalControls(container, sessionBundle.session, sessionBundle.participants);
+        if (isActiveSession) {
+            this.bindParticipantRemovalControls(container, sessionBundle.session, sessionBundle.participants);
+        }
     }
 
     updateExportAvailability(sessionBundle) {
@@ -1294,6 +1378,17 @@ export class GameMasterController {
 
         if (confirmed) {
             await this.archiveSession(sessionId);
+        }
+    }
+
+    async confirmDeleteSession(sessionId) {
+        const session = this.archivedSessions.find((entry) => entry.id === sessionId);
+        if (!session) return;
+
+        const confirmed = await confirmModal(getGameMasterDeleteSessionConfirmationOptions(session));
+
+        if (confirmed) {
+            await this.deleteSession(sessionId);
         }
     }
 
@@ -1475,6 +1570,10 @@ export class GameMasterController {
 
             if (this.currentSessionId === sessionId) {
                 this.currentSessionId = null;
+                const sessionDetailSection = document.getElementById('sessionDetailSection');
+                const sessionsSection = document.getElementById('sessionsSection');
+                if (sessionDetailSection) sessionDetailSection.style.display = 'none';
+                if (sessionsSection) sessionsSection.style.display = 'block';
             }
 
             showToast('Session archived. Its audit evidence was retained.', { type: 'success' });
@@ -1483,6 +1582,33 @@ export class GameMasterController {
             logger.error('Failed to archive session:', err);
             showToast(getUserMessage(err, {
                 fallback: 'Failed to archive session. Export its research archive, then refresh and try again.'
+            }), { type: 'error' });
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async deleteSession(sessionId) {
+        showLoader({ message: 'Deleting archived session...' });
+
+        try {
+            await database.deleteSession(sessionId);
+            this.sessionBundles.delete(sessionId);
+
+            if (this.currentSessionId === sessionId) {
+                this.currentSessionId = null;
+                const sessionDetailSection = document.getElementById('sessionDetailSection');
+                const sessionsSection = document.getElementById('sessionsSection');
+                if (sessionDetailSection) sessionDetailSection.style.display = 'none';
+                if (sessionsSection) sessionsSection.style.display = 'block';
+            }
+
+            showToast('Session deleted from Game Master lists. Its audit evidence was retained.', { type: 'success' });
+            await this.loadSessions();
+        } catch (err) {
+            logger.error('Failed to delete archived session:', err);
+            showToast(getUserMessage(err, {
+                fallback: 'Failed to delete the archived session. Refresh the session list and try again.'
             }), { type: 'error' });
         } finally {
             hideLoader();
