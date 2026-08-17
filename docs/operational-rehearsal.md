@@ -10,7 +10,7 @@ The executable inventory is `tests/contracts/operationalFeatureManifest.js`. Rem
 | --- | --- |
 | Session creation, authorization, routing, seat limits, persistence, logout, and recovery | `identity.session_topology` |
 | Four-team Strategic Orientation authoring and review lifecycle | `team.strategic_orientation` |
-| Blue actions, Red responses, Green proposals, and Industry proposals | `team.artifact_authoring` |
+| Blue and Red actions, Green proposals, and Industry proposals | `team.artifact_authoring` |
 | Facilitator workspaces, projection, support decks, and White Cell deck assignment | `facilitator.presentation_decks` |
 | White Cell artifact review, returns, revisions, stale-write protection, and completion | `white_cell.artifact_review` |
 | Recipient-isolated proposal approvals and immutable negotiation rounds | `proposals.recipient_threads` |

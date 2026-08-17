@@ -11,6 +11,7 @@
  */
 
 import { database } from '../services/database.js';
+import { sessionStore } from './session.js';
 import { createLogger } from '../utils/logger.js';
 import { CONFIG } from '../core/config.js';
 import {
@@ -95,6 +96,11 @@ class GameStateStore {
      * @returns {Promise<GameState|null>}
      */
     async initialize(sessionId) {
+        if (sessionStore?.hasTrainingContext?.()) {
+            logger.warn('Live game state is disabled while training is active');
+            return null;
+        }
+
         if (!sessionId) {
             logger.warn('Cannot initialize without session ID');
             return null;

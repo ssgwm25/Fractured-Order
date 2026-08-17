@@ -71,6 +71,11 @@ class SyncService {
     async initialize(sessionId, {
         participantId = null
     } = {}) {
+        if (sessionStore.hasTrainingContext?.()) {
+            logger.warn('Live sync is disabled while a training attempt is present.');
+            return;
+        }
+
         if (!sessionId) {
             logger.warn('Cannot initialize without session ID');
             return;

@@ -14,6 +14,7 @@ let previousFocus = null;
  * @param {Array} options.buttons - Button configurations
  * @param {string} options.size - Modal size ('sm', 'md', 'lg', 'xl')
  * @param {boolean} options.closable - Whether modal can be closed by clicking outside
+ * @param {string|HTMLElement|null} options.initialFocus - Preferred initial focus target
  * @param {Function} options.onClose - Callback when modal is closed
  * @returns {Object} Modal controller with close method
  */
@@ -23,6 +24,7 @@ export function showModal({
     buttons = [],
     size = 'md',
     closable = true,
+    initialFocus = null,
     onClose = null
 } = {}) {
     // Close any existing modal
@@ -54,7 +56,7 @@ export function showModal({
                 <h2 id="modal-title" class="modal-title">${escapeHtml(title)}</h2>
                 ${closable ? `
                     <button class="modal-close" aria-label="Close modal">
-                        <svg viewBox="0 0 20 20" fill="currentColor">
+                        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" focusable="false">
                             <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
                         </svg>
                     </button>
@@ -125,8 +127,22 @@ export function showModal({
     overlay._onClose = onClose;
     overlay._escapeHandler = handleEscape;
 
-    // Add to DOM
+    // Add to DOM, then make every background sibling inert while the dialog is
+    // open. The overlay already blocks pointer input; inert also keeps keyboard
+    // and assistive-technology navigation inside the modal boundary.
     document.body.appendChild(overlay);
+    overlay._backgroundElements = Array.from(document.body.children || [])
+        .filter((element) => element !== overlay)
+        .map((element) => {
+            const state = {
+                element,
+                hadInertAttribute: element.hasAttribute?.('inert') === true,
+                wasInert: element.inert === true
+            };
+            element.inert = true;
+            element.setAttribute?.('inert', '');
+            return state;
+        });
     document.body.classList.add('modal-open');
 
     // Trigger the entrance on the next frame AFTER the initial (hidden) state has
@@ -141,9 +157,17 @@ export function showModal({
 
     // Focus management
     const focusable = modal.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        'button, [href], input, select, textarea, video[controls], audio[controls], [tabindex]:not([tabindex="-1"])'
     );
-    if (focusable.length > 0) {
+    const preferredFocus = typeof initialFocus === 'string'
+        ? modal.querySelector(initialFocus)
+        : initialFocus;
+    if (
+        preferredFocus?.focus
+        && (typeof modal.contains !== 'function' || modal.contains(preferredFocus))
+    ) {
+        preferredFocus.focus();
+    } else if (focusable.length > 0) {
         focusable[0].focus();
     }
 
@@ -152,7 +176,7 @@ export function showModal({
         if (e.key !== 'Tab') return;
 
         const focusableEls = modal.querySelectorAll(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), video[controls], audio[controls], [tabindex]:not([tabindex="-1"])'
         );
         const firstEl = focusableEls[0];
         const lastEl = focusableEls[focusableEls.length - 1];
@@ -201,6 +225,18 @@ export function closeModal(overlay = activeModal) {
         if (overlay.parentNode) {
             overlay.parentNode.removeChild(overlay);
         }
+
+        overlay._backgroundElements?.forEach?.(({
+            element,
+            hadInertAttribute,
+            wasInert
+        }) => {
+            element.inert = wasInert;
+            if (!hadInertAttribute) {
+                element.removeAttribute?.('inert');
+            }
+        });
+        overlay._backgroundElements = null;
 
         // Restore body scroll
         if (!document.querySelector('.modal-overlay')) {

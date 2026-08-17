@@ -2,7 +2,8 @@ const SESSION_KEYS = [
     'esg_session_id',
     'esg_role',
     'esg_user_name',
-    'esg_session_data'
+    'esg_session_data',
+    'esg_training_context'
 ];
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
@@ -35,7 +36,10 @@ export function initializeE2EMockBackendStorage({
     if (!sessionStorageRef.getItem('__esg_e2e_bootstrapped__')) {
         storage.removeItem(mockStateKey);
         storage.removeItem(mockAuthKey);
-        sessionKeys.forEach((key) => storage.removeItem(key));
+        sessionKeys.forEach((key) => {
+            storage.removeItem(key);
+            sessionStorageRef.removeItem(key);
+        });
         sessionStorageRef.setItem('__esg_e2e_bootstrapped__', 'true');
     }
 

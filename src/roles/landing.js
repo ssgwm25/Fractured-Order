@@ -14,6 +14,8 @@ import { showToast } from '../components/ui/Toast.js';
 import { validateSessionCode } from '../utils/validation.js';
 import { navigateToApp } from '../core/navigation.js';
 import { getUserMessage } from '../core/errors.js';
+import { trainingRuntime } from '../features/training/trainingRuntime.js';
+import { isTrainingEntryCode } from '../features/training/trainingContext.js';
 import brandMarkUrl from '../img/Gold No Background.png';
 import {
     OPERATOR_SURFACES,
@@ -426,6 +428,24 @@ export class LandingController {
 
         try {
             await this.prewarmBrowserIdentity({ interactive: true });
+
+            // The reserved code selects the training bootstrap contract only.
+            // Runtime activation itself remains fail-closed on protected server
+            // metadata returned by that RPC.
+            if (isTrainingEntryCode(sessionCode)) {
+                const training = await trainingRuntime.startOrResume({
+                    code: sessionCode,
+                    team: participantTeam,
+                    publicRoleSurface: this.selectedRoleSurface,
+                    displayName
+                });
+                confirmation.setSessionName('SSG Training sandbox');
+                this.selectedRole = training.role;
+                await confirmation.confirm();
+                this.redirectToRole(training.role);
+                return;
+            }
+
             const session = await this.findSessionByCode(sessionCode);
             const sessionCodeFromLookup = session.session_code || sessionCode;
             confirmation.setSessionName(session.name);

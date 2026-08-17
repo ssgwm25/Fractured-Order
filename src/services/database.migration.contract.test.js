@@ -109,6 +109,11 @@ const GAME_MASTER_SESSION_RETIREMENT_PATH = new URL(
     '../../data/2026-08-17_game_master_session_retirement.sql',
     import.meta.url
 );
+const SSG_TRAINING_SESSION_PATH = new URL(
+    '../../data/2026-08-18_ssg_training_session.sql',
+    import.meta.url
+);
+const DATABASE_SERVICE_PATH = new URL('./database.js', import.meta.url);
 const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
@@ -140,6 +145,92 @@ function extractFunctionBody(sql, functionName) {
 }
 
 describe('database migration contracts', () => {
+    it('creates one idempotent protected training template with a fail-closed lifecycle', () => {
+        const sql = readFileSync(SSG_TRAINING_SESSION_PATH, 'utf8');
+        const protectedMutationBody = extractFunctionBody(sql, 'prevent_protected_session_mutation');
+        const liveStateGuardBody = extractFunctionBody(sql, 'prevent_training_template_live_state');
+        const liveLookupBody = extractFunctionBody(sql, 'lookup_joinable_session_by_code');
+        const liveReadBody = extractFunctionBody(sql, 'live_demo_can_read_session');
+        const liveWriteBody = extractFunctionBody(sql, 'live_demo_can_write_session');
+
+        expect(sql).toContain("CHECK (session_classification IN ('live_exercise', 'training_template'))");
+        expect(sql).toContain("id = '00000000-0000-4000-8000-000000002026'::UUID");
+        expect(sql).toContain("session_code = 'TRAINING2026'");
+        expect(sql).toContain("session_classification = 'training_template'");
+        expect(sql).toContain('is_protected = true');
+        expect(sql).toContain('ON CONFLICT (id) DO UPDATE');
+        expect(sql).toContain('refusing to relabel live evidence');
+
+        expect(protectedMutationBody).toContain("TG_OP = 'DELETE' AND OLD.is_protected = true");
+        expect(protectedMutationBody).toContain("TG_OP = 'UPDATE' AND OLD.is_protected = true");
+        expect(sql).toContain('BEFORE INSERT OR UPDATE OR DELETE ON public.sessions');
+        expect(sql).toContain('CREATE TRIGGER prevent_training_template_game_state');
+        expect(sql).toContain('CREATE TRIGGER prevent_training_template_participant_seat');
+        expect(liveStateGuardBody).toContain("s.session_classification = 'training_template'");
+        expect(liveLookupBody).toContain("s.session_classification = 'live_exercise'");
+        expect(liveLookupBody).toContain('s.is_protected = false');
+        expect(liveReadBody).toContain("s.session_classification = 'live_exercise'");
+        expect(liveReadBody).toContain('s.is_protected = false');
+        expect(liveWriteBody).toContain("s.session_classification = 'live_exercise'");
+        expect(liveWriteBody).toContain("s.status = 'active'");
+    });
+
+    it('owns all 12 training profiles by auth identity and never trusts an attempt UUID alone', () => {
+        const sql = readFileSync(SSG_TRAINING_SESSION_PATH, 'utf8');
+        const startBody = extractFunctionBody(sql, 'start_or_resume_training_attempt');
+        const bootstrapBody = extractFunctionBody(sql, 'get_training_attempt_bootstrap');
+        const progressBody = extractFunctionBody(sql, 'record_training_progress_event');
+
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.training_attempts');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.training_progress_events');
+        expect(sql).toContain("semantic_role IN ('scribe', 'facilitator', 'notetaker')");
+        expect(sql).toContain("team IN ('blue', 'red', 'green', 'industry')");
+        expect(sql).toContain('UNIQUE (id, auth_user_id, curriculum_version, semantic_role, team)');
+        expect(sql).toContain('CREATE POLICY training_attempts_owner_select');
+        expect(sql).toContain('auth_user_id = auth.uid()');
+        expect(sql).toContain('CREATE POLICY training_progress_events_owner_select');
+        expect(sql).toContain('GRANT SELECT ON public.training_attempts TO authenticated;');
+        expect(sql).toContain('GRANT SELECT ON public.training_progress_events TO authenticated;');
+
+        expect(startBody).toContain('current_user_id UUID := auth.uid()');
+        expect(startBody).toContain("BTRIM(COALESCE(requested_code, '')) <> 'TRAINING2026'");
+        expect(startBody).toContain("RAISE EXCEPTION 'Training access unavailable.'");
+        expect(startBody).toContain('ta.auth_user_id = current_user_id');
+        expect(startBody).toContain("'experience_plugin_id', 'ssg-training'");
+        expect(startBody).toContain("'session_classification', training_template.session_classification");
+        expect(startBody).toContain("'is_protected', training_template.is_protected");
+        expect(bootstrapBody).toContain('ta.id = requested_attempt_id');
+        expect(bootstrapBody).toContain('ta.auth_user_id = current_user_id');
+        expect(bootstrapBody).toContain("s.session_classification = 'training_template'");
+        expect(bootstrapBody).toContain('s.is_protected = true');
+        expect(progressBody).toContain('ta.id = requested_attempt_id');
+        expect(progressBody).toContain('ta.auth_user_id = current_user_id');
+        expect(progressBody).toContain("RAISE EXCEPTION 'Training attempt not found.'");
+    });
+
+    it('keeps training progress bounded, content-free, and outside live evidence exports', () => {
+        const sql = readFileSync(SSG_TRAINING_SESSION_PATH, 'utf8');
+        const databaseService = readFileSync(DATABASE_SERVICE_PATH, 'utf8');
+        const startBody = extractFunctionBody(sql, 'start_or_resume_training_attempt');
+        const eventTableDefinition = sql.match(
+            /CREATE TABLE IF NOT EXISTS public\.training_progress_events \(([\s\S]*?)\n\);/
+        )?.[1] || '';
+
+        expect(eventTableDefinition).toContain("'attempt_started'");
+        expect(eventTableDefinition).toContain("'attempt_completed'");
+        expect(eventTableDefinition).toContain("'media_degraded'");
+        expect(eventTableDefinition).not.toMatch(/answer|narration|transcript|artifact_body/i);
+        expect(sql).toContain('>= 500');
+        expect(startBody).not.toMatch(/session_participants|heartbeat|game_state|record_research_event|research_/i);
+        expect(databaseService).toContain(".eq('session_classification', 'live_exercise')");
+        expect(databaseService).toContain('Training templates are excluded from live session evidence bundles.');
+
+        const researchQueryRegistry = databaseService.match(
+            /const RESEARCH_TABLE_QUERY_CONFIG = Object\.freeze\(\{([\s\S]*?)\}\);/
+        )?.[1] || '';
+        expect(researchQueryRegistry).not.toMatch(/training_attempts|training_progress_events/);
+    });
+
     it('archives sessions without deleting immutable evidence', () => {
         const sql = readFileSync(SESSION_ARCHIVE_TRANSITION_PATH, 'utf8');
         const archiveBody = extractFunctionBody(sql, 'archive_live_demo_session');

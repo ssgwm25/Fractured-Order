@@ -8,7 +8,7 @@ It does not equate one happy-path browser assertion with total correctness. Focu
 
 | Role family | Executable profiles | Intended procedure groups |
 | --- | --- | --- |
-| Team Scribe | `blue.scribe`, `red.scribe`, `green.scribe`, `industry.scribe` | Secure join; team-specific Strategic Orientation; Blue action, Red response, Green proposal, or Industry proposal authoring; handoff; read-only RFI/update/timeline/journal surfaces |
+| Team Scribe | `blue.scribe`, `red.scribe`, `green.scribe`, `industry.scribe` | Secure join; team-specific Strategic Orientation; Blue or Red action, Green proposal, or Industry proposal authoring; handoff; read-only RFI/update/timeline/journal surfaces |
 | Team Facilitator | `blue.facilitator`, `red.facilitator`, `green.facilitator`, `industry.facilitator` | Secure join; Action Review, Deck, RFI, and Communications workspaces; projection/finalization; proposal threads; durable alerts |
 | Team Notetaker | `blue.notetaker`, `red.notetaker`, `green.notetaker`, `industry.notetaker` | Secure join; seat-scoped notes; dynamics/alliance tracking; quick capture; inbox; action/timeline review |
 | Game Master | `operator.game_master` | Operator authorization; session administration; participant monitoring/removal; exports and session-scoped plugin lifecycle |
@@ -28,7 +28,7 @@ The executable source is `tests/contracts/roleCapabilityMatrix.js`. These IDs ar
 | Area | Capability IDs |
 | --- | --- |
 | Entry and authorization | `entry.public`, `entry.game_master`, `entry.white_cell_lead`, `entry.sme` |
-| Team Scribe | `scribe.orientation`, `scribe.blue_action`, `scribe.red_response`, `scribe.green_proposal`, `scribe.industry_proposal`, `scribe.shared_surfaces` |
+| Team Scribe | `scribe.orientation`, `scribe.blue_action`, `scribe.red_action`, `scribe.green_proposal`, `scribe.industry_proposal`, `scribe.shared_surfaces` |
 | Team Facilitator | `facilitator.workspaces`, `facilitator.finalization`, `facilitator.rfi_communications`, `facilitator.proposal_threads`, `facilitator.alerts` |
 | Team Notetaker | `notetaker.notes`, `notetaker.capture_review` |
 | Game Master | `game_master.session_admin`, `game_master.participants`, `game_master.exports_plugins` |

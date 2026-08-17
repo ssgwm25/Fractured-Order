@@ -46,10 +46,10 @@ export const ROLE_CAPABILITIES = Object.freeze({
             evidence('e2e', 'tests/e2e/live-demo-playthrough.e2e.js', 'run Blue and Red action lifecycles through White Cell Lead adjudication')
         ]
     },
-    'scribe.red_response': {
-        label: 'Red move-response drafting, validation, editing, and Facilitator handoff',
+    'scribe.red_action': {
+        label: 'Red shared multi-page action drafting, validation, editing, and Facilitator handoff',
         evidence: [
-            evidence('unit', 'src/roles/facilitator.test.js', 'builds Red move responses with a concrete persisted mechanism label'),
+            evidence('unit', 'src/roles/facilitator.test.js', 'renders the Red Team action wizard with DIME checkboxes, PRC focus, and no implementation controls'),
             evidence('e2e', 'tests/e2e/live-demo-playthrough.e2e.js', 'run Blue and Red action lifecycles through White Cell Lead adjudication')
         ]
     },
@@ -243,7 +243,7 @@ const TEAM_ROLE_CAPABILITIES = Object.freeze({
 
 const TEAM_SPECIFIC_SCRIBE_CAPABILITY = Object.freeze({
     blue: 'scribe.blue_action',
-    red: 'scribe.red_response',
+    red: 'scribe.red_action',
     green: 'scribe.green_proposal',
     industry: 'scribe.industry_proposal'
 });

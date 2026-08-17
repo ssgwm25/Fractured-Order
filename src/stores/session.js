@@ -17,6 +17,7 @@ import {
     buildDefaultPluginState,
     normalizePluginState
 } from '../features/plugins/registry.js';
+import { normalizeStoredTrainingContext } from '../features/training/trainingContext.js';
 
 const logger = createLogger('SessionStore');
 const STORAGE_KEYS = Object.freeze({
@@ -25,7 +26,8 @@ const STORAGE_KEYS = Object.freeze({
     ROLE: 'esg_role',
     USER_NAME: 'esg_user_name',
     SESSION_DATA: 'esg_session_data',
-    OPERATOR_AUTH: 'esg_operator_auth'
+    OPERATOR_AUTH: 'esg_operator_auth',
+    TRAINING_CONTEXT: 'esg_training_context'
 });
 
 let currentSessionId = null;
@@ -34,6 +36,8 @@ let currentRole = null;
 let currentUserName = null;
 let currentSessionData = null;
 let currentOperatorAuth = null;
+let currentTrainingContext = null;
+let currentTrainingContextServerValidated = false;
 let initialized = false;
 let storageListenerBound = false;
 
@@ -174,6 +178,29 @@ function buildDefaultGameState() {
     };
 }
 
+function readTrainingContextFromStorage() {
+    const cachedData = getStoredValue(STORAGE_KEYS.TRAINING_CONTEXT);
+    if (!cachedData) {
+        return null;
+    }
+
+    try {
+        return normalizeStoredTrainingContext(JSON.parse(cachedData));
+    } catch (_error) {
+        logger.warn('Failed to parse cached training context');
+        return null;
+    }
+}
+
+function persistTrainingContext() {
+    if (currentTrainingContext) {
+        setStoredValue(STORAGE_KEYS.TRAINING_CONTEXT, JSON.stringify(currentTrainingContext));
+        return;
+    }
+
+    removeStoredValue(STORAGE_KEYS.TRAINING_CONTEXT);
+}
+
 function buildDefaultSessionData(sessionId = currentSessionId) {
     if (!sessionId) {
         return null;
@@ -268,9 +295,11 @@ function getEffectiveSessionData() {
 
 function buildSnapshot() {
     const sessionId = syncSessionIdFromStorage();
+    const trainingContext = currentTrainingContext;
+    const trainingMode = Boolean(trainingContext && currentTrainingContextServerValidated);
     const issues = [];
 
-    if (!sessionId) {
+    if (!sessionId && !trainingMode) {
         issues.push('No session ID - user must join a session');
     }
 
@@ -292,6 +321,8 @@ function buildSnapshot() {
         role: currentRole,
         userName: currentUserName,
         operatorAuth: syncOperatorAuthFromStorage(),
+        trainingMode,
+        trainingContext,
         issues,
         sessionData: sessionId ? getEffectiveSessionData() : null
     };
@@ -340,6 +371,11 @@ function bindStorageListener() {
             currentOperatorAuth = readOperatorAuthFromStorage();
         }
 
+        if (event.key === STORAGE_KEYS.TRAINING_CONTEXT) {
+            currentTrainingContext = readTrainingContextFromStorage();
+            currentTrainingContextServerValidated = false;
+        }
+
         notifyListeners();
     });
 
@@ -354,6 +390,17 @@ export const sessionStore = {
         currentUserName = getStoredValue(STORAGE_KEYS.USER_NAME);
         currentSessionData = normalizeSessionData(readSessionDataFromStorage(), currentSessionId);
         currentOperatorAuth = readOperatorAuthFromStorage();
+        currentTrainingContext = readTrainingContextFromStorage();
+        // Stored state is a resume hint only. A role page must revalidate the
+        // owner-scoped attempt with the server before training becomes active.
+        currentTrainingContextServerValidated = false;
+
+        if (currentTrainingContext) {
+            currentSessionId = null;
+            currentSessionData = null;
+            removeStoredValue(STORAGE_KEYS.SESSION_ID);
+            removeStoredValue(STORAGE_KEYS.SESSION_DATA);
+        }
 
         if (currentSessionData?.id && currentSessionId && currentSessionData.id !== currentSessionId) {
             currentSessionData = null;
@@ -383,6 +430,9 @@ export const sessionStore = {
         }
 
         const hasChanged = currentSessionId !== sessionId;
+        currentTrainingContext = null;
+        currentTrainingContextServerValidated = false;
+        persistTrainingContext();
         currentSessionId = sessionId;
         setStoredValue(STORAGE_KEYS.SESSION_ID, sessionId);
 
@@ -491,6 +541,50 @@ export const sessionStore = {
 
     getOperatorAuth() {
         return syncOperatorAuthFromStorage();
+    },
+
+    getTrainingContext({ requireServerValidation = true } = {}) {
+        if (requireServerValidation && !currentTrainingContextServerValidated) {
+            return null;
+        }
+
+        return currentTrainingContext;
+    },
+
+    hasTrainingContext() {
+        return Boolean(currentTrainingContext);
+    },
+
+    isTrainingMode() {
+        return Boolean(currentTrainingContext && currentTrainingContextServerValidated);
+    },
+
+    setTrainingContext(context, { serverValidated = false } = {}) {
+        const normalizedContext = normalizeStoredTrainingContext(context);
+        if (!normalizedContext) {
+            logger.warn('Rejected invalid training context');
+            return null;
+        }
+
+        currentTrainingContext = normalizedContext;
+        currentTrainingContextServerValidated = serverValidated === true;
+        currentSessionId = null;
+        currentSessionData = null;
+        currentOperatorAuth = null;
+
+        removeStoredValue(STORAGE_KEYS.SESSION_ID);
+        removeStoredValue(STORAGE_KEYS.SESSION_DATA);
+        persistOperatorAuth();
+        persistTrainingContext();
+        notifyListeners();
+        return currentTrainingContext;
+    },
+
+    clearTrainingContext() {
+        currentTrainingContext = null;
+        currentTrainingContextServerValidated = false;
+        persistTrainingContext();
+        notifyListeners();
     },
 
     setOperatorAuth(auth) {
@@ -620,12 +714,15 @@ export const sessionStore = {
         currentUserName = null;
         currentSessionData = null;
         currentOperatorAuth = null;
+        currentTrainingContext = null;
+        currentTrainingContextServerValidated = false;
 
         removeStoredValue(STORAGE_KEYS.SESSION_ID);
         removeStoredValue(STORAGE_KEYS.ROLE);
         removeStoredValue(STORAGE_KEYS.USER_NAME);
         removeStoredValue(STORAGE_KEYS.SESSION_DATA);
         removeStoredValue(STORAGE_KEYS.OPERATOR_AUTH);
+        removeStoredValue(STORAGE_KEYS.TRAINING_CONTEXT);
 
         notifyListeners();
     },

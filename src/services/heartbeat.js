@@ -67,6 +67,11 @@ class HeartbeatService {
             return;
         }
 
+        if (sessionStore.hasTrainingContext?.()) {
+            logger.info('Heartbeat is disabled in the training sandbox');
+            return;
+        }
+
         logger.info('Initializing heartbeat service');
 
         // Set up connectivity listeners

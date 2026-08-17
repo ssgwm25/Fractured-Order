@@ -36,7 +36,7 @@ export const SHIPPED_NON_PLI_OPERATIONAL_FEATURES = Object.freeze({
         ]
     },
     'team.artifact_authoring': {
-        label: 'Blue actions, Red responses, Green proposals, Industry proposals, validation, drafts, edit, and handoff',
+        label: 'Blue and Red actions, Green proposals, Industry proposals, validation, drafts, edit, and handoff',
         evidence: [
             evidence('unit', 'src/roles/facilitator.test.js', 'requires and persists the distinct US Industry proposal fields'),
             evidence('unit', 'src/roles/facilitator.test.js', 'validates partner, sector, and conditional supply-chain proposal choices'),

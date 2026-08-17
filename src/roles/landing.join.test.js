@@ -15,6 +15,9 @@ const {
         claimParticipantSeat: vi.fn(),
         getGameState: vi.fn(),
         disconnectParticipant: vi.fn(),
+        startOrResumeTrainingAttempt: vi.fn(),
+        getTrainingAttemptBootstrap: vi.fn(),
+        recordTrainingProgressEvent: vi.fn(),
         getActiveSessions: vi.fn(),
         getActiveParticipants: vi.fn()
     },
@@ -27,7 +30,11 @@ const {
         setUserName: vi.fn(),
         setSessionData: vi.fn(),
         setGameState: vi.fn(),
-        setOperatorAuth: vi.fn()
+        setOperatorAuth: vi.fn(),
+        setTrainingContext: vi.fn(),
+        clearTrainingContext: vi.fn(),
+        hasTrainingContext: vi.fn(() => false),
+        getTrainingContext: vi.fn(() => null)
     },
     mockEnsureBrowserIdentity: vi.fn(),
     mockSyncService: {
@@ -231,6 +238,114 @@ describe('landing secure join flow', () => {
         // Success is confirmed by the join interstitial, not a toast.
         expect(mockShowToast).not.toHaveBeenCalled();
         expect(mockHideLoader).not.toHaveBeenCalled();
+    });
+
+    it('normalizes the reserved code and starts an isolated Blue Scribe attempt', async () => {
+        const elements = {
+            sessionCode: createElement(' training2026 '),
+            displayName: createElement('Morgan')
+        };
+
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            }
+        };
+
+        mockDatabase.startOrResumeTrainingAttempt.mockResolvedValue({
+            attempt_id: 'attempt-blue-scribe-1',
+            template_session_id: '00000000-0000-4000-8000-000000002026',
+            curriculum_version: '1.0',
+            profile_id: 'blue.scribe',
+            semantic_role: 'scribe',
+            team: 'blue',
+            status: 'in_progress',
+            current_step_id: null,
+            resumed: false,
+            session_classification: 'training_template',
+            is_protected: true,
+            experience_plugin_id: 'ssg-training'
+        });
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'blue';
+        controller.selectedRoleSurface = 'facilitator';
+        controller.selectedRole = 'blue_facilitator';
+        controller.redirectToRole = vi.fn();
+        const confirmation = {
+            confirm: vi.fn().mockResolvedValue(),
+            dismiss: vi.fn(),
+            setSessionName: vi.fn()
+        };
+        controller.showJoinConfirmation = vi.fn(() => confirmation);
+
+        await controller.handleJoinSession({ preventDefault() {} });
+
+        expect(mockDatabase.startOrResumeTrainingAttempt).toHaveBeenCalledWith({
+            code: 'TRAINING2026',
+            semanticRole: 'scribe',
+            team: 'blue',
+            curriculumVersion: '1.0'
+        });
+        expect(mockSessionStore.setTrainingContext).toHaveBeenCalledWith({
+            attemptId: 'attempt-blue-scribe-1',
+            curriculumVersion: '1.0',
+            semanticRole: 'scribe',
+            team: 'blue',
+            trainingMode: true
+        }, { serverValidated: true });
+        expect(mockSessionStore.setRole).toHaveBeenCalledWith('blue_facilitator');
+        expect(mockDatabase.lookupJoinableSessionByCode).not.toHaveBeenCalled();
+        expect(mockDatabase.claimParticipantSeat).not.toHaveBeenCalled();
+        expect(mockDatabase.getGameState).not.toHaveBeenCalled();
+        expect(mockSyncService.initialize).not.toHaveBeenCalled();
+        expect(controller.redirectToRole).toHaveBeenCalledWith('blue_facilitator');
+    });
+
+    it('keeps non-training codes on the unchanged live join path', async () => {
+        const elements = {
+            sessionCode: createElement('training2027'),
+            displayName: createElement('Morgan')
+        };
+        global.document = {
+            getElementById(id) {
+                return elements[id] || null;
+            }
+        };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({
+            id: 'session-live-regression',
+            name: 'Live regression',
+            session_code: 'TRAINING2027',
+            status: 'active'
+        });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({
+            id: 'seat-live-regression',
+            claim_status: 'claimed'
+        });
+        mockDatabase.getGameState.mockResolvedValue({ move: 1, phase: 1 });
+
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'blue';
+        controller.selectedRoleSurface = 'facilitator';
+        controller.selectedRole = 'blue_facilitator';
+        controller.redirectToRole = vi.fn();
+        controller.showJoinConfirmation = vi.fn(() => ({
+            confirm: vi.fn().mockResolvedValue(),
+            dismiss: vi.fn(),
+            setSessionName: vi.fn()
+        }));
+
+        await controller.handleJoinSession({ preventDefault() {} });
+
+        expect(mockDatabase.startOrResumeTrainingAttempt).not.toHaveBeenCalled();
+        expect(mockDatabase.lookupJoinableSessionByCode).toHaveBeenCalledWith('TRAINING2027');
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith(
+            'session-live-regression',
+            'blue_facilitator',
+            'Morgan'
+        );
     });
 
     it('fails cleanly when the server-side lookup rejects an invalid code', async () => {

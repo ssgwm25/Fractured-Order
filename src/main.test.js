@@ -13,7 +13,8 @@ const {
             role: null,
             sessionData: null
         })),
-        clear: vi.fn()
+        clear: vi.fn(),
+        hasTrainingContext: vi.fn(() => false)
     },
     mockSyncService: {
         reset: vi.fn(),
@@ -306,6 +307,62 @@ describe('sidebar toggle state resolution', () => {
 
         expect(isCompactSidebarViewport({ windowWidth: 768 })).toBe(true);
         expect(isCompactSidebarViewport({ windowWidth: 769 })).toBe(false);
+    });
+});
+
+describe('training live-service boundary', () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        mockSessionStore.hasTrainingContext.mockReturnValue(false);
+        global.document = {
+            readyState: 'loading',
+            addEventListener: vi.fn(),
+            getElementById: vi.fn(() => null),
+            querySelectorAll: vi.fn(() => [])
+        };
+    });
+
+    afterEach(() => {
+        mockSessionStore.hasTrainingContext.mockReturnValue(false);
+        vi.resetModules();
+        delete global.document;
+    });
+
+    it('never starts live sync for a training context even with forged live identifiers', async () => {
+        const { shouldInitializeLiveSync } = await import('./main.js');
+
+        expect(shouldInitializeLiveSync({
+            sessionId: 'forged-live-session',
+            role: 'blue_facilitator',
+            sessionData: { participantSessionId: 'forged-seat' }
+        }, {
+            landingPage: false,
+            trainingRequested: true
+        })).toBe(false);
+    });
+
+    it('does not mount the live Session Recorder notice for training', async () => {
+        const { setupSessionRecordingNotice } = await import('./main.js');
+        const gameStateStoreRef = {};
+
+        expect(setupSessionRecordingNotice({
+            documentRef: { body: {} },
+            gameStateStoreRef,
+            sessionStoreRef: { hasTrainingContext: () => true }
+        })).toBeNull();
+    });
+
+    it('exits training without participant disconnect or sync cleanup', async () => {
+        mockSessionStore.hasTrainingContext.mockReturnValue(true);
+        const { performLogout } = await import('./main.js');
+
+        await performLogout();
+
+        expect(mockParticipantsStore.leave).not.toHaveBeenCalled();
+        expect(mockSyncService.reset).not.toHaveBeenCalled();
+        expect(mockSessionStore.clear).toHaveBeenCalledTimes(1);
+        expect(mockNavigateToApp).toHaveBeenCalledWith('');
     });
 });
 

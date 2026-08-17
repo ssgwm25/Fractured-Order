@@ -614,7 +614,7 @@ function normalizeResearchCaptureMode(value) {
 /**
  * Database service with CRUD operations for all tables
  */
-export const database = {
+const databaseApi = {
     async authorizeOperatorAccess({
         surface,
         accessCode,
@@ -754,6 +754,7 @@ export const database = {
             .from('sessions')
             .select('*')
             .eq('status', 'active')
+            .eq('session_classification', 'live_exercise')
             .order('created_at', { ascending: false });
 
         if (error) {
@@ -774,6 +775,7 @@ export const database = {
             .from('sessions')
             .select('*')
             .eq('status', 'archived')
+            .eq('session_classification', 'live_exercise')
             .order('updated_at', { ascending: false });
 
         if (error) {
@@ -2195,6 +2197,13 @@ export const database = {
             this.fetchTimeline(sessionId).catch(() => [])
         ]);
 
+        if (session?.session_classification === 'training_template') {
+            throw new DatabaseError(
+                'Training templates are excluded from live session evidence bundles.',
+                'fetchSessionBundle'
+            );
+        }
+
         return {
             session,
             gameState,
@@ -2203,6 +2212,69 @@ export const database = {
             requests,
             timeline
         };
+    },
+
+    /**
+     * Start or resume an owner-scoped training attempt. Activation still
+     * depends on the protected metadata returned by the server.
+     */
+    async startOrResumeTrainingAttempt({
+        code,
+        semanticRole,
+        team,
+        curriculumVersion = '1.0'
+    } = {}) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('start_or_resume_training_attempt', {
+            requested_code: typeof code === 'string' ? code.trim() : '',
+            requested_semantic_role: semanticRole,
+            requested_team: team,
+            requested_curriculum_version: curriculumVersion
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'startOrResumeTrainingAttempt');
+        }
+
+        return data;
+    },
+
+    /**
+     * Revalidate a cached attempt hint against auth.uid() and the protected
+     * template before a multi-page training route is allowed to initialize.
+     */
+    async getTrainingAttemptBootstrap(attemptId) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('get_training_attempt_bootstrap', {
+            requested_attempt_id: attemptId
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'getTrainingAttemptBootstrap');
+        }
+
+        return data;
+    },
+
+    async recordTrainingProgressEvent({
+        attemptId,
+        eventType,
+        stepId = null,
+        resultCode = null
+    } = {}) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('record_training_progress_event', {
+            requested_attempt_id: attemptId,
+            requested_event_type: eventType,
+            requested_step_id: stepId,
+            requested_result_code: resultCode
+        });
+
+        if (error) {
+            throw fromSupabaseError(error, 'recordTrainingProgressEvent');
+        }
+
+        return data;
     },
 
     async fetchResearchExportBundle(sessionId) {
@@ -2792,6 +2864,44 @@ export const database = {
         return { narrative };
     }
 };
+
+const TRAINING_DATABASE_METHOD_ALLOWLIST = new Set([
+    'startOrResumeTrainingAttempt',
+    'getTrainingAttemptBootstrap',
+    'recordTrainingProgressEvent'
+]);
+
+/**
+ * While any persisted training attempt hint exists, all database methods fail
+ * closed except the three owner-scoped training RPCs. This protects the gap
+ * between page load and server revalidation as well as the active runtime.
+ */
+export const database = new Proxy(databaseApi, {
+    get(target, property, receiver) {
+        const value = Reflect.get(target, property, receiver);
+        if (typeof value !== 'function') {
+            return value;
+        }
+
+        return function trainingBoundaryMethod(...args) {
+            if (
+                sessionStore.hasTrainingContext?.()
+                && !TRAINING_DATABASE_METHOD_ALLOWLIST.has(property)
+            ) {
+                const error = new DatabaseError(
+                    'That action is not available in the training sandbox. Your live sessions were not changed. Exit training and re-enter the code to recover.',
+                    String(property)
+                );
+                error.name = 'TrainingIsolationError';
+                error.code = 'TRAINING_WRITE_BLOCKED';
+                error.userSafe = true;
+                throw error;
+            }
+
+            return Reflect.apply(value, receiver, args);
+        };
+    }
+});
 
 /**
  * Roll per-seat reviews into row-level status for RLS / team visibility.

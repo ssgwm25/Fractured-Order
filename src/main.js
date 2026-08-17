@@ -16,6 +16,7 @@ import { showToast } from './components/ui/Toast.js';
 import { hideLoader } from './components/ui/Loader.js';
 import { confirm as confirmModal } from './components/ui/Modal.js';
 import { mountSessionRecordingNotice } from './features/plugins/sessionRecorder.js';
+import { trainingRuntime } from './features/training/trainingRuntime.js';
 import { ConfigurationError, getUserMessage } from './core/errors.js';
 import { isLandingPage, navigateToApp } from './core/navigation.js';
 import { isPublicRoleSurface, parseTeamRole } from './core/teamContext.js';
@@ -99,16 +100,27 @@ async function initApp() {
         return;
     }
 
+    const trainingRouteState = await trainingRuntime.guardCurrentRoute();
+    if (!trainingRouteState.allowed) {
+        hideLoader();
+        return;
+    }
+    const trainingActive = trainingRouteState.active;
+
     // Setup global error handling
     setupErrorHandling();
 
     // Setup connection indicator
     setupConnectionIndicator();
-    setupSyncStatusBanner();
-    setupSessionRecordingNotice();
+    if (!trainingActive) {
+        setupSyncStatusBanner();
+        setupSessionRecordingNotice();
+    }
 
     // Setup logout handler
-    setupLogoutHandler();
+    if (!trainingActive) {
+        setupLogoutHandler();
+    }
 
     // Setup page refresh controls (role headers / facilitator section actions)
     setupPageRefreshHandler();
@@ -121,7 +133,9 @@ async function initApp() {
 
     // Initialize session from storage
     initializeSession();
-    setupSyncLifecycle();
+    if (!trainingActive) {
+        setupSyncLifecycle();
+    }
 
     // Hide any loading overlay
     hideLoader();
@@ -138,6 +152,10 @@ function setupErrorHandling() {
         if (event.error instanceof ConfigurationError) {
             return;
         }
+        if (event.error?.code === 'TRAINING_WRITE_BLOCKED') {
+            showToast({ message: event.error.message, type: 'error' });
+            return;
+        }
         showToast({
             message: 'An unexpected error occurred',
             type: 'error'
@@ -147,6 +165,10 @@ function setupErrorHandling() {
     window.addEventListener('unhandledrejection', (event) => {
         logger.error('Unhandled promise rejection:', event.reason);
         if (event.reason instanceof ConfigurationError) {
+            return;
+        }
+        if (event.reason?.code === 'TRAINING_WRITE_BLOCKED') {
+            showToast({ message: event.reason.message, type: 'error' });
             return;
         }
         showToast({
@@ -425,9 +447,10 @@ export function setupSyncStatusBanner({
 
 export function setupSessionRecordingNotice({
     documentRef = typeof document !== 'undefined' ? document : null,
-    gameStateStoreRef = gameStateStore
+    gameStateStoreRef = gameStateStore,
+    sessionStoreRef = sessionStore
 } = {}) {
-    if (!documentRef?.body) {
+    if (!documentRef?.body || sessionStoreRef.hasTrainingContext?.()) {
         return null;
     }
 
@@ -486,6 +509,12 @@ export async function performLogout({
     navigateToAppRef = navigateToApp,
     loggerRef = logger
 } = {}) {
+    if (sessionStoreRef.hasTrainingContext?.()) {
+        sessionStoreRef.clear();
+        navigateToAppRef('');
+        return;
+    }
+
     try {
         await participantsStoreRef.leave();
     } catch (err) {
@@ -906,6 +935,9 @@ function initializeSession() {
 
         if (sessionNameEl && sessionData?.name) {
             sessionNameEl.textContent = sessionData.name;
+        } else if (sessionNameEl && snapshot.trainingMode && snapshot.trainingContext) {
+            const { team, semanticRole } = snapshot.trainingContext;
+            sessionNameEl.textContent = `Training | ${team} ${semanticRole}`;
         } else if (sessionNameEl) {
             sessionNameEl.textContent = sessionId ? `Session: ${sessionId.slice(0, 8)}...` : 'No session';
         }
@@ -936,6 +968,22 @@ function initializeSession() {
 /**
  * Initialize live sync once a joined session is available
  */
+export function shouldInitializeLiveSync(snapshot, {
+    landingPage = isLandingPage(),
+    trainingRequested = sessionStore.hasTrainingContext?.() === true
+} = {}) {
+    const participantId = snapshot?.sessionData?.participantSessionId
+        || snapshot?.sessionData?.participantId
+        || null;
+
+    return Boolean(
+        !trainingRequested
+        && snapshot?.sessionId
+        && !landingPage
+        && (participantId || snapshot?.role === 'white')
+    );
+}
+
 function setupSyncLifecycle() {
     let currentSyncSessionId = null;
 
@@ -943,11 +991,10 @@ function setupSyncLifecycle() {
         const participantId = snapshot.sessionData?.participantSessionId
             || snapshot.sessionData?.participantId
             || null;
-        const shouldInitialize = Boolean(
-            snapshot.sessionId
-            && !isLandingPage()
-            && (participantId || snapshot.role === 'white')
-        );
+        const shouldInitialize = shouldInitializeLiveSync(snapshot, {
+            landingPage: isLandingPage(),
+            trainingRequested: sessionStore.hasTrainingContext?.() === true
+        });
 
         if (!shouldInitialize) {
             if (currentSyncSessionId) {

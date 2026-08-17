@@ -19,6 +19,7 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
+import { trainingRuntime } from '../features/training/trainingRuntime.js';
 import { showToast } from '../components/ui/Toast.js';
 import { createArtifactLifecycleBadge, createBadge, createPriorityBadge } from '../components/ui/Badge.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
@@ -245,6 +246,14 @@ export class NotetakerController {
      */
     async init() {
         logger.info('Initializing Notetaker interface');
+
+        if (sessionStore.hasTrainingContext?.()) {
+            await trainingRuntime.initializeRolePage({
+                expectedSemanticRole: 'notetaker',
+                team: this.teamId
+            });
+            return;
+        }
 
         // Check for valid session
         const sessionId = sessionStore.getSessionId();

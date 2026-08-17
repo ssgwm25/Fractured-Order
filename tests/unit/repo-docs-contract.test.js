@@ -8,6 +8,70 @@ function readText(relativePath) {
 }
 
 describe('repository operator docs contract', () => {
+    it('pins the TRAINING2026 learning contract and isolated 12-profile scope', () => {
+        const training = readText('../../docs/ssg-training-session-design.md');
+        const teams = ['blue', 'red', 'green', 'industry'];
+        const semanticRoles = ['scribe', 'facilitator', 'notetaker'];
+        const trainingProfiles = teams.flatMap((team) => (
+            semanticRoles.map((role) => `${team}.${role}`)
+        ));
+        const lockedProfileTable = training.slice(
+            training.indexOf('| Team | Scribe | Facilitator | Notetaker |'),
+            training.indexOf('The following shipped profiles and compatibility states')
+        );
+        const documentedProfiles = [...lockedProfileTable.matchAll(
+            /`(blue|red|green|industry)\.(scribe|facilitator|notetaker)`/g
+        )].map((match) => match[0].slice(1, -1));
+
+        expect(trainingProfiles).toHaveLength(12);
+        expect(training).toContain('exactly **12 learner profiles**');
+        expect(documentedProfiles.sort()).toEqual(trainingProfiles.sort());
+        trainingProfiles.forEach((profile) => {
+            expect(training, `training contract is missing ${profile}`).toContain(`\`${profile}\``);
+        });
+
+        expect(training).toContain('`TRAINING2026` is **code-restricted, not identity-verified**');
+        expect(training).toContain('Simulated White Cell responses are instructional fixtures and never');
+        expect(training).toContain('deterministic adjudication records');
+        expect(training).toContain('15–25 minutes');
+        expect(training).toContain('below 90 seconds');
+
+        expect(training).toContain('`ROLE_SURFACES.FACILITATOR`; persisted suffix `*_facilitator`');
+        expect(training).toContain('`teams/<team>/facilitator.html`');
+        expect(training).toContain('`ROLE_SURFACES.SCRIBE`; persisted suffix `*_scribe`');
+        expect(training).toContain('`teams/<team>/scribe.html`');
+        expect(training).toContain('`ROLE_SURFACES.NOTETAKER`; persisted suffix `*_notetaker`');
+        expect(training).toContain('`teams/<team>/notetaker.html`');
+        expect(training).toContain('Blue or Red action');
+        expect(training).toContain('Red authors an Action through the current shared action workflow');
+        expect(training).toContain('Scribe → Facilitator → White Cell');
+
+        expect(training).toContain('no live persistence');
+        expect(training).toContain('namespaced `sessionStorage`');
+        expect(training).toContain('must not import or mount the White Cell plugin registry');
+        expect(training).toContain('`experience_plugin_id = ssg-training`');
+        expect(training).toContain('`get_training_attempt_bootstrap(attempt_id)`');
+        expect(training).toContain('Every other database method');
+        expect(training).toContain('Sync,');
+        expect(training).toContain('heartbeat, seat');
+        expect(training).toContain('Session Recorder notices are independently');
+        expect(training).toContain('Operator and SME routes are explicitly excluded from `TRAINING2026`');
+        [
+            'operator.game_master',
+            'operator.white_cell_lead',
+            'sme.econ',
+            'sme.ni_escalation',
+            'sme.diplomacy_information',
+            'sme.tsj',
+            'sme.verba',
+            'whitecell_support',
+            'viewer'
+        ].forEach((excludedProfile) => {
+            expect(training, `training exclusions are missing ${excludedProfile}`)
+                .toContain(`\`${excludedProfile}\``);
+        });
+    });
+
     it('pins secretless pull-request frontend validation and retained artifacts', () => {
         const workflow = readText('../../.github/workflows/frontend-ci.yml');
         const deployment = readText('../../docs/deployment.md');

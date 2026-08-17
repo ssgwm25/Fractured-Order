@@ -6,6 +6,9 @@ const E2E_MOCK_BROADCAST_KEY = 'esg_e2e_realtime_broadcast';
 const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
 const E2E_MOCK_STATE_WRITE_LOCK = 'esg-e2e-backend-state-write';
 const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+const TRAINING_TEMPLATE_ID = '00000000-0000-4000-8000-000000002026';
+const TRAINING_ACCESS_CODE = 'TRAINING2026';
+const TRAINING_CURRICULUM_VERSION = '1.0';
 let mockAnonymousAuthSequence = 0;
 const DEFAULT_TIMER_ALLOCATIONS = Object.freeze({
     strategic_orientation: 5400,
@@ -22,6 +25,8 @@ const MOCK_TABLES = [
     'operator_grants',
     'participants',
     'session_participants',
+    'training_attempts',
+    'training_progress_events',
     'actions',
     'requests',
     'artifact_workflow_reviews',
@@ -54,6 +59,26 @@ const SME_OPERATOR_ROLES = new Set([
     'sme_diplomacy_information',
     'sme_tsj',
     'sme_verba'
+]);
+
+const TRAINING_TEAMS = new Set(['blue', 'red', 'green', 'industry']);
+const TRAINING_SEMANTIC_ROLES = new Set(['scribe', 'facilitator', 'notetaker']);
+const TRAINING_PROGRESS_EVENT_TYPES = new Set([
+    'step_started',
+    'step_completed',
+    'mastery_passed',
+    'mastery_failed',
+    'attempt_completed',
+    'attempt_reset',
+    'media_degraded',
+    'role_switched'
+]);
+const TRAINING_PROGRESS_RESULT_CODES = new Set([
+    'passed',
+    'failed',
+    'completed',
+    'skipped',
+    'degraded'
 ]);
 
 function cloneValue(value) {
@@ -159,7 +184,40 @@ function buildInitialMockState() {
         }
     ];
 
+    ensureTrainingTemplateState(baseState);
+
     return baseState;
+}
+
+function ensureTrainingTemplateState(state) {
+    const timestamp = getTimestamp();
+    const existingIndex = state.tables.sessions.findIndex((entry) => entry.id === TRAINING_TEMPLATE_ID);
+    const template = {
+        id: TRAINING_TEMPLATE_ID,
+        name: 'SSG TRAINING2026 Template',
+        status: 'active',
+        session_code: TRAINING_ACCESS_CODE,
+        metadata: {
+            session_code: TRAINING_ACCESS_CODE,
+            description: 'Protected self-guided training template; not live exercise evidence.',
+            curriculum_version: TRAINING_CURRICULUM_VERSION
+        },
+        session_classification: 'training_template',
+        is_protected: true,
+        deleted_at: null,
+        created_at: existingIndex >= 0
+            ? state.tables.sessions[existingIndex].created_at || timestamp
+            : timestamp,
+        updated_at: timestamp
+    };
+
+    if (existingIndex >= 0) {
+        state.tables.sessions[existingIndex] = template;
+    } else {
+        state.tables.sessions.push(template);
+    }
+
+    return state;
 }
 
 function readMockState() {
@@ -175,7 +233,7 @@ function readMockState() {
 
     try {
         const parsedState = JSON.parse(rawState);
-        return {
+        return ensureTrainingTemplateState({
             counters: {
                 ...buildInitialMockState().counters,
                 ...(parsedState.counters || {})
@@ -184,7 +242,7 @@ function readMockState() {
                 ...buildInitialMockState().tables,
                 ...(parsedState.tables || {})
             }
-        };
+        });
     } catch (_error) {
         return buildInitialMockState();
     }
@@ -497,8 +555,39 @@ function normalizeInsertRow(tableName, payload, state) {
                 status: 'active',
                 session_code: null,
                 metadata: {},
+                session_classification: 'live_exercise',
+                is_protected: false,
                 deleted_at: null,
                 updated_at: timestamp,
+                ...cloneValue(payload)
+            };
+        case 'training_attempts':
+            return {
+                ...baseRow,
+                auth_user_id: null,
+                template_session_id: TRAINING_TEMPLATE_ID,
+                curriculum_version: TRAINING_CURRICULUM_VERSION,
+                semantic_role: null,
+                team: null,
+                status: 'in_progress',
+                current_step_id: null,
+                started_at: timestamp,
+                last_resumed_at: timestamp,
+                completed_at: null,
+                updated_at: timestamp,
+                ...cloneValue(payload)
+            };
+        case 'training_progress_events':
+            return {
+                ...baseRow,
+                attempt_id: null,
+                auth_user_id: null,
+                curriculum_version: TRAINING_CURRICULUM_VERSION,
+                semantic_role: null,
+                team: null,
+                event_type: null,
+                step_id: null,
+                result_code: null,
                 ...cloneValue(payload)
             };
         case 'game_state':
@@ -844,6 +933,13 @@ function liveDemoCanReadSession(state, authUserId, sessionId) {
         return false;
     }
 
+    const session = state.tables.sessions.find((entry) => entry.id === sessionId);
+    if (!session
+        || session.session_classification === 'training_template'
+        || session.is_protected === true) {
+        return false;
+    }
+
     return Boolean(
         getParticipantSeatForSession(state, authUserId, sessionId, { activeOnly: true })
         || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
@@ -913,6 +1009,16 @@ function canReadTableRow(state, tableName, row, authUserId) {
 
     if (tableName === 'sessions') {
         return liveDemoCanReadSession(state, authUserId, row.id);
+    }
+
+    if (tableName === 'training_attempts') {
+        return row.auth_user_id === authUserId;
+    }
+
+    if (tableName === 'training_progress_events') {
+        return row.auth_user_id === authUserId && state.tables.training_attempts.some((attempt) => (
+            attempt.id === row.attempt_id && attempt.auth_user_id === authUserId
+        ));
     }
 
     if (tableName === 'pli_adjudications') {
@@ -1241,14 +1347,21 @@ function authorizeDemoOperator(state, {
 
         if (requested_session_id) {
             resolvedSession = state.tables.sessions.find((entry) => (
-                entry.id === requested_session_id && entry.status === 'active'
+                entry.id === requested_session_id
+                && entry.status === 'active'
+                && entry.session_classification !== 'training_template'
+                && entry.is_protected !== true
             ));
             if (!resolvedSession) {
                 return { data: null, error: { message: 'This session is not currently joinable.' } };
             }
         } else {
             const active = state.tables.sessions
-                .filter((entry) => entry.status === 'active')
+                .filter((entry) => (
+                    entry.status === 'active'
+                    && entry.session_classification !== 'training_template'
+                    && entry.is_protected !== true
+                ))
                 .sort((left, right) => String(right.created_at || '').localeCompare(String(left.created_at || '')));
             resolvedSession = active[0] || null;
             if (!resolvedSession) {
@@ -1306,6 +1419,8 @@ function createLiveDemoSession(state, {
     const session = normalizeInsertRow('sessions', {
         name: String(requested_name || '').trim(),
         status: 'active',
+        session_classification: 'live_exercise',
+        is_protected: false,
         session_code: String(requested_session_code || '').trim().toUpperCase(),
         metadata: {
             session_code: String(requested_session_code || '').trim().toUpperCase(),
@@ -1342,6 +1457,10 @@ function archiveLiveDemoSession(state, {
     const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
     if (!session) {
         return { data: null, error: { message: 'Session not found. Please refresh and try again.' } };
+    }
+
+    if (session.is_protected === true || session.session_classification === 'training_template') {
+        return { data: null, error: { message: 'Protected sessions cannot be changed.' } };
     }
 
     if (session.status === 'deleted') {
@@ -1528,7 +1647,10 @@ function claimSessionRoleSeat(state, {
     }
 
     const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
-    if (!session || session.status !== 'active') {
+    if (!session
+        || session.status !== 'active'
+        || session.session_classification === 'training_template'
+        || session.is_protected === true) {
         return { data: null, error: { message: 'This session is not currently joinable.' } };
     }
 
@@ -2728,6 +2850,10 @@ function deleteLiveDemoSession(state, {
         return { data: null, error: { message: 'Session not found. Please refresh and try again.' } };
     }
 
+    if (session.is_protected === true || session.session_classification === 'training_template') {
+        return { data: null, error: { message: 'Protected sessions cannot be changed.' } };
+    }
+
     if (session.status === 'deleted') {
         return {
             data: {
@@ -2906,6 +3032,208 @@ function resolveProposalRecipientTeam(communication = {}) {
     }
 
     return toRole.match(/^(blue|red|green|industry)_/)?.[1] || null;
+}
+
+function appendTrainingProgressEvent(state, attempt, eventType, {
+    stepId = null,
+    resultCode = null
+} = {}) {
+    const existingCount = state.tables.training_progress_events.filter((event) => (
+        event.attempt_id === attempt.id && event.auth_user_id === attempt.auth_user_id
+    )).length;
+
+    if (existingCount >= 500) {
+        return { data: null, error: { message: 'Training progress event limit reached.' } };
+    }
+
+    const event = normalizeInsertRow('training_progress_events', {
+        attempt_id: attempt.id,
+        auth_user_id: attempt.auth_user_id,
+        curriculum_version: attempt.curriculum_version,
+        semantic_role: attempt.semantic_role,
+        team: attempt.team,
+        event_type: eventType,
+        step_id: stepId,
+        result_code: resultCode
+    }, state);
+    state.tables.training_progress_events.push(event);
+
+    return { data: event, error: null };
+}
+
+function buildTrainingBootstrap(attempt, resumed) {
+    return {
+        attempt_id: attempt.id,
+        template_session_id: attempt.template_session_id,
+        curriculum_version: attempt.curriculum_version,
+        profile_id: `${attempt.team}.${attempt.semantic_role}`,
+        semantic_role: attempt.semantic_role,
+        team: attempt.team,
+        status: attempt.status,
+        current_step_id: attempt.current_step_id,
+        resumed,
+        session_classification: 'training_template',
+        is_protected: true,
+        experience_plugin_id: 'ssg-training'
+    };
+}
+
+function startOrResumeTrainingAttempt(state, {
+    requested_code,
+    requested_semantic_role,
+    requested_team,
+    requested_curriculum_version = TRAINING_CURRICULUM_VERSION
+}) {
+    const authUserId = getCurrentAuthUserId();
+    const normalizedRole = String(requested_semantic_role || '').trim().toLowerCase();
+    const normalizedTeam = String(requested_team || '').trim().toLowerCase();
+    const normalizedCurriculumVersion = String(requested_curriculum_version || '').trim();
+    const accessUnavailable = { data: null, error: { message: 'Training access unavailable.' } };
+
+    if (!authUserId || String(requested_code || '').trim() !== TRAINING_ACCESS_CODE) {
+        return accessUnavailable;
+    }
+
+    if (!TRAINING_SEMANTIC_ROLES.has(normalizedRole)
+        || !TRAINING_TEAMS.has(normalizedTeam)
+        || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/.test(normalizedCurriculumVersion)) {
+        return { data: null, error: { message: 'Unsupported training profile.' } };
+    }
+
+    const template = state.tables.sessions.find((session) => (
+        session.id === TRAINING_TEMPLATE_ID
+        && session.session_code === TRAINING_ACCESS_CODE
+        && session.status === 'active'
+        && session.session_classification === 'training_template'
+        && session.is_protected === true
+    ));
+    if (!template) {
+        return accessUnavailable;
+    }
+
+    let attempt = state.tables.training_attempts.find((entry) => (
+        entry.auth_user_id === authUserId
+        && entry.template_session_id === TRAINING_TEMPLATE_ID
+        && entry.curriculum_version === normalizedCurriculumVersion
+        && entry.semantic_role === normalizedRole
+        && entry.team === normalizedTeam
+        && entry.status === 'in_progress'
+    ));
+    const resumed = Boolean(attempt);
+
+    if (attempt) {
+        const timestamp = getTimestamp();
+        attempt = {
+            ...attempt,
+            last_resumed_at: timestamp,
+            updated_at: timestamp
+        };
+        state.tables.training_attempts = state.tables.training_attempts.map((entry) => (
+            entry.id === attempt.id ? attempt : entry
+        ));
+    } else {
+        attempt = normalizeInsertRow('training_attempts', {
+            auth_user_id: authUserId,
+            template_session_id: TRAINING_TEMPLATE_ID,
+            curriculum_version: normalizedCurriculumVersion,
+            semantic_role: normalizedRole,
+            team: normalizedTeam
+        }, state);
+        state.tables.training_attempts.push(attempt);
+    }
+
+    const eventResult = appendTrainingProgressEvent(
+        state,
+        attempt,
+        resumed ? 'attempt_resumed' : 'attempt_started'
+    );
+    if (eventResult.error) {
+        return eventResult;
+    }
+
+    return { data: buildTrainingBootstrap(attempt, resumed), error: null };
+}
+
+function getTrainingAttemptBootstrap(state, {
+    requested_attempt_id
+}) {
+    const authUserId = getCurrentAuthUserId();
+    const attempt = state.tables.training_attempts.find((entry) => (
+        entry.id === requested_attempt_id && entry.auth_user_id === authUserId
+    ));
+    const template = attempt && state.tables.sessions.find((session) => (
+        session.id === attempt.template_session_id
+        && session.session_code === TRAINING_ACCESS_CODE
+        && session.status === 'active'
+        && session.session_classification === 'training_template'
+        && session.is_protected === true
+    ));
+
+    if (!authUserId || !attempt || !template) {
+        return { data: null, error: { message: 'Training access unavailable.' } };
+    }
+
+    return { data: buildTrainingBootstrap(attempt, true), error: null };
+}
+
+function recordTrainingProgressEvent(state, {
+    requested_attempt_id,
+    requested_event_type,
+    requested_step_id = null,
+    requested_result_code = null
+}) {
+    const authUserId = getCurrentAuthUserId();
+    const eventType = String(requested_event_type || '').trim().toLowerCase();
+    const stepId = String(requested_step_id || '').trim() || null;
+    const resultCode = String(requested_result_code || '').trim().toLowerCase() || null;
+    const attempt = state.tables.training_attempts.find((entry) => (
+        entry.id === requested_attempt_id && entry.auth_user_id === authUserId
+    ));
+
+    if (!authUserId || !attempt) {
+        return { data: null, error: { message: 'Training attempt not found.' } };
+    }
+
+    if (attempt.status !== 'in_progress') {
+        return { data: null, error: { message: 'Training attempt is not writable.' } };
+    }
+
+    if (!TRAINING_PROGRESS_EVENT_TYPES.has(eventType)
+        || (stepId && !/^[a-z0-9][a-z0-9._-]{0,95}$/.test(stepId))
+        || (resultCode && !TRAINING_PROGRESS_RESULT_CODES.has(resultCode))) {
+        return { data: null, error: { message: 'Unsupported training progress event.' } };
+    }
+
+    const eventResult = appendTrainingProgressEvent(state, attempt, eventType, { stepId, resultCode });
+    if (eventResult.error) {
+        return eventResult;
+    }
+
+    const timestamp = getTimestamp();
+    const nextAttempt = {
+        ...attempt,
+        current_step_id: stepId || attempt.current_step_id,
+        status: eventType === 'attempt_completed'
+            ? 'completed'
+            : (eventType === 'attempt_reset' ? 'reset' : attempt.status),
+        completed_at: eventType === 'attempt_completed' ? timestamp : null,
+        updated_at: timestamp
+    };
+    state.tables.training_attempts = state.tables.training_attempts.map((entry) => (
+        entry.id === attempt.id ? nextAttempt : entry
+    ));
+
+    return {
+        data: {
+            event_id: eventResult.data.id,
+            attempt_id: eventResult.data.attempt_id,
+            event_type: eventResult.data.event_type,
+            step_id: eventResult.data.step_id,
+            result_code: eventResult.data.result_code,
+            created_at: eventResult.data.created_at
+        },
+        error: null
+    };
 }
 
 function updateProposalRecipientStatus(state, params) {
@@ -3296,7 +3624,9 @@ export function createE2EMockSupabaseClient() {
                     const resolvedCode = String(entry.session_code || entry.metadata?.session_code || '')
                         .trim()
                         .toUpperCase();
-                    return resolvedCode === normalizedCode;
+                    return resolvedCode === normalizedCode
+                        && entry.session_classification !== 'training_template'
+                        && entry.is_protected !== true;
                 });
 
                 if (!session) {
@@ -3326,6 +3656,18 @@ export function createE2EMockSupabaseClient() {
                     },
                     error: null
                 };
+            }
+
+            if (functionName === 'start_or_resume_training_attempt') {
+                return mutateMockState((state) => startOrResumeTrainingAttempt(state, params));
+            }
+
+            if (functionName === 'get_training_attempt_bootstrap') {
+                return getTrainingAttemptBootstrap(readMockState(), params);
+            }
+
+            if (functionName === 'record_training_progress_event') {
+                return mutateMockState((state) => recordTrainingProgressEvent(state, params));
             }
 
             if (functionName === 'authorize_demo_operator') {

@@ -13,6 +13,7 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
+import { trainingRuntime } from '../features/training/trainingRuntime.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
@@ -307,6 +308,14 @@ export class FacilitatorController {
 
     async init() {
         logger.info('Initializing Scribe workspace');
+
+        if (sessionStore.hasTrainingContext?.()) {
+            await trainingRuntime.initializeRolePage({
+                expectedSemanticRole: 'scribe',
+                team: this.teamId
+            });
+            return;
+        }
 
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {

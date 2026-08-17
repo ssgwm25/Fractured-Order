@@ -272,4 +272,43 @@ describe('sessionStore snapshot model', () => {
             operatorName: 'White Cell Lead'
         });
     });
+
+    it('persists a bounded training context without treating storage as server authority', async () => {
+        let module = await loadSessionStore();
+
+        module.sessionStore.setTrainingContext({
+            attemptId: 'attempt-blue-scribe-1',
+            curriculumVersion: '1.0',
+            semanticRole: 'scribe',
+            team: 'blue',
+            trainingMode: true,
+            ignoredAnswerBody: 'must not persist'
+        }, { serverValidated: true });
+        module.sessionStore.setRole('blue_facilitator');
+        module.sessionStore.setUserName('Morgan');
+
+        expect(module.sessionStore.getSnapshot()).toMatchObject({
+            valid: true,
+            sessionId: null,
+            trainingMode: true,
+            trainingContext: {
+                attemptId: 'attempt-blue-scribe-1',
+                curriculumVersion: '1.0',
+                semanticRole: 'scribe',
+                team: 'blue',
+                trainingMode: true
+            }
+        });
+        expect(JSON.parse(sessionStorage.getItem('esg_training_context')))
+            .not.toHaveProperty('ignoredAnswerBody');
+
+        module = await loadSessionStore();
+
+        expect(module.sessionStore.hasTrainingContext()).toBe(true);
+        expect(module.sessionStore.isTrainingMode()).toBe(false);
+        expect(module.sessionStore.getTrainingContext()).toBeNull();
+        expect(module.sessionStore.getTrainingContext({ requireServerValidation: false }))
+            .toMatchObject({ attemptId: 'attempt-blue-scribe-1' });
+        expect(module.sessionStore.getSessionId()).toBeNull();
+    });
 });

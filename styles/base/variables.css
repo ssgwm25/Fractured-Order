@@ -271,6 +271,8 @@
     /* Full-screen loading scrims */
     --loader-overlay-bg: rgba(255, 255, 255, 0.9);
     --loader-overlay-bg-transparent: rgba(255, 255, 255, 0.7);
+    /* Stable letterbox surface for authored video in every color scheme. */
+    --media-frame-bg: #000000;
 
     /* Scrollbar + code surfaces — tokenised so dark mode swaps the value, not the rule */
     --scrollbar-thumb: rgba(0, 0, 0, 0.22);

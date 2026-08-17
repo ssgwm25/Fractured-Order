@@ -317,6 +317,47 @@ If realtime degrades:
 - deterministic writes should still use the existing Supabase/RPC path
 - Scribe and White Cell operators should refresh before time-sensitive artifact review; a stale-revision rejection must leave the newer revision unchanged and require the reviewer to refresh
 
+## Training Introduction Media Recovery
+
+The `TRAINING2026` introduction is a local instructional asset. It does not use
+a hosted player, tracker, microphone, recorder, Supabase write, or reusable
+browser credential. A video failure must not be treated as a failed training
+attempt.
+
+If a learner reports a loading, missing-media, decode, offline, or
+captions-unavailable message:
+
+1. Ask the learner to open `Show video transcript`; confirm the complete text is
+   readable before troubleshooting playback.
+2. If the browser reports offline, restore network access and choose `Retry
+   video`. The transcript and `Continue to profile confirmation` remain usable
+   while offline.
+3. For missing or decode errors, choose `Retry video` once. If it fails again,
+   continue with the transcript and record the browser name/version plus the
+   exact visible message. Do not reset the attempt or move the learner into a
+   live session.
+4. If captions fail, keep the transcript open and continue. Record the failure
+   against `public/training/intro/plenum-onboarding.en.vtt` and the deployed
+   public base path. The approved video also carries synchronized open captions
+   in the image, but these do not replace the separate text track for assistive
+   technology.
+5. Confirm `Replay intro` remains keyboard reachable in the Training sandbox
+   controls. Replaying must not create a new attempt or clear walkthrough
+   progress.
+
+For deployment diagnosis, verify the built application contains the Vite-emitted
+MP4 and poster plus
+`training/intro/plenum-onboarding.en.vtt`. A missing, stale, or unreviewed media
+artifact fails the production media gate. It does not justify removing the
+transcript, disabling Continue, weakening attempt isolation, or adding a remote
+player. The product owner selected full playback of the 2:28 source and confirmed
+that synchronized open captions are burned into the video. The complete visible
+transcript and independent WebVTT track are sourced from
+`Plenum Briefing/Plenum_Platform_Explainer_Video_Script.md`; its narrated scene
+times end at 1:28. If the approved video or script changes, the media owner must
+update both text alternatives and re-verify WebVTT timing within 0.5 seconds, as
+recorded in `public/training/intro/media-manifest.json`.
+
 ## Export/AAR Check
 
 Before closing the demo:

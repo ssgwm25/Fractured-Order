@@ -2,7 +2,7 @@
 
 Database migrations in this repository are forward-only once live workflow records exist. Roll back the application first; preserve additive schema and review history unless a database owner has verified that the migration never accepted a production write.
 
-The sole authoritative forward migration order is the 41-step dated ledger in
+The sole authoritative forward migration order is the 42-step dated ledger in
 `docs/supabase-setup.md`. There is no reverse SQL order and the deprecated
 `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
 `data/updated_supabase_migration.sql` snapshots are never rollback inputs. A
@@ -18,6 +18,31 @@ every `deleted` session tombstone, and every `SESSION_DELETED` research event in
 place after any accepted write. Older clients already exclude non-active rows.
 Do not relabel a deleted session as archived or remove its audit event; repair
 forward if the management surface needs correction.
+
+## Protected SSG Training Session Rollback
+
+For `data/2026-08-18_ssg_training_session.sql`, contain application problems by
+removing or disabling the training entry surface in the frontend first. Keep
+the session classification columns and constraints, the reserved protected
+template, both protection triggers, both learner-owned training tables, their
+owner-only RLS policies, and the three training RPCs in place after any attempt
+or progress row has been written. Older live clients ignore the additive
+columns, and current live session queries explicitly select only
+`live_exercise` rows.
+
+Do not archive, soft-delete, rename, recode, unprotect, or reclassify the
+template as a live exercise. Do not move training rows into research tables or
+session evidence manifests, mint participant seats or game state for the
+template, or copy an attempt to another `auth_user_id`. Preserve bounded
+progress history as written and repair forward. If the migration failed because
+another session already used `TRAINING2026`, preserve that session and its
+evidence; choose a reviewed forward data repair instead of relabelling it.
+
+Only in an isolated pre-write development project—after verifying both
+`training_attempts` and `training_progress_events` contain zero rows—may a
+database owner remove the unused additive objects in a separately reviewed
+forward teardown migration. The dated migration itself is never reversed or
+edited in place.
 
 ## Team-Neutral Artifact Review Rollback
 

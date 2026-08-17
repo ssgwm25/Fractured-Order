@@ -134,6 +134,11 @@
     color: var(--color-gray-600);
 }
 
+.modal-close:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--space-1);
+}
+
 .modal-close svg {
     width: 20px;
     height: 20px;
@@ -163,6 +168,148 @@
 /* Body scroll lock */
 body.modal-open {
     overflow: hidden;
+}
+
+/* ==================== TRAINING INTRO MODAL ==================== */
+
+.training-intro {
+    display: grid;
+    gap: var(--space-4);
+    color: var(--color-text);
+}
+
+.training-intro-lead,
+.training-intro-status,
+.training-intro-caption-status,
+.training-intro-boundary,
+.training-intro-transcript p {
+    margin: 0;
+    line-height: var(--leading-relaxed);
+}
+
+.training-intro-lead {
+    color: var(--color-text-secondary);
+}
+
+.training-intro-media {
+    overflow: hidden;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-xl);
+    background: var(--media-frame-bg);
+    box-shadow: var(--shadow-sm);
+}
+
+.training-intro-video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--media-frame-bg);
+    object-fit: contain;
+}
+
+.training-intro-video:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: calc(var(--space-1) * -1);
+}
+
+.training-intro-status,
+.training-intro-caption-status,
+.training-intro-boundary {
+    padding: var(--space-3) var(--space-4);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    font-size: var(--text-base);
+}
+
+.training-intro-caption-status {
+    border-color: var(--color-warning);
+    background: var(--color-warning-light);
+    color: var(--color-text);
+}
+
+.training-intro-actions,
+.training-intro-continue-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.training-intro-continue-actions {
+    justify-content: flex-end;
+    padding-top: var(--space-2);
+}
+
+.training-intro-transcript {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+}
+
+.training-intro-transcript[hidden] {
+    display: none;
+}
+
+.training-intro-transcript:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--space-1);
+}
+
+.training-intro-section-title {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-tight);
+}
+
+.training-intro-profile {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-2) var(--space-4);
+    margin: 0;
+    padding: var(--space-4);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+}
+
+.training-intro-profile dt {
+    color: var(--color-text-secondary);
+    font-weight: var(--font-medium);
+}
+
+.training-intro-profile dd {
+    margin: 0;
+    color: var(--color-text);
+    font-weight: var(--font-semibold);
+}
+
+@media (max-width: 640px) {
+    .training-intro-actions,
+    .training-intro-continue-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .training-intro-actions .btn,
+    .training-intro-continue-actions .btn {
+        width: 100%;
+        white-space: normal;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .training-intro,
+    .training-intro * {
+        scroll-behavior: auto !important;
+        animation: none !important;
+        transition: none !important;
+    }
 }
 
 /* ==================== TOAST ==================== */

@@ -60,6 +60,16 @@ const DECORATIVE_ICON_HTML_FILES = [
     url: fileUrl(path)
 })).concat(ROLE_HTML_FILES);
 
+const TRAINING_INTRO_SOURCE = {
+    label: 'src/features/training/TrainingIntroModal.js',
+    url: fileUrl('src/features/training/TrainingIntroModal.js')
+};
+
+const TRAINING_INTRO_CAPTIONS = {
+    label: 'public/training/intro/plenum-onboarding.en.vtt',
+    url: fileUrl('public/training/intro/plenum-onboarding.en.vtt')
+};
+
 describe('UI source accessibility checks', () => {
     it('marks every inline SVG in role shells as hidden decorative art', () => {
         const failures = [];
@@ -91,5 +101,31 @@ describe('UI source accessibility checks', () => {
         }
 
         expect(failures).toEqual([]);
+    });
+
+    it('keeps the training intro local, gesture-started, captioned, and transcript-backed', () => {
+        const source = readText(TRAINING_INTRO_SOURCE);
+        const captions = readText(TRAINING_INTRO_CAPTIONS);
+
+        expect(source).toContain("createElement(documentRef, 'video'");
+        expect(source).toContain("captionTrack.kind = 'captions'");
+        expect(source).toContain('video.autoplay = false');
+        expect(source).toContain('Play introduction with sound');
+        expect(source).toContain('Show video transcript');
+        expect(source).toContain('Continue to profile confirmation');
+        expect(source).not.toMatch(/https?:\/\//i);
+        expect(source).not.toContain('VITE_API_KEY');
+        expect(captions.startsWith('WEBVTT')).toBe(true);
+        expect(captions).toContain('Plenum addresses this problem');
+        expect(captions).toContain('observable, and reviewable simulation');
+        expect(captions).not.toContain('awaiting an approved transcript');
+    });
+
+    it('keeps the shared modal close icon decorative for assistive technology', () => {
+        const source = readFileSync(fileUrl('src/components/ui/Modal.js'), 'utf8');
+        const closeIcon = source.match(/<svg\b[^>]*viewBox="0 0 20 20"[^>]*>/i)?.[0] || '';
+
+        expect(closeIcon).toContain('aria-hidden="true"');
+        expect(closeIcon).toContain('focusable="false"');
     });
 });

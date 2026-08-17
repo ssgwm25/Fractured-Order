@@ -9,6 +9,7 @@ import { createLogger } from '../utils/logger.js';
 import { formatRelativeTime } from '../utils/formatting.js';
 import { showDurableNotification, showToast } from '../components/ui/Toast.js';
 import { DurableNotificationCenter } from '../components/ui/DurableNotification.js';
+import { trainingRuntime } from '../features/training/trainingRuntime.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { confirmModal, showModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
@@ -1096,6 +1097,14 @@ export class ScribeController {
 
     async init() {
         logger.info('Initializing Facilitator support deck');
+
+        if (sessionStore.hasTrainingContext?.()) {
+            await trainingRuntime.initializeRolePage({
+                expectedSemanticRole: 'facilitator',
+                team: this.teamId
+            });
+            return;
+        }
 
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {
