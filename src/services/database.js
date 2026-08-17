@@ -2875,33 +2875,37 @@ const TRAINING_DATABASE_METHOD_ALLOWLIST = new Set([
  * While any persisted training attempt hint exists, all database methods fail
  * closed except the three owner-scoped training RPCs. This protects the gap
  * between page load and server revalidation as well as the active runtime.
+ *
+ * The facade owns one stable function per method so instrumentation and unit
+ * tests can observe method calls without changing the production boundary.
  */
-export const database = new Proxy(databaseApi, {
-    get(target, property, receiver) {
-        const value = Reflect.get(target, property, receiver);
-        if (typeof value !== 'function') {
-            return value;
+export const database = {};
+
+function createTrainingBoundaryMethod(property, value) {
+    return function trainingBoundaryMethod(...args) {
+        if (
+            sessionStore.hasTrainingContext?.()
+            && !TRAINING_DATABASE_METHOD_ALLOWLIST.has(property)
+        ) {
+            const error = new DatabaseError(
+                'That action is not available in the training sandbox. Your live sessions were not changed. Exit training and re-enter the code to recover.',
+                String(property)
+            );
+            error.name = 'TrainingIsolationError';
+            error.code = 'TRAINING_WRITE_BLOCKED';
+            error.userSafe = true;
+            throw error;
         }
 
-        return function trainingBoundaryMethod(...args) {
-            if (
-                sessionStore.hasTrainingContext?.()
-                && !TRAINING_DATABASE_METHOD_ALLOWLIST.has(property)
-            ) {
-                const error = new DatabaseError(
-                    'That action is not available in the training sandbox. Your live sessions were not changed. Exit training and re-enter the code to recover.',
-                    String(property)
-                );
-                error.name = 'TrainingIsolationError';
-                error.code = 'TRAINING_WRITE_BLOCKED';
-                error.userSafe = true;
-                throw error;
-            }
+        return Reflect.apply(value, database, args);
+    };
+}
 
-            return Reflect.apply(value, receiver, args);
-        };
-    }
-});
+for (const [property, value] of Object.entries(databaseApi)) {
+    database[property] = typeof value === 'function'
+        ? createTrainingBoundaryMethod(property, value)
+        : value;
+}
 
 /**
  * Roll per-seat reviews into row-level status for RLS / team visibility.

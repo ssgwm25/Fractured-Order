@@ -35,11 +35,15 @@ describe('training context contract', () => {
     it('resolves semantic roles across the legacy route inversion', () => {
         expect(getSemanticRoleForPublicSurface('facilitator')).toBe('scribe');
         expect(getTrainingRole('blue', 'scribe')).toBe('blue_facilitator');
-        expect(getTrainingRoleRoute('blue', 'scribe')).toBe('/teams/blue/facilitator.html');
+        expect(getTrainingRoleRoute('blue', 'scribe', { basePath: '/' }))
+            .toBe('/teams/blue/facilitator.html');
+        expect(getTrainingRoleRoute('blue', 'scribe', { basePath: '/Fractured-Order/' }))
+            .toBe('/Fractured-Order/teams/blue/facilitator.html');
 
         expect(getSemanticRoleForPublicSurface('scribe')).toBe('facilitator');
         expect(getTrainingRole('red', 'facilitator')).toBe('red_scribe');
-        expect(getTrainingRoleRoute('red', 'facilitator')).toBe('/teams/red/scribe.html');
+        expect(getTrainingRoleRoute('red', 'facilitator', { basePath: '/' }))
+            .toBe('/teams/red/scribe.html');
 
         expect(getSemanticRoleForPublicSurface('notetaker')).toBe('notetaker');
         expect(getTrainingRole('industry', 'notetaker')).toBe('industry_notetaker');

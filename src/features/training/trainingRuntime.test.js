@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { database } from '../../services/database.js';
 import { sessionStore } from '../../stores/session.js';
+import { getTrainingRoleRoute } from './trainingContext.js';
 import {
     BLUE_SCRIBE_PRACTICE_ARTIFACT,
     TRAINING_RECOVERY_MESSAGE,
@@ -65,7 +66,7 @@ describe('isolated training runtime', () => {
 
         expect(result).toMatchObject({
             role: 'blue_facilitator',
-            route: '/teams/blue/facilitator.html',
+            route: getTrainingRoleRoute('blue', 'scribe'),
             context: { team: 'blue', semanticRole: 'scribe', trainingMode: true }
         });
         expect(databaseRef.claimParticipantSeat).not.toHaveBeenCalled();
@@ -203,6 +204,7 @@ describe('isolated training runtime', () => {
     });
 
     it('blocks every live database method while a training attempt hint is present', () => {
+        const createActionBoundary = database.createAction;
         sessionStore.setTrainingContext({
             attemptId: 'attempt-blue-scribe-1',
             curriculumVersion: '1.0',
@@ -211,6 +213,7 @@ describe('isolated training runtime', () => {
             trainingMode: true
         }, { serverValidated: true });
 
+        expect(database.createAction).toBe(createActionBoundary);
         expect(() => database.createAction({})).toThrow(TRAINING_RECOVERY_MESSAGE);
         expect(() => database.fetchActions('forged-live-session')).toThrow(TRAINING_RECOVERY_MESSAGE);
     });
