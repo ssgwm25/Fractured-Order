@@ -10,6 +10,11 @@ import { formatRelativeTime } from '../utils/formatting.js';
 import { showDurableNotification, showToast } from '../components/ui/Toast.js';
 import { DurableNotificationCenter } from '../components/ui/DurableNotification.js';
 import { trainingRuntime } from '../features/training/trainingRuntime.js';
+import {
+    FACILITATOR_TRAINING_SELECTOR_CONTRACT,
+    mountFacilitatorTrainingCoach,
+    shouldMountFacilitatorTrainingCoach
+} from '../features/training/FacilitatorTrainingCoach.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { confirmModal, showModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
@@ -1093,15 +1098,25 @@ export class ScribeController {
         this.draftActionSelectionsById = new Map();
         this.presentationEditActionId = null;
         this.presentationEditHost = null;
+        this.presentationReturnFocus = null;
+        this.trainingCoach = null;
+        this.trainingActivation = null;
+        this.trainingListenersBound = false;
     }
 
     async init() {
         logger.info('Initializing Facilitator support deck');
 
         if (sessionStore.hasTrainingContext?.()) {
-            await trainingRuntime.initializeRolePage({
+            const activation = await trainingRuntime.initializeRolePage({
                 expectedSemanticRole: 'facilitator',
                 team: this.teamId
+            });
+            if (!this.mountVerifiedTrainingCoach(activation)) return;
+            await this.loadDeck({
+                deckPath: activation.fixtureBundle.deckState.deckPath,
+                deckLabel: activation.fixtureBundle.deckState.deckLabel,
+                preferredSlideKey: `action-${activation.fixtureBundle.artifact.id}`
             });
             return;
         }
@@ -1161,6 +1176,203 @@ export class ScribeController {
         this.mountFollowAlongOnboarding();
 
         logger.info('Facilitator support deck initialized');
+    }
+
+    mountVerifiedTrainingCoach(activation, {
+        mountCoachRef = mountFacilitatorTrainingCoach,
+        documentRef = globalThis.document
+    } = {}) {
+        if (!shouldMountFacilitatorTrainingCoach(activation, this.teamId)) return null;
+
+        this.trainingCoach?.destroy?.();
+        this.trainingActivation = activation;
+        this.configureShell();
+        this.bindTrainingEventListeners(documentRef);
+        this.renderTrainingFixtureWorkspace(
+            activation.fixtureBundle,
+            trainingRuntime.getPracticeState(),
+            documentRef
+        );
+        this.mountTrainingFixtureNotification(activation, documentRef);
+        this.trainingCoach = mountCoachRef({
+            activation,
+            documentRef,
+            onNavigate: (view) => this.setFacilitatorView(view),
+            onReviewArtifact: (artifactId) => {
+                this.setFacilitatorView('actions');
+                this.setSlideByKey(`action-${artifactId}`);
+            },
+            onProjectArtifact: ({ artifactId, returnFocusTo }) => {
+                this.setFacilitatorView('actions');
+                this.setSlideByKey(`action-${artifactId}`);
+                if (!this.isPresentationModeActive()) {
+                    void this.togglePresentationMode({ returnFocusTo });
+                }
+            },
+            onStateChange: (practiceState) => {
+                this.renderTrainingFixtureWorkspace(activation.fixtureBundle, practiceState, documentRef);
+            },
+            renderLifecycleBadge: (state) => this.renderTrainingLifecycleBadge(state, documentRef)
+        });
+        return this.trainingCoach;
+    }
+
+    bindTrainingEventListeners(documentRef = globalThis.document) {
+        if (this.trainingListenersBound || !documentRef) return;
+        this.trainingListenersBound = true;
+
+        const workspaceButtons = FACILITATOR_VIEW_IDS.map((view) => (
+            documentRef.querySelector?.(FACILITATOR_TRAINING_SELECTOR_CONTRACT[view])
+        )).filter(Boolean);
+        workspaceButtons.forEach((button, index) => {
+            button.addEventListener?.('click', () => {
+                this.setFacilitatorView(button.dataset.facilitatorView || FACILITATOR_VIEW_IDS[index]);
+            });
+            button.addEventListener?.('keydown', (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const previous = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+                const nextIndex = event.key === 'Home'
+                    ? 0
+                    : event.key === 'End'
+                        ? workspaceButtons.length - 1
+                        : (index + (previous ? -1 : 1) + workspaceButtons.length) % workspaceButtons.length;
+                const nextButton = workspaceButtons[nextIndex];
+                this.setFacilitatorView(nextButton.dataset.facilitatorView || FACILITATOR_VIEW_IDS[nextIndex]);
+                nextButton.focus?.();
+            });
+        });
+        documentRef.getElementById?.('prevSlideBtn')?.addEventListener?.('click', () => {
+            this.setSlideByIndex(this.currentSlideIndex - 1);
+        });
+        documentRef.getElementById?.('nextSlideBtn')?.addEventListener?.('click', () => {
+            this.setSlideByIndex(this.currentSlideIndex + 1);
+        });
+        documentRef.getElementById?.('scribeSectionList')?.addEventListener?.('click', (event) => {
+            const slideButton = event.target.closest?.('[data-slide-key]');
+            if (slideButton) {
+                this.markSlideNotificationsRead(slideButton.dataset.slideKey || '');
+                this.setSlideByKey(slideButton.dataset.slideKey || '');
+                return;
+            }
+            const sectionButton = event.target.closest?.('[data-section-index]');
+            if (sectionButton) this.toggleSection(Number(sectionButton.dataset.sectionIndex));
+        });
+        documentRef.querySelector?.(FACILITATOR_TRAINING_SELECTOR_CONTRACT.present)?.addEventListener?.('click', () => {
+            void this.togglePresentationMode({
+                returnFocusTo: this.trainingCoach?.root || documentRef.getElementById?.('facilitatorTrainingCoach')
+            });
+        });
+        documentRef.getElementById?.('scribeAlertsBtn')?.addEventListener?.('click', (event) => {
+            event.stopPropagation?.();
+            this.setAlertsOpen(!this.alertsOpen, { trigger: event.currentTarget });
+        });
+        documentRef.getElementById?.('scribeAlertsClear')?.addEventListener?.('click', () => {
+            this.notifications = this.notifications.filter((entry) => !entry.read);
+            this.recountUnreadNotifications();
+            this.renderAlerts();
+        });
+        documentRef.getElementById?.('scribeAlertsClose')?.addEventListener?.('click', () => {
+            this.setAlertsOpen(false);
+        });
+        const alertsList = documentRef.getElementById?.('scribeAlertsList');
+        alertsList?.addEventListener?.('click', (event) => {
+            const item = event.target.closest?.('[data-notification-id]');
+            if (item) this.openNotificationEntry(item.dataset.notificationId || '');
+        });
+        alertsList?.addEventListener?.('keydown', (event) => {
+            if (!['Enter', ' '].includes(event.key)) return;
+            const item = event.target.closest?.('[data-notification-id]');
+            if (!item) return;
+            event.preventDefault();
+            this.openNotificationEntry(item.dataset.notificationId || '');
+        });
+        documentRef.addEventListener?.('keydown', (event) => this.handleAlertsKeydown(event));
+        documentRef.addEventListener?.('fullscreenchange', () => {
+            if (!documentRef.fullscreenElement && this.isPresentationModeActive()) {
+                this.closePresentationEditPanel();
+                setScribePresentationMode({ isActive: false });
+                this.restorePresentationFocus();
+            }
+        });
+    }
+
+    renderTrainingFixtureWorkspace(fixtureBundle, practiceState = null, documentRef = globalThis.document) {
+        if (!fixtureBundle || !documentRef) return;
+        const clone = (value) => JSON.parse(JSON.stringify(value));
+        const artifact = {
+            ...clone(practiceState?.artifact || fixtureBundle.artifact),
+            status: practiceState?.artifact?.status || 'draft',
+            workflow_state: practiceState?.artifact?.workflow_state || 'submitted_to_facilitator'
+        };
+        const orientation = clone(fixtureBundle.strategicOrientation);
+        this.teamActions = [orientation, artifact];
+        this.teamRfis = practiceState?.rfi ? [clone(practiceState.rfi)] : [];
+        this.rfiRevisionHistory = (practiceState?.rfiRevisions || []).map((revision, index) => ({
+            id: `training-fixture:rfi-review:${this.teamId}:${index + 1}`,
+            artifact_kind: 'rfi',
+            artifact_id: practiceState?.rfi?.id || fixtureBundle.rfi.id,
+            revision_number: revision.revision_number,
+            prior_state: {
+                query: revision.query || practiceState?.rfi?.query || fixtureBundle.rfi.query,
+                revision_number: revision.revision_number
+            },
+            reviewer_notes: revision.review_notes || revision.response || '',
+            reviewed_at: fixtureBundle.rfi.updated_at,
+            created_at: fixtureBundle.rfi.updated_at
+        }));
+        this.directCommunications = [
+            fixtureBundle.communication,
+            practiceState?.outboundCommunication
+        ].filter(Boolean).map(clone);
+        this.actionNotifications = [fixtureBundle.actionNotification].filter(Boolean).map(clone);
+        this.receivedProposals = (practiceState?.proposalThread || fixtureBundle.proposalThreads?.slice(0, 1) || []).map(clone);
+        this.activeDeckPath = fixtureBundle.deckState.deckPath;
+        this.activeDeckLabel = fixtureBundle.deckState.deckLabel;
+
+        const sessionName = documentRef.getElementById?.('sessionName');
+        if (sessionName) sessionName.textContent = `${this.teamLabel} Facilitator training`;
+
+        const preferredSlideKey = this.getCurrentSlideKey() || `action-${artifact.id}`;
+        this.rebuildDeck({ preferredSlideKey, preferActionsSection: true });
+        this.renderSlide();
+    }
+
+    mountTrainingFixtureNotification(activation, documentRef = globalThis.document) {
+        const sourceNotification = activation?.fixtureBundle?.notification;
+        if (!sourceNotification || !documentRef) return;
+        const notification = JSON.parse(JSON.stringify(sourceNotification));
+        notification.destination.slideKey = `action-${activation.fixtureBundle.artifact.id}`;
+        const scope = `${activation.context.attemptId}:facilitator:${this.teamId}`;
+        if (!this.durableNotifications || this.durableNotifications.scope !== scope) {
+            const memoryState = new Map();
+            this.durableNotifications = new DurableNotificationCenter({
+                scope,
+                storage: {
+                    getItem: (key) => memoryState.get(key) || null,
+                    setItem: (key, value) => memoryState.set(key, value)
+                },
+                render: showDurableNotification
+            });
+        }
+        if (this.notifications.some((entry) => entry.id === notification.id)) return;
+        this.pushNotification({
+            kind: notification.family,
+            tone: notification.type,
+            title: notification.artifact,
+            detail: notification.requiredAction,
+            slideKey: notification.destination?.slideKey || '',
+            at: notification.createdAt,
+            durableNotification: notification
+        });
+    }
+
+    renderTrainingLifecycleBadge(state, documentRef = globalThis.document) {
+        if (!documentRef?.createElement) return '';
+        const artifact = state === 'submitted_to_white_cell'
+            ? { status: 'submitted', workflow_state: 'submitted_to_white_cell' }
+            : { status: 'draft', workflow_state: 'submitted_to_facilitator' };
+        return createArtifactLifecycleBadge(artifact, { size: 'sm' }).outerHTML;
     }
 
     mountFollowAlongOnboarding() {
@@ -1521,6 +1733,7 @@ export class ScribeController {
             if (!isFullscreenActive && isPresenting) {
                 this.closePresentationEditPanel();
                 setScribePresentationMode({ isActive: false });
+                this.restorePresentationFocus();
             }
         });
     }
@@ -1704,7 +1917,7 @@ export class ScribeController {
             return null;
         }
 
-        return communicationsStore.getAll()
+        return this.getProposalCommunications()
             .filter((communication) => (
                 communication?.type === 'PROPOSAL_FORWARDED'
                 && communication?.metadata?.source_proposal_id === action.id
@@ -2495,7 +2708,17 @@ export class ScribeController {
         }
     }
 
-    async togglePresentationMode() {
+    restorePresentationFocus() {
+        const target = this.presentationReturnFocus;
+        this.presentationReturnFocus = null;
+        if (!target?.focus) return;
+        if (!target.hasAttribute?.('tabindex') && !target.matches?.('button, a, input, select, textarea, [tabindex]')) {
+            target.setAttribute?.('tabindex', '-1');
+        }
+        target.focus();
+    }
+
+    async togglePresentationMode({ returnFocusTo = null } = {}) {
         const isPresenting = this.isPresentationModeActive();
 
         if (isPresenting) {
@@ -2509,9 +2732,11 @@ export class ScribeController {
             }
 
             setScribePresentationMode({ isActive: false });
+            this.restorePresentationFocus();
             return;
         }
 
+        this.presentationReturnFocus = returnFocusTo || document.activeElement || null;
         setScribePresentationMode({ isActive: true });
 
         try {
@@ -2525,7 +2750,8 @@ export class ScribeController {
         deckSource = this.activeDeckSource,
         deckStorageKey = this.activeDeckStorageKey,
         deckPath = this.activeDeckPath,
-        deckLabel = this.activeDeckLabel
+        deckLabel = this.activeDeckLabel,
+        preferredSlideKey = ''
     } = {}) {
         const requestedDeckSource = deckSource || SCRIBE_DECK_SOURCE_REPO;
         this.setDeckState('loading');
@@ -2581,7 +2807,7 @@ export class ScribeController {
                 }
             }
 
-            this.rebuildDeck();
+            this.rebuildDeck({ preferredSlideKey });
 
             this.renderSections();
             this.renderSlide();
@@ -2590,6 +2816,7 @@ export class ScribeController {
             this.facilitatorDeckSlides = [];
             const hasReceivedProposals = this.receivedProposals.length > 0;
             this.rebuildDeck({
+                preferredSlideKey,
                 preferActionsSection: !hasReceivedProposals,
                 preferLiveSection: hasReceivedProposals ? PROPOSALS_SECTION_ID : ''
             });
@@ -3182,6 +3409,7 @@ export class ScribeController {
                             : slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder'
                                 ? this.renderActionNotificationSlide(slide)
                                 : this.renderActionSlide(slide);
+                this.disableTrainingLiveWriteControls(actionFrame);
             }
         }
 
@@ -3206,6 +3434,23 @@ export class ScribeController {
         nextSlideBtn && (nextSlideBtn.disabled = this.currentSlideIndex >= this.deckSlides.length - 1);
 
         this.renderSections();
+    }
+
+    disableTrainingLiveWriteControls(container) {
+        if (!this.trainingActivation || !container?.querySelectorAll) return;
+        container.querySelectorAll([
+            '[data-facilitator-new-rfi]',
+            '[data-facilitator-edit-rfi]',
+            '[data-facilitator-new-communication]',
+            '[data-facilitator-proposal-decision]',
+            '[data-scribe-action-edit]',
+            '[data-scribe-action-submit]'
+        ].join(',')).forEach((control) => {
+            control.disabled = true;
+            control.setAttribute('aria-disabled', 'true');
+            control.setAttribute('aria-describedby', 'trainingSandboxBanner');
+            control.title = 'Use the training coach for this isolated practice action.';
+        });
     }
 
     isStrategicActionCardExpanded(actionId = '') {
@@ -4274,7 +4519,7 @@ export class ScribeController {
         const recipients = viewModel.recipientTeams?.length
             ? viewModel.recipientTeams
             : (viewModel.recipientTeam ? [viewModel.recipientTeam] : []);
-        const allCommunications = communicationsStore.getAll();
+        const allCommunications = this.getProposalCommunications();
         const lifecycle = getArtifactLifecycleViewModel(action);
 
         return `
@@ -4414,13 +4659,14 @@ export class ScribeController {
         const communication = slide.communication || {};
         const { metadata, proposal, title, sourceTeam } = getProposalSnapshot(communication);
         const isThreadBacked = isProposalThreadMessage(communication);
+        const proposalCommunications = this.getProposalCommunications();
         const messages = getProposalThreadForRecipient(
-            communicationsStore.getAll(),
+            proposalCommunications,
             metadata.source_proposal_id,
             metadata.recipient_team
         );
         const pendingResponse = getPendingProposalResponseReviews(
-            communicationsStore.getAll(),
+            proposalCommunications,
             metadata.source_proposal_id
         ).find((candidate) => {
             const review = getProposalResponseReviewMetadata(candidate);
@@ -4534,6 +4780,12 @@ export class ScribeController {
                 </section>
             </article>
         `;
+    }
+
+    getProposalCommunications() {
+        return this.trainingActivation
+            ? this.receivedProposals
+            : communicationsStore.getAll();
     }
 
     async handleFacilitatorProposalDecision(communicationId = '', decision = '') {

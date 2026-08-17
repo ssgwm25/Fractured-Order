@@ -176,6 +176,18 @@ describe('deterministic training fixture catalog', () => {
 
         const bundle = getTrainingProfileFixtureBundle('blue', 'notetaker');
         expect(bundle.notification).toMatchObject({ family: 'artifact-return', type: 'warning' });
+        expect(bundle.actionNotification).toMatchObject({
+            type: 'ACTION_NOTIFICATION',
+            from_role: 'whitecell_lead',
+            metadata: {
+                recipient_scope: 'team',
+                recipient_team: 'blue'
+            }
+        });
+        expect(bundle.proposalThreads).toHaveLength(2);
+        expect(bundle.proposalThreads.every((message) => (
+            message.metadata.recipient_team === 'blue'
+        ))).toBe(true);
         expect(bundle.rfi).toMatchObject({
             status: 'pending',
             workflow_state: 'returned_to_team',
@@ -194,6 +206,20 @@ describe('deterministic training fixture catalog', () => {
         )).toMatchObject({ decisionStyle: 'consensus', frictionLevel: '4', consensusLevel: '7' });
         expect(getTrainingProfileFixtureBundle('blue', 'operator')).toBeNull();
         expect(getTrainingProfileFixtureBundle('white_cell', 'notetaker')).toBeNull();
+    });
+
+    it('exposes proposal practice only to the exact recipient team', () => {
+        const blue = getTrainingProfileFixtureBundle('blue', 'facilitator');
+        const red = getTrainingProfileFixtureBundle('red', 'facilitator');
+        const green = getTrainingProfileFixtureBundle('green', 'facilitator');
+        const industry = getTrainingProfileFixtureBundle('industry', 'facilitator');
+
+        expect(blue.proposalThreads.map((entry) => entry.metadata.thread_id))
+            .toEqual(['training-fixture:proposal-thread:green:blue', 'training-fixture:proposal-thread:green:blue']);
+        expect(red.proposalThreads.map((entry) => entry.metadata.thread_id))
+            .toEqual(['training-fixture:proposal-thread:industry:red', 'training-fixture:proposal-thread:industry:red']);
+        expect(green.proposalThreads).toEqual([]);
+        expect(industry.proposalThreads).toEqual([]);
     });
 
     it('is bounded, visibly namespaced, immutable, and identical across repeated builds', () => {

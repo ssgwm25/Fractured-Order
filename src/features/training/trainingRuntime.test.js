@@ -5,8 +5,10 @@ import { sessionStore } from '../../stores/session.js';
 import { getTrainingRoleRoute } from './trainingContext.js';
 import {
     BLUE_SCRIBE_PRACTICE_ARTIFACT,
+    FACILITATOR_COMMANDS,
     SCRIBE_COMMANDS,
     TRAINING_RECOVERY_MESSAGE,
+    getFacilitatorTrainingCommand,
     getScribeTrainingCommand,
     hydrateTrainingFixtures,
     syncTrainingSandboxBannerLayout,
@@ -229,7 +231,11 @@ describe('isolated training runtime', () => {
                 trainingMode: true
             });
             const databaseRef = {
-                recordTrainingProgressEvent: vi.fn().mockResolvedValue({ ok: true })
+                recordTrainingProgressEvent: vi.fn().mockResolvedValue({ ok: true }),
+                createCommunication: vi.fn(),
+                createRequest: vi.fn(),
+                submitAction: vi.fn(),
+                appendProposalThreadMessage: vi.fn()
             };
             const execute = (suffix, artifact) => trainingRuntime.executeCommand(
                 getScribeTrainingCommand(team, suffix),
@@ -265,6 +271,10 @@ describe('isolated training runtime', () => {
                 stepId: `training.v1.scribe.${team}.respond`,
                 resultCode: 'completed'
             });
+            expect(databaseRef.createCommunication).not.toHaveBeenCalled();
+            expect(databaseRef.createRequest).not.toHaveBeenCalled();
+            expect(databaseRef.submitAction).not.toHaveBeenCalled();
+            expect(databaseRef.appendProposalThreadMessage).not.toHaveBeenCalled();
         }
     );
 
@@ -295,6 +305,191 @@ describe('isolated training runtime', () => {
             { databaseRef, sessionStoreRef }
         )).rejects.toThrow(TRAINING_RECOVERY_MESSAGE);
         expect(databaseRef.recordTrainingProgressEvent).not.toHaveBeenCalled();
+    });
+
+    it.each(['blue', 'red', 'green', 'industry'])(
+        'runs the %s Facilitator path entirely through the bounded command registry',
+        async (team) => {
+            const sessionStoreRef = createSessionStoreDouble();
+            sessionStoreRef.setTrainingContext({
+                attemptId: `attempt-${team}-facilitator-command`,
+                curriculumVersion: '1.0',
+                semanticRole: 'facilitator',
+                team,
+                trainingMode: true
+            });
+            const databaseRef = {
+                recordTrainingProgressEvent: vi.fn().mockResolvedValue({ ok: true }),
+                createCommunication: vi.fn(),
+                createRequest: vi.fn(),
+                submitAction: vi.fn(),
+                appendProposalThreadMessage: vi.fn()
+            };
+            const fixtureBundle = (await import('./content/fixtures.js'))
+                .getTrainingProfileFixtureBundle(team, 'facilitator');
+            const execute = (suffix, payload) => trainingRuntime.executeCommand(
+                getFacilitatorTrainingCommand(team, suffix),
+                payload,
+                { databaseRef, sessionStoreRef }
+            );
+
+            const reviewed = await execute(FACILITATOR_COMMANDS.ARTIFACT_REVIEWED, {
+                artifactId: fixtureBundle.artifact.id
+            });
+            expect(reviewed).toMatchObject({
+                artifactReviewed: true,
+                artifactState: 'forwarded_to_facilitator',
+                artifact: {
+                    id: fixtureBundle.artifact.id,
+                    workflow_state: 'submitted_to_facilitator'
+                }
+            });
+            await execute(FACILITATOR_COMMANDS.WORKSPACES_RESTORED, {
+                workspaces: ['actions', 'deck', 'rfis', 'communications', 'notifications'],
+                restoredWorkspace: 'actions'
+            });
+            await execute(FACILITATOR_COMMANDS.ARTIFACT_PROJECTED, {
+                artifactId: fixtureBundle.artifact.id
+            });
+            const returned = await execute(FACILITATOR_COMMANDS.RFI_CREATED, {
+                query: 'Which checkpoint applies in the current move?',
+                categories: ['Implementation Timeline']
+            });
+            expect(returned.rfi).toMatchObject({
+                id: fixtureBundle.rfi.id,
+                revision_number: 1,
+                workflow_state: 'returned_to_team'
+            });
+
+            const answered = await execute(FACILITATOR_COMMANDS.RFI_RESUBMITTED, {
+                rfiId: fixtureBundle.rfi.id,
+                query: 'Which measurable checkpoint applies before the current move closes?'
+            });
+            expect(answered.rfi).toMatchObject({
+                id: fixtureBundle.rfi.id,
+                revision_number: 2,
+                workflow_state: 'completed'
+            });
+            expect(answered.rfiRevisions.map((revision) => revision.workflow_state)).toEqual([
+                'submitted_to_white_cell',
+                'returned_to_team',
+                'resubmitted',
+                'completed'
+            ]);
+
+            await execute(FACILITATOR_COMMANDS.COMMUNICATION_SENT, {
+                message: 'Please confirm the current move checkpoint.'
+            });
+            await execute(FACILITATOR_COMMANDS.RESPONSE_CLASSIFIED, {
+                rfiAnswer: 'rfi-answer',
+                communication: 'direct-communication',
+                notification: 'team-action-notification'
+            });
+
+            if (fixtureBundle.proposalThreads.length) {
+                const root = fixtureBundle.proposalThreads[0];
+                const negotiated = await execute(FACILITATOR_COMMANDS.PROPOSAL_NEGOTIATED, {
+                    proposalMessageId: root.id,
+                    decision: 'negotiate',
+                    terms: 'Add one checkpoint.'
+                });
+                expect(negotiated.proposalThread).toHaveLength(2);
+                expect(negotiated.proposalThread[0]).toEqual(root);
+                expect(negotiated.proposalThread[1].metadata).toMatchObject({
+                    recipient_team: team,
+                    round_number: 1,
+                    parent_message_id: root.id
+                });
+            }
+
+            const submitted = await execute(FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED, {
+                artifactId: fixtureBundle.artifact.id
+            });
+            expect(submitted).toMatchObject({
+                artifactState: 'submitted_to_white_cell',
+                submissionReceipt: {
+                    artifact_id: fixtureBundle.artifact.id,
+                    workflow_state: 'submitted_to_white_cell'
+                }
+            });
+            const verified = await execute(FACILITATOR_COMMANDS.RECEIPT_VERIFIED, {
+                artifactId: fixtureBundle.artifact.id
+            });
+            expect(verified.receiptVerified).toBe(true);
+            expect(verified.timelineEntries.at(-1)).toMatchObject({
+                type: 'ACTION_SUBMITTED',
+                metadata: { artifact_id: fixtureBundle.artifact.id, source: 'training_fixture' }
+            });
+            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith({
+                attemptId: `attempt-${team}-facilitator-command`,
+                eventType: 'step_completed',
+                stepId: `training.v1.facilitator.${team}.reflect`,
+                resultCode: 'completed'
+            });
+            expect(databaseRef.createCommunication).not.toHaveBeenCalled();
+            expect(databaseRef.createRequest).not.toHaveBeenCalled();
+            expect(databaseRef.submitAction).not.toHaveBeenCalled();
+            expect(databaseRef.appendProposalThreadMessage).not.toHaveBeenCalled();
+        }
+    );
+
+    it('fails closed on cross-team Facilitator commands and recipient-thread leakage', async () => {
+        const sessionStoreRef = createSessionStoreDouble();
+        sessionStoreRef.setTrainingContext({
+            attemptId: 'attempt-blue-facilitator-isolation',
+            curriculumVersion: '1.0',
+            semanticRole: 'facilitator',
+            team: 'blue',
+            trainingMode: true
+        });
+        const databaseRef = { recordTrainingProgressEvent: vi.fn().mockResolvedValue({ ok: true }) };
+        const fixtureBundle = (await import('./content/fixtures.js'))
+            .getTrainingProfileFixtureBundle('blue', 'facilitator');
+        const executeBlue = (suffix, payload) => trainingRuntime.executeCommand(
+            getFacilitatorTrainingCommand('blue', suffix),
+            payload,
+            { databaseRef, sessionStoreRef }
+        );
+
+        await expect(trainingRuntime.executeCommand(
+            getFacilitatorTrainingCommand('red', FACILITATOR_COMMANDS.ARTIFACT_REVIEWED),
+            { artifactId: 'training-fixture:artifact:red-move-response' },
+            { databaseRef, sessionStoreRef }
+        )).rejects.toThrow(TRAINING_RECOVERY_MESSAGE);
+        await executeBlue(FACILITATOR_COMMANDS.ARTIFACT_REVIEWED, { artifactId: fixtureBundle.artifact.id });
+        await executeBlue(FACILITATOR_COMMANDS.WORKSPACES_RESTORED, {
+            workspaces: ['actions', 'deck', 'rfis', 'communications', 'notifications'],
+            restoredWorkspace: 'actions'
+        });
+        await executeBlue(FACILITATOR_COMMANDS.ARTIFACT_PROJECTED, { artifactId: fixtureBundle.artifact.id });
+        await executeBlue(FACILITATOR_COMMANDS.RFI_CREATED, {
+            query: 'Which checkpoint applies?',
+            categories: ['Implementation Timeline']
+        });
+        await executeBlue(FACILITATOR_COMMANDS.RFI_RESUBMITTED, {
+            rfiId: fixtureBundle.rfi.id,
+            query: 'Which measurable checkpoint applies before the move closes?'
+        });
+        await executeBlue(FACILITATOR_COMMANDS.COMMUNICATION_SENT, { message: 'Confirm the checkpoint.' });
+        await executeBlue(FACILITATOR_COMMANDS.RESPONSE_CLASSIFIED, {
+            rfiAnswer: 'rfi-answer',
+            communication: 'direct-communication',
+            notification: 'team-action-notification'
+        });
+        databaseRef.recordTrainingProgressEvent.mockClear();
+        await expect(trainingRuntime.executeCommand(
+            getFacilitatorTrainingCommand('blue', FACILITATOR_COMMANDS.PROPOSAL_NEGOTIATED),
+            {
+                proposalMessageId: 'training-fixture:proposal-message:industry:red:0',
+                decision: 'negotiate',
+                terms: 'This must not enter the Blue thread.'
+            },
+            { databaseRef, sessionStoreRef }
+        )).rejects.toThrow(TRAINING_RECOVERY_MESSAGE);
+        expect(databaseRef.recordTrainingProgressEvent).not.toHaveBeenCalled();
+        expect(trainingRuntime.getPracticeState({ sessionStoreRef }).proposalThread).toEqual([
+            fixtureBundle.proposalThreads[0]
+        ]);
     });
 
     it('blocks every live database method while a training attempt hint is present', () => {

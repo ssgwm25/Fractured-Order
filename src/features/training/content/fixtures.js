@@ -354,6 +354,38 @@ const notifications = TRAINING_CONTENT_TEAMS.map((team) => normalizeDurableNotif
     type: 'warning'
 }));
 
+const ACTION_NOTIFICATION_SOURCE_TEAMS = Object.freeze({
+    blue: 'green',
+    red: 'industry',
+    green: 'blue',
+    industry: 'red'
+});
+
+const actionNotifications = TRAINING_CONTENT_TEAMS.map((team) => {
+    const sourceTeam = ACTION_NOTIFICATION_SOURCE_TEAMS[team];
+    return {
+        id: fixtureId('action-notification', team),
+        session_id: SESSION_ID,
+        type: 'ACTION_NOTIFICATION',
+        from_role: 'whitecell_lead',
+        to_role: team,
+        team: 'white_cell',
+        title: fixtureLabel(`${TEAM_LABELS[sourceTeam]} team action shared for awareness`),
+        content: `${TRAINING_VISIBLE_FIXTURE_PREFIX}: This update is informational and does not require a response.`,
+        metadata: buildWhiteCellRecipientMetadata(team, {
+            content_kind: 'ACTION_NOTIFICATION',
+            source_team: sourceTeam,
+            shared_action_id: fixtureId('shared-action', sourceTeam, team),
+            action_snapshot: {
+                id: fixtureId('action-snapshot', sourceTeam, team),
+                title: fixtureLabel(`${TEAM_LABELS[sourceTeam]} coordination update`),
+                objective: 'Share a team action for situational awareness only.'
+            }
+        }),
+        created_at: FIXED_TIMESTAMPS.followUp
+    };
+});
+
 function buildProposalThread(team, recipientTeam) {
     const sourceProposal = artifacts[team];
     const threadId = fixtureId('proposal-thread', team, recipientTeam);
@@ -364,6 +396,9 @@ function buildProposalThread(team, recipientTeam) {
             id: rootId,
             session_id: SESSION_ID,
             type: 'PROPOSAL_FORWARDED',
+            from_role: 'whitecell_lead',
+            to_role: `${recipientTeam}_scribe`,
+            team: 'white_cell',
             title: fixtureLabel(`${TEAM_LABELS[team]} proposal forwarded to ${TEAM_LABELS[recipientTeam]}`),
             content: `${TRAINING_VISIBLE_FIXTURE_PREFIX}: Review the proposed capacity partnership.`,
             created_at: FIXED_TIMESTAMPS.response,
@@ -379,6 +414,16 @@ function buildProposalThread(team, recipientTeam) {
                 sender_role: 'whitecell_lead',
                 sent_at: FIXED_TIMESTAMPS.response,
                 message_type: 'proposal_forwarded',
+                recipient_scope: 'role',
+                recipient_role: `${recipientTeam}_scribe`,
+                proposal: {
+                    title: sourceProposal.goal,
+                    objective: sourceProposal.expected_outcomes,
+                    originators: [TEAM_LABELS[team]],
+                    focusSectors: [sourceProposal.sector],
+                    timingAndConditions: 'Review during Move 1 and record one measurable checkpoint.',
+                    expectedOutcomes: sourceProposal.expected_outcomes
+                },
                 client_message_id: fixtureId('client-message', team, recipientTeam, '0')
             }
         },
@@ -386,6 +431,9 @@ function buildProposalThread(team, recipientTeam) {
             id: responseId,
             session_id: SESSION_ID,
             type: 'PROPOSAL_RESPONSE',
+            from_role: `${recipientTeam}_scribe`,
+            to_role: 'white_cell',
+            team: recipientTeam,
             title: fixtureLabel(`${TEAM_LABELS[recipientTeam]} negotiation response`),
             content: `${TRAINING_VISIBLE_FIXTURE_PREFIX}: Add a six-month review checkpoint before acceptance.`,
             created_at: FIXED_TIMESTAMPS.followUp,
@@ -527,6 +575,7 @@ const catalogDefinition = {
         communications,
         injects,
         notifications,
+        actionNotifications,
         proposalThreads,
         deckStates,
         timelineEntries,
@@ -580,6 +629,12 @@ export function getTrainingProfileFixtureBundle(team, semanticRole) {
         communication: counterparts.communications.find((fixture) => fixture.to_role === `${team}_scribe`) || null,
         inject: counterparts.injects.find((fixture) => fixture.to_role === team) || null,
         notification: counterparts.notifications.find((fixture) => fixture.id.endsWith(`:${team}`)) || null,
+        actionNotification: counterparts.actionNotifications.find((fixture) => (
+            fixture.metadata?.recipient_team === team
+        )) || null,
+        proposalThreads: Object.freeze(counterparts.proposalThreads.filter((fixture) => (
+            fixture.metadata?.recipient_team === team
+        ))),
         deckState: counterparts.deckStates.find((fixture) => fixture.team === team) || null,
         timelineEntries: Object.freeze(counterparts.timelineEntries.filter((fixture) => (
             fixture.team === team || fixture.metadata?.recipient_team === team

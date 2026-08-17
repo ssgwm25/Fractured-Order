@@ -172,6 +172,33 @@ team's orientation and move-artifact branch.
 | Make a proposal-recipient decision and append one negotiation round without overwriting round zero. | `facilitator.proposal_thread.appended` with the selected recipient and isolated fixture thread ID. |
 | Open a durable activity notice, move focus to its destination, and dismiss it separately from unread state. | `facilitator.alert.destination_opened` and `facilitator.alert.dismissed`. |
 
+#### Implemented Facilitator path boundary (Prompt 08)
+
+The four Facilitator profiles mount `FacilitatorTrainingCoach` inside the real
+`src/roles/scribe.js` support-deck workspace after protected training
+activation succeeds. The controller hydrates the selected team's forwarded
+Strategic Orientation and move artifact, direct communication, informational
+team-action notification, deck assignment, RFI template, durable alert, and
+timeline from immutable fixtures. It does not start live stores,
+subscriptions, RFI history fetches, or database-backed write handlers.
+
+All practice mutations use the semantic command registry in
+`trainingRuntime`: artifact review, five-workspace restoration, projection,
+RFI creation and same-ID resubmission, direct communication, response-family
+classification, applicable recipient negotiation, final submission, and
+receipt verification. Blue receives only the Green-to-Blue proposal thread;
+Red receives only the Industry-to-Red thread. Green and Industry do not receive
+a recipient-decision exercise because no proposal fixture is addressed to
+them. Round zero remains immutable and the practice command appends exactly
+one recipient-scoped round.
+
+Present mode hides the coach while keeping the shared Present/Exit Present
+control available. Exiting via the control or browser fullscreen exit restores
+focus to the coach without changing its step. The durable fixture alert uses an
+attempt-scoped in-memory notification center and its stable fixture ID, so
+rehydration cannot display or count a duplicate. Selector contracts pin all
+five workspace tabs, the Present control, and the tabpanel on every team route.
+
 ### Notetaker objective and evidence contract
 
 | Measurable objective | Required completion evidence |

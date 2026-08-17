@@ -356,6 +356,122 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         });
     });
 
+    it.each(['blue', 'red', 'green', 'industry'])(
+        'mounts the isolated %s Facilitator coach with that team fixture branch',
+        async (team) => {
+            const { ScribeController } = await loadScribeModule();
+            const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
+            const { trainingRuntime } = await import('../features/training/trainingRuntime.js');
+            vi.spyOn(trainingRuntime, 'getPracticeState').mockReturnValue(null);
+            global.document = createFakeDocument();
+            const controller = new ScribeController();
+            controller.teamId = team;
+            controller.teamLabel = `${team[0].toUpperCase()}${team.slice(1)} Team`;
+            controller.configureShell = vi.fn();
+            controller.bindTrainingEventListeners = vi.fn();
+            controller.renderTrainingFixtureWorkspace = vi.fn();
+            controller.mountTrainingFixtureNotification = vi.fn();
+            const coach = { root: createFakeElement('facilitatorTrainingCoach'), destroy: vi.fn() };
+            const mountCoachRef = vi.fn(() => coach);
+            const fixtureBundle = getTrainingProfileFixtureBundle(team, 'facilitator');
+            const activation = {
+                active: true,
+                context: {
+                    attemptId: `attempt-${team}-facilitator`,
+                    curriculumVersion: '1.0',
+                    semanticRole: 'facilitator',
+                    team,
+                    trainingMode: true
+                },
+                fixtureBundle
+            };
+
+            const mounted = controller.mountVerifiedTrainingCoach(activation, {
+                mountCoachRef,
+                documentRef: global.document
+            });
+
+            expect(mounted).toBe(coach);
+            expect(controller.configureShell).toHaveBeenCalledTimes(1);
+            expect(controller.bindTrainingEventListeners).toHaveBeenCalledWith(global.document);
+            expect(controller.renderTrainingFixtureWorkspace).toHaveBeenCalledWith(
+                fixtureBundle,
+                null,
+                global.document
+            );
+            expect(controller.mountTrainingFixtureNotification).toHaveBeenCalledWith(activation, global.document);
+            expect(mountCoachRef).toHaveBeenCalledWith(expect.objectContaining({
+                activation,
+                documentRef: global.document,
+                onNavigate: expect.any(Function),
+                onReviewArtifact: expect.any(Function),
+                onProjectArtifact: expect.any(Function),
+                onStateChange: expect.any(Function),
+                renderLifecycleBadge: expect.any(Function)
+            }));
+            expect(fixtureBundle.artifact.team).toBe(team);
+        }
+    );
+
+    it('leaves the normal Facilitator workspace unchanged when no verified training activation exists', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamActions = [{ id: 'live-action-1' }];
+        controller.configureShell = vi.fn();
+        controller.renderTrainingFixtureWorkspace = vi.fn();
+        const mountCoachRef = vi.fn();
+
+        expect(controller.mountVerifiedTrainingCoach(null, {
+            mountCoachRef,
+            documentRef: global.document
+        })).toBeNull();
+        expect(controller.teamActions).toEqual([{ id: 'live-action-1' }]);
+        expect(controller.configureShell).not.toHaveBeenCalled();
+        expect(controller.renderTrainingFixtureWorkspace).not.toHaveBeenCalled();
+        expect(mountCoachRef).not.toHaveBeenCalled();
+        expect(mockCreateCommunication).not.toHaveBeenCalled();
+        expect(mockSubmitAction).not.toHaveBeenCalled();
+    });
+
+    it('does not duplicate the focus-managed training alert when fixtures rehydrate', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
+        const fakeDocument = createFakeDocument();
+        global.document = fakeDocument;
+        const controller = new ScribeController();
+        controller.teamId = 'blue';
+        controller.renderAlerts = vi.fn();
+        const activation = {
+            context: { attemptId: 'attempt-blue-facilitator-alert' },
+            fixtureBundle: getTrainingProfileFixtureBundle('blue', 'facilitator')
+        };
+
+        controller.mountTrainingFixtureNotification(activation, fakeDocument);
+        controller.mountTrainingFixtureNotification(activation, fakeDocument);
+
+        expect(controller.notifications).toHaveLength(1);
+        expect(controller.notifications[0].id).toBe(activation.fixtureBundle.notification.id);
+        expect(controller.unreadNotifications).toBe(1);
+    });
+
+    it('disables live write controls only inside a verified Facilitator training activation', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+        const liveSubmit = createFakeElement('liveSubmit', '', 'button');
+        liveSubmit.disabled = false;
+        const container = { querySelectorAll: vi.fn(() => [liveSubmit]) };
+
+        controller.disableTrainingLiveWriteControls(container);
+        expect(liveSubmit.disabled).toBe(false);
+
+        controller.trainingActivation = { active: true };
+        controller.disableTrainingLiveWriteControls(container);
+        expect(liveSubmit.disabled).toBe(true);
+        expect(liveSubmit.getAttribute('aria-disabled')).toBe('true');
+        expect(liveSubmit.getAttribute('aria-describedby')).toBe('trainingSandboxBanner');
+    });
+
     it('mounts a persistent role guide for the active Facilitator team', async () => {
         const { ScribeController } = await loadScribeModule();
         const controller = new ScribeController();
@@ -3842,6 +3958,26 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(document.body.dataset.scribePresentation).toBe('standard');
         expect(document.getElementById('presentBtn')?.textContent).toBe('Present');
         expect(document.getElementById('presentBtn')?.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('returns focus to the training coach after Present mode exits', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const fakeDocument = createFakeDocument();
+        const presentBtn = fakeDocument.register(createFakeElement('presentBtn'));
+        const returnTarget = fakeDocument.register(createFakeElement('facilitatorTrainingCoach'));
+        fakeDocument.fullscreenElement = null;
+        fakeDocument.documentElement = { requestFullscreen: vi.fn().mockResolvedValue(undefined) };
+        global.document = fakeDocument;
+        const controller = new ScribeController();
+
+        await controller.togglePresentationMode({ returnFocusTo: returnTarget });
+        expect(fakeDocument.body.dataset.scribePresentation).toBe('active');
+        expect(presentBtn.textContent).toBe('Exit Present');
+
+        await controller.togglePresentationMode();
+        expect(fakeDocument.body.dataset.scribePresentation).toBe('standard');
+        expect(returnTarget.focus).toHaveBeenCalledTimes(1);
+        expect(fakeDocument.activeElement).toBe(returnTarget);
     });
 
     it('reserves a presentation-only layout that hides the sidebar chrome and centers the slide viewer', () => {

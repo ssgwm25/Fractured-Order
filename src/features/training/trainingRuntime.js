@@ -51,6 +51,31 @@ const SCRIBE_COMMAND_DEFINITIONS = Object.freeze({
         resultCode: 'completed'
     })
 });
+const FACILITATOR_COMMANDS = Object.freeze({
+    ARTIFACT_REVIEWED: 'artifact-reviewed',
+    WORKSPACES_RESTORED: 'workspaces-restored',
+    ARTIFACT_PROJECTED: 'artifact-projected',
+    RFI_CREATED: 'rfi-created',
+    RFI_RESUBMITTED: 'rfi-resubmitted',
+    COMMUNICATION_SENT: 'communication-sent',
+    RESPONSE_CLASSIFIED: 'response-classified',
+    PROPOSAL_NEGOTIATED: 'proposal-negotiated',
+    ARTIFACT_SUBMITTED: 'artifact-submitted',
+    RECEIPT_VERIFIED: 'receipt-verified'
+});
+const FACILITATOR_COMMAND_DEFINITIONS = Object.freeze({
+    [FACILITATOR_COMMANDS.ARTIFACT_REVIEWED]: Object.freeze({ stage: 'orient', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.WORKSPACES_RESTORED]: Object.freeze({ stage: 'show', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.ARTIFACT_PROJECTED]: Object.freeze({ stage: 'guide', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.RFI_CREATED]: Object.freeze({ stage: 'practice', eventType: 'step_started', resultCode: null }),
+    [FACILITATOR_COMMANDS.RFI_RESUBMITTED]: Object.freeze({ stage: 'practice', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.COMMUNICATION_SENT]: Object.freeze({ stage: 'respond', eventType: 'step_started', resultCode: null }),
+    [FACILITATOR_COMMANDS.RESPONSE_CLASSIFIED]: Object.freeze({ stage: 'respond', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.PROPOSAL_NEGOTIATED]: Object.freeze({ stage: 'respond', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED]: Object.freeze({ stage: 'retrieve', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.RECEIPT_VERIFIED]: Object.freeze({ stage: 'reflect', eventType: 'step_completed', resultCode: 'completed' })
+});
+const FACILITATOR_WORKSPACES = Object.freeze(['actions', 'deck', 'rfis', 'communications', 'notifications']);
 const TRAINING_PRACTICE_PAYLOAD_LIMIT = 32 * 1024;
 const practiceStates = new Map();
 
@@ -103,6 +128,35 @@ function buildEmptyScribePracticeState(context) {
     };
 }
 
+function buildEmptyFacilitatorPracticeState(context, fixtureBundle) {
+    const proposalThread = fixtureBundle.proposalThreads || [];
+    return {
+        attemptId: context.attemptId,
+        team: context.team,
+        semanticRole: 'facilitator',
+        artifact: {
+            ...cloneFixture(fixtureBundle.artifact),
+            status: 'draft',
+            workflow_state: 'submitted_to_facilitator'
+        },
+        artifactState: 'forwarded_to_facilitator',
+        artifactReviewed: false,
+        workspacesVisited: [],
+        restoredWorkspace: null,
+        projected: false,
+        rfi: null,
+        rfiRevisions: [],
+        rfiAnswer: null,
+        outboundCommunication: null,
+        responseClassified: false,
+        proposalThread: cloneFixture(proposalThread.slice(0, proposalThread.length ? 1 : 0)),
+        proposalNegotiated: false,
+        submissionReceipt: null,
+        timelineEntries: cloneFixture(fixtureBundle.timelineEntries || []),
+        receiptVerified: false
+    };
+}
+
 function getPracticeState(context) {
     const existing = practiceStates.get(context.attemptId);
     if (
@@ -113,7 +167,10 @@ function getPracticeState(context) {
         return existing;
     }
 
-    const created = buildEmptyScribePracticeState(context);
+    const fixtureBundle = getTrainingProfileFixtureBundle(context.team, context.semanticRole);
+    const created = context.semanticRole === 'facilitator' && fixtureBundle
+        ? buildEmptyFacilitatorPracticeState(context, fixtureBundle)
+        : buildEmptyScribePracticeState(context);
     practiceStates.set(context.attemptId, created);
     return created;
 }
@@ -131,6 +188,21 @@ function parseScribeCommand(command, context) {
     const suffix = command.slice(prefix.length);
     const definition = SCRIBE_COMMAND_DEFINITIONS[suffix];
     return definition ? { suffix, definition } : null;
+}
+
+function parseFacilitatorCommand(command, context) {
+    const prefix = `facilitator.${context.team}.`;
+    if (context.semanticRole !== 'facilitator' || !String(command || '').startsWith(prefix)) {
+        return null;
+    }
+
+    const suffix = command.slice(prefix.length);
+    const definition = FACILITATOR_COMMAND_DEFINITIONS[suffix];
+    return definition ? { suffix, definition } : null;
+}
+
+function parseTrainingCommand(command, context) {
+    return parseScribeCommand(command, context) || parseFacilitatorCommand(command, context);
 }
 
 function applyScribeCommand(state, suffix, payload, fixtureBundle) {
@@ -180,9 +252,207 @@ function applyScribeCommand(state, suffix, payload, fixtureBundle) {
     throw makeBoundaryError(`scribe.${state.team}.${suffix}`);
 }
 
+function assertFacilitatorState(condition, state, suffix) {
+    if (!condition) throw makeBoundaryError(`facilitator.${state.team}.${suffix}`);
+}
+
+function applyFacilitatorCommand(state, suffix, payload, fixtureBundle) {
+    const artifactId = String(payload.artifactId || '');
+
+    if (suffix === FACILITATOR_COMMANDS.ARTIFACT_REVIEWED) {
+        assertFacilitatorState(artifactId === fixtureBundle.artifact.id && !state.artifactReviewed, state, suffix);
+        state.artifactReviewed = true;
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.WORKSPACES_RESTORED) {
+        const visited = Array.isArray(payload.workspaces) ? [...new Set(payload.workspaces)] : [];
+        assertFacilitatorState(
+            state.artifactReviewed
+                && FACILITATOR_WORKSPACES.every((workspace) => visited.includes(workspace))
+                && FACILITATOR_WORKSPACES.includes(payload.restoredWorkspace),
+            state,
+            suffix
+        );
+        state.workspacesVisited = FACILITATOR_WORKSPACES.filter((workspace) => visited.includes(workspace));
+        state.restoredWorkspace = payload.restoredWorkspace;
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.ARTIFACT_PROJECTED) {
+        assertFacilitatorState(
+            state.workspacesVisited.length === FACILITATOR_WORKSPACES.length
+                && artifactId === fixtureBundle.artifact.id,
+            state,
+            suffix
+        );
+        state.projected = true;
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.RFI_CREATED) {
+        const query = String(payload.query || '').trim();
+        const categories = Array.isArray(payload.categories)
+            ? payload.categories.map((value) => String(value || '').trim()).filter(Boolean)
+            : [];
+        assertFacilitatorState(state.projected && !state.rfi && query && categories.length > 0, state, suffix);
+        state.rfi = {
+            ...cloneFixture(fixtureBundle.rfi),
+            query,
+            revision_number: 1,
+            status: 'pending',
+            workflow_state: 'returned_to_team'
+        };
+        state.rfiRevisions = [
+            { revision_number: 1, workflow_state: 'submitted_to_white_cell', query },
+            { revision_number: 1, workflow_state: 'returned_to_team', review_notes: fixtureBundle.rfi.review_notes }
+        ];
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.RFI_RESUBMITTED) {
+        const query = String(payload.query || '').trim();
+        assertFacilitatorState(
+            state.rfi?.id === payload.rfiId
+                && state.rfi.workflow_state === 'returned_to_team'
+                && query
+                && query !== state.rfi.query,
+            state,
+            suffix
+        );
+        state.rfi = {
+            ...state.rfi,
+            query,
+            revision_number: 2,
+            status: 'answered',
+            workflow_state: 'completed',
+            response: fixtureBundle.rfiAnswer.response,
+            updated_at: fixtureBundle.rfiAnswer.responded_at
+        };
+        state.rfiRevisions.push(
+            { revision_number: 2, workflow_state: 'resubmitted', query },
+            { revision_number: 2, workflow_state: 'completed', response: fixtureBundle.rfiAnswer.response }
+        );
+        state.rfiAnswer = cloneFixture(fixtureBundle.rfiAnswer);
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.COMMUNICATION_SENT) {
+        const message = String(payload.message || '').trim();
+        assertFacilitatorState(state.rfiAnswer && !state.outboundCommunication && message && message.length <= 2000, state, suffix);
+        state.outboundCommunication = {
+            id: `training-fixture:communication-outbound:${state.team}`,
+            session_id: fixtureBundle.communication.session_id,
+            type: 'GUIDANCE',
+            from_role: `${state.team}_scribe`,
+            to_role: 'white_cell',
+            team: state.team,
+            title: 'TRAINING FIXTURE - Facilitator direct communication',
+            content: message,
+            metadata: {
+                source_team: state.team,
+                source_role: `${state.team}_scribe`,
+                recipient: 'white_cell',
+                recipient_scope: 'whitecell'
+            },
+            created_at: fixtureBundle.rfiAnswer.responded_at
+        };
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.RESPONSE_CLASSIFIED) {
+        assertFacilitatorState(
+            state.outboundCommunication
+                && payload.rfiAnswer === 'rfi-answer'
+                && payload.communication === 'direct-communication'
+                && payload.notification === 'team-action-notification',
+            state,
+            suffix
+        );
+        state.responseClassified = true;
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.PROPOSAL_NEGOTIATED) {
+        const expectedThread = fixtureBundle.proposalThreads || [];
+        const root = expectedThread[0];
+        const response = expectedThread[1];
+        const terms = String(payload.terms || '').trim();
+        assertFacilitatorState(
+            state.responseClassified
+                && root
+                && response
+                && state.proposalThread.length === 1
+                && payload.proposalMessageId === root.id
+                && payload.decision === 'negotiate'
+                && terms
+                && root.metadata?.recipient_team === state.team
+                && response.metadata?.recipient_team === state.team
+                && response.metadata?.thread_id === root.metadata?.thread_id
+                && response.metadata?.parent_message_id === root.id,
+            state,
+            suffix
+        );
+        state.proposalThread.push({
+            ...cloneFixture(response),
+            content: `TRAINING FIXTURE: ${terms}`
+        });
+        state.proposalNegotiated = true;
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED) {
+        const proposalReady = !fixtureBundle.proposalThreads?.length || state.proposalNegotiated;
+        assertFacilitatorState(state.responseClassified && proposalReady && artifactId === fixtureBundle.artifact.id, state, suffix);
+        state.artifact = {
+            ...state.artifact,
+            status: 'submitted',
+            workflow_state: 'submitted_to_white_cell'
+        };
+        state.artifactState = 'submitted_to_white_cell';
+        state.submissionReceipt = {
+            id: `training-fixture:submission-receipt:${state.team}`,
+            artifact_id: fixtureBundle.artifact.id,
+            workflow_state: 'submitted_to_white_cell',
+            visibleLabel: `TRAINING FIXTURE - ${state.team} artifact received by simulated White Cell`,
+            created_at: fixtureBundle.rfiAnswer.responded_at
+        };
+        state.timelineEntries.push({
+            id: `training-fixture:timeline:${state.team}:submission-receipt`,
+            session_id: fixtureBundle.artifact.session_id,
+            type: 'ACTION_SUBMITTED',
+            content: `TRAINING FIXTURE: ${state.team} Facilitator submitted the artifact to simulated White Cell.`,
+            team: state.team,
+            move: fixtureBundle.artifact.move,
+            phase: fixtureBundle.artifact.phase,
+            created_at: fixtureBundle.rfiAnswer.responded_at,
+            metadata: { artifact_id: fixtureBundle.artifact.id, source: 'training_fixture' }
+        });
+        return;
+    }
+
+    if (suffix === FACILITATOR_COMMANDS.RECEIPT_VERIFIED) {
+        assertFacilitatorState(
+            state.submissionReceipt?.artifact_id === payload.artifactId
+                && state.timelineEntries.some((entry) => entry.id.endsWith(':submission-receipt')),
+            state,
+            suffix
+        );
+        state.receiptVerified = true;
+        return;
+    }
+
+    throw makeBoundaryError(`facilitator.${state.team}.${suffix}`);
+}
+
 export function getScribeTrainingCommand(team, suffix) {
     if (!SCRIBE_COMMAND_DEFINITIONS[suffix]) return null;
     return `scribe.${team}.${suffix}`;
+}
+
+export function getFacilitatorTrainingCommand(team, suffix) {
+    if (!FACILITATOR_COMMAND_DEFINITIONS[suffix]) return null;
+    return `facilitator.${team}.${suffix}`;
 }
 
 function makeBoundaryError(operation) {
@@ -499,6 +769,7 @@ export const trainingRuntime = {
                             }
 
                             const walkthroughStart = documentRef?.getElementById?.('scribeTrainingCoach')
+                                || documentRef?.getElementById?.('facilitatorTrainingCoach')
                                 || documentRef?.querySelector?.('main');
                             if (walkthroughStart?.focus) {
                                 if (!walkthroughStart.hasAttribute?.('tabindex')) {
@@ -603,7 +874,7 @@ export const trainingRuntime = {
 
     getPracticeState({ sessionStoreRef = sessionStore } = {}) {
         const context = sessionStoreRef.getTrainingContext?.();
-        if (!context || context.semanticRole !== 'scribe') {
+        if (!context || !['scribe', 'facilitator'].includes(context.semanticRole)) {
             return null;
         }
         return clonePracticeState(getPracticeState(context));
@@ -614,27 +885,30 @@ export const trainingRuntime = {
         sessionStoreRef = sessionStore
     } = {}) {
         const context = sessionStoreRef.getTrainingContext?.();
-        const parsed = context ? parseScribeCommand(command, context) : null;
+        const parsed = context ? parseTrainingCommand(command, context) : null;
         if (!context || !parsed) {
             throw makeBoundaryError(command || 'training-command');
         }
 
         const safePayload = clonePracticePayload(payload, command);
-        if (!safePayload.artifact || typeof safePayload.artifact !== 'object') {
-            throw makeBoundaryError(command);
-        }
-
-        const fixtureBundle = getTrainingProfileFixtureBundle(context.team, 'scribe');
+        const fixtureBundle = getTrainingProfileFixtureBundle(context.team, context.semanticRole);
         if (!fixtureBundle) {
             throw makeBoundaryError(command);
         }
 
         const nextState = cloneFixture(getPracticeState(context));
-        applyScribeCommand(nextState, parsed.suffix, safePayload, fixtureBundle);
+        if (context.semanticRole === 'scribe') {
+            if (!safePayload.artifact || typeof safePayload.artifact !== 'object') {
+                throw makeBoundaryError(command);
+            }
+            applyScribeCommand(nextState, parsed.suffix, safePayload, fixtureBundle);
+        } else {
+            applyFacilitatorCommand(nextState, parsed.suffix, safePayload, fixtureBundle);
+        }
 
         await this.executeWrite('record-progress', {
             eventType: parsed.definition.eventType,
-            stepId: `training.v1.scribe.${context.team}.${parsed.definition.stage}`,
+            stepId: `training.v1.${context.semanticRole}.${context.team}.${parsed.definition.stage}`,
             resultCode: parsed.definition.resultCode
         }, { databaseRef, sessionStoreRef });
 
@@ -659,6 +933,6 @@ export const trainingRuntime = {
     }
 };
 
-export { SCRIBE_COMMANDS };
+export { FACILITATOR_COMMANDS, SCRIBE_COMMANDS };
 
 export default trainingRuntime;

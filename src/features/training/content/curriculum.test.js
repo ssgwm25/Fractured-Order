@@ -10,6 +10,7 @@ import {
     getTrainingStep
 } from './curriculum.js';
 import { TRAINING_STAGE_IDS } from './schema.js';
+import { FACILITATOR_TRAINING_SELECTOR_CONTRACT } from '../FacilitatorTrainingCoach.js';
 
 const ROUTE_SURFACE_BY_SEMANTIC_ROLE = Object.freeze({
     scribe: 'facilitator',
@@ -119,4 +120,23 @@ describe('versioned training curriculum', () => {
             });
         });
     });
+
+    it.each(['blue', 'red', 'green', 'industry'])(
+        'pins every %s Facilitator navigation and Present highlight target',
+        (team) => {
+            const html = readRoleSurface(team, 'facilitator');
+            expect(FACILITATOR_TRAINING_SELECTOR_CONTRACT).toEqual({
+                actions: '#teamActionReviewViewBtn',
+                deck: '#deckViewBtn',
+                rfis: '#rfiViewBtn',
+                communications: '#communicationsViewBtn',
+                notifications: '#notificationsViewBtn',
+                present: '#presentBtn',
+                workspace: '#facilitatorWorkspacePanel'
+            });
+            Object.values(FACILITATOR_TRAINING_SELECTOR_CONTRACT).forEach((selector) => {
+                expect(selectorExists(html, selector), `${team} ${selector}`).toBe(true);
+            });
+        }
+    );
 });
