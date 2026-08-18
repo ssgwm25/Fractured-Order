@@ -20,6 +20,10 @@ import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 import { trainingRuntime } from '../features/training/trainingRuntime.js';
+import {
+    mountNotetakerTrainingCoach,
+    shouldMountNotetakerTrainingCoach
+} from '../features/training/NotetakerTrainingCoach.js';
 import { showToast } from '../components/ui/Toast.js';
 import { createArtifactLifecycleBadge, createBadge, createPriorityBadge } from '../components/ui/Badge.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
@@ -239,6 +243,8 @@ export class NotetakerController {
         this.newInboxCommunicationIds = new Set();
         this.pendingInboxArrivalIds = new Set();
         this.hasHydratedInbox = false;
+        this.trainingCoach = null;
+        this.trainingActivation = null;
     }
 
     /**
@@ -248,10 +254,11 @@ export class NotetakerController {
         logger.info('Initializing Notetaker interface');
 
         if (sessionStore.hasTrainingContext?.()) {
-            await trainingRuntime.initializeRolePage({
+            const activation = await trainingRuntime.initializeRolePage({
                 expectedSemanticRole: 'notetaker',
                 team: this.teamId
             });
+            this.mountVerifiedTrainingCoach(activation);
             return;
         }
 
@@ -291,6 +298,101 @@ export class NotetakerController {
         this.mountFollowAlongOnboarding();
 
         logger.info('Notetaker interface initialized');
+    }
+
+    mountVerifiedTrainingCoach(activation, {
+        mountCoachRef = mountNotetakerTrainingCoach,
+        documentRef = globalThis.document
+    } = {}) {
+        if (!shouldMountNotetakerTrainingCoach(activation, this.teamId)) return null;
+
+        this.trainingCoach?.destroy?.();
+        this.trainingActivation = activation;
+        this.disableTrainingLiveWriteControls(documentRef);
+        const practiceState = trainingRuntime.getPracticeState();
+        this.renderTrainingFixtureWorkspace(activation.fixtureBundle, practiceState, documentRef);
+        this.trainingCoach = mountCoachRef({
+            activation,
+            documentRef,
+            onNavigate: (section) => this.navigateTrainingSection(section, documentRef),
+            onStateChange: (nextPracticeState) => {
+                this.renderTrainingFixtureWorkspace(
+                    activation.fixtureBundle,
+                    nextPracticeState,
+                    documentRef
+                );
+            }
+        });
+        return this.trainingCoach;
+    }
+
+    disableTrainingLiveWriteControls(documentRef = globalThis.document) {
+        if (!this.trainingActivation?.active || !documentRef) return;
+
+        const selectAll = (selector) => Array.from(documentRef.querySelectorAll?.(selector) || []);
+        const controls = [
+            ...selectAll('#captureForm input, #captureForm textarea, #captureForm button'),
+            ...selectAll('#dynamicsForm input, #dynamicsForm textarea, #dynamicsForm select'),
+            ...selectAll('#allianceForm input, #allianceForm textarea, #allianceForm select'),
+            ...selectAll('button[form="dynamicsForm"], button[form="allianceForm"]')
+        ];
+        [...new Set(controls)].forEach((control) => {
+            control.disabled = true;
+            control.setAttribute?.('aria-describedby', 'trainingSandboxBanner');
+            control.title = 'Use the guided coach for isolated Notetaker practice.';
+        });
+    }
+
+    navigateTrainingSection(section, documentRef = globalThis.document) {
+        documentRef?.querySelector?.(`.sidebar-link[data-section="${section}"]`)?.click?.();
+        if (section === 'inbox') this.clearInboxArrivals();
+    }
+
+    renderTrainingFixtureWorkspace(fixtureBundle, practiceState = null, documentRef = globalThis.document) {
+        if (!fixtureBundle || !documentRef) return;
+
+        const record = practiceState?.activeSeatRecord || fixtureBundle.notetakerRecord;
+        const viewState = buildNotetakerViewState(record, {
+            teamId: this.teamId,
+            participantKey: record.participantKey
+        });
+        this.currentMove = record.move || 1;
+        this.currentPhase = record.phase || 1;
+        this.participantContext = {
+            participantKey: record.participantKey,
+            participantId: record.participantKey,
+            clientId: `training-fixture:notetaker-client:${this.teamId}:a`,
+            participantLabel: `TRAINING FIXTURE - ${this.teamLabel} Notetaker learner`
+        };
+        this.dynamicsData = viewState.dynamicsData;
+        this.allianceData = viewState.allianceData;
+        this.observationTimeline = viewState.observationTimeline;
+        this.captures = viewState.observationTimeline.map((entry) => ({
+            ...entry,
+            move: record.move,
+            phase: record.phase,
+            created_at: entry.created_at || entry.timestamp
+        }));
+        this.actions = [practiceState?.officialAction || fixtureBundle.artifact].filter(Boolean);
+        const inboxItem = practiceState?.inboxItem || fixtureBundle.inject;
+        this.inboxCommunications = [inboxItem].filter(Boolean);
+        this.newInboxCommunicationIds = practiceState?.inboxOpened || !inboxItem?.id
+            ? new Set()
+            : new Set([inboxItem.id]);
+        const officialTimeline = practiceState?.officialTimelineEntries || fixtureBundle.timelineEntries || [];
+        const practiceSnapshots = practiceState?.timelineSnapshots || [];
+
+        this.configureTeamLabels();
+        this.populateDynamicsForm();
+        this.populateAllianceForm();
+        this.renderCaptures();
+        this.renderActionsView();
+        this.renderInbox();
+        this.renderTimeline([
+            ...practiceSnapshots,
+            ...this.captures,
+            ...officialTimeline
+        ]);
     }
 
     mountFollowAlongOnboarding() {
@@ -1202,6 +1304,8 @@ export class NotetakerController {
      * Cleanup
      */
     destroy() {
+        this.trainingCoach?.destroy?.();
+        this.trainingCoach = null;
         this.dynamicsAutoSaveDebounce?.flush?.();
         this.allianceAutoSaveDebounce?.flush?.();
         this.storeUnsubscribers.forEach((unsubscribe) => unsubscribe?.());

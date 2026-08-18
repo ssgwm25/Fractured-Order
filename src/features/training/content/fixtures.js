@@ -497,41 +497,72 @@ const timelineEntries = TRAINING_CONTENT_TEAMS.flatMap((team) => ([
     }
 ]));
 
-function buildNotetakerRecord(team) {
-    const participantKey = fixtureId('notetaker-seat', team, 'a');
+function buildNotetakerRecord(team, {
+    seat = 'a',
+    comparison = false
+} = {}) {
+    const participantKey = fixtureId('notetaker-seat', team, seat);
+    const clientId = fixtureId('notetaker-client', team, seat);
+    const participantLabel = fixtureLabel(`${TEAM_LABELS[team]} Notetaker ${seat.toUpperCase()}`);
+    const dynamicsData = comparison
+        ? {
+            emergingLeaders: 'The implementation lead asks for evidence before the group settles on a position.',
+            decisionStyle: 'expert_deference',
+            frictionLevel: '3',
+            frictionSources: 'The team is testing whether the proposed checkpoint is measurable.',
+            consensusLevel: '6',
+            dynamicsSummary: 'The comparison seat records a separate evidence-focused discussion.'
+        }
+        : {
+            emergingLeaders: 'The policy lead summarizes disagreement before proposing a decision.',
+            decisionStyle: 'consensus',
+            frictionLevel: '4',
+            frictionSources: 'Timing and partner coordination.',
+            consensusLevel: '7',
+            dynamicsSummary: 'The team reaches agreement after separating objectives from implementation.'
+        };
+    const allianceData = comparison
+        ? {
+            allianceFormation: 'A technical working group is keeping options open.',
+            allianceStrength: '5',
+            allianceTensions: 'Partners want different evidence before committing.',
+            externalPressures: 'The delivery delay makes verification more urgent.',
+            thirdPartyActions: 'A logistics provider offers a limited bridge arrangement.',
+            geopoliticalContext: 'The group is avoiding a long-term commitment during the disruption.'
+        }
+        : {
+            allianceFormation: 'A temporary implementation coalition is forming.',
+            allianceStrength: '6',
+            allianceTensions: 'Partners disagree about review timing.',
+            externalPressures: 'Supplier delays increase pressure for an interim measure.',
+            thirdPartyActions: 'A non-player supplier offers limited substitute capacity.',
+            geopoliticalContext: 'Partners want resilience without irreversible bloc alignment.'
+        };
     const dynamics = mergeParticipantScopedNotetakerSection({}, {
-        emergingLeaders: 'The policy lead summarizes disagreement before proposing a decision.',
-        decisionStyle: 'consensus',
-        frictionLevel: '4',
-        frictionSources: 'Timing and partner coordination.',
-        consensusLevel: '7',
-        dynamicsSummary: 'The team reaches agreement after separating objectives from implementation.'
+        ...dynamicsData
     }, {
         teamId: team,
         timestamp: FIXED_TIMESTAMPS.response,
         participantKey,
         participantId: participantKey,
-        clientId: fixtureId('notetaker-client', team, 'a'),
-        participantLabel: fixtureLabel(`${TEAM_LABELS[team]} Notetaker A`)
+        clientId,
+        participantLabel
     });
     const alliance = mergeParticipantScopedNotetakerSection({}, {
-        allianceFormation: 'A temporary implementation coalition is forming.',
-        allianceStrength: '6',
-        allianceTensions: 'Partners disagree about review timing.',
-        externalPressures: 'Supplier delays increase pressure for an interim measure.',
-        thirdPartyActions: 'A non-player supplier offers limited substitute capacity.',
-        geopoliticalContext: 'Partners want resilience without irreversible bloc alignment.'
+        ...allianceData
     }, {
         teamId: team,
         timestamp: FIXED_TIMESTAMPS.response,
         participantKey,
         participantId: participantKey,
-        clientId: fixtureId('notetaker-client', team, 'a'),
-        participantLabel: fixtureLabel(`${TEAM_LABELS[team]} Notetaker A`)
+        clientId,
+        participantLabel
     });
 
     return {
-        id: fixtureId('notetaker-record', team),
+        id: comparison
+            ? fixtureId('notetaker-record', team, 'comparison')
+            : fixtureId('notetaker-record', team),
         session_id: SESSION_ID,
         team,
         move: 1,
@@ -539,7 +570,13 @@ function buildNotetakerRecord(team) {
         participantKey,
         dynamics_analysis: dynamics,
         external_factors: alliance,
-        observation_timeline: annotateObservationTimelineEntries([
+        observation_timeline: annotateObservationTimelineEntries(comparison ? [
+            {
+                id: fixtureId('observation', team, 'comparison'),
+                type: 'NOTE',
+                content: `${TRAINING_VISIBLE_FIXTURE_PREFIX}: The comparison seat linked its note to evidence the team still needed.`
+            }
+        ] : [
             {
                 id: fixtureId('observation', team, 'moment'),
                 type: 'MOMENT',
@@ -555,8 +592,8 @@ function buildNotetakerRecord(team) {
             timestamp: FIXED_TIMESTAMPS.response,
             participantKey,
             participantId: participantKey,
-            clientId: fixtureId('notetaker-client', team, 'a'),
-            participantLabel: fixtureLabel(`${TEAM_LABELS[team]} Notetaker A`)
+            clientId,
+            participantLabel
         }),
         updated_at: FIXED_TIMESTAMPS.response
     };
@@ -579,7 +616,11 @@ const catalogDefinition = {
         proposalThreads,
         deckStates,
         timelineEntries,
-        notetakerRecords: TRAINING_CONTENT_TEAMS.map(buildNotetakerRecord)
+        notetakerRecords: TRAINING_CONTENT_TEAMS.map((team) => buildNotetakerRecord(team)),
+        secondNotetakerRecords: TRAINING_CONTENT_TEAMS.map((team) => buildNotetakerRecord(team, {
+            seat: 'b',
+            comparison: true
+        }))
     }
 };
 
@@ -639,7 +680,8 @@ export function getTrainingProfileFixtureBundle(team, semanticRole) {
         timelineEntries: Object.freeze(counterparts.timelineEntries.filter((fixture) => (
             fixture.team === team || fixture.metadata?.recipient_team === team
         ))),
-        notetakerRecord: counterparts.notetakerRecords.find((fixture) => fixture.team === team) || null
+        notetakerRecord: counterparts.notetakerRecords.find((fixture) => fixture.team === team) || null,
+        secondNotetakerRecord: counterparts.secondNotetakerRecords.find((fixture) => fixture.team === team) || null
     });
 }
 

@@ -209,6 +209,41 @@ five workspace tabs, the Present control, and the tabpanel on every team route.
 | Review a complete action and the chronological session timeline without editing either. | `notetaker.readonly_review.completed`; no artifact mutation control is exposed. |
 | Explain the difference between seat-scoped notes and shared captures. | Critical mastery item `notetaker.storage_scope` is correct. |
 
+#### Implemented Notetaker path boundary (Prompt 09)
+
+All four Notetaker profiles mount `NotetakerTrainingCoach` inside the real
+`src/roles/notetaker.js` workspace only after protected activation returns the
+same semantic role and team as the route. Training initialization renders the
+current team artifact, supply-disruption inbox item, captures, and chronological
+timeline through the existing Notetaker renderers. It does not bind the live
+forms, start sync, subscribe to stores, or call a live Notetaker mutation.
+
+The closed command registry accepts only the current attempt's exact
+`notetaker.<team>` sequence. The learner first anchors the record to the visible
+move, phase, timer, and team, then writes an observation using separate event
+and reasoning fields. The coach supplies an example shape and hints but never
+prefills a practice textarea. A key moment and quote are appended as distinct
+capture types. Blank, over-2,000-character, and duplicate entries fail before
+progress or practice state changes.
+
+Dynamics and alliance inputs retain the live two-second autosave rhythm. The
+training boundary applies the current participant-scoped ledger merge helper to
+the learner's cloned move record. Autosave updates only that record; manual save
+also creates separate structured dynamics and alliance snapshot entries using
+the production timeline-detail contract. Offline and failed autosaves retain
+the unsaved form text, expose a retry control, and do not partially commit the
+attempt. A deterministic second-seat fixture has its own record ID and
+participant key and is never used as the learner's mutable record.
+
+The simulated inbox clears only its unread marker after opening; its immutable
+history remains. The follow-up entry records what team reasoning should be
+observed after the inject without changing the team artifact. Team Action and
+Official Timeline controls navigate to the existing read-only renderers. The
+runtime stores immutable `officialAction` and `officialTimelineEntries`
+separately from learner captures and Notetaker practice snapshots, and the
+retrieval check accepts only the explanatory Notetaker record as the place that
+answers why the team reasoned as it did.
+
 ### Mastery and completion rule
 
 The mastery check contains five items tailored to the selected profile. A pass
@@ -596,9 +631,10 @@ Repository documentation tests must fail if this contract loses:
 - the explicit exclusion of all operator, SME, and compatibility routes.
 
 The runtime spine, Blue Scribe smoke slice, version `1.0` declarative
-curriculum/fixture catalog, accessible video-first introduction, and fail-closed
-narration controller/generation workflow are implemented. Narration voice
-approval and bulk encoded assets, interactive walkthrough mounting, mastery
-persistence, completion, attempt replay, profile switching after completion,
-and reset behavior remain deferred. This document does not claim that any
-learner has completed the curriculum.
+curriculum/fixture catalog, accessible video-first introduction, fail-closed
+narration controller/generation workflow, and all four Scribe, Facilitator, and
+Notetaker walkthrough mounts are implemented. Mastery persistence, completion
+receipts, attempt replay, profile switching after completion, and full
+server-backed reset behavior remain deferred. The local practice-state reset
+boundary is attempt-scoped and does not claim to reset server progress. This
+document does not claim that any learner has completed the curriculum.

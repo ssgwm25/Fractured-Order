@@ -204,6 +204,17 @@ describe('deterministic training fixture catalog', () => {
             {},
             { teamId: 'blue', participantKey: bundle.notetakerRecord.participantKey }
         )).toMatchObject({ decisionStyle: 'consensus', frictionLevel: '4', consensusLevel: '7' });
+        expect(bundle.secondNotetakerRecord.id).not.toBe(bundle.notetakerRecord.id);
+        expect(bundle.secondNotetakerRecord.participantKey).not.toBe(bundle.notetakerRecord.participantKey);
+        expect(readParticipantScopedNotetakerSection(
+            bundle.secondNotetakerRecord.dynamics_analysis,
+            {},
+            { teamId: 'blue', participantKey: bundle.secondNotetakerRecord.participantKey }
+        )).toMatchObject({
+            decisionStyle: 'expert_deference',
+            frictionLevel: '3',
+            consensusLevel: '6'
+        });
         expect(getTrainingProfileFixtureBundle('blue', 'operator')).toBeNull();
         expect(getTrainingProfileFixtureBundle('white_cell', 'notetaker')).toBeNull();
     });

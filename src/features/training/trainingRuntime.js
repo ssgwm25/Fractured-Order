@@ -8,6 +8,16 @@ import { TRAINING_CURRICULUM, getTrainingModule } from './content/curriculum.js'
 import { getTrainingProfileFixtureBundle } from './content/fixtures.js';
 import { showTrainingIntroModal } from './TrainingIntroModal.js';
 import {
+    annotateObservationTimelineEntries,
+    mergeParticipantScopedNotetakerSection,
+    readParticipantScopedNotetakerSection
+} from '../notetaker/storage.js';
+import {
+    NOTETAKER_TIMELINE_EVENT_SOURCE,
+    buildNotetakerTimelineDetailItems,
+    getNotetakerTimelineScopeLabel
+} from '../notetaker/timelineDetails.js';
+import {
     createTrainingContextFromBootstrap,
     getSemanticRoleForPublicSurface,
     getTrainingRole,
@@ -75,8 +85,33 @@ const FACILITATOR_COMMAND_DEFINITIONS = Object.freeze({
     [FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED]: Object.freeze({ stage: 'retrieve', eventType: 'step_completed', resultCode: 'completed' }),
     [FACILITATOR_COMMANDS.RECEIPT_VERIFIED]: Object.freeze({ stage: 'reflect', eventType: 'step_completed', resultCode: 'completed' })
 });
+const NOTETAKER_COMMANDS = Object.freeze({
+    CONTEXT_ORIENTED: 'context-oriented',
+    OBSERVATION_ADDED: 'observation-added',
+    QUICK_CAPTURES_ADDED: 'quick-captures-added',
+    SEAT_NOTES_AUTOSAVED: 'seat-notes-autosaved',
+    SEAT_NOTES_SAVED: 'seat-notes-saved',
+    INBOX_OPENED: 'inbox-opened',
+    INJECT_OBSERVATION_ADDED: 'inject-observation-added',
+    READONLY_REVIEW_COMPLETED: 'readonly-review-completed',
+    RETRIEVAL_COMPLETED: 'retrieval-completed',
+    PRACTICE_COMPLETED: 'practice-completed'
+});
+const NOTETAKER_COMMAND_DEFINITIONS = Object.freeze({
+    [NOTETAKER_COMMANDS.CONTEXT_ORIENTED]: Object.freeze({ stage: 'orient', eventType: 'step_completed', resultCode: 'completed' }),
+    [NOTETAKER_COMMANDS.OBSERVATION_ADDED]: Object.freeze({ stage: 'show', eventType: 'step_completed', resultCode: 'completed' }),
+    [NOTETAKER_COMMANDS.QUICK_CAPTURES_ADDED]: Object.freeze({ stage: 'guide', eventType: 'step_completed', resultCode: 'completed' }),
+    [NOTETAKER_COMMANDS.SEAT_NOTES_AUTOSAVED]: Object.freeze({ stage: 'practice', eventType: 'step_started', resultCode: null }),
+    [NOTETAKER_COMMANDS.SEAT_NOTES_SAVED]: Object.freeze({ stage: 'practice', eventType: 'step_completed', resultCode: 'completed' }),
+    [NOTETAKER_COMMANDS.INBOX_OPENED]: Object.freeze({ stage: 'respond', eventType: 'step_started', resultCode: null }),
+    [NOTETAKER_COMMANDS.INJECT_OBSERVATION_ADDED]: Object.freeze({ stage: 'respond', eventType: 'step_completed', resultCode: 'completed' }),
+    [NOTETAKER_COMMANDS.READONLY_REVIEW_COMPLETED]: Object.freeze({ stage: 'retrieve', eventType: 'step_started', resultCode: null }),
+    [NOTETAKER_COMMANDS.RETRIEVAL_COMPLETED]: Object.freeze({ stage: 'retrieve', eventType: 'step_completed', resultCode: 'completed' }),
+    [NOTETAKER_COMMANDS.PRACTICE_COMPLETED]: Object.freeze({ stage: 'reflect', eventType: 'step_completed', resultCode: 'completed' })
+});
 const FACILITATOR_WORKSPACES = Object.freeze(['actions', 'deck', 'rfis', 'communications', 'notifications']);
 const TRAINING_PRACTICE_PAYLOAD_LIMIT = 32 * 1024;
+export const NOTETAKER_PRACTICE_TEXT_LIMIT = 2000;
 const practiceStates = new Map();
 
 export const BLUE_SCRIBE_PRACTICE_ARTIFACT = Object.freeze({
@@ -157,6 +192,30 @@ function buildEmptyFacilitatorPracticeState(context, fixtureBundle) {
     };
 }
 
+function buildEmptyNotetakerPracticeState(context, fixtureBundle) {
+    return {
+        attemptId: context.attemptId,
+        team: context.team,
+        semanticRole: 'notetaker',
+        activeSeatRecord: cloneFixture(fixtureBundle.notetakerRecord),
+        secondSeatRecord: cloneFixture(fixtureBundle.secondNotetakerRecord),
+        officialAction: cloneFixture(fixtureBundle.artifact),
+        officialTimelineEntries: cloneFixture(fixtureBundle.timelineEntries || []),
+        timelineSnapshots: [],
+        inboxItem: cloneFixture(fixtureBundle.inject),
+        contextOriented: false,
+        observationAdded: false,
+        quickCapturesAdded: false,
+        autosaveCount: 0,
+        manualSaveCount: 0,
+        inboxOpened: false,
+        injectObservationAdded: false,
+        readonlyReviewCompleted: false,
+        retrievalCompleted: false,
+        completed: false
+    };
+}
+
 function getPracticeState(context) {
     const existing = practiceStates.get(context.attemptId);
     if (
@@ -170,7 +229,9 @@ function getPracticeState(context) {
     const fixtureBundle = getTrainingProfileFixtureBundle(context.team, context.semanticRole);
     const created = context.semanticRole === 'facilitator' && fixtureBundle
         ? buildEmptyFacilitatorPracticeState(context, fixtureBundle)
-        : buildEmptyScribePracticeState(context);
+        : context.semanticRole === 'notetaker' && fixtureBundle
+            ? buildEmptyNotetakerPracticeState(context, fixtureBundle)
+            : buildEmptyScribePracticeState(context);
     practiceStates.set(context.attemptId, created);
     return created;
 }
@@ -201,8 +262,21 @@ function parseFacilitatorCommand(command, context) {
     return definition ? { suffix, definition } : null;
 }
 
+function parseNotetakerCommand(command, context) {
+    const prefix = `notetaker.${context.team}.`;
+    if (context.semanticRole !== 'notetaker' || !String(command || '').startsWith(prefix)) {
+        return null;
+    }
+
+    const suffix = command.slice(prefix.length);
+    const definition = NOTETAKER_COMMAND_DEFINITIONS[suffix];
+    return definition ? { suffix, definition } : null;
+}
+
 function parseTrainingCommand(command, context) {
-    return parseScribeCommand(command, context) || parseFacilitatorCommand(command, context);
+    return parseScribeCommand(command, context)
+        || parseFacilitatorCommand(command, context)
+        || parseNotetakerCommand(command, context);
 }
 
 function applyScribeCommand(state, suffix, payload, fixtureBundle) {
@@ -445,6 +519,236 @@ function applyFacilitatorCommand(state, suffix, payload, fixtureBundle) {
     throw makeBoundaryError(`facilitator.${state.team}.${suffix}`);
 }
 
+function normalizeNotetakerPracticeText(value, operation) {
+    if (typeof value !== 'string') {
+        throw makeBoundaryError(operation);
+    }
+    const normalized = value.trim();
+    if (!normalized || normalized.length > NOTETAKER_PRACTICE_TEXT_LIMIT) {
+        throw makeBoundaryError(operation);
+    }
+    return normalized;
+}
+
+function buildNotetakerCapture(state, type, content, offset = 0) {
+    const record = state.activeSeatRecord;
+    const captureIndex = record.observation_timeline.length + 1 + offset;
+    const timestamp = record.updated_at;
+    return annotateObservationTimelineEntries([{
+        id: `training-fixture:observation:${state.team}:learner:${captureIndex}`,
+        type,
+        content,
+        created_at: timestamp
+    }], {
+        teamId: state.team,
+        timestamp,
+        participantKey: record.participantKey,
+        participantId: record.participantKey,
+        clientId: `training-fixture:notetaker-client:${state.team}:a`,
+        participantLabel: `TRAINING FIXTURE - ${state.team} Notetaker learner`
+    })[0];
+}
+
+function appendNotetakerCaptures(state, entries, operation) {
+    const existingSignatures = new Set(
+        state.activeSeatRecord.observation_timeline.map((entry) => (
+            String(entry.content || '').trim().toLowerCase()
+        ))
+    );
+    const nextSignatures = entries.map((entry) => String(entry.content || '').trim().toLowerCase());
+    if (
+        nextSignatures.some((signature) => !signature || existingSignatures.has(signature))
+        || new Set(nextSignatures).size !== nextSignatures.length
+    ) {
+        throw makeBoundaryError(operation);
+    }
+    state.activeSeatRecord.observation_timeline.push(...entries);
+}
+
+function updateNotetakerSeatNotes(state, payload, operation) {
+    const dynamicsNote = normalizeNotetakerPracticeText(payload.dynamicsNote, operation);
+    const allianceNote = normalizeNotetakerPracticeText(payload.allianceNote, operation);
+    if (dynamicsNote.toLowerCase() === allianceNote.toLowerCase()) {
+        throw makeBoundaryError(operation);
+    }
+
+    const record = state.activeSeatRecord;
+    const participantOptions = {
+        teamId: state.team,
+        timestamp: record.updated_at,
+        participantKey: record.participantKey,
+        participantId: record.participantKey,
+        clientId: `training-fixture:notetaker-client:${state.team}:a`,
+        participantLabel: `TRAINING FIXTURE - ${state.team} Notetaker learner`
+    };
+    const currentDynamics = readParticipantScopedNotetakerSection(record.dynamics_analysis, {}, {
+        teamId: state.team,
+        participantKey: record.participantKey
+    });
+    const currentAlliance = readParticipantScopedNotetakerSection(record.external_factors, {}, {
+        teamId: state.team,
+        participantKey: record.participantKey
+    });
+    record.dynamics_analysis = mergeParticipantScopedNotetakerSection(record.dynamics_analysis, {
+        ...currentDynamics,
+        dynamicsSummary: dynamicsNote
+    }, participantOptions);
+    record.external_factors = mergeParticipantScopedNotetakerSection(record.external_factors, {
+        ...currentAlliance,
+        allianceNotes: allianceNote
+    }, participantOptions);
+
+    return {
+        dynamicsData: readParticipantScopedNotetakerSection(record.dynamics_analysis, {}, {
+            teamId: state.team,
+            participantKey: record.participantKey
+        }),
+        allianceData: readParticipantScopedNotetakerSection(record.external_factors, {}, {
+            teamId: state.team,
+            participantKey: record.participantKey
+        })
+    };
+}
+
+function buildNotetakerPracticeTimelineSnapshot(state, noteScope, noteData) {
+    const sequence = state.timelineSnapshots.length + 1;
+    return {
+        id: `training-fixture:timeline:${state.team}:notetaker-${noteScope}:${sequence}`,
+        session_id: state.activeSeatRecord.session_id,
+        type: 'NOTE',
+        content: noteScope === 'dynamics'
+            ? 'Team dynamics notes saved'
+            : 'Alliance tracking notes saved',
+        team: state.team,
+        move: state.activeSeatRecord.move,
+        phase: state.activeSeatRecord.phase,
+        created_at: state.activeSeatRecord.updated_at,
+        metadata: {
+            actor: `TRAINING FIXTURE - ${state.team} Notetaker learner`,
+            role: `${state.team}_notetaker`,
+            source: NOTETAKER_TIMELINE_EVENT_SOURCE,
+            note_scope: noteScope,
+            note_scope_label: getNotetakerTimelineScopeLabel(noteScope),
+            note_details: buildNotetakerTimelineDetailItems(noteScope, noteData),
+            participant_key: state.activeSeatRecord.participantKey,
+            participant_id: state.activeSeatRecord.participantKey,
+            participant_label: `TRAINING FIXTURE - ${state.team} Notetaker learner`
+        }
+    };
+}
+
+function assertNotetakerState(condition, state, suffix) {
+    if (!condition) throw makeBoundaryError(`notetaker.${state.team}.${suffix}`);
+}
+
+function applyNotetakerCommand(state, suffix, payload) {
+    const operation = `notetaker.${state.team}.${suffix}`;
+
+    if (suffix === NOTETAKER_COMMANDS.CONTEXT_ORIENTED) {
+        assertNotetakerState(!state.contextOriented, state, suffix);
+        state.contextOriented = true;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.OBSERVATION_ADDED) {
+        assertNotetakerState(state.contextOriented && !state.observationAdded, state, suffix);
+        const observation = normalizeNotetakerPracticeText(payload.observation, operation);
+        const reasoning = normalizeNotetakerPracticeText(payload.reasoning, operation);
+        const content = `${observation} Reasoning: ${reasoning}`;
+        if (content.length > NOTETAKER_PRACTICE_TEXT_LIMIT) throw makeBoundaryError(operation);
+        appendNotetakerCaptures(state, [buildNotetakerCapture(state, 'NOTE', content)], operation);
+        state.observationAdded = true;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.QUICK_CAPTURES_ADDED) {
+        assertNotetakerState(state.observationAdded && !state.quickCapturesAdded, state, suffix);
+        const moment = normalizeNotetakerPracticeText(payload.moment, operation);
+        const quote = normalizeNotetakerPracticeText(payload.quote, operation);
+        appendNotetakerCaptures(state, [
+            buildNotetakerCapture(state, 'MOMENT', moment),
+            buildNotetakerCapture(state, 'QUOTE', quote, 1)
+        ], operation);
+        state.quickCapturesAdded = true;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.SEAT_NOTES_AUTOSAVED) {
+        assertNotetakerState(state.quickCapturesAdded, state, suffix);
+        updateNotetakerSeatNotes(state, payload, operation);
+        state.autosaveCount += 1;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.SEAT_NOTES_SAVED) {
+        assertNotetakerState(state.quickCapturesAdded && state.manualSaveCount === 0, state, suffix);
+        const { dynamicsData, allianceData } = updateNotetakerSeatNotes(state, payload, operation);
+        state.timelineSnapshots.push(
+            buildNotetakerPracticeTimelineSnapshot(state, 'dynamics', dynamicsData),
+            buildNotetakerPracticeTimelineSnapshot(state, 'alliance', allianceData)
+        );
+        state.manualSaveCount = 1;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.INBOX_OPENED) {
+        assertNotetakerState(state.manualSaveCount === 1 && !state.inboxOpened && payload.inboxItemId === state.inboxItem.id, state, suffix);
+        state.inboxOpened = true;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.INJECT_OBSERVATION_ADDED) {
+        assertNotetakerState(state.inboxOpened && !state.injectObservationAdded, state, suffix);
+        const observation = normalizeNotetakerPracticeText(payload.observation, operation);
+        const reasoning = normalizeNotetakerPracticeText(payload.reasoning, operation);
+        const content = `${observation} Reasoning after inbox update: ${reasoning}`;
+        if (content.length > NOTETAKER_PRACTICE_TEXT_LIMIT) throw makeBoundaryError(operation);
+        appendNotetakerCaptures(state, [
+            buildNotetakerCapture(state, 'NOTE', content)
+        ], operation);
+        state.injectObservationAdded = true;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.READONLY_REVIEW_COMPLETED) {
+        const officialTimelineIds = state.officialTimelineEntries.map((entry) => entry.id);
+        assertNotetakerState(
+            state.injectObservationAdded
+                && !state.readonlyReviewCompleted
+                && payload.actionReviewed === true
+                && payload.timelineReviewed === true
+                && payload.artifactId === state.officialAction.id
+                && Array.isArray(payload.timelineEntryIds)
+                && payload.timelineEntryIds.length === officialTimelineIds.length
+                && officialTimelineIds.every((id) => payload.timelineEntryIds.includes(id)),
+            state,
+            suffix
+        );
+        state.readonlyReviewCompleted = true;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.RETRIEVAL_COMPLETED) {
+        assertNotetakerState(
+            state.readonlyReviewCompleted
+                && !state.retrievalCompleted
+                && payload.answer === 'notetaker-record',
+            state,
+            suffix
+        );
+        state.retrievalCompleted = true;
+        return;
+    }
+
+    if (suffix === NOTETAKER_COMMANDS.PRACTICE_COMPLETED) {
+        assertNotetakerState(state.retrievalCompleted && !state.completed, state, suffix);
+        state.completed = true;
+        return;
+    }
+
+    throw makeBoundaryError(operation);
+}
+
 export function getScribeTrainingCommand(team, suffix) {
     if (!SCRIBE_COMMAND_DEFINITIONS[suffix]) return null;
     return `scribe.${team}.${suffix}`;
@@ -453,6 +757,11 @@ export function getScribeTrainingCommand(team, suffix) {
 export function getFacilitatorTrainingCommand(team, suffix) {
     if (!FACILITATOR_COMMAND_DEFINITIONS[suffix]) return null;
     return `facilitator.${team}.${suffix}`;
+}
+
+export function getNotetakerTrainingCommand(team, suffix) {
+    if (!NOTETAKER_COMMAND_DEFINITIONS[suffix]) return null;
+    return `notetaker.${team}.${suffix}`;
 }
 
 function makeBoundaryError(operation) {
@@ -770,6 +1079,7 @@ export const trainingRuntime = {
 
                             const walkthroughStart = documentRef?.getElementById?.('scribeTrainingCoach')
                                 || documentRef?.getElementById?.('facilitatorTrainingCoach')
+                                || documentRef?.getElementById?.('notetakerTrainingCoach')
                                 || documentRef?.querySelector?.('main');
                             if (walkthroughStart?.focus) {
                                 if (!walkthroughStart.hasAttribute?.('tabindex')) {
@@ -874,9 +1184,18 @@ export const trainingRuntime = {
 
     getPracticeState({ sessionStoreRef = sessionStore } = {}) {
         const context = sessionStoreRef.getTrainingContext?.();
-        if (!context || !['scribe', 'facilitator'].includes(context.semanticRole)) {
+        if (!context || !['scribe', 'facilitator', 'notetaker'].includes(context.semanticRole)) {
             return null;
         }
+        return clonePracticeState(getPracticeState(context));
+    },
+
+    resetPracticeState({ sessionStoreRef = sessionStore } = {}) {
+        const context = sessionStoreRef.getTrainingContext?.();
+        if (!context || !['scribe', 'facilitator', 'notetaker'].includes(context.semanticRole)) {
+            return null;
+        }
+        practiceStates.delete(context.attemptId);
         return clonePracticeState(getPracticeState(context));
     },
 
@@ -902,8 +1221,10 @@ export const trainingRuntime = {
                 throw makeBoundaryError(command);
             }
             applyScribeCommand(nextState, parsed.suffix, safePayload, fixtureBundle);
-        } else {
+        } else if (context.semanticRole === 'facilitator') {
             applyFacilitatorCommand(nextState, parsed.suffix, safePayload, fixtureBundle);
+        } else {
+            applyNotetakerCommand(nextState, parsed.suffix, safePayload);
         }
 
         await this.executeWrite('record-progress', {
@@ -933,6 +1254,6 @@ export const trainingRuntime = {
     }
 };
 
-export { FACILITATOR_COMMANDS, SCRIBE_COMMANDS };
+export { FACILITATOR_COMMANDS, NOTETAKER_COMMANDS, SCRIBE_COMMANDS };
 
 export default trainingRuntime;
