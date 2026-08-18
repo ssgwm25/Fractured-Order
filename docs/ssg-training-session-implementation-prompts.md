@@ -68,7 +68,7 @@ No step may claim success merely because the learner pressed Next. Mastery steps
 | 07 | Four team-specific Scribe walkthroughs | Complete | `feat(training): add Scribe learning paths` |
 | 08 | Four team-specific Facilitator walkthroughs | Complete | `feat(training): add Facilitator learning paths` |
 | 09 | Four team-specific Notetaker walkthroughs | Complete | `feat(training): add Notetaker learning paths` |
-| 10 | Mastery, progress, reset, and completion experience | Pending | `feat(training): add mastery and resumable progress` |
+| 10 | Mastery, progress, reset, and completion experience | Complete | `feat(training): add mastery and resumable progress` |
 | 11 | Complete 12-profile automated training gate | Pending | `test(training): add the full participant matrix` |
 | 12 | Operator documentation and production rollout | Pending | `docs: publish the SSG training runbook` |
 

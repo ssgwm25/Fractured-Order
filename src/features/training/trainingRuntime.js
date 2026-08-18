@@ -384,6 +384,16 @@ function buildEmptyNotetakerPracticeState(context, fixtureBundle) {
     };
 }
 
+function createEmptyPracticeState(context) {
+    const fixtureBundle = getTrainingProfileFixtureBundle(context.team, context.semanticRole);
+    const created = context.semanticRole === 'facilitator' && fixtureBundle
+        ? buildEmptyFacilitatorPracticeState(context, fixtureBundle)
+        : context.semanticRole === 'notetaker' && fixtureBundle
+            ? buildEmptyNotetakerPracticeState(context, fixtureBundle)
+            : buildEmptyScribePracticeState(context);
+    return { created, fixtureBundle };
+}
+
 function getPracticeState(context) {
     const existing = practiceStates.get(context.attemptId);
     if (
@@ -394,12 +404,7 @@ function getPracticeState(context) {
         return existing;
     }
 
-    const fixtureBundle = getTrainingProfileFixtureBundle(context.team, context.semanticRole);
-    const created = context.semanticRole === 'facilitator' && fixtureBundle
-        ? buildEmptyFacilitatorPracticeState(context, fixtureBundle)
-        : context.semanticRole === 'notetaker' && fixtureBundle
-            ? buildEmptyNotetakerPracticeState(context, fixtureBundle)
-            : buildEmptyScribePracticeState(context);
+    const { created, fixtureBundle } = createEmptyPracticeState(context);
     restorePracticeStateFromSnapshot(
         context,
         created,
@@ -1735,8 +1740,9 @@ export const trainingRuntime = {
         if (!context || !['scribe', 'facilitator', 'notetaker'].includes(context.semanticRole)) {
             return null;
         }
-        practiceStates.delete(context.attemptId);
-        return clonePracticeState(getPracticeState(context));
+        const { created } = createEmptyPracticeState(context);
+        practiceStates.set(context.attemptId, created);
+        return clonePracticeState(created);
     },
 
     async executeCommand(command, payload, {
