@@ -126,6 +126,7 @@ export function showTrainingIntroModal({
     captionsUrl = getPublicAssetUrl('training/intro/plenum-onboarding.en.vtt'),
     setTimeoutRef = typeof setTimeout === 'function' ? setTimeout : null,
     clearTimeoutRef = typeof clearTimeout === 'function' ? clearTimeout : null,
+    onMediaDegraded = () => {},
     onContinue = () => {},
     onChangeProfile = () => {}
 } = {}) {
@@ -239,6 +240,7 @@ export function showTrainingIntroModal({
     let actionHandled = false;
     let modalController = null;
     let controller = null;
+    const reportedDegradedStates = new Set();
 
     function clearLoadingTimer() {
         if (loadingTimer !== null && clearTimeoutRef) {
@@ -261,6 +263,11 @@ export function showTrainingIntroModal({
         status.textContent = MEDIA_COPY[mediaState];
         mediaFrame.setAttribute('aria-busy', String(mediaState === 'loading'));
         retryButton.hidden = !['missing', 'decode', 'offline', 'timeout'].includes(mediaState);
+        if (['missing', 'decode', 'offline', 'timeout'].includes(mediaState)
+            && !reportedDegradedStates.has(mediaState)) {
+            reportedDegradedStates.add(mediaState);
+            onMediaDegraded(mediaState);
+        }
         if (mediaState !== 'loading') clearLoadingTimer();
     }
 
@@ -427,6 +434,10 @@ export function showTrainingIntroModal({
     captionTrack.addEventListener('error', () => {
         captionStatus.hidden = false;
         captionStatus.textContent = 'The separate caption track is unavailable. If the video plays, synchronized captions are also embedded in the picture. The complete text transcript is available below.';
+        if (!reportedDegradedStates.has('captions')) {
+            reportedDegradedStates.add('captions');
+            onMediaDegraded('captions');
+        }
     });
     windowRef?.addEventListener?.('offline', handleOffline);
     windowRef?.addEventListener?.('online', handleOnline);

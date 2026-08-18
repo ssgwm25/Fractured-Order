@@ -2,7 +2,7 @@
 
 Database migrations in this repository are forward-only once live workflow records exist. Roll back the application first; preserve additive schema and review history unless a database owner has verified that the migration never accepted a production write.
 
-The sole authoritative forward migration order is the 42-step dated ledger in
+The sole authoritative forward migration order is the 43-step dated ledger in
 `docs/supabase-setup.md`. There is no reverse SQL order and the deprecated
 `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
 `data/updated_supabase_migration.sql` snapshots are never rollback inputs. A
@@ -21,12 +21,13 @@ forward if the management surface needs correction.
 
 ## Protected SSG Training Session Rollback
 
-For `data/2026-08-18_ssg_training_session.sql`, contain application problems by
+For `data/2026-08-18_ssg_training_session.sql` and
+`data/2026-08-18_training_mastery_progress.sql`, contain application problems by
 removing or disabling the training entry surface in the frontend first. Keep
 the session classification columns and constraints, the reserved protected
 template, both protection triggers, both learner-owned training tables, their
-owner-only RLS policies, and the three training RPCs in place after any attempt
-or progress row has been written. Older live clients ignore the additive
+revision and event-key columns, owner-only RLS policies, and the four training
+RPCs in place after any attempt or progress row has been written. Older live clients ignore the additive
 columns, and current live session queries explicitly select only
 `live_exercise` rows.
 
@@ -37,6 +38,12 @@ template, or copy an attempt to another `auth_user_id`. Preserve bounded
 progress history as written and repair forward. If the migration failed because
 another session already used `TRAINING2026`, preserve that session and its
 evidence; choose a reviewed forward data repair instead of relabelling it.
+
+Do not decrement an attempt revision, remove an idempotency key, reopen a
+completed/reset attempt by hand, or delete the old attempt after a reset. If a
+client reports a revision conflict, retain the newer server state and repair
+the client forward. The reset RPC's retired and replacement rows are one audit
+chain and must remain owner-scoped.
 
 Only in an isolated pre-write development project—after verifying both
 `training_attempts` and `training_progress_events` contain zero rows—may a

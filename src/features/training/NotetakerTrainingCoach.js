@@ -1,4 +1,5 @@
 import { TrainingAudioController } from './TrainingAudioController.js';
+import { TrainingCoach } from './TrainingCoach.js';
 import { getTrainingModule } from './content/curriculum.js';
 import {
     NOTETAKER_COMMANDS,
@@ -131,9 +132,6 @@ export function mountNotetakerTrainingCoach({
     );
     title.id = 'notetakerTrainingCoachTitle';
     const progress = createElement(documentRef, 'div', 'training-coach__progress');
-    progress.setAttribute('role', 'progressbar');
-    progress.setAttribute('aria-valuemin', '1');
-    progress.setAttribute('aria-valuemax', String(module.steps.length));
     header.append(headingGroup, progress);
 
     const audioHost = createElement(documentRef, 'div', 'training-coach__audio');
@@ -171,19 +169,50 @@ export function mountNotetakerTrainingCoach({
     root.append(header, audioHost, common, lesson, feedback);
     host.insertBefore(root, host.firstChild || null);
 
-    const audio = new AudioController({ documentRef, windowRef });
+    let degradedClipId = null;
+    const audio = new AudioController({
+        documentRef,
+        windowRef,
+        onStateChange: (audioState) => {
+            if (!['degraded', 'unavailable'].includes(audioState?.status) || !audioState.clipId || degradedClipId === audioState.clipId) return;
+            degradedClipId = audioState.clipId;
+            const degradationWrite = runtimeRef.recordMediaDegradation?.(
+                audioState.clipId,
+                'audio_unavailable'
+            );
+            if (degradationWrite?.catch) void degradationWrite.catch(() => {});
+        }
+    });
     audio.mountControls(audioHost, { documentRef });
 
     const state = {
         stepIndex: 0,
         practiceState: runtimeRef.getPracticeState?.() || null,
         retryMessage: '',
-        completed: false,
+        completed: runtimeRef.getAttemptSnapshot?.(context.attemptId)?.status === 'completed',
         actionReviewed: false,
         timelineReviewed: false,
         autosaveStatus: 'idle',
         drafts: {}
     };
+    const coach = new TrainingCoach({
+        root,
+        module,
+        context,
+        runtimeRef,
+        progressHost: progress,
+        lessonHost: lesson,
+        feedbackHost: feedback,
+        documentRef,
+        onStepChange: (stepIndex) => {
+            state.stepIndex = stepIndex;
+            state.retryMessage = '';
+            render();
+        },
+        onReset: () => runtimeRef.resetAttempt(),
+        onStartAnotherRole: () => runtimeRef.startAnotherRole()
+    });
+    state.stepIndex = coach.getResumeIndex();
     let autosaveTimer = null;
     let autosavePromise = null;
     let pendingAutosave = null;
@@ -200,6 +229,7 @@ export function mountNotetakerTrainingCoach({
     };
 
     const advance = (stepIndex, message = '') => {
+        coach.requireMastery(module.steps[Math.max(0, stepIndex - 1)]);
         clearRetry();
         state.stepIndex = Math.min(stepIndex, module.steps.length - 1);
         feedback.textContent = message;
@@ -569,7 +599,14 @@ export function mountNotetakerTrainingCoach({
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
             const answer = form.querySelector('[name="notetakerTrainingRetrieval"]:checked')?.value || '';
-            if (answer !== 'notetaker-record') return setRetry(module.steps[5].retryFeedback);
+            if (answer !== 'notetaker-record') {
+                void coach.recordMastery({
+                    step: module.steps[5],
+                    evidence: { optionId: answer },
+                    passed: false
+                }).catch(() => {});
+                return setRetry(module.steps[5].retryFeedback);
+            }
             try {
                 if (!state.practiceState?.readonlyReviewCompleted) {
                     await execute(NOTETAKER_COMMANDS.READONLY_REVIEW_COMPLETED, {
@@ -593,6 +630,7 @@ export function mountNotetakerTrainingCoach({
         container.appendChild(makeButton(documentRef, 'Complete Notetaker practice', async () => {
             try {
                 await execute(NOTETAKER_COMMANDS.PRACTICE_COMPLETED);
+                await runtimeRef.completeAttempt();
                 state.completed = true;
                 feedback.textContent = 'Notetaker learning path completed in this training attempt.';
                 render();
@@ -605,18 +643,15 @@ export function mountNotetakerTrainingCoach({
     function render() {
         lesson.replaceChildren();
         const step = module.steps[state.stepIndex];
-        progress.setAttribute('aria-valuenow', String(state.stepIndex + 1));
-        progress.setAttribute('aria-label', `Notetaker training: step ${state.stepIndex + 1} of ${module.steps.length}`);
-        progress.textContent = `Step ${state.stepIndex + 1} of ${module.steps.length}`;
+        coach.refreshSnapshot();
+        coach.renderStep(state.stepIndex);
         void audio.setClip(step.id, {
             nextClipId: module.steps[state.stepIndex + 1]?.id || null,
             autoplay: false
         });
 
         if (state.completed) {
-            lesson.dataset.trainingState = 'completed';
-            appendText(documentRef, lesson, 'h3', '', 'Notetaker practice complete');
-            appendText(documentRef, lesson, 'p', '', 'You completed the observation, dynamics, alliance, inbox, action-review, and timeline loop without mutating an official artifact or another Notetaker seat.');
+            void coach.renderCompletion(lesson);
             return;
         }
 

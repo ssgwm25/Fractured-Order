@@ -1,4 +1,5 @@
 import { TrainingAudioController } from './TrainingAudioController.js';
+import { TrainingCoach } from './TrainingCoach.js';
 import { getTrainingModule } from './content/curriculum.js';
 import {
     FACILITATOR_COMMANDS,
@@ -135,9 +136,6 @@ export function mountFacilitatorTrainingCoach({
     );
     title.id = 'facilitatorTrainingCoachTitle';
     const progress = createElement(documentRef, 'div', 'training-coach__progress');
-    progress.setAttribute('role', 'progressbar');
-    progress.setAttribute('aria-valuemin', '1');
-    progress.setAttribute('aria-valuemax', String(module.steps.length));
     header.append(headingGroup, progress);
 
     const audioHost = createElement(documentRef, 'div', 'training-coach__audio');
@@ -151,7 +149,20 @@ export function mountFacilitatorTrainingCoach({
     root.append(header, audioHost, lesson, feedback);
     host.insertBefore(root, host.firstChild || null);
 
-    const audio = new AudioController({ documentRef, windowRef: documentRef.defaultView });
+    let degradedClipId = null;
+    const audio = new AudioController({
+        documentRef,
+        windowRef: documentRef.defaultView,
+        onStateChange: (audioState) => {
+            if (!['degraded', 'unavailable'].includes(audioState?.status) || !audioState.clipId || degradedClipId === audioState.clipId) return;
+            degradedClipId = audioState.clipId;
+            const degradationWrite = runtimeRef.recordMediaDegradation?.(
+                audioState.clipId,
+                'audio_unavailable'
+            );
+            if (degradationWrite?.catch) void degradationWrite.catch(() => {});
+        }
+    });
     audio.mountControls(audioHost, { documentRef });
 
     const initialPracticeState = runtimeRef.getPracticeState?.() || null;
@@ -160,9 +171,29 @@ export function mountFacilitatorTrainingCoach({
         practiceState: initialPracticeState,
         workspaceVisits: new Set(initialPracticeState?.workspacesVisited || []),
         retryMessage: '',
-        completed: Boolean(initialPracticeState?.receiptVerified),
+        completed: runtimeRef.getAttemptSnapshot?.(context.attemptId)?.status === 'completed'
+            || Boolean(initialPracticeState?.receiptVerified),
         busy: false
     };
+
+    const coach = new TrainingCoach({
+        root,
+        module,
+        context,
+        runtimeRef,
+        progressHost: progress,
+        lessonHost: lesson,
+        feedbackHost: feedback,
+        documentRef,
+        onStepChange: (stepIndex) => {
+            state.stepIndex = stepIndex;
+            state.retryMessage = '';
+            render();
+        },
+        onReset: () => runtimeRef.resetAttempt(),
+        onStartAnotherRole: () => runtimeRef.startAnotherRole()
+    });
+    state.stepIndex = coach.getResumeIndex();
 
     const setFeedback = (message = '') => {
         state.retryMessage = '';
@@ -191,6 +222,7 @@ export function mountFacilitatorTrainingCoach({
     };
 
     const advance = (index, message = '') => {
+        coach.requireMastery(module.steps[Math.max(0, index - 1)]);
         state.stepIndex = Math.min(index, module.steps.length - 1);
         setFeedback(message);
         render();
@@ -413,6 +445,11 @@ export function mountFacilitatorTrainingCoach({
                 event.preventDefault();
                 const answer = form.querySelector('[name="facilitatorTrainingClassification"]:checked')?.value || '';
                 if (answer !== 'team-action-notification') {
+                    void coach.recordMastery({
+                        step: module.steps[4],
+                        evidence: { command: 'incorrect-channel' },
+                        passed: false
+                    }).catch(() => {});
                     setRetry(module.steps[4].retryFeedback);
                     return;
                 }
@@ -499,11 +536,19 @@ export function mountFacilitatorTrainingCoach({
             event.preventDefault();
             const answer = form.querySelector('[name="facilitatorTrainingOwnership"]:checked')?.value || '';
             if (answer !== 'facilitator') {
+                void coach.recordMastery({
+                    step: module.steps[5],
+                    evidence: { optionId: answer },
+                    passed: false
+                }).catch(() => {});
                 setRetry(module.steps[5].retryFeedback);
                 return;
             }
             try {
-                await execute(FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED, { artifactId: fixtureBundle.artifact.id });
+                await execute(FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED, {
+                    artifactId: fixtureBundle.artifact.id,
+                    answer
+                });
                 advance(6, module.steps[5].correctFeedback);
             } catch (_error) {
                 setRetry('Complete the response and recipient-thread practice before final submission.');
@@ -523,6 +568,7 @@ export function mountFacilitatorTrainingCoach({
             container.appendChild(makeButton(documentRef, 'Verify lifecycle and timeline receipt', async () => {
                 try {
                     await execute(FACILITATOR_COMMANDS.RECEIPT_VERIFIED, { artifactId: fixtureBundle.artifact.id });
+                    await runtimeRef.completeAttempt();
                     state.completed = true;
                     setFeedback('Facilitator learning path completed in this isolated training attempt.');
                     render();
@@ -538,19 +584,15 @@ export function mountFacilitatorTrainingCoach({
     function render() {
         lesson.replaceChildren();
         const step = module.steps[state.stepIndex];
-        progress.setAttribute('aria-valuenow', String(state.stepIndex + 1));
-        progress.setAttribute('aria-label', `Facilitator training: step ${state.stepIndex + 1} of ${module.steps.length}`);
-        progress.textContent = `Step ${state.stepIndex + 1} of ${module.steps.length}`;
+        coach.refreshSnapshot();
+        coach.renderStep(state.stepIndex);
         void audio.setClip(step.id, {
             nextClipId: module.steps[state.stepIndex + 1]?.id || null,
             autoplay: false
         });
 
         if (state.completed) {
-            lesson.dataset.trainingState = 'completed';
-            appendText(documentRef, lesson, 'h3', '', 'Facilitator practice complete');
-            appendText(documentRef, lesson, 'p', '', 'The artifact, RFI revisions, direct message, optional recipient negotiation, submission receipt, and timeline evidence stayed inside this training attempt.');
-            appendLifecycleBadge(lesson, 'submitted_to_white_cell');
+            void coach.renderCompletion(lesson);
             return;
         }
 

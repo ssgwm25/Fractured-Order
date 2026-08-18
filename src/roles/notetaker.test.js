@@ -655,12 +655,12 @@ describe('Notetaker training learning paths', () => {
             expect(JSON.stringify(completed.secondSeatRecord)).toBe(originalSecondSeat);
             expect(JSON.stringify(completed.officialAction)).toBe(originalAction);
             expect(JSON.stringify(completed.officialTimelineEntries)).toBe(originalTimeline);
-            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith({
+            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith(expect.objectContaining({
                 attemptId: context.attemptId,
-                eventType: 'step_completed',
+                eventType: 'mastery_passed',
                 stepId: `training.v1.notetaker.${team}.reflect`,
-                resultCode: 'completed'
-            });
+                resultCode: 'passed'
+            }));
             expect(databaseRef.createAction).not.toHaveBeenCalled();
             expect(databaseRef.updateAction).not.toHaveBeenCalled();
             expect(databaseRef.submitAction).not.toHaveBeenCalled();

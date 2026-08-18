@@ -415,6 +415,39 @@ describe('supabase mock bootstrap guardrails', () => {
             expect(event).not.toHaveProperty('artifact_body');
         });
 
+        const staleReset = await mockClient.rpc('reset_training_attempt', {
+            requested_attempt_id: secondStart.data.attempt_id,
+            requested_expected_revision: 1
+        });
+        expect(staleReset).toEqual({
+            data: null,
+            error: {
+                code: '40001',
+                message: 'A newer training attempt revision exists. Refresh before retrying.'
+            }
+        });
+
+        const reset = await mockClient.rpc('reset_training_attempt', {
+            requested_attempt_id: secondStart.data.attempt_id,
+            requested_expected_revision: 0
+        });
+        expect(reset.error).toBeNull();
+        expect(reset.data).toMatchObject({
+            semantic_role: 'facilitator',
+            team: 'red',
+            status: 'in_progress',
+            attempt_revision: 0,
+            mastered_step_ids: []
+        });
+        expect(reset.data.attempt_id).not.toBe(secondStart.data.attempt_id);
+        const resetState = globalThis.__ESG_E2E_BACKEND__.dump();
+        expect(resetState.tables.training_attempts.find((attempt) => (
+            attempt.id === secondStart.data.attempt_id
+        ))).toMatchObject({ status: 'reset', revision: 1 });
+        expect(resetState.tables.training_attempts.find((attempt) => (
+            attempt.id === firstStart.data.attempt_id
+        ))).toMatchObject({ status: 'in_progress', team: 'blue' });
+
         const publicJoin = await mockClient.rpc('lookup_joinable_session_by_code', {
             requested_code: 'TRAINING2026'
         });

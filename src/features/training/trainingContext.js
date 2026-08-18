@@ -88,7 +88,7 @@ export function createTrainingContextFromBootstrap(bootstrap = {}) {
     if (
         !plugin
         || plugin.id !== TRAINING_EXPERIENCE_PLUGIN_ID
-        || bootstrap.status !== 'in_progress'
+        || !['in_progress', 'completed'].includes(bootstrap.status)
     ) {
         return null;
     }

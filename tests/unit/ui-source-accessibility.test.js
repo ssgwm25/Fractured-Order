@@ -150,6 +150,24 @@ describe('UI source accessibility checks', () => {
         }
     });
 
+    it('keeps mastery progress text-backed, keyboard reachable, announced, reduced-motion safe, and mobile docked', () => {
+        const coach = readFileSync(fileUrl('src/features/training/TrainingCoach.js'), 'utf8');
+        const progress = readFileSync(fileUrl('src/features/training/TrainingProgress.js'), 'utf8');
+        const appLayout = readFileSync(TRAINING_SHELL_STYLES.appLayout, 'utf8');
+
+        expect(coach).toContain("createElement(documentRef, 'button'");
+        expect(coach).toContain("setAttribute('aria-live', 'polite')");
+        expect(coach).toContain("createElement(documentRef, 'details'");
+        expect(coach).toContain('this.nextButton.disabled = !this.isMastered(step.id)');
+        expect(progress).toContain("setAttribute('role', 'progressbar')");
+        expect(progress).toContain("setAttribute('aria-valuetext'");
+        expect(progress).toContain('steps mastered');
+        expect(appLayout).toContain('@media (max-width: 767px)');
+        expect(appLayout).toContain('position: sticky');
+        expect(appLayout).toContain('@media (prefers-reduced-motion: reduce)');
+        expect(appLayout).toContain('.training-progress__fill');
+    });
+
     it('keeps the shared modal close icon decorative for assistive technology', () => {
         const source = readFileSync(fileUrl('src/components/ui/Modal.js'), 'utf8');
         const closeIcon = source.match(/<svg\b[^>]*viewBox="0 0 20 20"[^>]*>/i)?.[0] || '';

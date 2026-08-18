@@ -181,7 +181,7 @@ test('@smoke TRAINING2026 reaches the isolated Blue Scribe role page', async ({ 
     await expect(page.getByRole('button', { name: 'I understand the Scribe handoff' })).toBeVisible();
     await expect(page.locator('[data-training-artifact-id]')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Exit training' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Reset' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Reset' })).toBeEnabled();
 
     const backendState = await dumpE2EMockBackend(page);
     expect(backendState.tables.training_attempts).toHaveLength(1);

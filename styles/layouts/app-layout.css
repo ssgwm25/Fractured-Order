@@ -242,6 +242,102 @@ body.sync-status-banner-visible {
     color: var(--color-text-secondary);
 }
 
+.training-coach__feedback[data-state="error"] {
+    color: var(--color-error);
+}
+
+.training-progress,
+.training-coach__instruction {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.training-progress__label,
+.training-coach__objective,
+.training-coach__explanation,
+.training-coach__requirement,
+.training-coach__boundary {
+    margin: 0;
+}
+
+.training-progress__label,
+.training-coach__objective,
+.training-coach__requirement {
+    font-weight: var(--font-semibold);
+}
+
+.training-progress__track {
+    height: var(--space-2);
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    background: var(--color-surface-alt);
+}
+
+.training-progress__fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--color-success);
+    transform: scaleX(var(--training-progress-ratio, 0));
+    transform-origin: left center;
+}
+
+.training-progress__steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.training-progress__step {
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+}
+
+.training-progress__step[data-state="mastered"] {
+    border-color: var(--color-success);
+    color: var(--color-text-primary);
+}
+
+.training-progress__step[data-state="current"] {
+    border-color: var(--color-border-focus);
+    color: var(--color-text-primary);
+}
+
+.training-coach__instruction {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+}
+
+.training-coach__hint summary {
+    min-height: var(--btn-height);
+    cursor: pointer;
+    color: var(--color-primary);
+    font-weight: var(--font-semibold);
+}
+
+.training-coach__navigation,
+.training-coach__completion-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.training-coach__boundary {
+    padding: var(--space-3);
+    border-inline-start: var(--space-1) solid var(--color-warning);
+    color: var(--color-text-secondary);
+}
+
 .training-coach__lesson[data-training-state="retry"] {
     border-color: var(--color-error);
 }
@@ -262,11 +358,35 @@ body.sync-status-banner-visible {
     .training-coach__landmarks .btn {
         width: 100%;
     }
+
+    .training-coach__navigation,
+    .training-coach__completion-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: var(--z-sticky);
+        padding: var(--space-3);
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
+    }
+
+    .training-coach__navigation .btn,
+    .training-coach__completion-actions .btn {
+        min-height: var(--btn-height);
+        flex: 1 1 min(100%, 10rem);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .training-practice-artifact {
         animation: none;
+        transition: none;
+    }
+
+    .training-progress__fill,
+    .training-coach,
+    .training-coach__navigation {
+        animation: none;
+        scroll-behavior: auto;
         transition: none;
     }
 }

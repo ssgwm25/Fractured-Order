@@ -571,6 +571,7 @@ function normalizeInsertRow(tableName, payload, state) {
                 team: null,
                 status: 'in_progress',
                 current_step_id: null,
+                revision: 0,
                 started_at: timestamp,
                 last_resumed_at: timestamp,
                 completed_at: null,
@@ -588,6 +589,7 @@ function normalizeInsertRow(tableName, payload, state) {
                 event_type: null,
                 step_id: null,
                 result_code: null,
+                event_key: null,
                 ...cloneValue(payload)
             };
         case 'game_state':
@@ -3036,7 +3038,8 @@ function resolveProposalRecipientTeam(communication = {}) {
 
 function appendTrainingProgressEvent(state, attempt, eventType, {
     stepId = null,
-    resultCode = null
+    resultCode = null,
+    eventKey = null
 } = {}) {
     const existingCount = state.tables.training_progress_events.filter((event) => (
         event.attempt_id === attempt.id && event.auth_user_id === attempt.auth_user_id
@@ -3054,14 +3057,24 @@ function appendTrainingProgressEvent(state, attempt, eventType, {
         team: attempt.team,
         event_type: eventType,
         step_id: stepId,
-        result_code: resultCode
+        result_code: resultCode,
+        event_key: eventKey || `legacy.${existingCount + 1}`
     }, state);
     state.tables.training_progress_events.push(event);
 
     return { data: event, error: null };
 }
 
-function buildTrainingBootstrap(attempt, resumed) {
+function buildTrainingBootstrap(attempt, resumed, state = readMockState()) {
+    const events = state.tables.training_progress_events.filter((event) => (
+        event.attempt_id === attempt.id && event.auth_user_id === attempt.auth_user_id
+    ));
+    const completedStepIds = [...new Set(events
+        .filter((event) => ['step_completed', 'mastery_passed'].includes(event.event_type) && event.step_id)
+        .map((event) => event.step_id))].sort();
+    const masteredStepIds = [...new Set(events
+        .filter((event) => event.event_type === 'mastery_passed' && event.step_id)
+        .map((event) => event.step_id))].sort();
     return {
         attempt_id: attempt.id,
         template_session_id: attempt.template_session_id,
@@ -3071,6 +3084,9 @@ function buildTrainingBootstrap(attempt, resumed) {
         team: attempt.team,
         status: attempt.status,
         current_step_id: attempt.current_step_id,
+        attempt_revision: attempt.revision || 0,
+        completed_step_ids: completedStepIds,
+        mastered_step_ids: masteredStepIds,
         resumed,
         session_classification: 'training_template',
         is_protected: true,
@@ -3151,7 +3167,7 @@ function startOrResumeTrainingAttempt(state, {
         return eventResult;
     }
 
-    return { data: buildTrainingBootstrap(attempt, resumed), error: null };
+    return { data: buildTrainingBootstrap(attempt, resumed, state), error: null };
 }
 
 function getTrainingAttemptBootstrap(state, {
@@ -3173,19 +3189,22 @@ function getTrainingAttemptBootstrap(state, {
         return { data: null, error: { message: 'Training access unavailable.' } };
     }
 
-    return { data: buildTrainingBootstrap(attempt, true), error: null };
+    return { data: buildTrainingBootstrap(attempt, true, state), error: null };
 }
 
 function recordTrainingProgressEvent(state, {
     requested_attempt_id,
     requested_event_type,
     requested_step_id = null,
-    requested_result_code = null
+    requested_result_code = null,
+    requested_event_key = null,
+    requested_expected_revision = null
 }) {
     const authUserId = getCurrentAuthUserId();
     const eventType = String(requested_event_type || '').trim().toLowerCase();
     const stepId = String(requested_step_id || '').trim() || null;
     const resultCode = String(requested_result_code || '').trim().toLowerCase() || null;
+    const eventKey = String(requested_event_key || '').trim().toLowerCase();
     const attempt = state.tables.training_attempts.find((entry) => (
         entry.id === requested_attempt_id && entry.auth_user_id === authUserId
     ));
@@ -3194,17 +3213,64 @@ function recordTrainingProgressEvent(state, {
         return { data: null, error: { message: 'Training attempt not found.' } };
     }
 
-    if (attempt.status !== 'in_progress') {
+    const existingEvent = state.tables.training_progress_events.find((entry) => (
+        entry.attempt_id === attempt.id && entry.event_key === eventKey
+    ));
+    if (existingEvent) {
+        return {
+            data: {
+                ...buildTrainingBootstrap(attempt, true, state),
+                event_id: existingEvent.id,
+                event_type: existingEvent.event_type,
+                step_id: existingEvent.step_id,
+                result_code: existingEvent.result_code,
+                created_at: existingEvent.created_at,
+                idempotent: true
+            },
+            error: null
+        };
+    }
+
+    if (attempt.status !== 'in_progress'
+        && !(attempt.status === 'completed' && eventType === 'role_switched')) {
         return { data: null, error: { message: 'Training attempt is not writable.' } };
     }
 
     if (!TRAINING_PROGRESS_EVENT_TYPES.has(eventType)
+        || !/^[a-z0-9][a-z0-9._-]{0,159}$/.test(eventKey)
         || (stepId && !/^[a-z0-9][a-z0-9._-]{0,95}$/.test(stepId))
         || (resultCode && !TRAINING_PROGRESS_RESULT_CODES.has(resultCode))) {
         return { data: null, error: { message: 'Unsupported training progress event.' } };
     }
+    if (stepId) {
+        const allowedStepIds = new Set(['orient', 'show', 'guide', 'practice', 'respond', 'retrieve', 'reflect']
+            .map((stage) => `training.v1.${attempt.semantic_role}.${attempt.team}.${stage}`));
+        if (!allowedStepIds.has(stepId)) {
+            return { data: null, error: { message: 'Unsupported training progress step.' } };
+        }
+    }
 
-    const eventResult = appendTrainingProgressEvent(state, attempt, eventType, { stepId, resultCode });
+    if (!Number.isSafeInteger(requested_expected_revision)
+        || requested_expected_revision !== (attempt.revision || 0)) {
+        return {
+            data: null,
+            error: {
+                code: '40001',
+                message: 'A newer training attempt revision exists. Refresh before retrying.'
+            }
+        };
+    }
+
+    if (eventType === 'attempt_completed') {
+        const masteredCount = new Set(state.tables.training_progress_events
+            .filter((entry) => entry.attempt_id === attempt.id && entry.event_type === 'mastery_passed')
+            .map((entry) => entry.step_id)).size;
+        if (masteredCount !== 7) {
+            return { data: null, error: { message: 'Every curriculum step must be mastered before completion.' } };
+        }
+    }
+
+    const eventResult = appendTrainingProgressEvent(state, attempt, eventType, { stepId, resultCode, eventKey });
     if (eventResult.error) {
         return eventResult;
     }
@@ -3216,7 +3282,8 @@ function recordTrainingProgressEvent(state, {
         status: eventType === 'attempt_completed'
             ? 'completed'
             : (eventType === 'attempt_reset' ? 'reset' : attempt.status),
-        completed_at: eventType === 'attempt_completed' ? timestamp : null,
+        completed_at: eventType === 'attempt_completed' ? timestamp : attempt.completed_at,
+        revision: (attempt.revision || 0) + 1,
         updated_at: timestamp
     };
     state.tables.training_attempts = state.tables.training_attempts.map((entry) => (
@@ -3225,15 +3292,86 @@ function recordTrainingProgressEvent(state, {
 
     return {
         data: {
+            ...buildTrainingBootstrap(nextAttempt, true, {
+                ...state,
+                tables: {
+                    ...state.tables,
+                    training_attempts: state.tables.training_attempts.map((entry) => (
+                        entry.id === nextAttempt.id ? nextAttempt : entry
+                    ))
+                }
+            }),
             event_id: eventResult.data.id,
             attempt_id: eventResult.data.attempt_id,
             event_type: eventResult.data.event_type,
             step_id: eventResult.data.step_id,
             result_code: eventResult.data.result_code,
-            created_at: eventResult.data.created_at
+            created_at: eventResult.data.created_at,
+            attempt_status: nextAttempt.status,
+            idempotent: false
         },
         error: null
     };
+}
+
+function resetTrainingAttempt(state, {
+    requested_attempt_id,
+    requested_expected_revision
+}) {
+    const authUserId = getCurrentAuthUserId();
+    const attempt = state.tables.training_attempts.find((entry) => (
+        entry.id === requested_attempt_id && entry.auth_user_id === authUserId
+    ));
+    if (!authUserId || !attempt) {
+        return { data: null, error: { message: 'Training attempt not found.' } };
+    }
+    if (!Number.isSafeInteger(requested_expected_revision)
+        || requested_expected_revision !== (attempt.revision || 0)) {
+        return {
+            data: null,
+            error: {
+                code: '40001',
+                message: 'A newer training attempt revision exists. Refresh before retrying.'
+            }
+        };
+    }
+    if (!['in_progress', 'completed'].includes(attempt.status)) {
+        return { data: null, error: { message: 'Training attempt cannot be reset.' } };
+    }
+
+    const resetEvent = appendTrainingProgressEvent(state, attempt, 'attempt_reset', {
+        resultCode: 'completed',
+        eventKey: `attempt_reset.${(attempt.revision || 0) + 1}`
+    });
+    if (resetEvent.error) return resetEvent;
+
+    const timestamp = getTimestamp();
+    const retired = {
+        ...attempt,
+        status: 'reset',
+        current_step_id: null,
+        completed_at: null,
+        revision: (attempt.revision || 0) + 1,
+        updated_at: timestamp
+    };
+    state.tables.training_attempts = state.tables.training_attempts.map((entry) => (
+        entry.id === retired.id ? retired : entry
+    ));
+
+    const nextAttempt = normalizeInsertRow('training_attempts', {
+        auth_user_id: authUserId,
+        template_session_id: attempt.template_session_id,
+        curriculum_version: attempt.curriculum_version,
+        semantic_role: attempt.semantic_role,
+        team: attempt.team,
+        revision: 0
+    }, state);
+    state.tables.training_attempts.push(nextAttempt);
+    const startEvent = appendTrainingProgressEvent(state, nextAttempt, 'attempt_started', {
+        eventKey: 'attempt_started'
+    });
+    if (startEvent.error) return startEvent;
+    return { data: { ...buildTrainingBootstrap(nextAttempt, false, state), resumed: false }, error: null };
 }
 
 function updateProposalRecipientStatus(state, params) {
@@ -3668,6 +3806,10 @@ export function createE2EMockSupabaseClient() {
 
             if (functionName === 'record_training_progress_event') {
                 return mutateMockState((state) => recordTrainingProgressEvent(state, params));
+            }
+
+            if (functionName === 'reset_training_attempt') {
+                return mutateMockState((state) => resetTrainingAttempt(state, params));
             }
 
             if (functionName === 'authorize_demo_operator') {

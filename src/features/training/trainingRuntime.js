@@ -2,11 +2,18 @@ import { navigateToApp } from '../../core/navigation.js';
 import { database } from '../../services/database.js';
 import { sessionStore } from '../../stores/session.js';
 import { showToast } from '../../components/ui/Toast.js';
+import { confirm as confirmModal } from '../../components/ui/Modal.js';
 import { DatabaseError } from '../../core/errors.js';
+import { createLogger } from '../../utils/logger.js';
 import { getBlueActionViewModel } from '../actions/blueActionDetails.js';
 import { TRAINING_CURRICULUM, getTrainingModule } from './content/curriculum.js';
 import { getTrainingProfileFixtureBundle } from './content/fixtures.js';
 import { showTrainingIntroModal } from './TrainingIntroModal.js';
+import {
+    createTrainingProgressEventKey,
+    normalizeTrainingAttemptSnapshot,
+    reconcileTrainingProgress
+} from './TrainingProgress.js';
 import {
     annotateObservationTimelineEntries,
     mergeParticipantScopedNotetakerSection,
@@ -81,7 +88,7 @@ const FACILITATOR_COMMAND_DEFINITIONS = Object.freeze({
     [FACILITATOR_COMMANDS.RFI_RESUBMITTED]: Object.freeze({ stage: 'practice', eventType: 'step_completed', resultCode: 'completed' }),
     [FACILITATOR_COMMANDS.COMMUNICATION_SENT]: Object.freeze({ stage: 'respond', eventType: 'step_started', resultCode: null }),
     [FACILITATOR_COMMANDS.RESPONSE_CLASSIFIED]: Object.freeze({ stage: 'respond', eventType: 'step_completed', resultCode: 'completed' }),
-    [FACILITATOR_COMMANDS.PROPOSAL_NEGOTIATED]: Object.freeze({ stage: 'respond', eventType: 'step_completed', resultCode: 'completed' }),
+    [FACILITATOR_COMMANDS.PROPOSAL_NEGOTIATED]: Object.freeze({ stage: 'respond', eventType: 'step_started', resultCode: null }),
     [FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED]: Object.freeze({ stage: 'retrieve', eventType: 'step_completed', resultCode: 'completed' }),
     [FACILITATOR_COMMANDS.RECEIPT_VERIFIED]: Object.freeze({ stage: 'reflect', eventType: 'step_completed', resultCode: 'completed' })
 });
@@ -113,6 +120,39 @@ const FACILITATOR_WORKSPACES = Object.freeze(['actions', 'deck', 'rfis', 'commun
 const TRAINING_PRACTICE_PAYLOAD_LIMIT = 32 * 1024;
 export const NOTETAKER_PRACTICE_TEXT_LIMIT = 2000;
 const practiceStates = new Map();
+const attemptSnapshots = new Map();
+const attemptWriteQueues = new Map();
+const trainingLogger = createLogger('TrainingLifecycle');
+const TRAINING_TELEMETRY_EVENTS = new Set([
+    'start',
+    'media_degradation',
+    'step_mastery',
+    'reset',
+    'completion',
+    'failure',
+    'role_switch'
+]);
+const TRAINING_TELEMETRY_REASON_CODES = new Set([
+    'audio_unavailable',
+    'intro_missing',
+    'intro_decode',
+    'intro_offline',
+    'intro_timeout',
+    'intro_captions',
+    'revision_conflict',
+    'progress_reconcile_failed',
+    'progress_write_failed',
+    'curriculum_mismatch',
+    'activation_failed',
+    'reset_failed',
+    'resume_rebuild_failed'
+]);
+const TRAINING_TELEMETRY_STEP_IDS = new Set(
+    Object.values(TRAINING_CURRICULUM.profiles).flatMap((roleProfiles) => (
+        Object.values(roleProfiles).flatMap((module) => module.steps.map((step) => step.id))
+    ))
+);
+let trainingTelemetrySequence = 0;
 
 export const BLUE_SCRIBE_PRACTICE_ARTIFACT = Object.freeze({
     id: blueScribeFixture.id,
@@ -125,6 +165,134 @@ export const BLUE_SCRIBE_PRACTICE_ARTIFACT = Object.freeze({
 });
 
 let rolePageActivationPromise = null;
+
+export function buildTrainingTelemetryPayload(eventName, context = {}, details = {}) {
+    if (!TRAINING_TELEMETRY_EVENTS.has(eventName)) return null;
+    return Object.freeze({
+        event: eventName,
+        semantic_role: ['scribe', 'facilitator', 'notetaker'].includes(context.semanticRole)
+            ? context.semanticRole
+            : 'unknown',
+        team: ['blue', 'red', 'green', 'industry'].includes(context.team)
+            ? context.team
+            : 'unknown',
+        step_id: TRAINING_TELEMETRY_STEP_IDS.has(details.stepId)
+            ? details.stepId
+            : null,
+        result_code: ['passed', 'failed', 'completed', 'degraded'].includes(details.resultCode)
+            ? details.resultCode
+            : null,
+        reason_code: TRAINING_TELEMETRY_REASON_CODES.has(details.reasonCode)
+            ? details.reasonCode
+            : null,
+        request_id: typeof details.requestId === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(details.requestId)
+            ? details.requestId
+            : null,
+        revision: Number.isSafeInteger(details.revision) && details.revision >= 0
+            ? details.revision
+            : null
+    });
+}
+
+function emitTrainingTelemetry(eventName, context = {}, details = {}) {
+    trainingTelemetrySequence += 1;
+    const requestId = globalThis.crypto?.randomUUID?.()
+        || `training-${Date.now().toString(36)}-${trainingTelemetrySequence.toString(36)}`;
+    const payload = buildTrainingTelemetryPayload(eventName, context, {
+        ...details,
+        requestId
+    });
+    if (!payload) return;
+    if (eventName === 'failure') trainingLogger.warn('training_event', payload);
+    else trainingLogger.info('training_event', payload);
+}
+
+function cacheAttemptSnapshot(rawSnapshot) {
+    const snapshot = normalizeTrainingAttemptSnapshot(rawSnapshot);
+    if (snapshot.attemptId) attemptSnapshots.set(snapshot.attemptId, snapshot);
+    return snapshot;
+}
+
+function projectAttemptSnapshot(snapshot, {
+    eventType,
+    stepId = null,
+    resultCode = null,
+    revision = snapshot.revision + 1,
+    status = null
+} = {}) {
+    const completed = new Set(snapshot.completedStepIds);
+    const mastered = new Set(snapshot.masteredStepIds);
+    if (eventType === 'step_completed' && stepId) completed.add(stepId);
+    if (eventType === 'mastery_passed' && stepId) {
+        completed.add(stepId);
+        mastered.add(stepId);
+    }
+    return normalizeTrainingAttemptSnapshot({
+        attemptId: snapshot.attemptId,
+        curriculumVersion: snapshot.curriculumVersion,
+        revision,
+        currentStepId: stepId || snapshot.currentStepId,
+        completedStepIds: [...completed],
+        masteredStepIds: [...mastered],
+        status: status || (eventType === 'attempt_completed' ? 'completed' : snapshot.status),
+        result_code: resultCode
+    });
+}
+
+function queueAttemptWrite(attemptId, task) {
+    const previous = attemptWriteQueues.get(attemptId) || Promise.resolve();
+    const next = previous.catch(() => {}).then(task);
+    const tracked = next.finally(() => {
+        if (attemptWriteQueues.get(attemptId) === tracked) attemptWriteQueues.delete(attemptId);
+    });
+    attemptWriteQueues.set(attemptId, tracked);
+    return tracked;
+}
+
+function getMasteryEvidenceResult(step, evidence = {}) {
+    const predicate = step?.masteryPredicate;
+    if (!predicate || typeof evidence !== 'object' || evidence === null) return false;
+    switch (predicate.kind) {
+        case 'acknowledgement':
+        case 'guided_event':
+            return evidence.eventKey === predicate.eventKey;
+        case 'viewed_fixture':
+            return evidence.fixtureId === predicate.fixtureId;
+        case 'choice':
+            return evidence.optionId === predicate.correctOptionId;
+        case 'training_command':
+            return evidence.command === predicate.command && evidence.runtimeVerified === true;
+        default:
+            return false;
+    }
+}
+
+function buildRuntimeMasteryEvidence(step, command, payload = {}) {
+    switch (step?.masteryPredicate?.kind) {
+        case 'acknowledgement':
+        case 'guided_event':
+            return { eventKey: step.masteryPredicate.eventKey };
+        case 'viewed_fixture':
+            return { fixtureId: step.masteryPredicate.fixtureId };
+        case 'training_command':
+            return { command, runtimeVerified: true };
+        case 'choice':
+            return { optionId: payload.answer };
+        default:
+            return null;
+    }
+}
+
+function makeCurriculumRestartError(serverVersion) {
+    const error = new DatabaseError(
+        `This training attempt uses curriculum ${serverVersion || 'unknown'}, which is not compatible with the current ${TRAINING_CURRICULUM.version} curriculum. You must restart training to continue.`,
+        'revalidateTrainingAttempt'
+    );
+    error.name = 'TrainingCurriculumMismatchError';
+    error.code = 'TRAINING_CURRICULUM_RESTART_REQUIRED';
+    error.userSafe = true;
+    return error;
+}
 
 function cloneFixture(value) {
     return JSON.parse(JSON.stringify(value));
@@ -232,8 +400,110 @@ function getPracticeState(context) {
         : context.semanticRole === 'notetaker' && fixtureBundle
             ? buildEmptyNotetakerPracticeState(context, fixtureBundle)
             : buildEmptyScribePracticeState(context);
+    restorePracticeStateFromSnapshot(
+        context,
+        created,
+        fixtureBundle,
+        attemptSnapshots.get(context.attemptId)
+    );
     practiceStates.set(context.attemptId, created);
     return created;
+}
+
+function restorePracticeStateFromSnapshot(context, state, fixtureBundle, snapshot) {
+    if (!fixtureBundle || !snapshot?.masteredStepIds?.length) return state;
+    const masteredStages = new Set(snapshot.masteredStepIds.map((stepId) => stepId.split('.').at(-1)));
+    try {
+        if (context.semanticRole === 'scribe') {
+            if (masteredStages.has('show')) {
+                applyScribeCommand(state, SCRIBE_COMMANDS.ORIENTATION_COMPLETED, {
+                    artifact: cloneFixture(fixtureBundle.orientation)
+                }, fixtureBundle);
+            }
+            if (masteredStages.has('practice')) {
+                applyScribeCommand(state, SCRIBE_COMMANDS.ARTIFACT_DRAFT_SAVED, {
+                    artifact: cloneFixture(fixtureBundle.artifact)
+                }, fixtureBundle);
+                applyScribeCommand(state, SCRIBE_COMMANDS.ARTIFACT_FORWARDED, {
+                    artifact: cloneFixture(fixtureBundle.artifact)
+                }, fixtureBundle);
+            }
+            if (masteredStages.has('respond')) {
+                applyScribeCommand(state, SCRIBE_COMMANDS.RETURNED_ARTIFACT_REVISED, {
+                    artifact: { ...cloneFixture(fixtureBundle.artifact), revision_number: 2 }
+                }, fixtureBundle);
+            }
+            return state;
+        }
+
+        if (context.semanticRole === 'facilitator') {
+            if (masteredStages.has('orient')) applyFacilitatorCommand(state, FACILITATOR_COMMANDS.ARTIFACT_REVIEWED, { artifactId: fixtureBundle.artifact.id }, fixtureBundle);
+            if (masteredStages.has('show')) applyFacilitatorCommand(state, FACILITATOR_COMMANDS.WORKSPACES_RESTORED, { workspaces: FACILITATOR_WORKSPACES, restoredWorkspace: 'actions' }, fixtureBundle);
+            if (masteredStages.has('guide')) applyFacilitatorCommand(state, FACILITATOR_COMMANDS.ARTIFACT_PROJECTED, { artifactId: fixtureBundle.artifact.id }, fixtureBundle);
+            if (masteredStages.has('practice')) {
+                applyFacilitatorCommand(state, FACILITATOR_COMMANDS.RFI_CREATED, {
+                    query: 'Which training checkpoint applies?',
+                    categories: ['Implementation Timeline']
+                }, fixtureBundle);
+                applyFacilitatorCommand(state, FACILITATOR_COMMANDS.RFI_RESUBMITTED, {
+                    rfiId: fixtureBundle.rfi.id,
+                    query: 'Which measurable training checkpoint applies before the move closes?'
+                }, fixtureBundle);
+            }
+            if (masteredStages.has('respond')) {
+                applyFacilitatorCommand(state, FACILITATOR_COMMANDS.COMMUNICATION_SENT, { message: 'Confirm the training checkpoint.' }, fixtureBundle);
+                applyFacilitatorCommand(state, FACILITATOR_COMMANDS.RESPONSE_CLASSIFIED, {
+                    rfiAnswer: 'rfi-answer',
+                    communication: 'direct-communication',
+                    notification: 'team-action-notification'
+                }, fixtureBundle);
+                if (fixtureBundle.proposalThreads?.length) {
+                    applyFacilitatorCommand(state, FACILITATOR_COMMANDS.PROPOSAL_NEGOTIATED, {
+                        proposalMessageId: fixtureBundle.proposalThreads[0].id,
+                        decision: 'negotiate',
+                        terms: 'Restore the completed deterministic training round.'
+                    }, fixtureBundle);
+                }
+            }
+            if (masteredStages.has('retrieve')) applyFacilitatorCommand(state, FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED, { artifactId: fixtureBundle.artifact.id }, fixtureBundle);
+            if (masteredStages.has('reflect')) applyFacilitatorCommand(state, FACILITATOR_COMMANDS.RECEIPT_VERIFIED, { artifactId: fixtureBundle.artifact.id }, fixtureBundle);
+            return state;
+        }
+
+        if (masteredStages.has('orient')) applyNotetakerCommand(state, NOTETAKER_COMMANDS.CONTEXT_ORIENTED, {});
+        if (masteredStages.has('show')) applyNotetakerCommand(state, NOTETAKER_COMMANDS.OBSERVATION_ADDED, {
+            observation: 'The training team selected a reversible checkpoint.',
+            reasoning: 'The fixture balances delivery risk against waiting for more information.'
+        });
+        if (masteredStages.has('guide')) applyNotetakerCommand(state, NOTETAKER_COMMANDS.QUICK_CAPTURES_ADDED, {
+            moment: 'The training discussion changed after the supply update.',
+            quote: 'Use the checkpoint before expanding the commitment.'
+        });
+        if (masteredStages.has('practice')) applyNotetakerCommand(state, NOTETAKER_COMMANDS.SEAT_NOTES_SAVED, {
+            dynamicsNote: 'The training team tested disagreement against a reversible checkpoint.',
+            allianceNote: 'The fixture records a conditional alignment around the checkpoint.'
+        });
+        if (masteredStages.has('respond')) {
+            applyNotetakerCommand(state, NOTETAKER_COMMANDS.INBOX_OPENED, { inboxItemId: state.inboxItem.id });
+            applyNotetakerCommand(state, NOTETAKER_COMMANDS.INJECT_OBSERVATION_ADDED, {
+                observation: 'The training team revisited delivery assumptions after the inbox update.',
+                reasoning: 'The supply change makes the checkpoint timing newly relevant.'
+            });
+        }
+        if (masteredStages.has('retrieve')) {
+            applyNotetakerCommand(state, NOTETAKER_COMMANDS.READONLY_REVIEW_COMPLETED, {
+                actionReviewed: true,
+                timelineReviewed: true,
+                artifactId: state.officialAction.id,
+                timelineEntryIds: state.officialTimelineEntries.map((entry) => entry.id)
+            });
+            applyNotetakerCommand(state, NOTETAKER_COMMANDS.RETRIEVAL_COMPLETED, { answer: 'notetaker-record' });
+        }
+        if (masteredStages.has('reflect')) applyNotetakerCommand(state, NOTETAKER_COMMANDS.PRACTICE_COMPLETED, {});
+    } catch (_error) {
+        emitTrainingTelemetry('failure', context, { reasonCode: 'resume_rebuild_failed' });
+    }
+    return state;
 }
 
 function clonePracticeState(state) {
@@ -869,6 +1139,7 @@ export function mountTrainingSandboxBanner({
     context,
     documentRef = typeof document !== 'undefined' ? document : null,
     onReplayIntro = null,
+    onReset = null,
     onExit = null
 } = {}) {
     if (!documentRef?.body || !context) {
@@ -899,19 +1170,15 @@ export function mountTrainingSandboxBanner({
     copy.append(title, detail);
 
     const controls = createElement(documentRef, 'div', 'training-sandbox-banner-controls');
-    const resetHelp = createElement(
-        documentRef,
-        'span',
-        'sr-only',
-        'Reset will be enabled when attempt reset is implemented.'
-    );
+    const resetHelp = createElement(documentRef, 'span', 'sr-only', 'Reset only this team-and-role training attempt.');
     resetHelp.id = 'trainingResetHelp';
 
-    const resetButton = createElement(documentRef, 'button', 'btn btn-secondary btn-sm', 'Reset');
+    const resetButton = createElement(documentRef, 'button', 'btn btn-secondary btn-sm', 'Reset current role');
     resetButton.type = 'button';
     resetButton.id = 'trainingResetBtn';
-    resetButton.disabled = true;
+    resetButton.disabled = typeof onReset !== 'function';
     resetButton.setAttribute('aria-describedby', resetHelp.id);
+    resetButton.addEventListener('click', () => onReset?.(resetButton));
 
     const replayIntroButton = createElement(
         documentRef,
@@ -962,25 +1229,31 @@ export const trainingRuntime = {
             throw makeBoundaryError('startOrResume');
         }
 
-        const bootstrap = await databaseRef.startOrResumeTrainingAttempt({
+        let bootstrap = await databaseRef.startOrResumeTrainingAttempt({
             code,
             semanticRole,
             team,
             curriculumVersion
         });
+        if (bootstrap?.resumed === true) {
+            bootstrap = await databaseRef.getTrainingAttemptBootstrap(bootstrap.attempt_id);
+        }
         const context = createTrainingContextFromBootstrap(bootstrap);
         if (!context || context.curriculumVersion !== TRAINING_CURRICULUM.version) {
             throw makeBoundaryError('activateTrainingBootstrap');
         }
+        const attemptSnapshot = cacheAttemptSnapshot(bootstrap);
 
         const role = getTrainingRole(context.team, context.semanticRole);
         sessionStoreRef.clear();
         sessionStoreRef.setTrainingContext(context, { serverValidated: true });
         sessionStoreRef.setRole(role);
         sessionStoreRef.setUserName(displayName);
+        emitTrainingTelemetry('start', context, { revision: attemptSnapshot.revision });
 
         return {
             bootstrap,
+            attemptSnapshot,
             context,
             role,
             route: getTrainingRoleRoute(context.team, context.semanticRole)
@@ -1000,9 +1273,12 @@ export const trainingRuntime = {
 
         const bootstrap = await databaseRef.getTrainingAttemptBootstrap(storedContext.attemptId);
         const serverContext = createTrainingContextFromBootstrap(bootstrap);
+        if (bootstrap?.curriculum_version !== TRAINING_CURRICULUM.version) {
+            sessionStoreRef.clearTrainingContext?.();
+            throw makeCurriculumRestartError(bootstrap?.curriculum_version);
+        }
         if (
             !serverContext
-            || serverContext.curriculumVersion !== TRAINING_CURRICULUM.version
             || !trainingContextsMatch(storedContext, serverContext)
         ) {
             sessionStoreRef.clearTrainingContext?.();
@@ -1010,6 +1286,7 @@ export const trainingRuntime = {
         }
 
         sessionStoreRef.setTrainingContext(serverContext, { serverValidated: true });
+        cacheAttemptSnapshot(bootstrap);
         return serverContext;
     },
 
@@ -1021,7 +1298,8 @@ export const trainingRuntime = {
         sessionStoreRef = sessionStore,
         navigateRef = navigateToApp,
         showToastRef = showToast,
-        showTrainingIntroModalRef = showTrainingIntroModal
+        showTrainingIntroModalRef = showTrainingIntroModal,
+        confirmRef = confirmModal
     } = {}) {
         if (!sessionStoreRef.hasTrainingContext?.()) {
             return null;
@@ -1056,6 +1334,12 @@ export const trainingRuntime = {
                         forceReplay,
                         documentRef,
                         windowRef: documentRef?.defaultView || (typeof window !== 'undefined' ? window : null),
+                        onMediaDegraded: (reasonCode) => {
+                            void this.recordMediaDegradation(null, `intro_${reasonCode}`, {
+                                databaseRef,
+                                sessionStoreRef
+                            }).catch(() => {});
+                        },
                         onChangeProfile: () => this.exitTraining({
                             sessionStoreRef,
                             navigateRef,
@@ -1101,7 +1385,28 @@ export const trainingRuntime = {
             mountTrainingSandboxBanner({
                 context,
                 documentRef,
-                onReplayIntro: () => openIntro({ forceReplay: true })
+                onReplayIntro: () => openIntro({ forceReplay: true }),
+                onReset: async () => {
+                    const confirmed = await confirmRef({
+                        title: 'Reset current role?',
+                        message: 'This clears only this team-and-role attempt and starts again from the first step.',
+                        confirmLabel: 'Reset current role',
+                        cancelLabel: 'Keep progress',
+                        variant: 'danger'
+                    });
+                    if (!confirmed) return;
+                    try {
+                        await this.resetAttempt({ databaseRef, sessionStoreRef, navigateRef, documentRef });
+                    } catch (error) {
+                        emitTrainingTelemetry('failure', context, { reasonCode: 'reset_failed' });
+                        showToastRef({
+                            message: error?.code === 'TRAINING_REVISION_CONFLICT'
+                                ? 'This attempt changed in another tab. Refresh before resetting it.'
+                                : 'The training attempt could not be reset. Your current progress was not cleared.',
+                            type: 'error'
+                        });
+                    }
+                }
             });
             documentRef?.querySelectorAll?.('[data-write-control]')?.forEach?.((control) => {
                 control.disabled = true;
@@ -1111,12 +1416,27 @@ export const trainingRuntime = {
             const fixtures = hydrateTrainingFixtures(context);
             const fixtureBundle = getTrainingProfileFixtureBundle(context.team, context.semanticRole);
 
-            openIntro();
+            const attemptSnapshot = this.getAttemptSnapshot(context.attemptId);
+            if (attemptSnapshot?.status !== 'completed') openIntro();
 
-            return { active: true, context, fixtures, fixtureBundle };
-        } catch (_error) {
+            return {
+                active: true,
+                context,
+                fixtures,
+                fixtureBundle,
+                attemptSnapshot
+            };
+        } catch (error) {
             sessionStoreRef.clearTrainingContext?.();
-            showToastRef({ message: TRAINING_RECOVERY_MESSAGE, type: 'error' });
+            const message = error?.code === 'TRAINING_CURRICULUM_RESTART_REQUIRED'
+                ? error.message
+                : TRAINING_RECOVERY_MESSAGE;
+            emitTrainingTelemetry('failure', {}, {
+                reasonCode: error?.code === 'TRAINING_CURRICULUM_RESTART_REQUIRED'
+                    ? 'curriculum_mismatch'
+                    : 'activation_failed'
+            });
+            showToastRef({ message, type: 'error' });
             navigateRef('', { replace: true });
             return { active: false, rejected: true };
         }
@@ -1182,6 +1502,226 @@ export const trainingRuntime = {
         });
     },
 
+    getAttemptSnapshot(attemptId = null, { sessionStoreRef = sessionStore } = {}) {
+        const resolvedAttemptId = attemptId || sessionStoreRef.getTrainingContext?.()?.attemptId;
+        return resolvedAttemptId ? attemptSnapshots.get(resolvedAttemptId) || null : null;
+    },
+
+    async refreshAttemptSnapshot({
+        databaseRef = database,
+        sessionStoreRef = sessionStore
+    } = {}) {
+        const context = sessionStoreRef.getTrainingContext?.();
+        if (!context) throw makeBoundaryError('refresh-training-progress');
+        const bootstrap = await databaseRef.getTrainingAttemptBootstrap(context.attemptId);
+        if (bootstrap?.curriculum_version !== TRAINING_CURRICULUM.version) {
+            throw makeCurriculumRestartError(bootstrap?.curriculum_version);
+        }
+        return cacheAttemptSnapshot(bootstrap);
+    },
+
+    async recordProgress({
+        eventType,
+        stepId = null,
+        resultCode = null,
+        eventKey = null
+    } = {}, {
+        databaseRef = database,
+        sessionStoreRef = sessionStore
+    } = {}) {
+        const context = sessionStoreRef.getTrainingContext?.();
+        if (!context) throw makeBoundaryError('record-progress');
+        const key = eventKey || createTrainingProgressEventKey(eventType, stepId, resultCode);
+        return queueAttemptWrite(context.attemptId, async () => {
+            let snapshot = attemptSnapshots.get(context.attemptId);
+            if (!snapshot && typeof databaseRef.getTrainingAttemptBootstrap === 'function') {
+                snapshot = await this.refreshAttemptSnapshot({ databaseRef, sessionStoreRef });
+            }
+            if (!snapshot) {
+                snapshot = cacheAttemptSnapshot({
+                    attempt_id: context.attemptId,
+                    curriculum_version: context.curriculumVersion,
+                    status: 'in_progress',
+                    attempt_revision: 0,
+                    completed_step_ids: [],
+                    mastered_step_ids: []
+                });
+            }
+            if (eventType === 'mastery_passed' && snapshot.masteredStepIds.includes(stepId)) {
+                return Object.freeze({ idempotent: true, snapshot });
+            }
+            const isOptimisticProgress = ['step_completed', 'mastery_passed'].includes(eventType);
+            const optimisticSnapshot = isOptimisticProgress
+                ? cacheAttemptSnapshot(projectAttemptSnapshot(snapshot, { eventType, stepId, resultCode }))
+                : snapshot;
+            let writeAccepted = false;
+            try {
+                const result = await databaseRef.recordTrainingProgressEvent({
+                    attemptId: context.attemptId,
+                    eventType,
+                    stepId,
+                    resultCode,
+                    eventKey: key,
+                    expectedRevision: snapshot.revision
+                });
+                writeAccepted = true;
+                const serverRevision = Number(result?.attempt_revision);
+                const next = result?.mastered_step_ids || result?.completed_step_ids
+                    ? normalizeTrainingAttemptSnapshot({
+                        attempt_id: context.attemptId,
+                        curriculum_version: context.curriculumVersion,
+                        status: result.attempt_status || result.status || snapshot.status,
+                        attempt_revision: result.attempt_revision,
+                        current_step_id: result.current_step_id || snapshot.currentStepId,
+                        completed_step_ids: result.completed_step_ids || snapshot.completedStepIds,
+                        mastered_step_ids: result.mastered_step_ids || snapshot.masteredStepIds
+                    })
+                    : projectAttemptSnapshot(snapshot, {
+                        eventType,
+                        stepId,
+                        resultCode,
+                        revision: Number.isSafeInteger(serverRevision) ? serverRevision : snapshot.revision + 1,
+                        status: result?.attempt_status
+                    });
+                const reconciled = reconcileTrainingProgress(optimisticSnapshot, next);
+                cacheAttemptSnapshot(reconciled);
+                return Object.freeze({ ...result, snapshot: reconciled });
+            } catch (error) {
+                if (error?.code === 'TRAINING_REVISION_CONFLICT' || error?.code === '40001') {
+                    const fresh = await this.refreshAttemptSnapshot({ databaseRef, sessionStoreRef });
+                    const alreadyApplied = eventType === 'mastery_passed'
+                        && fresh.masteredStepIds.includes(stepId);
+                    if (alreadyApplied) return Object.freeze({ idempotent: true, snapshot: fresh });
+                }
+                if (!writeAccepted && attemptSnapshots.get(context.attemptId)?.revision === optimisticSnapshot.revision) {
+                    cacheAttemptSnapshot(snapshot);
+                }
+                emitTrainingTelemetry('failure', context, {
+                    stepId,
+                    reasonCode: error?.code === 'TRAINING_REVISION_CONFLICT'
+                        ? 'revision_conflict'
+                        : ['TRAINING_ATTEMPT_MISMATCH', 'TRAINING_STALE_SERVER_REVISION'].includes(error?.code)
+                            ? 'progress_reconcile_failed'
+                            : 'progress_write_failed',
+                    revision: snapshot.revision
+                });
+                throw error;
+            }
+        });
+    },
+
+    async recordMastery({ step, evidence, passed = true } = {}, options = {}) {
+        const sessionStoreRef = options.sessionStoreRef || sessionStore;
+        const context = sessionStoreRef.getTrainingContext?.();
+        const module = context ? getTrainingModule(context.semanticRole, context.team) : null;
+        const catalogStep = module?.steps?.find((entry) => entry.id === step?.id);
+        if (!context || !catalogStep || catalogStep !== step) {
+            throw makeBoundaryError('record-mastery');
+        }
+        const observed = getMasteryEvidenceResult(catalogStep, evidence);
+        const masteryPassed = passed === true && observed;
+        const eventType = masteryPassed ? 'mastery_passed' : 'mastery_failed';
+        const currentSnapshot = this.getAttemptSnapshot(context.attemptId, { sessionStoreRef });
+        const suffix = masteryPassed ? 'passed' : `failed-${(currentSnapshot?.revision || 0) + 1}`;
+        const result = await this.recordProgress({
+            eventType,
+            stepId: catalogStep.id,
+            resultCode: masteryPassed ? 'passed' : 'failed',
+            eventKey: createTrainingProgressEventKey(eventType, catalogStep.id, suffix)
+        }, options);
+        emitTrainingTelemetry('step_mastery', context, {
+            stepId: catalogStep.id,
+            resultCode: masteryPassed ? 'passed' : 'failed',
+            revision: result.snapshot?.revision
+        });
+        return Object.freeze({ ...result, passed: masteryPassed });
+    },
+
+    async recordMediaDegradation(stepId, reasonCode = 'audio_unavailable', options = {}) {
+        const sessionStoreRef = options.sessionStoreRef || sessionStore;
+        const context = sessionStoreRef.getTrainingContext?.();
+        if (!context) return null;
+        const result = await this.recordProgress({
+            eventType: 'media_degraded',
+            stepId,
+            resultCode: 'degraded',
+            eventKey: createTrainingProgressEventKey('media_degraded', stepId, reasonCode)
+        }, options);
+        emitTrainingTelemetry('media_degradation', context, {
+            stepId,
+            resultCode: 'degraded',
+            reasonCode,
+            revision: result.snapshot?.revision
+        });
+        return result;
+    },
+
+    async completeAttempt(options = {}) {
+        const sessionStoreRef = options.sessionStoreRef || sessionStore;
+        const context = sessionStoreRef.getTrainingContext?.();
+        const module = context ? getTrainingModule(context.semanticRole, context.team) : null;
+        const snapshot = context ? this.getAttemptSnapshot(context.attemptId, { sessionStoreRef }) : null;
+        if (!context || !module || !snapshot || module.steps.some((step) => !snapshot.masteredStepIds.includes(step.id))) {
+            throw makeBoundaryError('complete-training-attempt');
+        }
+        const result = await this.recordProgress({
+            eventType: 'attempt_completed',
+            stepId: module.steps.at(-1).id,
+            resultCode: 'completed',
+            eventKey: createTrainingProgressEventKey('attempt_completed', module.id, 'completed')
+        }, options);
+        emitTrainingTelemetry('completion', context, {
+            resultCode: 'completed',
+            revision: result.snapshot?.revision
+        });
+        return result;
+    },
+
+    async resetAttempt({
+        databaseRef = database,
+        sessionStoreRef = sessionStore,
+        navigateRef = navigateToApp,
+        documentRef = typeof document !== 'undefined' ? document : null
+    } = {}) {
+        const context = sessionStoreRef.getTrainingContext?.();
+        const snapshot = context ? this.getAttemptSnapshot(context.attemptId, { sessionStoreRef }) : null;
+        if (!context || !snapshot) throw makeBoundaryError('reset-training-attempt');
+        const bootstrap = await databaseRef.resetTrainingAttempt({
+            attemptId: context.attemptId,
+            expectedRevision: snapshot.revision
+        });
+        const nextContext = createTrainingContextFromBootstrap(bootstrap);
+        if (!nextContext || !trainingContextsMatch(context, nextContext)) {
+            throw makeBoundaryError('reset-training-attempt');
+        }
+        practiceStates.delete(context.attemptId);
+        attemptSnapshots.delete(context.attemptId);
+        cacheAttemptSnapshot(bootstrap);
+        sessionStoreRef.setTrainingContext(nextContext, { serverValidated: true });
+        emitTrainingTelemetry('reset', nextContext, { revision: 0 });
+        const EventConstructor = documentRef?.defaultView?.CustomEvent
+            || (typeof CustomEvent !== 'undefined' ? CustomEvent : null);
+        if (EventConstructor) documentRef?.dispatchEvent?.(new EventConstructor('training:reset'));
+        navigateRef(getTrainingRoleRoute(nextContext.team, nextContext.semanticRole), { replace: true });
+        return bootstrap;
+    },
+
+    async startAnotherRole(options = {}) {
+        const sessionStoreRef = options.sessionStoreRef || sessionStore;
+        const context = sessionStoreRef.getTrainingContext?.();
+        if (context && ['in_progress', 'completed'].includes(
+            this.getAttemptSnapshot(context.attemptId, { sessionStoreRef })?.status
+        )) {
+            await this.recordProgress({
+                eventType: 'role_switched',
+                resultCode: 'completed',
+                eventKey: createTrainingProgressEventKey('role_switched', null, 'profile-picker')
+            }, options);
+            emitTrainingTelemetry('role_switch', context, { resultCode: 'completed' });
+        }
+        this.exitTraining(options);
+    },
+
     getPracticeState({ sessionStoreRef = sessionStore } = {}) {
         const context = sessionStoreRef.getTrainingContext?.();
         if (!context || !['scribe', 'facilitator', 'notetaker'].includes(context.semanticRole)) {
@@ -1227,11 +1767,25 @@ export const trainingRuntime = {
             applyNotetakerCommand(nextState, parsed.suffix, safePayload);
         }
 
-        await this.executeWrite('record-progress', {
-            eventType: parsed.definition.eventType,
-            stepId: `training.v1.${context.semanticRole}.${context.team}.${parsed.definition.stage}`,
-            resultCode: parsed.definition.resultCode
-        }, { databaseRef, sessionStoreRef });
+        const module = getTrainingModule(context.semanticRole, context.team);
+        const step = module?.steps?.find((entry) => entry.stage === parsed.definition.stage);
+        if (!step) throw makeBoundaryError(command);
+        if (parsed.definition.eventType === 'step_completed') {
+            const evidence = buildRuntimeMasteryEvidence(step, command, safePayload);
+            if (!evidence) throw makeBoundaryError(command);
+            const mastery = await this.recordMastery(
+                { step, evidence, passed: true },
+                { databaseRef, sessionStoreRef }
+            );
+            if (!mastery.passed) throw makeBoundaryError(command);
+        } else {
+            await this.recordProgress({
+                eventType: parsed.definition.eventType,
+                stepId: step.id,
+                resultCode: parsed.definition.resultCode,
+                eventKey: createTrainingProgressEventKey(parsed.definition.eventType, step.id, parsed.suffix)
+            }, { databaseRef, sessionStoreRef });
+        }
 
         practiceStates.set(context.attemptId, nextState);
         return clonePracticeState(nextState);
@@ -1243,7 +1797,11 @@ export const trainingRuntime = {
         documentRef = typeof document !== 'undefined' ? document : null
     } = {}) {
         const context = sessionStoreRef.getTrainingContext?.({ requireServerValidation: false });
-        if (context?.attemptId) practiceStates.delete(context.attemptId);
+        if (context?.attemptId) {
+            practiceStates.delete(context.attemptId);
+            attemptSnapshots.delete(context.attemptId);
+            attemptWriteQueues.delete(context.attemptId);
+        }
         const EventConstructor = documentRef?.defaultView?.CustomEvent
             || (typeof CustomEvent !== 'undefined' ? CustomEvent : null);
         if (EventConstructor) {

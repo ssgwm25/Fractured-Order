@@ -2260,18 +2260,46 @@ const databaseApi = {
         attemptId,
         eventType,
         stepId = null,
-        resultCode = null
+        resultCode = null,
+        eventKey,
+        expectedRevision
     } = {}) {
         await ensureAuthenticatedBrowser();
         const { data, error } = await supabase.rpc('record_training_progress_event', {
             requested_attempt_id: attemptId,
             requested_event_type: eventType,
             requested_step_id: stepId,
-            requested_result_code: resultCode
+            requested_result_code: resultCode,
+            requested_event_key: eventKey,
+            requested_expected_revision: expectedRevision
         });
 
         if (error) {
-            throw fromSupabaseError(error, 'recordTrainingProgressEvent');
+            const mapped = fromSupabaseError(error, 'recordTrainingProgressEvent');
+            if (error.code === '40001' || /newer training attempt revision/i.test(error.message || '')) {
+                mapped.code = 'TRAINING_REVISION_CONFLICT';
+                mapped.userSafe = true;
+            }
+            throw mapped;
+        }
+
+        return data;
+    },
+
+    async resetTrainingAttempt({ attemptId, expectedRevision } = {}) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('reset_training_attempt', {
+            requested_attempt_id: attemptId,
+            requested_expected_revision: expectedRevision
+        });
+
+        if (error) {
+            const mapped = fromSupabaseError(error, 'resetTrainingAttempt');
+            if (error.code === '40001' || /newer training attempt revision/i.test(error.message || '')) {
+                mapped.code = 'TRAINING_REVISION_CONFLICT';
+                mapped.userSafe = true;
+            }
+            throw mapped;
         }
 
         return data;
@@ -2868,12 +2896,13 @@ const databaseApi = {
 const TRAINING_DATABASE_METHOD_ALLOWLIST = new Set([
     'startOrResumeTrainingAttempt',
     'getTrainingAttemptBootstrap',
-    'recordTrainingProgressEvent'
+    'recordTrainingProgressEvent',
+    'resetTrainingAttempt'
 ]);
 
 /**
  * While any persisted training attempt hint exists, all database methods fail
- * closed except the three owner-scoped training RPCs. This protects the gap
+ * closed except the owner-scoped training RPCs. This protects the gap
  * between page load and server revalidation as well as the active runtime.
  *
  * The facade owns one stable function per method so instrumentation and unit

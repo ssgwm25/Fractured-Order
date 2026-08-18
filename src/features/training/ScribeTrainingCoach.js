@@ -1,5 +1,7 @@
 import { TrainingAudioController } from './TrainingAudioController.js';
 import { getTrainingModule } from './content/curriculum.js';
+import { TrainingCoach } from './TrainingCoach.js';
+import { trainingRuntime } from './trainingRuntime.js';
 
 const TEAM_ARTIFACTS = Object.freeze({
     blue: Object.freeze({
@@ -71,6 +73,7 @@ export function mountScribeTrainingCoach({
     onOpenArtifact = () => {},
     onNavigate = () => {},
     renderLifecycleBadge = () => '',
+    runtimeRef = trainingRuntime,
     AudioController = TrainingAudioController
 } = {}) {
     const context = activation?.context;
@@ -83,6 +86,7 @@ export function mountScribeTrainingCoach({
     documentRef.getElementById?.('scribeTrainingCoach')?.remove?.();
     const root = createElement(documentRef, 'section', 'training-coach card card-bordered');
     root.id = 'scribeTrainingCoach';
+    root.tabIndex = -1;
     root.setAttribute('aria-labelledby', 'scribeTrainingCoachTitle');
     root.dataset.trainingTeam = context.team;
 
@@ -92,9 +96,6 @@ export function mountScribeTrainingCoach({
     const title = appendText(documentRef, headingGroup, 'h2', 'training-coach__title', `${context.team[0].toUpperCase()}${context.team.slice(1)} Scribe coach`);
     title.id = 'scribeTrainingCoachTitle';
     const progress = createElement(documentRef, 'div', 'training-coach__progress');
-    progress.setAttribute('role', 'progressbar');
-    progress.setAttribute('aria-valuemin', '1');
-    progress.setAttribute('aria-valuemax', String(module.steps.length));
     header.append(headingGroup, progress);
 
     const audioHost = createElement(documentRef, 'div', 'training-coach__audio');
@@ -131,16 +132,49 @@ export function mountScribeTrainingCoach({
     root.append(header, audioHost, common, lesson, feedback);
     host.insertBefore(root, host.firstChild || null);
 
-    const audio = new AudioController({ documentRef, windowRef: documentRef.defaultView });
+    let degradedClipId = null;
+    const audio = new AudioController({
+        documentRef,
+        windowRef: documentRef.defaultView,
+        onStateChange: (audioState) => {
+            if (!['degraded', 'unavailable'].includes(audioState?.status) || !audioState.clipId || degradedClipId === audioState.clipId) return;
+            degradedClipId = audioState.clipId;
+            const degradationWrite = runtimeRef.recordMediaDegradation?.(
+                audioState.clipId,
+                'audio_unavailable'
+            );
+            if (degradationWrite?.catch) void degradationWrite.catch(() => {});
+        }
+    });
     audio.mountControls(audioHost, { documentRef });
 
+    const initialPracticeState = runtimeRef.getPracticeState?.() || null;
     const state = {
         stepIndex: 0,
-        status: 'empty',
-        practiceState: null,
+        status: initialPracticeState?.artifactState || 'empty',
+        practiceState: initialPracticeState,
         retryMessage: '',
-        completed: false
+        completed: runtimeRef.getAttemptSnapshot?.(context.attemptId)?.status === 'completed'
     };
+
+    const coach = new TrainingCoach({
+        root,
+        module,
+        context,
+        runtimeRef,
+        progressHost: progress,
+        lessonHost: lesson,
+        feedbackHost: feedback,
+        documentRef,
+        onStepChange: (stepIndex) => {
+            state.stepIndex = stepIndex;
+            state.retryMessage = '';
+            render();
+        },
+        onReset: () => runtimeRef.resetAttempt(),
+        onStartAnotherRole: () => runtimeRef.startAnotherRole()
+    });
+    state.stepIndex = coach.getResumeIndex();
 
     const setRetry = (message) => {
         state.status = 'retry';
@@ -150,6 +184,7 @@ export function mountScribeTrainingCoach({
     };
 
     const advance = (stepIndex, message = '') => {
+        coach.requireMastery(module.steps[Math.max(0, stepIndex - 1)]);
         state.stepIndex = Math.min(stepIndex, module.steps.length - 1);
         if (state.status === 'retry') {
             state.status = state.practiceState?.artifactState || 'empty';
@@ -198,7 +233,17 @@ export function mountScribeTrainingCoach({
     const renderOrient = (container) => {
         renderContext(container);
         appendText(documentRef, container, 'p', '', 'Read the live move, phase, and timer before recording a decision. Your handoff ends at the Facilitator; you do not submit to White Cell.');
-        container.appendChild(makeButton(documentRef, 'I understand the Scribe handoff', () => advance(1, module.steps[0].correctFeedback)));
+        container.appendChild(makeButton(documentRef, 'I understand the Scribe handoff', async () => {
+            try {
+                await coach.recordMastery({
+                    step: module.steps[0],
+                    evidence: { eventKey: module.steps[0].masteryPredicate.eventKey }
+                });
+                advance(1, module.steps[0].correctFeedback);
+            } catch (error) {
+                setRetry(error.message);
+            }
+        }));
     };
 
     const renderShow = (container) => {
@@ -219,7 +264,17 @@ export function mountScribeTrainingCoach({
         appendText(documentRef, container, 'h4', '', `Worked example: ${descriptor.label}`);
         appendText(documentRef, container, 'p', '', fixtureBundle.artifact.goal);
         appendText(documentRef, container, 'p', 'text-sm', descriptor.guidance);
-        container.appendChild(makeButton(documentRef, 'Start my practice artifact', () => advance(3, module.steps[2].correctFeedback)));
+        container.appendChild(makeButton(documentRef, 'Start my practice artifact', async () => {
+            try {
+                await coach.recordMastery({
+                    step: module.steps[2],
+                    evidence: { eventKey: module.steps[2].masteryPredicate.eventKey }
+                });
+                advance(3, module.steps[2].correctFeedback);
+            } catch (error) {
+                setRetry(error.message);
+            }
+        }));
     };
 
     const renderPractice = (container) => {
@@ -298,10 +353,18 @@ export function mountScribeTrainingCoach({
             event.preventDefault();
             const answer = form.querySelector('[name="scribeTrainingRetrieval"]:checked')?.value || '';
             if (answer !== 'forward-to-facilitator') {
+                void coach.recordMastery({
+                    step: module.steps[5],
+                    evidence: { optionId: answer },
+                    passed: false
+                }).catch(() => {});
                 setRetry(module.steps[5].retryFeedback);
                 return;
             }
-            advance(6, module.steps[5].correctFeedback);
+            void coach.recordMastery({
+                step: module.steps[5],
+                evidence: { optionId: answer }
+            }).then(() => advance(6, module.steps[5].correctFeedback)).catch((error) => setRetry(error.message));
         });
         container.appendChild(form);
     };
@@ -309,29 +372,34 @@ export function mountScribeTrainingCoach({
     const renderReflect = (container) => {
         appendText(documentRef, container, 'p', '', 'Confirm the lifecycle badge and timeline handoff, then remember where RFI history, White Cell updates, the journal, and Quick Capture live.');
         renderStateBadge(container, 'completed');
-        container.appendChild(makeButton(documentRef, 'Complete Scribe practice', () => {
-            state.completed = true;
-            feedback.textContent = 'Scribe learning path completed in this training attempt.';
-            render();
+        container.appendChild(makeButton(documentRef, 'Complete Scribe practice', async () => {
+            try {
+                await coach.recordMastery({
+                    step: module.steps[6],
+                    evidence: { eventKey: module.steps[6].masteryPredicate.eventKey }
+                });
+                await runtimeRef.completeAttempt();
+                state.completed = true;
+                feedback.textContent = 'Scribe learning path completed in this training attempt.';
+                render();
+            } catch (error) {
+                setRetry(error.message);
+            }
         }));
     };
 
     function render() {
         lesson.replaceChildren();
         const step = module.steps[state.stepIndex];
-        progress.setAttribute('aria-valuenow', String(state.stepIndex + 1));
-        progress.setAttribute('aria-label', `Scribe training: step ${state.stepIndex + 1} of ${module.steps.length}`);
-        progress.textContent = `Step ${state.stepIndex + 1} of ${module.steps.length}`;
+        coach.refreshSnapshot();
+        coach.renderStep(state.stepIndex);
         void audio.setClip(step.id, {
             nextClipId: module.steps[state.stepIndex + 1]?.id || null,
             autoplay: false
         });
 
         if (state.completed) {
-            lesson.dataset.trainingState = 'completed';
-            appendText(documentRef, lesson, 'h3', '', 'Scribe practice complete');
-            appendText(documentRef, lesson, 'p', '', `${descriptor.label} was revised and handed to the simulated Facilitator. No live action, RFI, communication, or review record was created.`);
-            renderStateBadge(lesson, 'completed');
+            void coach.renderCompletion(lesson);
             return;
         }
 

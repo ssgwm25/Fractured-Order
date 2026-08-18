@@ -8,6 +8,7 @@ import {
     FACILITATOR_COMMANDS,
     SCRIBE_COMMANDS,
     TRAINING_RECOVERY_MESSAGE,
+    buildTrainingTelemetryPayload,
     getFacilitatorTrainingCommand,
     getScribeTrainingCommand,
     hydrateTrainingFixtures,
@@ -25,6 +26,9 @@ function serverBootstrap(overrides = {}) {
         team: 'blue',
         status: 'in_progress',
         current_step_id: null,
+        attempt_revision: 0,
+        completed_step_ids: [],
+        mastered_step_ids: [],
         resumed: false,
         session_classification: 'training_template',
         is_protected: true,
@@ -49,6 +53,30 @@ function createSessionStoreDouble() {
 describe('isolated training runtime', () => {
     afterEach(() => {
         sessionStore.clear();
+    });
+
+    it('bounds lifecycle telemetry and drops learner content fields', () => {
+        expect(buildTrainingTelemetryPayload('step_mastery', {
+            semanticRole: 'scribe',
+            team: 'blue'
+        }, {
+            stepId: 'training.v1.scribe.blue.retrieve',
+            resultCode: 'passed',
+            revision: 4,
+            answer: 'free text learner answer',
+            narration: 'full narration body',
+            artifactBody: { secret: true }
+        })).toEqual({
+            event: 'step_mastery',
+            semantic_role: 'scribe',
+            team: 'blue',
+            step_id: 'training.v1.scribe.blue.retrieve',
+            result_code: 'passed',
+            reason_code: null,
+            request_id: null,
+            revision: 4
+        });
+        expect(buildTrainingTelemetryPayload('unbounded-custom-event', {}, {})).toBeNull();
     });
 
     it('starts from protected bootstrap metadata without seat, sync, or live persistence calls', async () => {
@@ -139,6 +167,131 @@ describe('isolated training runtime', () => {
         await expect(trainingRuntime.revalidate({ databaseRef, sessionStoreRef }))
             .rejects.toMatchObject({ code: 'TRAINING_WRITE_BLOCKED' });
         expect(sessionStoreRef.clearTrainingContext).toHaveBeenCalled();
+    });
+
+    it('explains an incompatible curriculum version instead of silently discarding progress', async () => {
+        const sessionStoreRef = createSessionStoreDouble();
+        sessionStoreRef.setTrainingContext({
+            attemptId: 'attempt-blue-scribe-legacy',
+            curriculumVersion: '0.9',
+            semanticRole: 'scribe',
+            team: 'blue',
+            trainingMode: true
+        });
+        const databaseRef = {
+            getTrainingAttemptBootstrap: vi.fn().mockResolvedValue(serverBootstrap({
+                attempt_id: 'attempt-blue-scribe-legacy',
+                curriculum_version: '0.9'
+            }))
+        };
+
+        await expect(trainingRuntime.revalidate({ databaseRef, sessionStoreRef }))
+            .rejects.toMatchObject({
+                code: 'TRAINING_CURRICULUM_RESTART_REQUIRED',
+                message: expect.stringContaining('restart')
+            });
+        expect(sessionStoreRef.clearTrainingContext).toHaveBeenCalled();
+    });
+
+    it('records retrieval mastery only after the expected bounded choice', async () => {
+        const sessionStoreRef = createSessionStoreDouble();
+        sessionStoreRef.setTrainingContext({
+            attemptId: 'attempt-blue-scribe-mastery',
+            curriculumVersion: '1.0',
+            semanticRole: 'scribe',
+            team: 'blue',
+            trainingMode: true
+        });
+        const databaseRef = { recordTrainingProgressEvent: vi.fn().mockResolvedValue({ ok: true }) };
+        const module = (await import('./content/curriculum.js')).getTrainingModule('scribe', 'blue');
+        const step = module.steps.find((entry) => entry.stage === 'retrieve');
+
+        const failed = await trainingRuntime.recordMastery({
+            step,
+            evidence: { optionId: 'submit-to-white-cell' },
+            passed: true
+        }, { databaseRef, sessionStoreRef });
+        expect(failed.passed).toBe(false);
+        expect(trainingRuntime.getAttemptSnapshot(sessionStoreRef.getTrainingContext().attemptId).masteredStepIds)
+            .not.toContain(step.id);
+
+        const passed = await trainingRuntime.recordMastery({
+            step,
+            evidence: { optionId: 'forward-to-facilitator' },
+            passed: true
+        }, { databaseRef, sessionStoreRef });
+        expect(passed.passed).toBe(true);
+        expect(trainingRuntime.getAttemptSnapshot(sessionStoreRef.getTrainingContext().attemptId).masteredStepIds)
+            .toContain(step.id);
+        expect(databaseRef.recordTrainingProgressEvent.mock.calls.map(([call]) => call.eventType))
+            .toEqual(['mastery_failed', 'mastery_passed']);
+        expect(databaseRef.recordTrainingProgressEvent.mock.calls.flatMap(([call]) => Object.values(call)).join(' '))
+            .not.toContain('submit-to-white-cell');
+    });
+
+    it('refreshes after a revision conflict and never overwrites the newer server revision', async () => {
+        const sessionStoreRef = createSessionStoreDouble();
+        sessionStoreRef.setTrainingContext({
+            attemptId: 'attempt-blue-scribe-conflict',
+            curriculumVersion: '1.0',
+            semanticRole: 'scribe',
+            team: 'blue',
+            trainingMode: true
+        });
+        const conflict = Object.assign(new Error('newer revision'), { code: 'TRAINING_REVISION_CONFLICT' });
+        const databaseRef = {
+            recordTrainingProgressEvent: vi.fn().mockRejectedValue(conflict),
+            getTrainingAttemptBootstrap: vi.fn().mockResolvedValue(serverBootstrap({
+                attempt_id: 'attempt-blue-scribe-conflict',
+                attempt_revision: 3,
+                current_step_id: 'training.v1.scribe.blue.show',
+                mastered_step_ids: ['training.v1.scribe.blue.orient'],
+                completed_step_ids: ['training.v1.scribe.blue.orient']
+            }))
+        };
+
+        await expect(trainingRuntime.recordProgress({
+            eventType: 'mastery_passed',
+            stepId: 'training.v1.scribe.blue.show',
+            resultCode: 'passed',
+            eventKey: 'mastery_passed.training.v1.scribe.blue.show.passed'
+        }, { databaseRef, sessionStoreRef })).rejects.toMatchObject({ code: 'TRAINING_REVISION_CONFLICT' });
+        expect(trainingRuntime.getAttemptSnapshot('attempt-blue-scribe-conflict')).toMatchObject({ revision: 3 });
+        expect(databaseRef.recordTrainingProgressEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a stale successful write response without downgrading optimistic progress', async () => {
+        const attemptId = 'attempt-blue-scribe-stale-success';
+        const stepId = 'training.v1.scribe.blue.orient';
+        const sessionStoreRef = createSessionStoreDouble();
+        sessionStoreRef.setTrainingContext({
+            attemptId,
+            curriculumVersion: '1.0',
+            semanticRole: 'scribe',
+            team: 'blue',
+            trainingMode: true
+        });
+        const databaseRef = {
+            getTrainingAttemptBootstrap: vi.fn().mockResolvedValue(serverBootstrap({ attempt_id: attemptId })),
+            recordTrainingProgressEvent: vi.fn().mockResolvedValue(serverBootstrap({
+                attempt_id: attemptId,
+                attempt_revision: 0,
+                current_step_id: stepId,
+                completed_step_ids: [stepId],
+                mastered_step_ids: [stepId]
+            }))
+        };
+
+        await expect(trainingRuntime.recordProgress({
+            eventType: 'mastery_passed',
+            stepId,
+            resultCode: 'passed',
+            eventKey: `mastery_passed.${stepId}.passed`
+        }, { databaseRef, sessionStoreRef })).rejects.toThrow('TRAINING_STALE_SERVER_REVISION');
+        expect(trainingRuntime.getAttemptSnapshot(attemptId)).toMatchObject({
+            revision: 1,
+            masteredStepIds: [stepId]
+        });
     });
 
     it('rejects handcrafted operator, SME, Observer, and White Cell routes', async () => {
@@ -265,12 +418,13 @@ describe('isolated training runtime', () => {
             });
             expect(completed).toMatchObject({ artifactState: 'completed', revision: 2 });
             expect(databaseRef.recordTrainingProgressEvent).toHaveBeenCalledTimes(4);
-            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith({
+            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith(expect.objectContaining({
                 attemptId: `attempt-${team}-scribe-command`,
-                eventType: 'step_completed',
+                eventType: 'mastery_passed',
                 stepId: `training.v1.scribe.${team}.respond`,
-                resultCode: 'completed'
-            });
+                resultCode: 'passed',
+                expectedRevision: 3
+            }));
             expect(databaseRef.createCommunication).not.toHaveBeenCalled();
             expect(databaseRef.createRequest).not.toHaveBeenCalled();
             expect(databaseRef.submitAction).not.toHaveBeenCalled();
@@ -403,7 +557,8 @@ describe('isolated training runtime', () => {
             }
 
             const submitted = await execute(FACILITATOR_COMMANDS.ARTIFACT_SUBMITTED, {
-                artifactId: fixtureBundle.artifact.id
+                artifactId: fixtureBundle.artifact.id,
+                answer: 'facilitator'
             });
             expect(submitted).toMatchObject({
                 artifactState: 'submitted_to_white_cell',
@@ -420,12 +575,16 @@ describe('isolated training runtime', () => {
                 type: 'ACTION_SUBMITTED',
                 metadata: { artifact_id: fixtureBundle.artifact.id, source: 'training_fixture' }
             });
-            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith({
+            expect(databaseRef.recordTrainingProgressEvent).toHaveBeenLastCalledWith(expect.objectContaining({
                 attemptId: `attempt-${team}-facilitator-command`,
-                eventType: 'step_completed',
+                eventType: 'mastery_passed',
                 stepId: `training.v1.facilitator.${team}.reflect`,
-                resultCode: 'completed'
-            });
+                resultCode: 'passed'
+            }));
+            expect(databaseRef.recordTrainingProgressEvent.mock.calls.filter(([call]) => (
+                call.eventType === 'mastery_passed'
+                && call.stepId === `training.v1.facilitator.${team}.respond`
+            ))).toHaveLength(1);
             expect(databaseRef.createCommunication).not.toHaveBeenCalled();
             expect(databaseRef.createRequest).not.toHaveBeenCalled();
             expect(databaseRef.submitAction).not.toHaveBeenCalled();

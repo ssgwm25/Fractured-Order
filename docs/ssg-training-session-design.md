@@ -115,8 +115,8 @@ state rather than presented as one oversized step.
 | 2. Welcome video | 2:28 source duration | User-initiated, skippable overview of Fractured Order, Plenum, the participant and control-cell roles, session phases, and the structured exercise record. Full-source playback is the product-owner decision. Synchronized open captions are burned into the video; a separate WebVTT track and complete adjacent transcript provide accessible text alternatives. |
 | 3. Profile selection | 30–60 seconds | Choose one of four teams and one of three semantic roles. Only the 12 locked profiles can continue. |
 | 4. Profile-aware walkthrough | 8–14 minutes | Open a training-only facsimile of the selected surface, demonstrate the live tracker, and complete the role-specific tasks below with team-specific fixtures. |
-| 5. Mastery check | 3–5 minutes | Complete five questions or decisions, including the two critical boundary items. Incorrect answers receive corrective feedback and can be retried. |
-| 6. Completion | Under 60 seconds | Show the anonymous completion receipt, remaining limitations, replay, and role-switch controls. |
+| 5. Mastery checks | Integrated with walkthrough | Satisfy the declared predicate on all seven ordered steps. Incorrect retrieval choices receive corrective feedback and can be retried immediately. |
+| 6. Completion | Under 60 seconds | Show the anonymous practice summary, remaining limitations, reset/replay, and role-switch controls. |
 
 ### Refresh, reset, replay, and switching
 
@@ -124,11 +124,12 @@ state rather than presented as one oversized step.
   as a resume hint, then revalidates ownership and protected-template metadata
   through the training bootstrap RPC. It must not create a new live participant
   or artifact.
-- **Reset** clears only the exact current attempt namespace, reloads pristine
-  fixtures, returns to that profile's first instructional step, and leaves
-  unrelated tabs and attempts untouched.
-- **Replay** starts a new attempt for the same semantic profile. Prior fixture
-  mutations cannot enter the replay.
+- **Reset** compare-and-swaps the exact learner-owned attempt, retires it as
+  reset, creates a pristine same-profile attempt, reloads immutable fixtures,
+  and leaves every unrelated team/role attempt untouched.
+- **Replay intro** reopens the instructional media without changing mastery.
+  Reset is the explicit way to start that semantic profile again; prior
+  in-memory fixture mutations cannot enter its replacement attempt.
 - **Try another role** returns to the 12-profile picker and creates a new attempt
   after selection. Progress and mastery never carry across roles or teams.
 - A completed receipt may be displayed or downloaded by the learner, but it is
@@ -246,32 +247,28 @@ answers why the team reasoned as it did.
 
 ### Mastery and completion rule
 
-The mastery check contains five items tailored to the selected profile. A pass
-requires at least **4 of 5 correct** and both critical items correct:
+Curriculum version `1.0` uses the declared predicate on each of its seven
+ordered steps. A step becomes mastered only after the training runtime observes
+the exact acknowledgement, fixture view, guided event, closed training command,
+or correct retrieval choice declared for that step and persists a bounded
+`mastery_passed` event. Next alone never creates mastery. Incorrect retrieval
+choices persist only `mastery_failed`, step ID, and result code; the answer body
+is not stored, and the learner can retry immediately after corrective feedback.
 
-1. the role-ownership/handoff question for the selected semantic role; and
-2. the training-boundary question stating that simulated White Cell output is
-   a fixture, not a deterministic adjudication record or live result.
+Completion requires all seven step IDs to have a `mastery_passed` event. It is
+summarized in plain language without a numeric/formal score, rank, competitive
+comparison, certification claim, or live-session evidence claim. The summary
+names practiced capabilities, the Scribe–Facilitator handoff, the role's first
+live-session action, and how to reopen training. It contains no access code,
+participant credential, live artifact ID, adjudication claim, learner answer,
+narration text, transcript, or dummy artifact body.
 
-Notetaker additionally treats `notetaker.storage_scope` as critical; an
-incorrect answer must be corrected before completion. Learners may retry
-incorrect items after feedback. Merely viewing every walkthrough step does not
-complete a path.
-
-An anonymous completion receipt contains only:
-
-- contract ID and version;
-- random training attempt ID;
-- semantic profile ID, team, and role;
-- required step and task result IDs;
-- mastery score and critical-item pass flags;
-- elapsed seconds and completion timestamp;
-- `identity_verified: false`;
-- `live_persisted: false`; and
-- storage scope (`sessionStorage` or an explicit user download).
-
-The receipt must not contain the entered access code, a live session ID,
-participant credentials, live artifact IDs, or a claim about adjudication.
+Progress bootstrap data is a bounded list of completed/mastered step IDs plus
+an attempt revision. Idempotent event keys suppress duplicate writes, and every
+mutation compares the caller's expected revision under the owner-row lock. A
+stale client refetches and preserves the newer server revision; it never
+overwrites it. Reset atomically retires only the selected caller-owned attempt
+and creates a pristine same-profile attempt while retaining bounded history.
 
 ## Acceptance checklist
 
@@ -347,8 +344,9 @@ participant credentials, live artifact IDs, or a claim about adjudication.
 ## Data-isolation threat model
 
 The implementation must use a training-only adapter backed by immutable fixture
-definitions plus per-attempt in-memory/`sessionStorage` state. The adapter may
-call only the owner-scoped training bootstrap/progress RPCs. Calling a live
+definitions, per-attempt in-memory fixture state, a revalidated `sessionStorage`
+activation hint, and learner-owned bounded progress rows. The adapter may call
+only the owner-scoped training bootstrap/progress/reset RPCs. Calling a live
 database method, realtime, action, RFI, communication, participant, or plugin
 adapter from the training runtime is a release blocker.
 Training must not import or mount the White Cell plugin registry.
@@ -356,14 +354,14 @@ Training must not import or mount the White Cell plugin registry.
 | Threat | Failure to prevent | Required control and acceptance evidence |
 | --- | --- | --- |
 | Shared access code | Treating knowledge of `TRAINING2026` as authentication or attaching completion to a named person. | State “code-restricted, not identity-verified” at entry and completion; collect no identity; never exchange the code for a live grant. |
-| Simultaneous learners | Two learners overwrite, read, or complete one another's fixtures. | Generate a high-entropy attempt ID in each tab; namespace every mutable value by attempt and semantic profile; prove two concurrent attempts diverge without shared mutation. |
+| Simultaneous learners | Two learners overwrite, read, or complete one another's fixtures. | The server creates high-entropy owner/profile attempt IDs. Row-level ownership prevents cross-learner reads, while compare-and-swap revisions reconcile tabs belonging to the same learner without overwriting newer progress. |
 | Refresh | Refresh creates a second attempt, loses required state unpredictably, or hydrates from live data. | Treat the current namespaced `sessionStorage` attempt ID as a hint; revalidate it against `auth.uid()` and protected server metadata before rendering; verify no live mutation or identifier appears. |
-| Reset or replay | Broad storage deletion removes another attempt, or stale fixture mutations carry forward. | Delete only the exact attempt namespace; rebuild from immutable fixtures; assign replay a new attempt ID. Never use `localStorage.clear()` or wildcard deletion. |
+| Reset or replay | Broad storage deletion removes another attempt, or stale fixture mutations carry forward. | Confirm reset, compare-and-swap the selected owner attempt, retain it as reset, create a new attempt ID, and rebuild from immutable fixtures. Never use `localStorage.clear()`, wildcard deletion, or a bulk attempt update. |
 | Attempted URL manipulation | Query/path values expose Game Master, White Cell, SME, Observer, or another live route. | Allowlist the 12 semantic profiles after parsing; reject operator/SME/compatibility values; return to the training picker without rendering or importing a live controller. |
-| Accidental live persistence | A practice action, RFI, communication, note, or completion receipt reaches Supabase, Realtime, a live store, an RPC, or export evidence. | Training adapter exposes no live write method; tests fail on `fetch`, Supabase/RPC, database, realtime, or live-store calls; Content Security Policy/network instrumentation may add defense in depth. |
+| Accidental live persistence | Learner-entered practice content or a completion summary reaches a live table, Realtime, a live store, or export evidence. | The training adapter exposes only bounded attempt-progress RPCs; tests reject live write methods and keep training attempts outside live evidence and exports. Content Security Policy/network instrumentation may add defense in depth. |
 | Plugin crossover | Intercom or Session Recorder mounts, requests microphone permission, or records a learner. | Do not import or mount the White Cell plugin registry. Training narration/media is a separate local instructional capability and never records. |
-| Fixture misrepresentation | A learner mistakes canned White Cell text or a completion state for a live/deterministic result. | Prefix fixture messages and reviews with `TRAINING FIXTURE`; use outcome-free completion language; repeat the non-adjudication boundary in the mastery check and receipt. |
-| Shared-device residue | A later learner sees the prior learner's profile, answers, or completion. | Keep mutable attempts in `sessionStorage`, provide a precise reset, avoid names and credentials, and clear the current attempt when the tab/session is intentionally ended. |
+| Fixture misrepresentation | A learner mistakes canned White Cell text or a completion state for a live/deterministic result. | Prefix fixture messages and reviews with `TRAINING FIXTURE`; use outcome-free completion language; repeat the non-adjudication boundary in mastery feedback and the completion summary. |
+| Shared-device residue | A later learner sees the prior learner's profile or completion. | Persist no learner answer bodies, provide an exact owner/profile reset, avoid names and credentials, and clear the activation hint when the tab/session is intentionally ended. |
 
 ## Material mismatch register
 
@@ -385,8 +383,8 @@ adopted merely because it exists in a prototype.
 | The plan calls Notetaker a global dashboard and says it can view all submitted/accepted moves. | Current Notetaker is team- and seat-scoped for notes, with shared appended captures plus inbox and read-only action/timeline review. | Teach seat isolation, shared append semantics, and team-scoped review; never promise global access. |
 | The interactive Facilitator path covers only deck, one submit, communications, and timeline. | Current Facilitator has four restorable workspaces, RFI revision lifecycle, proposal threads, durable alerts, projection, and finalization. | All current Facilitator capability groups receive practice and measurable evidence. |
 | Prototype White Cell messages immediately acknowledge, accept, return, or “rule” on learner input. | Such canned text is not a live or deterministic decision. | Every response is a labelled instructional fixture; current completion is outcome-free. |
-| The interactive prototype completes after navigating gated steps. | It has no independent mastery decision or evidence boundary. | Completion requires task evidence, 4/5 mastery, and all critical items. |
-| The interactive prototype keeps state only in a page object; current follow-along stores guide state in legacy-keyed `localStorage`. | Neither provides isolated attempt, refresh, reset, replay, or anonymous completion semantics. | Use semantic-profile, attempt-scoped `sessionStorage`; never reuse live follow-along storage keys. |
+| The interactive prototype completes after navigating gated steps. | It has no independent mastery decision or evidence boundary. | Completion requires all seven declared step predicates; Next alone never creates mastery. |
+| The interactive prototype keeps state only in a page object; current follow-along stores guide state in legacy-keyed `localStorage`. | Neither provides isolated attempt, refresh, reset, replay, or anonymous completion semantics. | Persist mastery in the learner-owned backend attempt; keep only its revalidated activation hint in `sessionStorage`, and never reuse live follow-along storage keys. |
 | The current Scribe onboarding copy in `src/roles/facilitator.js` says the Scribe can ask White Cell and contains Red/proposal wording that can imply direct White Cell submission. | Executable capability ownership makes Scribe RFI history read-only and requires Facilitator final submission. | Training copy follows the executable ownership boundary; the existing onboarding copy is documented drift, not curriculum authority. |
 | The current Notetaker onboarding highlights capture, dynamics, and inbox but omits its full read-only action/timeline review capability. | A learner could complete the tour without seeing the complete role boundary. | Training includes action and timeline review evidence. |
 | The interactive mobile CSS hides the navigation rail without an equivalent replacement. | Role panels become unreachable on narrow screens. | Mobile navigation equivalence is a blocking acceptance item. |
@@ -632,9 +630,9 @@ Repository documentation tests must fail if this contract loses:
 
 The runtime spine, Blue Scribe smoke slice, version `1.0` declarative
 curriculum/fixture catalog, accessible video-first introduction, fail-closed
-narration controller/generation workflow, and all four Scribe, Facilitator, and
-Notetaker walkthrough mounts are implemented. Mastery persistence, completion
-receipts, attempt replay, profile switching after completion, and full
-server-backed reset behavior remain deferred. The local practice-state reset
-boundary is attempt-scoped and does not claim to reset server progress. This
-document does not claim that any learner has completed the curriculum.
+narration controller/generation workflow, all four Scribe, Facilitator, and
+Notetaker walkthrough mounts, revision-safe mastery persistence, resumable
+progress, completion summaries, confirmed profile switching, and server-backed
+attempt-scoped reset are implemented. Completion remains anonymous isolated
+practice and never enters live evidence or research exports. This document
+does not claim that any learner has completed the curriculum.

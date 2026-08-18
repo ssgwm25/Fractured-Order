@@ -91,6 +91,7 @@ Apply the authoritative ledger in this exact order:
 40. `data/2026-08-15_proposal_forwarding_integrity.sql`
 41. `data/2026-08-17_game_master_session_retirement.sql`
 42. `data/2026-08-18_ssg_training_session.sql`
+43. `data/2026-08-18_training_mastery_progress.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
@@ -119,14 +120,16 @@ is reapplied during repair, reapply
 `data/2026-08-14_action_notification_title_snapshot.sql`, then apply
 `data/2026-08-15_proposal_forwarding_integrity.sql`, then apply
 `data/2026-08-17_game_master_session_retirement.sql`, then apply
-`data/2026-08-18_ssg_training_session.sql`. Verify RPCs,
+`data/2026-08-18_ssg_training_session.sql`, then apply
+`data/2026-08-18_training_mastery_progress.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
 ## Protected SSG Training Session
 
 Apply `data/2026-08-18_ssg_training_session.sql` after the Game Master session
-retirement migration. It adds the constrained `live_exercise` and
+retirement migration, followed by
+`data/2026-08-18_training_mastery_progress.sql`. The pair adds the constrained `live_exercise` and
 `training_template` classifications plus the `is_protected` database flag,
 then idempotently creates or repairs the single active `TRAINING2026` template
 at its reserved UUID. A pre-existing different session using that code blocks
@@ -157,7 +160,17 @@ evidence. Those two training tables are deliberately absent from research
 export queries and session evidence manifests. Progress rows contain only an
 allowlisted event type, bounded step identifier, bounded result code, profile,
 attempt ownership, and server timestamp—never full answers, narration,
-transcripts, or dummy artifact bodies.
+transcripts, or dummy artifact bodies. Every mutation compares an expected
+attempt revision while holding the owner row lock. A stale revision fails
+without changing progress; the browser refetches the owner bootstrap and never
+overwrites the newer revision.
+
+`reset_training_attempt` requires the selected attempt ID, `auth.uid()` owner,
+and expected revision. It retires that one attempt as `reset` and creates a
+pristine attempt for the same semantic profile in one transaction. It never
+deletes history or touches another role, team, owner, or tab. Completion is
+guarded by all seven versioned curriculum-step mastery events and remains
+training-only; it is absent from live evidence and research exports.
 
 Verify the contract after applying the migration:
 
@@ -192,7 +205,8 @@ where n.nspname = 'public'
   and p.proname in (
     'start_or_resume_training_attempt',
     'get_training_attempt_bootstrap',
-    'record_training_progress_event'
+    'record_training_progress_event',
+    'reset_training_attempt'
   )
 order by function_signature;
 
@@ -208,12 +222,30 @@ where session_id = '00000000-0000-4000-8000-000000002026'::uuid;
 Pass: the reserved template appears exactly once as active,
 `training_template`, and protected; all four trigger names are represented;
 both training tables expose owner-only SELECT policies and no authenticated
-INSERT, UPDATE, or DELETE policy; all three exact RPC signatures are executable by
+INSERT, UPDATE, or DELETE policy; all four exact RPC signatures are executable by
 `authenticated`; and `forbidden_live_rows` is zero. Rehearse two anonymous
 identities with the exact uppercase code: each receives a different attempt,
 each reads only its own rows, an invalid or differently cased code returns the
 same generic access error, and using the other learner's attempt UUID cannot
 read or mutate it.
+
+Operationally, `TRAINING_REVISION_CONFLICT` means another tab or request has a
+newer owner revision: refresh the attempt bootstrap and preserve the newer
+server state. A reset failure leaves the selected attempt unchanged; do not
+manually update status or revision. Repeated media-degraded or mastery writes
+with the same event key are successful idempotent reads, not duplicate events.
+
+Browser logs use the single `training_event` message with a bounded
+`request_id`, event, semantic role, team, step ID, result code, reason code,
+and non-negative revision. The only event names are `start`,
+`media_degradation`, `step_mastery`, `reset`, `completion`, `failure`, and
+`role_switch`; unknown names are dropped. Investigate `revision_conflict`,
+`progress_reconcile_failed`, `progress_write_failed`, `curriculum_mismatch`, `activation_failed`,
+`reset_failed`, and `resume_rebuild_failed` by correlating the request ID with
+the owner-scoped attempt revision. Never add answer text, narration,
+transcripts, or fixture bodies to these records. Counts of the bounded
+`training_progress_events.event_type` values are the authoritative operational
+event totals; those rows remain outside live evidence and research exports.
 
 ## Session Archival And Game Master Deletion
 
@@ -677,7 +709,8 @@ and p.proname in (
   'live_demo_software_build_hash',
   'start_or_resume_training_attempt',
   'get_training_attempt_bootstrap',
-  'record_training_progress_event'
+  'record_training_progress_event',
+  'reset_training_attempt'
 )
 order by p.proname, function_signature;
 ```
