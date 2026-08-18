@@ -1,19 +1,9 @@
 import { confirm as confirmModal } from '../../components/ui/Modal.js';
 import {
-    mountTrainingProgress,
+    getTrainingStageLabel,
     normalizeTrainingAttemptSnapshot,
     resolveTrainingResumeIndex
 } from './TrainingProgress.js';
-
-const ACTION_REQUIREMENTS = Object.freeze({
-    read: 'Acknowledge the role boundary after reading it.',
-    observe: 'Open and inspect the named training fixture.',
-    guided_action: 'Complete the guided action in the training sandbox.',
-    practice_action: 'Complete the practice action and its required handoff.',
-    simulated_response: 'Respond to the labelled instructional fixture.',
-    retrieval_check: 'Choose an answer and submit it for feedback.',
-    reflection: 'Verify the visible lifecycle evidence before completing.'
-});
 
 const COMPLETION_SUMMARIES = Object.freeze({
     scribe: Object.freeze({
@@ -37,10 +27,6 @@ function createElement(documentRef, tagName, className = '', text = '') {
     return element;
 }
 
-export function getTrainingActionRequirement(step) {
-    return ACTION_REQUIREMENTS[step?.interactionType] || 'Complete the required training action.';
-}
-
 export function getTrainingCompletionSummary(semanticRole) {
     const role = COMPLETION_SUMMARIES[semanticRole];
     if (!role) return null;
@@ -58,7 +44,6 @@ export class TrainingCoach {
         module,
         context,
         runtimeRef,
-        progressHost,
         lessonHost,
         feedbackHost,
         documentRef = root?.ownerDocument || (typeof document !== 'undefined' ? document : null),
@@ -82,19 +67,35 @@ export class TrainingCoach {
             runtimeRef?.getAttemptSnapshot?.(context?.attemptId) || activationSnapshot(context)
         );
         this.currentStepIndex = resolveTrainingResumeIndex(module, this.snapshot);
+        this.lastRenderedStepIndex = null;
+        this.activeTarget = null;
+
+        const header = root.querySelector?.('.training-coach__header');
+        this.headerActions = createElement(documentRef, 'div', 'training-coach__header-actions');
+        this.collapseButton = createElement(
+            documentRef,
+            'button',
+            'btn btn-secondary btn-sm training-coach__toggle',
+            'Hide guide'
+        );
+        this.collapseButton.type = 'button';
+        this.collapseButton.setAttribute('aria-expanded', 'true');
+        this.headerActions.appendChild(this.collapseButton);
+        header?.appendChild(this.headerActions);
 
         this.meta = createElement(documentRef, 'section', 'training-coach__instruction');
         this.meta.setAttribute('aria-label', 'Current training instruction');
-        this.objective = createElement(documentRef, 'p', 'training-coach__objective');
+        this.stepLabel = createElement(documentRef, 'p', 'training-coach__active-label');
+        this.objective = createElement(documentRef, 'h3', 'training-coach__objective');
+        this.objective.tabIndex = -1;
         this.explanation = createElement(documentRef, 'p', 'training-coach__explanation');
-        this.requirement = createElement(documentRef, 'p', 'training-coach__requirement');
         this.hint = createElement(documentRef, 'details', 'training-coach__hint');
         this.hintText = createElement(documentRef, 'p');
         this.hint.append(
             createElement(documentRef, 'summary', '', 'Show hint'),
             this.hintText
         );
-        this.meta.append(this.objective, this.explanation, this.requirement, this.hint);
+        this.meta.append(this.stepLabel, this.objective, this.explanation, this.hint);
         root.insertBefore(this.meta, lessonHost);
 
         this.navigation = createElement(documentRef, 'nav', 'training-coach__navigation');
@@ -114,15 +115,24 @@ export class TrainingCoach {
         this.liveRegion.setAttribute('aria-atomic', 'true');
         root.appendChild(this.liveRegion);
 
-        this.progress = mountTrainingProgress({
-            container: progressHost,
-            module,
-            snapshot: this.snapshot,
-            currentStepIndex: this.currentStepIndex,
-            documentRef
-        });
+        this.body = createElement(documentRef, 'div', 'training-coach__body');
+        this.body.id = `${root.id}-body`;
+        this.collapseButton.setAttribute('aria-controls', this.body.id);
+        this.stage = createElement(documentRef, 'section', 'training-coach__active-stage');
+        this.stage.setAttribute('aria-label', 'Active learning step');
+
+        const audioHost = [...root.children].find((element) => element.classList?.contains('training-coach__audio'));
+        if (audioHost) this.headerActions.prepend(audioHost);
+        this.stage.append(this.meta, lessonHost, feedbackHost, this.navigation);
+        this.body.appendChild(this.stage);
+        root.insertBefore(this.body, this.liveRegion);
         this.backButton.addEventListener('click', () => this.goBack());
         this.nextButton.addEventListener('click', () => this.goNext());
+        this.collapseButton.addEventListener('click', () => {
+            this.setCollapsed(this.root.dataset.collapsed !== 'true');
+        });
+        this.handleViewportChange = () => this.positionDockForTarget(this.activeTarget);
+        documentRef.defaultView?.addEventListener?.('resize', this.handleViewportChange);
     }
 
     getResumeIndex() {
@@ -136,21 +146,118 @@ export class TrainingCoach {
     refreshSnapshot() {
         const next = this.runtime?.getAttemptSnapshot?.(this.context.attemptId);
         if (next) this.snapshot = normalizeTrainingAttemptSnapshot(next);
-        this.progress?.render(this.snapshot, this.currentStepIndex);
         return this.snapshot;
     }
 
     renderStep(index) {
+        const previousStepIndex = this.lastRenderedStepIndex;
         this.currentStepIndex = Math.min(Math.max(index, 0), this.module.steps.length - 1);
         const step = this.module.steps[this.currentStepIndex];
-        this.objective.textContent = `Objective: ${step.learningObjective}`;
+        this.stepLabel.textContent = `Step ${this.currentStepIndex + 1} of ${this.module.steps.length}`;
+        this.objective.textContent = getTrainingStageLabel(step.stage);
         this.explanation.textContent = step.coachCopy;
-        this.requirement.textContent = `Action required: ${getTrainingActionRequirement(step)}`;
         this.hintText.textContent = step.hint || '';
         this.hint.hidden = !step.hint;
+        this.hint.open = false;
         this.backButton.disabled = this.currentStepIndex === 0;
         this.nextButton.disabled = !this.isMastered(step.id) || this.currentStepIndex === this.module.steps.length - 1;
-        this.progress?.render(this.snapshot, this.currentStepIndex);
+        this.root.dataset.stepDirection = previousStepIndex !== null && this.currentStepIndex < previousStepIndex
+            ? 'back'
+            : 'forward';
+        const stepChanged = previousStepIndex !== null && previousStepIndex !== this.currentStepIndex;
+        this.updateTargetSpotlight(step, { shouldScroll: previousStepIndex === null || stepChanged });
+
+        if (stepChanged) {
+            this.presentCurrentStep();
+        }
+        this.lastRenderedStepIndex = this.currentStepIndex;
+    }
+
+    presentCurrentStep() {
+        this.setCollapsed(false, { focus: false });
+        this.stage.classList.remove('training-coach__active-stage--entering');
+        void this.stage.offsetWidth;
+        this.stage.classList.add('training-coach__active-stage--entering');
+
+        const windowRef = this.document?.defaultView;
+        const reducedMotion = windowRef?.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+        const present = () => {
+            this.objective.focus({ preventScroll: true });
+            this.activeTarget?.scrollIntoView?.({
+                behavior: reducedMotion ? 'auto' : 'smooth',
+                block: windowRef?.innerWidth < 768 ? 'start' : 'center',
+                inline: 'nearest'
+            });
+        };
+        if (windowRef?.requestAnimationFrame) {
+            windowRef.requestAnimationFrame(present);
+            return;
+        }
+        present();
+    }
+
+    setCollapsed(collapsed, { focus = true } = {}) {
+        const isCollapsed = collapsed === true;
+        this.root.dataset.collapsed = String(isCollapsed);
+        this.body.hidden = isCollapsed;
+        this.collapseButton.setAttribute('aria-expanded', String(!isCollapsed));
+        this.collapseButton.textContent = isCollapsed
+            ? `Show guide · Step ${this.currentStepIndex + 1} of ${this.module.steps.length}`
+            : 'Hide guide';
+        if (focus) this.collapseButton.focus();
+    }
+
+    updateTargetSpotlight(step, { shouldScroll = false } = {}) {
+        let target = null;
+        try {
+            target = this.document?.querySelector?.(step?.targetSelector) || null;
+        } catch (_error) {
+            target = null;
+        }
+        if (!target || target === this.root || this.root.contains(target)) {
+            this.clearTargetSpotlight();
+            this.root.dataset.dockSide = 'right';
+            return;
+        }
+
+        if (target !== this.activeTarget) {
+            this.clearTargetSpotlight();
+            this.activeTarget = target;
+            target.classList.add('training-walkthrough-target');
+        }
+        this.positionDockForTarget(target);
+        if (!shouldScroll) return;
+
+        const windowRef = this.document?.defaultView;
+        const reducedMotion = windowRef?.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+        target.scrollIntoView?.({
+            behavior: reducedMotion ? 'auto' : 'smooth',
+            block: windowRef?.innerWidth < 768 ? 'start' : 'center',
+            inline: 'nearest'
+        });
+    }
+
+    positionDockForTarget(target) {
+        const windowRef = this.document?.defaultView;
+        if (!target || !windowRef || windowRef.innerWidth < 768) {
+            this.root.dataset.dockSide = 'right';
+            return;
+        }
+        const bounds = target.getBoundingClientRect?.();
+        if (!bounds) return;
+        this.root.dataset.dockSide = bounds.left + (bounds.width / 2) > windowRef.innerWidth / 2
+            ? 'left'
+            : 'right';
+    }
+
+    clearTargetSpotlight() {
+        this.activeTarget?.classList?.remove('training-walkthrough-target');
+        this.activeTarget = null;
+    }
+
+    destroy() {
+        this.clearTargetSpotlight();
+        this.document?.defaultView?.removeEventListener?.('resize', this.handleViewportChange);
     }
 
     async recordMastery({ step = this.module.steps[this.currentStepIndex], evidence, passed = true } = {}) {

@@ -104,18 +104,25 @@ export class TrainingAudioController {
         this.loadToken = 0;
         this.destroyed = false;
         this.controls = null;
+        this.autoplayEnabled = false;
 
         this.handleVisibilityChange = () => {
             if (this.documentRef?.visibilityState === 'hidden') this.stop('page-hidden');
         };
         this.handlePageHide = () => this.stop('page-hidden');
         this.handleExternalStop = (event) => this.stop(event?.type || 'external-stop');
+        this.handleIntroComplete = (event) => {
+            if (event?.detail?.reason !== 'confirmed') return;
+            this.autoplayEnabled = true;
+            if (!this.preferences.muted) void this.play();
+        };
         this.handleStepChange = (event) => {
             const detail = event?.detail || {};
             if (detail.clipId) {
                 void this.setClip(detail.clipId, {
                     nextClipId: detail.nextClipId || null,
-                    autoplay: detail.autoplay === true
+                    autoplay: (detail.autoplay === true || this.autoplayEnabled)
+                        && !this.preferences.muted
                 });
             } else {
                 this.stop('step-change');
@@ -123,6 +130,7 @@ export class TrainingAudioController {
         };
 
         this.documentRef?.addEventListener?.('visibilitychange', this.handleVisibilityChange);
+        this.documentRef?.addEventListener?.('training:intro-complete', this.handleIntroComplete);
         this.documentRef?.addEventListener?.('training:step-change', this.handleStepChange);
         this.documentRef?.addEventListener?.('training:modal-close', this.handleExternalStop);
         this.documentRef?.addEventListener?.('training:exit', this.handleExternalStop);
@@ -131,6 +139,10 @@ export class TrainingAudioController {
 
     getState() {
         return this.state;
+    }
+
+    isAutoplayEnabled() {
+        return this.autoplayEnabled && !this.preferences.muted;
     }
 
     emit(patch) {
@@ -426,24 +438,32 @@ export class TrainingAudioController {
         return this.updatePreferences({ playbackRate: Number(playbackRate) });
     }
 
-    mountControls(container, { documentRef = this.documentRef } = {}) {
+    mountControls(container, { documentRef = this.documentRef, compact = false } = {}) {
         if (!container || !documentRef?.createElement) return null;
         this.unmountControls();
         controlInstance += 1;
         const id = `training-audio-${controlInstance}`;
         const root = createElement(documentRef, 'section', 'training-audio-controls');
         root.setAttribute('aria-label', 'Guided narration controls');
+        if (compact) root.className += ' training-audio-controls--compact';
 
         const actions = createElement(documentRef, 'div', 'training-audio-actions');
-        const playButton = createElement(documentRef, 'button', 'btn btn-secondary btn-sm', 'Play narration');
+        const playButton = createElement(
+            documentRef,
+            'button',
+            'btn btn-secondary btn-sm',
+            compact ? 'Play' : 'Play narration'
+        );
         playButton.type = 'button';
+        playButton.setAttribute('aria-label', 'Play narration');
         const replayButton = createElement(documentRef, 'button', 'btn btn-secondary btn-sm', 'Replay');
         replayButton.type = 'button';
         replayButton.setAttribute('aria-label', 'Replay narration from the beginning');
         const muteButton = createElement(documentRef, 'button', 'btn btn-secondary btn-sm', 'Mute');
         muteButton.type = 'button';
         muteButton.setAttribute('aria-pressed', String(this.preferences.muted));
-        actions.append(playButton, replayButton, muteButton);
+        if (compact) actions.append(playButton, muteButton);
+        else actions.append(playButton, replayButton, muteButton);
 
         const settings = createElement(documentRef, 'div', 'training-audio-settings');
         const volumeLabel = createElement(documentRef, 'label', '', 'Narration volume');
@@ -478,7 +498,14 @@ export class TrainingAudioController {
         transcriptHeading.id = `${id}-transcript-title`;
         const transcript = createElement(documentRef, 'p', 'training-audio-transcript');
         transcript.setAttribute('aria-labelledby', transcriptHeading.id);
-        root.append(actions, settings, status, caption, transcriptHeading, transcript);
+        if (compact) {
+            transcriptHeading.className = 'sr-only';
+            transcript.className = 'sr-only';
+            caption.className += ' sr-only';
+            root.append(actions, status, caption, transcriptHeading, transcript);
+        } else {
+            root.append(actions, settings, status, caption, transcriptHeading, transcript);
+        }
         container.appendChild(root);
 
         playButton.addEventListener('click', () => {
@@ -490,15 +517,30 @@ export class TrainingAudioController {
         volume.addEventListener('input', () => this.setVolume(volume.value));
         rate.addEventListener('change', () => this.setPlaybackRate(rate.value));
 
-        this.controls = { root, playButton, replayButton, muteButton, volume, rate, status, caption, transcript };
+        this.controls = {
+            root,
+            compact,
+            playButton,
+            replayButton,
+            muteButton,
+            volume,
+            rate,
+            status,
+            caption,
+            transcript
+        };
         this.renderControls();
         return root;
     }
 
     renderControls() {
         if (!this.controls) return;
-        const { playButton, muteButton, volume, rate, status, caption, transcript } = this.controls;
-        playButton.textContent = this.state.status === 'playing' ? 'Pause narration' : 'Play narration';
+        const { compact, playButton, muteButton, volume, rate, status, caption, transcript } = this.controls;
+        const playing = this.state.status === 'playing';
+        playButton.textContent = compact
+            ? (playing ? 'Pause' : 'Play')
+            : (playing ? 'Pause narration' : 'Play narration');
+        playButton.setAttribute('aria-label', playing ? 'Pause narration' : 'Play narration');
         muteButton.textContent = this.preferences.muted ? 'Unmute' : 'Mute';
         muteButton.setAttribute('aria-pressed', String(this.preferences.muted));
         volume.value = String(this.preferences.volume);
@@ -506,6 +548,7 @@ export class TrainingAudioController {
         status.textContent = this.state.fallbackLabel || (
             this.state.status === 'playing' ? 'Narration playing.' : ''
         );
+        status.hidden = compact && !this.state.fallbackLabel;
         caption.textContent = this.state.captionText;
         caption.hidden = !this.state.captionText;
         transcript.textContent = this.state.transcript;
@@ -524,6 +567,7 @@ export class TrainingAudioController {
         this.cancelSpeech();
         this.unmountControls();
         this.documentRef?.removeEventListener?.('visibilitychange', this.handleVisibilityChange);
+        this.documentRef?.removeEventListener?.('training:intro-complete', this.handleIntroComplete);
         this.documentRef?.removeEventListener?.('training:step-change', this.handleStepChange);
         this.documentRef?.removeEventListener?.('training:modal-close', this.handleExternalStop);
         this.documentRef?.removeEventListener?.('training:exit', this.handleExternalStop);

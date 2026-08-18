@@ -209,6 +209,34 @@ describe('TrainingAudioController', () => {
         });
     });
 
+    it('starts narration from role confirmation and continues it on later steps', async () => {
+        const { controller, documentRef } = makeController();
+        await controller.setClip('first');
+        const firstAudio = FakeAudio.instances[0];
+
+        documentRef.dispatch('training:intro-complete', { reason: 'confirmed' });
+        expect(controller.isAutoplayEnabled()).toBe(true);
+        expect(firstAudio.play).toHaveBeenCalledTimes(1);
+
+        await controller.setClip('second', { autoplay: controller.isAutoplayEnabled() });
+        expect(FakeAudio.instances[1].play).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not start narration when role confirmation is dismissed or narration is muted', async () => {
+        const { controller, documentRef } = makeController();
+        await controller.setClip('first');
+        const firstAudio = FakeAudio.instances[0];
+
+        documentRef.dispatch('training:intro-complete', { reason: 'dismissed' });
+        expect(controller.isAutoplayEnabled()).toBe(false);
+        expect(firstAudio.play).not.toHaveBeenCalled();
+
+        controller.setMuted(true);
+        documentRef.dispatch('training:intro-complete', { reason: 'confirmed' });
+        expect(controller.isAutoplayEnabled()).toBe(false);
+        expect(firstAudio.play).not.toHaveBeenCalled();
+    });
+
     it('mounts native, labelled controls and keeps the spoken text visible', async () => {
         const documentRef = new FakeDocument();
         const container = new FakeElement('div');
@@ -226,6 +254,28 @@ describe('TrainingAudioController', () => {
 
         await controller.setClip('first');
         expect(controller.controls.transcript.textContent).toBe('Visible transcript for first.');
+    });
+
+    it('mounts only essential visible controls in compact coach mode', async () => {
+        const documentRef = new FakeDocument();
+        const container = new FakeElement('div');
+        const { controller } = makeController({ documentRef });
+        const root = controller.mountControls(container, { compact: true });
+
+        expect(root.className).toContain('training-audio-controls--compact');
+        expect(controller.controls.compact).toBe(true);
+        expect(controller.controls.root.children).not.toContain(controller.controls.volume);
+        expect(controller.controls.root.children).not.toContain(controller.controls.rate);
+        expect(controller.controls.root.children).not.toContain(controller.controls.replayButton);
+        expect(controller.controls.root.children[0].children).toEqual([
+            controller.controls.playButton,
+            controller.controls.muteButton
+        ]);
+        expect(controller.controls.playButton.textContent).toBe('Play');
+
+        await controller.setClip('first');
+        expect(controller.controls.transcript.textContent).toBe('Visible transcript for first.');
+        expect(controller.controls.transcript.className).toBe('sr-only');
     });
 
     it('invalidates a rejected play promise when a rapid step change replaces its clip', async () => {
@@ -301,6 +351,7 @@ describe('TrainingAudioController', () => {
         controller.destroy();
         expect(controller.getState().status).toBe('destroyed');
         expect(documentRef.listeners.get('visibilitychange').size).toBe(0);
+        expect(documentRef.listeners.get('training:intro-complete').size).toBe(0);
         expect(windowRef.listeners.get('pagehide').size).toBe(0);
     });
 });

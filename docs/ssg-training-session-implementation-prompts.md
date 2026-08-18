@@ -69,10 +69,26 @@ No step may claim success merely because the learner pressed Next. Mastery steps
 | 08 | Four team-specific Facilitator walkthroughs | Complete | `feat(training): add Facilitator learning paths` |
 | 09 | Four team-specific Notetaker walkthroughs | Complete | `feat(training): add Notetaker learning paths` |
 | 10 | Mastery, progress, reset, and completion experience | Complete | `feat(training): add mastery and resumable progress` |
-| 11 | Complete 12-profile automated training gate | Pending | `test(training): add the full participant matrix` |
-| 12 | Operator documentation and production rollout | Pending | `docs: publish the SSG training runbook` |
+| 11 | Complete 12-profile automated training gate | Superseded by Prompt 20 | — |
+| 12 | Operator documentation and production rollout | Pending after Prompt 20 | `docs: publish the SSG training runbook` |
+| 13 | Native walkthrough interaction contract | Complete | `docs(training): define the native walkthrough contract` |
+| 14 | Minimal contextual coach shell | Pending | `refactor(training): reduce the coach to contextual guidance` |
+| 15 | Native training interaction bridge | Pending | `feat(training): observe native role interactions` |
+| 16 | Six-action Scribe walkthrough | Pending | `refactor(training): teach Scribe through native actions` |
+| 17 | Six-action Facilitator walkthrough | Pending | `refactor(training): teach Facilitator through native actions` |
+| 18 | Six-action Notetaker walkthrough | Pending | `refactor(training): teach Notetaker through native actions` |
+| 19 | Action-aligned narration and copy | Pending | `refactor(training): align narration with native actions` |
+| 20 | Native walkthrough 12-profile release gate | Pending | `test(training): gate the native walkthrough matrix` |
 
 Do not mark a prompt complete in this file. The human maintainer updates status only after running its gate.
+
+### Modernization execution order
+
+Prompts 13–20 supersede the coach presentation and coach-owned activity model
+implemented by Prompts 07–10. Because Prompts 11–12 have not been completed,
+execute the remaining work in this order: **13, 14, 15, 16, 17, 18, 19, 20,
+then 12**. Prompt 20 absorbs and replaces the pending Prompt 11 gate. Do not
+run the production-rollout prompt against the superseded walkthrough.
 
 ---
 
@@ -603,6 +619,9 @@ git diff --check
 **Depends on:** Prompts 02–10  
 **Commit title:** `test(training): add the full participant matrix`
 
+> **Superseded:** Do not execute this prompt independently. Prompt 20 replaces
+> this gate with the native-interface walkthrough matrix.
+
 ### Prompt
 
 Create a deterministic Playwright and unit-test gate that exercises every supported profile, all required learning stages, media and accessibility fallbacks, isolation, and non-training regression behavior. The suite must produce current-run diagnostics and fail on skips, retries, console errors, or unexpected network writes.
@@ -643,7 +662,8 @@ git diff --check
 
 ## Prompt 12 — Publish the runbook and perform migration-first rollout
 
-**Depends on:** Prompt 11  
+**Depends on:** Prompt 20
+
 **Commit title:** `docs: publish the SSG training runbook`
 
 ### Prompt
@@ -689,6 +709,559 @@ git status --short
 
 ---
 
+## Prompt 13 — Define the native walkthrough interaction contract
+
+**Depends on:** Prompts 01–10
+
+**Commit title:** `docs(training): define the native walkthrough contract`
+
+### Prompt
+
+Replace the current hybrid coach-and-interface model with an authoritative
+native walkthrough contract. Every step must point to one real interface
+target, give one concise action, wait for one observable success event, and
+advance only after that event. This prompt changes the design and curriculum
+contract; do not refactor the role controllers yet.
+
+### Read first
+
+- `docs/ssg-training-session-design.md`
+- `src/features/training/content/schema.js`
+- `src/features/training/content/curriculum.js`
+- `src/features/training/TrainingCoach.js`
+- `src/features/training/ScribeTrainingCoach.js`
+- `src/features/training/FacilitatorTrainingCoach.js`
+- `src/features/training/NotetakerTrainingCoach.js`
+- Training mounts in `src/roles/facilitator.js`, `src/roles/scribe.js`, and
+  `src/roles/notetaker.js`
+- `tests/contracts/roleCapabilityMatrix.js`
+
+### Required changes
+
+- Update the learning-design contract so the active model is: one exact
+  target, one imperative instruction, one expected event, and one success
+  message per step.
+- Replace generic learner-facing stage names such as Orient, Show, Guide,
+  Practice, Respond, Retrieve, and Reflect with short action titles.
+- Add or validate bounded curriculum fields for the exact target selector,
+  visible instruction, expected training event, success message, optional
+  recovery hint, and optional programmatic open action.
+- Limit each step to one short action heading and at most one supporting
+  sentence. Narration may not introduce a second set of instructions.
+- Remove curriculum requirements whose only purpose is acknowledgment,
+  visiting every workspace, pressing a coach-owned proxy, or answering a quiz
+  after the interface has already proven the capability.
+- Remove the Scribe Move/Phase/Timer/Handoff context grid from the design. The
+  platform header remains the source for move, phase, and timer; the role intro
+  remains the source for the handoff boundary.
+- Require exact interactive targets. Broad section targets are permitted only
+  for read-only receipt verification when no more precise stable element
+  exists.
+- Define a new incompatible curriculum version and the existing explicit
+  restart behavior for in-progress older attempts. Do not silently relabel old
+  mastery as current mastery.
+- Update curriculum and documentation contract tests to reject missing events,
+  duplicated actions, generic stage labels, excessive visible copy, and
+  selectors that do not exist on the relevant role surface.
+
+### Human verification
+
+```powershell
+npm test -- --run src/features/training/content tests/unit/repo-docs-contract.test.js tests/unit/role-capability-matrix.test.js
+git diff --check
+```
+
+**Pass:** all 12 profiles have an action-based, versioned curriculum; every
+step names one exact target and one observable success event; the Scribe
+context grid and non-action mastery requirements are absent from the contract.
+
+### Stop conditions
+
+- Stop if an expected event cannot be tied to a successful native interaction.
+- Stop rather than using a coach button press as proof that a platform
+  capability was learned.
+- Stop if the curriculum version change would silently preserve incompatible
+  mastery.
+
+---
+
+## Prompt 14 — Reduce the coach to contextual guidance
+
+**Depends on:** Prompt 13
+
+**Commit title:** `refactor(training): reduce the coach to contextual guidance`
+
+### Prompt
+
+Refactor the shared coach into a minimal contextual pointer and status surface.
+The coach must no longer behave like a second application or contain the role's
+working forms. Preserve accessibility, responsive placement, mastery safety,
+and isolated completion state.
+
+### Read first
+
+- `src/features/training/TrainingCoach.js` and tests
+- `src/features/training/TrainingProgress.js` and tests
+- `src/features/training/TrainingAudioController.js` and tests
+- `styles/layouts/app-layout.css`
+- `styles/pages/scribe.css`
+- `styles/components/modals.css`
+- `tests/unit/ui-source-accessibility.test.js`
+
+### Required changes
+
+- Render only the role title, `Step n of m`, one action title, at most one
+  supporting sentence, an optional closed hint, concise feedback, Play/Pause,
+  Mute, and Hide guide.
+- Remove the progress rail, pathway panel, role-tools section, duplicated
+  objective, generic action requirement, coach-owned lesson forms, and
+  persistent Next control.
+- Use one progression rule: action steps advance after the expected native
+  success event; a genuinely informational step may expose one Continue
+  control. Never combine automatic advancement with a competing Next button.
+- Keep previous-step review available through a quiet history control without
+  competing with the current primary action or allowing mastery bypass.
+- After success, announce and briefly show the curriculum success message,
+  then present the next target. Reduced-motion mode must update immediately
+  without animation or smooth scrolling.
+- Keep the guide outside document flow, move it away from the active target
+  when space permits, dock it below the target on mobile, and collapse it to
+  one Show guide control.
+- When the target is missing, show a concise `Target unavailable` state with a
+  Retry control. Do not fall back to `main`, mark mastery, or advance silently.
+- Preserve keyboard focus, visible focus, screen-reader announcements, touch
+  target sizes, audio alternatives, and deterministic teardown.
+
+### Human verification
+
+```powershell
+npm test -- --run src/features/training/TrainingCoach.test.js src/features/training/TrainingProgress.test.js src/features/training/TrainingAudioController.test.js tests/unit/ui-source-accessibility.test.js
+npm run build
+git diff --check
+```
+
+**Pass:** the expanded coach contains one instruction and no working form;
+action completion is event-driven; collapse leaves one control; missing targets
+fail visibly; keyboard, mobile, and reduced-motion contracts remain pinned.
+
+### Stop conditions
+
+- Stop if simplifying the shell removes the visible text alternative for
+  narration or hides required error recovery.
+- Stop if the coach can advance without the current step's expected event.
+
+---
+
+## Prompt 15 — Add the native training interaction bridge
+
+**Depends on:** Prompts 13–14
+
+**Commit title:** `feat(training): observe native role interactions`
+
+### Prompt
+
+Create the bounded bridge between native role controls and training mastery.
+The learner must use the real interface while training-mode persistence remains
+isolated. The bridge observes successful native actions and emits typed,
+curriculum-approved events; it never turns arbitrary DOM clicks into mastery.
+
+### Read first
+
+- `src/features/training/trainingRuntime.js` and tests
+- `src/features/training/content/schema.js`
+- Existing training command registries
+- Training-mode branches in `src/roles/facilitator.js`, `src/roles/scribe.js`,
+  and `src/roles/notetaker.js`
+- Native form, navigation, lifecycle, presentation, inbox, and timeline helpers
+- `src/services/database.js` and the current forbidden-live-write tests
+
+### Required changes
+
+- Add a small training interaction bridge module with a closed event registry.
+  Event names must have bounded role/action identifiers and must not contain
+  learner text, fixture bodies, selectors, or unrestricted labels.
+- Emit success only after the native control's validation and isolated training
+  command succeed. Validation errors, cancellations, modal closes, failed
+  persistence, and unrelated clicks do not emit mastery.
+- Bind each coach step only to its declared expected event and active attempt.
+  Ignore stale, duplicate, wrong-role, wrong-team, wrong-step, and out-of-order
+  events.
+- Reuse native forms and renderers with a training persistence adapter. The
+  adapter must route approved mutations to `trainingRuntime.executeCommand`
+  and fail closed for every unknown action.
+- Preserve ordinary live handlers unchanged when training mode is absent.
+- Reconcile refresh/resume without replaying old DOM events or awarding the
+  current step twice.
+- Emit safe diagnostic state for target missing, event rejected, command
+  failed, stale attempt, and live-write guard activation.
+- Add focused unit and integration tests for accepted events, validation
+  failure, cancellation, duplication, wrong order, refresh, teardown, and
+  forbidden live persistence.
+
+### Human verification
+
+```powershell
+npm test -- --run src/features/training src/roles/facilitator.test.js src/roles/scribe.test.js src/roles/notetaker.test.js
+npm run build
+git diff --check
+```
+
+**Pass:** a successful native training action advances exactly once; failed or
+unrelated interactions do not advance; the same controls retain their existing
+live behavior outside training; no training action reaches live persistence.
+
+### Stop conditions
+
+- Stop if the bridge must infer mastery from focus, visibility, or an
+  unvalidated click.
+- Stop if reusing a native form requires weakening its live authorization or
+  persistence boundary.
+
+---
+
+## Prompt 16 — Rebuild the Scribe path around six native actions
+
+**Depends on:** Prompt 15
+
+**Commit title:** `refactor(training): teach Scribe through native actions`
+
+### Prompt
+
+Replace the Scribe coach-owned pathway with six authentic tasks performed in
+the real Scribe workspace for Blue, Red, Green, and Industry. Keep every write
+inside the isolated training command boundary and preserve each team's current
+artifact taxonomy.
+
+### Required learning path
+
+1. **Complete Strategic Orientation:** highlight and use the native Strategic
+   Orientation control and team-correct form.
+2. **Review the worked action:** open the deterministic example through the
+   real Actions surface.
+3. **Create a draft:** complete the training-scoped native action, response, or
+   proposal form and save a valid draft.
+4. **Forward to Facilitator:** use the native handoff control and observe the
+   forwarded lifecycle state.
+5. **Revise the returned action:** reopen the same returned record, address the
+   deterministic note, and forward the new revision.
+6. **Verify the handoff:** locate both the forwarded lifecycle state and the
+   matching timeline evidence.
+
+### Required changes
+
+- Update `ScribeTrainingCoach.js`, `src/roles/facilitator.js`, curriculum
+  targets/events, fixtures, and focused tests.
+- Delete the Move/Phase/Timer/Handoff grid, acknowledgment step, `Start my
+  practice artifact` proxy, coach-owned artifact activity, handoff quiz, and
+  duplicate completion instruction.
+- Make the actual orientation, artifact, forward, revision, lifecycle, and
+  timeline controls the step targets and event sources.
+- Preserve Blue action, Red response, Green proposal, and Industry proposal
+  fields and validation without making their workflows interchangeable.
+- Express the role boundary through available controls: Scribe may save and
+  forward but must not receive a final White Cell submission action.
+- Pin empty, invalid, draft, forwarded, returned, revised, and receipt-missing
+  recovery states without adding explanatory panels to the coach.
+
+### Human verification
+
+```powershell
+npm test -- --run src/roles/facilitator.test.js src/features/training/ScribeTrainingCoach.test.js src/features/training/content
+npm run build
+npm run test:e2e:smoke
+git diff --check
+```
+
+**Pass:** all four Scribes complete the six tasks through native controls; each
+team uses its correct artifact; the context grid, proxy-start button, and
+handoff quiz are absent; no final-submission or live-write path appears.
+
+### Stop conditions
+
+- Stop if the highlighted target is not the control the learner must use.
+- Stop if Scribe training reintroduces direct White Cell submission.
+
+---
+
+## Prompt 17 — Rebuild the Facilitator path around six native actions
+
+**Depends on:** Prompt 15
+
+**Commit title:** `refactor(training): teach Facilitator through native actions`
+
+### Prompt
+
+Replace the Facilitator's duplicate coach controls with six tasks completed in
+the native support-deck workspace. Introduce each workspace only when the
+current task needs it; do not use visit-all-workspaces as mastery.
+
+### Required learning path
+
+1. **Review the forwarded artifact:** open the team-correct record and confirm
+   its Scribe handoff state.
+2. **Project the artifact:** use the native Present control and return focus to
+   the walkthrough after exiting presentation.
+3. **Create and revise an RFI:** use the native RFI form, receive the
+   deterministic clarification return, and resubmit the same record.
+4. **Read and communicate:** read the answer in its RFI record, open the native
+   Communications workspace, and send one isolated direct message.
+5. **Submit the artifact:** use the native final-submission action after all
+   prerequisites are satisfied.
+6. **Verify the receipt:** find the submitted lifecycle state and corresponding
+   receipt/timeline evidence.
+
+### Required changes
+
+- Update `FacilitatorTrainingCoach.js`, `src/roles/scribe.js`, selector
+  contracts, curriculum events, fixtures, and tests.
+- Remove coach-owned workspace buttons, visit counters, RFI and communication
+  forms, notification-classification quiz, ownership quiz, and overloaded
+  Respond stage.
+- Instrument native Team Action Review, Present, RFI, Communications,
+  submission, lifecycle, and receipt controls through the interaction bridge.
+- Keep Notifications contextual: show the relevant deterministic alert when
+  it points to the current RFI, communication, or receipt, but do not create a
+  separate visit requirement.
+- Preserve proposal recipient isolation. When the selected team fixture
+  requires proposal negotiation, incorporate one append-only round into the
+  relevant native communication task without adding another coach workflow.
+- Preserve focus restoration from Present mode, revision identity, bounded
+  message input, and final-submission prerequisites.
+
+### Human verification
+
+```powershell
+npm test -- --run src/roles/scribe.test.js src/features/training/FacilitatorTrainingCoach.test.js src/features/training/content
+npm run build
+npm run test:e2e:smoke
+git diff --check
+```
+
+**Pass:** all four Facilitators complete review, projection, RFI, communication,
+submission, and receipt verification through native controls; no duplicate
+workspace navigation or coach-owned working form remains; proposal isolation
+and live-session regressions stay pinned.
+
+### Stop conditions
+
+- Stop if one step requires unrelated RFI, notification, communication, and
+  proposal actions simultaneously.
+- Stop if proposal rounds can bleed across teams or recipients.
+
+---
+
+## Prompt 18 — Rebuild the Notetaker path around native forms
+
+**Depends on:** Prompt 15
+
+**Commit title:** `refactor(training): teach Notetaker through native actions`
+
+### Prompt
+
+Move Notetaker practice out of the coach and into the native Notetaker
+workspace. Keep training data isolated and seat-scoped while preserving native
+validation, autosave, manual save, inbox, action review, and timeline behavior.
+
+### Required learning path
+
+1. **Save an observation:** use the native capture form to record the team's
+   decision and reasoning.
+2. **Capture a key moment and quote:** use the native quick-capture types and
+   preserve their distinction.
+3. **Save dynamics and alliance notes:** use the native move-scoped forms and
+   verify the deterministic second seat remains unchanged.
+4. **Respond to the inbox update:** open the native inbox item and save one
+   observation about its effect on team reasoning.
+5. **Review action and timeline:** open both read-only native surfaces and
+   confirm neither exposes edit controls.
+6. **Verify the explanatory record:** locate the saved seat note and any
+   optional shared timeline snapshot.
+
+### Required changes
+
+- Update `NotetakerTrainingCoach.js`, `src/roles/notetaker.js`, the training
+  storage adapter, curriculum events, fixtures, and tests.
+- Remove blanket disabling that directs the learner back to coach-owned forms.
+  Enable only approved native training controls and bind them to fail-closed
+  isolated commands.
+- Remove coach-owned observation, key-moment, quote, dynamics, alliance, inbox,
+  and retrieval forms plus the acknowledgment and completion proxies.
+- Preserve blank, overlong, duplicate, offline, autosave-failed, retry, manual
+  save, move scope, and seat scope behavior.
+- Keep official actions and the official timeline read-only. Visiting them is
+  not enough; the bridge must observe both the correct surfaces and the absence
+  of a prohibited edit attempt.
+- Verify that resetting or editing the active seat cannot mutate the
+  deterministic comparison seat.
+
+### Human verification
+
+```powershell
+npm test -- --run src/roles/notetaker.test.js src/features/training/NotetakerTrainingCoach.test.js src/features/notetaker
+npm run build
+npm run test:e2e:smoke
+git diff --check
+```
+
+**Pass:** all four Notetakers complete the six tasks using native controls;
+practice remains isolated and seat-scoped; the comparison seat, official
+action, and official timeline remain unchanged; no replacement form remains in
+the coach.
+
+### Stop conditions
+
+- Stop if enabling a native form can call its live persistence handler during
+  training.
+- Stop if both Notetaker seats resolve to the same mutable record.
+
+---
+
+## Prompt 19 — Align narration and visible copy with native actions
+
+**Depends on:** Prompts 16–18
+
+**Commit title:** `refactor(training): align narration with native actions`
+
+### Prompt
+
+Rewrite and regenerate walkthrough narration so every clip reinforces the one
+visible native action without adding a second explanation. Preserve automatic
+playback from explicit role confirmation, accessible controls, approved local
+assets, and degraded fallback behavior.
+
+### Read first
+
+- Final Prompt 13 curriculum copy
+- `src/features/training/TrainingAudioController.js`
+- `src/features/training/audioManifest.js`
+- `public/training/audio/provenance.json`
+- `scripts/training-audio/README.md` and generation scripts
+- `docs/repository-artifact-policy.md`
+
+### Required changes
+
+- Make each visible instruction and narration clip refer to the same target and
+  action. Narration may add one short rationale but may not introduce another
+  required task.
+- Keep role confirmation as the user gesture that starts the current clip and
+  enables automatic playback for subsequent steps unless muted.
+- Keep the compact coach limited to Play/Pause and Mute. The visible
+  instruction remains authoritative when sound is unavailable.
+- Remove narration for deleted acknowledgment, proxy, quiz, and workspace-tour
+  steps. Add clips only for the final action-based curriculum.
+- Regenerate changed clips using the approved local workflow and voice. Update
+  transcripts, captions, cues, durations, byte sizes, script checksums, audio
+  checksums, and provenance atomically.
+- Preserve stop behavior for step changes, exit, page hide, teardown, and rapid
+  navigation. Muting must prevent later automatic playback.
+- Add manifest and controller tests that prove one approved clip exists for
+  every current step and no retired step remains in the active manifest.
+- Require owner listen-through and approval for representative Scribe,
+  Facilitator, and Notetaker clips before accepting the regenerated batch.
+
+### Human verification
+
+```powershell
+npm test -- --run src/features/training/TrainingAudioController.test.js src/features/training/audioManifest.test.js scripts/verify-repository-artifacts.test.js
+npm run verify:repo-artifacts
+npm run build
+git diff --check
+```
+
+**Pass:** every current action has one approved local clip aligned with its
+visible instruction; retired clips are not active; automatic playback, mute,
+fallback, captions, teardown, and media budgets pass; owner approval is
+recorded.
+
+### Stop conditions
+
+- Stop before accepting generated assets if the owner rejects the revised
+  samples.
+- Stop if narration provenance or checksums cannot be regenerated exactly.
+
+---
+
+## Prompt 20 — Add the native walkthrough 12-profile release gate
+
+**Depends on:** Prompts 13–19
+
+**Supersedes:** Prompt 11
+
+**Commit title:** `test(training): gate the native walkthrough matrix`
+
+### Prompt
+
+Replace the pending generic training matrix with a deterministic gate for the
+native walkthrough model. Exercise all 12 team/role profiles through their real
+interface controls and prove that the coach guides, observes, and advances
+without duplicating those controls or touching live state.
+
+### Required changes
+
+- Add or update `tests/e2e/training-session.e2e.js` and its support helpers,
+  plus the `test:e2e:training` package script.
+- Run an explicit four-team matrix for Scribe, Facilitator, and Notetaker.
+- For every step, assert one exact visible target, one concise instruction, one
+  expected event, one primary native action, one success announcement, and one
+  advancement.
+- Interact with the highlighted native control rather than invoking coach
+  internals or training runtime methods directly.
+- Assert the absence of the Scribe context grid, generic stage labels,
+  coach-owned working forms, pathway/role-tools panels, duplicate workspace
+  controls, persistent Next, acknowledgment-only mastery, and broad fallback
+  targets.
+- Cover wrong-order actions, validation failure, cancellation, missing target,
+  duplicate event, refresh/resume, reset, curriculum restart, offline recovery,
+  rejected audio, reduced motion, keyboard-only use, 390px and 768px viewports,
+  and coach collapse/restore.
+- Run two simultaneous learners in the same profile and prove attempt and
+  Notetaker-seat isolation.
+- Assert zero writes to live seats, actions, RFIs, communications, game state,
+  audit evidence, research exports, or operator data.
+- Fail on skipped profiles, retry-to-success, unexpected console/page errors,
+  missing media, stale selectors, or use of mock-only evidence for the live RLS
+  contract.
+- Update `docs/live-demo-runbook.md`, `docs/playthrough-automation.md`, and the
+  training design document with the final native-walkthrough verification and
+  recovery procedure.
+
+### Final human verification gate
+
+```powershell
+npm run verify:repo-artifacts
+npm test -- --run
+npm run build
+npm run test:e2e:training
+npm run test:e2e:live-demo
+git diff --check
+git status --short
+```
+
+**Pass:** the current-run summary reports 12/12 profiles complete, zero skips,
+zero retries, zero unexpected browser errors, zero forbidden live writes, and
+successful simultaneous-attempt isolation. Every learner action occurs through
+the highlighted native interface, and the live-demo regression suite remains
+green.
+
+### Release blockers
+
+- Any step whose highlighted target is not the control the learner must use.
+- Any coach-owned replacement form, duplicate navigation set, or proxy button
+  used as mastery evidence.
+- Any profile missing from the native interaction matrix.
+- Any training event capable of advancing the wrong attempt, role, team, or
+  step.
+- Any training action capable of reaching live persistence or evidence.
+- Any skipped, retried, stale, mock-only, or mismatched-SHA evidence used as a
+  release pass.
+
+---
+
 ## Final implementation outcome
 
 When all prompts pass, a learner can enter `TRAINING2026`, select any of the four teams and three participant roles, watch an accessible video introduction, and complete a conversational narrated walkthrough built from current platform behavior. Their dummy artifacts and simulated responses remain deterministic and isolated, their progress can resume or reset safely, and the permanent training system cannot alter or masquerade as a live Fractured Order session.
+
+The completed walkthrough uses the native role interface for every practiced
+action. The coach remains a concise contextual pointer: it identifies one
+target, states one action, observes one bounded success event, and advances
+without duplicating the platform's forms, navigation, or visible state.

@@ -1,8 +1,8 @@
 # TRAINING2026 Learning Contract
 
 **Status:** Authoritative design and curriculum contract  
-**Contract version:** 1.0  
-**Frozen:** 2026-08-17
+**Contract version:** 2.0  
+**Frozen:** 2026-08-18
 
 `TRAINING2026` is the self-guided Fractured Order learner experience for the
 four team branches and three public participant roles. This document is the
@@ -114,8 +114,8 @@ state rather than presented as one oversized step.
 | 1. Code entry | 30–60 seconds | Enter `TRAINING2026`; explain that the shared code restricts entry but does not verify identity. Invalid input produces an inline, announced error and retains focus. |
 | 2. Welcome video | 2:28 source duration | User-initiated, skippable overview of Fractured Order, Plenum, the participant and control-cell roles, session phases, and the structured exercise record. Full-source playback is the product-owner decision. Synchronized open captions are burned into the video; a separate WebVTT track and complete adjacent transcript provide accessible text alternatives. |
 | 3. Profile selection | 30–60 seconds | Choose one of four teams and one of three semantic roles. Only the 12 locked profiles can continue. |
-| 4. Profile-aware walkthrough | 8–14 minutes | Open a training-only facsimile of the selected surface, demonstrate the live tracker, and complete the role-specific tasks below with team-specific fixtures. |
-| 5. Mastery checks | Integrated with walkthrough | Satisfy the declared predicate on all seven ordered steps. Incorrect retrieval choices receive corrective feedback and can be retried immediately. |
+| 4. Profile-aware walkthrough | 8–14 minutes | Open the selected real role surface with the training persistence adapter and complete six role-specific native actions against deterministic fixtures. |
+| 5. Mastery checks | Integrated with walkthrough | Advance only when the active attempt observes the current step's declared native success event. Failed validation, cancellation, visibility, focus, and unrelated clicks never create mastery. |
 | 6. Completion | Under 60 seconds | Show the anonymous practice summary, remaining limitations, reset/replay, and role-switch controls. |
 
 ### Refresh, reset, replay, and switching
@@ -144,8 +144,8 @@ By completion, the learner can:
 1. identify their semantic team and role without relying on legacy route names;
 2. distinguish training fixtures from live session records;
 3. identify the Scribe → Facilitator → White Cell ownership boundary;
-4. locate the move/phase/timer context and explain that White Cell controls it
-   during a live exercise; and
+4. read move, phase, and timer from the platform header while keeping the
+   Scribe-to-Facilitator handoff boundary in the role introduction; and
 5. recover from refresh, reset the attempt, replay the path, or switch profiles
    without affecting another learner.
 
@@ -156,24 +156,25 @@ team's orientation and move-artifact branch.
 
 | Measurable objective | Required completion evidence |
 | --- | --- |
-| Complete every required field in the selected team's ordered Strategic Orientation workflow. | `scribe.orientation.validated` followed by `scribe.orientation.forwarded`; the fixture summary contains every required catalogue selection and narrative. |
-| Create the correct current artifact: Blue Action, Red Action, Green Proposal, or Industry Proposal. | `scribe.artifact.validated` records the profile's expected taxonomy and all required-field checks as passed. |
-| Hand the artifact to the Facilitator without claiming direct White Cell submission. | `scribe.artifact.forwarded`; the next-owner value is the semantic Facilitator. |
-| Use Quick Capture and distinguish it from formal artifact authoring. | `scribe.capture.appended`; the capture is appended without replacing another fixture entry. |
-| Locate read-only RFI history, White Cell updates, timeline, journal, and received information surfaces. | `scribe.readonly_surfaces.reviewed`; no create-RFI or direct-communication write is attributed to the Scribe. |
+| Complete every required field in the selected team's ordered Strategic Orientation workflow. | `scribe.orientation.forwarded` is emitted only after native validation and the isolated handoff succeed. |
+| Open the deterministic worked Blue Action, Red Action, Green Proposal, or Industry Proposal. | `scribe.artifact.example_opened` is emitted from the native Action details control. |
+| Create the team-correct artifact and save one valid draft. | `scribe.artifact.draft_saved` is emitted only after the native form validates and the training adapter saves the draft. |
+| Hand the saved artifact to the Facilitator without claiming final submission authority. | `scribe.artifact.forwarded` is emitted after the native handoff succeeds. |
+| Correct the returned artifact without changing its identity. | `scribe.artifact.revision_forwarded` is emitted after the same record is revised and forwarded again. |
+| Verify the handoff independently from the control that initiated it. | `scribe.handoff.verified` requires the forwarded lifecycle state and its matching timeline receipt. |
 
 ### Facilitator objective and evidence contract
 
 | Measurable objective | Required completion evidence |
 | --- | --- |
-| Switch among Team Action Review, Deck, RFIs, and Communications and return to the last viewed record or slide. | `facilitator.workspaces.restored` after all four workspaces have been visited and one prior view restored. |
-| Review and project a forwarded orientation or artifact, then perform the final handoff. | `facilitator.artifact.projected` and `facilitator.artifact.submitted_to_fixture`; the artifact remains the Scribe's revision and the destination is the simulated White Cell fixture. |
-| Create an RFI, respond to a fixture return, resubmit the same RFI revision chain, and locate its answer history. | `facilitator.rfi.lifecycle_completed` with one stable fixture RFI ID and ordered revisions. |
-| Send and review an isolated direct communication with White Cell. | `facilitator.communication.fixture_sent`; no live communication store is called. |
-| Make a proposal-recipient decision and append one negotiation round without overwriting round zero. | `facilitator.proposal_thread.appended` with the selected recipient and isolated fixture thread ID. |
-| Open a durable activity notice, move focus to its destination, and dismiss it separately from unread state. | `facilitator.alert.destination_opened` and `facilitator.alert.dismissed`. |
+| Review the forwarded team artifact and its Scribe handoff state. | `facilitator.artifact.reviewed` is emitted from Team Action Review after the correct record is opened. |
+| Project the reviewed artifact and restore focus after presentation. | `facilitator.artifact.projected` is emitted after Present is entered and exited successfully. |
+| Create, correct, and resubmit one Request for Information revision chain. | `facilitator.rfi.resubmitted` retains one stable fixture RFI ID. |
+| Read the RFI answer and send one isolated direct communication. | `facilitator.communication.sent` is emitted only after the answer is opened and the native communication succeeds. |
+| Submit the artifact after its native prerequisites pass. | `facilitator.artifact.submitted` records delivery to the simulated White Cell fixture. |
+| Verify final delivery independently from the submit control. | `facilitator.receipt.verified` requires the submitted lifecycle state and matching receipt or timeline entry. |
 
-#### Implemented Facilitator path boundary (Prompt 08)
+#### Superseded Facilitator implementation boundary
 
 The four Facilitator profiles mount `FacilitatorTrainingCoach` inside the real
 `src/roles/scribe.js` support-deck workspace after protected training
@@ -183,34 +184,25 @@ team-action notification, deck assignment, RFI template, durable alert, and
 timeline from immutable fixtures. It does not start live stores,
 subscriptions, RFI history fetches, or database-backed write handlers.
 
-All practice mutations use the semantic command registry in
-`trainingRuntime`: artifact review, five-workspace restoration, projection,
-RFI creation and same-ID resubmission, direct communication, response-family
-classification, applicable recipient negotiation, final submission, and
-receipt verification. Blue receives only the Green-to-Blue proposal thread;
-Red receives only the Industry-to-Red thread. Green and Industry do not receive
-a recipient-decision exercise because no proposal fixture is addressed to
-them. Round zero remains immutable and the practice command appends exactly
-one recipient-scoped round.
-
-Present mode hides the coach while keeping the shared Present/Exit Present
-control available. Exiting via the control or browser fullscreen exit restores
-focus to the coach without changing its step. The durable fixture alert uses an
-attempt-scoped in-memory notification center and its stable fixture ID, so
-rehydration cannot display or count a duplicate. Selector contracts pin all
-five workspace tabs, the Present control, and the tabpanel on every team route.
+The Prompt 08 coach-owned forms, workspace visit counter, classification task,
+and proxy controls are legacy implementation only. They are not current
+curriculum evidence and must be removed by the role-controller migration.
+Proposal recipient isolation, stable revision identity, Present focus return,
+and the no-live-write boundary remain mandatory while the six declared native
+events replace those proxy requirements.
 
 ### Notetaker objective and evidence contract
 
 | Measurable objective | Required completion evidence |
 | --- | --- |
-| Record move-scoped team dynamics and alliance notes for the current seat. | `notetaker.seat_notes.saved`; a second fixture seat remains unchanged. |
-| Append an observation, moment, or quote through Quick Capture. | `notetaker.capture.appended`; the shared fixture list gains a new entry rather than replacing an existing one. |
-| Read a White Cell inbox item and distinguish unread state from deletion. | `notetaker.inbox.opened`; history remains present after the unread marker clears. |
-| Review a complete action and the chronological session timeline without editing either. | `notetaker.readonly_review.completed`; no artifact mutation control is exposed. |
-| Explain the difference between seat-scoped notes and shared captures. | Critical mastery item `notetaker.storage_scope` is correct. |
+| Record the team decision and its reasoning through native Quick Capture. | `notetaker.observation.saved` confirms one validated append. |
+| Preserve a key moment and quote as distinct capture types. | `notetaker.capture.pair_saved` requires one successful append of each type. |
+| Save move-scoped dynamics and alliance notes for the current seat. | `notetaker.seat_notes.saved` requires both native saves and proves the comparison seat is unchanged. |
+| Read the White Cell inbox update and record its effect on team reasoning. | `notetaker.inbox.followup_saved` keeps inbox history and appends the follow-up observation. |
+| Review the official action and chronological timeline without editing either. | `notetaker.readonly.reviewed` requires both native read-only surfaces and no exposed edit control. |
+| Verify the explanatory record without turning it into an official action. | `notetaker.record.verified` locates the saved seat note and any shared timeline snapshot. |
 
-#### Implemented Notetaker path boundary (Prompt 09)
+#### Superseded Notetaker implementation boundary
 
 All four Notetaker profiles mount `NotetakerTrainingCoach` inside the real
 `src/roles/notetaker.js` workspace only after protected activation returns the
@@ -219,13 +211,11 @@ current team artifact, supply-disruption inbox item, captures, and chronological
 timeline through the existing Notetaker renderers. It does not bind the live
 forms, start sync, subscribe to stores, or call a live Notetaker mutation.
 
-The closed command registry accepts only the current attempt's exact
-`notetaker.<team>` sequence. The learner first anchors the record to the visible
-move, phase, timer, and team, then writes an observation using separate event
-and reasoning fields. The coach supplies an example shape and hints but never
-prefills a practice textarea. A key moment and quote are appended as distinct
-capture types. Blank, over-2,000-character, and duplicate entries fail before
-progress or practice state changes.
+The Prompt 09 coach-owned observation, capture, notes, inbox, and retrieval
+forms are legacy implementation only. They are not current curriculum evidence
+and must be replaced with the native Notetaker forms. Move, phase, and timer
+remain visible in the platform header; the walkthrough does not reproduce them
+inside a context panel.
 
 Dynamics and alliance inputs retain the live two-second autosave rhythm. The
 training boundary applies the current participant-scoped ledger merge helper to
@@ -237,25 +227,21 @@ attempt. A deterministic second-seat fixture has its own record ID and
 participant key and is never used as the learner's mutable record.
 
 The simulated inbox clears only its unread marker after opening; its immutable
-history remains. The follow-up entry records what team reasoning should be
-observed after the inject without changing the team artifact. Team Action and
-Official Timeline controls navigate to the existing read-only renderers. The
-runtime stores immutable `officialAction` and `officialTimelineEntries`
-separately from learner captures and Notetaker practice snapshots, and the
-retrieval check accepts only the explanatory Notetaker record as the place that
-answers why the team reasoned as it did.
+history remains. Team Action and Official Timeline stay read-only, and the
+saved explanatory record remains distinct from both. Native validation,
+offline recovery, seat isolation, and deterministic comparison-seat checks
+remain mandatory during the controller migration.
 
 ### Mastery and completion rule
 
-Curriculum version `1.0` uses the declared predicate on each of its seven
-ordered steps. A step becomes mastered only after the training runtime observes
-the exact acknowledgement, fixture view, guided event, closed training command,
-or correct retrieval choice declared for that step and persists a bounded
-`mastery_passed` event. Next alone never creates mastery. Incorrect retrieval
-choices persist only `mastery_failed`, step ID, and result code; the answer body
-is not stored, and the learner can retry immediately after corrective feedback.
+Curriculum version `2.0` is incompatible with version `1.0`. Each profile has
+six ordered native actions. A step becomes mastered only when the active
+attempt observes that step's exact `expectedTrainingEvent` after native
+validation and isolated persistence succeed. Visibility, focus, arbitrary
+clicks, coach controls, cancellations, failed writes, workspace visits, and
+knowledge questions cannot create mastery.
 
-Completion requires all seven step IDs to have a `mastery_passed` event. It is
+Completion requires all six step IDs to have a `mastery_passed` event. It is
 summarized in plain language without a numeric/formal score, rank, competitive
 comparison, certification claim, or live-session evidence claim. The summary
 names practiced capabilities, the Scribe–Facilitator handoff, the role's first
@@ -269,6 +255,43 @@ mutation compares the caller's expected revision under the owner-row lock. A
 stale client refetches and preserves the newer server revision; it never
 overwrites it. Reset atomically retires only the selected caller-owned attempt
 and creates a pristine same-profile attempt while retaining bounded history.
+An in-progress version `1.0` attempt reaches the existing explicit
+`TRAINING_CURRICULUM_RESTART_REQUIRED` path and must be restarted as a pristine
+version `2.0` attempt. Version `1.0` step IDs and mastery events are retained as
+historical attempt evidence and are never relabeled, copied, or counted toward
+version `2.0` completion.
+
+### Native walkthrough presentation contract
+
+The mounted role coach is a compact in-context dock, not a page section. It is
+fixed outside document flow so activating training never pushes the real role
+workspace downward or changes the Facilitator workspace from its production
+layout. The dock defaults to the side opposite the current target and can be
+minimized to one `Show guide` control while the learner works directly in the
+platform. At mobile widths it becomes a bottom dock capped at half the viewport
+height so the targeted interface remains visible above it.
+
+The expanded dock shows only the role title, `Step n of 6`, one imperative
+`actionTitle`, at most one supporting `instruction`, an optional closed
+`recoveryHint`, concise feedback, Play/Pause, Mute, and `Hide guide`. Narration
+may add one short rationale for the same target and action; it may not introduce
+another task. The guide contains no working form, proxy action, quiz, repeated
+header or handoff panel, workspace tour, persistent Next control, or generic
+stage label.
+
+Every step declares one `targetSelector`, one `expectedTrainingEvent`, and one
+`successMessage`. The selector must resolve to the native control the learner
+uses. A broad container is allowed only for read-only receipt verification when
+no stable, more precise element exists. `main`, `body`, selector lists, and
+accessible fallbacks are not valid action targets. An optional bounded
+`openAction` may reveal the declared target but never creates mastery.
+
+The guide advances exactly once after the matching event, announces the success
+message, and presents the next target. A missing target produces `Target
+unavailable` with Retry and cannot mark mastery. A completed step remains
+reviewable through quiet history without exposing a mastery bypass.
+`prefers-reduced-motion: reduce` removes dock and target animation and uses
+immediate scrolling while preserving focus and text-backed state.
 
 ## Acceptance checklist
 
@@ -298,10 +321,11 @@ and creates a pristine same-profile attempt while retaining bounded history.
 - [ ] At 320px and 390px portrait widths, there is no page-level horizontal
   scrolling, primary controls remain reachable, and controls meet a minimum
   44-by-44 CSS-pixel touch target where space permits.
-- [ ] Hiding the desktop rail provides an equivalent labelled mobile navigation
-  control; no panel becomes unreachable.
-- [ ] The coach never covers the required control. It docks below or above the
-  target and can be collapsed without losing the current step.
+- [ ] Minimizing the guide leaves an equivalent labelled `Show guide` control;
+  no instruction, pathway, or role tool becomes unreachable.
+- [ ] The guide never covers the required control. It uses the opposite desktop
+  side or scrolls the mobile target above the bottom dock, and minimizing it
+  never loses the current step.
 - [ ] On-screen keyboards do not hide focused inputs, errors, or Next/Submit
   controls.
 
@@ -315,12 +339,14 @@ and creates a pristine same-profile attempt while retaining bounded history.
 
 ### Video, captions, audio, and degraded media
 
-- [ ] Video and narration start only after user action; training never requires
-  sound.
+- [ ] Video starts from its Play control. Narration begins from the explicit
+  role-confirmation click and continues automatically between steps unless
+  muted; training never requires sound.
 - [ ] The welcome video has synchronized captions plus a complete adjacent
-  transcript. Narrated coach text is also available as persistent text.
-- [ ] Play/pause, replay, mute, volume, captions, transcript, and skip controls
-  are keyboard and screen-reader operable.
+  transcript. The compact coach's visible instruction remains the
+  authoritative text equivalent for narration.
+- [ ] Welcome-media controls and the compact coach's Play/Pause and Mute
+  controls are keyboard and screen-reader operable.
 - [ ] Narration preferences persist per browser; step changes, modal close,
   training exit, page hide, and document-hidden transitions stop speech.
 - [ ] Only the current and next approved clips are loaded. A missing approved
@@ -383,7 +409,7 @@ adopted merely because it exists in a prototype.
 | The plan calls Notetaker a global dashboard and says it can view all submitted/accepted moves. | Current Notetaker is team- and seat-scoped for notes, with shared appended captures plus inbox and read-only action/timeline review. | Teach seat isolation, shared append semantics, and team-scoped review; never promise global access. |
 | The interactive Facilitator path covers only deck, one submit, communications, and timeline. | Current Facilitator has four restorable workspaces, RFI revision lifecycle, proposal threads, durable alerts, projection, and finalization. | All current Facilitator capability groups receive practice and measurable evidence. |
 | Prototype White Cell messages immediately acknowledge, accept, return, or “rule” on learner input. | Such canned text is not a live or deterministic decision. | Every response is a labelled instructional fixture; current completion is outcome-free. |
-| The interactive prototype completes after navigating gated steps. | It has no independent mastery decision or evidence boundary. | Completion requires all seven declared step predicates; Next alone never creates mastery. |
+| The interactive prototype completes after navigating gated steps. | It has no independent mastery decision or evidence boundary. | Completion requires all six declared native success events; navigation and coach controls never create mastery. |
 | The interactive prototype keeps state only in a page object; current follow-along stores guide state in legacy-keyed `localStorage`. | Neither provides isolated attempt, refresh, reset, replay, or anonymous completion semantics. | Persist mastery in the learner-owned backend attempt; keep only its revalidated activation hint in `sessionStorage`, and never reuse live follow-along storage keys. |
 | The current Scribe onboarding copy in `src/roles/facilitator.js` says the Scribe can ask White Cell and contains Red/proposal wording that can imply direct White Cell submission. | Executable capability ownership makes Scribe RFI history read-only and requires Facilitator final submission. | Training copy follows the executable ownership boundary; the existing onboarding copy is documented drift, not curriculum authority. |
 | The current Notetaker onboarding highlights capture, dynamics, and inbox but omits its full read-only action/timeline review capability. | A learner could complete the tour without seeing the complete role boundary. | Training includes action and timeline review evidence. |
@@ -434,28 +460,31 @@ reserved for Prompt 10.
 
 ## Versioned curriculum and fixture catalog (Prompt 04)
 
-Curriculum version `1.0` is declared in
+Curriculum version `2.0` is declared in
 `src/features/training/content/curriculum.js`. It is keyed first by semantic
 role and then by team; compatibility controller names never appear in progress
-or curriculum IDs. Import-time validation rejects a missing profile, reordered
-or incomplete stage sequence, missing narration/mastery/selector metadata,
-unsupported role or team, duplicate ID, missing fixture reference, or selector
-without an accessible fallback. A protected bootstrap whose curriculum version
-does not match the bundled catalog fails closed before a role path is mounted.
+or curriculum IDs. Import-time validation rejects a missing profile, missing or
+reordered action, missing event, duplicated heading or event, generic label,
+excessive visible copy, unsupported role or team, duplicate ID, unbounded
+selector, selector list, broad interactive target, or missing fixture.
+A protected bootstrap whose curriculum version does not match the bundled
+catalog reaches the explicit restart path before a role walkthrough mounts.
 
-Every profile contains the ordered stages **Orient, Show, Guide, Practice,
-Respond, Retrieve, and Reflect**. Stable module IDs use
-`training.v1.<semantic-role>.<team>` and step IDs add the lowercase stage. The
-following matrix is the complete version `1.0` catalog:
+Every profile contains six ordered native actions. Stable module IDs use
+`training.v2.<semantic-role>.<team>` and step IDs add the action ID. Each step
+contains one exact target selector, one imperative action title, one supporting
+instruction, one expected training event, and one success message, with only a
+bounded recovery hint and programmatic open action optional. The following
+matrix is the complete version `2.0` catalog:
 
 | Profile | Built role surface | Strategic Orientation emphasis | Practice artifact or record | Deterministic response fixtures |
 | --- | --- | --- | --- | --- |
 | `blue.scribe` | `teams/blue/facilitator.html` | Blue choice, Red forecast, expected Red action | Structured Blue Action through the shared action workflow | Facilitator handoff and simulated White Cell return |
-| `red.scribe` | `teams/red/facilitator.html` | Red rationale plus Blue and two Green forecasts | Move Response with strategy, actions, pressure points, channel, and effect | Facilitator handoff and simulated White Cell return |
+| `red.scribe` | `teams/red/facilitator.html` | Red rationale plus Blue and two Green forecasts | Red Action through the current shared action workflow | Facilitator handoff and simulated White Cell return |
 | `green.scribe` | `teams/green/facilitator.html` | Blue forecast, Green choice, strategy narrative | Green multi-partner proposal with sector and supply-chain conditions | Facilitator handoff, proposal approval/thread, and simulated return |
 | `industry.scribe` | `teams/industry/facilitator.html` | Blue forecast, Industry choice, strategy narrative | Industry proposal with industry, country, and proposed-activity fields | Facilitator handoff, proposal approval/thread, and simulated return |
 | `blue.facilitator` | `teams/blue/scribe.html` | Review the forwarded Blue orientation | Action review, deck state, RFI, communication, projection, and final-submission boundary | Returned RFI, answer, direct message, and durable alert |
-| `red.facilitator` | `teams/red/scribe.html` | Review the forwarded Red orientation | Move Response review, deck state, RFI, communication, projection, and final-submission boundary | Returned RFI, answer, direct message, and durable alert |
+| `red.facilitator` | `teams/red/scribe.html` | Review the forwarded Red orientation | Red Action review, deck state, RFI, communication, projection, and final-submission boundary | Returned RFI, answer, direct message, and durable alert |
 | `green.facilitator` | `teams/green/scribe.html` | Review the forwarded Green orientation | Proposal review, deck state, RFI, communication, projection, and final-submission boundary | RFI answer, proposal thread, direct message, and durable alert |
 | `industry.facilitator` | `teams/industry/scribe.html` | Review the forwarded Industry orientation | Proposal review, deck state, RFI, communication, projection, and final-submission boundary | RFI answer, proposal thread, direct message, and durable alert |
 | `blue.notetaker` | `teams/blue/notetaker.html` | Read Blue context without editing it | Seat-scoped observations, dynamics, alliances, action review, and timeline | Simulated inbox guidance and supply-disruption inject |
@@ -477,9 +506,11 @@ network request, or AI generation. Red's Move Response has no invented handoff
 field: the catalog uses its current serializer and represents instructional
 handoff separately through existing workflow state and a counterpart fixture.
 
-Each target is checked against all four corresponding built HTML surfaces.
-Every step also declares `main` as an accessible fallback target, so missing or
-temporarily hidden detail content cannot make instruction unreachable.
+Each target is checked against the corresponding built HTML surface and its
+native controller-rendered controls. Missing targets fail visibly and remain
+incomplete. Broad containers are reserved for read-only receipt verification;
+the contract provides no `main` or `body` fallback that could hide a broken
+selector.
 
 ## Video-first onboarding (Prompt 05)
 
@@ -538,14 +569,22 @@ changes. Failed caption delivery is not a reason to block a learner at runtime.
 `TrainingAudioController.js` owns narration state, lazy loading, persistent
 mute/volume/rate preferences, synchronized caption text, teardown, and the
 explicitly labelled Web Speech fallback. The controller never makes a network
-TTS call. Curriculum step changes replace the current clip and invalidate older
-play promises so rapid navigation cannot restart stale speech. The coach added
+TTS call. Confirming a role enables playback for the current clip and automatic
+playback for later steps; dismissing the introduction or muting narration does
+not start sound. Curriculum step changes replace the current clip and
+invalidate older play promises so rapid navigation cannot restart stale speech.
+The compact coach exposes only Play/Pause and Mute while keeping its visible
+instruction authoritative. The coach added
 in Prompts 07–09 must mount the controller's accessible controls and call its
 stop/destroy boundary when its modal or surface closes.
 
-`audioManifest.js` derives the common introduction, all 12 module
-introductions, and all 84 ordered steps from curriculum version `1.0`. An entry
-is playable as an authored file only when the owner-approved provenance record
+The approved narration manifest remains explicitly bound to retired curriculum
+version `1.0`; its 84 step clips are historical assets and are not relabeled as
+version `2.0`. The native curriculum contains 72 steps. Until the action-aligned
+scripts and assets are regenerated under their own version `2.0` provenance,
+step narration fails closed to visible instruction rather than playing a
+mismatched clip. An entry is playable as an authored file only when its
+owner-approved provenance record
 contains its exact transcript, duration, byte size, script SHA-256, output
 SHA-256, captions, cue timings, and shared provenance ID. Pending, missing, or
 partially generated metadata fails closed to the labelled fallback; it is never
@@ -567,9 +606,9 @@ Until that approval and generation occur,
 no fabricated generation date or output checksums, and no generated narration
 binary is a release artifact.
 
-## Scribe learning paths (Prompt 07)
+## Superseded role-controller implementation
 
-The Scribe coach mounts inside the existing `.page-container` only after
+The Prompt 07 Scribe coach still mounts inside the existing `.page-container` only after
 `initializeRolePage` has revalidated the protected attempt and returned the
 same semantic Scribe/team context as the route. A cached flag, query parameter,
 live session, rejected activation, or mismatched team does not mount the coach.
@@ -584,7 +623,7 @@ Country of Focus, and Proposed Activity. Both proposal paths retain intended
 partner, sector, supply-chain, timing, and outcome validation. The coach never
 offers RFI creation, direct communication, projection, or final submission.
 
-Practice mutations call a closed training command registry. The registry
+The legacy practice mutations call a closed training command registry. The registry
 accepts only the current attempt's exact `scribe.<team>` orientation, draft,
 Facilitator-handoff, and returned-revision commands. It records only bounded
 step/result metadata, keeps dummy artifact bodies in memory, requires Draft
@@ -595,26 +634,18 @@ receipt and White Cell/Facilitator return are fixture data; neither creates an
 `artifact_workflow_reviews` row or any live action, request, communication, or
 timeline record.
 
-The mounted coach provides explicit empty, retry, Draft, returned-dummy-artifact,
-revised, retrieval, and completed states. Its retrieval check presents Draft,
-Forward to Facilitator, and Submit to White Cell together and accepts only the
-Facilitator handoff. The common landmark controls use the shipped sidebar
-section navigation for read-only RFI history, White Cell updates, timeline,
-Tribe Street Journal, and Quick Capture. The visible move, phase, timer, and
-handoff chain remain text, not color-only status.
+Those coach-owned forms, proxy buttons, retrieval question, duplicate
+completion action, and repeated header or handoff panel are superseded and are
+not version `2.0` curriculum evidence. The platform header is the sole
+walkthrough source for move, phase, and timer. The role introduction is the
+sole walkthrough source for the handoff boundary.
 
-Implementation exposed two selector/capability differences from the original
-curriculum draft. First, `#newActionBtn` is a disabled live-write control in a
-verified training context, so interactive Scribe stages now target the mounted
-`#scribeTrainingCoach`, its retrieval form, or its returned-artifact state;
-`main` remains the accessible fallback. Second, the reusable Red Move Response
-form still carries a legacy direct-to-White-Cell submit label and handler, while
-the ordinary Red create button currently opens the shared action wizard. Prompt
-07 requires Move Response practice, so training reuses only that form's current
-fields, validation, view model, and serializer, replaces its action with
-`Forward to Facilitator`, and never calls the legacy submit handler. This is a
-documented live/training selector difference, not authority for restoring
-Scribe-side final submission.
+Prompt 13 changes only the design and curriculum contract. The existing role
+controllers are intentionally not treated as compliant implementations yet.
+Their migration must enable the declared native controls through the isolated
+training adapter and emit the exact version `2.0` events only after native
+validation succeeds. No legacy coach control, broad section highlight, quiz,
+or direct-to-White-Cell Scribe path may be used as substitute evidence.
 
 ## Documentation gate
 
@@ -626,13 +657,15 @@ Repository documentation tests must fail if this contract loses:
 - the `TRAINING2026` access wording;
 - training-only storage and no-live-persistence boundary;
 - the instructional-fixture/non-adjudication statement; or
-- the explicit exclusion of all operator, SME, and compatibility routes.
+- the explicit exclusion of all operator, SME, and compatibility routes;
+- the version `2.0` six-action native walkthrough contract;
+- one exact target and one observable success event per step; or
+- the explicit restart requirement for incompatible older attempts.
 
-The runtime spine, Blue Scribe smoke slice, version `1.0` declarative
-curriculum/fixture catalog, accessible video-first introduction, fail-closed
-narration controller/generation workflow, all four Scribe, Facilitator, and
-Notetaker walkthrough mounts, revision-safe mastery persistence, resumable
-progress, completion summaries, confirmed profile switching, and server-backed
-attempt-scoped reset are implemented. Completion remains anonymous isolated
-practice and never enters live evidence or research exports. This document
-does not claim that any learner has completed the curriculum.
+The runtime spine, protected attempt lifecycle, accessible introduction,
+revision-safe progress, explicit restart path, and version `2.0` native
+curriculum contract are implemented. The role-controller migration and
+version `2.0` narration regeneration remain follow-on work; the superseded
+coach-owned walkthrough is not release evidence. Completion remains anonymous
+isolated practice and never enters live evidence or research exports. This
+document does not claim that any learner has completed the curriculum.

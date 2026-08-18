@@ -150,22 +150,58 @@ describe('UI source accessibility checks', () => {
         }
     });
 
-    it('keeps mastery progress text-backed, keyboard reachable, announced, reduced-motion safe, and mobile docked', () => {
+    it('keeps mastery gating keyboard reachable, announced, reduced-motion safe, and mobile docked', () => {
         const coach = readFileSync(fileUrl('src/features/training/TrainingCoach.js'), 'utf8');
-        const progress = readFileSync(fileUrl('src/features/training/TrainingProgress.js'), 'utf8');
         const appLayout = readFileSync(TRAINING_SHELL_STYLES.appLayout, 'utf8');
 
         expect(coach).toContain("createElement(documentRef, 'button'");
         expect(coach).toContain("setAttribute('aria-live', 'polite')");
         expect(coach).toContain("createElement(documentRef, 'details'");
         expect(coach).toContain('this.nextButton.disabled = !this.isMastered(step.id)');
-        expect(progress).toContain("setAttribute('role', 'progressbar')");
-        expect(progress).toContain("setAttribute('aria-valuetext'");
-        expect(progress).toContain('steps mastered');
         expect(appLayout).toContain('@media (max-width: 767px)');
         expect(appLayout).toContain('position: sticky');
         expect(appLayout).toContain('@media (prefers-reduced-motion: reduce)');
-        expect(appLayout).toContain('.training-progress__fill');
+    });
+
+    it('presents training as a compact in-context guide without displacing the role workspace', () => {
+        const coach = readFileSync(fileUrl('src/features/training/TrainingCoach.js'), 'utf8');
+        const appLayout = readFileSync(TRAINING_SHELL_STYLES.appLayout, 'utf8');
+        const scribeLayout = readFileSync(TRAINING_SHELL_STYLES.scribe, 'utf8');
+        const scribeCoach = readFileSync(fileUrl('src/features/training/ScribeTrainingCoach.js'), 'utf8');
+
+        for (const roleCoach of [
+            'src/features/training/ScribeTrainingCoach.js',
+            'src/features/training/FacilitatorTrainingCoach.js',
+            'src/features/training/NotetakerTrainingCoach.js'
+        ]) {
+            const source = readFileSync(fileUrl(roleCoach), 'utf8');
+            expect(source).toContain("createElement(documentRef, 'section', 'training-coach");
+            expect(source).not.toContain('training-coach card card-bordered');
+            expect(source).toContain('compact: true');
+            expect(source).toContain('autoplay: audio.isAutoplayEnabled()');
+            expect(source).toContain('coach.destroy();');
+        }
+
+        expect(coach).toContain("createElement(documentRef, 'div', 'training-coach__body')");
+        expect(coach).toContain("createElement(documentRef, 'section', 'training-coach__active-stage')");
+        expect(coach).toContain("'training-coach__toggle'");
+        expect(coach).not.toContain('mountTrainingProgress');
+        expect(coach).not.toContain('Pathway, narration, and role tools');
+        expect(coach).toContain("target.classList.add('training-walkthrough-target')");
+        expect(coach).toContain("classList?.remove('training-walkthrough-target')");
+        expect(coach).toContain('this.positionDockForTarget(target)');
+        expect(coach).toContain('this.objective.focus({ preventScroll: true })');
+        expect(coach).toContain('this.activeTarget?.scrollIntoView?.({');
+        expect(appLayout).toContain('.training-coach__body');
+        expect(appLayout).toContain('position: fixed');
+        expect(appLayout).toContain('.training-coach[data-collapsed="true"]');
+        expect(appLayout).toContain('.training-coach[data-collapsed="true"] .training-coach__audio');
+        expect(appLayout).toContain('.training-walkthrough-target');
+        expect(scribeLayout).not.toContain('body.training-sandbox-visible .scribe-main');
+        expect(scribeCoach).toContain("onNavigate('timeline')");
+        expect(scribeCoach).toContain('coach.updateTargetSpotlight(module.steps[6], { shouldScroll: true })');
+        expect(appLayout).toContain('@media (prefers-reduced-motion: no-preference)');
+        expect(appLayout).toContain('.training-coach__active-stage--entering');
     });
 
     it('keeps the shared modal close icon decorative for assistive technology', () => {

@@ -118,7 +118,7 @@ export function mountFacilitatorTrainingCoach({
     if (!host || !module || !fixtureBundle) return null;
 
     documentRef.getElementById?.('facilitatorTrainingCoach')?.remove?.();
-    const root = createElement(documentRef, 'section', 'training-coach facilitator-training-coach card card-bordered');
+    const root = createElement(documentRef, 'section', 'training-coach facilitator-training-coach');
     root.id = 'facilitatorTrainingCoach';
     root.tabIndex = -1;
     root.dataset.trainingTeam = context.team;
@@ -126,7 +126,6 @@ export function mountFacilitatorTrainingCoach({
 
     const header = createElement(documentRef, 'div', 'training-coach__header');
     const headingGroup = createElement(documentRef, 'div');
-    appendText(documentRef, headingGroup, 'p', 'training-coach__eyebrow', 'GUIDED FACILITATOR PRACTICE');
     const title = appendText(
         documentRef,
         headingGroup,
@@ -135,8 +134,7 @@ export function mountFacilitatorTrainingCoach({
         `${context.team[0].toUpperCase()}${context.team.slice(1)} Facilitator coach`
     );
     title.id = 'facilitatorTrainingCoachTitle';
-    const progress = createElement(documentRef, 'div', 'training-coach__progress');
-    header.append(headingGroup, progress);
+    header.appendChild(headingGroup);
 
     const audioHost = createElement(documentRef, 'div', 'training-coach__audio');
     const lesson = createElement(documentRef, 'section', 'training-coach__lesson');
@@ -163,7 +161,7 @@ export function mountFacilitatorTrainingCoach({
             if (degradationWrite?.catch) void degradationWrite.catch(() => {});
         }
     });
-    audio.mountControls(audioHost, { documentRef });
+    audio.mountControls(audioHost, { documentRef, compact: true });
 
     const initialPracticeState = runtimeRef.getPracticeState?.() || null;
     const state = {
@@ -181,7 +179,6 @@ export function mountFacilitatorTrainingCoach({
         module,
         context,
         runtimeRef,
-        progressHost: progress,
         lessonHost: lesson,
         feedbackHost: feedback,
         documentRef,
@@ -249,7 +246,6 @@ export function mountFacilitatorTrainingCoach({
 
     const renderOrient = (container) => {
         renderArtifactSummary(container);
-        appendText(documentRef, container, 'p', '', 'Review the Scribe-authored record and identify its lifecycle state before projecting or submitting it.');
         container.appendChild(makeButton(documentRef, 'Review forwarded artifact', async () => {
             onReviewArtifact(fixtureBundle.artifact.id);
             try {
@@ -262,7 +258,6 @@ export function mountFacilitatorTrainingCoach({
     };
 
     const renderShow = (container) => {
-        appendText(documentRef, container, 'p', '', 'Open every Facilitator workspace. The coach records the current artifact, then asks you to restore Team Action Review.');
         const landmarks = createElement(documentRef, 'div', 'training-coach__landmarks');
         WORKSPACE_SEQUENCE.forEach((workspace) => {
             const visited = state.workspaceVisits.has(workspace);
@@ -588,7 +583,7 @@ export function mountFacilitatorTrainingCoach({
         coach.renderStep(state.stepIndex);
         void audio.setClip(step.id, {
             nextClipId: module.steps[state.stepIndex + 1]?.id || null,
-            autoplay: false
+            autoplay: audio.isAutoplayEnabled()
         });
 
         if (state.completed) {
@@ -597,9 +592,6 @@ export function mountFacilitatorTrainingCoach({
         }
 
         lesson.dataset.trainingState = state.retryMessage ? 'retry' : (state.practiceState?.artifactState || 'active');
-        appendText(documentRef, lesson, 'p', 'training-coach__stage', step.stage.toUpperCase());
-        appendText(documentRef, lesson, 'h3', '', step.learningObjective);
-        appendText(documentRef, lesson, 'p', '', step.coachCopy);
         if (state.retryMessage) appendText(documentRef, lesson, 'p', 'form-error', state.retryMessage);
         renderers[state.stepIndex](lesson);
     }
@@ -608,6 +600,7 @@ export function mountFacilitatorTrainingCoach({
     documentRef.addEventListener?.('training:exit', handleExit);
 
     function destroy() {
+        coach.destroy();
         audio.destroy();
         documentRef.removeEventListener?.('training:exit', handleExit);
         root.remove?.();

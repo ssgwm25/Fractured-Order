@@ -300,6 +300,8 @@
     --app-shell-top-offset: var(--header-height);
     --sync-status-banner-height: 52px;
     --training-sandbox-banner-height: calc(var(--space-12) + var(--space-4));
+    --training-coach-dock-width: 24rem;
+    --training-coach-mobile-max-height: 50dvh;
     --max-content-width: 900px;
     --max-content-width-wide: 1080px;
 

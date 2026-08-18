@@ -114,7 +114,7 @@ export function mountNotetakerTrainingCoach({
     if (!host || !module || !fixtureBundle) return null;
 
     documentRef.getElementById?.('notetakerTrainingCoach')?.remove?.();
-    const root = createElement(documentRef, 'section', 'training-coach card card-bordered');
+    const root = createElement(documentRef, 'section', 'training-coach');
     root.id = 'notetakerTrainingCoach';
     root.tabIndex = -1;
     root.dataset.trainingTeam = context.team;
@@ -122,7 +122,6 @@ export function mountNotetakerTrainingCoach({
 
     const header = createElement(documentRef, 'div', 'training-coach__header');
     const headingGroup = createElement(documentRef, 'div');
-    appendText(documentRef, headingGroup, 'p', 'training-coach__eyebrow', 'GUIDED NOTETAKER PRACTICE');
     const title = appendText(
         documentRef,
         headingGroup,
@@ -131,33 +130,9 @@ export function mountNotetakerTrainingCoach({
         `${context.team[0].toUpperCase()}${context.team.slice(1)} Notetaker coach`
     );
     title.id = 'notetakerTrainingCoachTitle';
-    const progress = createElement(documentRef, 'div', 'training-coach__progress');
-    header.append(headingGroup, progress);
+    header.appendChild(headingGroup);
 
     const audioHost = createElement(documentRef, 'div', 'training-coach__audio');
-    const common = createElement(documentRef, 'section', 'training-coach__common');
-    common.setAttribute('aria-labelledby', 'notetakerTrainingCommonTitle');
-    const commonTitle = appendText(documentRef, common, 'h3', '', 'Notetaker ownership boundary');
-    commonTitle.id = 'notetakerTrainingCommonTitle';
-    appendText(
-        documentRef,
-        common,
-        'p',
-        'text-sm',
-        'You explain team reasoning. You do not author, approve, edit, or submit actions, requests for information (RFIs), communications, or official timeline events.'
-    );
-    const landmarks = createElement(documentRef, 'div', 'training-coach__landmarks');
-    [
-        ['capture', 'Quick Capture'],
-        ['dynamics', 'Team Dynamics'],
-        ['alliance', 'Alliance Tracking'],
-        ['inbox', 'White Cell Inbox'],
-        ['actions', 'Team Actions'],
-        ['timeline', 'Official Timeline']
-    ].forEach(([section, label]) => {
-        landmarks.appendChild(makeButton(documentRef, label, () => onNavigate(section), 'secondary'));
-    });
-    common.appendChild(landmarks);
 
     const lesson = createElement(documentRef, 'section', 'training-coach__lesson');
     lesson.setAttribute('aria-live', 'polite');
@@ -166,7 +141,7 @@ export function mountNotetakerTrainingCoach({
     feedback.setAttribute('role', 'status');
     feedback.setAttribute('aria-live', 'polite');
     feedback.setAttribute('aria-atomic', 'true');
-    root.append(header, audioHost, common, lesson, feedback);
+    root.append(header, audioHost, lesson, feedback);
     host.insertBefore(root, host.firstChild || null);
 
     let degradedClipId = null;
@@ -183,7 +158,7 @@ export function mountNotetakerTrainingCoach({
             if (degradationWrite?.catch) void degradationWrite.catch(() => {});
         }
     });
-    audio.mountControls(audioHost, { documentRef });
+    audio.mountControls(audioHost, { documentRef, compact: true });
 
     const state = {
         stepIndex: 0,
@@ -200,7 +175,6 @@ export function mountNotetakerTrainingCoach({
         module,
         context,
         runtimeRef,
-        progressHost: progress,
         lessonHost: lesson,
         feedbackHost: feedback,
         documentRef,
@@ -295,7 +269,6 @@ export function mountNotetakerTrainingCoach({
 
     const renderOrient = (container) => {
         renderContext(container);
-        appendText(documentRef, container, 'p', '', 'Use this context to scope every note to the current exercise window and team. The explanatory record never replaces the official decision.');
         container.appendChild(makeButton(documentRef, 'I understand the Notetaker boundary', async () => {
             try {
                 await execute(NOTETAKER_COMMANDS.CONTEXT_ORIENTED);
@@ -348,7 +321,6 @@ export function mountNotetakerTrainingCoach({
     };
 
     const renderGuide = (container) => {
-        appendText(documentRef, container, 'p', '', 'A key moment marks a turn in the discussion. A quote preserves exact words. Keep them as separate capture types.');
         const form = createElement(documentRef, 'form', 'training-coach__form');
         const moment = makeTextarea(documentRef, {
             id: 'notetakerTrainingMoment',
@@ -559,7 +531,6 @@ export function mountNotetakerTrainingCoach({
     };
 
     const renderRetrieve = (container) => {
-        appendText(documentRef, container, 'p', '', 'Review the submitted team artifact and chronological timeline. Both are read-only in this workspace.');
         const reviewControls = createElement(documentRef, 'div', 'training-coach__landmarks');
         reviewControls.append(
             makeButton(documentRef, state.actionReviewed ? 'Team action reviewed' : 'Review team action', () => {
@@ -626,7 +597,6 @@ export function mountNotetakerTrainingCoach({
     };
 
     const renderReflect = (container) => {
-        appendText(documentRef, container, 'p', '', 'Seat notes stay with your Notetaker record. Quick captures append shared explanatory evidence. Manual saves publish practice snapshots. The action and official timeline remain read-only.');
         container.appendChild(makeButton(documentRef, 'Complete Notetaker practice', async () => {
             try {
                 await execute(NOTETAKER_COMMANDS.PRACTICE_COMPLETED);
@@ -647,7 +617,7 @@ export function mountNotetakerTrainingCoach({
         coach.renderStep(state.stepIndex);
         void audio.setClip(step.id, {
             nextClipId: module.steps[state.stepIndex + 1]?.id || null,
-            autoplay: false
+            autoplay: audio.isAutoplayEnabled()
         });
 
         if (state.completed) {
@@ -656,9 +626,6 @@ export function mountNotetakerTrainingCoach({
         }
 
         lesson.dataset.trainingState = state.retryMessage ? 'retry' : 'in-progress';
-        appendText(documentRef, lesson, 'p', 'training-coach__stage', step.stage.toUpperCase());
-        appendText(documentRef, lesson, 'h3', '', step.learningObjective);
-        appendText(documentRef, lesson, 'p', '', step.coachCopy);
         if (state.retryMessage) appendText(documentRef, lesson, 'p', 'form-error', state.retryMessage);
         [renderOrient, renderShow, renderGuide, renderPractice, renderRespond, renderRetrieve, renderReflect][state.stepIndex](lesson);
     }
@@ -669,6 +636,7 @@ export function mountNotetakerTrainingCoach({
     function destroy() {
         if (autosaveTimer) windowRef?.clearTimeout?.(autosaveTimer);
         autosaveTimer = null;
+        coach.destroy();
         audio.destroy();
         documentRef.removeEventListener?.('training:exit', handleExit);
         root.remove?.();

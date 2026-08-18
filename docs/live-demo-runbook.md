@@ -364,14 +364,40 @@ recorded in `public/training/intro/media-manifest.json`.
 
 ## Training Narration Recovery And Approval
 
+Before checking narration, verify the guided pathway itself on one Scribe,
+Facilitator, and Notetaker profile:
+
+1. Confirm the coach floats above the real role workspace without moving its
+   header, navigation, or working surface downward. The current platform target
+   has a visible outline and the dock uses the opposite side when space allows.
+2. Confirm the expanded guide contains only the role title, step count, short
+   stage heading, one coach sentence, role activity, feedback, and navigation.
+   It must not show a pathway/narration panel, role landmarks, duplicated
+   objective, or generic action requirement.
+3. Select `Hide guide` and confirm the highlighted platform feature remains
+   visible and operable. Restore the guide, complete the isolated activity, and
+   confirm keyboard focus lands on the next objective without bypassing mastery
+   or duplicating coach copy.
+4. At 390px and 768px widths, confirm the guide docks at the bottom, uses no
+   more than half the viewport height, and collapses to one `Show guide` control
+   without covering the highlighted target or focused controls.
+5. With reduced motion enabled, repeat a step change and confirm there is no
+   stage or target animation or smooth scroll, while focus and visible status
+   still update.
+6. With narration unmuted, select `Start guided walkthrough` in the role
+   confirmation. Confirm the current narration starts from that click, later
+   steps continue automatically, and the header shows only Play/Pause, Mute,
+   and `Hide guide`.
+
 Guided narration must load only repository-local, owner-approved files described
 by `public/training/audio/provenance.json`. No operator should add a hosted TTS
 endpoint, API key, or remote voice service to recover audio.
 
 If a learner sees the degraded narration message:
 
-1. Confirm the complete narration transcript remains visible and the learner
-   can continue without sound.
+1. Confirm the visible coach instruction remains available and the learner can
+   continue without sound. The narration transcript remains available to
+   assistive technology without adding another visible text panel.
 2. Confirm the message explicitly says the browser's default system voice is a
    degraded fallback before Web Speech begins. If the message is absent, stop
    the walkthrough; a silent voice substitution is a release failure.
@@ -380,8 +406,9 @@ If a learner sees the degraded narration message:
    unavailable. Do not record the learner's free text.
 4. Confirm changing steps, closing the coach/modal, selecting Exit training,
    hiding the page, and navigating away stop both file audio and system speech.
-5. Verify only the current and next clip are requested and that mute, volume,
-   and playback rate persist in the same browser profile.
+5. Verify only the current and next clip are requested and that mute persists
+   in the same browser profile. Volume and playback-rate preferences remain
+   internal and are intentionally not shown in the compact guide.
 
 Before publishing a narration batch, follow
 `scripts/training-audio/README.md`. The owner must approve the common intro and

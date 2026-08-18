@@ -84,7 +84,7 @@ export function mountScribeTrainingCoach({
     if (!host || !module || !descriptor || !fixtureBundle) return null;
 
     documentRef.getElementById?.('scribeTrainingCoach')?.remove?.();
-    const root = createElement(documentRef, 'section', 'training-coach card card-bordered');
+    const root = createElement(documentRef, 'section', 'training-coach');
     root.id = 'scribeTrainingCoach';
     root.tabIndex = -1;
     root.setAttribute('aria-labelledby', 'scribeTrainingCoachTitle');
@@ -92,35 +92,11 @@ export function mountScribeTrainingCoach({
 
     const header = createElement(documentRef, 'div', 'training-coach__header');
     const headingGroup = createElement(documentRef, 'div');
-    appendText(documentRef, headingGroup, 'p', 'training-coach__eyebrow', 'GUIDED SCRIBE PRACTICE');
     const title = appendText(documentRef, headingGroup, 'h2', 'training-coach__title', `${context.team[0].toUpperCase()}${context.team.slice(1)} Scribe coach`);
     title.id = 'scribeTrainingCoachTitle';
-    const progress = createElement(documentRef, 'div', 'training-coach__progress');
-    header.append(headingGroup, progress);
+    header.appendChild(headingGroup);
 
     const audioHost = createElement(documentRef, 'div', 'training-coach__audio');
-    const common = createElement(documentRef, 'section', 'training-coach__common');
-    common.setAttribute('aria-labelledby', 'scribeTrainingCommonTitle');
-    const commonTitle = appendText(documentRef, common, 'h3', '', 'Workspace landmarks');
-    commonTitle.id = 'scribeTrainingCommonTitle';
-    appendText(
-        documentRef,
-        common,
-        'p',
-        'text-sm',
-        'These are Scribe views. RFI history and White Cell updates are read-only here; the Facilitator owns RFI creation and direct communication.'
-    );
-    const landmarks = createElement(documentRef, 'div', 'training-coach__landmarks');
-    [
-        ['requests', 'RFI history'],
-        ['responses', 'White Cell updates'],
-        ['timeline', 'Timeline'],
-        ['tribeStreetJournal', 'Journal'],
-        ['capture', 'Quick Capture']
-    ].forEach(([section, label]) => {
-        landmarks.appendChild(makeButton(documentRef, label, () => onNavigate(section), 'secondary'));
-    });
-    common.appendChild(landmarks);
 
     const lesson = createElement(documentRef, 'section', 'training-coach__lesson');
     lesson.setAttribute('aria-live', 'polite');
@@ -129,7 +105,7 @@ export function mountScribeTrainingCoach({
     feedback.setAttribute('role', 'status');
     feedback.setAttribute('aria-live', 'polite');
     feedback.setAttribute('aria-atomic', 'true');
-    root.append(header, audioHost, common, lesson, feedback);
+    root.append(header, audioHost, lesson, feedback);
     host.insertBefore(root, host.firstChild || null);
 
     let degradedClipId = null;
@@ -146,7 +122,7 @@ export function mountScribeTrainingCoach({
             if (degradationWrite?.catch) void degradationWrite.catch(() => {});
         }
     });
-    audio.mountControls(audioHost, { documentRef });
+    audio.mountControls(audioHost, { documentRef, compact: true });
 
     const initialPracticeState = runtimeRef.getPracticeState?.() || null;
     const state = {
@@ -162,7 +138,6 @@ export function mountScribeTrainingCoach({
         module,
         context,
         runtimeRef,
-        progressHost: progress,
         lessonHost: lesson,
         feedbackHost: feedback,
         documentRef,
@@ -232,7 +207,6 @@ export function mountScribeTrainingCoach({
 
     const renderOrient = (container) => {
         renderContext(container);
-        appendText(documentRef, container, 'p', '', 'Read the live move, phase, and timer before recording a decision. Your handoff ends at the Facilitator; you do not submit to White Cell.');
         container.appendChild(makeButton(documentRef, 'I understand the Scribe handoff', async () => {
             try {
                 await coach.recordMastery({
@@ -247,7 +221,6 @@ export function mountScribeTrainingCoach({
     };
 
     const renderShow = (container) => {
-        appendText(documentRef, container, 'p', '', `Complete ${context.team[0].toUpperCase()}${context.team.slice(1)}'s current Strategic Orientation and forecast fields.`);
         container.appendChild(makeButton(documentRef, 'Open Strategic Orientation', () => {
             onOpenOrientation({
                 onComplete: (practiceState) => {
@@ -370,7 +343,8 @@ export function mountScribeTrainingCoach({
     };
 
     const renderReflect = (container) => {
-        appendText(documentRef, container, 'p', '', 'Confirm the lifecycle badge and timeline handoff, then remember where RFI history, White Cell updates, the journal, and Quick Capture live.');
+        onNavigate('timeline');
+        coach.updateTargetSpotlight(module.steps[6], { shouldScroll: true });
         renderStateBadge(container, 'completed');
         container.appendChild(makeButton(documentRef, 'Complete Scribe practice', async () => {
             try {
@@ -395,7 +369,7 @@ export function mountScribeTrainingCoach({
         coach.renderStep(state.stepIndex);
         void audio.setClip(step.id, {
             nextClipId: module.steps[state.stepIndex + 1]?.id || null,
-            autoplay: false
+            autoplay: audio.isAutoplayEnabled()
         });
 
         if (state.completed) {
@@ -404,9 +378,6 @@ export function mountScribeTrainingCoach({
         }
 
         lesson.dataset.trainingState = state.status === 'retry' ? 'retry' : state.status;
-        appendText(documentRef, lesson, 'p', 'training-coach__stage', step.stage.toUpperCase());
-        appendText(documentRef, lesson, 'h3', '', step.learningObjective);
-        appendText(documentRef, lesson, 'p', '', step.coachCopy);
         if (state.retryMessage) appendText(documentRef, lesson, 'p', 'form-error', state.retryMessage);
 
         [renderOrient, renderShow, renderGuide, renderPractice, renderRespond, renderRetrieve, renderReflect][state.stepIndex](lesson);
@@ -416,6 +387,7 @@ export function mountScribeTrainingCoach({
     documentRef.addEventListener?.('training:exit', handleExit);
 
     function destroy() {
+        coach.destroy();
         audio.destroy();
         documentRef.removeEventListener?.('training:exit', handleExit);
         root.remove?.();

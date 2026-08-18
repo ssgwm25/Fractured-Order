@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     createTrainingProgressEventKey,
     getTrainingProgressRoleLabel,
+    getTrainingStageLabel,
     normalizeTrainingAttemptSnapshot,
     reconcileTrainingProgress,
     resolveTrainingResumeIndex
@@ -21,6 +22,13 @@ describe('TrainingProgress', () => {
     it('derives a stable role label from curriculum semanticRole metadata', () => {
         expect(getTrainingProgressRoleLabel({ semanticRole: 'scribe' })).toBe('Scribe');
         expect(getTrainingProgressRoleLabel({})).toBe('Training');
+    });
+
+    it('turns internal stage keys into learner-facing pathway labels', () => {
+        expect(getTrainingStageLabel('show')).toBe('See it');
+        expect(getTrainingStageLabel('guide')).toBe('Follow along');
+        expect(getTrainingStageLabel('retrieve')).toBe('Check understanding');
+        expect(getTrainingStageLabel('unknown')).toBe('Learning activity');
     });
 
     it('resumes at the first incomplete meaningful step instead of trusting current_step_id', () => {

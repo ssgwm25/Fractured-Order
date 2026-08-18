@@ -1,5 +1,14 @@
 const STEP_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,95}$/;
 const EVENT_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]{0,159}$/;
+const TRAINING_STAGE_LABELS = Object.freeze({
+    orient: 'Orient',
+    show: 'See it',
+    guide: 'Follow along',
+    practice: 'Try it',
+    respond: 'Respond',
+    retrieve: 'Check understanding',
+    reflect: 'Reflect and finish'
+});
 
 function boundedStepIds(value) {
     if (!Array.isArray(value)) return [];
@@ -72,6 +81,11 @@ export function getTrainingProgressRoleLabel(module = {}) {
         : 'Training';
 }
 
+export function getTrainingStageLabel(stage) {
+    const normalized = String(stage || '').trim().toLowerCase();
+    return TRAINING_STAGE_LABELS[normalized] || 'Learning activity';
+}
+
 function createElement(documentRef, tagName, className = '', text = '') {
     const element = documentRef.createElement(tagName);
     if (className) element.className = className;
@@ -124,14 +138,35 @@ export function mountTrainingProgress({
         list.replaceChildren();
         module.steps.forEach((step, index) => {
             const masteredStep = mastered.has(step.id);
-            const item = createElement(
+            const isCurrent = index === currentIndex;
+            const item = createElement(documentRef, 'li', 'training-progress__step');
+            const marker = createElement(
                 documentRef,
-                'li',
-                'training-progress__step',
-                `${index + 1}. ${step.stage}: ${masteredStep ? 'Mastered' : (index === currentIndex ? 'Current' : 'Not yet mastered')}`
+                'span',
+                'training-progress__marker',
+                masteredStep ? '✓' : String(index + 1)
             );
-            item.dataset.state = masteredStep ? 'mastered' : (index === currentIndex ? 'current' : 'pending');
-            if (index === currentIndex) item.setAttribute('aria-current', 'step');
+            marker.setAttribute('aria-hidden', 'true');
+            const copy = createElement(documentRef, 'span', 'training-progress__step-copy');
+            const name = createElement(
+                documentRef,
+                'span',
+                'training-progress__step-name',
+                getTrainingStageLabel(step.stage)
+            );
+            const status = createElement(
+                documentRef,
+                'span',
+                'training-progress__step-status',
+                isCurrent
+                    ? (masteredStep ? 'Current · Mastered' : 'Current activity')
+                    : (masteredStep ? 'Mastered' : 'Coming later')
+            );
+            copy.append(name, status);
+            item.append(marker, copy);
+            item.dataset.state = masteredStep ? 'mastered' : (isCurrent ? 'current' : 'pending');
+            item.dataset.current = String(isCurrent);
+            if (isCurrent) item.setAttribute('aria-current', 'step');
             list.appendChild(item);
         });
     }

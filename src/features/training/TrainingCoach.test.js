@@ -1,10 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-    getTrainingActionRequirement,
-    getTrainingCompletionSummary
-} from './TrainingCoach.js';
+import { getTrainingCompletionSummary } from './TrainingCoach.js';
 
 describe('TrainingCoach contract', () => {
     it.each(['scribe', 'facilitator', 'notetaker'])(
@@ -20,15 +17,6 @@ describe('TrainingCoach contract', () => {
             expect(copy).not.toMatch(/\b\d+\s*\/\s*\d+\b/);
         }
     );
-
-    it('states a concrete action requirement for every curriculum interaction type', () => {
-        [
-            'read', 'observe', 'guided_action', 'practice_action',
-            'simulated_response', 'retrieval_check', 'reflection'
-        ].forEach((interactionType) => {
-            expect(getTrainingActionRequirement({ interactionType })).toMatch(/\.$/);
-        });
-    });
 
     it('keeps Next mastery-gated and exposes confirmation, live-region, and native disclosure semantics', () => {
         const source = readFileSync(fileURLToPath(new URL('./TrainingCoach.js', import.meta.url)), 'utf8');

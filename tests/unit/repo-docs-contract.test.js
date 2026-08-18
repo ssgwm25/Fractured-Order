@@ -72,6 +72,31 @@ describe('repository operator docs contract', () => {
         });
     });
 
+    it('pins the incompatible native walkthrough interaction contract', () => {
+        const training = readText('../../docs/ssg-training-session-design.md');
+        const nativeContract = training.slice(
+            training.indexOf('### Native walkthrough presentation contract'),
+            training.indexOf('## Acceptance checklist')
+        );
+
+        expect(training).toContain('**Contract version:** 2.0');
+        expect(training).toContain('Every profile contains six ordered native actions');
+        expect(training).toContain('`training.v2.<semantic-role>.<team>`');
+        expect(training).toContain('`TRAINING_CURRICULUM_RESTART_REQUIRED`');
+        expect(training).toContain('are never relabeled, copied, or counted toward');
+        expect(nativeContract).toContain('one `targetSelector`, one `expectedTrainingEvent`, and one');
+        expect(nativeContract).toContain('one imperative');
+        expect(nativeContract).toContain('at most one supporting `instruction`');
+        expect(nativeContract).toContain('broad container is allowed only for read-only receipt verification');
+        expect(nativeContract).toContain('no working form, proxy action, quiz, repeated');
+        expect(nativeContract).toContain('may not introduce');
+        expect(nativeContract).not.toMatch(/\*\*(Orient|Show|Guide|Practice|Respond|Retrieve|Reflect)\*\*/);
+        expect(nativeContract).not.toContain('Step n of 7');
+        expect(nativeContract).not.toContain('accessible fallback target');
+        expect(training).toContain('The platform header is the sole');
+        expect(training).toContain('sole walkthrough source for the handoff boundary');
+    });
+
     it('pins secretless pull-request frontend validation and retained artifacts', () => {
         const workflow = readText('../../.github/workflows/frontend-ci.yml');
         const deployment = readText('../../docs/deployment.md');
