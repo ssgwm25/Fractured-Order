@@ -28,6 +28,14 @@ import {
 } from './pliShared.js';
 import { notifyPliSeatSentBack } from './pliNotify.js';
 import { sessionStore } from '../../stores/session.js';
+import {
+    collectDipOverrideFromCard,
+    renderEditDiffHtml,
+    resolveOutputTracks,
+    readDiplomacyFields,
+    renderInfoBriefReadOnly,
+    renderInfoBriefEditor
+} from './pliSmeEdits.js';
 
 const logger = createLogger('DiplomacyInfoReview');
 const SEAT = SEATS.DIPLOMACY_INFORMATION;
@@ -243,11 +251,11 @@ export function createDiplomacyInfoReview(options = {}) {
         card.className = 'pli-sme-card';
         const action = actionsById.get(row.action_id);
         const record = row.record || {};
-        const tracks = record.tracks || {};
-        const diplomacy = tracks.diplomacy || null;
-        const information = tracks.information || null;
         const seat = getSeatReview(row, SEAT);
         const status = seat.status || row.status;
+        const tracks = seatIsFinalized(seat) ? resolveOutputTracks(row) : (record.tracks || {});
+        const diplomacy = tracks.diplomacy || null;
+        const information = tracks.information || null;
         const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
         const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
         const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
@@ -275,15 +283,15 @@ export function createDiplomacyInfoReview(options = {}) {
                     <h3 class="pli-col-title">SME review</h3>
                     <div class="pli-block">
                         <div class="pli-label">A. Diplomacy ${routing.diplomacy ? '' : '(not routed)'}</div>
-                        ${renderDiplomacy(diplomacy, routing.diplomacy)}
+                        ${renderDiplomacy(diplomacy, routing.diplomacy, { editable: seatNeedsReview(seat) && canReview() })}
                     </div>
                     <div class="pli-block">
                         <div class="pli-label">B. Information ${routing.information ? '' : '(not routed)'}</div>
-                        ${renderInformation(information, routing.information)}
+                        ${renderInformation(information, routing.information, { editable: seatNeedsReview(seat) && canReview() })}
                     </div>
-                    ${seatNeedsReview(seat) ? `
+                    ${seatNeedsReview(seat) && canReview() ? `
                         <div class="pli-notice pli-notice-gold">
-                            <strong>Override active when edited.</strong> Provide rationale below before Override &amp; Save.
+                            <strong>Override</strong> — edit Diplomacy fields or the Information brief, then save with a rationale.
                             <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="3000"
                                 placeholder="Override rationale (required when changing proposed fields)">${escapeHtml(seat.override_rationale || '')}</textarea>
                             <div class="text-sm text-gray-500" data-pli-rationale-count>0 / 3000</div>
@@ -312,6 +320,7 @@ export function createDiplomacyInfoReview(options = {}) {
                 canOverride: true
             }) : ''}
             ${renderSeatSmeNotes(seat)}
+            ${renderEditDiffHtml(seat)}
             <p class="text-sm text-gray-600" style="margin-top: var(--space-2);">Nothing is final until SME approval — both tracks clear together.</p>
         `;
 
@@ -330,70 +339,87 @@ export function createDiplomacyInfoReview(options = {}) {
         return card;
     }
 
-    function renderDiplomacy(diplomacy, routed) {
+    function renderDiplomacy(diplomacy, routed, { editable = false } = {}) {
         if (!routed) {
             return '<p class="text-sm text-gray-500">Not on the default lane map for this Instrument of Power.</p>';
         }
-        if (!diplomacy) {
+        if (!diplomacy && !editable) {
             return '<p class="text-sm text-gray-500">No diplomacy worksheet yet.</p>';
         }
-        if (diplomacy.status === 'needs_human' && !diplomacy.code && !diplomacy.code_string) {
+        if (diplomacy?.status === 'needs_human' && !diplomacy.code && !diplomacy.code_string && !editable) {
             return `<div class="pli-notice pli-notice-danger">${escapeHtml(diplomacy.needs_human_reason || 'Needs human diplomacy worksheet.')}</div>`;
         }
-        const fields = diplomacy.fields || diplomacy.taxonomy || diplomacy;
-        const code = diplomacy.code_string || diplomacy.code || fields.code || '—';
-        const band = diplomacy.band || fields.band || '—';
-        const category = diplomacy.category || fields.paradigm || fields.diplomacy_paradigm || '—';
-        const style = diplomacy.policy_style || fields.policy_style || '—';
+        const fields = readDiplomacyFields(diplomacy);
+        if (!editable) {
+            return `
+                <dl class="pli-meta">
+                    <div><dt>Band</dt><dd>${escapeHtml(String(fields.band || '—'))}</dd></div>
+                    <div><dt>Taxonomy / code</dt><dd><code class="pli-code-wrap">${escapeHtml(String(fields.code || '—'))}</code></dd></div>
+                    <div><dt>Category</dt><dd>${escapeHtml(String(fields.category || '—'))}</dd></div>
+                    <div><dt>Policy style</dt><dd>${escapeHtml(String(fields.policy_style || '—'))}</dd></div>
+                    <div><dt>Channel / modality</dt><dd>${escapeHtml(formatList(diplomacy?.fields?.channel || diplomacy?.fields?.channels || diplomacy?.fields?.modality))}</dd></div>
+                    <div><dt>Audience</dt><dd>${escapeHtml(formatList(diplomacy?.fields?.audience || diplomacy?.fields?.counterpart))}</dd></div>
+                    <div><dt>Effect summary</dt><dd>${escapeHtml(String(fields.effect_summary || '—'))}</dd></div>
+                    <div><dt>Credibility / feasibility</dt><dd>${escapeHtml(String(diplomacy?.fields?.credibility || diplomacy?.fields?.feasibility || '—'))}</dd></div>
+                </dl>
+                ${diplomacy?.rationale ? `<p class="pli-cite text-sm">${escapeHtml(diplomacy.rationale)}</p>` : ''}
+            `;
+        }
         return `
-            <dl class="pli-meta">
-                <div><dt>Band</dt><dd>${escapeHtml(String(band))}</dd></div>
-                <div><dt>Taxonomy / code</dt><dd><code class="pli-code-wrap">${escapeHtml(String(code))}</code></dd></div>
-                <div><dt>Category</dt><dd>${escapeHtml(String(category))}</dd></div>
-                <div><dt>Policy style</dt><dd>${escapeHtml(String(style))}</dd></div>
-                <div><dt>Channel / modality</dt><dd>${escapeHtml(formatList(fields.channel || fields.channels || fields.modality))}</dd></div>
-                <div><dt>Audience</dt><dd>${escapeHtml(formatList(fields.audience || fields.counterpart))}</dd></div>
-                <div><dt>Effect summary</dt><dd>${escapeHtml(String(fields.effect_summary || fields.proposed_outcome || '—'))}</dd></div>
-                <div><dt>Credibility / feasibility</dt><dd>${escapeHtml(String(fields.credibility || fields.feasibility || '—'))}</dd></div>
-            </dl>
-            ${diplomacy.rationale ? `<p class="pli-cite text-sm">${escapeHtml(diplomacy.rationale)}</p>` : ''}
+            <div class="form-group pli-edit-field">
+                <label class="form-label">Band</label>
+                <input type="text" class="form-input" data-pli-dip-band value="${escapeHtml(String(fields.band || ''))}">
+            </div>
+            <div class="form-group pli-edit-field">
+                <label class="form-label">Taxonomy / code</label>
+                <input type="text" class="form-input" data-pli-dip-code value="${escapeHtml(String(fields.code || ''))}">
+            </div>
+            <div class="form-group pli-edit-field">
+                <label class="form-label">Category</label>
+                <input type="text" class="form-input" data-pli-dip-category value="${escapeHtml(String(fields.category || ''))}">
+            </div>
+            <div class="form-group pli-edit-field">
+                <label class="form-label">Policy style</label>
+                <input type="text" class="form-input" data-pli-dip-style value="${escapeHtml(String(fields.policy_style || ''))}">
+            </div>
+            <div class="form-group pli-edit-field">
+                <label class="form-label">Effect summary</label>
+                <textarea class="form-input form-textarea" data-pli-dip-effect rows="3">${escapeHtml(String(fields.effect_summary || ''))}</textarea>
+            </div>
+            ${diplomacy?.rationale ? `<p class="pli-cite text-sm">${escapeHtml(diplomacy.rationale)}</p>` : ''}
         `;
     }
 
-    function renderInformation(information, routed) {
+    function renderInformation(information, routed, { editable = false } = {}) {
         if (!routed) {
             return '<p class="text-sm text-gray-500">Not on the default lane map for this Instrument of Power.</p>';
         }
-        if (!information) {
+        if (!information && !editable) {
             return '<p class="text-sm text-gray-500">No information brief yet.</p>';
         }
-        if (information.status === 'needs_human' && !information.brief && !information.message_thesis) {
+        if (information?.status === 'needs_human' && !information.brief && !information.sections && !editable) {
             return `<div class="pli-notice pli-notice-danger">${escapeHtml(information.needs_human_reason || 'Needs human information brief.')}</div>`;
         }
-        const brief = information.brief || information;
-        return `
-            <dl class="pli-meta">
-                <div><dt>Operation type</dt><dd>${escapeHtml(String(brief.operation_type || brief.information_operation_type || '—'))}</dd></div>
-                <div><dt>Target audience</dt><dd>${escapeHtml(formatList(brief.target_audience || brief.theater))}</dd></div>
-                <div><dt>Message thesis</dt><dd>${escapeHtml(String(brief.message_thesis || brief.thesis || '—'))}</dd></div>
-                <div><dt>Intended effect</dt><dd>${escapeHtml(String(brief.intended_effect || '—'))}</dd></div>
-                <div><dt>Attribution posture</dt><dd>${escapeHtml(String(brief.attribution_posture || brief.attribution || '—'))}</dd></div>
-                <div><dt>Blowback risk</dt><dd>${escapeHtml(String(brief.risk_of_blowback || brief.blowback || '—'))}</dd></div>
-            </dl>
-        `;
+        if (editable) {
+            return renderInfoBriefEditor(information);
+        }
+        return renderInfoBriefReadOnly(information);
     }
 
     function summarizeDiplomacy(diplomacy) {
         if (!diplomacy) return 'No diplomacy output.';
         if (diplomacy.status === 'needs_human') return diplomacy.needs_human_reason || 'Needs human.';
-        return diplomacy.code || diplomacy.fields?.paradigm || JSON.stringify(diplomacy).slice(0, 160);
+        const fields = readDiplomacyFields(diplomacy);
+        return fields.code || fields.category || JSON.stringify(diplomacy).slice(0, 160);
     }
 
     function summarizeInformation(information) {
         if (!information) return 'No information output.';
         if (information.status === 'needs_human') return information.needs_human_reason || 'Needs human.';
-        const brief = information.brief || information;
-        return brief.message_thesis || brief.thesis || JSON.stringify(brief).slice(0, 160);
+        return information.sections?.summary
+            || information.brief?.summary
+            || information.brief?.message_thesis
+            || JSON.stringify(information).slice(0, 160);
     }
 
     function formatList(value) {
@@ -417,21 +443,18 @@ export function createDiplomacyInfoReview(options = {}) {
     }
 
     async function handleOverride(row, card) {
-        const rationale = card.querySelector('[data-pli-rationale]')?.value?.trim() || '';
-        if (!rationale) {
+        const collected = collectDipOverrideFromCard(card, row);
+        if (!collected.override_rationale) {
             showToast({ message: 'Override rationale is required', type: 'error' });
             return;
         }
         try {
-            const tracks = row.record?.tracks || {};
             await database.reviewPliSeat(row.id, SEAT, {
                 status: 'overridden',
                 sme_reviewer: getReviewerName?.() || 'White Cell',
-                override_value: {
-                    diplomacy: tracks.diplomacy || null,
-                    information: tracks.information || null
-                },
-                override_rationale: rationale
+                override_value: collected.override_value,
+                override_rationale: collected.override_rationale,
+                edit_diff: collected.edit_diff
             });
             showToast({ message: 'Override saved for Diplomacy & Information', type: 'success' });
             await refresh();

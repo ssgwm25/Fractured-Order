@@ -29,6 +29,11 @@ import {
 } from './pliShared.js';
 import { notifyPliSeatSentBack } from './pliNotify.js';
 import { sessionStore } from '../../stores/session.js';
+import {
+    collectNiOverrideFromCard,
+    renderEditDiffHtml,
+    resolveOutputTracks
+} from './pliSmeEdits.js';
 
 const logger = createLogger('NiEscalationReview');
 const SEAT = SEATS.NATIONAL_INTEREST_ESCALATION;
@@ -264,11 +269,11 @@ export function createNiEscalationReview(options = {}) {
         card.className = 'pli-sme-card';
         const action = actionsById.get(row.action_id);
         const record = row.record || {};
-        const tracks = record.tracks || {};
-        const ni = tracks.national_interest || {};
-        const glasl = tracks.glasl || {};
         const seat = getSeatReview(row, SEAT);
         const status = seat.status || row.status;
+        const tracks = seatIsFinalized(seat) ? resolveOutputTracks(row) : (record.tracks || {});
+        const ni = tracks.national_interest || {};
+        const glasl = tracks.glasl || {};
         const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
         const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
         const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
@@ -288,17 +293,17 @@ export function createNiEscalationReview(options = {}) {
                     <h3 class="pli-col-title">Panel A — National Interest</h3>
                     ${renderOrientationBanner(ni)}
                     <div class="pli-ni-grid">
-                        ${renderNiDomains(domains, ni)}
+                        ${renderNiDomains(domains, ni, { editable: seatNeedsReview(seat) && canReview() })}
                     </div>
                     ${ni.needs_human || ni.status === 'needs_human' ? `
                         <div class="pli-notice pli-notice-danger">${escapeHtml(ni.needs_human_reason || 'NI worksheet needs human adjudication.')}</div>` : ''}
 
                     <h3 class="pli-col-title" style="margin-top: var(--space-4);">Panel B — Escalation (Glasl)</h3>
-                    ${renderGlasl(glasl)}
+                    ${renderGlasl(glasl, { editable: seatNeedsReview(seat) && canReview() })}
 
-                    ${seatNeedsReview(seat) ? `
+                    ${seatNeedsReview(seat) && canReview() ? `
                         <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
-                            <strong>Override active</strong> — rationale required when changing proposed scores / stage.
+                            <strong>Override</strong> — edit domain deltas or Glasl stage, then save with a rationale.
                             <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="1000"
                                 placeholder="Override rationale">${escapeHtml(seat.override_rationale || '')}</textarea>
                             <div class="text-sm text-gray-500" data-pli-rationale-count>0 / 1000</div>
@@ -338,6 +343,7 @@ export function createNiEscalationReview(options = {}) {
                 canOverride: true
             }) : ''}
             ${renderSeatSmeNotes(seat)}
+            ${renderEditDiffHtml(seat)}
         `;
 
         const rationale = card.querySelector('[data-pli-rationale]');
@@ -381,22 +387,26 @@ export function createNiEscalationReview(options = {}) {
             </div>`;
     }
 
-    function renderNiDomains(domains, ni) {
+    function renderNiDomains(domains, ni, { editable = false } = {}) {
         const keys = Object.keys(NI_DOMAIN_LABELS);
         const primaries = primaryDomainSet(ni);
-        if (!keys.some((k) => domains[k])) {
+        if (!keys.some((k) => domains[k]) && !editable) {
             return `<p class="text-sm text-gray-500">${escapeHtml(ni.needs_human_reason || 'No NI domain deltas on record yet.')}</p>`;
         }
         return keys.map((key) => {
             const entry = domains[key] || {};
-            const delta = entry.delta ?? entry;
+            const delta = entry.delta ?? entry ?? '';
             const rationale = typeof entry === 'object' ? (entry.rationale || '') : '';
             const isPrimary = primaries.has(key);
+            const deltaValue = delta === '' || delta == null ? '' : String(delta);
+            const deltaControl = editable
+                ? `<input type="number" class="form-input pli-ni-delta-input" data-pli-ni-delta="${escapeHtml(key)}" step="1" value="${escapeHtml(deltaValue)}">`
+                : `<span class="pli-ni-delta">${escapeHtml(deltaValue || '—')}</span>`;
             return `
                 <div class="pli-ni-domain${isPrimary ? ' is-primary' : ''}">
                     <div class="pli-ni-domain-head">
                         <strong>${escapeHtml(key)}${isPrimary ? ' · primary' : ''}</strong>
-                        <span class="pli-ni-delta">${escapeHtml(String(delta))}</span>
+                        ${deltaControl}
                     </div>
                     <div class="text-sm text-gray-600">${escapeHtml(NI_DOMAIN_LABELS[key])}</div>
                     ${rationale ? `<p class="pli-cite text-sm">${escapeHtml(rationale)}</p>` : ''}
@@ -405,22 +415,35 @@ export function createNiEscalationReview(options = {}) {
         }).join('');
     }
 
-    function renderGlasl(glasl) {
-        if (!glasl || Object.keys(glasl).length === 0) {
+    function renderGlasl(glasl, { editable = false } = {}) {
+        const empty = !glasl || Object.keys(glasl).length === 0;
+        if (empty && !editable) {
             return '<p class="text-sm text-gray-500">No Glasl worksheet on record.</p>';
         }
-        const after = Number(glasl.stage_after);
+        const after = Number(glasl?.stage_after);
+        const hasAfter = Number.isInteger(after) && after >= 1 && after <= 9;
         const label = GLASL_LABELS[after] || '';
-        return `
-            <div class="pli-block">
-                <p class="text-sm">
+        const stageSelect = editable
+            ? `<label class="form-label">Proposed stage</label>
+                <select class="form-input form-select" data-pli-glasl-stage>
+                    ${hasAfter ? '' : '<option value="" selected>No proposed stage</option>'}
+                    ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((stage) => `
+                        <option value="${stage}" ${hasAfter && stage === after ? 'selected' : ''}>
+                            ${stage} — ${escapeHtml(GLASL_LABELS[stage] || '')}
+                        </option>`).join('')}
+                </select>`
+            : `<p class="text-sm">
                     <strong>Proposed stage:</strong> ${escapeHtml(String(glasl.stage_after ?? '—'))}
                     ${label ? ` (${escapeHtml(label)})` : ''}
                     · <strong>Prior:</strong> ${escapeHtml(String(glasl.stage_before ?? '—'))}
                     · <strong>Δ:</strong> ${escapeHtml(String(glasl.delta ?? '—'))}
-                </p>
-                <p class="pli-cite text-sm">${escapeHtml(glasl.rationale || glasl.movement_rationale || '')}</p>
-                ${glasl.needs_human || glasl.status === 'needs_human' ? `
+                </p>`;
+        return `
+            <div class="pli-block">
+                ${stageSelect}
+                ${editable ? `<p class="text-sm text-gray-600">Prior ${escapeHtml(String(glasl?.stage_before ?? '—'))} · Δ ${escapeHtml(String(glasl?.delta ?? '—'))}</p>` : ''}
+                <p class="pli-cite text-sm">${escapeHtml(glasl?.rationale || glasl?.movement_rationale || '')}</p>
+                ${glasl?.needs_human || glasl?.status === 'needs_human' ? `
                     <div class="pli-notice pli-notice-danger">${escapeHtml(glasl.needs_human_reason || 'Glasl needs human adjudication.')}</div>` : ''}
             </div>
         `;
@@ -441,21 +464,18 @@ export function createNiEscalationReview(options = {}) {
     }
 
     async function handleOverride(row, card) {
-        const rationale = card.querySelector('[data-pli-rationale]')?.value?.trim() || '';
-        if (!rationale) {
+        const collected = collectNiOverrideFromCard(card, row);
+        if (!collected.override_rationale) {
             showToast({ message: 'Override rationale is required', type: 'error' });
             return;
         }
-        const tracks = row.record?.tracks || {};
         try {
             await database.reviewPliSeat(row.id, SEAT, {
                 status: 'overridden',
                 sme_reviewer: getReviewerName?.() || 'White Cell',
-                override_value: {
-                    national_interest: tracks.national_interest || null,
-                    glasl: tracks.glasl || null
-                },
-                override_rationale: rationale
+                override_value: collected.override_value,
+                override_rationale: collected.override_rationale,
+                edit_diff: collected.edit_diff
             });
             showToast({ message: 'Override saved for NI & Escalation', type: 'success' });
             await refresh();

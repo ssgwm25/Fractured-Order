@@ -5,12 +5,14 @@ const {
     mockCreatePliMacroReview,
     mockCreateDiplomacyInfoReview,
     mockCreateNiEscalationReview,
-    mockCreatePliReportPanel
+    mockCreatePliReportPanel,
+    mockCreatePliSmeEfficacyPanel
 } = vi.hoisted(() => ({
     mockCreatePliMacroReview: vi.fn(() => ({ refresh: vi.fn() })),
     mockCreateDiplomacyInfoReview: vi.fn(() => ({ refresh: vi.fn() })),
     mockCreateNiEscalationReview: vi.fn(() => ({ refresh: vi.fn() })),
-    mockCreatePliReportPanel: vi.fn(() => ({ refresh: vi.fn() }))
+    mockCreatePliReportPanel: vi.fn(() => ({ refresh: vi.fn() })),
+    mockCreatePliSmeEfficacyPanel: vi.fn(() => ({ refresh: vi.fn() }))
 }));
 
 vi.mock('../features/pli/PliMacroReview.js', () => ({
@@ -25,13 +27,17 @@ vi.mock('../features/pli/NiEscalationReview.js', () => ({
 vi.mock('../features/pli/PliReportPanel.js', () => ({
     createPliReportPanel: (...args) => mockCreatePliReportPanel(...args)
 }));
+vi.mock('../features/pli/PliSmeEfficacyPanel.js', () => ({
+    createPliSmeEfficacyPanel: (...args) => mockCreatePliSmeEfficacyPanel(...args)
+}));
 
 function createPanelHosts() {
     const elements = {
         pliAdjudicationPanel: { id: 'pliAdjudicationPanel' },
         pliDiplomacyInfoPanel: { id: 'pliDiplomacyInfoPanel' },
         pliNiEscalationPanel: { id: 'pliNiEscalationPanel' },
-        pliReportsPanel: { id: 'pliReportsPanel' }
+        pliReportsPanel: { id: 'pliReportsPanel' },
+        pliSmeEfficacyPanel: { id: 'pliSmeEfficacyPanel' }
     };
     return {
         getElementById: (id) => elements[id] || null,
@@ -60,6 +66,7 @@ describe('White Cell PLI Lead readonly mount', () => {
         expect(mockCreateDiplomacyInfoReview).toHaveBeenCalledTimes(1);
         expect(mockCreateNiEscalationReview).toHaveBeenCalledTimes(1);
         expect(mockCreatePliReportPanel).toHaveBeenCalledTimes(1);
+        expect(mockCreatePliSmeEfficacyPanel).toHaveBeenCalledTimes(1);
 
         for (const mock of [
             mockCreatePliMacroReview,
@@ -74,5 +81,9 @@ describe('White Cell PLI Lead readonly mount', () => {
         const reportOptions = mockCreatePliReportPanel.mock.calls[0][0];
         expect(reportOptions.container.id).toBe('pliReportsPanel');
         expect(typeof reportOptions.getSessionId).toBe('function');
+
+        const efficacyOptions = mockCreatePliSmeEfficacyPanel.mock.calls[0][0];
+        expect(efficacyOptions.container.id).toBe('pliSmeEfficacyPanel');
+        expect(typeof efficacyOptions.getSessionId).toBe('function');
     });
 });

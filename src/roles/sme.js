@@ -19,6 +19,7 @@ import { createPliMacroReview } from '../features/pli/PliMacroReview.js';
 import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js';
 import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.js';
 import { createSmeHandoffQueue } from '../features/pli/SmeHandoffQueue.js';
+import { createSmePliPacketQueue } from '../features/pli/SmePliPacketQueue.js';
 import {
     SEATS as PLI_SEATS,
     seatNeedsReview,
@@ -68,6 +69,7 @@ export class SmeController {
     constructor() {
         this.smeRole = null;
         this.panel = null;
+        this.packetPanel = null;
         this.refreshTimer = null;
     }
 
@@ -150,11 +152,32 @@ export class SmeController {
             [SME_ROLES.ECON]: 'Approve or override Macro PLI outputs. White Cell Lead sees finalized Macro read-only.',
             [SME_ROLES.NI_ESCALATION]: 'Review NI & Escalation after Macro is finalized or skipped.',
             [SME_ROLES.DIPLOMACY_INFORMATION]: 'Review Diplomacy & Information after Macro is finalized or skipped.',
-            [SME_ROLES.TSJ]: 'External Tribe Street Journal handoff — copy narrative, then mark done.',
-            [SME_ROLES.VERBA]: 'External Verba AI handoff — copy narrative, then mark done.'
+            [SME_ROLES.TSJ]: 'Copy White Cell–complete action narratives into Tribe Street Journal, then mark done.',
+            [SME_ROLES.VERBA]: 'Copy White Cell–complete action narratives into Verba, then mark done.'
         };
         if (sectionDescription) {
             sectionDescription.textContent = descriptions[this.smeRole] || 'SME queue';
+        }
+
+        const isHandoffRole = this.smeRole === SME_ROLES.TSJ || this.smeRole === SME_ROLES.VERBA;
+        if (isHandoffRole && navLabel) {
+            navLabel.textContent = 'Action handoffs';
+        }
+        if (isHandoffRole && sectionTitle) {
+            sectionTitle.textContent = 'Action handoffs';
+        }
+
+        const packetNav = document.getElementById('smePliPacketsNavItem');
+        if (packetNav) {
+            packetNav.hidden = !isHandoffRole;
+        }
+        const packetTitle = document.getElementById('smePliPacketsSectionTitle');
+        const packetDescription = document.getElementById('smePliPacketsSectionDescription');
+        if (isHandoffRole && packetTitle) packetTitle.textContent = 'Approved PLI';
+        if (isHandoffRole && packetDescription) {
+            packetDescription.textContent = this.smeRole === SME_ROLES.VERBA
+                ? 'Copy SME-approved PLI JSON into Verba after Econ, NI, or Dip-Info finalize, then mark done.'
+                : 'Copy SME-approved PLI markdown into Tribe Street Journal after Econ, NI, or Dip-Info finalize, then mark done.';
         }
 
         const sessionData = sessionStore.getSessionData?.() || {};
@@ -175,6 +198,8 @@ export class SmeController {
         host.innerHTML = '';
         this.panel?.destroy?.();
         this.panel = null;
+        this.packetPanel?.destroy?.();
+        this.packetPanel = null;
 
         const sessionId = () => sessionStore.getSessionId?.() || sessionStore.getSessionData?.()?.id || null;
         const reviewerName = () => {
@@ -216,6 +241,17 @@ export class SmeController {
                 getAcknowledgerName: reviewerName,
                 seat: queueKind === 'handoff_verba' ? 'verba' : 'tsj'
             });
+            const packetHost = document.getElementById('smePliPacketsPanel');
+            if (!packetHost) {
+                throw new Error('SME packet host #smePliPacketsPanel is missing from sme.html');
+            }
+            packetHost.innerHTML = '';
+            this.packetPanel = createSmePliPacketQueue({
+                container: packetHost,
+                getSessionId: sessionId,
+                getAcknowledgerName: reviewerName,
+                seat: queueKind === 'handoff_verba' ? 'verba' : 'tsj'
+            });
         } else {
             throw new Error(`Unsupported SME role for queue mount: ${this.smeRole || 'unknown'}`);
         }
@@ -223,12 +259,16 @@ export class SmeController {
         if (!this.panel?.refresh) {
             throw new Error(`SME queue panel for ${this.smeRole} did not expose refresh()`);
         }
+        if (this.packetPanel && !this.packetPanel.refresh) {
+            throw new Error(`SME PLI packet panel for ${this.smeRole} did not expose refresh()`);
+        }
 
         this.refreshQueue();
     }
 
     refreshQueue() {
         this.panel?.refresh?.();
+        this.packetPanel?.refresh?.();
         this.syncBadge().catch((err) => logger.warn('SME badge sync failed', err));
     }
 
@@ -245,6 +285,15 @@ export class SmeController {
                 const seat = this.smeRole === SME_ROLES.VERBA ? 'verba' : 'tsj';
                 const rows = await database.fetchSmeHandoffs(sessionId, { seat, status: 'pending' });
                 count = rows.length;
+                const packetBadge = document.getElementById('smePliPacketsBadge');
+                if (packetBadge) {
+                    const packets = await database.fetchSmePliPackets(sessionId, {
+                        handoffSeat: seat,
+                        status: 'pending'
+                    }).catch(() => []);
+                    packetBadge.textContent = String(packets.length);
+                    packetBadge.hidden = packets.length <= 0;
+                }
             } else {
                 const rows = await database.fetchPliAdjudications(sessionId);
                 const seatId = this.smeRole === SME_ROLES.ECON
@@ -276,6 +325,7 @@ export class SmeController {
     destroy() {
         if (this.refreshTimer) clearInterval(this.refreshTimer);
         this.panel?.destroy?.();
+        this.packetPanel?.destroy?.();
     }
 }
 

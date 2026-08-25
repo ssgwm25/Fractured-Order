@@ -69,7 +69,7 @@ deliverables.
 
 ## PLI (Petrihos Lever Index)
 
-Multi-track adjudication for Fractured Order lives under `pli/` (vendored from [ssgwm25/petrihos-lever-index](https://github.com/ssgwm25/petrihos-lever-index)). After White Cell marks actions submitted, the GitHub Action **PLI Adjudication** writes `pli_adjudications` rows. White Cell Lead reviews three SME seats: **PLI Adjudication** (macro), **Diplomacy & Information**, and **NI & Escalation**. Apply `data/2026-07-17_pli_adjudications.sql` and see `pli/plenum/INTEGRATION.md`.
+Multi-track adjudication for Fractured Order lives under `pli/` (vendored from [ssgwm25/petrihos-lever-index](https://github.com/ssgwm25/petrihos-lever-index)). After White Cell marks actions submitted, the GitHub Action **PLI Adjudication** writes `pli_adjudications` rows. Econ, NI, and Dip-Info SMEs approve or edit those seats in Plenum; White Cell Lead has a read-only view plus a **PLI SME efficacy** summary. After a matching seat is approved or overridden, Tribe Street Journal and Verba SMEs copy the finalized packet from the SME console (no live API into those tools). Action-complete narrative queues remain separate. Apply `data/2026-07-17_pli_adjudications.sql`, `data/2026-07-20_sme_handoffs.sql`, and `data/2026-08-25_sme_pli_packets.sql`, and see `pli/plenum/INTEGRATION.md`.
 
 ## Local Development
 

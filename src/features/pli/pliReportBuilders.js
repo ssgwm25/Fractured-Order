@@ -11,6 +11,7 @@ import {
     getActionTitle,
     indicatorChartSvgHtml
 } from './pliShared.js';
+import { resolveOutputTracks } from './pliSmeEdits.js';
 
 export const PLI_REPORT_SCOPES = Object.freeze({
     ACTION: 'action',
@@ -65,32 +66,7 @@ function resolveActionMeta(row, actionsById = new Map()) {
 }
 
 function resolveTracks(row) {
-    const record = row.record || {};
-    const tracks = { ...(record.tracks || {}) };
-
-    const macroSeat = getSeatReview(row, SEATS.MACRO);
-    if (seatIsFinalized(macroSeat) && macroSeat.override_value && typeof macroSeat.override_value === 'object') {
-        const ov = macroSeat.override_value;
-        if (ov.macro || ov.adjudication || ov.trend) {
-            tracks.macro = { ...(tracks.macro || {}), ...ov, ...(ov.macro || {}) };
-        }
-    }
-
-    const dipSeat = getSeatReview(row, SEATS.DIPLOMACY_INFORMATION);
-    if (seatIsFinalized(dipSeat) && dipSeat.override_value && typeof dipSeat.override_value === 'object') {
-        const ov = dipSeat.override_value;
-        if (ov.diplomacy !== undefined) tracks.diplomacy = ov.diplomacy;
-        if (ov.information !== undefined) tracks.information = ov.information;
-    }
-
-    const niSeat = getSeatReview(row, SEATS.NATIONAL_INTEREST_ESCALATION);
-    if (seatIsFinalized(niSeat) && niSeat.override_value && typeof niSeat.override_value === 'object') {
-        const ov = niSeat.override_value;
-        if (ov.national_interest !== undefined) tracks.national_interest = ov.national_interest;
-        if (ov.glasl !== undefined) tracks.glasl = ov.glasl;
-    }
-
-    return tracks;
+    return resolveOutputTracks(row);
 }
 
 /**

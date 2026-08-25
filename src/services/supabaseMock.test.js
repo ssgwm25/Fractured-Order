@@ -1175,4 +1175,54 @@ describe('supabase mock bootstrap guardrails', () => {
         });
         expect(storedRows.data).toHaveLength(1);
     });
+
+    it('enforces sme_pli_packets uniqueness per adjudication, PLI seat, and handoff seat', async () => {
+        installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'gamemaster',
+            requested_operator_code: 'playwright-test-code',
+            requested_operator_name: 'Mock GM'
+        });
+        const createdSession = await mockClient.rpc('create_live_demo_session', {
+            requested_name: 'PLI packet constraint session',
+            requested_session_code: 'PACK19',
+            requested_description: 'Pins SME PLI packet uniqueness.'
+        });
+
+        const payload = {
+            session_id: createdSession.data.id,
+            adjudication_id: 'adj-1',
+            action_id: 'act-1',
+            pli_seat: 'macro',
+            handoff_seat: 'tsj',
+            status: 'pending',
+            payload: { version: 'pli-sme-packet.v1' },
+            copy_text: 'packet'
+        };
+        const firstInsert = await mockClient.from('sme_pli_packets').insert(payload).select().single();
+        const duplicateInsert = await mockClient.from('sme_pli_packets').insert(payload).select().single();
+        const verbaInsert = await mockClient.from('sme_pli_packets').insert({
+            ...payload,
+            handoff_seat: 'verba'
+        }).select().single();
+        const storedRows = await mockClient.from('sme_pli_packets')
+            .select('*')
+            .eq('adjudication_id', 'adj-1');
+
+        expect(firstInsert.error).toBeNull();
+        expect(duplicateInsert.error).toMatchObject({
+            code: '23505',
+            message: expect.stringContaining('sme_pli_packets_adjudication_seat_unique')
+        });
+        expect(verbaInsert.error).toBeNull();
+        expect(storedRows.data).toHaveLength(2);
+    });
 });

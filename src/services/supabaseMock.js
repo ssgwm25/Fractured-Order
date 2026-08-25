@@ -35,6 +35,7 @@ const MOCK_TABLES = [
     'notetaker_data',
     'pli_adjudications',
     'sme_handoffs',
+    'sme_pli_packets',
     'research_audit_event_log',
     'research_participant',
     'research_note',
@@ -632,6 +633,23 @@ function normalizeInsertRow(tableName, payload, state) {
                 updated_at: timestamp,
                 ...cloneValue(payload)
             };
+        case 'sme_pli_packets':
+            return {
+                ...baseRow,
+                session_id: null,
+                adjudication_id: null,
+                action_id: null,
+                pli_seat: null,
+                handoff_seat: null,
+                status: 'pending',
+                payload: {},
+                copy_text: null,
+                acknowledged_by: null,
+                acknowledged_at: null,
+                created_at: timestamp,
+                updated_at: timestamp,
+                ...cloneValue(payload)
+            };
         case 'participants':
             return {
                 ...baseRow,
@@ -1098,6 +1116,7 @@ function canReadTableRow(state, tableName, row, authUserId) {
     if (tableName === 'session_participants' || tableName === 'game_state' || tableName === 'actions'
         || tableName === 'timeline'
         || tableName === 'notetaker_data' || tableName === 'sme_handoffs'
+        || tableName === 'sme_pli_packets'
         || tableName === 'artifact_workflow_reviews') {
         return liveDemoCanReadSession(state, authUserId, row.session_id)
             || liveDemoHasOperatorGrant(state, authUserId, 'sme', row.session_id)
@@ -1166,6 +1185,18 @@ function canInsertTableRow(state, tableName, row, authUserId) {
                 || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
                 || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
             );
+        case 'sme_pli_packets':
+            return (
+                liveDemoCanWriteSessionSurface(
+                    state,
+                    authUserId,
+                    row.session_id,
+                    ['whitecell', 'gamemaster', 'sme']
+                )
+                || liveDemoHasOperatorGrant(state, authUserId, 'sme', row.session_id)
+                || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', row.session_id)
+                || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            );
         default:
             return false;
     }
@@ -1219,6 +1250,31 @@ function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
                 )
                 || liveDemoHasOperatorGrant(state, authUserId, 'sme', nextRow.session_id)
                 || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+            );
+        case 'sme_pli_packets':
+            return (
+                ['pending', 'done'].includes(nextRow.status)
+                && (
+                    liveDemoCanWriteSessionSurface(
+                        state,
+                        authUserId,
+                        currentRow.session_id,
+                        ['sme', 'whitecell', 'gamemaster']
+                    )
+                    || liveDemoHasOperatorGrant(state, authUserId, 'sme', currentRow.session_id)
+                    || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', currentRow.session_id)
+                    || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+                ) && (
+                    liveDemoCanWriteSessionSurface(
+                        state,
+                        authUserId,
+                        nextRow.session_id,
+                        ['sme', 'whitecell', 'gamemaster']
+                    )
+                    || liveDemoHasOperatorGrant(state, authUserId, 'sme', nextRow.session_id)
+                    || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', nextRow.session_id)
+                    || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+                )
             );
         case 'pli_adjudications':
             return (
@@ -2341,6 +2397,24 @@ function operatorCompleteActionWithNotifications(state, params) {
 }
 
 function getInsertConstraintError(tableName, payloads, existingRows) {
+    if (tableName === 'sme_pli_packets') {
+        const occupied = new Set(existingRows.map((row) => (
+            `${String(row?.adjudication_id ?? '')}::${String(row?.pli_seat ?? '')}::${String(row?.handoff_seat ?? '')}`
+        )));
+        for (const payload of payloads) {
+            const key = `${String(payload?.adjudication_id ?? '')}::${String(payload?.pli_seat ?? '')}::${String(payload?.handoff_seat ?? '')}`;
+            if (occupied.has(key)) {
+                return {
+                    code: '23505',
+                    message: 'duplicate key value violates unique constraint "sme_pli_packets_adjudication_seat_unique"',
+                    details: `Key (adjudication_id, pli_seat, handoff_seat)=(${payload?.adjudication_id}, ${payload?.pli_seat}, ${payload?.handoff_seat}) already exists.`
+                };
+            }
+            occupied.add(key);
+        }
+        return null;
+    }
+
     if (tableName !== 'notetaker_data') {
         return null;
     }

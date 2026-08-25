@@ -38,7 +38,7 @@ Optional: `evidence_notes` citing open-source analogs (no fabricated classified 
 ## SME workflow
 
 1. Agent produces brief → status `pending`.
-2. SME edits text in Plenum (future) or offline sidecar `.md`.
+2. SME edits text **in Plenum** (Diplomacy & Information review). After that seat is approved or overridden, TSJ and Verba copy the finalized packet from the SME console into their tools in another window.
 3. SME marks `approved` / `overridden` with rationale; approved text is the Information output of record for reports.
 
 ---

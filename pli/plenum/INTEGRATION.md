@@ -8,7 +8,7 @@ This document describes how the Petrihos Lever Index pipeline connects to a **Fr
 White Cell marks Blue action complete
   (or Green proposal submitted to White Cell)
         │
-        ├─► sme_handoffs (TSJ + Verba queues)     ← app-side; never gates PLI
+        ├─► sme_handoffs (TSJ + Verba action-narrative queues)  ← app-side; never gates PLI
         │
         ▼
 GitHub Actions: PLI Adjudication workflow (run_pli.py)
@@ -21,8 +21,10 @@ GitHub Actions: PLI Adjudication workflow (run_pli.py)
 Supabase: pli_adjudications
         │
         ├─► sme.html — Econ → NI/Escalation + Dip & Info (after Macro finalize/skip)
-        │              Dip & Info console: All / Blue / Green tabs
-        └─► whitecell.html — Lead read-only view of finalized seats
+        │              Dip & Info console: All / Blue / Green tabs; SME edits text in Plenum
+        │              After approve/override → sme_pli_packets (TSJ markdown + Verba JSON)
+        │              TSJ / Verba: Action handoffs + Approved PLI copy panels (copy/paste)
+        └─► whitecell.html — Lead read-only view of finalized seats + PLI SME efficacy
 ```
 
 Writes to `pli_adjudications` use the **service-role key** in GitHub Actions only. Browser clients can **read** (RLS) and SME consoles can **UPDATE** matching seats; White Cell cannot UPDATE PLI rows.
@@ -35,6 +37,7 @@ Apply in order (repo `data/` copies):
 data/2026-07-17_pli_adjudications.sql          # multi-track record + seat_reviews
 data/2026-07-20_sme_handoffs.sql               # handoffs + SME surface authorize
 data/2026-07-20_sme_pli_write_hardening.sql    # deny whitecell PLI UPDATE; tighten handoff UPDATE
+data/2026-08-25_sme_pli_packets.sql            # TSJ/Verba copy packets after seat finalize
 ```
 
 **Prerequisite:** live-demo RLS helpers (`live_demo_can_read_session`, `live_demo_can_write_session_surface`, `live_demo_has_operator_grant`).
@@ -50,7 +53,7 @@ Landing **SME ACCESS** roles: Econ, NI/Escalation, Dip & Info, TSJ, Verba (share
 | `sme_econ` | Macro seat Approve / Override |
 | `sme_ni_escalation` | NI + Glasl seat (unlocks after Macro `approved`/`overridden`/`skipped`) |
 | `sme_diplomacy_information` | Diplomacy + Information seat (same unlock); **All / Blue / Green** team filter tabs. Green proposals appear under Green. |
-| `sme_tsj` / `sme_verba` | Handoff queues only (non-blocking) |
+| `sme_tsj` / `sme_verba` | **Action handoffs** (White Cell–complete narratives) plus **Approved PLI** copy packets after Econ / NI / Dip-Info approve or override. Copy markdown/JSON in Plenum and paste into the tool in another window. Send-back does not open a packet. |
 
 ### White Cell Lead (`whitecell.html`)
 
@@ -60,11 +63,14 @@ Three PLI panels mount with `PLI_VIEW_MODES.LEAD_READONLY` and `canReview === fa
 - `#pliDiplomacyInfoPanel` — Dip & Info
 - `#pliNiEscalationPanel` — NI/Escalation
 
+`#pliSmeEfficacyPanel` shows session approve/override counts and most-changed field paths from `seat_reviews` (codebook-revision signal, not a live table rewrite).
+
 ### database.js
 
 - `fetchPliAdjudications(sessionId, filters?)`
-- `reviewPliSeat(adjudicationId, seatId, review)` — SME seat allowlist + re-finalize guard
-- `ensureSmeHandoffs` / `acknowledgeSmeHandoff` — TSJ/Verba only for ack
+- `reviewPliSeat(adjudicationId, seatId, review)` — SME seat allowlist + re-finalize guard; stores `edit_diff`; opens TSJ+Verba packets on approve/override
+- `ensureSmeHandoffs` / `acknowledgeSmeHandoff` — TSJ/Verba action-narrative queues
+- `ensurePliSmePackets` / `fetchSmePliPackets` / `acknowledgeSmePliPacket` — Approved PLI copy packets
 
 ## Step 3 — GitHub Actions
 

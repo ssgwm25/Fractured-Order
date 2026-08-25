@@ -92,6 +92,7 @@ Apply the authoritative ledger in this exact order:
 41. `data/2026-08-17_game_master_session_retirement.sql`
 42. `data/2026-08-18_ssg_training_session.sql`
 43. `data/2026-08-18_training_mastery_progress.sql`
+44. `data/2026-08-25_sme_pli_packets.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
@@ -121,7 +122,8 @@ is reapplied during repair, reapply
 `data/2026-08-15_proposal_forwarding_integrity.sql`, then apply
 `data/2026-08-17_game_master_session_retirement.sql`, then apply
 `data/2026-08-18_ssg_training_session.sql`, then apply
-`data/2026-08-18_training_mastery_progress.sql`. Verify RPCs,
+`data/2026-08-18_training_mastery_progress.sql`, then apply
+`data/2026-08-25_sme_pli_packets.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -503,6 +505,8 @@ Apply `data/2026-08-06_facilitator_rfi_communications.sql` after the team-neutra
 Apply `data/2026-08-06_proposal_recipient_threads.sql` after the Facilitator RFI migration. It supersedes the June final-response lock and the earlier August communications policy without rewriting historical rows. New White Cell reviews approve one intended recipient at a time and create an independent round-zero thread; later messages may be written only through `append_proposal_thread_message`. Pass conditions are: the round and client-message unique indexes exist, thread rows reject update/delete, direct `PROPOSAL_RESPONSE` inserts fail, Blue/Red and cross-session access fail closed, and completing all intended approvals leaves `outcome` null.
 
 Apply `data/2026-08-15_proposal_forwarding_integrity.sql` after the August 14 snapshot repair. It reconciles structured and legacy recipient lists before proposal completion, builds recipient snapshots with full proposal substance but no intended-partner routing fields, and converts proposed response rounds into immutable White Cell review records. White Cell forwards each response through `operator_forward_proposal_response`; only that RPC creates the next team-visible thread round. Pass: a Blue-and-Red proposal creates both round-zero threads, each snapshot includes objective/originators/focus/timing/outcomes without `recipientTeams` or `intendedPartners`, the proposing team cannot see a pending response, and the response appears after White Cell forwards it.
+
+Apply `data/2026-08-25_sme_pli_packets.sql` after the training mastery progress migration. It stores copy-ready PLI packets for Tribe Street Journal and Verba SMEs after Econ, NI, or Dip-Info approve or override a seat. It does not replace `sme_handoffs`, which remain the White Cell action-complete narrative queues. Pass: the unique `(adjudication_id, pli_seat, handoff_seat)` constraint exists; SME, White Cell, and Game Master can select, insert, and update; packets stay pending until the matching TSJ or Verba SME marks them done.
 
 Apply `data/2026-08-11_requests_responded_by_schema_repair.sql` after the
 proposal-recipient migration. It adds

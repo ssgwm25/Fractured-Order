@@ -183,10 +183,11 @@ export const ROLE_CAPABILITIES = Object.freeze({
         ]
     },
     'white_cell.pli_readonly': {
-        label: 'Read-only PLI and SME result visibility',
+        label: 'Read-only PLI, SME result visibility, and SME vs engine efficacy',
         evidence: [
             evidence('unit', 'src/roles/whitecell.pli.test.js', 'mounts PLI review panels and the report panel as Lead-readonly'),
-            evidence('unit', 'src/services/database.pli.test.js', 'blocks White Cell from reviewing PLI seats')
+            evidence('unit', 'src/services/database.pli.test.js', 'blocks White Cell from reviewing PLI seats'),
+            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'summarizes session efficacy from seat_reviews')
         ]
     },
     'sme.macro': {
@@ -194,7 +195,8 @@ export const ROLE_CAPABILITIES = Object.freeze({
         evidence: [
             evidence('unit', 'src/roles/sme.test.js', 'sme_econ'),
             evidence('unit', 'src/services/database.pli.test.js', 'allows only the matching SME role to review a PLI seat'),
-            evidence('unit', 'src/services/database.pli.test.js', 'rejects override without rationale before network I/O')
+            evidence('unit', 'src/services/database.pli.test.js', 'rejects override without rationale before network I/O'),
+            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'records field-level macro diffs')
         ]
     },
     'sme.ni_escalation': {
@@ -202,28 +204,32 @@ export const ROLE_CAPABILITIES = Object.freeze({
         evidence: [
             evidence('unit', 'src/roles/sme.test.js', 'sme_ni_escalation'),
             evidence('unit', 'src/features/pli/NiEscalationReview.test.js', 'renders numbered NI score with narrative'),
-            evidence('unit', 'src/services/database.pli.test.js', 'resolves Glasl stage_after from NI override or track record')
+            evidence('unit', 'src/services/database.pli.test.js', 'resolves Glasl stage_after from NI override or track record'),
+            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'collects NI domain and Glasl stage edits')
         ]
     },
     'sme.diplomacy_information': {
         label: 'Diplomacy & Information review after Macro unlock with approve/override/send-back',
         evidence: [
             evidence('unit', 'src/roles/sme.test.js', 'sme_diplomacy_information'),
-            evidence('unit', 'src/services/database.pli.test.js', 'allows only the matching SME role to review a PLI seat')
+            evidence('unit', 'src/services/database.pli.test.js', 'allows only the matching SME role to review a PLI seat'),
+            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'collects Diplomacy taxonomy and Information brief section edits')
         ]
     },
     'sme.tsj': {
-        label: 'TSJ handoff queue, copy, and matching-seat acknowledgement',
+        label: 'TSJ action-narrative handoffs plus Approved PLI copy packets after seat finalize',
         evidence: [
             evidence('unit', 'src/roles/sme.test.js', 'sme_tsj'),
-            evidence('unit', 'src/services/database.pli.test.js', 'gates handoff ack to matching TSJ / Verba SME roles')
+            evidence('unit', 'src/services/database.pli.test.js', 'gates handoff ack to matching TSJ / Verba SME roles'),
+            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'builds TSJ markdown and Verba JSON packets from finalized seats only')
         ]
     },
     'sme.verba': {
-        label: 'Verba AI handoff queue, copy, and matching-seat acknowledgement',
+        label: 'Verba AI action-narrative handoffs plus Approved PLI copy packets after seat finalize',
         evidence: [
             evidence('unit', 'src/roles/sme.test.js', 'sme_verba'),
-            evidence('unit', 'src/services/database.pli.test.js', 'gates handoff ack to matching TSJ / Verba SME roles')
+            evidence('unit', 'src/services/database.pli.test.js', 'gates handoff ack to matching TSJ / Verba SME roles'),
+            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'builds TSJ markdown and Verba JSON packets from finalized seats only')
         ]
     }
 });
