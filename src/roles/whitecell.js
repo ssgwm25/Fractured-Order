@@ -1511,82 +1511,70 @@ export class WhiteCellController {
         const operatorLabel = this.isLeadOperator()
             ? 'White Cell Lead'
             : 'White Cell Support';
+        const surfaceStep = (title, section, body, narrative) => ({
+            title,
+            body,
+            narrative,
+            targetLabel: title,
+            highlight: navTarget(section),
+            action: { label: `Open ${title}`, selector: navTarget(section) }
+        });
         this.onboarding = mountFollowAlong({
-            storageKey: 'followalong:whitecell',
+            storageKey: `followalong:whitecell:${this.isLeadOperator() ? 'lead' : 'support'}`,
             title: `${operatorLabel} guide`,
+            roleLabel: operatorLabel,
+            summary: 'Maintain the authoritative exercise clock, review queues, communications, specialist workflow, and auditable session record without weakening role boundaries.',
             steps: [
                 {
-                    title: operatorLabel,
-                    body: 'Use this console to run the exercise, adjudicate submissions, answer RFIs, publish White Cell updates, manage seats and decks, and export the record.'
+                    title: 'Your role in the exercise',
+                    body: `As ${operatorLabel}, you operate the control-cell boundary across timing, review, information, and session evidence.`,
+                    narrative: 'Keep deterministic exercise state in the platform, make every review outcome explicit, and leave a chronological record another operator can audit.',
+                    details: ['The Lead owns privileged run and review decisions.', 'Support follows the permissions actually exposed to that seat.', 'Participant visibility never substitutes for White Cell review.']
                 },
                 {
                     title: 'Watch the live tracker',
                     body: 'The header mirrors the current state every team sees: Strategic Orientation before Move 1, then move, phase, countdown timer, and paused or running state.',
+                    narrative: 'Announce material state changes to the room and verify the shared display before moving the exercise forward.',
+                    targetLabel: 'Live tracker',
                     highlight: liveTrackerHighlights
                 },
-                {
-                    title: 'Run game controls',
-                    body: 'Use Simulation Settings to advance or reverse moves and phases, start or pause the timer, and reset the clock.',
-                    highlight: navTarget('controls')
-                },
+                surfaceStep('Simulation Settings', 'controls', 'Advance or reverse moves and phases, start or pause the timer, and reset the clock.', 'Treat every control as a room-level state change. Confirm intent before acting and verify the tracker afterward.'),
                 {
                     title: 'Manage session operations',
                     body: 'The Simulation Settings tabs also cover live sessions, participant rosters, facilitator deck assignments, plugins, and export controls.',
+                    narrative: 'Use the correct tab for the operational task and preserve the current session selection before changing participants, decks, plugins, or exports.',
+                    details: ['Sessions establish the active run.', 'Participants and decks determine who can act and what is projected.', 'Plugins and exports remain session-scoped.'],
+                    targetLabel: 'Settings tabs',
                     highlight: '#settingsTabs .tab-list'
                 },
-                {
-                    title: 'Review Strategic Orientation',
-                    body: 'Strategic Orientation collects each team\'s own orientation, target forecasts, and required narrative after each Facilitator submits the artifact to White Cell.',
-                    highlight: navTarget('strategicOrientation')
-                },
-                {
-                    title: 'Review Blue actions',
-                    body: 'Actions is the Blue Team queue. Accept complete submissions or send them back with improvement notes, and share completed actions forward when needed.',
-                    highlight: navTarget('actions')
-                },
-                {
-                    title: 'Review proposals',
-                    body: 'Proposals is the Green and Industry queue. Forward proposals to recipients, request changes, or reject proposals with White Cell notes.',
-                    highlight: navTarget('proposals')
-                },
-                {
-                    title: 'Review Red actions',
-                    body: 'Red actions are the Red Team queue. Review submitted actions before they affect the shared exercise record.',
-                    highlight: navTarget('responses')
-                },
-                {
-                    title: 'Read field intelligence',
-                    body: 'Tribe Street Journal surfaces Scribe, Facilitator, and Notetaker captures so White Cell can turn selected moments into updates.',
-                    highlight: navTarget('tribeStreetJournal')
-                },
-                {
-                    title: 'Publish sentiment updates',
-                    body: 'Verba AI Population Sentiments is where White Cell composes and reviews Blue, Green, Red, and Industry sentiment updates.',
-                    highlight: navTarget('verbaAi')
-                },
-                {
-                    title: 'Answer RFIs',
-                    body: 'Pending collects Facilitator questions from every team. Answer one or return it with required clarification notes; completed and returned records remain in Answered / History.',
-                    highlight: navTarget('requests')
-                },
-                {
-                    title: 'Broadcast communications',
-                    body: 'Communications sends injects, announcements, and guidance to all teams, one team, or specific team roles.',
-                    highlight: navTarget('communications')
-                },
-                {
-                    title: 'Audit the timeline',
-                    body: 'Session Timeline gives White Cell a filterable record of actions, RFIs, communications, captures, seat changes, and game-state events.',
-                    highlight: navTarget('timeline')
-                },
+                surfaceStep('Strategic Orientation', 'strategicOrientation', 'Review each team’s submitted opening orientation, target forecasts, and required narrative.', 'Confirm the team, completeness, and handoff state before accepting or returning the record.'),
+                surfaceStep('Blue Actions', 'actions', 'Review Blue Team submissions, accept complete work, or return it with actionable improvement notes.', 'A completed review changes workflow state explicitly; sharing forward is a separate, deliberate action.'),
+                surfaceStep('Green and Industry Proposals', 'proposals', 'Review proposals, forward them to named recipients, request changes, or reject them with White Cell notes.', 'Recipient threads remain isolated and append-only so negotiation can be reconstructed.'),
+                surfaceStep('Red Actions', 'responses', 'Review submitted Red Team actions before they affect the shared exercise record.', 'Check the active move, narrative, and action details before recording the review outcome.'),
+                surfaceStep('Review History', 'reviewHistory', 'Inspect completed, returned, rejected, and superseded review records across queues.', 'Use history to audit what White Cell decided and why; do not reopen a closed decision by editing the historical row.'),
+                surfaceStep('Macro PLI', 'pliAdjudication', 'Monitor finalized Macro specialist outputs in read-only form.', 'The specialist seat owns approval or override. White Cell consumes finalized evidence and must not impersonate the SME decision.'),
+                surfaceStep('Diplomacy & Information PLI', 'pliDiplomacyInfo', 'Review the paired finalized diplomacy and information outputs.', 'Both tracks clear together at the specialist boundary; White Cell sees the result after that boundary is satisfied.'),
+                surfaceStep('NI & Escalation PLI', 'pliNiEscalation', 'Review finalized National Interest domains and escalation trajectory.', 'Downstream review remains locked until Macro is finalized or explicitly skipped under the workflow contract.'),
+                surfaceStep('PLI Reports', 'pliReports', 'Generate session-, move-, or action-scoped reports from finalized specialist outputs.', 'Reports summarize finalized evidence; they do not create or change an adjudication.'),
+                surfaceStep('Tribe Street Journal', 'tribeStreetJournal', 'Review captures and prepare selected field intelligence for publication.', 'Publish deliberately and preserve the source context so teams can distinguish observation from White Cell inject.'),
+                surfaceStep('Population Sentiments', 'verbaAi', 'Compose and review team-specific population sentiment updates.', 'Publish the intended audience and narrative explicitly; the update is context, not a hidden score change.'),
+                surfaceStep('RFIs', 'requests', 'Answer participant questions or return them with required clarification notes.', 'Keep the answer on the originating RFI so the ruling, revision, and history remain connected.'),
+                surfaceStep('Communications', 'communications', 'Send injects, announcements, and guidance to all teams, one team, or a specific role.', 'Verify the recipient before sending; broad visibility is an operator choice, not a default.'),
+                surfaceStep('Session Timeline', 'timeline', 'Audit actions, RFIs, communications, captures, seat changes, and game-state events.', 'Use filters to reconstruct the run and verify sequence before export or after-action review.'),
                 {
                     title: 'Control arrival noise',
                     body: 'Mute notifications suppresses durable arrival notices only. Badges and NEW labels remain visible until each destination item is opened.',
-                    highlight: '#whiteCellNotificationsMuteBtn'
+                    narrative: 'Mute presentation noise without hiding unread work or changing queue state.',
+                    targetLabel: 'Notification control',
+                    highlight: '#whiteCellNotificationsMuteBtn',
+                    action: { label: 'Focus notification control', selector: '#whiteCellNotificationsMuteBtn', activate: false }
                 },
                 {
-                    title: 'Revisit this guide',
-                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
+                    title: 'Complete the operator loop',
+                    body: 'Before handoff or export, reconcile the live tracker, pending queues, participant state, specialist outputs, and timeline.',
+                    narrative: 'White Cell owns explicit control and review decisions; specialist seats own their approvals; Game Master owns session administration and evidence export.',
+                    details: ['Do not infer completion from visibility.', 'Leave actionable notes when returning work.', 'Start Here remains available above the session label.'],
+                    targetLabel: 'Session reference',
                     highlight: '.sidebar-session'
                 }
             ]

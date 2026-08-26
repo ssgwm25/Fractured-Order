@@ -33,14 +33,14 @@ session-recording-*.mp4
 session-recording-*.wav
 
 # Local neural narration generation (only approved encoded public assets ship)
-scripts/training-audio/work/
-scripts/training-audio/models/
-scripts/training-audio/**/*.pth
-scripts/training-audio/**/*.pt
-scripts/training-audio/**/*.onnx
-scripts/training-audio/**/*.safetensors
-scripts/training-audio/**/*.ckpt
-scripts/training-audio/**/*.gguf
+scripts/start-here-audio/models/
+scripts/start-here-audio/**/*.pth
+scripts/start-here-audio/**/*.pt
+scripts/start-here-audio/**/*.onnx
+scripts/start-here-audio/**/*.safetensors
+scripts/start-here-audio/**/*.ckpt
+scripts/start-here-audio/**/*.gguf
+scripts/start-here-audio/work/
 
 # Temporary LaTeX report build files
 report.aux

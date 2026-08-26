@@ -22,6 +22,7 @@ const logger = createLogger('ParticipantsStore');
  * @property {string} session_id - Session ID
  * @property {string} participant_id - Participant ID (from participants table)
  * @property {string} display_name - Display name (from joined participants table)
+ * @property {string|null} display_name_snapshot - Immutable name captured for this session-role seat
  * @property {string} role - Role identifier
  * @property {boolean} is_active - Active status
  * @property {string} heartbeat_at - Last heartbeat timestamp

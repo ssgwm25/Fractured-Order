@@ -9,6 +9,7 @@ import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { showToast } from '../components/ui/Toast.js';
 import { navigateToApp } from '../core/navigation.js';
+import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 import {
     OPERATOR_SURFACES,
     SME_ROLES,
@@ -41,6 +42,56 @@ export function getSmeQueueKind(smeRole) {
     return SME_QUEUE_KINDS[smeRole] || null;
 }
 
+export function getSmeOnboardingContent(smeRole) {
+    const label = getSmeRoleDisplayLabel(smeRole);
+    const commonOpening = {
+        title: 'Your specialist boundary',
+        body: `${label} is a role-scoped review queue; act only on the evidence and controls exposed for this seat.`,
+        narrative: 'Read the source action and the generated worksheet together, then make the explicit specialist decision required by this queue.',
+        details: ['White Cell cannot approve on behalf of the SME.', 'Visibility does not mean the item is ready for review.', 'Every approval, override, return, copy, or acknowledgement stays attached to its source record.']
+    };
+    const configurations = {
+        [SME_ROLES.ECON]: {
+            summary: 'Validate the Macro PLI classification, implementation worksheet, and outputs before finalizing the Macro seat.',
+            reviewTitle: 'Review the Macro chain',
+            reviewBody: 'Compare the source action with its lever, policy instrument, implementation score, modifiers, citations, and macro outputs.',
+            reviewNarrative: 'Approve only when the generated chain is supportable. Override requires your replacement value and rationale; Send back returns the same seat for rework.',
+            decisionDetails: ['Approve finalizes the presented Macro output.', 'Override finalizes the specialist correction and rationale.', 'Send back does not finalize the seat.']
+        },
+        [SME_ROLES.NI_ESCALATION]: {
+            summary: 'Validate the six National Interest domains and Glasl escalation trajectory after the Macro dependency clears.',
+            reviewTitle: 'Review NI and escalation',
+            reviewBody: 'Read the orientation assessment, domain deltas, primary domains, net NI effect, Glasl stage, trajectory, and cited rationale.',
+            reviewNarrative: 'The queue remains locked until Macro is finalized or explicitly skipped. Review the NI and escalation evidence as one specialist decision.',
+            decisionDetails: ['Confirm all required domain evidence.', 'Use override only with a bounded rationale.', 'Send back preserves the unresolved specialist boundary.']
+        },
+        [SME_ROLES.DIPLOMACY_INFORMATION]: {
+            summary: 'Validate the paired Diplomacy and Information outputs after the Macro dependency clears.',
+            reviewTitle: 'Review the paired outputs',
+            reviewBody: 'Compare the source action with diplomacy coding, information brief, routing, paired preview, and supporting rationale.',
+            reviewNarrative: 'Diplomacy and Information clear together. Approve or override only after both routed tracks are supportable.',
+            decisionDetails: ['A non-routed track is evidence, not a missing approval.', 'One decision finalizes the paired seat.', 'Send back identifies what must be corrected.']
+        },
+        [SME_ROLES.TSJ]: {
+            summary: 'Carry the finalized Tribe Street Journal narrative across the controlled external TSJ handoff boundary.',
+            reviewTitle: 'Complete the TSJ handoff',
+            reviewBody: 'Read the source metadata and narrative, copy the prepared text to the external TSJ workflow, then mark the handoff done.',
+            reviewNarrative: 'Copy preserves the provided narrative; Mark done is the explicit acknowledgement that the external handoff was completed.',
+            decisionDetails: ['Do not rewrite the source record in this queue.', 'Copy and Mark done are separate actions.', 'Show done reveals acknowledged history.']
+        },
+        [SME_ROLES.VERBA]: {
+            summary: 'Carry the finalized population-sentiment narrative across the controlled external Verba handoff boundary.',
+            reviewTitle: 'Complete the Verba handoff',
+            reviewBody: 'Read the source metadata and narrative, copy the prepared text to the external Verba workflow, then mark the handoff done.',
+            reviewNarrative: 'Copy preserves the provided narrative; Mark done is the explicit acknowledgement that the external handoff was completed.',
+            decisionDetails: ['Do not rewrite the source record in this queue.', 'Copy and Mark done are separate actions.', 'Show done reveals acknowledged history.']
+        }
+    };
+    return configurations[smeRole]
+        ? Object.freeze({ label, opening: commonOpening, ...configurations[smeRole] })
+        : null;
+}
+
 export function getSmeAccessState(sessionStoreRef = sessionStore) {
     const sessionId = sessionStoreRef.getSessionId?.()
         || sessionStoreRef.getSessionData?.()?.id
@@ -68,6 +119,7 @@ export class SmeController {
     constructor() {
         this.smeRole = null;
         this.panel = null;
+        this.onboarding = null;
         this.refreshTimer = null;
     }
 
@@ -110,6 +162,7 @@ export class SmeController {
             this.smeRole = accessState.smeRole;
             this.bindChrome();
             this.mountRoleQueue();
+            this.mountFollowAlongOnboarding();
             this.startRefreshLoop();
 
             const sessionId = accessState.sessionId;
@@ -227,6 +280,61 @@ export class SmeController {
         this.refreshQueue();
     }
 
+    mountFollowAlongOnboarding() {
+        const content = getSmeOnboardingContent(this.smeRole);
+        if (!content) return null;
+        const queueSelector = '.sidebar-link[data-section="smeQueue"]';
+        this.onboarding?.destroy?.();
+        this.onboarding = mountFollowAlong({
+            storageKey: `followalong:sme:${this.smeRole}`,
+            title: `${content.label} guide`,
+            roleLabel: content.label,
+            summary: content.summary,
+            anchor: null,
+            steps: [
+                content.opening,
+                {
+                    title: 'Read queue state',
+                    body: 'The queue badge, pending count, reviewed-history toggle, and Refresh control show what is ready for this specialist seat.',
+                    narrative: 'Refresh deliberately when coordinating a handoff; the background refresh does not change a decision or clear an unread item.',
+                    details: ['Pending means the seat still requires action.', 'Locked or empty rows are not approval failures.', 'Reviewed history remains read-only.'],
+                    targetLabel: 'SME queue',
+                    highlight: queueSelector,
+                    action: { label: 'Open SME queue', selector: queueSelector }
+                },
+                {
+                    title: content.reviewTitle,
+                    body: content.reviewBody,
+                    narrative: content.reviewNarrative,
+                    details: content.decisionDetails,
+                    targetLabel: 'Current review card',
+                    highlight: '.pli-sme-card'
+                },
+                {
+                    title: 'Use the explicit decision controls',
+                    body: this.smeRole === SME_ROLES.TSJ || this.smeRole === SME_ROLES.VERBA
+                        ? 'Use Copy, then Mark done, on the current handoff card.'
+                        : 'Use Approve, Override, or Send back only after reviewing the complete specialist evidence.',
+                    narrative: 'The chosen control records the workflow outcome; reading, scrolling, or refreshing never finalizes the seat.',
+                    details: content.decisionDetails,
+                    targetLabel: 'Specialist actions',
+                    highlight: this.smeRole === SME_ROLES.TSJ || this.smeRole === SME_ROLES.VERBA
+                        ? '.pli-sme-actions'
+                        : '.pli-sme-footer'
+                },
+                {
+                    title: 'Complete the specialist loop',
+                    body: 'Verify the source record, decision or acknowledgement, reviewer identity, and resulting queue state before leaving the console.',
+                    narrative: 'Your specialist action becomes evidence for White Cell and later reporting; it does not replace White Cell’s separate operational responsibilities.',
+                    details: ['Resolve or document every exception.', 'Confirm the item leaves the pending queue.', 'Start Here remains available in the sidebar.'],
+                    targetLabel: 'Queue status',
+                    highlight: '.pli-sme-toolbar'
+                }
+            ]
+        });
+        return this.onboarding;
+    }
+
     refreshQueue() {
         this.panel?.refresh?.();
         this.syncBadge().catch((err) => logger.warn('SME badge sync failed', err));
@@ -275,6 +383,7 @@ export class SmeController {
 
     destroy() {
         if (this.refreshTimer) clearInterval(this.refreshTimer);
+        this.onboarding?.destroy?.();
         this.panel?.destroy?.();
     }
 }

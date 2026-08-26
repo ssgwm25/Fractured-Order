@@ -273,42 +273,12 @@ describe('sessionStore snapshot model', () => {
         });
     });
 
-    it('persists a bounded training context without treating storage as server authority', async () => {
-        let module = await loadSessionStore();
+    it('clears retired training context during initialization', async () => {
+        sessionStorage.setItem('esg_training_context', JSON.stringify({ attemptId: 'retired' }));
+        const { sessionStore } = await loadSessionStore();
 
-        module.sessionStore.setTrainingContext({
-            attemptId: 'attempt-blue-scribe-1',
-            curriculumVersion: '1.0',
-            semanticRole: 'scribe',
-            team: 'blue',
-            trainingMode: true,
-            ignoredAnswerBody: 'must not persist'
-        }, { serverValidated: true });
-        module.sessionStore.setRole('blue_facilitator');
-        module.sessionStore.setUserName('Morgan');
+        sessionStore.init();
 
-        expect(module.sessionStore.getSnapshot()).toMatchObject({
-            valid: true,
-            sessionId: null,
-            trainingMode: true,
-            trainingContext: {
-                attemptId: 'attempt-blue-scribe-1',
-                curriculumVersion: '1.0',
-                semanticRole: 'scribe',
-                team: 'blue',
-                trainingMode: true
-            }
-        });
-        expect(JSON.parse(sessionStorage.getItem('esg_training_context')))
-            .not.toHaveProperty('ignoredAnswerBody');
-
-        module = await loadSessionStore();
-
-        expect(module.sessionStore.hasTrainingContext()).toBe(true);
-        expect(module.sessionStore.isTrainingMode()).toBe(false);
-        expect(module.sessionStore.getTrainingContext()).toBeNull();
-        expect(module.sessionStore.getTrainingContext({ requireServerValidation: false }))
-            .toMatchObject({ attemptId: 'attempt-blue-scribe-1' });
-        expect(module.sessionStore.getSessionId()).toBeNull();
+        expect(sessionStorage.getItem('esg_training_context')).toBeNull();
     });
 });

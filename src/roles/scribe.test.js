@@ -356,122 +356,6 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         });
     });
 
-    it.each(['blue', 'red', 'green', 'industry'])(
-        'mounts the isolated %s Facilitator coach with that team fixture branch',
-        async (team) => {
-            const { ScribeController } = await loadScribeModule();
-            const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
-            const { trainingRuntime } = await import('../features/training/trainingRuntime.js');
-            vi.spyOn(trainingRuntime, 'getPracticeState').mockReturnValue(null);
-            global.document = createFakeDocument();
-            const controller = new ScribeController();
-            controller.teamId = team;
-            controller.teamLabel = `${team[0].toUpperCase()}${team.slice(1)} Team`;
-            controller.configureShell = vi.fn();
-            controller.bindTrainingEventListeners = vi.fn();
-            controller.renderTrainingFixtureWorkspace = vi.fn();
-            controller.mountTrainingFixtureNotification = vi.fn();
-            const coach = { root: createFakeElement('facilitatorTrainingCoach'), destroy: vi.fn() };
-            const mountCoachRef = vi.fn(() => coach);
-            const fixtureBundle = getTrainingProfileFixtureBundle(team, 'facilitator');
-            const activation = {
-                active: true,
-                context: {
-                    attemptId: `attempt-${team}-facilitator`,
-                    curriculumVersion: '1.0',
-                    semanticRole: 'facilitator',
-                    team,
-                    trainingMode: true
-                },
-                fixtureBundle
-            };
-
-            const mounted = controller.mountVerifiedTrainingCoach(activation, {
-                mountCoachRef,
-                documentRef: global.document
-            });
-
-            expect(mounted).toBe(coach);
-            expect(controller.configureShell).toHaveBeenCalledTimes(1);
-            expect(controller.bindTrainingEventListeners).toHaveBeenCalledWith(global.document);
-            expect(controller.renderTrainingFixtureWorkspace).toHaveBeenCalledWith(
-                fixtureBundle,
-                null,
-                global.document
-            );
-            expect(controller.mountTrainingFixtureNotification).toHaveBeenCalledWith(activation, global.document);
-            expect(mountCoachRef).toHaveBeenCalledWith(expect.objectContaining({
-                activation,
-                documentRef: global.document,
-                onNavigate: expect.any(Function),
-                onReviewArtifact: expect.any(Function),
-                onProjectArtifact: expect.any(Function),
-                onStateChange: expect.any(Function),
-                renderLifecycleBadge: expect.any(Function)
-            }));
-            expect(fixtureBundle.artifact.team).toBe(team);
-        }
-    );
-
-    it('leaves the normal Facilitator workspace unchanged when no verified training activation exists', async () => {
-        const { ScribeController } = await loadScribeModule();
-        global.document = createFakeDocument();
-        const controller = new ScribeController();
-        controller.teamActions = [{ id: 'live-action-1' }];
-        controller.configureShell = vi.fn();
-        controller.renderTrainingFixtureWorkspace = vi.fn();
-        const mountCoachRef = vi.fn();
-
-        expect(controller.mountVerifiedTrainingCoach(null, {
-            mountCoachRef,
-            documentRef: global.document
-        })).toBeNull();
-        expect(controller.teamActions).toEqual([{ id: 'live-action-1' }]);
-        expect(controller.configureShell).not.toHaveBeenCalled();
-        expect(controller.renderTrainingFixtureWorkspace).not.toHaveBeenCalled();
-        expect(mountCoachRef).not.toHaveBeenCalled();
-        expect(mockCreateCommunication).not.toHaveBeenCalled();
-        expect(mockSubmitAction).not.toHaveBeenCalled();
-    });
-
-    it('does not duplicate the focus-managed training alert when fixtures rehydrate', async () => {
-        const { ScribeController } = await loadScribeModule();
-        const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
-        const fakeDocument = createFakeDocument();
-        global.document = fakeDocument;
-        const controller = new ScribeController();
-        controller.teamId = 'blue';
-        controller.renderAlerts = vi.fn();
-        const activation = {
-            context: { attemptId: 'attempt-blue-facilitator-alert' },
-            fixtureBundle: getTrainingProfileFixtureBundle('blue', 'facilitator')
-        };
-
-        controller.mountTrainingFixtureNotification(activation, fakeDocument);
-        controller.mountTrainingFixtureNotification(activation, fakeDocument);
-
-        expect(controller.notifications).toHaveLength(1);
-        expect(controller.notifications[0].id).toBe(activation.fixtureBundle.notification.id);
-        expect(controller.unreadNotifications).toBe(1);
-    });
-
-    it('disables live write controls only inside a verified Facilitator training activation', async () => {
-        const { ScribeController } = await loadScribeModule();
-        const controller = new ScribeController();
-        const liveSubmit = createFakeElement('liveSubmit', '', 'button');
-        liveSubmit.disabled = false;
-        const container = { querySelectorAll: vi.fn(() => [liveSubmit]) };
-
-        controller.disableTrainingLiveWriteControls(container);
-        expect(liveSubmit.disabled).toBe(false);
-
-        controller.trainingActivation = { active: true };
-        controller.disableTrainingLiveWriteControls(container);
-        expect(liveSubmit.disabled).toBe(true);
-        expect(liveSubmit.getAttribute('aria-disabled')).toBe('true');
-        expect(liveSubmit.getAttribute('aria-describedby')).toBe('trainingSandboxBanner');
-    });
-
     it('mounts a persistent role guide for the active Facilitator team', async () => {
         const { ScribeController } = await loadScribeModule();
         const controller = new ScribeController();
@@ -487,20 +371,22 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Blue Team Facilitator',
+            'Your role in the exercise',
             'Follow move, phase, and timer',
-            'Choose a facilitator workspace',
-            'Project and answer proposals',
-            'Ask White Cell with RFIs',
-            'Message White Cell',
-            'Watch activity',
+            'Team Action Review',
+            'Deck',
+            'Proposals',
+            'RFIs',
+            'Communications',
+            'Activity',
             'Present to the room',
-            'Revisit this guide'
+            'Complete the handoff'
         ]);
         expect(flattenHighlights(guide.steps)).toEqual([
             '#header-game-state',
             '#header-timer',
-            '.scribe-view-switch',
+            '#teamActionReviewViewBtn',
+            '#deckViewBtn',
             '.scribe-section-region--proposals',
             '#rfiViewBtn',
             '#communicationsViewBtn',
@@ -509,13 +395,13 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[2].body).toContain('Team Action Review, Deck, RFIs, and Communications');
-        expect(guide.steps[2].body).toContain('restores the record or support slide you last viewed');
-        expect(guide.steps[3].body).toContain('Accept, Not Interested, or Negotiate');
-        expect(guide.steps[4].body).toContain('edit and resubmit the same revision');
-        expect(guide.steps[5].body).toContain('isolated inbound and outbound history');
-        expect(guide.steps[7].body).toContain('facilitator toolbar');
-        expect(guide.steps[7].body).toContain('White Cell forwarding');
+        expect(guide.steps[2].body).toContain('Scribe-forwarded');
+        expect(guide.steps[3].body).toContain('assigned support deck');
+        expect(guide.steps[4].narrative).toContain('Accept, Not Interested, or Negotiate');
+        expect(guide.steps[5].body).toContain('same RFI');
+        expect(guide.steps[6].body).toContain('inbound and outbound history');
+        expect(guide.steps[8].body).toContain('facilitator toolbar');
+        expect(guide.steps[8].details).toContain('Projection does not equal submission.');
     });
 
     it('builds team-scoped Facilitator RFI slides with returned and answered workflow state', async () => {
@@ -3960,11 +3846,11 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(document.getElementById('presentBtn')?.getAttribute('aria-pressed')).toBe('false');
     });
 
-    it('returns focus to the training coach after Present mode exits', async () => {
+    it('returns focus to the invoking control after Present mode exits', async () => {
         const { ScribeController } = await loadScribeModule();
         const fakeDocument = createFakeDocument();
         const presentBtn = fakeDocument.register(createFakeElement('presentBtn'));
-        const returnTarget = fakeDocument.register(createFakeElement('facilitatorTrainingCoach'));
+        const returnTarget = fakeDocument.register(createFakeElement('presentationReturnTarget'));
         fakeDocument.fullscreenElement = null;
         fakeDocument.documentElement = { requestFullscreen: vi.fn().mockResolvedValue(undefined) };
         global.document = fakeDocument;

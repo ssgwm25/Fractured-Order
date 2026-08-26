@@ -40,6 +40,8 @@ playthrough. It covers:
   response review uses the stable queue-level event path across rerenders and
   re-resolves the non-mutating review control until its expected modal is
   attached, stopping before the forwarding write is activated;
+  RFI response and return controls use the same reconciled-control path so a
+  live queue rerender cannot detach the button during Playwright actionability;
   recipient approval checkboxes are selected atomically on the current visible,
   enabled input with normal `input` and `change` events, and re-resolved until
   the current instance is verified checked before submission;
@@ -52,6 +54,9 @@ playthrough. It covers:
 - shared actor-navigation helpers foreground the page before interaction so the
   local single-context rehearsal does not apply background-tab timer throttling
   to modal teardown or workflow feedback
+- role-entry helpers wait for the first-use Start Here guide and minimize it
+  through its real accessible control before exercising the native workspace;
+  onboarding-specific scenarios can explicitly retain the open popup
 - confirmed workflow modals release their DOM node, focus trap, and body scroll
   lock immediately and idempotently on close; teardown does not depend on a
   background animation timer
@@ -418,6 +423,14 @@ revision `10` archive must report a passed manifest reconciliation and expose
 the same review, recipient, thread/round, notification, and RFI history in
 JSON, CSV, HTML, and LaTeX. Full dual-thread verification is part of both the
 deterministic and live staged rehearsal gates.
+
+## Session-Code Reuse Regression
+
+The unit and migration contracts prove that `TRAINING2026` no longer activates
+a special client path, is no longer reserved by the historical template, and
+can be resolved through the ordinary live-session lookup. The smoke and
+live-demo suites remain the browser gates for any new live session using that
+code.
 
 ## Manual Checks That Remain Required
 

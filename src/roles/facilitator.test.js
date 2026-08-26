@@ -311,98 +311,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(industryHtml).toContain('Strategic Orientation');
     });
 
-    it.each([
-        {
-            team: 'blue',
-            formId: 'blueActionWizardForm',
-            requiredCopy: ['Expected Outcomes', 'Forward to Facilitator'],
-            forbiddenCopy: ['Submit for White Cell Review']
-        },
-        {
-            team: 'red',
-            formId: 'redResponseForm',
-            requiredCopy: ['Delivery Channel', 'Forward to Facilitator'],
-            forbiddenCopy: ['Submit for White Cell Review']
-        },
-        {
-            team: 'green',
-            formId: 'greenProposalForm',
-            requiredCopy: ['Originator', 'Intended Partners', 'Focus Sectors'],
-            forbiddenCopy: ['Industry of Focus', 'Submit to White Cell']
-        },
-        {
-            team: 'industry',
-            formId: 'industryProposalForm',
-            requiredCopy: ['Industry of Focus', 'Country of Focus', 'Proposed Activity'],
-            forbiddenCopy: ['<legend class="form-label">Originator', 'Submit to White Cell']
-        }
-    ])('builds the team-correct $team training artifact form without a final-submission task', async ({
-        team,
-        formId,
-        requiredCopy,
-        forbiddenCopy
-    }) => {
-        const { FacilitatorController } = await loadFacilitatorModule();
-        const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
-        global.document = createFakeDocument();
-        const controller = new FacilitatorController();
-        controller.teamId = team;
-        controller.teamLabel = `${team[0].toUpperCase()}${team.slice(1)} Team`;
-        controller.trainingActivation = {
-            fixtureBundle: getTrainingProfileFixtureBundle(team, 'scribe')
-        };
-
-        const content = controller.createTrainingPracticeArtifactContent(null, 'new');
-
-        expect(content.innerHTML).toContain(`id="${formId}"`);
-        requiredCopy.forEach((copy) => expect(content.innerHTML).toContain(copy));
-        forbiddenCopy.forEach((copy) => expect(content.innerHTML).not.toContain(copy));
-        if (team === 'blue') {
-            expect(content.innerHTML).not.toContain('Reduce strategic supply-chain exposure while preserving allied coordination');
-        }
-    });
-
-    it.each(['blue', 'red', 'green', 'industry'])(
-        'mounts and destroys the verified %s Scribe coach without mounting it for a live page',
-        async (team) => {
-            const { FacilitatorController } = await loadFacilitatorModule();
-            const { getTrainingProfileFixtureBundle } = await import('../features/training/content/fixtures.js');
-            const controller = new FacilitatorController();
-            controller.teamId = team;
-            const destroy = vi.fn();
-            const mountCoachRef = vi.fn(() => ({ destroy }));
-            vi.spyOn(controller, 'renderTrainingReadOnlyFixtures').mockImplementation(() => {});
-            const activation = {
-                active: true,
-                context: {
-                    attemptId: `attempt-${team}-scribe`,
-                    curriculumVersion: '1.0',
-                    semanticRole: 'scribe',
-                    team,
-                    trainingMode: true
-                },
-                fixtureBundle: getTrainingProfileFixtureBundle(team, 'scribe')
-            };
-
-            expect(controller.mountVerifiedTrainingCoach(
-                { active: false, context: null },
-                { mountCoachRef, documentRef: createFakeDocument() }
-            )).toBeNull();
-            expect(mountCoachRef).not.toHaveBeenCalled();
-            expect(controller.trainingCoach).toBeNull();
-            expect(controller.roleSurface).toBeNull();
-
-            controller.mountVerifiedTrainingCoach(activation, {
-                mountCoachRef,
-                documentRef: createFakeDocument()
-            });
-            expect(mountCoachRef).toHaveBeenCalledWith(expect.objectContaining({ activation }));
-
-            controller.destroy();
-            expect(destroy).toHaveBeenCalledTimes(1);
-        }
-    );
-
     it('builds Strategic Orientation payloads with a non-null action sector', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
@@ -893,17 +801,17 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Blue Team Scribe',
+            'Your role in the exercise',
             'Read the live tracker',
             'Draft actions',
-            'Ask White Cell with RFIs',
-            'Read White Cell responses',
-            'Review received proposals',
-            'Read Tribe Street Journal',
-            'Review sentiment updates',
-            'Audit the timeline',
-            'Capture observations',
-            'Revisit this guide'
+            'RFIs',
+            'Responses',
+            'Received Proposals',
+            'Tribe Street Journal',
+            'Population Sentiments',
+            'Timeline',
+            'Quick Capture',
+            'Close the loop'
         ]);
         expect(flattenHighlights(guide.steps)).toEqual([
             '#header-game-state',
@@ -919,9 +827,25 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[0].body).toContain('record Blue Team decisions');
-        expect(guide.steps[4].body).toContain('explicit White Cell communications');
+        expect(guide.steps[0].body).toContain('durable Blue Team record');
+        expect(guide.steps[4].body).toContain('White Cell answers');
         expect(guide.steps[7].body).toContain('sentiment updates');
+    });
+
+    it('uses a read-only narrative and isolated progress for the Observer compatibility view', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.isReadOnly = true;
+
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+
+        const guide = mockMountFollowAlong.mock.calls[0][0];
+        expect(guide.storageKey).toBe('followalong:observer:blue');
+        expect(guide.roleLabel).toBe('Blue Team Observer');
+        expect(guide.summary).toContain('without creating, editing, forwarding, or submitting');
+        expect(guide.steps.every((step) => step.narrative)).toBe(true);
+        expect(flattenHighlights(guide.steps)).not.toContain('.sidebar-link[data-section="capture"]');
     });
 
     it('mounts a Green Scribe guide that covers proposals and every Scribe workspace surface', async () => {
@@ -944,17 +868,17 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Green Team Scribe',
+            'Your role in the exercise',
             'Read the live tracker',
             'Build proposals',
-            'Ask White Cell with RFIs',
-            'Read White Cell responses',
-            'Review received proposals',
-            'Read Tribe Street Journal',
-            'Review sentiment updates',
-            'Audit the timeline',
-            'Capture observations',
-            'Revisit this guide'
+            'RFIs',
+            'Responses',
+            'Received Proposals',
+            'Tribe Street Journal',
+            'Population Sentiments',
+            'Timeline',
+            'Quick Capture',
+            'Close the loop'
         ]);
         expect(flattenHighlights(guide.steps)).toEqual([
             '#header-game-state',
@@ -970,12 +894,11 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[0].body).toContain('record Green Team decisions');
+        expect(guide.steps[0].body).toContain('durable Green Team record');
         expect(guide.steps[2].body).toContain('Strategic Orientation and move tabs');
         expect(guide.steps[2].body).toContain('exactly what was noted');
         expect(guide.steps[2].body).toContain("Create and revise your team's proposals");
-        expect(guide.steps[5].body).toContain('proposals that White Cell has approved and forwarded for your team');
-        expect(guide.steps[5].body).not.toContain('Green Team proposals');
+        expect(guide.steps[5].body).toContain('Acknowledge, decline, ignore, or answer proposals');
     });
 
     it('mounts an Industry facilitator guide with the same proposal flow', async () => {
@@ -996,9 +919,9 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         }));
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
-        expect(guide.steps[0].title).toBe('Industry Team Scribe');
+        expect(guide.steps[0].title).toBe('Your role in the exercise');
         expect(guide.steps[2].title).toBe('Build proposals');
-        expect(guide.steps[0].body).toContain('record Industry Team decisions');
+        expect(guide.steps[0].body).toContain('durable Industry Team record');
         expect(guide.steps[2].body).toContain('Strategic Orientation and move tabs');
         expect(guide.steps[2].body).toContain("Create and revise your team's proposals");
     });
@@ -1023,17 +946,17 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'Red Team Scribe',
+            'Your role in the exercise',
             'Read the live tracker',
             'Draft actions',
-            'Ask White Cell with RFIs',
-            'Read White Cell responses',
-            'Review received proposals',
-            'Read Tribe Street Journal',
-            'Review sentiment updates',
-            'Audit the timeline',
-            'Capture observations',
-            'Revisit this guide'
+            'RFIs',
+            'Responses',
+            'Received Proposals',
+            'Tribe Street Journal',
+            'Population Sentiments',
+            'Timeline',
+            'Quick Capture',
+            'Close the loop'
         ]);
         expect(flattenHighlights(guide.steps)).toEqual([
             '#header-game-state',
@@ -1049,7 +972,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             '.sidebar-session'
         ]);
         expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[0].body).toContain('prepare actions');
+        expect(guide.steps[0].body).toContain('durable Red Team record');
         expect(guide.steps[2].body).toContain("Create and revise your team's actions");
         expect(guide.steps[2].body).toContain('White Cell reviews them');
     });

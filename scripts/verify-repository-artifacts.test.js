@@ -23,7 +23,7 @@ describe('repository artifact verifier', () => {
             'build-output',
             'browser-storage',
             'recording',
-            'training-media-work-output',
+            'local-audio-work-output',
             'model-weight',
             'generated-report-output',
             'unapproved-report-binary'
@@ -39,8 +39,8 @@ describe('repository artifact verifier', () => {
             'packages/site/dist/assets/index.js',
             'tests/e2e/.auth/storage.json',
             'evidence/recordings/session.webm',
-            'scripts/training-audio/work/raw/intro.wav',
-            'scripts/training-audio/models/kokoro-v1_0.pth',
+            'scripts/start-here-audio/work/raw/intro.wav',
+            'scripts/start-here-audio/models/kokoro-v1_0.pth',
             'tools/output/release-evidence/run-42/manifest.json',
             'docs/generated-assessment.pdf'
         ];
@@ -55,7 +55,7 @@ describe('repository artifact verifier', () => {
             'build-output',
             'browser-storage',
             'recording',
-            'training-media-work-output',
+            'local-audio-work-output',
             'model-weight',
             'generated-report-output',
             'unapproved-report-binary'
@@ -75,9 +75,9 @@ describe('repository artifact verifier', () => {
     it('allows authored application audio outside recording conventions', () => {
         expect(findProhibitedArtifacts([
             'src/audio/notification.mp3',
-            'public/training/audio/clips/training-intro.mp3',
-            'public/training/audio/captions/training-intro.en.vtt',
-            'public/training/intro/plenum-onboarding.mp4'
+            'public/onboarding/start-here/audio/clips/approved.mp3',
+            'public/onboarding/start-here/audio/captions/approved.en.vtt',
+            'public/onboarding/plenum-onboarding.en.vtt'
         ])).toEqual([]);
     });
 

@@ -273,7 +273,11 @@ function normalizeParticipantSeatRecord(record = null) {
 
     return {
         ...record,
-        display_name: record.display_name ?? record.participant_name ?? record.participants?.name ?? null,
+        display_name: record.display_name_snapshot
+            ?? record.display_name
+            ?? record.participant_name
+            ?? record.participants?.name
+            ?? null,
         client_id: record.client_id ?? record.participants?.client_id ?? null,
         participantSessionId: record.id,
         participantId: record.participant_id
@@ -614,7 +618,7 @@ function normalizeResearchCaptureMode(value) {
 /**
  * Database service with CRUD operations for all tables
  */
-const databaseApi = {
+export const database = {
     async authorizeOperatorAccess({
         surface,
         accessCode,
@@ -2197,9 +2201,9 @@ const databaseApi = {
             this.fetchTimeline(sessionId).catch(() => [])
         ]);
 
-        if (session?.session_classification === 'training_template') {
+        if (session?.session_classification !== 'live_exercise') {
             throw new DatabaseError(
-                'Training templates are excluded from live session evidence bundles.',
+                'Non-live sessions are excluded from live session evidence bundles.',
                 'fetchSessionBundle'
             );
         }
@@ -2212,97 +2216,6 @@ const databaseApi = {
             requests,
             timeline
         };
-    },
-
-    /**
-     * Start or resume an owner-scoped training attempt. Activation still
-     * depends on the protected metadata returned by the server.
-     */
-    async startOrResumeTrainingAttempt({
-        code,
-        semanticRole,
-        team,
-        curriculumVersion = '1.0'
-    } = {}) {
-        await ensureAuthenticatedBrowser();
-        const { data, error } = await supabase.rpc('start_or_resume_training_attempt', {
-            requested_code: typeof code === 'string' ? code.trim() : '',
-            requested_semantic_role: semanticRole,
-            requested_team: team,
-            requested_curriculum_version: curriculumVersion
-        });
-
-        if (error) {
-            throw fromSupabaseError(error, 'startOrResumeTrainingAttempt');
-        }
-
-        return data;
-    },
-
-    /**
-     * Revalidate a cached attempt hint against auth.uid() and the protected
-     * template before a multi-page training route is allowed to initialize.
-     */
-    async getTrainingAttemptBootstrap(attemptId) {
-        await ensureAuthenticatedBrowser();
-        const { data, error } = await supabase.rpc('get_training_attempt_bootstrap', {
-            requested_attempt_id: attemptId
-        });
-
-        if (error) {
-            throw fromSupabaseError(error, 'getTrainingAttemptBootstrap');
-        }
-
-        return data;
-    },
-
-    async recordTrainingProgressEvent({
-        attemptId,
-        eventType,
-        stepId = null,
-        resultCode = null,
-        eventKey,
-        expectedRevision
-    } = {}) {
-        await ensureAuthenticatedBrowser();
-        const { data, error } = await supabase.rpc('record_training_progress_event', {
-            requested_attempt_id: attemptId,
-            requested_event_type: eventType,
-            requested_step_id: stepId,
-            requested_result_code: resultCode,
-            requested_event_key: eventKey,
-            requested_expected_revision: expectedRevision
-        });
-
-        if (error) {
-            const mapped = fromSupabaseError(error, 'recordTrainingProgressEvent');
-            if (error.code === '40001' || /newer training attempt revision/i.test(error.message || '')) {
-                mapped.code = 'TRAINING_REVISION_CONFLICT';
-                mapped.userSafe = true;
-            }
-            throw mapped;
-        }
-
-        return data;
-    },
-
-    async resetTrainingAttempt({ attemptId, expectedRevision } = {}) {
-        await ensureAuthenticatedBrowser();
-        const { data, error } = await supabase.rpc('reset_training_attempt', {
-            requested_attempt_id: attemptId,
-            requested_expected_revision: expectedRevision
-        });
-
-        if (error) {
-            const mapped = fromSupabaseError(error, 'resetTrainingAttempt');
-            if (error.code === '40001' || /newer training attempt revision/i.test(error.message || '')) {
-                mapped.code = 'TRAINING_REVISION_CONFLICT';
-                mapped.userSafe = true;
-            }
-            throw mapped;
-        }
-
-        return data;
     },
 
     async fetchResearchExportBundle(sessionId) {
@@ -2892,49 +2805,6 @@ const databaseApi = {
         return { narrative };
     }
 };
-
-const TRAINING_DATABASE_METHOD_ALLOWLIST = new Set([
-    'startOrResumeTrainingAttempt',
-    'getTrainingAttemptBootstrap',
-    'recordTrainingProgressEvent',
-    'resetTrainingAttempt'
-]);
-
-/**
- * While any persisted training attempt hint exists, all database methods fail
- * closed except the owner-scoped training RPCs. This protects the gap
- * between page load and server revalidation as well as the active runtime.
- *
- * The facade owns one stable function per method so instrumentation and unit
- * tests can observe method calls without changing the production boundary.
- */
-export const database = {};
-
-function createTrainingBoundaryMethod(property, value) {
-    return function trainingBoundaryMethod(...args) {
-        if (
-            sessionStore.hasTrainingContext?.()
-            && !TRAINING_DATABASE_METHOD_ALLOWLIST.has(property)
-        ) {
-            const error = new DatabaseError(
-                'That action is not available in the training sandbox. Your live sessions were not changed. Exit training and re-enter the code to recover.',
-                String(property)
-            );
-            error.name = 'TrainingIsolationError';
-            error.code = 'TRAINING_WRITE_BLOCKED';
-            error.userSafe = true;
-            throw error;
-        }
-
-        return Reflect.apply(value, database, args);
-    };
-}
-
-for (const [property, value] of Object.entries(databaseApi)) {
-    database[property] = typeof value === 'function'
-        ? createTrainingBoundaryMethod(property, value)
-        : value;
-}
 
 /**
  * Roll per-seat reviews into row-level status for RLS / team visibility.

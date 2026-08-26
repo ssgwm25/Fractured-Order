@@ -92,6 +92,8 @@ Apply the authoritative ledger in this exact order:
 41. `data/2026-08-17_game_master_session_retirement.sql`
 42. `data/2026-08-18_ssg_training_session.sql`
 43. `data/2026-08-18_training_mastery_progress.sql`
+44. `data/2026-08-26_decommission_ssg_training.sql`
+45. `data/2026-08-26_session_role_name_snapshots.sql`
 
 The August 6 proposal-recipient migration remains the current owner of
 communications RLS and proposal-review behavior. The August 11 migration is an
@@ -121,84 +123,43 @@ is reapplied during repair, reapply
 `data/2026-08-15_proposal_forwarding_integrity.sql`, then apply
 `data/2026-08-17_game_master_session_retirement.sql`, then apply
 `data/2026-08-18_ssg_training_session.sql`, then apply
-`data/2026-08-18_training_mastery_progress.sql`. Verify RPCs,
+`data/2026-08-18_training_mastery_progress.sql`, then apply
+`data/2026-08-26_decommission_ssg_training.sql`, then apply
+`data/2026-08-26_session_role_name_snapshots.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
-## Protected SSG Training Session
+## SSG Training Decommission
 
-Apply `data/2026-08-18_ssg_training_session.sql` after the Game Master session
-retirement migration, followed by
-`data/2026-08-18_training_mastery_progress.sql`. The pair adds the constrained `live_exercise` and
-`training_template` classifications plus the `is_protected` database flag,
-then idempotently creates or repairs the single active `TRAINING2026` template
-at its reserved UUID. A pre-existing different session using that code blocks
-the migration; it is never relabelled or treated as fabricated training data.
+Apply the two historical training migrations in ledger order, then apply
+`data/2026-08-26_decommission_ssg_training.sql`. Do not apply the withdrawn
+`data/2026-08-25_training_curriculum_v3.sql`; it is not part of the migration
+ledger.
 
-`TRAINING2026` is code-restricted, not identity-verified. Anonymous Supabase
-auth remains the browser identity boundary. The shared code opens only the
-training bootstrap RPC; RLS and every mutation RPC additionally require the
-attempt's `auth_user_id` to equal `auth.uid()`. The 12 allowed profiles are the
-cross-product of Blue, Red, Green, and Industry with semantic Scribe,
-Facilitator, and Notetaker roles. Operator, SME, White Cell, and Observer roles
-are not accepted training profiles.
+The decommission migration retires the fixed template UUID as a protected,
+historical-only archive. It sets the template status to `archived`, clears both
+stored copies of its session code, and changes its classification to
+`retired_training_archive`. This releases `TRAINING2026` for an ordinary
+`live_exercise` session without converting historical training records into
+live evidence. The migration also removes every callable training RPC. The
+`training_attempts` and `training_progress_events` tables remain
+administrator-only historical records. Authenticated learner access and the
+owner-select policies are revoked; do not delete, relabel, export as exercise
+evidence, or attach them to a new live session.
 
-Both initial start/resume and refresh activation return the protected
-session-experience metadata (`training_template`, `is_protected = true`, and
-`ssg-training`). `get_training_attempt_bootstrap` accepts an attempt ID only as
-a lookup key and returns data only when its owner still matches `auth.uid()`;
-browser storage or a URL flag is never sufficient to activate training.
-
-The template is not a live exercise and must not be returned by the public live
-join RPC or active/archived operator lists. SQL triggers reject every update or
-delete of the protected row and reject any `game_state` or
-`session_participants` insert/update that references it. Starting or resuming
-training writes only `training_attempts` and bounded
-`training_progress_events`; it does not claim a participant seat, start a
-heartbeat, create game state, join a Realtime channel, or append research audit
-evidence. Those two training tables are deliberately absent from research
-export queries and session evidence manifests. Progress rows contain only an
-allowlisted event type, bounded step identifier, bounded result code, profile,
-attempt ownership, and server timestamp—never full answers, narration,
-transcripts, or dummy artifact bodies. Every mutation compares an expected
-attempt revision while holding the owner row lock. A stale revision fails
-without changing progress; the browser refetches the owner bootstrap and never
-overwrites the newer revision.
-
-`reset_training_attempt` requires the selected attempt ID, `auth.uid()` owner,
-and expected revision. It retires that one attempt as `reset` and creates a
-pristine attempt for the same semantic profile in one transaction. It never
-deletes history or touches another role, team, owner, or tab. Completion is
-guarded by all seven versioned curriculum-step mastery events and remains
-training-only; it is absent from live evidence and research exports.
-
-Verify the contract after applying the migration:
+Verify the retirement immediately after applying the migration:
 
 ```sql
-select id, name, status, session_code, session_classification, is_protected,
-       deleted_at
+select id, name, status, session_code, metadata, session_classification,
+       is_protected, deleted_at
 from public.sessions
 where id = '00000000-0000-4000-8000-000000002026'::uuid;
 
-select trigger_name, event_object_table, event_manipulation
-from information_schema.triggers
-where trigger_schema = 'public'
-  and trigger_name in (
-    'protect_training_template_session',
-    'prevent_training_template_game_state',
-    'prevent_training_template_participant_seat',
-    'bound_training_progress_events'
-  )
-order by trigger_name, event_manipulation;
+select id, name, status, session_code, session_classification
+from public.sessions
+where upper(coalesce(session_code, metadata->>'session_code', '')) = 'TRAINING2026';
 
-select tablename, policyname, cmd, qual, with_check
-from pg_policies
-where schemaname = 'public'
-  and tablename in ('training_attempts', 'training_progress_events')
-order by tablename, policyname;
-
-select p.oid::regprocedure::text as function_signature,
-       has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_can_execute
+select p.oid::regprocedure::text as unexpected_training_function
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
@@ -207,45 +168,77 @@ where n.nspname = 'public'
     'get_training_attempt_bootstrap',
     'record_training_progress_event',
     'reset_training_attempt'
-  )
-order by function_signature;
+  );
 
-select count(*) as forbidden_live_rows
-from (
-  select session_id from public.game_state
-  union all
-  select session_id from public.session_participants
-) live_rows
-where session_id = '00000000-0000-4000-8000-000000002026'::uuid;
+select tablename, policyname
+from pg_policies
+where schemaname = 'public'
+  and tablename in ('training_attempts', 'training_progress_events');
+
+select
+  has_table_privilege('authenticated', 'public.training_attempts', 'SELECT')
+    as authenticated_can_read_attempts,
+  has_table_privilege('authenticated', 'public.training_progress_events', 'SELECT')
+    as authenticated_can_read_events;
+
+select
+  (select count(*) from public.training_attempts) as retained_attempts,
+  (select count(*) from public.training_progress_events) as retained_events;
 ```
 
-Pass: the reserved template appears exactly once as active,
-`training_template`, and protected; all four trigger names are represented;
-both training tables expose owner-only SELECT policies and no authenticated
-INSERT, UPDATE, or DELETE policy; all four exact RPC signatures are executable by
-`authenticated`; and `forbidden_live_rows` is zero. Rehearse two anonymous
-identities with the exact uppercase code: each receives a different attempt,
-each reads only its own rows, an invalid or differently cased code returns the
-same generic access error, and using the other learner's attempt UUID cannot
-read or mutate it.
+Pass: the fixed UUID is archived, protected, classified
+`retired_training_archive`, and has no session code; no row reserves
+`TRAINING2026`; the function and policy queries return zero rows; both privilege
+columns are false; and both historical tables remain administrator-queryable
+with their existing row counts. Only after these checks
+pass may an operator assign `TRAINING2026` to a new live session through the
+normal Game Master workflow.
 
-Operationally, `TRAINING_REVISION_CONFLICT` means another tab or request has a
-newer owner revision: refresh the attempt bootstrap and preserve the newer
-server state. A reset failure leaves the selected attempt unchanged; do not
-manually update status or revision. Repeated media-degraded or mastery writes
-with the same event key are successful idempotent reads, not duplicate events.
+## Session-Role Display-Name Retention
 
-Browser logs use the single `training_event` message with a bounded
-`request_id`, event, semantic role, team, step ID, result code, reason code,
-and non-negative revision. The only event names are `start`,
-`media_degradation`, `step_mastery`, `reset`, `completion`, `failure`, and
-`role_switch`; unknown names are dropped. Investigate `revision_conflict`,
-`progress_reconcile_failed`, `progress_write_failed`, `curriculum_mismatch`, `activation_failed`,
-`reset_failed`, and `resume_rebuild_failed` by correlating the request ID with
-the owner-scoped attempt revision. Never add answer text, narration,
-transcripts, or fixture bodies to these records. Counts of the bounded
-`training_progress_events.event_type` values are the authoritative operational
-event totals; those rows remain outside live evidence and research exports.
+Apply `data/2026-08-26_session_role_name_snapshots.sql` after the training
+decommission migration. It adds `session_participants.display_name_snapshot`,
+backfills existing seats from their current participant identities, and captures
+the submitted name when a session-role seat is first created or reassigned.
+
+`participants.name` remains the mutable browser-identity name used for future
+joins. Operator rosters, active-seat RPC results, research exports, and archived
+session evidence prefer the immutable seat snapshot, so joining another session
+under a different name cannot rewrite an earlier role/name pairing. Normal
+disconnects and stale-seat cleanup already retain `session_participants`; an
+explicit operator Remove continues to clear that seat and is not a retention
+operation.
+
+The snapshot contains the same participant-provided personal information already
+stored in `participants.name`; it inherits the session evidence retention and
+access controls. Do not copy it into telemetry, deployment manifests, or logs.
+
+Verify after applying the migration:
+
+```sql
+select column_name, data_type
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'session_participants'
+  and column_name = 'display_name_snapshot';
+
+select count(*) as missing_name_snapshots
+from public.session_participants sp
+join public.participants p on p.id = sp.participant_id
+where sp.display_name_snapshot is null
+  and nullif(btrim(p.name), '') is not null;
+
+select sp.session_id, sp.role, sp.display_name_snapshot,
+       p.name as current_identity_name, sp.is_active
+from public.session_participants sp
+join public.participants p on p.id = sp.participant_id
+order by sp.session_id, sp.joined_at, sp.id;
+```
+
+Pass: the column exists, `missing_name_snapshots` is zero, and changing the name used by the same browser
+identity in a later session does not change earlier snapshot values. A NULL on
+a legacy row whose participant never had a name remains explicitly legacy and
+renders as `Unknown`; do not fabricate a person name.
 
 ## Session Archival And Game Master Deletion
 
@@ -706,11 +699,7 @@ and p.proname in (
   'operator_send_communication',
   'update_proposal_recipient_status',
   'live_demo_research_capture_mode',
-  'live_demo_software_build_hash',
-  'start_or_resume_training_attempt',
-  'get_training_attempt_bootstrap',
-  'record_training_progress_event',
-  'reset_training_attempt'
+  'live_demo_software_build_hash'
 )
 order by p.proname, function_signature;
 ```
@@ -740,9 +729,8 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 
 - anonymous sign-in succeeds
 - session-code lookup returns only active joinable sessions
-- exact `TRAINING2026` access starts or resumes only the caller's isolated 12-profile training attempt
-- protected training templates cannot be archived, deleted, renamed, recoded, reclassified, seated, or given game state
-- training attempts and progress events remain absent from live research exports and evidence manifests
+- the retired training archive has no session code, exposes no training RPC, and remains absent from live research exports and evidence manifests
+- `TRAINING2026` may be assigned to an ordinary live session and then follows the same lookup, seat, audit, and evidence rules as every other live code
 - public clients cannot list all sessions from the landing page
 - role seat limits are enforced by `claim_session_role_seat`
 - White Cell and Game Master actions require operator grants

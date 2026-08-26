@@ -13,15 +13,6 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
-import {
-    SCRIBE_COMMANDS,
-    getScribeTrainingCommand,
-    trainingRuntime
-} from '../features/training/trainingRuntime.js';
-import {
-    mountScribeTrainingCoach,
-    shouldMountScribeTrainingCoach
-} from '../features/training/ScribeTrainingCoach.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
@@ -312,21 +303,10 @@ export class FacilitatorController {
         this.hasHydratedAuthoredProposalResponses = false;
         this.strategicOrientationSubmissionInFlight = false;
         this.intercomReceiver = null;
-        this.trainingCoach = null;
-        this.trainingActivation = null;
     }
 
     async init() {
         logger.info('Initializing Scribe workspace');
-
-        if (sessionStore.hasTrainingContext?.()) {
-            const activation = await trainingRuntime.initializeRolePage({
-                expectedSemanticRole: 'scribe',
-                team: this.teamId
-            });
-            this.mountVerifiedTrainingCoach(activation);
-            return;
-        }
 
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {
@@ -385,175 +365,48 @@ export class FacilitatorController {
         logger.info('Scribe workspace initialized');
     }
 
-    mountVerifiedTrainingCoach(activation, {
-        mountCoachRef = mountScribeTrainingCoach,
-        documentRef = globalThis.document
-    } = {}) {
-        if (!shouldMountScribeTrainingCoach(activation, this.teamId)) return null;
-
-        this.trainingCoach?.destroy?.();
-        this.trainingActivation = activation;
-        this.roleSurface = 'training';
-        this.isReadOnly = false;
-        this.renderTrainingReadOnlyFixtures(activation.fixtureBundle, documentRef);
-        this.trainingCoach = mountCoachRef({
-            activation,
-            documentRef,
-            onOpenOrientation: (callbacks) => this.openTrainingOrientation(callbacks),
-            onOpenArtifact: (options) => this.openTrainingArtifact(options),
-            onNavigate: (section) => this.navigateTrainingSection(section, documentRef),
-            renderLifecycleBadge: (state) => this.renderTrainingLifecycleBadge(state, documentRef)
-        });
-        return this.trainingCoach;
-    }
-
-    renderTrainingReadOnlyFixtures(fixtureBundle, documentRef = globalThis.document) {
-        if (!fixtureBundle || !documentRef) return;
-        const sessionName = documentRef.getElementById?.('sessionName');
-        if (sessionName) sessionName.textContent = `${this.teamLabel} Scribe training`;
-
-        this.rfis = [fixtureBundle.rfi].filter(Boolean);
-        this.responses = [fixtureBundle.communication, fixtureBundle.rfiAnswer].filter(Boolean);
-        this.timelineEvents = [...(fixtureBundle.timelineEntries || [])];
-        this.journalEntries = this.timelineEvents.filter((event) => (
-            TRIBE_STREET_JOURNAL_EVENT_TYPES.has(event?.type)
-        ));
-        this.renderRfiList();
-        this.renderResponsesList();
-        this.renderTribeStreetJournalList();
-        this.renderTimeline();
-    }
-
-    navigateTrainingSection(section, documentRef = globalThis.document) {
-        documentRef?.querySelector?.(`.sidebar-link[data-section="${section}"]`)?.click?.();
-    }
-
-    renderTrainingLifecycleBadge(state, documentRef = globalThis.document) {
-        if (!documentRef?.createElement) return '';
-        const artifact = state === 'returned'
-            ? { status: 'draft', workflow_state: 'returned_to_team', review_notes: 'Training return' }
-            : state === 'completed'
-            ? { status: 'draft', workflow_state: 'forwarded_to_facilitator' }
-            : { status: 'draft', workflow_state: 'draft' };
-        return createArtifactLifecycleBadge(artifact, { size: 'sm' }).outerHTML;
-    }
-
-    async executeTrainingPracticeCommand(suffix, artifact) {
-        const command = getScribeTrainingCommand(this.teamId, suffix);
-        if (!command) throw new Error('Unsupported Scribe training command.');
-        return trainingRuntime.executeCommand(command, { artifact });
-    }
-
-    openTrainingOrientation({ onComplete = () => {}, onRetry = () => {} } = {}) {
-        const content = this.createStrategicOrientationContent({});
-        const modal = showModal({
-            title: `${this.teamLabel} Strategic Orientation practice`,
-            content,
-            size: 'xl'
-        });
-        this.bindStrategicOrientationModal(content, modal, {
-            onValidationError: onRetry,
-            onSubmit: async (data) => {
-                try {
-                    const payload = this.buildStrategicOrientationPayload(data);
-                    const state = await this.executeTrainingPracticeCommand(
-                        SCRIBE_COMMANDS.ORIENTATION_COMPLETED,
-                        payload
-                    );
-                    modal?.close?.();
-                    onComplete(state);
-                } catch (error) {
-                    onRetry(getUserMessage(error, { fallback: 'Strategic Orientation could not be saved. Try again.' }));
-                }
-            }
-        });
-    }
-
-    getTrainingArtifactSource(practiceState, mode) {
-        const fixture = this.trainingActivation?.fixtureBundle?.artifact || {};
-        const source = practiceState?.artifact || fixture;
-        const clone = JSON.parse(JSON.stringify(source));
-        if (mode === 'new' && this.teamId === 'blue') clone.expected_outcomes = '';
-        return clone;
-    }
-
-    createTrainingPracticeArtifactContent(practiceState = null, mode = 'new') {
-        const source = this.getTrainingArtifactSource(practiceState, mode);
-        if (this.teamId === 'red') {
-            return this.createRedResponseContent(source, {
-                isEdit: mode === 'revision',
-                submitLabel: mode === 'revision'
-                    ? 'Revise and Forward to Facilitator'
-                    : 'Forward to Facilitator'
-            });
-        }
-        if (this.teamId === 'green') return this.createGreenProposalContent(source, { isEdit: mode === 'revision' });
-        if (this.teamId === 'industry') return this.createIndustryProposalContent(source, { isEdit: mode === 'revision' });
-        return this.createBlueActionWizardContent(source, {
-            isEdit: mode === 'revision',
-            sequenceContext: { label: 'TRAINING FIXTURE — Blue Action' }
-        });
-    }
-
-    openTrainingArtifact({
-        mode = 'new',
-        practiceState = null,
-        onDraft = () => {},
-        onForward = () => {},
-        onRetry = () => {}
-    } = {}) {
-        const source = this.getTrainingArtifactSource(practiceState, mode);
-        const content = this.createTrainingPracticeArtifactContent(practiceState, mode);
-        const title = this.teamId === 'red'
-            ? 'Red Move Response practice'
-            : this.isProposalTeam()
-            ? `${this.teamLabel} proposal practice`
-            : 'Structured Blue action practice';
-        const modal = showModal({ title, content, size: 'xl' });
-
-        const saveArtifact = async (payload, suffix, callback) => {
-            if (mode === 'revision' && JSON.stringify(payload) === JSON.stringify(source)) {
-                onRetry('Change the returned artifact so the revision answers the feedback.');
-                return;
-            }
-            try {
-                const state = await this.executeTrainingPracticeCommand(suffix, payload);
-                modal?.close?.();
-                callback(state);
-            } catch (error) {
-                onRetry(getUserMessage(error, { fallback: 'The training artifact could not be saved. Try again.' }));
-            }
-        };
-
-        const callbacks = {
-            onValidationError: onRetry,
-            onSaveDraft: mode === 'revision'
-                ? null
-                : (payload) => saveArtifact(payload, SCRIBE_COMMANDS.ARTIFACT_DRAFT_SAVED, onDraft),
-            onForward: (payload) => saveArtifact(
-                payload,
-                mode === 'revision'
-                    ? SCRIBE_COMMANDS.RETURNED_ARTIFACT_REVISED
-                    : SCRIBE_COMMANDS.ARTIFACT_FORWARDED,
-                onForward
-            )
-        };
-
-        if (this.teamId === 'red') {
-            this.bindRedResponseModal(content, modal, callbacks);
-        } else if (this.isProposalTeam()) {
-            this.bindGreenProposalModal(content, modal, callbacks);
-        } else {
-            this.bindBlueActionWizard(content, modal, {
-                sequenceContext: { label: 'TRAINING FIXTURE — Blue Action' },
-                ...callbacks
-            });
-        }
-    }
-
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
         const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
+        const surfaceStep = (title, section, body, narrative) => ({
+            title,
+            body,
+            narrative,
+            targetLabel: title,
+            highlight: navTarget(section),
+            action: { label: `Open ${title}`, selector: navTarget(section) }
+        });
+        if (this.isReadOnly) {
+            this.onboarding = mountFollowAlong({
+                storageKey: `followalong:observer:${this.teamId}`,
+                title: `${this.teamLabel} Observer guide`,
+                roleLabel: `${this.teamLabel} Observer`,
+                summary: 'Follow the team record and exercise state without creating, editing, forwarding, or submitting artifacts.',
+                steps: [
+                    {
+                        title: 'Understand the observer boundary',
+                        body: `This is a read-only view of ${this.teamLabel}'s Scribe workspace.`,
+                        narrative: 'Use visibility to understand the exercise, not to assume the authority of an active participant seat.',
+                        details: ['Write controls stay hidden or disabled.', 'Opening a record does not change its workflow state.']
+                    },
+                    {
+                        title: 'Read the live exercise context',
+                        body: 'White Cell controls the move, phase, countdown, and timer state shown to every role.',
+                        narrative: 'Use the tracker to place each artifact and update in the correct exercise window.',
+                        targetLabel: 'Live tracker',
+                        highlight: liveTrackerHighlights
+                    },
+                    surfaceStep('Team artifacts', 'actions', 'Read Strategic Orientation, actions, or proposals and their current handoff state.', 'Compare the written record with the active exercise context; do not edit or submit it.'),
+                    surfaceStep('RFIs', 'requests', 'Read the team’s questions to White Cell and their revision status.', 'A returned RFI remains the same record and shows what clarification is still required.'),
+                    surfaceStep('Responses', 'responses', 'Follow White Cell answers, updates, and inbound operational messages.', 'Treat explicit White Cell responses as exercise input while preserving the observer boundary.'),
+                    surfaceStep('Received Proposals', 'receivedProposals', 'Inspect proposals forwarded to this team and their recipient state.', 'Read the full recipient-specific thread before interpreting a proposal outcome.'),
+                    surfaceStep('Tribe Street Journal', 'tribeStreetJournal', 'Review published scenario reporting and observations relevant to the team.', 'Use the journal as context; it does not silently change an artifact.'),
+                    surfaceStep('Population Sentiments', 'verbaAi', 'Review White Cell-published sentiment updates.', 'Sentiment is contextual evidence for participants, not deterministic adjudication.'),
+                    surfaceStep('Timeline', 'timeline', 'Reconstruct when artifacts, RFIs, messages, captures, and updates occurred.', 'Sequence explains how the session developed; the artifact surface remains the source for current workflow state.')
+                ]
+            });
+            return;
+        }
         const actionNoun = this.isProposalTeam()
             ? 'proposals'
             : 'actions';
@@ -570,59 +423,44 @@ export class FacilitatorController {
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:facilitator:${this.teamId}`,
             title: `${this.teamContext.facilitatorLabel} guide`,
+            roleLabel: this.teamContext.facilitatorLabel,
+            summary: `Own ${this.teamLabel}'s written decision record, preserve its rationale, and hand complete work across the explicit review boundary.`,
             steps: [
                 {
-                    title: this.teamContext.facilitatorLabel,
-                    body: `Use this workspace to record ${this.teamLabel} decisions, prepare ${actionNoun}, ask White Cell for clarification, review incoming updates, capture observations, and track the session record.`
+                    title: 'Your role in the exercise',
+                    body: `As ${this.teamContext.facilitatorLabel}, you turn deliberation into the durable ${this.teamLabel} record.`,
+                    narrative: `Listen for intent, assumptions, and trade-offs; make them legible in Strategic Orientation and ${actionNoun} before the handoff deadline.`,
+                    details: ['Draft and revise team-owned artifacts.', 'Preserve rationale and required structured fields.', 'Use the explicit handoff control; visibility alone is not submission.']
                 },
                 {
                     title: 'Read the live tracker',
                     body: 'The header shows the current state, including Strategic Orientation before Move 1, the active move or phase, countdown timer, and whether the timer is running. White Cell controls these values; use them to pace deliberation and submissions.',
+                    narrative: 'Confirm the active window before writing. A sound record attached to the wrong move or phase is still operationally wrong.',
+                    targetLabel: 'Live tracker',
                     highlight: liveTrackerHighlights
                 },
                 {
                     title: actionTitle,
                     body: actionGuideBody,
-                    highlight: navTarget('actions')
+                    narrative: `Translate the room’s choice into a complete ${actionNoun.slice(0, -1)} with enough evidence for the next reviewer to act.`,
+                    details: ['Strategic Orientation establishes the opening position.', `Move tabs keep ${actionNoun} attached to the correct round.`, 'Submitted or forwarded records become read-only at the documented boundary.'],
+                    targetLabel: actionTitle,
+                    highlight: navTarget('actions'),
+                    action: { label: `Open ${actionNoun}`, selector: navTarget('actions') }
                 },
+                surfaceStep('RFIs', 'requests', 'Send a focused request when the team needs a ruling, clarification, or scenario detail.', 'Include enough context to unblock one decision. If White Cell returns it, revise the same RFI rather than creating a duplicate.'),
+                surfaceStep('Responses', 'responses', 'Read White Cell answers, update notices, forwarded proposals, and explicit communications.', 'Bring material new information back into deliberation before changing the team record.'),
+                surfaceStep('Received Proposals', 'receivedProposals', 'Acknowledge, decline, ignore, or answer proposals White Cell forwarded to the team.', 'Read the proposal and its thread before recording the team’s position; negotiation remains attached to the recipient record.'),
+                surfaceStep('Tribe Street Journal', 'tribeStreetJournal', 'Read scenario reporting, observations, moments, and selected quotes.', 'Use the journal as context and a prompt for discussion; it does not silently alter submitted work.'),
+                surfaceStep('Population Sentiments', 'verbaAi', 'Read White Cell-published sentiment updates for the team.', 'Decide explicitly whether and how the published narrative changes the next action.'),
+                surfaceStep('Timeline', 'timeline', 'Audit the chronological record of artifacts, RFIs, responses, captures, and updates.', 'Use sequence to reconstruct what changed; use the artifact surface for current workflow state.'),
+                surfaceStep('Quick Capture', 'capture', 'Record a concise note, moment, or quote during deliberation.', 'Label the observation accurately and leave formal team decisions in the artifact workflow.'),
                 {
-                    title: 'Ask White Cell with RFIs',
-                    body: 'Send RFIs when the team needs a ruling, clarification, or scenario detail. The RFI list uses category tabs so you can review one request type at a time.',
-                    highlight: navTarget('requests')
-                },
-                {
-                    title: 'Read White Cell responses',
-                    body: 'Responses uses category tabs for explicit White Cell communications, update notices, forwarded proposals, and answers to your RFIs.',
-                    highlight: navTarget('responses')
-                },
-                {
-                    title: 'Review received proposals',
-                    body: 'Received Proposals lists proposals that White Cell has approved and forwarded for your team to acknowledge, decline, ignore, or answer.',
-                    highlight: navTarget('receivedProposals')
-                },
-                {
-                    title: 'Read Tribe Street Journal',
-                    body: 'Tribe Street Journal surfaces notes, moments, quotes, and White Cell updates relevant to your team.',
-                    highlight: navTarget('tribeStreetJournal')
-                },
-                {
-                    title: 'Review sentiment updates',
-                    body: 'Verba AI Population Sentiments shows White Cell-published sentiment updates for your team to factor into deliberation.',
-                    highlight: navTarget('verbaAi')
-                },
-                {
-                    title: 'Audit the timeline',
-                    body: 'Timeline gives you the chronological session record for actions, RFIs, responses, captures, and White Cell updates.',
-                    highlight: navTarget('timeline')
-                },
-                {
-                    title: 'Capture observations',
-                    body: 'Quick Capture records notes, moments, and quotes during deliberation so the team record stays current.',
-                    highlight: navTarget('capture')
-                },
-                {
-                    title: 'Revisit this guide',
-                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
+                    title: 'Close the loop',
+                    body: 'Confirm the active move, completeness, rationale, destination, and explicit handoff state before the deadline.',
+                    narrative: 'The Scribe owns a trustworthy record, not the team’s strategic judgment and not White Cell’s adjudication.',
+                    details: ['Verify the destination before handoff.', 'Use responses and timeline to resolve ambiguity.', 'Collapse Start Here when you need space and reopen it at any time.'],
+                    targetLabel: 'Session reference',
                     highlight: '.sidebar-session'
                 }
             ]
@@ -3111,12 +2949,7 @@ export class FacilitatorController {
         return content;
     }
 
-    bindStrategicOrientationModal(content, modal, {
-        actionId = null,
-        isEdit = false,
-        onSubmit = null,
-        onValidationError = null
-    } = {}) {
+    bindStrategicOrientationModal(content, modal, { actionId = null, isEdit = false } = {}) {
         const profile = getStrategicOrientationTeamProfile(this.teamId);
         const initial = content.__strategicOrientationInitialState || {};
         const state = {
@@ -3184,13 +3017,9 @@ export class FacilitatorController {
             const errors = this.validateStrategicOrientationData(state);
             if (errors.length) {
                 this.renderStrategicOrientationErrors(content, errors);
-                onValidationError?.(errors[0].message);
                 return;
             }
-            const submission = onSubmit
-                ? onSubmit(state, { actionId, isEdit })
-                : this.submitStrategicOrientation(modal, state, { actionId, isEdit });
-            Promise.resolve(submission).catch((err) => {
+            this.submitStrategicOrientation(modal, state, { actionId, isEdit }).catch((err) => {
                 logger.error('Failed to forward Strategic Orientation:', err);
             });
         });
@@ -3514,53 +3343,16 @@ export class FacilitatorController {
 
     bindRedResponseModal(content, modal, {
         actionId = null,
-        isEdit = false,
-        onSaveDraft = null,
-        onForward = null,
-        onValidationError = null
+        isEdit = false
     } = {}) {
         const form = content.querySelector('#redResponseForm');
         const forwardButton = content.querySelector('[data-response-nav="submit"]');
-
-        if (onSaveDraft && forwardButton?.parentElement) {
-            const saveDraftButton = document.createElement('button');
-            saveDraftButton.type = 'button';
-            saveDraftButton.className = 'btn btn-secondary';
-            saveDraftButton.textContent = 'Save Draft';
-            saveDraftButton.dataset.responseNav = 'saveDraft';
-            forwardButton.parentElement.insertBefore(saveDraftButton, forwardButton);
-            saveDraftButton.addEventListener('click', () => {
-                const data = this.getRedResponseData(form);
-                const error = this.validateRedResponse(data);
-                if (error) {
-                    showToast({ message: error, type: 'error' });
-                    onValidationError?.(error);
-                    return;
-                }
-                Promise.resolve(onSaveDraft(this.buildRedResponsePayload(data))).catch((err) => {
-                    logger.error('Failed to save Red Team training draft:', err);
-                });
-            });
-        }
 
         content.querySelector('[data-response-nav="cancel"]')?.addEventListener('click', () => {
             modal?.close();
         });
 
         forwardButton?.addEventListener('click', () => {
-            if (onForward) {
-                const data = this.getRedResponseData(form);
-                const error = this.validateRedResponse(data);
-                if (error) {
-                    showToast({ message: error, type: 'error' });
-                    onValidationError?.(error);
-                    return;
-                }
-                Promise.resolve(onForward(this.buildRedResponsePayload(data))).catch((err) => {
-                    logger.error('Failed to forward Red Team training response:', err);
-                });
-                return;
-            }
             this.submitRedResponse(modal, form, { actionId, isEdit }).catch((err) => {
                 logger.error('Failed to submit Red Team move response:', err);
             });
@@ -3934,24 +3726,10 @@ export class FacilitatorController {
 
     bindGreenProposalModal(content, modal, {
         actionId = null,
-        isEdit = false,
-        onSaveDraft = null,
-        onForward = null,
-        onValidationError = null
+        isEdit = false
     } = {}) {
         const form = content.querySelector(`#${this.teamId}ProposalForm`);
         if (!form) return;
-
-        const getTrainingPayload = (scribeHandoff) => {
-            const data = this.getGreenProposalData(form);
-            const error = this.validateGreenProposal(data);
-            if (error) {
-                showToast({ message: error, type: 'error' });
-                onValidationError?.(error);
-                return null;
-            }
-            return this.buildGreenProposalPayload(data, { scribeHandoff });
-        };
 
         const updateSectorOtherField = () => {
             const group = form.querySelector('#proposalFocusSectorOtherGroup');
@@ -3983,11 +3761,6 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="saveDraft"]')?.addEventListener('click', () => {
-            if (onSaveDraft) {
-                const payload = getTrainingPayload(PROPOSAL_SCRIBE_HANDOFF.DRAFT);
-                if (payload) void Promise.resolve(onSaveDraft(payload));
-                return;
-            }
             this.saveGreenProposalDraft(modal, form, {
                 actionId,
                 isEdit,
@@ -3998,11 +3771,6 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="saveChanges"]')?.addEventListener('click', () => {
-            if (onForward) {
-                const payload = getTrainingPayload(PROPOSAL_SCRIBE_HANDOFF.FORWARDED);
-                if (payload) void Promise.resolve(onForward(payload));
-                return;
-            }
             this.saveGreenProposalDraft(modal, form, {
                 actionId,
                 isEdit: true,
@@ -4013,11 +3781,6 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="forward"]')?.addEventListener('click', () => {
-            if (onForward) {
-                const payload = getTrainingPayload(PROPOSAL_SCRIBE_HANDOFF.FORWARDED);
-                if (payload) void Promise.resolve(onForward(payload));
-                return;
-            }
             this.forwardGreenProposalToFacilitator(modal, form, {
                 actionId,
                 isEdit
@@ -4827,13 +4590,7 @@ export class FacilitatorController {
         return content;
     }
 
-    bindBlueActionWizard(content, modal, {
-        actionId = null,
-        sequenceContext = null,
-        onSaveDraft = null,
-        onForward = null,
-        onValidationError = null
-    } = {}) {
+    bindBlueActionWizard(content, modal, { actionId = null, sequenceContext = null } = {}) {
         const form = content.querySelector('#blueActionWizardForm');
         const pages = Array.from(content.querySelectorAll('[data-blue-action-page]'));
         const wizardPageTotal = pages.length || this.getBlueActionWizardPageTotal();
@@ -5032,7 +4789,6 @@ export class FacilitatorController {
             const error = this.validateBlueActionWizardPage(wizardData, currentPage);
             if (error) {
                 showToast({ message: error, type: 'error' });
-                onValidationError?.(error);
                 return;
             }
 
@@ -5041,61 +4797,18 @@ export class FacilitatorController {
         });
 
         saveDraftButton?.addEventListener('click', () => {
-            if (onSaveDraft) {
-                const wizardData = this.getBlueActionWizardData(form);
-                const error = this.getBlueActionDraftSaveValidationError(wizardData, currentPage);
-                if (error) {
-                    showToast({ message: error, type: 'error' });
-                    onValidationError?.(error);
-                    return;
-                }
-                void Promise.resolve(onSaveDraft(this.buildBlueActionPayload(wizardData, {
-                    scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.DRAFT
-                })));
-                return;
-            }
             this.saveBlueActionDraft(modal, form, currentPage).catch((error) => {
                 logger.error('Failed to save team draft action:', error);
             });
         });
 
         submitButton?.addEventListener('click', () => {
-            if (onForward) {
-                const wizardData = this.getBlueActionWizardData(form);
-                const error = Array.from({ length: wizardPageTotal }, (_, pageIndex) => (
-                    this.validateBlueActionWizardPage(wizardData, pageIndex)
-                )).find(Boolean);
-                if (error) {
-                    showToast({ message: error, type: 'error' });
-                    onValidationError?.(error);
-                    return;
-                }
-                void Promise.resolve(onForward(this.buildBlueActionPayload(wizardData, {
-                    scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
-                })));
-                return;
-            }
             this.forwardBlueActionFromWizard(modal, form).catch((error) => {
                 logger.error('Failed to forward team action from wizard:', error);
             });
         });
 
         saveChangesButton?.addEventListener('click', () => {
-            if (onForward) {
-                const wizardData = this.getBlueActionWizardData(form);
-                const error = Array.from({ length: wizardPageTotal }, (_, pageIndex) => (
-                    this.validateBlueActionWizardPage(wizardData, pageIndex)
-                )).find(Boolean);
-                if (error) {
-                    showToast({ message: error, type: 'error' });
-                    onValidationError?.(error);
-                    return;
-                }
-                void Promise.resolve(onForward(this.buildBlueActionPayload(wizardData, {
-                    scribeHandoff: BLUE_ACTION_SCRIBE_HANDOFF.FORWARDED
-                })));
-                return;
-            }
             this.saveBlueActionChanges(modal, form, actionId, currentPage).catch((error) => {
                 logger.error('Failed to update team draft action:', error);
             });
@@ -6437,9 +6150,6 @@ export class FacilitatorController {
     }
 
     destroy() {
-        this.trainingCoach?.destroy?.();
-        this.trainingCoach = null;
-        this.trainingActivation = null;
         if (this.intercomReceiver) {
             unmountScribeIntercomReceiver(this.intercomReceiver);
             this.intercomReceiver = null;

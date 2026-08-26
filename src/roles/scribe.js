@@ -9,12 +9,6 @@ import { createLogger } from '../utils/logger.js';
 import { formatRelativeTime } from '../utils/formatting.js';
 import { showDurableNotification, showToast } from '../components/ui/Toast.js';
 import { DurableNotificationCenter } from '../components/ui/DurableNotification.js';
-import { trainingRuntime } from '../features/training/trainingRuntime.js';
-import {
-    FACILITATOR_TRAINING_SELECTOR_CONTRACT,
-    mountFacilitatorTrainingCoach,
-    shouldMountFacilitatorTrainingCoach
-} from '../features/training/FacilitatorTrainingCoach.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { confirmModal, showModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
@@ -1099,27 +1093,10 @@ export class ScribeController {
         this.presentationEditActionId = null;
         this.presentationEditHost = null;
         this.presentationReturnFocus = null;
-        this.trainingCoach = null;
-        this.trainingActivation = null;
-        this.trainingListenersBound = false;
     }
 
     async init() {
         logger.info('Initializing Facilitator support deck');
-
-        if (sessionStore.hasTrainingContext?.()) {
-            const activation = await trainingRuntime.initializeRolePage({
-                expectedSemanticRole: 'facilitator',
-                team: this.teamId
-            });
-            if (!this.mountVerifiedTrainingCoach(activation)) return;
-            await this.loadDeck({
-                deckPath: activation.fixtureBundle.deckState.deckPath,
-                deckLabel: activation.fixtureBundle.deckState.deckLabel,
-                preferredSlideKey: `action-${activation.fixtureBundle.artifact.id}`
-            });
-            return;
-        }
 
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {
@@ -1178,251 +1155,59 @@ export class ScribeController {
         logger.info('Facilitator support deck initialized');
     }
 
-    mountVerifiedTrainingCoach(activation, {
-        mountCoachRef = mountFacilitatorTrainingCoach,
-        documentRef = globalThis.document
-    } = {}) {
-        if (!shouldMountFacilitatorTrainingCoach(activation, this.teamId)) return null;
-
-        this.trainingCoach?.destroy?.();
-        this.trainingActivation = activation;
-        this.configureShell();
-        this.bindTrainingEventListeners(documentRef);
-        this.renderTrainingFixtureWorkspace(
-            activation.fixtureBundle,
-            trainingRuntime.getPracticeState(),
-            documentRef
-        );
-        this.mountTrainingFixtureNotification(activation, documentRef);
-        this.trainingCoach = mountCoachRef({
-            activation,
-            documentRef,
-            onNavigate: (view) => this.setFacilitatorView(view),
-            onReviewArtifact: (artifactId) => {
-                this.setFacilitatorView('actions');
-                this.setSlideByKey(`action-${artifactId}`);
-            },
-            onProjectArtifact: ({ artifactId, returnFocusTo }) => {
-                this.setFacilitatorView('actions');
-                this.setSlideByKey(`action-${artifactId}`);
-                if (!this.isPresentationModeActive()) {
-                    void this.togglePresentationMode({ returnFocusTo });
-                }
-            },
-            onStateChange: (practiceState) => {
-                this.renderTrainingFixtureWorkspace(activation.fixtureBundle, practiceState, documentRef);
-            },
-            renderLifecycleBadge: (state) => this.renderTrainingLifecycleBadge(state, documentRef)
-        });
-        return this.trainingCoach;
-    }
-
-    bindTrainingEventListeners(documentRef = globalThis.document) {
-        if (this.trainingListenersBound || !documentRef) return;
-        this.trainingListenersBound = true;
-
-        const workspaceButtons = FACILITATOR_VIEW_IDS.map((view) => (
-            documentRef.querySelector?.(FACILITATOR_TRAINING_SELECTOR_CONTRACT[view])
-        )).filter(Boolean);
-        workspaceButtons.forEach((button, index) => {
-            button.addEventListener?.('click', () => {
-                this.setFacilitatorView(button.dataset.facilitatorView || FACILITATOR_VIEW_IDS[index]);
-            });
-            button.addEventListener?.('keydown', (event) => {
-                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-                event.preventDefault();
-                const previous = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
-                const nextIndex = event.key === 'Home'
-                    ? 0
-                    : event.key === 'End'
-                        ? workspaceButtons.length - 1
-                        : (index + (previous ? -1 : 1) + workspaceButtons.length) % workspaceButtons.length;
-                const nextButton = workspaceButtons[nextIndex];
-                this.setFacilitatorView(nextButton.dataset.facilitatorView || FACILITATOR_VIEW_IDS[nextIndex]);
-                nextButton.focus?.();
-            });
-        });
-        documentRef.getElementById?.('prevSlideBtn')?.addEventListener?.('click', () => {
-            this.setSlideByIndex(this.currentSlideIndex - 1);
-        });
-        documentRef.getElementById?.('nextSlideBtn')?.addEventListener?.('click', () => {
-            this.setSlideByIndex(this.currentSlideIndex + 1);
-        });
-        documentRef.getElementById?.('scribeSectionList')?.addEventListener?.('click', (event) => {
-            const slideButton = event.target.closest?.('[data-slide-key]');
-            if (slideButton) {
-                this.markSlideNotificationsRead(slideButton.dataset.slideKey || '');
-                this.setSlideByKey(slideButton.dataset.slideKey || '');
-                return;
-            }
-            const sectionButton = event.target.closest?.('[data-section-index]');
-            if (sectionButton) this.toggleSection(Number(sectionButton.dataset.sectionIndex));
-        });
-        documentRef.querySelector?.(FACILITATOR_TRAINING_SELECTOR_CONTRACT.present)?.addEventListener?.('click', () => {
-            void this.togglePresentationMode({
-                returnFocusTo: this.trainingCoach?.root || documentRef.getElementById?.('facilitatorTrainingCoach')
-            });
-        });
-        documentRef.getElementById?.('scribeAlertsBtn')?.addEventListener?.('click', (event) => {
-            event.stopPropagation?.();
-            this.setAlertsOpen(!this.alertsOpen, { trigger: event.currentTarget });
-        });
-        documentRef.getElementById?.('scribeAlertsClear')?.addEventListener?.('click', () => {
-            this.notifications = this.notifications.filter((entry) => !entry.read);
-            this.recountUnreadNotifications();
-            this.renderAlerts();
-        });
-        documentRef.getElementById?.('scribeAlertsClose')?.addEventListener?.('click', () => {
-            this.setAlertsOpen(false);
-        });
-        const alertsList = documentRef.getElementById?.('scribeAlertsList');
-        alertsList?.addEventListener?.('click', (event) => {
-            const item = event.target.closest?.('[data-notification-id]');
-            if (item) this.openNotificationEntry(item.dataset.notificationId || '');
-        });
-        alertsList?.addEventListener?.('keydown', (event) => {
-            if (!['Enter', ' '].includes(event.key)) return;
-            const item = event.target.closest?.('[data-notification-id]');
-            if (!item) return;
-            event.preventDefault();
-            this.openNotificationEntry(item.dataset.notificationId || '');
-        });
-        documentRef.addEventListener?.('keydown', (event) => this.handleAlertsKeydown(event));
-        documentRef.addEventListener?.('fullscreenchange', () => {
-            if (!documentRef.fullscreenElement && this.isPresentationModeActive()) {
-                this.closePresentationEditPanel();
-                setScribePresentationMode({ isActive: false });
-                this.restorePresentationFocus();
-            }
-        });
-    }
-
-    renderTrainingFixtureWorkspace(fixtureBundle, practiceState = null, documentRef = globalThis.document) {
-        if (!fixtureBundle || !documentRef) return;
-        const clone = (value) => JSON.parse(JSON.stringify(value));
-        const artifact = {
-            ...clone(practiceState?.artifact || fixtureBundle.artifact),
-            status: practiceState?.artifact?.status || 'draft',
-            workflow_state: practiceState?.artifact?.workflow_state || 'submitted_to_facilitator'
-        };
-        const orientation = clone(fixtureBundle.strategicOrientation);
-        this.teamActions = [orientation, artifact];
-        this.teamRfis = practiceState?.rfi ? [clone(practiceState.rfi)] : [];
-        this.rfiRevisionHistory = (practiceState?.rfiRevisions || []).map((revision, index) => ({
-            id: `training-fixture:rfi-review:${this.teamId}:${index + 1}`,
-            artifact_kind: 'rfi',
-            artifact_id: practiceState?.rfi?.id || fixtureBundle.rfi.id,
-            revision_number: revision.revision_number,
-            prior_state: {
-                query: revision.query || practiceState?.rfi?.query || fixtureBundle.rfi.query,
-                revision_number: revision.revision_number
-            },
-            reviewer_notes: revision.review_notes || revision.response || '',
-            reviewed_at: fixtureBundle.rfi.updated_at,
-            created_at: fixtureBundle.rfi.updated_at
-        }));
-        this.directCommunications = [
-            fixtureBundle.communication,
-            practiceState?.outboundCommunication
-        ].filter(Boolean).map(clone);
-        this.actionNotifications = [fixtureBundle.actionNotification].filter(Boolean).map(clone);
-        this.receivedProposals = (practiceState?.proposalThread || fixtureBundle.proposalThreads?.slice(0, 1) || []).map(clone);
-        this.activeDeckPath = fixtureBundle.deckState.deckPath;
-        this.activeDeckLabel = fixtureBundle.deckState.deckLabel;
-
-        const sessionName = documentRef.getElementById?.('sessionName');
-        if (sessionName) sessionName.textContent = `${this.teamLabel} Facilitator training`;
-
-        const preferredSlideKey = this.getCurrentSlideKey() || `action-${artifact.id}`;
-        this.rebuildDeck({ preferredSlideKey, preferActionsSection: true });
-        this.renderSlide();
-    }
-
-    mountTrainingFixtureNotification(activation, documentRef = globalThis.document) {
-        const sourceNotification = activation?.fixtureBundle?.notification;
-        if (!sourceNotification || !documentRef) return;
-        const notification = JSON.parse(JSON.stringify(sourceNotification));
-        notification.destination.slideKey = `action-${activation.fixtureBundle.artifact.id}`;
-        const scope = `${activation.context.attemptId}:facilitator:${this.teamId}`;
-        if (!this.durableNotifications || this.durableNotifications.scope !== scope) {
-            const memoryState = new Map();
-            this.durableNotifications = new DurableNotificationCenter({
-                scope,
-                storage: {
-                    getItem: (key) => memoryState.get(key) || null,
-                    setItem: (key, value) => memoryState.set(key, value)
-                },
-                render: showDurableNotification
-            });
-        }
-        if (this.notifications.some((entry) => entry.id === notification.id)) return;
-        this.pushNotification({
-            kind: notification.family,
-            tone: notification.type,
-            title: notification.artifact,
-            detail: notification.requiredAction,
-            slideKey: notification.destination?.slideKey || '',
-            at: notification.createdAt,
-            durableNotification: notification
-        });
-    }
-
-    renderTrainingLifecycleBadge(state, documentRef = globalThis.document) {
-        if (!documentRef?.createElement) return '';
-        const artifact = state === 'submitted_to_white_cell'
-            ? { status: 'submitted', workflow_state: 'submitted_to_white_cell' }
-            : { status: 'draft', workflow_state: 'submitted_to_facilitator' };
-        return createArtifactLifecycleBadge(artifact, { size: 'sm' }).outerHTML;
-    }
-
     mountFollowAlongOnboarding() {
         const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
+        const workspaceStep = (title, selector, body, narrative) => ({
+            title,
+            body,
+            narrative,
+            targetLabel: title,
+            highlight: selector,
+            action: { label: `Open ${title}`, selector }
+        });
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:scribe:${this.teamId}`,
             title: `${this.teamContext.scribeLabel} guide`,
+            roleLabel: this.teamContext.scribeLabel,
+            summary: `Guide ${this.teamLabel}'s discussion, review the Scribe handoff, project the working record, and submit the final team artifact to White Cell.`,
             steps: [
                 {
-                    title: this.teamContext.scribeLabel,
-                    body: `Use this surface to follow ${this.teamLabel}'s support deck and keep the room aligned on live decisions.`
+                    title: 'Your role in the exercise',
+                    body: `As ${this.teamContext.scribeLabel}, you keep ${this.teamLabel}'s deliberation moving and own the final review boundary.`,
+                    narrative: 'Use the deck to structure the room, inspect what the Scribe forwarded, resolve omissions with the team, and submit only when the artifact represents the agreed decision.',
+                    details: ['The Scribe authors and forwards the record.', 'You review, project, and submit it to White Cell.', 'Presentation and submission are separate actions.']
                 },
                 {
                     title: 'Follow move, phase, and timer',
                     body: 'The header shows Strategic Orientation before Move 1, then the live move, phase, countdown timer, and paused or running state so the projected deck stays in sync with the room.',
+                    narrative: 'Name the active window for the room before moving the discussion or finalizing a handoff.',
+                    targetLabel: 'Live tracker',
                     highlight: liveTrackerHighlights
                 },
+                workspaceStep('Team Action Review', '#teamActionReviewViewBtn', 'Review the Scribe-forwarded Strategic Orientation, action, or proposal before final submission.', 'Check completeness, rationale, team agreement, and lifecycle state. Return to the team’s record rather than recreating the artifact in the deck.'),
+                workspaceStep('Deck', '#deckViewBtn', 'Move through the assigned support deck and keep the projected discussion aligned to the active exercise phase.', 'The deck structures facilitation; it is not the durable decision record and does not submit an artifact.'),
                 {
-                    title: 'Choose a facilitator workspace',
-                    body: 'Switch among Team Action Review, Deck, RFIs, and Communications. Each workspace restores the record or support slide you last viewed.',
-                    highlight: '.scribe-view-switch'
+                    ...workspaceStep('Proposals', '.scribe-section-region--proposals', 'Read proposals White Cell forwarded to this recipient and manage the append-only response thread.', 'Accept, Not Interested, or Negotiate starts the recipient’s isolated thread; later rounds stay attached to it.'),
+                    action: { label: 'Open proposals in Team Action Review', selector: '#teamActionReviewViewBtn' }
                 },
-                {
-                    title: 'Project and answer proposals',
-                    body: 'Open Proposals below Actions to project proposals approved and forwarded to this team. Start this recipient\'s isolated, append-only thread with Accept, Not Interested, or Negotiate; later rounds remain in the same thread.',
-                    highlight: '.scribe-section-region--proposals'
-                },
-                {
-                    title: 'Ask White Cell with RFIs',
-                    body: 'Open RFIs to send a new question. If White Cell returns one for clarification, edit and resubmit the same revision here.',
-                    highlight: '#rfiViewBtn'
-                },
-                {
-                    title: 'Message White Cell',
-                    body: 'Open Communications to send direct text to White Cell and review the isolated inbound and outbound history.',
-                    highlight: '#communicationsViewBtn'
-                },
-                {
-                    title: 'Watch activity',
-                    body: 'The activity bell surfaces newly submitted actions, deck changes, and White Cell communications.',
-                    highlight: '#scribeAlertsBtn'
-                },
+                workspaceStep('RFIs', '#rfiViewBtn', 'Send a focused question to White Cell or revise the same RFI when it is returned for clarification.', 'Use RFIs for rulings and missing scenario information, not for routine team discussion.'),
+                workspaceStep('Communications', '#communicationsViewBtn', 'Send direct operational text to White Cell and review the isolated inbound and outbound history.', 'Keep consequential rulings in the RFI workflow; use communications for coordination and explicit messages.'),
+                workspaceStep('Activity', '#scribeAlertsBtn', 'Review newly submitted records, deck changes, proposal rounds, and White Cell communications.', 'The badge signals unread activity; opening a notice should take you to its native destination before you act.'),
                 {
                     title: 'Present to the room',
                     body: 'Use Present when this screen is projected. It hides sidebar chrome, keeps the current slide centered, and adds the facilitator toolbar for editing, coordination, engagement, and White Cell forwarding.',
-                    highlight: '#presentBtn'
+                    narrative: 'Enter presentation deliberately, keep sensitive operator chrome out of view, and exit before returning to sidebar navigation.',
+                    details: ['Projection does not equal submission.', 'The presentation toolbar preserves the current artifact context.', 'Focus returns to the invoking control when presentation ends.'],
+                    targetLabel: 'Present control',
+                    highlight: '#presentBtn',
+                    action: { label: 'Focus Present control', selector: '#presentBtn', activate: false }
                 },
                 {
-                    title: 'Revisit this guide',
-                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
+                    title: 'Complete the handoff',
+                    body: 'Confirm the Scribe record, the room’s agreement, the active move, and the explicit White Cell submission state.',
+                    narrative: 'The Facilitator owns the quality and timing of the handoff; White Cell owns review and adjudication.',
+                    details: ['Do not infer submission from projection.', 'Use activity and communications to resolve new inputs.', 'Start Here remains available above the session label.'],
+                    targetLabel: 'Session reference',
                     highlight: '.sidebar-session'
                 }
             ]
@@ -1917,7 +1702,7 @@ export class ScribeController {
             return null;
         }
 
-        return this.getProposalCommunications()
+        return communicationsStore.getAll()
             .filter((communication) => (
                 communication?.type === 'PROPOSAL_FORWARDED'
                 && communication?.metadata?.source_proposal_id === action.id
@@ -3409,7 +3194,6 @@ export class ScribeController {
                             : slide.slideType === 'action-notification' || slide.slideType === 'action-notification-placeholder'
                                 ? this.renderActionNotificationSlide(slide)
                                 : this.renderActionSlide(slide);
-                this.disableTrainingLiveWriteControls(actionFrame);
             }
         }
 
@@ -3434,23 +3218,6 @@ export class ScribeController {
         nextSlideBtn && (nextSlideBtn.disabled = this.currentSlideIndex >= this.deckSlides.length - 1);
 
         this.renderSections();
-    }
-
-    disableTrainingLiveWriteControls(container) {
-        if (!this.trainingActivation || !container?.querySelectorAll) return;
-        container.querySelectorAll([
-            '[data-facilitator-new-rfi]',
-            '[data-facilitator-edit-rfi]',
-            '[data-facilitator-new-communication]',
-            '[data-facilitator-proposal-decision]',
-            '[data-scribe-action-edit]',
-            '[data-scribe-action-submit]'
-        ].join(',')).forEach((control) => {
-            control.disabled = true;
-            control.setAttribute('aria-disabled', 'true');
-            control.setAttribute('aria-describedby', 'trainingSandboxBanner');
-            control.title = 'Use the training coach for this isolated practice action.';
-        });
     }
 
     isStrategicActionCardExpanded(actionId = '') {
@@ -4318,6 +4085,8 @@ export class ScribeController {
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
         const lifecycle = getArtifactLifecycleViewModel(action);
+        // Each recipient stays in an isolated, append-only thread so its
+        // approval and response history cannot leak into another team's view.
         const recipientLabel = formatProposalRecipientTeams(viewModel.recipientTeams);
         const returnNotes = action.review_notes || action.adjudication_notes || '';
 
@@ -4519,7 +4288,7 @@ export class ScribeController {
         const recipients = viewModel.recipientTeams?.length
             ? viewModel.recipientTeams
             : (viewModel.recipientTeam ? [viewModel.recipientTeam] : []);
-        const allCommunications = this.getProposalCommunications();
+        const allCommunications = communicationsStore.getAll();
         const lifecycle = getArtifactLifecycleViewModel(action);
 
         return `
@@ -4659,7 +4428,7 @@ export class ScribeController {
         const communication = slide.communication || {};
         const { metadata, proposal, title, sourceTeam } = getProposalSnapshot(communication);
         const isThreadBacked = isProposalThreadMessage(communication);
-        const proposalCommunications = this.getProposalCommunications();
+        const proposalCommunications = communicationsStore.getAll();
         const messages = getProposalThreadForRecipient(
             proposalCommunications,
             metadata.source_proposal_id,
@@ -4780,12 +4549,6 @@ export class ScribeController {
                 </section>
             </article>
         `;
-    }
-
-    getProposalCommunications() {
-        return this.trainingActivation
-            ? this.receivedProposals
-            : communicationsStore.getAll();
     }
 
     async handleFacilitatorProposalDecision(communicationId = '', decision = '') {
@@ -4990,6 +4753,8 @@ export class ScribeController {
             return false;
         }
 
+        // Append rather than rewrite the parent so later rounds remain in the same thread
+        // with their original evidence intact.
         const decisionContract = getFacilitatorProposalDecisionContract(decision, negotiationTerms);
         if (!decisionContract || !decisionContract.responseContent) {
             showToast({ message: 'A valid proposal thread message is required.', type: 'error' });

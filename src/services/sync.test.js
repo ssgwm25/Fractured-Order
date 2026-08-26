@@ -68,8 +68,7 @@ const {
         },
         mockSessionStore: {
             getSessionParticipantId: vi.fn(() => 'seat-session-store'),
-            getSessionData: vi.fn(() => ({ participantId: 'seat-legacy' })),
-            hasTrainingContext: vi.fn(() => false)
+            getSessionData: vi.fn(() => ({ participantId: 'seat-legacy' }))
         }
     };
 });
@@ -141,7 +140,6 @@ describe('syncService live bootstrap', () => {
         mockActionsStore.reconcileActions.mockResolvedValue([]);
         mockRequestsStore.reconcileRequests.mockResolvedValue([]);
         mockCommunicationsStore.reconcileCommunications.mockResolvedValue([]);
-        mockSessionStore.hasTrainingContext.mockReturnValue(false);
         global.window = {
             addEventListener: vi.fn(),
             removeEventListener: vi.fn()
@@ -176,20 +174,6 @@ describe('syncService live bootstrap', () => {
         ).toBeLessThan(
             mockCommunicationsStore.reconcileCommunications.mock.invocationCallOrder[0]
         );
-    });
-
-    it('does not initialize stores or realtime while training is present', async () => {
-        mockSessionStore.hasTrainingContext.mockReturnValue(true);
-        const { syncService } = await loadSyncModule();
-
-        await syncService.initialize('forged-live-session', {
-            participantId: 'forged-seat'
-        });
-
-        expect(mockParticipantsStore.initialize).not.toHaveBeenCalled();
-        expect(mockGameStateStore.initialize).not.toHaveBeenCalled();
-        expect(mockActionsStore.initialize).not.toHaveBeenCalled();
-        expect(mockRealtimeService.initialize).not.toHaveBeenCalled();
     });
 
     it('restores participant access before loading the remaining session stores', async () => {

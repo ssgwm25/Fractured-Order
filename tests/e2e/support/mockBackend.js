@@ -3,7 +3,6 @@ const SESSION_KEYS = [
     'esg_role',
     'esg_user_name',
     'esg_session_data',
-    'esg_training_context'
 ];
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';

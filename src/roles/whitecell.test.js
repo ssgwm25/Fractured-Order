@@ -970,27 +970,32 @@ describe('White Cell DOM contract', () => {
 
         expect(mockMountFollowAlong).toHaveBeenCalledTimes(1);
         expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
-            storageKey: 'followalong:whitecell',
+            storageKey: 'followalong:whitecell:lead',
             title: 'White Cell Lead guide'
         }));
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
-            'White Cell Lead',
+            'Your role in the exercise',
             'Watch the live tracker',
-            'Run game controls',
+            'Simulation Settings',
             'Manage session operations',
-            'Review Strategic Orientation',
-            'Review Blue actions',
-            'Review proposals',
-            'Review Red actions',
-            'Read field intelligence',
-            'Publish sentiment updates',
-            'Answer RFIs',
-            'Broadcast communications',
-            'Audit the timeline',
+            'Strategic Orientation',
+            'Blue Actions',
+            'Green and Industry Proposals',
+            'Red Actions',
+            'Review History',
+            'Macro PLI',
+            'Diplomacy & Information PLI',
+            'NI & Escalation PLI',
+            'PLI Reports',
+            'Tribe Street Journal',
+            'Population Sentiments',
+            'RFIs',
+            'Communications',
+            'Session Timeline',
             'Control arrival noise',
-            'Revisit this guide'
+            'Complete the operator loop'
         ]);
         expect(flattenHighlights(guide.steps)).toEqual([
             '#header-game-state',
@@ -1001,6 +1006,11 @@ describe('White Cell DOM contract', () => {
             '.sidebar-link[data-section="actions"]',
             '.sidebar-link[data-section="proposals"]',
             '.sidebar-link[data-section="responses"]',
+            '.sidebar-link[data-section="reviewHistory"]',
+            '.sidebar-link[data-section="pliAdjudication"]',
+            '.sidebar-link[data-section="pliDiplomacyInfo"]',
+            '.sidebar-link[data-section="pliNiEscalation"]',
+            '.sidebar-link[data-section="pliReports"]',
             '.sidebar-link[data-section="tribeStreetJournal"]',
             '.sidebar-link[data-section="verbaAi"]',
             '.sidebar-link[data-section="requests"]',
@@ -1014,6 +1024,21 @@ describe('White Cell DOM contract', () => {
         expect(guide.steps[3].body).toContain('participant rosters');
         expect(guide.steps[3].body).toContain('facilitator deck assignments');
         expect(guide.steps[3].body).toContain('export controls');
+    });
+
+    it('isolates White Cell Support walkthrough progress from the Lead guide', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'support';
+
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+
+        expect(mockMountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
+            storageKey: 'followalong:whitecell:support',
+            title: 'White Cell Support guide',
+            roleLabel: 'White Cell Support'
+        }));
     });
 
     it('renders default facilitator deck controls before live communication sync finishes', async () => {

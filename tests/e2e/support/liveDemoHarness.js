@@ -482,9 +482,33 @@ export async function prepareLandingPage(page) {
     await expect(page.locator('#joinForm')).toBeVisible();
 }
 
+/**
+ * Rehearsal flows exercise the native role workspace after entry. First-use
+ * Start Here guidance intentionally opens above that workspace, so settle it
+ * through the same accessible minimize control a participant uses before the
+ * helper returns. Onboarding-specific tests can opt out at the entry helper.
+ */
+export async function minimizeStartHereGuide(page) {
+    const guide = page.locator('.follow-along').first();
+    await expect(guide).toBeAttached({ timeout: 20000 });
+
+    if (await guide.getAttribute('data-minimized') !== 'true') {
+        const minimizeButton = guide.getByRole('button', {
+            name: 'Minimize to sidebar',
+            exact: true
+        });
+        await expect(minimizeButton).toBeVisible();
+        await minimizeButton.click();
+    }
+
+    await expect(guide).toHaveAttribute('data-minimized', 'true');
+    await expect(page.locator('.follow-along-popup-host:not([hidden])')).toHaveCount(0);
+}
+
 export async function authorizeGameMaster(page, {
     displayName = 'Game Master Operator',
-    operatorAccessCode = OPERATOR_ACCESS_CODE
+    operatorAccessCode = OPERATOR_ACCESS_CODE,
+    minimizeOnboarding = true
 } = {}) {
     requireHostedOperatorAccessCode();
     await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
@@ -493,6 +517,9 @@ export async function authorizeGameMaster(page, {
     await page.locator('#operatorAccessCode').fill(operatorAccessCode);
     await page.locator('#operatorGameMasterBtn').click();
     await waitForOperatorAuthorizationRoute(page, /master\.html/, 'Game Master');
+    if (minimizeOnboarding) {
+        await minimizeStartHereGuide(page);
+    }
 }
 
 export async function createSessionFromMaster(page, {
@@ -546,7 +573,8 @@ export async function joinPublicParticipant(page, {
     sessionCode,
     displayName,
     team = 'blue',
-    roleSurface = 'facilitator'
+    roleSurface = 'facilitator',
+    minimizeOnboarding = true
 } = {}) {
     await page.goto(buildAppUrl(), APP_NAVIGATION_OPTIONS);
     await prepareLandingPage(page);
@@ -556,6 +584,9 @@ export async function joinPublicParticipant(page, {
     await page.locator(`.chip[data-role-surface="${roleSurface}"]`).click();
     await page.getByRole('button', { name: 'Join Session' }).click();
     await page.waitForURL(resolveExpectedUrlPattern(roleSurface));
+    if (minimizeOnboarding) {
+        await minimizeStartHereGuide(page);
+    }
 }
 
 export async function expectJoinFailure(page, joinOptions, expectedMessage) {
@@ -588,7 +619,8 @@ export async function authorizeWhiteCell(page, {
     sessionCode,
     displayName,
     operatorRole = 'lead',
-    operatorAccessCode = OPERATOR_ACCESS_CODE
+    operatorAccessCode = OPERATOR_ACCESS_CODE,
+    minimizeOnboarding = true
 } = {}) {
     if (operatorRole !== 'lead') {
         throw new Error(
@@ -605,6 +637,9 @@ export async function authorizeWhiteCell(page, {
     await page.locator('#operatorAccessCode').fill(operatorAccessCode);
     await page.locator('#operatorWhiteCellLeadBtn').click();
     await waitForOperatorAuthorizationRoute(page, /whitecell\.html/, `White Cell ${operatorRole}`);
+    if (minimizeOnboarding) {
+        await minimizeStartHereGuide(page);
+    }
 }
 
 const SME_ACCESS_BUTTONS = Object.freeze({
@@ -618,7 +653,8 @@ const SME_ACCESS_BUTTONS = Object.freeze({
 export async function authorizeSme(page, {
     sessionCode,
     smeRole,
-    operatorAccessCode = OPERATOR_ACCESS_CODE
+    operatorAccessCode = OPERATOR_ACCESS_CODE,
+    minimizeOnboarding = true
 } = {}) {
     const accessButton = SME_ACCESS_BUTTONS[smeRole];
     if (!accessButton) {
@@ -638,6 +674,9 @@ export async function authorizeSme(page, {
     await page.locator('#smeAccessCode').fill(operatorAccessCode);
     await page.locator(accessButton).click();
     await waitForOperatorAuthorizationRoute(page, /sme\.html/, `SME ${smeRole}`);
+    if (minimizeOnboarding) {
+        await minimizeStartHereGuide(page);
+    }
 }
 
 export async function openSidebarSection(page, section) {
@@ -1546,7 +1585,7 @@ export async function answerRfi(page, {
     await openSidebarSection(page, 'requests');
     const rfiCard = page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }).first();
     await expect(rfiCard).toBeVisible();
-    await rfiCard.getByRole('button', { name: 'Respond' }).click();
+    await activateReconciledControl(rfiCard.getByRole('button', { name: 'Respond' }));
 
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiResponseForm') });
     await expect(modal).toBeVisible();
@@ -1567,7 +1606,7 @@ export async function returnRfi(page, {
     await openSidebarSection(page, 'requests');
     const rfiCard = page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }).first();
     await expect(rfiCard).toBeVisible();
-    await rfiCard.getByRole('button', { name: 'Return for Clarification' }).click();
+    await activateReconciledControl(rfiCard.getByRole('button', { name: 'Return for Clarification' }));
 
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiReturnForm') });
     await expect(modal).toBeVisible();

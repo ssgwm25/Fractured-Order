@@ -517,9 +517,33 @@
 }
 
 /* ==================== FOLLOW-ALONG ONBOARDING ==================== */
-/* A minimizable guided stepper pinned just above the session block. The
-   sidebar nav carries flex: 1, so this and the session block settle at the
-   foot of the rail. */
+/* The expanded guide lives in a modeless viewport host. The host ignores
+   pointer input outside the card so the user can operate the role surface
+   while following the narrative. */
+.follow-along-popup-host {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    display: grid;
+    place-items: center;
+    padding: var(--space-4);
+    pointer-events: none;
+}
+
+.follow-along-popup-host[hidden] {
+    display: none;
+}
+
+.follow-along-popup-host > .follow-along[data-presentation="popup"] {
+    width: min(100%, calc(var(--space-12) * 11));
+    max-height: calc(100vh - (var(--space-4) * 2));
+    margin: 0;
+    box-shadow: var(--shadow-xl);
+    pointer-events: auto;
+}
+
+/* The minimized guide returns to its established position above the session
+   block. The sidebar nav carries flex: 1, so both settle at the rail foot. */
 .follow-along {
     flex-shrink: 0;
     margin: var(--space-2) var(--space-3) var(--space-3);
@@ -574,7 +598,6 @@
 }
 
 .follow-along-bar-title {
-    flex: 1;
     min-width: 0;
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
@@ -582,6 +605,51 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+    .follow-along-popup-host {
+        place-items: end center;
+        padding: var(--space-3);
+    }
+
+    .follow-along-popup-host > .follow-along[data-presentation="popup"] {
+        max-height: calc(100vh - (var(--space-3) * 2));
+    }
+}
+
+.follow-along-bar-copy {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    gap: var(--space-0);
+}
+
+.follow-along-bar-eyebrow {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
+.follow-along-complete-icon {
+    display: inline-flex;
+    width: var(--space-5);
+    height: var(--space-5);
+    align-items: center;
+    justify-content: center;
+    color: var(--color-success-700);
+}
+
+.follow-along-complete-icon[hidden] {
+    display: none;
+}
+
+.follow-along-complete-icon svg {
+    width: var(--space-4);
+    height: var(--space-4);
 }
 
 .follow-along-progress {
@@ -659,13 +727,130 @@
    minimized. Spacing lives on the nested pad instead. */
 .follow-along-body-inner {
     min-height: 0;
+    max-height: 58vh;
     overflow: hidden;
+}
+
+.follow-along[data-presentation="popup"] .follow-along-body-inner {
+    max-height: calc(100vh - (var(--space-12) * 3));
+}
+
+.follow-along[data-minimized="false"] .follow-along-body-inner {
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .follow-along-body-pad {
     display: grid;
-    gap: var(--space-2);
+    gap: var(--space-3);
     padding: var(--space-3);
+}
+
+.follow-along-role-brief,
+.follow-along-step-panel {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.follow-along-slide-footer {
+    display: grid;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: var(--border-width) solid var(--color-border-light);
+}
+
+.follow-along-slide-tools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: var(--btn-height);
+}
+
+.follow-along-audio-guide {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-inline-start: auto;
+}
+
+.follow-along-audio-guide[hidden] {
+    display: none;
+}
+
+.follow-along-audio-button {
+    display: inline-grid;
+    width: var(--btn-height);
+    min-width: var(--btn-height);
+    height: var(--btn-height);
+    padding: 0;
+    place-items: center;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-navy);
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.follow-along-audio-button svg {
+    width: var(--space-4);
+    height: var(--space-4);
+}
+
+.follow-along-audio-button:hover:not(:disabled),
+.follow-along-audio-button[aria-pressed="true"] {
+    border-color: var(--color-navy-muted);
+    background: var(--color-navy);
+    color: var(--color-surface);
+}
+
+.follow-along-audio-button:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--border-width-2);
+}
+
+.follow-along-audio-button:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+}
+
+.follow-along-audio-transcript {
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-width) solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+}
+
+.follow-along-audio-transcript[hidden] {
+    display: none;
+}
+
+.follow-along-audio-transcript summary {
+    color: var(--color-navy);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+}
+
+.follow-along-audio-transcript summary:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--border-width-2);
+}
+
+.follow-along-audio-transcript p {
+    margin: var(--space-2) 0 0;
+}
+
+.follow-along-role-brief {
+    min-height: calc(var(--space-12) * 3);
+    align-content: center;
+    padding: var(--space-3);
+    border: var(--border-width) solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
 }
 
 .follow-along-body-inner.is-stepping .follow-along-step-title,
@@ -678,18 +863,202 @@
     to { opacity: 1; transform: none; }
 }
 
-.follow-along-step-title {
+.follow-along-step-title,
+.follow-along-role-title {
     margin: 0;
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
     color: var(--color-text);
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-tight);
 }
 
-.follow-along-step-text {
+.follow-along-role-summary,
+.follow-along-section-label,
+.follow-along-step-meta,
+.follow-along-step-text,
+.follow-along-step-narrative,
+.follow-along-target,
+.follow-along-media-status,
+.follow-along-overview-text {
     margin: 0;
     font-size: var(--text-xs);
     line-height: var(--leading-normal);
     color: var(--color-text-secondary);
+}
+
+.follow-along-role-summary {
+    color: var(--color-text);
+}
+
+.follow-along-section-label {
+    color: var(--color-navy-muted);
+    font-family: var(--font-mono);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+}
+
+.follow-along-step-meta {
+    color: var(--color-navy-muted);
+    font-family: var(--font-mono);
+    font-weight: var(--font-semibold);
+    letter-spacing: var(--tracking-wide);
+}
+
+.follow-along-step-narrative {
+    padding: var(--space-2) var(--space-3);
+    border-inline-start: var(--space-1) solid var(--color-gold);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+}
+
+.follow-along-step-narrative[hidden],
+.follow-along-step-details[hidden],
+.follow-along-target[hidden],
+.follow-along-open-surface[hidden],
+.follow-along-overview[hidden],
+.follow-along-role-brief[hidden],
+.follow-along-step-panel[hidden],
+.follow-along-media[hidden],
+.follow-along-transcript[hidden] {
+    display: none;
+}
+
+.follow-along-step-details {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding-inline-start: var(--space-5);
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+}
+
+.follow-along-target {
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    background: var(--color-warning-light);
+    color: var(--color-warning-700);
+}
+
+.follow-along-open-surface,
+.follow-along-overview-toggle,
+.follow-along-transcript-toggle {
+    width: 100%;
+    min-height: var(--btn-height);
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-navy);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    text-align: left;
+    cursor: pointer;
+}
+
+.follow-along-open-surface:hover,
+.follow-along-overview-toggle:hover,
+.follow-along-transcript-toggle:hover {
+    border-color: var(--color-navy-muted);
+    background: var(--color-navy-soft);
+}
+
+.follow-along-open-surface:focus-visible,
+.follow-along-overview-toggle:focus-visible,
+.follow-along-transcript-toggle:focus-visible {
+    outline: var(--border-width-3) solid var(--color-focus-ring);
+    outline-offset: var(--border-width-2);
+}
+
+.follow-along-overview {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+}
+
+.follow-along-overview-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.follow-along-overview-copy {
+    display: grid;
+    flex: 1;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.follow-along-overview-title {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-tight);
+}
+
+.follow-along-overview-text {
+    color: var(--color-text-secondary);
+}
+
+.follow-along-overview-toggle {
+    width: auto;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.follow-along-media {
+    display: grid;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: var(--border-width) solid var(--color-border-light);
+}
+
+.follow-along-video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    border-radius: var(--radius-md);
+    background: var(--color-gray-900);
+}
+
+.follow-along-transcript {
+    max-height: calc(var(--space-12) * 4);
+    padding: var(--space-2);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: var(--border-width) solid var(--color-border-light);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+}
+
+.follow-along-transcript p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+    line-height: var(--leading-normal);
+}
+
+.follow-along-transcript p + p {
+    margin-top: var(--space-2);
+}
+
+@media (max-width: 480px) {
+    .follow-along-overview-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .follow-along-overview-toggle {
+        width: 100%;
+    }
 }
 
 .follow-along-dots {

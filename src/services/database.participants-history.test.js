@@ -55,11 +55,12 @@ describe('database session participant history', () => {
                     session_id: 'session-1',
                     participant_id: 'participant-1',
                     role: 'blue_facilitator',
+                    display_name_snapshot: 'Morgan',
                     is_active: true,
                     heartbeat_at: '2026-04-08T15:00:00.000Z',
                     joined_at: '2026-04-08T14:59:00.000Z',
                     participants: {
-                        name: 'Morgan',
+                        name: 'Later Browser Name',
                         client_id: 'client-history-test'
                     }
                 },
@@ -68,11 +69,12 @@ describe('database session participant history', () => {
                     session_id: 'session-1',
                     participant_id: 'participant-2',
                     role: 'viewer',
+                    display_name_snapshot: 'Taylor',
                     is_active: false,
                     heartbeat_at: '2026-04-08T14:55:00.000Z',
                     joined_at: '2026-04-08T14:54:00.000Z',
                     participants: {
-                        name: 'Taylor',
+                        name: 'Another Later Name',
                         client_id: 'client-observer-test'
                     }
                 }

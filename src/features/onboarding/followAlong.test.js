@@ -60,10 +60,16 @@ class FakeElement {
         this.dataset = {};
         this.attributes = new Map();
         this.listeners = new Map();
+        this.style = {};
         this.textContent = '';
         this.disabled = false;
         this.hidden = false;
         this.removed = false;
+        this.focus = vi.fn();
+        this.pause = vi.fn();
+        this.play = vi.fn(() => Promise.resolve());
+        this.load = vi.fn();
+        this.currentTime = 0;
     }
 
     set innerHTML(value) {
@@ -123,12 +129,27 @@ class FakeElement {
     }
 
     appendChild(child) {
+        if (child.parentNode) {
+            child.parentNode.children = child.parentNode.children.filter((candidate) => candidate !== child);
+        }
         child.parentNode = this;
         this.children.push(child);
         return child;
     }
 
+    append(...children) {
+        children.forEach((child) => this.appendChild(child));
+    }
+
+    replaceChildren(...children) {
+        this.children = [];
+        this.append(...children);
+    }
+
     insertBefore(child, anchor) {
+        if (child.parentNode) {
+            child.parentNode.children = child.parentNode.children.filter((candidate) => candidate !== child);
+        }
         child.parentNode = this;
         const anchorIndex = this.children.indexOf(anchor);
         if (anchorIndex === -1) {
@@ -194,6 +215,10 @@ function createSidebar() {
     return { sidebar, session };
 }
 
+function getGuide(sidebar) {
+    return sidebar.querySelector('.follow-along') || global.document.body?.querySelector('.follow-along');
+}
+
 describe('mountFollowAlong', () => {
     let storage;
 
@@ -201,9 +226,12 @@ describe('mountFollowAlong', () => {
         storage = createStorage();
         global.window = { localStorage: storage };
         global.document = {
+            body: new FakeElement('body'),
             createElement: (tagName) => new FakeElement(tagName),
             getElementById: vi.fn(() => null),
-            querySelector: vi.fn(() => null)
+            querySelector: vi.fn(() => null),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn()
         };
     });
 
@@ -222,7 +250,8 @@ describe('mountFollowAlong', () => {
             steps: [
                 { title: 'First', body: 'One' },
                 { title: 'Second', body: 'Two' }
-            ]
+            ],
+            overviewMedia: false
         });
 
         const root = sidebar.querySelector('.follow-along');
@@ -238,13 +267,61 @@ describe('mountFollowAlong', () => {
         root.querySelector('.follow-along-bar').click();
 
         expect(root.dataset.minimized).toBe('false');
-        expect(root.querySelector('.follow-along-bar-title').textContent).toBe('Getting started');
-        expect(root.querySelector('.follow-along-progress').textContent).toBe('1 / 2');
+        expect(root.querySelector('.follow-along-bar-title').textContent).toBe('Role walkthrough');
+        expect(root.querySelector('.follow-along-progress').textContent).toBe('1 / 3');
         expect(root.querySelector('.follow-along-progress').hidden).toBe(false);
         expect(JSON.parse(storage.getItem('tour'))).toEqual({
             step: 0,
-            minimized: false
+            minimized: false,
+            completed: true
         });
+        expect(root.dataset.presentation).toBe('popup');
+        expect(global.document.body.querySelector('.follow-along')).toBe(root);
+    });
+
+    it('opens as a modeless popup and minimizes back to the sidebar', () => {
+        const { sidebar, session } = createSidebar();
+        const instance = mountFollowAlong({
+            storageKey: 'tour',
+            sidebar,
+            roleLabel: 'White Cell Lead',
+            steps: [{ title: 'Review queue', body: 'Inspect the queue.' }],
+            overviewMedia: false
+        });
+
+        const root = global.document.body.querySelector('.follow-along');
+        const host = global.document.body.querySelector('.follow-along-popup-host');
+        expect(root).toBeTruthy();
+        expect(root.parentNode).toBe(host);
+        expect(root.dataset.presentation).toBe('popup');
+        expect(root.getAttribute('role')).toBe('dialog');
+        expect(root.getAttribute('aria-modal')).toBe('false');
+        expect(root.querySelector('.follow-along-skip').textContent).toBe('Minimize to sidebar');
+        expect(root.querySelector('.follow-along-bar').focus).toHaveBeenCalledWith({ preventScroll: true });
+
+        root.querySelector('.follow-along-skip').click();
+
+        expect(root.dataset.presentation).toBe('sidebar');
+        expect(root.getAttribute('role')).toBe('region');
+        expect(sidebar.children[0]).toBe(root);
+        expect(sidebar.children[1]).toBe(session);
+        expect(host.hidden).toBe(true);
+        expect(root.querySelector('.follow-along-bar').getAttribute('aria-label')).toContain('Open White Cell Lead');
+
+        root.querySelector('.follow-along-bar').click();
+        expect(root.parentNode).toBe(host);
+        expect(host.hidden).toBe(false);
+
+        const keydownHandler = global.document.addEventListener.mock.calls.find(([eventName]) => eventName === 'keydown')?.[1];
+        const preventDefault = vi.fn();
+        keydownHandler({ key: 'Escape', preventDefault });
+        expect(preventDefault).toHaveBeenCalled();
+        expect(root.parentNode).toBe(sidebar);
+        expect(root.querySelector('.follow-along-bar').focus).toHaveBeenCalledWith({ preventScroll: true });
+
+        instance.destroy();
+        expect(sidebar.dataset.followAlongMounted).toBeUndefined();
+        expect(host.removed).toBe(true);
     });
 
     it('collapses instead of removing the guide when the final step is done', () => {
@@ -253,10 +330,12 @@ describe('mountFollowAlong', () => {
         mountFollowAlong({
             storageKey: 'tour',
             sidebar,
-            steps: [{ title: 'Only step', body: 'Reference stays available.' }]
+            steps: [{ title: 'Only step', body: 'Reference stays available.' }],
+            overviewMedia: false
         });
 
-        const root = sidebar.querySelector('.follow-along');
+        const root = getGuide(sidebar);
+        root.querySelector('.follow-along-next').click();
         root.querySelector('.follow-along-next').click();
 
         expect(root.removed).toBe(false);
@@ -268,7 +347,8 @@ describe('mountFollowAlong', () => {
         expect(root.querySelector('.follow-along-progress').hidden).toBe(true);
         expect(JSON.parse(storage.getItem('tour'))).toEqual({
             step: 0,
-            minimized: true
+            minimized: true,
+            completed: true
         });
     });
 
@@ -278,15 +358,18 @@ describe('mountFollowAlong', () => {
         const timer = new FakeElement('div', { id: 'header-timer' });
 
         global.document = {
+            body: new FakeElement('body'),
             createElement: (tagName) => new FakeElement(tagName),
             getElementById: vi.fn(() => null),
             querySelector: vi.fn((selector) => ({
                 '#header-game-state': gameState,
                 '#header-timer': timer
-            }[selector] || null))
+            }[selector] || null)),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn()
         };
 
-        mountFollowAlong({
+        const instance = mountFollowAlong({
             storageKey: 'tour',
             sidebar,
             steps: [
@@ -299,10 +382,12 @@ describe('mountFollowAlong', () => {
                     title: 'Next',
                     body: 'Move on.'
                 }
-            ]
+            ],
+            overviewMedia: false
         });
 
-        const root = sidebar.querySelector('.follow-along');
+        const root = getGuide(sidebar);
+        instance.goToStep(0);
         expect(gameState.classList.contains('is-onboarding-target')).toBe(true);
         expect(timer.classList.contains('is-onboarding-target')).toBe(true);
 
@@ -310,5 +395,147 @@ describe('mountFollowAlong', () => {
 
         expect(gameState.classList.contains('is-onboarding-target')).toBe(false);
         expect(timer.classList.contains('is-onboarding-target')).toBe(false);
+    });
+
+    it('renders detailed role narrative and opens the requested native surface', () => {
+        const { sidebar } = createSidebar();
+        const actionTarget = new FakeElement('button', { id: 'actions' });
+        global.document.querySelector = vi.fn((selector) => selector === '#actions' ? actionTarget : null);
+
+        const instance = mountFollowAlong({
+            storageKey: 'tour',
+            sidebar,
+            roleLabel: 'Blue Team Scribe',
+            summary: 'Own the written team record.',
+            overviewMedia: false,
+            steps: [{
+                title: 'Draft actions',
+                body: 'Record the agreed action.',
+                narrative: 'Turn the room decision into a durable artifact.',
+                details: ['Confirm the move.', 'Preserve rationale.'],
+                targetLabel: 'Actions',
+                highlight: '#actions',
+                action: { label: 'Open Actions', selector: '#actions' }
+            }]
+        });
+
+        const root = getGuide(sidebar);
+        instance.goToStep(0);
+        expect(root.getAttribute('aria-label')).toContain('Blue Team Scribe');
+        expect(root.querySelector('.follow-along-role-summary').textContent).toBe('Own the written team record.');
+        expect(root.querySelector('.follow-along-step-meta').textContent).toBe('2 of 2 / Actions');
+        expect(root.querySelector('.follow-along-step-narrative').textContent).toContain('durable artifact');
+        expect(root.querySelectorAll('.follow-along-step-details').length).toBe(1);
+
+        root.querySelector('.follow-along-open-surface').click();
+        expect(actionTarget.focus).toHaveBeenCalledWith({ preventScroll: true });
+    });
+
+    it('gives orientation and role focus their own slides before the role walkthrough', () => {
+        const { sidebar } = createSidebar();
+        mountFollowAlong({
+            storageKey: 'tour',
+            sidebar,
+            steps: [{ title: 'Role', body: 'Start here.' }],
+            overviewMedia: {
+                videoUrl: '/overview.mp4',
+                posterUrl: '/poster.png',
+                captionsUrl: '/overview.en.vtt',
+                durationLabel: '2:28',
+                label: 'Platform overview',
+                transcript: ['Accessible transcript.']
+            }
+        });
+
+        const root = getGuide(sidebar);
+        const video = root.querySelector('.follow-along-video');
+        const transcript = root.querySelector('.follow-along-transcript');
+        const bodyPad = root.querySelector('.follow-along-body-pad');
+        const overview = root.querySelector('.follow-along-overview');
+        const stepPanel = root.querySelector('.follow-along-step-panel');
+        const overviewToggle = root.querySelector('.follow-along-overview-toggle');
+        const roleBrief = root.querySelector('.follow-along-role-brief');
+        expect(video.preload).toBe('metadata');
+        expect(video.autoplay).not.toBe(true);
+        expect(transcript.children[0].textContent).toBe('Accessible transcript.');
+        expect(overviewToggle.textContent).toBe('Watch');
+        expect(overview.querySelector('.follow-along-section-label').textContent).toContain('2:28');
+        expect(bodyPad.children.indexOf(overview)).toBeLessThan(bodyPad.children.indexOf(stepPanel));
+        expect(root.dataset.slide).toBe('orientation');
+        expect(overview.hidden).toBe(false);
+        expect(roleBrief.hidden).toBe(true);
+        expect(stepPanel.hidden).toBe(true);
+        expect(root.querySelector('.follow-along-audio-guide').hidden).toBe(true);
+        expect(root.querySelector('.follow-along-audio-transcript').hidden).toBe(true);
+
+        overviewToggle.click();
+        expect(root.querySelector('.follow-along-media').hidden).toBe(false);
+        expect(overviewToggle.textContent).toBe('Hide');
+        expect(overviewToggle.getAttribute('aria-expanded')).toBe('true');
+
+        root.querySelector('.follow-along-next').click();
+        expect(root.dataset.slide).toBe('role-focus');
+        expect(overview.hidden).toBe(true);
+        expect(roleBrief.hidden).toBe(false);
+        expect(stepPanel.hidden).toBe(true);
+        expect(video.pause).toHaveBeenCalled();
+        expect(root.querySelector('.follow-along-audio-guide').hidden).toBe(false);
+        expect(root.querySelector('.follow-along-audio-transcript').hidden).toBe(false);
+        expect(root.querySelector('.follow-along-audio-transcript').children[0].textContent).toBe('Audio transcript');
+
+        root.querySelector('.follow-along-next').click();
+        expect(root.dataset.slide).toBe('role-surface');
+        expect(overview.hidden).toBe(true);
+        expect(roleBrief.hidden).toBe(true);
+        expect(stepPanel.hidden).toBe(false);
+        expect(root.querySelector('.follow-along-step-meta').textContent).toBe('3 of 3');
+    });
+
+    it('offers icon-only Kokoro playback controls from slide two and stops audio on navigation', async () => {
+        const { sidebar } = createSidebar();
+        mountFollowAlong({
+            storageKey: 'tour',
+            sidebar,
+            roleLabel: 'Game Master',
+            summary: 'Maintain the operational record.',
+            steps: [{
+                title: 'Sessions',
+                body: 'Select the active session.',
+                narrative: 'Verify the session before distributing access.'
+            }],
+            overviewMedia: {
+                videoUrl: '/overview.mp4',
+                transcript: ['Transcript.']
+            },
+            resolveAudioUrl: () => '/onboarding/start-here/audio/clips/0123456789abcdef.mp3'
+        });
+
+        const root = getGuide(sidebar);
+        const audio = root.querySelector('.follow-along-body-pad').children.find((child) => child.tagName === 'AUDIO');
+        const play = root.querySelectorAll('.follow-along-audio-button')[0];
+        const pause = root.querySelectorAll('.follow-along-audio-button')[1];
+        const stop = root.querySelectorAll('.follow-along-audio-button')[2];
+        expect(play.getAttribute('aria-label')).toBe('Play audio guide');
+        expect(pause.getAttribute('aria-label')).toBe('Pause audio guide');
+        expect(stop.getAttribute('aria-label')).toBe('Stop audio guide');
+        expect(play.textContent).toBe('');
+
+        root.querySelector('.follow-along-next').click();
+        expect(audio.src).toMatch(/^\/onboarding\/start-here\/audio\/clips\/[a-f0-9]{16}\.mp3$/);
+        play.click();
+        await Promise.resolve();
+        expect(audio.play).toHaveBeenCalledTimes(1);
+
+        pause.click();
+        expect(audio.pause).toHaveBeenCalled();
+        expect(root.dataset.audioState).toBe('paused');
+
+        audio.currentTime = 4;
+        stop.click();
+        expect(audio.currentTime).toBe(0);
+        expect(root.dataset.audioState).toBe('stopped');
+
+        root.querySelector('.follow-along-next').click();
+        expect(audio.pause).toHaveBeenCalled();
     });
 });

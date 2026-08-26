@@ -55,7 +55,7 @@ The built-in teams are Blue, Red, Green, and Industry. Do not expand team geogra
 |   |-- services/              Supabase, realtime, sync, timer, heartbeat, mock backend
 |   |-- stores/                Session, game state, actions, RFIs, timeline, participants, communications
 |   |-- roles/                 Role-surface controllers
-|   `-- features/              Actions, RFIs, export, timeline, onboarding, plugin registry, PLI SME panels, and deck helpers
+|   `-- features/              Actions, RFIs, export, timeline, role-aware Start Here onboarding, plugin registry, PLI SME panels, and deck helpers
 |-- styles/                    Shared CSS tokens, layouts, components, and page styles
 |-- data/                      Supabase schema and migration SQL
 |-- docs/                      Deployment, Supabase setup, and live-demo runbook

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import viteConfig from './vite.config.js';
+import viteConfig, { resolveStartHereReviewAsset } from './vite.config.js';
 
 const EXPECTED_INPUTS = Object.freeze({
     main: 'index.html',
@@ -46,5 +46,16 @@ describe('vite multi-page entries', () => {
 
         expect(productionConfig.build?.sourcemap).toBe(false);
         expect(testConfig.build?.sourcemap).toBe(true);
+    });
+
+    it('serves only content-addressed Start Here review media during development', async () => {
+        const config = await viteConfig({ mode: 'test' });
+        expect(config.plugins.map((plugin) => plugin.name)).toContain('start-here-audio-review');
+        expect(resolveStartHereReviewAsset('/onboarding/start-here/audio/clips/0123456789abcdef.mp3'))
+            .toMatch(/[\\/]scripts[\\/]start-here-audio[\\/]work[\\/]review[\\/]clips[\\/]0123456789abcdef\.mp3$/);
+        expect(resolveStartHereReviewAsset('/onboarding/start-here/audio/captions/0123456789abcdef.en.vtt'))
+            .toMatch(/[\\/]captions[\\/]0123456789abcdef\.en\.vtt$/);
+        expect(resolveStartHereReviewAsset('/onboarding/start-here/audio/clips/..%2Fsecrets.mp3')).toBeNull();
+        expect(resolveStartHereReviewAsset('/onboarding/start-here/audio/clips/not-a-content-hash.mp3')).toBeNull();
     });
 });

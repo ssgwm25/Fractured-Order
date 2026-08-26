@@ -1,0 +1,17 @@
+{
+  "approved": false,
+  "reviewer": "",
+  "reviewedAt": "",
+  "notes": "",
+  "fullListenThrough": false,
+  "scriptBundleSha256": "",
+  "clipCount": 122,
+  "qualityReview": {
+    "pronunciation": false,
+    "pacing": false,
+    "clippingFree": false,
+    "pausesNatural": false,
+    "prosodyAccepted": false,
+    "profileMappingsComplete": false
+  }
+}

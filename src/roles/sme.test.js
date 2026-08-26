@@ -15,6 +15,7 @@ async function loadSmeControllerWithMocks({
         || vi.fn(() => ({ refresh: vi.fn(), destroy: vi.fn() }));
     const createSmeHandoffQueue = factories.createSmeHandoffQueue
         || vi.fn(() => ({ refresh: vi.fn(), destroy: vi.fn() }));
+    const mountFollowAlong = vi.fn(() => ({ destroy: vi.fn() }));
 
     vi.doMock('../stores/session.js', () => ({
         sessionStore: {
@@ -53,6 +54,7 @@ async function loadSmeControllerWithMocks({
     vi.doMock('../features/pli/NiEscalationReview.js', () => ({ createNiEscalationReview }));
     vi.doMock('../features/pli/DiplomacyInfoReview.js', () => ({ createDiplomacyInfoReview }));
     vi.doMock('../features/pli/SmeHandoffQueue.js', () => ({ createSmeHandoffQueue }));
+    vi.doMock('../features/onboarding/followAlong.js', () => ({ mountFollowAlong }));
 
     const host = { innerHTML: '' };
     const nodes = new Map([
@@ -78,7 +80,8 @@ async function loadSmeControllerWithMocks({
         createPliMacroReview,
         createNiEscalationReview,
         createDiplomacyInfoReview,
-        createSmeHandoffQueue
+        createSmeHandoffQueue,
+        mountFollowAlong
     };
 }
 
@@ -172,6 +175,31 @@ describe('SME console access state', () => {
             }
         }
 
+        controller.destroy();
+    });
+
+    it.each([
+        ['sme_econ', 'Macro PLI'],
+        ['sme_ni_escalation', 'National Interest'],
+        ['sme_diplomacy_information', 'Diplomacy'],
+        ['sme_tsj', 'TSJ handoff'],
+        ['sme_verba', 'Verba handoff']
+    ])('mounts a detailed Start Here guide for %s', async (role, expectedNarrative) => {
+        const loaded = await loadSmeControllerWithMocks({ role });
+        const controller = new loaded.SmeController();
+
+        await controller.init();
+
+        expect(loaded.mountFollowAlong).toHaveBeenCalledTimes(1);
+        const guide = loaded.mountFollowAlong.mock.calls[0][0];
+        expect(guide.storageKey).toContain(role.replace('sme_', ''));
+        expect(guide.steps).toHaveLength(5);
+        expect(`${guide.summary} ${guide.steps.map((step) => `${step.body} ${step.narrative}`).join(' ')}`).toContain(expectedNarrative);
+        expect(guide.steps.every((step) => step.narrative)).toBe(true);
+        expect(guide.steps[1].action).toEqual({
+            label: 'Open SME queue',
+            selector: '.sidebar-link[data-section="smeQueue"]'
+        });
         controller.destroy();
     });
 

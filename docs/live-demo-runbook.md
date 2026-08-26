@@ -61,8 +61,9 @@ Pass:
 4. Create an active session with a short uppercase join code.
 5. Join once as a participant and confirm the loading screen identifies the resolved session by name before entering the role surface.
 6. Keep the Game Master console open for participant monitoring and export.
-7. In the Game Master participant roster, select at least two seats, remove them in one confirmation, and confirm each successful removal disappears immediately without a page refresh.
-8. If Intercom or Session Recorder is enabled for the selected session, confirm the Game Master plugin mount shows the matching operator controls.
+7. Reuse one participant browser identity to join a second session under a different display name and role. Confirm each Game Master roster keeps the name originally submitted for that session-role seat.
+8. In the Game Master participant roster, select at least two seats, remove them in one confirmation, and confirm each successful removal disappears immediately without a page refresh.
+9. If Intercom or Session Recorder is enabled for the selected session, confirm the Game Master plugin mount shows the matching operator controls.
 
 Recommended rehearsal session name:
 
@@ -317,113 +318,13 @@ If realtime degrades:
 - deterministic writes should still use the existing Supabase/RPC path
 - Scribe and White Cell operators should refresh before time-sensitive artifact review; a stale-revision rejection must leave the newer revision unchanged and require the reviewer to refresh
 
-## Training Introduction Media Recovery
+## Retired Training Archive Check
 
-The `TRAINING2026` introduction is a local instructional asset. It does not use
-a hosted player, tracker, microphone, recorder, Supabase write, or reusable
-browser credential. A video failure must not be treated as a failed training
-attempt.
-
-If a learner reports a loading, missing-media, decode, offline, or
-captions-unavailable message:
-
-1. Ask the learner to open `Show video transcript`; confirm the complete text is
-   readable before troubleshooting playback.
-2. If the browser reports offline, restore network access and choose `Retry
-   video`. The transcript and `Continue to profile confirmation` remain usable
-   while offline.
-3. For missing or decode errors, choose `Retry video` once. If it fails again,
-   continue with the transcript and record the browser name/version plus the
-   exact visible message. Do not reset the attempt or move the learner into a
-   live session.
-4. If captions fail, keep the transcript open and continue. Record the failure
-   against `public/training/intro/plenum-onboarding.en.vtt` and the deployed
-   public base path. The approved video also carries synchronized open captions
-   in the image, but these do not replace the separate text track for assistive
-   technology.
-5. Confirm `Replay intro` remains keyboard reachable in the Training sandbox
-   controls. Replaying must not create a new attempt or clear walkthrough
-   progress.
-6. At 200% browser zoom and at the supported narrow viewport, confirm the
-   Training sandbox banner wraps without covering role navigation, fixed
-   sidebars, deck controls, alerts, or the first focusable content. The shared
-   shell should move those surfaces below the full rendered banner height.
-
-For deployment diagnosis, verify the built application contains the Vite-emitted
-MP4 and poster plus
-`training/intro/plenum-onboarding.en.vtt`. A missing, stale, or unreviewed media
-artifact fails the production media gate. It does not justify removing the
-transcript, disabling Continue, weakening attempt isolation, or adding a remote
-player. The product owner selected full playback of the 2:28 source and confirmed
-that synchronized open captions are burned into the video. The complete visible
-transcript and independent WebVTT track are sourced from
-`Plenum Briefing/Plenum_Platform_Explainer_Video_Script.md`; its narrated scene
-times end at 1:28. If the approved video or script changes, the media owner must
-update both text alternatives and re-verify WebVTT timing within 0.5 seconds, as
-recorded in `public/training/intro/media-manifest.json`.
-
-## Training Narration Recovery And Approval
-
-Before checking narration, verify the guided pathway itself on one Scribe,
-Facilitator, and Notetaker profile:
-
-1. Confirm the coach floats above the real role workspace without moving its
-   header, navigation, or working surface downward. The current platform target
-   has a visible outline and the dock uses the opposite side when space allows.
-2. Confirm the expanded guide contains only the role title, step count, short
-   stage heading, one coach sentence, role activity, feedback, and navigation.
-   It must not show a pathway/narration panel, role landmarks, duplicated
-   objective, or generic action requirement.
-3. Select `Hide guide` and confirm the highlighted platform feature remains
-   visible and operable. Restore the guide, complete the isolated activity, and
-   confirm keyboard focus lands on the next objective without bypassing mastery
-   or duplicating coach copy.
-4. At 390px and 768px widths, confirm the guide docks at the bottom, uses no
-   more than half the viewport height, and collapses to one `Show guide` control
-   without covering the highlighted target or focused controls.
-5. With reduced motion enabled, repeat a step change and confirm there is no
-   stage or target animation or smooth scroll, while focus and visible status
-   still update.
-6. With narration unmuted, select `Start guided walkthrough` in the role
-   confirmation. Confirm the current narration starts from that click, later
-   steps continue automatically, and the header shows only Play/Pause, Mute,
-   and `Hide guide`.
-
-Guided narration must load only repository-local, owner-approved files described
-by `public/training/audio/provenance.json`. No operator should add a hosted TTS
-endpoint, API key, or remote voice service to recover audio.
-
-If a learner sees the degraded narration message:
-
-1. Confirm the visible coach instruction remains available and the learner can
-   continue without sound. The narration transcript remains available to
-   assistive technology without adding another visible text panel.
-2. Confirm the message explicitly says the browser's default system voice is a
-   degraded fallback before Web Speech begins. If the message is absent, stop
-   the walkthrough; a silent voice substitution is a release failure.
-3. Retry Play once. Record the clip ID, browser/version, exact visible message,
-   and whether the file request failed, playback was rejected, or Web Speech was
-   unavailable. Do not record the learner's free text.
-4. Confirm changing steps, closing the coach/modal, selecting Exit training,
-   hiding the page, and navigating away stop both file audio and system speech.
-5. Verify only the current and next clip are requested and that mute persists
-   in the same browser profile. Volume and playback-rate preferences remain
-   internal and are intentionally not shown in the compact guide.
-
-Before publishing a narration batch, follow
-`scripts/training-audio/README.md`. The owner must approve the common intro and
-representative Scribe, Facilitator, and Notetaker samples using the full
-listen-through checklist. Bulk generation is prohibited while provenance says
-`pending-owner-review`. A valid approved record must include the exact engine,
-model revision, voice and voice checksum, license, settings, generation date,
-script bundle and per-script checksums, per-output checksums, durations, byte
-sizes, captions, and cue timings.
-
-The proposed 256 KiB per-file and 12 MiB total media ceilings are provisional
-until approved samples are measured. Update the documented values and contract
-test from those measurements before owner approval if either projection is not
-supported. Missing, stale, oversized, or unapproved narration is a production
-media gate failure, not a reason to weaken fallback or text access.
+Before a live rehearsal, confirm the decommission verification in
+`docs/supabase-setup.md` passes. The fixed archive must remain protected and
+code-free, and no training RPC may be callable. If `TRAINING2026` is assigned
+to a new live exercise, rehearse it through the ordinary session-code, seat,
+audit, export, archive, and deletion checks below; it has no special behavior.
 
 ## Export/AAR Check
 

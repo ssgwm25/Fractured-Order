@@ -19,11 +19,6 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
-import { trainingRuntime } from '../features/training/trainingRuntime.js';
-import {
-    mountNotetakerTrainingCoach,
-    shouldMountNotetakerTrainingCoach
-} from '../features/training/NotetakerTrainingCoach.js';
 import { showToast } from '../components/ui/Toast.js';
 import { createArtifactLifecycleBadge, createBadge, createPriorityBadge } from '../components/ui/Badge.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
@@ -243,8 +238,6 @@ export class NotetakerController {
         this.newInboxCommunicationIds = new Set();
         this.pendingInboxArrivalIds = new Set();
         this.hasHydratedInbox = false;
-        this.trainingCoach = null;
-        this.trainingActivation = null;
     }
 
     /**
@@ -252,15 +245,6 @@ export class NotetakerController {
      */
     async init() {
         logger.info('Initializing Notetaker interface');
-
-        if (sessionStore.hasTrainingContext?.()) {
-            const activation = await trainingRuntime.initializeRolePage({
-                expectedSemanticRole: 'notetaker',
-                team: this.teamId
-            });
-            this.mountVerifiedTrainingCoach(activation);
-            return;
-        }
 
         // Check for valid session
         const sessionId = sessionStore.getSessionId();
@@ -300,135 +284,48 @@ export class NotetakerController {
         logger.info('Notetaker interface initialized');
     }
 
-    mountVerifiedTrainingCoach(activation, {
-        mountCoachRef = mountNotetakerTrainingCoach,
-        documentRef = globalThis.document
-    } = {}) {
-        if (!shouldMountNotetakerTrainingCoach(activation, this.teamId)) return null;
-
-        this.trainingCoach?.destroy?.();
-        this.trainingActivation = activation;
-        this.disableTrainingLiveWriteControls(documentRef);
-        const practiceState = trainingRuntime.getPracticeState();
-        this.renderTrainingFixtureWorkspace(activation.fixtureBundle, practiceState, documentRef);
-        this.trainingCoach = mountCoachRef({
-            activation,
-            documentRef,
-            onNavigate: (section) => this.navigateTrainingSection(section, documentRef),
-            onStateChange: (nextPracticeState) => {
-                this.renderTrainingFixtureWorkspace(
-                    activation.fixtureBundle,
-                    nextPracticeState,
-                    documentRef
-                );
-            }
-        });
-        return this.trainingCoach;
-    }
-
-    disableTrainingLiveWriteControls(documentRef = globalThis.document) {
-        if (!this.trainingActivation?.active || !documentRef) return;
-
-        const selectAll = (selector) => Array.from(documentRef.querySelectorAll?.(selector) || []);
-        const controls = [
-            ...selectAll('#captureForm input, #captureForm textarea, #captureForm button'),
-            ...selectAll('#dynamicsForm input, #dynamicsForm textarea, #dynamicsForm select'),
-            ...selectAll('#allianceForm input, #allianceForm textarea, #allianceForm select'),
-            ...selectAll('button[form="dynamicsForm"], button[form="allianceForm"]')
-        ];
-        [...new Set(controls)].forEach((control) => {
-            control.disabled = true;
-            control.setAttribute?.('aria-describedby', 'trainingSandboxBanner');
-            control.title = 'Use the guided coach for isolated Notetaker practice.';
-        });
-    }
-
-    navigateTrainingSection(section, documentRef = globalThis.document) {
-        documentRef?.querySelector?.(`.sidebar-link[data-section="${section}"]`)?.click?.();
-        if (section === 'inbox') this.clearInboxArrivals();
-    }
-
-    renderTrainingFixtureWorkspace(fixtureBundle, practiceState = null, documentRef = globalThis.document) {
-        if (!fixtureBundle || !documentRef) return;
-
-        const record = practiceState?.activeSeatRecord || fixtureBundle.notetakerRecord;
-        const viewState = buildNotetakerViewState(record, {
-            teamId: this.teamId,
-            participantKey: record.participantKey
-        });
-        this.currentMove = record.move || 1;
-        this.currentPhase = record.phase || 1;
-        this.participantContext = {
-            participantKey: record.participantKey,
-            participantId: record.participantKey,
-            clientId: `training-fixture:notetaker-client:${this.teamId}:a`,
-            participantLabel: `TRAINING FIXTURE - ${this.teamLabel} Notetaker learner`
-        };
-        this.dynamicsData = viewState.dynamicsData;
-        this.allianceData = viewState.allianceData;
-        this.observationTimeline = viewState.observationTimeline;
-        this.captures = viewState.observationTimeline.map((entry) => ({
-            ...entry,
-            move: record.move,
-            phase: record.phase,
-            created_at: entry.created_at || entry.timestamp
-        }));
-        this.actions = [practiceState?.officialAction || fixtureBundle.artifact].filter(Boolean);
-        const inboxItem = practiceState?.inboxItem || fixtureBundle.inject;
-        this.inboxCommunications = [inboxItem].filter(Boolean);
-        this.newInboxCommunicationIds = practiceState?.inboxOpened || !inboxItem?.id
-            ? new Set()
-            : new Set([inboxItem.id]);
-        const officialTimeline = practiceState?.officialTimelineEntries || fixtureBundle.timelineEntries || [];
-        const practiceSnapshots = practiceState?.timelineSnapshots || [];
-
-        this.configureTeamLabels();
-        this.populateDynamicsForm();
-        this.populateAllianceForm();
-        this.renderCaptures();
-        this.renderActionsView();
-        this.renderInbox();
-        this.renderTimeline([
-            ...practiceSnapshots,
-            ...this.captures,
-            ...officialTimeline
-        ]);
-    }
-
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
         const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
+        const surfaceStep = (title, section, body, narrative) => ({
+            title,
+            body,
+            narrative,
+            targetLabel: title,
+            highlight: navTarget(section),
+            action: { label: `Open ${title}`, selector: navTarget(section) }
+        });
         this.onboarding = mountFollowAlong({
             storageKey: `followalong:notetaker:${this.teamId}`,
             title: `${this.teamContext.notetakerLabel} guide`,
+            roleLabel: this.teamContext.notetakerLabel,
+            summary: `Preserve how ${this.teamLabel} reached its decisions: the dynamics, alliances, turning points, observations, and sequence behind the formal record.`,
             steps: [
                 {
-                    title: this.teamContext.notetakerLabel,
-                    body: `Use this workspace to preserve ${this.teamLabel}'s session record without interrupting the team flow.`
+                    title: 'Your role in the exercise',
+                    body: `As ${this.teamContext.notetakerLabel}, you preserve the decision process without interrupting ${this.teamLabel}'s flow.`,
+                    narrative: 'Capture evidence that explains how the room changed: who influenced the choice, where friction emerged, what assumptions shifted, and which moment became decisive.',
+                    details: ['Quick captures append to the shared team record.', 'Dynamics and alliance notes remain scoped to your notetaker seat.', 'Manual saves publish structured snapshots to the timeline.']
                 },
                 {
                     title: 'Follow move, phase, and timer',
                     body: 'The header shows Strategic Orientation before Move 1, then the active move, phase, countdown timer, and running or paused state. Use it to timestamp notes against the current exercise window.',
+                    narrative: 'Confirm the current window before recording a turning point so later review can reconstruct cause and sequence.',
+                    targetLabel: 'Live tracker',
                     highlight: liveTrackerHighlights
                 },
+                surfaceStep('Quick Capture', 'capture', 'Append observations, key moments, and quotes as separate shared entries.', 'Write one observable point per capture. Distinguish a direct quote from your interpretation and leave formal decisions in the Scribe artifact.'),
+                surfaceStep('Team Dynamics', 'dynamics', 'Record leadership, decision style, friction, consensus, and a concise move summary.', 'Save when the pattern changes or the move closes. Your seat-scoped notes do not overwrite another Notetaker’s perspective.'),
+                surfaceStep('Alliance Tracking', 'alliance', 'Record coalition signals, external relationships, commitments, and changes in alignment.', 'Separate an expressed intention from a confirmed agreement, and identify the move in which the relationship changed.'),
+                surfaceStep('Team Actions', 'actions', 'Read the team’s Strategic Orientation, actions, or proposals alongside your process notes.', 'Use the formal artifact to anchor what the team decided; use your notes to explain how and why it reached that outcome.'),
+                surfaceStep('Inbox', 'inbox', 'Read White Cell updates addressed to the Notetaker seat; the badge marks unopened messages.', 'Bring relevant new context into your observation record without treating the inbox itself as a team decision.'),
+                surfaceStep('Timeline', 'timeline', 'Review the chronological session record and the structured snapshots published by manual saves.', 'Use the timeline to check sequence, identify gaps, and avoid duplicating an observation already captured.'),
                 {
-                    title: 'Capture the record',
-                    body: 'Add observations, key moments, and quotes as separate entries so White Cell can review them later.',
-                    highlight: navTarget('capture')
-                },
-                {
-                    title: 'Track the dynamics',
-                    body: 'Save team dynamics and alliance notes per move. Manual saves publish a structured timeline snapshot.',
-                    highlight: navTarget('dynamics')
-                },
-                {
-                    title: 'Stay in the loop',
-                    body: "White Cell updates arrive in your inbox, and the badge fills when a message has not been opened yet.",
-                    highlight: navTarget('inbox')
-                },
-                {
-                    title: 'Revisit this guide',
-                    body: 'This guide stays above the session label. Collapse it when you need space, then reopen it here later.',
+                    title: 'Complete the observation loop',
+                    body: 'Before the move closes, verify that decisive moments, dynamics, alliances, and the formal artifact tell a coherent story.',
+                    narrative: 'The Notetaker explains the process; the Scribe owns the team artifact, the Facilitator owns final handoff, and White Cell owns adjudication.',
+                    details: ['Prefer specific observations over judgments.', 'Preserve separate seat perspectives.', 'Start Here remains available above the session label.'],
+                    targetLabel: 'Session reference',
                     highlight: '.sidebar-session'
                 }
             ]
@@ -1304,8 +1201,6 @@ export class NotetakerController {
      * Cleanup
      */
     destroy() {
-        this.trainingCoach?.destroy?.();
-        this.trainingCoach = null;
         this.dynamicsAutoSaveDebounce?.flush?.();
         this.allianceAutoSaveDebounce?.flush?.();
         this.storeUnsubscribers.forEach((unsubscribe) => unsubscribe?.());

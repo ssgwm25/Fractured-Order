@@ -339,38 +339,45 @@ export class GameMasterController {
     mountFollowAlongOnboarding() {
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
         const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
+        const surfaceStep = (title, section, body, narrative) => ({
+            title,
+            body,
+            narrative,
+            targetLabel: title,
+            highlight: navTarget(section),
+            action: { label: `Open ${title}`, selector: navTarget(section) }
+        });
         this.onboarding = mountFollowAlong({
             storageKey: 'followalong:gamemaster',
             title: 'Game Master guide',
+            roleLabel: 'Game Master',
+            summary: 'Establish the session, verify the participant topology, maintain operator continuity, and export a trustworthy record of the completed run.',
             steps: [
                 {
-                    title: 'Game Master operator',
-                    body: 'Use this console to create live sessions, verify connected seats, and export the session record.'
+                    title: 'Your role in the exercise',
+                    body: 'The Game Master owns session administration and the operational evidence boundary around the live exercise.',
+                    narrative: 'Prepare the run before participants arrive, verify that every seat resolves to the intended role, and preserve an export another operator can reproduce.',
+                    details: ['Create and select the correct session.', 'Monitor participants and operator handoff.', 'Keep plugins and exports scoped to the selected session.']
                 },
                 {
                     title: 'Check session state',
                     body: 'The header mirrors the selected session state, including Strategic Orientation before Move 1. Use the dashboard and White Cell console for timer-driven run control.',
+                    narrative: 'The Game Master verifies context here; White Cell remains the owner of move, phase, and timer controls.',
+                    targetLabel: 'Session tracker',
                     highlight: liveTrackerHighlights
                 },
+                surfaceStep('Dashboard', 'dashboard', 'Read active sessions, participant counts, pending RFIs, and recent activity at a glance.', 'Use the dashboard to detect operational drift, then open the owning surface before taking action.'),
+                surfaceStep('Sessions', 'sessions', 'Create the session, assign its join code, select the active run, and preserve the list for operator handoff.', 'Verify the session name and code before distributing access; an archived or different session must not become the accidental live context.'),
+                surfaceStep('Participants', 'participants', 'Confirm every connected participant has the intended team, role, display name, and current connection state.', 'Resolve missing or duplicated seats before the exercise starts and recheck the roster after reconnects.'),
+                surfaceStep('Exports', 'export', 'Produce JSON, CSV, or research archives from the explicitly selected session.', 'Export only after reconciling session identity and run state. The archive is evidence, not a control action.'),
+                surfaceStep('Plugins', 'plugins', 'Review and manage the plugin lifecycle for the selected session.', 'Confirm scope and dependency state before enabling or disabling a plugin; a plugin must not silently alter another session.'),
                 {
-                    title: 'Session overview',
-                    body: 'The dashboard gives a quick read on active sessions, participant counts, pending RFIs, and recent activity.',
-                    highlight: navTarget('dashboard')
-                },
-                {
-                    title: 'Manage sessions',
-                    body: 'Create the session, set the join code, and keep the session list available for operator handoff.',
-                    highlight: navTarget('sessions')
-                },
-                {
-                    title: 'Track participants',
-                    body: 'Confirm each player has the expected team and role before the exercise starts and during reconnects.',
-                    highlight: navTarget('participants')
-                },
-                {
-                    title: 'Export and revisit',
-                    body: 'Export JSON, CSV, or research archives when the run is complete. This guide stays here if you need it again.',
-                    highlight: navTarget('export')
+                    title: 'Complete the administration loop',
+                    body: 'Before operator handoff, reconcile the selected session, participant roster, plugin state, and required exports.',
+                    narrative: 'Game Master owns administration and evidence continuity; White Cell owns live run control and adjudication.',
+                    details: ['State the selected session during handoff.', 'Record unresolved participant or plugin issues.', 'Start Here remains available above the session label.'],
+                    targetLabel: 'Session reference',
+                    highlight: '.sidebar-session'
                 }
             ]
         });

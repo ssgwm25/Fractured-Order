@@ -186,6 +186,78 @@ describe('supabase mock bootstrap guardrails', () => {
         });
     });
 
+    it('removes decommissioned training state from persisted mock snapshots', () => {
+        const { localStorage } = installBrowserRuntime();
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [{
+                    id: '00000000-0000-4000-8000-000000002026',
+                    session_code: 'TRAINING2026',
+                    session_classification: 'training_template'
+                }, {
+                    id: 'ordinary-session',
+                    session_code: 'LIVE2026',
+                    status: 'active'
+                }],
+                training_attempts: [{ id: 'legacy-attempt' }],
+                training_progress_events: [{ id: 'legacy-event' }]
+            }
+        }));
+
+        createE2EMockSupabaseClient();
+        const state = globalThis.__ESG_E2E_BACKEND__.dump();
+
+        expect(state.tables.sessions).toEqual([expect.objectContaining({
+            id: 'ordinary-session',
+            session_classification: 'live_exercise',
+            is_protected: false
+        })]);
+        expect(state.tables).not.toHaveProperty('training_attempts');
+        expect(state.tables).not.toHaveProperty('training_progress_events');
+    });
+
+    it('keeps the submitted name on each session-role seat when the browser identity name changes', async () => {
+        const { localStorage } = installBrowserRuntime();
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [
+                    { id: 'session-one', name: 'One', status: 'active', session_classification: 'live_exercise', is_protected: false },
+                    { id: 'session-two', name: 'Two', status: 'active', session_classification: 'live_exercise', is_protected: false }
+                ]
+            }
+        }));
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+
+        const firstClaim = await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-one',
+            requested_role: 'blue_facilitator',
+            requested_name: 'Morgan',
+            requested_client_id: 'same-browser'
+        });
+        const secondClaim = await mockClient.rpc('claim_session_role_seat', {
+            requested_session_id: 'session-two',
+            requested_role: 'red_facilitator',
+            requested_name: 'Taylor',
+            requested_client_id: 'same-browser'
+        });
+        const firstRoster = await mockClient.rpc('list_active_session_participants', {
+            requested_session_id: 'session-one'
+        });
+        const secondRoster = await mockClient.rpc('list_active_session_participants', {
+            requested_session_id: 'session-two'
+        });
+
+        expect(firstClaim.error).toBeNull();
+        expect(secondClaim.error).toBeNull();
+        expect(firstRoster.data).toEqual([
+            expect.objectContaining({ role: 'blue_facilitator', display_name: 'Morgan' })
+        ]);
+        expect(secondRoster.data).toEqual([
+            expect.objectContaining({ role: 'red_facilitator', display_name: 'Taylor' })
+        ]);
+    });
+
     it('keeps pending mock PLI adjudications restricted to operators', async () => {
         const { localStorage } = installBrowserRuntime({
             hostname: '127.0.0.1',
@@ -290,185 +362,6 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(smeAuthorization.error).toBeNull();
         expect(smeAuthorization.data.surface).toBe('sme');
         expect(smeAuthorization.data.role).toBe('sme_econ');
-    });
-
-    it('mirrors exact-code training bootstrap and auth-owned attempt isolation', async () => {
-        installBrowserRuntime({
-            hostname: '127.0.0.1',
-            webdriver: true,
-            enableMock: true,
-            operatorAccessCode: 'playwright-test-code'
-        });
-        const mockClient = createE2EMockSupabaseClient();
-        await mockClient.auth.signInAnonymously();
-
-        const templateId = '00000000-0000-4000-8000-000000002026';
-        const initialState = globalThis.__ESG_E2E_BACKEND__.dump();
-        expect(initialState.tables.sessions.filter((session) => (
-            session.session_classification === 'training_template'
-        ))).toEqual([expect.objectContaining({
-            id: templateId,
-            session_code: 'TRAINING2026',
-            status: 'active',
-            is_protected: true
-        })]);
-
-        const invalidParams = {
-            requested_semantic_role: 'scribe',
-            requested_team: 'blue',
-            requested_curriculum_version: '1.0'
-        };
-        const invalidCode = await mockClient.rpc('start_or_resume_training_attempt', {
-            ...invalidParams,
-            requested_code: 'NOTTRAINING'
-        });
-        const wrongCaseCode = await mockClient.rpc('start_or_resume_training_attempt', {
-            ...invalidParams,
-            requested_code: 'training2026'
-        });
-        expect(invalidCode).toEqual({
-            data: null,
-            error: { message: 'Training access unavailable.' }
-        });
-        expect(wrongCaseCode).toEqual(invalidCode);
-
-        const firstStart = await mockClient.rpc('start_or_resume_training_attempt', {
-            ...invalidParams,
-            requested_code: 'TRAINING2026'
-        });
-        const resumed = await mockClient.rpc('start_or_resume_training_attempt', {
-            ...invalidParams,
-            requested_code: 'TRAINING2026'
-        });
-        expect(firstStart.error).toBeNull();
-        expect(firstStart.data).toMatchObject({
-            profile_id: 'blue.scribe',
-            semantic_role: 'scribe',
-            team: 'blue',
-            resumed: false,
-            session_classification: 'training_template',
-            is_protected: true,
-            experience_plugin_id: 'ssg-training'
-        });
-        expect(resumed.data).toMatchObject({
-            attempt_id: firstStart.data.attempt_id,
-            resumed: true
-        });
-
-        const firstOwnerRead = await mockClient.from('training_attempts')
-            .select('*')
-            .eq('id', firstStart.data.attempt_id);
-        expect(firstOwnerRead.data).toHaveLength(1);
-
-        await mockClient.auth.signOut();
-        await mockClient.auth.signInAnonymously();
-
-        const crossOwnerRead = await mockClient.from('training_attempts')
-            .select('*')
-            .eq('id', firstStart.data.attempt_id);
-        const crossOwnerWrite = await mockClient.rpc('record_training_progress_event', {
-            requested_attempt_id: firstStart.data.attempt_id,
-            requested_event_type: 'step_completed',
-            requested_step_id: 'scribe.orientation.validated',
-            requested_result_code: 'passed'
-        });
-        const crossOwnerBootstrap = await mockClient.rpc('get_training_attempt_bootstrap', {
-            requested_attempt_id: firstStart.data.attempt_id
-        });
-        expect(crossOwnerRead.data).toEqual([]);
-        expect(crossOwnerWrite).toEqual({
-            data: null,
-            error: { message: 'Training attempt not found.' }
-        });
-        expect(crossOwnerBootstrap).toEqual({
-            data: null,
-            error: { message: 'Training access unavailable.' }
-        });
-
-        const secondStart = await mockClient.rpc('start_or_resume_training_attempt', {
-            requested_code: 'TRAINING2026',
-            requested_semantic_role: 'facilitator',
-            requested_team: 'red',
-            requested_curriculum_version: '1.0'
-        });
-        expect(secondStart.error).toBeNull();
-        expect(secondStart.data.attempt_id).not.toBe(firstStart.data.attempt_id);
-
-        const attemptedSeatClaim = await mockClient.rpc('claim_session_role_seat', {
-            requested_session_id: templateId,
-            requested_role: 'blue_scribe',
-            requested_name: 'Training learner',
-            requested_client_id: 'training-client'
-        });
-        expect(attemptedSeatClaim.error).toEqual({
-            message: 'This session is not currently joinable.'
-        });
-
-        const state = globalThis.__ESG_E2E_BACKEND__.dump();
-        expect(state.tables.training_attempts).toHaveLength(2);
-        expect(state.tables.session_participants.some((seat) => seat.session_id === templateId)).toBe(false);
-        expect(state.tables.game_state.some((gameState) => gameState.session_id === templateId)).toBe(false);
-        expect(state.tables.training_progress_events).toHaveLength(3);
-        state.tables.training_progress_events.forEach((event) => {
-            expect(event).not.toHaveProperty('answer');
-            expect(event).not.toHaveProperty('narration');
-            expect(event).not.toHaveProperty('artifact_body');
-        });
-
-        const staleReset = await mockClient.rpc('reset_training_attempt', {
-            requested_attempt_id: secondStart.data.attempt_id,
-            requested_expected_revision: 1
-        });
-        expect(staleReset).toEqual({
-            data: null,
-            error: {
-                code: '40001',
-                message: 'A newer training attempt revision exists. Refresh before retrying.'
-            }
-        });
-
-        const reset = await mockClient.rpc('reset_training_attempt', {
-            requested_attempt_id: secondStart.data.attempt_id,
-            requested_expected_revision: 0
-        });
-        expect(reset.error).toBeNull();
-        expect(reset.data).toMatchObject({
-            semantic_role: 'facilitator',
-            team: 'red',
-            status: 'in_progress',
-            attempt_revision: 0,
-            mastered_step_ids: []
-        });
-        expect(reset.data.attempt_id).not.toBe(secondStart.data.attempt_id);
-        const resetState = globalThis.__ESG_E2E_BACKEND__.dump();
-        expect(resetState.tables.training_attempts.find((attempt) => (
-            attempt.id === secondStart.data.attempt_id
-        ))).toMatchObject({ status: 'reset', revision: 1 });
-        expect(resetState.tables.training_attempts.find((attempt) => (
-            attempt.id === firstStart.data.attempt_id
-        ))).toMatchObject({ status: 'in_progress', team: 'blue' });
-
-        const publicJoin = await mockClient.rpc('lookup_joinable_session_by_code', {
-            requested_code: 'TRAINING2026'
-        });
-        expect(publicJoin).toEqual({
-            data: null,
-            error: { message: 'Session not found. Please check the code and try again.' }
-        });
-
-        await mockClient.rpc('authorize_demo_operator', {
-            requested_surface: 'gamemaster',
-            requested_operator_code: 'playwright-test-code',
-            requested_operator_name: 'Mock GM'
-        });
-        const attemptedArchive = await mockClient.rpc('archive_live_demo_session', {
-            requested_session_id: templateId
-        });
-        const attemptedDelete = await mockClient.rpc('delete_live_demo_session', {
-            requested_session_id: templateId
-        });
-        expect(attemptedArchive.error).toEqual({ message: 'Protected sessions cannot be changed.' });
-        expect(attemptedDelete.error).toEqual({ message: 'Protected sessions cannot be changed.' });
     });
 
     it('mirrors team-neutral action, orientation, and RFI review transitions', async () => {
