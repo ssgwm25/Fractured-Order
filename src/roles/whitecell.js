@@ -124,6 +124,7 @@ import { createPliMacroReview } from '../features/pli/PliMacroReview.js';
 import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.js';
 import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js';
 import { createPliReportPanel } from '../features/pli/PliReportPanel.js';
+import { createPliSmeEfficacyPanel } from '../features/pli/PliSmeEfficacyPanel.js';
 import {
     SEATS as PLI_SEATS,
     PLI_VIEW_MODES,
@@ -1307,6 +1308,7 @@ export class WhiteCellController {
         this.pliDiplomacyInfoReview = null;
         this.pliNiEscalationReview = null;
         this.pliReportPanel = null;
+        this.pliSmeEfficacyPanel = null;
     }
 
     async init() {
@@ -1440,6 +1442,14 @@ export class WhiteCellController {
             });
         }
 
+        const efficacyHost = document.getElementById('pliSmeEfficacyPanel');
+        if (efficacyHost && !this.pliSmeEfficacyPanel) {
+            this.pliSmeEfficacyPanel = createPliSmeEfficacyPanel({
+                container: efficacyHost,
+                getSessionId: sessionId
+            });
+        }
+
         this.refreshPliSmePanels();
     }
 
@@ -1448,6 +1458,7 @@ export class WhiteCellController {
         this.pliDiplomacyInfoReview?.refresh?.();
         this.pliNiEscalationReview?.refresh?.();
         this.pliReportPanel?.refresh?.();
+        this.pliSmeEfficacyPanel?.refresh?.();
         this.syncPliBadges().catch((err) => {
             logger.warn('Failed to sync PLI badges', err);
         });
@@ -1949,6 +1960,9 @@ export class WhiteCellController {
                 }
                 if (link.dataset.section === 'pliReports') {
                     this.pliReportPanel?.refresh?.();
+                }
+                if (link.dataset.section === 'pliSmeEfficacy') {
+                    this.pliSmeEfficacyPanel?.refresh?.();
                 }
             });
         });

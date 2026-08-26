@@ -251,7 +251,10 @@ describe('repository operator docs contract', () => {
             'data/2026-08-13_action_notification_type_contract.sql',
             'data/2026-08-14_action_notification_title_snapshot.sql',
             'data/2026-08-15_proposal_forwarding_integrity.sql',
-            'data/2026-08-17_game_master_session_retirement.sql'
+            'data/2026-08-17_game_master_session_retirement.sql',
+            'data/2026-08-18_ssg_training_session.sql',
+            'data/2026-08-18_training_mastery_progress.sql',
+            'data/2026-08-25_sme_pli_packets.sql'
         ];
 
         let priorIndex = -1;

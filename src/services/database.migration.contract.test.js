@@ -121,6 +121,10 @@ const SME_HANDOFFS_PATH = new URL(
     '../../data/2026-07-20_sme_handoffs.sql',
     import.meta.url
 );
+const SME_PLI_PACKETS_PATH = new URL(
+    '../../data/2026-08-25_sme_pli_packets.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -900,6 +904,15 @@ describe('database migration contracts', () => {
         expect(seatLimitBody).toContain("'sme_econ'");
         expect(claimBody).toContain("SME seats require operator authorization.");
         expect(surfaceBody).toContain("RETURN 'sme'");
+        expect(sql).toContain("ARRAY['whitecell', 'gamemaster', 'sme']::TEXT[]");
+    });
+
+    it('ships SME PLI packet table for TSJ / Verba copy after seat finalize', () => {
+        const sql = readFileSync(SME_PLI_PACKETS_PATH, 'utf8');
+        expect(sql).toContain('CREATE TABLE IF NOT EXISTS public.sme_pli_packets');
+        expect(sql).toContain("handoff_seat TEXT NOT NULL CHECK (handoff_seat IN ('tsj', 'verba'))");
+        expect(sql).toContain('CONSTRAINT sme_pli_packets_adjudication_seat_unique');
+        expect(sql).toContain('UNIQUE (adjudication_id, pli_seat, handoff_seat)');
         expect(sql).toContain("ARRAY['whitecell', 'gamemaster', 'sme']::TEXT[]");
     });
 

@@ -470,3 +470,25 @@
 .pli-report-panel .pli-sme-toolbar {
     margin-top: var(--space-1);
 }
+
+.pli-edit-field {
+    margin-top: var(--space-2);
+}
+
+.pli-ni-delta-input {
+    width: 4.5rem;
+    text-align: right;
+}
+
+.pli-edit-diff {
+    margin-top: var(--space-3);
+}
+
+.pli-edit-diff-table th[scope="row"] {
+    font-weight: 600;
+    text-align: left;
+}
+
+.pli-efficacy-panel .pli-block {
+    margin-top: var(--space-3);
+}

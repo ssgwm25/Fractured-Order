@@ -11,7 +11,7 @@ export const OPERATIONAL_SCOPE_EXCLUSIONS = Object.freeze([
     }),
     Object.freeze({
         id: 'pli.external_handoffs',
-        reason: 'Explicitly excluded: no TSJ or Verba PLI handoff procedure.'
+        reason: 'Explicitly excluded: operational rehearsal does not exercise TSJ/Verba Approved PLI copy packets after Econ/NI/Dip-Info finalize.'
     }),
     Object.freeze({
         id: 'pli.reports',

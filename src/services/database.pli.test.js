@@ -20,6 +20,9 @@ describe('database PLI review helpers', () => {
         expect(typeof database.fetchSmeHandoffs).toBe('function');
         expect(typeof database.ensureSmeHandoffs).toBe('function');
         expect(typeof database.acknowledgeSmeHandoff).toBe('function');
+        expect(typeof database.fetchSmePliPackets).toBe('function');
+        expect(typeof database.ensurePliSmePackets).toBe('function');
+        expect(typeof database.acknowledgeSmePliPacket).toBe('function');
     });
 
     it('rejects invalid seats before network I/O', async () => {
@@ -73,6 +76,32 @@ describe('database PLI review helpers', () => {
             .toThrow(/Only the matching SME/);
     });
 
+    it('does not open PLI packets until the matching seat is finalized', async () => {
+        await expect(database.ensurePliSmePackets({
+            id: 'adj-1',
+            session_id: 'sess-1',
+            action_id: 'act-1',
+            seat_reviews: { macro: { status: 'pending' } }
+        }, { pliSeat: 'macro' })).resolves.toEqual([]);
+
+        await expect(database.ensurePliSmePackets({
+            id: 'adj-1',
+            session_id: 'sess-1',
+            action_id: 'act-1',
+            seat_reviews: { macro: { status: 'needs_human' } }
+        }, { pliSeat: 'macro' })).resolves.toEqual([]);
+
+        await expect(database.ensurePliSmePackets({
+            id: 'adj-1',
+            session_id: 'sess-1'
+        }, { pliSeat: 'not-a-seat' })).rejects.toThrow(/Invalid PLI SME seat/);
+    });
+
+    it('requires a packet id before acknowledging PLI packets', async () => {
+        await expect(database.acknowledgeSmePliPacket(''))
+            .rejects.toThrow(/Packet ID is required/);
+    });
+
     it('resolves Glasl stage_after from NI override or track record', () => {
         expect(resolveNiGlaslStageAfter({
             record: { tracks: { glasl: { stage_after: 5 } } }
@@ -81,6 +110,9 @@ describe('database PLI review helpers', () => {
             { record: { tracks: { glasl: { stage_after: 5 } } } },
             { override_value: { stage_after: 7 } }
         )).toBe(7);
-        expect(resolveNiGlaslStageAfter({})).toBeNull();
+        expect(resolveNiGlaslStageAfter(
+            { record: { tracks: { glasl: { stage_after: 5 } } } },
+            { override_value: { glasl: { stage_after: 8 } } }
+        )).toBe(8);
     });
 });

@@ -52,8 +52,11 @@ import {
 } from '../core/teamContext.js';
 import {
     SEATS as PLI_SEATS,
-    isDownstreamSeatUnlocked
+    isDownstreamSeatUnlocked,
+    getSeatReview,
+    seatIsFinalized
 } from '../features/pli/pliShared.js';
+import { buildPliSmePacket, emptyEditDiff } from '../features/pli/pliSmeEdits.js';
 
 const logger = createLogger('Database');
 
@@ -170,10 +173,13 @@ export function resolveNiGlaslStageAfter(row, review = {}) {
     const override = review?.override_value
         ?? row?.seat_reviews?.[PLI_SEATS.NATIONAL_INTEREST_ESCALATION]?.override_value
         ?? null;
-    if (override && typeof override === 'object' && override.stage_after != null) {
-        const staged = Number(override.stage_after);
-        if (Number.isFinite(staged)) {
-            return Math.max(1, Math.min(9, staged));
+    if (override && typeof override === 'object') {
+        const stagedRaw = override.stage_after ?? override.glasl?.stage_after;
+        if (stagedRaw != null) {
+            const staged = Number(stagedRaw);
+            if (Number.isFinite(staged)) {
+                return Math.max(1, Math.min(9, staged));
+            }
         }
     }
     const stageAfter = row?.record?.tracks?.glasl?.stage_after;
@@ -2517,13 +2523,19 @@ export const database = {
         const seatReviews = { ...(existing.seat_reviews || {}) };
         const priorSeat = seatReviews[seatId] || {};
         const reviewedAt = new Date().toISOString();
+        const nextEditDiff = status === 'overridden'
+            ? (review.edit_diff && typeof review.edit_diff === 'object'
+                ? review.edit_diff
+                : emptyEditDiff())
+            : (status === 'approved' ? emptyEditDiff() : (priorSeat.edit_diff || null));
         seatReviews[seatId] = {
             ...priorSeat,
             status,
             sme_reviewer: review.sme_reviewer || priorSeat.sme_reviewer || null,
             reviewed_at: reviewedAt,
             override_value: status === 'overridden' ? review.override_value : (priorSeat.override_value || null),
-            override_rationale: review.override_rationale || priorSeat.override_rationale || null
+            override_rationale: review.override_rationale || priorSeat.override_rationale || null,
+            edit_diff: nextEditDiff
         };
 
         const aggregateStatus = computePliAggregateStatus(seatReviews, existing.status);
@@ -2573,6 +2585,14 @@ export const database = {
                     sessionId: data.session_id,
                     stageAfter
                 });
+            }
+        }
+
+        if (status === 'approved' || status === 'overridden') {
+            try {
+                await this.ensurePliSmePackets(data, { pliSeat: seatId });
+            } catch (packetError) {
+                logger.warn('Failed to open SME PLI packets after seat finalize', packetError);
             }
         }
 
@@ -2734,6 +2754,197 @@ export const database = {
         }
 
         logger.info('SME handoff acknowledged:', handoffId);
+        return data;
+    },
+
+    /**
+     * Fetch TSJ / Verba copy packets of SME-finalized PLI seats.
+     * @param {string} sessionId
+     * @param {{ handoffSeat?: 'tsj'|'verba', status?: 'pending'|'done', pliSeat?: string }} [filters]
+     * @returns {Promise<Object[]>}
+     */
+    async fetchSmePliPackets(sessionId, filters = {}) {
+        if (!sessionId) {
+            throw new DatabaseError('Session ID is required', 'fetchSmePliPackets');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        let query = supabase
+            .from('sme_pli_packets')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: false });
+
+        if (filters.handoffSeat) {
+            query = query.eq('handoff_seat', filters.handoffSeat);
+        }
+        if (filters.status) {
+            query = query.eq('status', filters.status);
+        }
+        if (filters.pliSeat) {
+            query = query.eq('pli_seat', filters.pliSeat);
+        }
+
+        const { data, error } = await query;
+        if (error) {
+            throw fromSupabaseError(error, 'fetchSmePliPackets');
+        }
+        return data || [];
+    },
+
+    /**
+     * Upsert TSJ + Verba copy packets for one finalized PLI seat.
+     * @param {Object} adjudication
+     * @param {{ pliSeat: string }} options
+     * @returns {Promise<Object[]>}
+     */
+    async ensurePliSmePackets(adjudication, { pliSeat } = {}) {
+        const allowedSeats = new Set([
+            PLI_SEATS.MACRO,
+            PLI_SEATS.DIPLOMACY_INFORMATION,
+            PLI_SEATS.NATIONAL_INTEREST_ESCALATION
+        ]);
+        if (!adjudication?.id || !adjudication.session_id) {
+            throw new DatabaseError('Adjudication row is required', 'ensurePliSmePackets');
+        }
+        if (!allowedSeats.has(pliSeat)) {
+            throw new DatabaseError(`Invalid PLI SME seat: ${pliSeat}`, 'ensurePliSmePackets');
+        }
+
+        const seat = getSeatReview(adjudication, pliSeat);
+        if (!seatIsFinalized(seat)) {
+            return [];
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const created = [];
+        for (const handoffSeat of ['tsj', 'verba']) {
+            const packet = buildPliSmePacket({
+                row: adjudication,
+                action: adjudication.record?.action || null,
+                pliSeat,
+                handoffSeat
+            });
+            const now = new Date().toISOString();
+            const fields = {
+                session_id: adjudication.session_id,
+                adjudication_id: adjudication.id,
+                action_id: adjudication.action_id,
+                pli_seat: pliSeat,
+                handoff_seat: handoffSeat,
+                status: 'pending',
+                payload: packet.payload,
+                copy_text: packet.copyText,
+                acknowledged_by: null,
+                acknowledged_at: null,
+                updated_at: now
+            };
+
+            const { data: existing, error: fetchError } = await supabase
+                .from('sme_pli_packets')
+                .select('*')
+                .eq('adjudication_id', adjudication.id)
+                .eq('pli_seat', pliSeat)
+                .eq('handoff_seat', handoffSeat)
+                .maybeSingle();
+
+            if (fetchError) {
+                throw fromSupabaseError(fetchError, 'ensurePliSmePackets');
+            }
+
+            if (existing) {
+                const { data, error } = await supabase
+                    .from('sme_pli_packets')
+                    .update(fields)
+                    .eq('id', existing.id)
+                    .select()
+                    .single();
+                if (error) {
+                    throw fromSupabaseError(error, 'ensurePliSmePackets');
+                }
+                created.push(data);
+                continue;
+            }
+
+            const { data, error } = await supabase
+                .from('sme_pli_packets')
+                .insert(fields)
+                .select()
+                .single();
+
+            if (error) {
+                if (String(error.code || '') === '23505' || /duplicate|unique/i.test(error.message || '')) {
+                    const { data: raced, error: racedError } = await supabase
+                        .from('sme_pli_packets')
+                        .update(fields)
+                        .eq('adjudication_id', adjudication.id)
+                        .eq('pli_seat', pliSeat)
+                        .eq('handoff_seat', handoffSeat)
+                        .select()
+                        .maybeSingle();
+                    if (racedError) {
+                        throw fromSupabaseError(racedError, 'ensurePliSmePackets');
+                    }
+                    if (raced) {
+                        created.push(raced);
+                        continue;
+                    }
+                }
+                throw fromSupabaseError(error, 'ensurePliSmePackets');
+            }
+
+            created.push(data);
+        }
+
+        logger.info('SME PLI packets ensured:', { adjudicationId: adjudication.id, pliSeat, count: created.length });
+        return created;
+    },
+
+    /**
+     * Mark a TSJ / Verba PLI packet as copied/done.
+     * @param {string} packetId
+     * @param {{ acknowledgedBy?: string }} [options]
+     * @returns {Promise<Object>}
+     */
+    async acknowledgeSmePliPacket(packetId, { acknowledgedBy = null } = {}) {
+        if (!packetId) {
+            throw new DatabaseError('Packet ID is required', 'acknowledgeSmePliPacket');
+        }
+
+        await ensureAuthenticatedBrowser();
+
+        const { data: existing, error: fetchError } = await supabase
+            .from('sme_pli_packets')
+            .select('*')
+            .eq('id', packetId)
+            .single();
+
+        if (fetchError) {
+            throw fromSupabaseError(fetchError, 'acknowledgeSmePliPacket');
+        }
+
+        assertSmeHandoffAcknowledgerAllowed(existing.handoff_seat);
+
+        const reviewedAt = new Date().toISOString();
+        const { data, error } = await supabase
+            .from('sme_pli_packets')
+            .update({
+                status: 'done',
+                acknowledged_by: acknowledgedBy || sessionStore.getUserName?.() || null,
+                acknowledged_at: reviewedAt,
+                updated_at: reviewedAt
+            })
+            .eq('id', packetId)
+            .select()
+            .single();
+
+        if (error) {
+            throw fromSupabaseError(error, 'acknowledgeSmePliPacket');
+        }
+
+        logger.info('SME PLI packet acknowledged:', packetId);
         return data;
     },
 

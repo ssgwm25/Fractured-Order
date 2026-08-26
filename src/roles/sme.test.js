@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SME_ROLES } from '../core/teamContext.js';
 
@@ -15,7 +16,8 @@ async function loadSmeControllerWithMocks({
         || vi.fn(() => ({ refresh: vi.fn(), destroy: vi.fn() }));
     const createSmeHandoffQueue = factories.createSmeHandoffQueue
         || vi.fn(() => ({ refresh: vi.fn(), destroy: vi.fn() }));
-    const mountFollowAlong = vi.fn(() => ({ destroy: vi.fn() }));
+    const createSmePliPacketQueue = factories.createSmePliPacketQueue
+        || vi.fn(() => ({ refresh: vi.fn(), destroy: vi.fn() }));
 
     vi.doMock('../stores/session.js', () => ({
         sessionStore: {
@@ -35,7 +37,8 @@ async function loadSmeControllerWithMocks({
                 sessionId: 'session-1'
             }),
             fetchPliAdjudications: vi.fn().mockResolvedValue([]),
-            fetchSmeHandoffs: vi.fn().mockResolvedValue([])
+            fetchSmeHandoffs: vi.fn().mockResolvedValue([]),
+            fetchSmePliPackets: vi.fn().mockResolvedValue([])
         }
     }));
     vi.doMock('../services/sync.js', () => ({
@@ -54,11 +57,17 @@ async function loadSmeControllerWithMocks({
     vi.doMock('../features/pli/NiEscalationReview.js', () => ({ createNiEscalationReview }));
     vi.doMock('../features/pli/DiplomacyInfoReview.js', () => ({ createDiplomacyInfoReview }));
     vi.doMock('../features/pli/SmeHandoffQueue.js', () => ({ createSmeHandoffQueue }));
-    vi.doMock('../features/onboarding/followAlong.js', () => ({ mountFollowAlong }));
+    vi.doMock('../features/pli/SmePliPacketQueue.js', () => ({ createSmePliPacketQueue }));
 
     const host = { innerHTML: '' };
+    const packetHost = { innerHTML: '' };
     const nodes = new Map([
         ['smeQueuePanel', host],
+        ['smePliPacketsPanel', packetHost],
+        ['smePliPacketsNavItem', { hidden: true }],
+        ['smePliPacketsSectionTitle', { textContent: '' }],
+        ['smePliPacketsSectionDescription', { textContent: '' }],
+        ['smePliPacketsBadge', { textContent: '', hidden: true }],
         ['headerTitle', { textContent: '' }],
         ['headerSubtitle', { textContent: '' }],
         ['smeQueueNavLabel', { textContent: '' }],
@@ -81,7 +90,8 @@ async function loadSmeControllerWithMocks({
         createNiEscalationReview,
         createDiplomacyInfoReview,
         createSmeHandoffQueue,
-        mountFollowAlong
+        createSmePliPacketQueue,
+        packetHost
     };
 }
 
@@ -162,6 +172,11 @@ describe('SME console access state', () => {
 
         if (handoffSeat) {
             expect(expectedFactory.mock.calls[0][0].seat).toBe(handoffSeat);
+            expect(loaded.createSmePliPacketQueue).toHaveBeenCalledTimes(1);
+            expect(loaded.createSmePliPacketQueue.mock.calls[0][0].seat).toBe(handoffSeat);
+            expect(loaded.createSmePliPacketQueue.mock.calls[0][0].container).toBe(loaded.packetHost);
+        } else {
+            expect(loaded.createSmePliPacketQueue).not.toHaveBeenCalled();
         }
 
         for (const name of [
@@ -178,28 +193,29 @@ describe('SME console access state', () => {
         controller.destroy();
     });
 
-    it.each([
-        ['sme_econ', 'Macro PLI'],
-        ['sme_ni_escalation', 'National Interest'],
-        ['sme_diplomacy_information', 'Diplomacy'],
-        ['sme_tsj', 'TSJ handoff'],
-        ['sme_verba', 'Verba handoff']
-    ])('mounts a detailed Start Here guide for %s', async (role, expectedNarrative) => {
-        const loaded = await loadSmeControllerWithMocks({ role });
-        const controller = new loaded.SmeController();
+    it('ships Action handoffs and Approved PLI hosts in sme.html', () => {
+        const html = readFileSync(new URL('../../sme.html', import.meta.url), 'utf8');
+        expect(html).toContain('id="smeQueuePanel"');
+        expect(html).toContain('id="smePliPacketsPanel"');
+        expect(html).toContain('id="smePliPacketsNavItem"');
+        expect(html).toContain('Approved PLI');
+    });
 
+    it('surfaces a controlled error when the Approved PLI host is missing for TSJ', async () => {
+        const loaded = await loadSmeControllerWithMocks({ role: 'sme_tsj' });
+        const { showToast } = await import('../components/ui/Toast.js');
+        const originalGet = globalThis.document.getElementById;
+        globalThis.document.getElementById = (id) => (
+            id === 'smePliPacketsPanel' ? null : originalGet(id)
+        );
+
+        const controller = new loaded.SmeController();
         await controller.init();
 
-        expect(loaded.mountFollowAlong).toHaveBeenCalledTimes(1);
-        const guide = loaded.mountFollowAlong.mock.calls[0][0];
-        expect(guide.storageKey).toContain(role.replace('sme_', ''));
-        expect(guide.steps).toHaveLength(5);
-        expect(`${guide.summary} ${guide.steps.map((step) => `${step.body} ${step.narrative}`).join(' ')}`).toContain(expectedNarrative);
-        expect(guide.steps.every((step) => step.narrative)).toBe(true);
-        expect(guide.steps[1].action).toEqual({
-            label: 'Open SME queue',
-            selector: '.sidebar-link[data-section="smeQueue"]'
-        });
+        expect(showToast).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'error',
+            message: expect.stringContaining('failed to start')
+        }));
         controller.destroy();
     });
 

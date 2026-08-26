@@ -12,12 +12,12 @@ It does not equate one happy-path browser assertion with total correctness. Focu
 | Team Facilitator | `blue.facilitator`, `red.facilitator`, `green.facilitator`, `industry.facilitator` | Secure join; Action Review, Deck, RFI, and Communications workspaces; projection/finalization; proposal threads; durable alerts |
 | Team Notetaker | `blue.notetaker`, `red.notetaker`, `green.notetaker`, `industry.notetaker` | Secure join; seat-scoped notes; dynamics/alliance tracking; quick capture; inbox; action/timeline review |
 | Game Master | `operator.game_master` | Operator authorization; session administration; participant monitoring/removal; exports and session-scoped plugin lifecycle |
-| White Cell Lead | `operator.white_cell_lead` | Operator authorization; timers and move controls; artifact/RFI/proposal review; communications; deck/plugin/session/participant administration; exports; read-only PLI visibility |
+| White Cell Lead | `operator.white_cell_lead` | Operator authorization; timers and move controls; artifact/RFI/proposal review; communications; deck/plugin/session/participant administration; exports; read-only PLI visibility and SME vs engine efficacy |
 | Econ SME | `sme.econ` | SME authorization; Macro queue; matching-seat approve/override/send-back rules |
 | NI/Escalation SME | `sme.ni_escalation` | SME authorization; Macro-unlocked NI/Escalation queue; approve/override/send-back rules and NI evidence rendering |
 | Diplomacy & Information SME | `sme.diplomacy_information` | SME authorization; Macro-unlocked Diplomacy/Information queue; approve/override/send-back rules |
-| TSJ SME | `sme.tsj` | SME authorization; TSJ handoff queue; copy and matching-seat acknowledgement |
-| Verba AI SME | `sme.verba` | SME authorization; Verba handoff queue; copy and matching-seat acknowledgement |
+| TSJ SME | `sme.tsj` | SME authorization; action-narrative handoff queue; Approved PLI copy packets after Econ/NI/Dip-Info finalize; matching-seat acknowledgement |
+| Verba AI SME | `sme.verba` | SME authorization; action-narrative handoff queue; Approved PLI copy packets after Econ/NI/Dip-Info finalize; matching-seat acknowledgement |
 
 The browser role-matrix rehearsal uses 23 actors: one Game Master, one White Cell Lead, five SME operators, four Scribes, four Facilitators, and eight Notetaker seats.
 

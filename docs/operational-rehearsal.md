@@ -33,7 +33,7 @@ The following are deliberately outside this gate and must not be reported as exe
 - `pli.external_handoffs`
 - `pli.reports`
 
-This excludes the PLI pipeline and triggers, PLI-derived queues and reports, all Econ/NI/Escalation/Diplomacy-Information review actions, and TSJ/Verba PLI handoffs. The separate role-capability matrix may still test whether those shipped consoles can be authorized and mounted; that is not part of this operational gate.
+This excludes the PLI pipeline and triggers, PLI-derived queues and reports, all Econ/NI/Escalation/Diplomacy-Information review actions, and TSJ/Verba Approved PLI copy packets. Action-narrative TSJ/Verba queues that open on White Cell action-complete remain a shipped SME console, but they are not part of this operational gate. The separate role-capability matrix may still test whether those shipped consoles can be authorized and mounted.
 
 ## Component sequence
 

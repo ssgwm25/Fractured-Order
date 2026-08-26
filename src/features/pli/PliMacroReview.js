@@ -30,6 +30,12 @@ import {
 } from './pliShared.js';
 import { notifyPliSeatSentBack } from './pliNotify.js';
 import { sessionStore } from '../../stores/session.js';
+import {
+    collectMacroOverrideFromCard,
+    validateMacroOverride,
+    renderEditDiffHtml,
+    resolveOutputTracks
+} from './pliSmeEdits.js';
 
 const logger = createLogger('PliMacroReview');
 const SEAT = SEATS.MACRO;
@@ -126,9 +132,12 @@ export function createPliMacroReview(options = {}) {
         card.className = 'pli-sme-card';
         const action = actionsById.get(row.action_id);
         const record = row.record || {};
-        const { worksheet, adjudication } = getMacroBlock(record);
         const seat = getSeatReview(row, SEAT);
         const status = seat.status || row.status;
+        const displayRecord = seatIsFinalized(seat)
+            ? { ...record, tracks: resolveOutputTracks(row) }
+            : record;
+        const { worksheet, adjudication } = getMacroBlock(displayRecord);
         const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
         const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
         const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
@@ -161,10 +170,23 @@ export function createPliMacroReview(options = {}) {
                     <h3 class="pli-col-title">2. Adjudication chain (PLI trace)</h3>
                     <div class="pli-block">
                         <div class="pli-label">2.1 Classification</div>
-                        <div class="pli-field-grid">
-                            <div class="pli-field"><span class="pli-k">Primary lever</span><span class="pli-v">${escapeHtml(classification.lever || '—')}</span></div>
-                            <div class="pli-field"><span class="pli-k">Policy instrument</span><span class="pli-v">${escapeHtml(classification.instrument || '—')}</span></div>
-                        </div>
+                        ${seatNeedsReview(seat) && canReview() ? `
+                            <div class="pli-field-grid">
+                                <div class="form-group pli-edit-field">
+                                    <label class="form-label" for="pli-macro-lever-${escapeHtml(row.id)}">Primary lever</label>
+                                    <input id="pli-macro-lever-${escapeHtml(row.id)}" type="text" class="form-input" data-pli-macro-lever
+                                        value="${escapeHtml(classification.lever || '')}">
+                                </div>
+                                <div class="form-group pli-edit-field">
+                                    <label class="form-label" for="pli-macro-instrument-${escapeHtml(row.id)}">Policy instrument</label>
+                                    <input id="pli-macro-instrument-${escapeHtml(row.id)}" type="text" class="form-input" data-pli-macro-instrument
+                                        value="${escapeHtml(classification.instrument || '')}">
+                                </div>
+                            </div>` : `
+                            <div class="pli-field-grid">
+                                <div class="pli-field"><span class="pli-k">Primary lever</span><span class="pli-v">${escapeHtml(classification.lever || '—')}</span></div>
+                                <div class="pli-field"><span class="pli-k">Policy instrument</span><span class="pli-v">${escapeHtml(classification.instrument || '—')}</span></div>
+                            </div>`}
                         <p class="pli-cite text-sm">${escapeHtml(classification.rule_citation || 'No tie-break citation.')}</p>
                     </div>
                     <div class="pli-block">
@@ -173,7 +195,13 @@ export function createPliMacroReview(options = {}) {
                             ${implementation.tier_midpoint != null ? ` · Midpoint ${escapeHtml(String(implementation.tier_midpoint))}` : ''}</p>
                         <p class="pli-cite text-sm">${escapeHtml(implementationNarrative || 'No implementation narrative on worksheet.')}</p>
                         <div class="pli-modifiers">${renderModifiers(modifiers, implementation)}</div>
-                        <p class="text-sm"><strong>Implementation score:</strong> ${escapeHtml(String(implementation.score ?? '—'))}</p>
+                        ${seatNeedsReview(seat) && canReview() ? `
+                            <div class="form-group pli-edit-field">
+                                <label class="form-label" for="pli-macro-impl-${escapeHtml(row.id)}">Implementation score (1-10)</label>
+                                <input id="pli-macro-impl-${escapeHtml(row.id)}" type="number" class="form-input" min="1" max="10" data-pli-macro-impl
+                                    value="${escapeHtml(String(implementation.score ?? ''))}">
+                            </div>` : `
+                            <p class="text-sm"><strong>Implementation score:</strong> ${escapeHtml(String(implementation.score ?? '—'))}</p>`}
                     </div>
                     <div class="pli-block">
                         <div class="pli-label">2.3 Declared orientation (intake)</div>
@@ -203,13 +231,21 @@ export function createPliMacroReview(options = {}) {
                         </details>` : ''}
                 </section>
             </div>
-            ${seatNeedsReview(seat) && canReview() ? footerActions({
-                approveLabel: status === 'needs_human' ? 'Approve as-is' : 'Approve PLI Outputs',
-                canApprove: status === 'pending' || status === 'needs_human',
-                canOverride: true,
-                overrideDisabledReason: ''
-            }) : ''}
+            ${seatNeedsReview(seat) && canReview() ? `
+                <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
+                    <strong>Override</strong> — change lever, instrument, or implementation, then save with a rationale.
+                    <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="1000"
+                        placeholder="Which codebook table entry is wrong, and why?">${escapeHtml(seat.override_rationale || '')}</textarea>
+                    <div class="text-sm text-gray-500" data-pli-rationale-count>0 / 1000</div>
+                </div>
+                ${footerActions({
+                    approveLabel: status === 'needs_human' ? 'Approve as-is' : 'Approve PLI Outputs',
+                    canApprove: status === 'pending' || status === 'needs_human',
+                    canOverride: true,
+                    overrideDisabledReason: ''
+                })}` : ''}
             ${renderSeatSmeNotes(seat)}
+            ${renderEditDiffHtml(seat)}
         `;
 
         const chartsHost = card.querySelector('[data-pli-charts]');
@@ -218,8 +254,16 @@ export function createPliMacroReview(options = {}) {
             chartsHost.appendChild(renderTrendCharts(trend, record.submission_month));
         }
 
+        const rationale = card.querySelector('[data-pli-rationale]');
+        const count = card.querySelector('[data-pli-rationale-count]');
+        if (rationale && count) {
+            const sync = () => { count.textContent = `${rationale.value.length} / 1000`; };
+            rationale.addEventListener('input', sync);
+            sync();
+        }
+
         card.querySelector('[data-pli-approve]')?.addEventListener('click', () => handleApprove(row));
-        card.querySelector('[data-pli-override]')?.addEventListener('click', () => showOverrideModal(row));
+        card.querySelector('[data-pli-override]')?.addEventListener('click', () => handleOverride(row, card));
         card.querySelector('[data-pli-sendback]')?.addEventListener('click', () => handleSendBack(row));
 
         return card;
@@ -324,66 +368,31 @@ export function createPliMacroReview(options = {}) {
         });
     }
 
-    function showOverrideModal(row) {
-        const { adjudication } = getMacroBlock(row.record || {});
-        const content = document.createElement('div');
-        content.innerHTML = `
-            <p class="text-sm text-gray-600" style="margin-bottom: var(--space-3);">
-                Override becomes the macro adjudication of record for this seat. Rationale is required.
-            </p>
-            <form id="pliOverrideForm">
-                <div class="form-group">
-                    <label class="form-label" for="pliOverrideImpl">Implementation score (1-10) *</label>
-                    <input type="number" id="pliOverrideImpl" class="form-input" min="1" max="10"
-                        value="${adjudication?.implementation?.score ?? ''}" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="pliOverrideRationale">Rationale (required)</label>
-                    <textarea id="pliOverrideRationale" class="form-input form-textarea" rows="4"
-                        placeholder="Which codebook table entry is wrong, and why?"></textarea>
-                </div>
-            </form>
-        `;
-        showModal({
-            title: 'Override PLI Macro Outputs',
-            content,
-            size: 'md',
-            buttons: [
-                { text: 'Cancel', variant: 'secondary', onClick: (modal) => modal.close() },
-                {
-                    text: 'Override & Save',
-                    variant: 'primary',
-                    onClick: async (modal) => {
-                        const implementationScore = parseInt(document.getElementById('pliOverrideImpl').value, 10);
-                        const rationale = document.getElementById('pliOverrideRationale').value.trim();
-                        if (!Number.isInteger(implementationScore) || implementationScore < 1 || implementationScore > 10) {
-                            showToast({ message: 'Implementation must be an integer from 1 to 10', type: 'error' });
-                            return;
-                        }
-                        if (!rationale) {
-                            showToast({ message: 'An override rationale is required', type: 'error' });
-                            return;
-                        }
-                        try {
-                            await database.reviewPliSeat(row.id, SEAT, {
-                                status: 'overridden',
-                                sme_reviewer: getReviewerName?.() || 'White Cell',
-                                override_value: {
-                                    implementation_score: implementationScore
-                                },
-                                override_rationale: rationale
-                            });
-                            showToast({ message: 'Override recorded', type: 'success' });
-                            modal.close();
-                            await refresh();
-                        } catch (err) {
-                            logger.error('Failed to record PLI override:', err);
-                            showToast({ message: 'Failed to record override', type: 'error' });
-                        }
-                    }
-                }
-            ]
-        });
+    async function handleOverride(row, card) {
+        const collected = collectMacroOverrideFromCard(card, row);
+        if (!collected.override_rationale) {
+            showToast({ message: 'An override rationale is required', type: 'error' });
+            return;
+        }
+        const invalid = validateMacroOverride(collected.override_value);
+        if (invalid) {
+            showToast({ message: invalid, type: 'error' });
+            return;
+        }
+        try {
+            await database.reviewPliSeat(row.id, SEAT, {
+                status: 'overridden',
+                sme_reviewer: getReviewerName?.() || 'White Cell',
+                override_value: collected.override_value,
+                override_rationale: collected.override_rationale,
+                edit_diff: collected.edit_diff
+            });
+            showToast({ message: 'Override recorded', type: 'success' });
+            await refresh();
+        } catch (err) {
+            logger.error('Failed to record PLI override:', err);
+            showToast({ message: 'Failed to record override', type: 'error' });
+        }
     }
 
     function destroy() {
