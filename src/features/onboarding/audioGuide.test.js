@@ -46,7 +46,7 @@ describe('Start Here audio guide contract', () => {
     it('uses stable content-addressed MP3 URLs so changed copy cannot play stale audio', () => {
         const text = 'Game Master. Maintain the operational record.';
         expect(hashFollowAlongNarration(text)).toMatch(/^[a-f0-9]{16}$/);
-        expect(getFollowAlongAudioUrl(text)).toBe(`/onboarding/start-here/audio/clips/${hashFollowAlongNarration(text)}.mp3`);
+        expect(getFollowAlongAudioUrl(text, '/')).toBe(`/onboarding/start-here/audio/clips/${hashFollowAlongNarration(text)}.mp3`);
         expect(getFollowAlongAudioUrl(`${text} Updated.`)).not.toBe(getFollowAlongAudioUrl(text));
     });
 

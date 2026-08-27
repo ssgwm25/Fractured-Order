@@ -15,12 +15,13 @@ export function resolveApprovedStartHereAudioUrl(
     narration,
     {
         allowLocalReview = import.meta.env?.DEV === true,
-        manifest = START_HERE_AUDIO_MANIFEST
+        manifest = START_HERE_AUDIO_MANIFEST,
+        baseUrl = import.meta.env?.BASE_URL || '/'
     } = {}
 ) {
     const contentId = hashFollowAlongNarration(narration);
     if (allowLocalReview) {
-        return getFollowAlongAudioUrl(narration);
+        return getFollowAlongAudioUrl(narration, baseUrl);
     }
     if (
         manifest?.status !== 'approved'
@@ -28,5 +29,5 @@ export function resolveApprovedStartHereAudioUrl(
     ) {
         return null;
     }
-    return getFollowAlongAudioUrl(narration);
+    return getFollowAlongAudioUrl(narration, baseUrl);
 }

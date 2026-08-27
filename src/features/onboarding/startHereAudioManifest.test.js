@@ -10,19 +10,25 @@ describe('Start Here audio activation boundary', () => {
     it('loads content-addressed review audio locally while production remains allowlisted', () => {
         const narration = 'Game Master. Maintain the operational record.';
         const contentId = hashFollowAlongNarration(narration);
-        expect(resolveApprovedStartHereAudioUrl(narration, { allowLocalReview: true }))
+        expect(resolveApprovedStartHereAudioUrl(narration, {
+            allowLocalReview: true,
+            baseUrl: '/'
+        }))
             .toMatch(/^\/onboarding\/start-here\/audio\/clips\/[a-f0-9]{16}\.mp3$/);
         expect(resolveApprovedStartHereAudioUrl(narration, {
             allowLocalReview: false,
-            manifest: { status: 'pending-owner-full-listen-through', clips: {} }
+            manifest: { status: 'pending-owner-full-listen-through', clips: {} },
+            baseUrl: '/'
         })).toBeNull();
         expect(resolveApprovedStartHereAudioUrl(narration, {
             allowLocalReview: false,
-            manifest: { status: 'approved', clips: { [contentId]: true } }
-        })).toBe(`/onboarding/start-here/audio/clips/${contentId}.mp3`);
+            manifest: { status: 'approved', clips: { [contentId]: true } },
+            baseUrl: '/Fractured-Order/'
+        })).toBe(`/Fractured-Order/onboarding/start-here/audio/clips/${contentId}.mp3`);
         expect(resolveApprovedStartHereAudioUrl(`${narration} Changed.`, {
             allowLocalReview: false,
-            manifest: { status: 'approved', clips: { [contentId]: true } }
+            manifest: { status: 'approved', clips: { [contentId]: true } },
+            baseUrl: '/'
         })).toBeNull();
     });
 
