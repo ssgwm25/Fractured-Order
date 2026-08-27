@@ -1,4 +1,11 @@
-const START_HERE_AUDIO_BASE_URL = '/onboarding/start-here/audio/clips';
+const START_HERE_AUDIO_PATH = 'onboarding/start-here/audio/clips';
+
+function normalizeAppBaseUrl(baseUrl = '/') {
+    const normalized = String(baseUrl || '/').trim().replace(/\/+$/, '');
+    return `${normalized || ''}/`;
+}
+
+const START_HERE_AUDIO_BASE_URL = `${normalizeAppBaseUrl(import.meta.env?.BASE_URL || '/')}${START_HERE_AUDIO_PATH}`;
 
 const ROLE_WALKTHROUGHS = Object.freeze({
     observer: 'Use this guide to build situational awareness without crossing into participant authority. Follow the record from live context to artifacts, incoming information, and the timeline. At every stop, distinguish what you can inspect from what an active seat is permitted to change.',
@@ -154,10 +161,10 @@ export function hashFollowAlongNarration(value) {
     return `${(high >>> 0).toString(16).padStart(8, '0')}${(low >>> 0).toString(16).padStart(8, '0')}`;
 }
 
-export function getFollowAlongAudioUrl(narration, baseUrl = START_HERE_AUDIO_BASE_URL) {
+export function getFollowAlongAudioUrl(narration, baseUrl = import.meta.env?.BASE_URL || '/') {
     const normalized = cleanPart(narration);
     if (!normalized) return null;
-    return `${String(baseUrl).replace(/\/$/, '')}/${hashFollowAlongNarration(normalized)}.mp3`;
+    return `${normalizeAppBaseUrl(baseUrl)}${START_HERE_AUDIO_PATH}/${hashFollowAlongNarration(normalized)}.mp3`;
 }
 
 export { START_HERE_AUDIO_BASE_URL };

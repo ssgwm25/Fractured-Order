@@ -55,8 +55,9 @@ state, or infer completion from visibility.
   audio using the pinned `af_heart` voice.
 - During `npm run dev`, Vite serves only content-addressed MP3 and WebVTT files
   from the ignored review batch. Byte-range requests are supported for reliable
-  browser playback and seeking. This local review path is never included in a
-  production build.
+  browser playback and seeking. Review and approved clip URLs remain under
+  Vite's configured application base path, including repository-scoped Pages
+  deployments. This local review path is never included in a production build.
 - Production remains fail-closed until the full listen-through and promotion
   workflow activates the approved manifest under `public/onboarding/`.
 

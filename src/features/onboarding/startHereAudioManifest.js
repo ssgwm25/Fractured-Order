@@ -13,15 +13,18 @@ export const START_HERE_AUDIO_MANIFEST = Object.freeze({
 
 export function resolveApprovedStartHereAudioUrl(
     narration,
-    { allowLocalReview = import.meta.env.DEV === true } = {}
+    {
+        allowLocalReview = import.meta.env?.DEV === true,
+        manifest = START_HERE_AUDIO_MANIFEST
+    } = {}
 ) {
     const contentId = hashFollowAlongNarration(narration);
     if (allowLocalReview) {
         return getFollowAlongAudioUrl(narration);
     }
     if (
-        START_HERE_AUDIO_MANIFEST.status !== 'approved'
-        || START_HERE_AUDIO_MANIFEST.clips[contentId] !== true
+        manifest?.status !== 'approved'
+        || manifest?.clips?.[contentId] !== true
     ) {
         return null;
     }

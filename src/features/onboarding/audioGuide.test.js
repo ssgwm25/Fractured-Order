@@ -49,4 +49,12 @@ describe('Start Here audio guide contract', () => {
         expect(getFollowAlongAudioUrl(text)).toBe(`/onboarding/start-here/audio/clips/${hashFollowAlongNarration(text)}.mp3`);
         expect(getFollowAlongAudioUrl(`${text} Updated.`)).not.toBe(getFollowAlongAudioUrl(text));
     });
+
+    it('keeps narration under the configured hosted application base path', () => {
+        const text = 'Game Master. Maintain the operational record.';
+        const expected = `/Fractured-Order/onboarding/start-here/audio/clips/${hashFollowAlongNarration(text)}.mp3`;
+
+        expect(getFollowAlongAudioUrl(text, '/Fractured-Order/')).toBe(expected);
+        expect(getFollowAlongAudioUrl(text, '/Fractured-Order')).toBe(expected);
+    });
 });

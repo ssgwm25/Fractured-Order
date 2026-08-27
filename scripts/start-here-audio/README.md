@@ -44,8 +44,11 @@ slide; Play, Pause, and Stop will be enabled. Orientation remains video-only.
 
 The development server accepts only exact 16-character content-hash filenames,
 prevents path traversal, sends `nosniff` and `no-store` headers, and supports
-byte-range requests. The route and pending manifest are excluded from
-production playback, so local review does not imply release approval.
+byte-range requests. Runtime clip URLs include Vite's configured application
+base path, so approved narration remains under the deployed app directory
+rather than resolving from the host root. The route and pending manifest are
+excluded from production playback, so local review does not imply release
+approval.
 
 ## Required owner review before publication
 

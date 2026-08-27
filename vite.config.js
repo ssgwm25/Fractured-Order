@@ -2,19 +2,24 @@ import { defineConfig, loadEnv } from 'vite';
 import { createReadStream, statSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 
-const START_HERE_REVIEW_ROUTE = '/onboarding/start-here/audio/';
+const START_HERE_REVIEW_PATH = 'onboarding/start-here/audio/';
 const START_HERE_REVIEW_ROOT = resolve(__dirname, 'scripts/start-here-audio/work/review');
 const START_HERE_REVIEW_ASSET = /^(?:clips\/[a-f0-9]{16}\.mp3|captions\/[a-f0-9]{16}\.en\.vtt)$/;
 
-export function resolveStartHereReviewAsset(requestUrl = '', reviewRoot = START_HERE_REVIEW_ROOT) {
+export function resolveStartHereReviewAsset(
+    requestUrl = '',
+    reviewRoot = START_HERE_REVIEW_ROOT,
+    appBasePath = '/'
+) {
     let pathname;
     try {
         pathname = decodeURIComponent(String(requestUrl).split('?')[0]);
     } catch (_error) {
         return null;
     }
-    if (!pathname.startsWith(START_HERE_REVIEW_ROUTE)) return null;
-    const relativePath = pathname.slice(START_HERE_REVIEW_ROUTE.length);
+    const reviewRoute = `${normalizeBasePath(appBasePath)}${START_HERE_REVIEW_PATH}`;
+    if (!pathname.startsWith(reviewRoute)) return null;
+    const relativePath = pathname.slice(reviewRoute.length);
     if (!START_HERE_REVIEW_ASSET.test(relativePath)) return null;
     const resolvedRoot = resolve(reviewRoot);
     const assetPath = resolve(resolvedRoot, relativePath);
@@ -41,13 +46,16 @@ function parseByteRange(value, size) {
     return { start, end: Math.min(end, size - 1) };
 }
 
-export function createStartHereAudioReviewPlugin({ reviewRoot = START_HERE_REVIEW_ROOT } = {}) {
+export function createStartHereAudioReviewPlugin({
+    reviewRoot = START_HERE_REVIEW_ROOT,
+    appBasePath = '/'
+} = {}) {
     return {
         name: 'start-here-audio-review',
         apply: 'serve',
         configureServer(server) {
             server.middlewares.use((request, response, next) => {
-                const assetPath = resolveStartHereReviewAsset(request.url, reviewRoot);
+                const assetPath = resolveStartHereReviewAsset(request.url, reviewRoot, appBasePath);
                 if (!assetPath) return next();
                 if (!['GET', 'HEAD'].includes(request.method || 'GET')) {
                     response.statusCode = 405;
@@ -149,7 +157,7 @@ export default defineConfig(({ mode }) => {
         root: '.',
         base: appBasePath,
         publicDir: 'public',
-        plugins: [createStartHereAudioReviewPlugin()],
+        plugins: [createStartHereAudioReviewPlugin({ appBasePath })],
 
         build: {
             outDir: 'dist',

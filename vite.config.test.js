@@ -55,6 +55,16 @@ describe('vite multi-page entries', () => {
             .toMatch(/[\\/]scripts[\\/]start-here-audio[\\/]work[\\/]review[\\/]clips[\\/]0123456789abcdef\.mp3$/);
         expect(resolveStartHereReviewAsset('/onboarding/start-here/audio/captions/0123456789abcdef.en.vtt'))
             .toMatch(/[\\/]captions[\\/]0123456789abcdef\.en\.vtt$/);
+        expect(resolveStartHereReviewAsset(
+            '/Fractured-Order/onboarding/start-here/audio/clips/0123456789abcdef.mp3',
+            undefined,
+            '/Fractured-Order/'
+        )).toMatch(/[\\/]clips[\\/]0123456789abcdef\.mp3$/);
+        expect(resolveStartHereReviewAsset(
+            '/onboarding/start-here/audio/clips/0123456789abcdef.mp3',
+            undefined,
+            '/Fractured-Order/'
+        )).toBeNull();
         expect(resolveStartHereReviewAsset('/onboarding/start-here/audio/clips/..%2Fsecrets.mp3')).toBeNull();
         expect(resolveStartHereReviewAsset('/onboarding/start-here/audio/clips/not-a-content-hash.mp3')).toBeNull();
     });
