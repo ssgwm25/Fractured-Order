@@ -1,0 +1,58 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.987
+Let’s walk through Manage session operations.
+
+00:00:02.987 --> 00:00:06.725
+Keep the selected session stable while moving between settings tabs
+
+00:00:06.725 --> 00:00:06.900
+.
+
+00:00:06.900 --> 00:00:10.150
+Sessions, participants, decks, plugins, and exports
+
+00:00:10.150 --> 00:00:13.412
+are related operational surfaces, but each has a different
+
+00:00:13.412 --> 00:00:15.213
+owner and consequence.
+
+00:00:15.213 --> 00:00:18.500
+On this slide, the Simulation Settings tabs also cover
+
+00:00:18.500 --> 00:00:22.750
+live sessions, participant rosters, facilitator deck assignments
+
+00:00:22.750 --> 00:00:25.137
+, plugins, and export controls.
+
+00:00:25.685 --> 00:00:28.410
+In practice, use the correct tab for the operational
+
+00:00:28.410 --> 00:00:32.435
+task and preserve the current session selection before changing participants
+
+00:00:32.435 --> 00:00:34.873
+, decks, plugins, or exports.
+
+00:00:34.873 --> 00:00:37.710
+Before you continue, verify these points:
+
+00:00:37.710 --> 00:00:40.047
+Sessions establish the active run.
+
+00:00:40.047 --> 00:00:42.910
+Participants and decks determine who can act and what is
+
+00:00:42.910 --> 00:00:43.998
+projected.
+
+00:00:43.998 --> 00:00:47.035
+Plugins and exports remain session-scoped.
+
+00:00:47.035 --> 00:00:50.385
+Use the highlighted Settings tabs area as your visual reference
+
+00:00:50.385 --> 00:00:52.060
+while you complete this check.

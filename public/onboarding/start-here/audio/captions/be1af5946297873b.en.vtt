@@ -1,0 +1,46 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.562
+Let’s walk through Watch the live tracker.
+
+00:00:02.562 --> 00:00:05.225
+Use the shared tracker as the reference before and after
+
+00:00:05.225 --> 00:00:07.312
+every operator state change.
+
+00:00:07.312 --> 00:00:10.300
+Announce material changes to the room and confirm that all
+
+00:00:10.300 --> 00:00:13.475
+roles now see the intended move, phase, countdown
+
+00:00:13.475 --> 00:00:14.900
+, and running state.
+
+00:00:14.900 --> 00:00:17.325
+On this slide, the header mirrors the current state
+
+00:00:17.325 --> 00:00:18.812
+every team sees:
+
+00:00:18.812 --> 00:00:22.750
+Strategic Orientation before Move 1, then move, phase
+
+00:00:22.750 --> 00:00:25.887
+, countdown timer, and paused or running state.
+
+00:00:26.435 --> 00:00:30.198
+In practice, announce material state changes to the room
+
+00:00:30.198 --> 00:00:34.535
+and verify the shared display before moving the exercise forward
+
+00:00:34.535 --> 00:00:34.735
+.
+
+00:00:34.735 --> 00:00:38.373
+Use the highlighted Live tracker area as your visual reference
+
+00:00:38.373 --> 00:00:40.035
+while you complete this check.

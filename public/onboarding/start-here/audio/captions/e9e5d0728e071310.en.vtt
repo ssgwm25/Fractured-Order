@@ -1,0 +1,49 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.462
+Let’s walk through Check session state.
+
+00:00:02.462 --> 00:00:05.625
+Use the tracker to verify which session and exercise window
+
+00:00:05.625 --> 00:00:06.950
+you are observing.
+
+00:00:06.950 --> 00:00:09.787
+If the displayed state conflicts with the room, resolve
+
+00:00:09.787 --> 00:00:13.438
+the owning White Cell context before relying on later records
+
+00:00:13.438 --> 00:00:14.863
+or exports.
+
+00:00:14.863 --> 00:00:17.850
+On this slide, the header mirrors the selected session
+
+00:00:17.850 --> 00:00:21.850
+state, including Strategic Orientation before Move 1
+
+00:00:21.850 --> 00:00:22.050
+.
+
+00:00:22.050 --> 00:00:25.625
+Use the dashboard and White Cell console for timer-driven run
+
+00:00:25.625 --> 00:00:26.538
+control.
+
+00:00:27.060 --> 00:00:30.573
+In practice, the Game Master verifies context here;
+
+00:00:30.573 --> 00:00:33.660
+White Cell remains the owner of move, phase,
+
+00:00:33.660 --> 00:00:35.385
+and timer controls.
+
+00:00:35.385 --> 00:00:38.910
+Use the highlighted Session tracker area as your visual reference
+
+00:00:38.910 --> 00:00:40.585
+while you complete this check.

@@ -1,0 +1,49 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.487
+Let’s walk through Simulation Settings.
+
+00:00:02.487 --> 00:00:05.575
+Treat move, phase, and timer controls as room-level
+
+00:00:05.575 --> 00:00:06.888
+state changes.
+
+00:00:06.888 --> 00:00:10.012
+Confirm operator intent before acting, make one change at
+
+00:00:10.012 --> 00:00:13.525
+a time, and verify the shared tracker immediately afterward
+
+00:00:13.525 --> 00:00:13.650
+.
+
+00:00:13.650 --> 00:00:16.800
+On this slide, advance or reverse moves and phases
+
+00:00:16.800 --> 00:00:19.050
+, start or pause the timer, and reset the
+
+00:00:19.050 --> 00:00:19.938
+clock.
+
+00:00:19.938 --> 00:00:23.125
+In practice, treat every control as a room-level state
+
+00:00:23.125 --> 00:00:24.062
+change.
+
+00:00:24.062 --> 00:00:27.887
+Confirm intent before acting and verify the tracker afterward.
+
+00:00:28.385 --> 00:00:31.560
+When you are ready, use Open Simulation Settings to
+
+00:00:31.560 --> 00:00:33.523
+move to the live surface.
+
+00:00:33.523 --> 00:00:36.285
+The guide will not make the workflow decision for you
+
+00:00:36.285 --> 00:00:36.435
+.

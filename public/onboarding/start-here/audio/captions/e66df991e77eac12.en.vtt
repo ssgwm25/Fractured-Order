@@ -1,0 +1,46 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.312
+Let’s walk through Review History.
+
+00:00:02.312 --> 00:00:05.350
+Use history as an immutable explanation of what White Cell
+
+00:00:05.350 --> 00:00:07.537
+decided, when, and why.
+
+00:00:07.537 --> 00:00:11.113
+Compare revisions and return notes without reopening a closed record
+
+00:00:11.113 --> 00:00:12.912
+through informal edits.
+
+00:00:12.912 --> 00:00:16.575
+On this slide, inspect completed, returned, rejected
+
+00:00:16.575 --> 00:00:19.562
+, and superseded review records across queues.
+
+00:00:19.562 --> 00:00:22.400
+In practice, use history to audit what White Cell
+
+00:00:22.400 --> 00:00:23.938
+decided and why;
+
+00:00:23.938 --> 00:00:26.950
+do not reopen a closed decision by editing the historical
+
+00:00:26.950 --> 00:00:27.712
+row.
+
+00:00:28.210 --> 00:00:31.085
+When you are ready, use Open Review History to
+
+00:00:31.085 --> 00:00:32.885
+move to the live surface.
+
+00:00:32.885 --> 00:00:35.585
+The guide will not make the workflow decision for you
+
+00:00:35.585 --> 00:00:35.735
+.

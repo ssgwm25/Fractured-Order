@@ -1,0 +1,40 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.062
+Let’s walk through Timeline.
+
+00:00:02.062 --> 00:00:05.037
+Use chronology to test sequence, identify gaps, and
+
+00:00:05.037 --> 00:00:07.275
+avoid duplicate interpretation.
+
+00:00:07.275 --> 00:00:09.875
+The timeline explains how the session developed;
+
+00:00:09.875 --> 00:00:13.725
+the owning artifact remains authoritative for current workflow state.
+
+00:00:13.725 --> 00:00:17.150
+On this slide, audit the chronological record of artifacts
+
+00:00:17.150 --> 00:00:20.663
+, RFIs, responses, captures, and updates.
+
+00:00:20.663 --> 00:00:24.288
+In practice, use sequence to reconstruct what changed;
+
+00:00:24.288 --> 00:00:27.387
+use the artifact surface for current workflow state.
+
+00:00:27.885 --> 00:00:30.735
+When you are ready, use Open Timeline to move
+
+00:00:30.735 --> 00:00:32.223
+to the live surface.
+
+00:00:32.223 --> 00:00:34.935
+The guide will not make the workflow decision for you
+
+00:00:34.935 --> 00:00:35.085
+.

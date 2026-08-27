@@ -1,0 +1,52 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.712
+Let’s walk through Your specialist boundary.
+
+00:00:02.712 --> 00:00:05.987
+Confirm the queue and decision boundary assigned to this specialist
+
+00:00:05.987 --> 00:00:06.862
+seat.
+
+00:00:06.862 --> 00:00:09.425
+Visibility does not mean an item is ready, and
+
+00:00:09.425 --> 00:00:12.988
+no other operator may approve, override, return,
+
+00:00:12.988 --> 00:00:15.412
+copy, or acknowledge on your behalf.
+
+00:00:15.412 --> 00:00:18.750
+On this slide, as TSJ (Tribe Street Journal
+
+00:00:18.750 --> 00:00:21.375
+), you own only the review or external handoff
+
+00:00:21.375 --> 00:00:22.762
+assigned to this seat.
+
+00:00:23.310 --> 00:00:26.573
+In practice, use the persisted source evidence, record
+
+00:00:26.573 --> 00:00:31.060
+each outcome explicitly, and leave deterministic exercise decisions
+
+00:00:31.060 --> 00:00:32.823
+with their owning workflow.
+
+00:00:32.823 --> 00:00:35.610
+Before you continue, verify these points:
+
+00:00:35.610 --> 00:00:37.898
+Work only the active session queue.
+
+00:00:37.898 --> 00:00:40.023
+Do not infer missing evidence.
+
+00:00:40.023 --> 00:00:44.010
+Acknowledge external transfers only after the copy step is complete
+
+00:00:44.010 --> 00:00:44.160
+.

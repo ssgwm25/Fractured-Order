@@ -1,0 +1,43 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:03.200
+Let’s walk through Follow move, phase, and timer
+
+00:00:03.200 --> 00:00:03.388
+.
+
+00:00:03.388 --> 00:00:07.412
+Anchor every facilitation decision to the shared exercise window.
+
+00:00:07.412 --> 00:00:09.562
+Name the active state for the room, then keep
+
+00:00:09.562 --> 00:00:11.537
+the deck and handoff aligned with it;
+
+00:00:11.537 --> 00:00:14.438
+timing context should never be inferred later.
+
+00:00:14.438 --> 00:00:17.675
+On this slide, the header shows Strategic Orientation before
+
+00:00:17.675 --> 00:00:20.387
+Move 1, then the live move, phase,
+
+00:00:20.387 --> 00:00:23.250
+countdown timer, and paused or running state so the
+
+00:00:23.250 --> 00:00:25.962
+projected deck stays in sync with the room.
+
+00:00:26.485 --> 00:00:29.385
+In practice, name the active window for the room
+
+00:00:29.385 --> 00:00:33.210
+before moving the discussion or finalizing a handoff.
+
+00:00:33.210 --> 00:00:36.873
+Use the highlighted Live tracker area as your visual reference
+
+00:00:36.873 --> 00:00:38.635
+while you complete this check.

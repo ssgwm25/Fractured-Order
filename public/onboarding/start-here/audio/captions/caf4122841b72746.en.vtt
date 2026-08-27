@@ -1,0 +1,43 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.138
+Let’s walk through Participants.
+
+00:00:02.138 --> 00:00:04.925
+Verify each seat by team, role, display name
+
+00:00:04.925 --> 00:00:06.438
+, and connection state.
+
+00:00:06.438 --> 00:00:10.213
+Resolve duplicates, missing assignments, or reconnect ambiguity before
+
+00:00:10.213 --> 00:00:14.300
+the exercise begins and recheck after any operational interruption.
+
+00:00:14.300 --> 00:00:17.375
+On this slide, confirm every connected participant has the
+
+00:00:17.375 --> 00:00:20.500
+intended team, role, display name, and current
+
+00:00:20.500 --> 00:00:21.913
+connection state.
+
+00:00:21.913 --> 00:00:25.575
+In practice, resolve missing or duplicated seats before the
+
+00:00:25.575 --> 00:00:29.438
+exercise starts and recheck the roster after reconnects.
+
+00:00:29.935 --> 00:00:32.935
+When you are ready, use Open Participants to move
+
+00:00:32.935 --> 00:00:34.447
+to the live surface.
+
+00:00:34.447 --> 00:00:37.185
+The guide will not make the workflow decision for you
+
+00:00:37.185 --> 00:00:37.335
+.

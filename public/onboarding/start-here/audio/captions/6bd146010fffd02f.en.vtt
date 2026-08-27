@@ -1,0 +1,43 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:01.938
+Let’s walk through Plugins.
+
+00:00:01.938 --> 00:00:05.575
+Review plugin scope, dependency state, and selected session
+
+00:00:05.575 --> 00:00:07.888
+before changing lifecycle state.
+
+00:00:07.888 --> 00:00:11.162
+A plugin must not silently affect another run or become
+
+00:00:11.162 --> 00:00:14.613
+a substitute for the platform’s deterministic workflow.
+
+00:00:14.613 --> 00:00:17.775
+On this slide, review and manage the plugin lifecycle
+
+00:00:17.775 --> 00:00:19.512
+for the selected session.
+
+00:00:19.512 --> 00:00:23.613
+In practice, confirm scope and dependency state before enabling
+
+00:00:23.613 --> 00:00:25.262
+or disabling a plugin;
+
+00:00:25.262 --> 00:00:28.438
+a plugin must not silently alter another session.
+
+00:00:28.935 --> 00:00:31.585
+When you are ready, use Open Plugins to move
+
+00:00:31.585 --> 00:00:33.072
+to the live surface.
+
+00:00:33.072 --> 00:00:35.785
+The guide will not make the workflow decision for you
+
+00:00:35.785 --> 00:00:35.935
+.

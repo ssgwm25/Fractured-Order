@@ -1,0 +1,52 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.587
+Let’s walk through Your specialist boundary.
+
+00:00:02.587 --> 00:00:05.650
+Confirm the queue and decision boundary assigned to this specialist
+
+00:00:05.650 --> 00:00:06.487
+seat.
+
+00:00:06.487 --> 00:00:08.900
+Visibility does not mean an item is ready, and
+
+00:00:08.900 --> 00:00:12.150
+no other operator may approve, override, return,
+
+00:00:12.150 --> 00:00:14.400
+copy, or acknowledge on your behalf.
+
+00:00:14.400 --> 00:00:17.113
+On this slide, as Econ SME, you own
+
+00:00:17.113 --> 00:00:20.375
+only the review or external handoff assigned to this seat
+
+00:00:20.375 --> 00:00:20.538
+.
+
+00:00:20.538 --> 00:00:23.775
+In practice, use the persisted source evidence, record
+
+00:00:23.775 --> 00:00:27.875
+each outcome explicitly, and leave deterministic exercise decisions
+
+00:00:27.875 --> 00:00:29.512
+with their owning workflow.
+
+00:00:30.010 --> 00:00:32.835
+Before you continue, verify these points:
+
+00:00:32.835 --> 00:00:35.148
+Work only the active session queue.
+
+00:00:35.148 --> 00:00:37.273
+Do not infer missing evidence.
+
+00:00:37.273 --> 00:00:41.260
+Acknowledge external transfers only after the copy step is complete
+
+00:00:41.260 --> 00:00:41.410
+.

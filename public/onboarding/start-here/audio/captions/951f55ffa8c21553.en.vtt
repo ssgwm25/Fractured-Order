@@ -1,0 +1,67 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.362
+Let’s walk through Present to the room.
+
+00:00:02.362 --> 00:00:06.287
+Enter presentation mode deliberately and verify the correct artifact remains
+
+00:00:06.287 --> 00:00:07.650
+in context.
+
+00:00:07.650 --> 00:00:10.537
+Projection removes operator chrome for the room, but it
+
+00:00:10.537 --> 00:00:13.213
+does not submit, approve, or change the lifecycle
+
+00:00:13.213 --> 00:00:14.812
+of the displayed record.
+
+00:00:14.812 --> 00:00:17.050
+On this slide, use Present when this screen is
+
+00:00:17.050 --> 00:00:18.150
+projected.
+
+00:00:18.150 --> 00:00:21.350
+It hides sidebar chrome, keeps the current slide centered
+
+00:00:21.350 --> 00:00:24.900
+, and adds the facilitator toolbar for editing, coordination
+
+00:00:24.900 --> 00:00:27.413
+, engagement, and White Cell forwarding.
+
+00:00:27.960 --> 00:00:31.960
+In practice, enter presentation deliberately, keep sensitive operator
+
+00:00:31.960 --> 00:00:34.472
+chrome out of view, and exit before returning to
+
+00:00:34.472 --> 00:00:36.035
+sidebar navigation.
+
+00:00:36.035 --> 00:00:38.660
+Before you continue, verify these points:
+
+00:00:38.660 --> 00:00:41.060
+Projection does not equal submission.
+
+00:00:41.060 --> 00:00:45.023
+The presentation toolbar preserves the current artifact context.
+
+00:00:45.023 --> 00:00:48.885
+Focus returns to the invoking control when presentation ends.
+
+00:00:48.885 --> 00:00:51.860
+When you are ready, use Focus Present control to
+
+00:00:51.860 --> 00:00:53.648
+move to the live surface.
+
+00:00:53.648 --> 00:00:56.385
+The guide will not make the workflow decision for you
+
+00:00:56.385 --> 00:00:56.535
+.

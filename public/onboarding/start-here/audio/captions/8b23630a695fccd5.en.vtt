@@ -1,0 +1,43 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.462
+Let’s walk through Session Timeline.
+
+00:00:02.462 --> 00:00:05.675
+Use filters to reconstruct the run across state changes,
+
+00:00:05.675 --> 00:00:09.025
+artifacts, RFIs, communications, captures, and seat
+
+00:00:09.025 --> 00:00:10.162
+activity.
+
+00:00:10.162 --> 00:00:12.850
+Verify sequence here, then return to the owning record
+
+00:00:12.850 --> 00:00:14.900
+for its current authoritative state.
+
+00:00:14.900 --> 00:00:18.325
+On this slide, audit actions, RFIs, communications
+
+00:00:18.325 --> 00:00:21.587
+, captures, seat changes, and game-state events.
+
+00:00:21.587 --> 00:00:24.850
+In practice, use filters to reconstruct the run and
+
+00:00:24.850 --> 00:00:28.413
+verify sequence before export or after-action review.
+
+00:00:28.910 --> 00:00:31.960
+When you are ready, use Open Session Timeline to
+
+00:00:31.960 --> 00:00:33.760
+move to the live surface.
+
+00:00:33.760 --> 00:00:36.460
+The guide will not make the workflow decision for you
+
+00:00:36.460 --> 00:00:36.610
+.

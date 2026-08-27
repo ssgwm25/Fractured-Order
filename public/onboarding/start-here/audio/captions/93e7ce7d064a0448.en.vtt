@@ -1,0 +1,40 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:03.163
+Let’s walk through Understand the observer boundary.
+
+00:00:03.163 --> 00:00:06.037
+Begin by separating access from authority.
+
+00:00:06.037 --> 00:00:09.200
+You may inspect the team’s record and follow the exercise
+
+00:00:09.200 --> 00:00:12.287
+, but opening, scrolling, or understanding an item
+
+00:00:12.287 --> 00:00:14.900
+must never change its workflow state.
+
+00:00:14.900 --> 00:00:17.413
+On this slide, this is a read-only view of
+
+00:00:17.413 --> 00:00:19.637
+Blue Team's Scribe workspace.
+
+00:00:19.637 --> 00:00:23.525
+In practice, use visibility to understand the exercise,
+
+00:00:23.525 --> 00:00:26.775
+not to assume the authority of an active participant seat
+
+00:00:26.775 --> 00:00:26.938
+.
+
+00:00:27.435 --> 00:00:30.247
+Before you continue, verify these points:
+
+00:00:30.247 --> 00:00:32.998
+Write controls stay hidden or disabled.
+
+00:00:32.998 --> 00:00:36.160
+Opening a record does not change its workflow state.

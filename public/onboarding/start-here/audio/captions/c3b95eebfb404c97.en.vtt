@@ -1,0 +1,52 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.987
+Let’s walk through Complete the administration loop.
+
+00:00:02.987 --> 00:00:07.200
+Reconcile session identity, roster, plugin state, unresolved
+
+00:00:07.200 --> 00:00:11.037
+issues, and required exports as one handoff package.
+
+00:00:11.037 --> 00:00:14.175
+Another operator should be able to continue without guessing which
+
+00:00:14.175 --> 00:00:16.438
+run or evidence set you meant.
+
+00:00:16.438 --> 00:00:19.550
+On this slide, before operator handoff, reconcile the
+
+00:00:19.550 --> 00:00:23.200
+selected session, participant roster, plugin state, and
+
+00:00:23.200 --> 00:00:24.837
+required exports.
+
+00:00:25.385 --> 00:00:29.610
+In practice, game Master owns administration and evidence continuity
+
+00:00:29.610 --> 00:00:29.748
+;
+
+00:00:29.748 --> 00:00:33.398
+White Cell owns live run control and adjudication.
+
+00:00:33.398 --> 00:00:36.260
+Before you continue, verify these points:
+
+00:00:36.260 --> 00:00:38.823
+State the selected session during handoff.
+
+00:00:38.823 --> 00:00:42.260
+Record unresolved participant or plugin issues.
+
+00:00:42.260 --> 00:00:45.685
+Start Here remains available above the session label.
+
+00:00:45.685 --> 00:00:49.235
+Use the highlighted Session reference area as your visual reference
+
+00:00:49.235 --> 00:00:50.935
+while you complete this check.

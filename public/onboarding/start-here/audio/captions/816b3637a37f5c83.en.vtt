@@ -1,0 +1,58 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.725
+Let’s walk through Complete the operator loop.
+
+00:00:02.725 --> 00:00:06.250
+Before handoff or export, reconcile shared state, every
+
+00:00:06.250 --> 00:00:10.500
+pending queue, participant access, specialist outputs, communications
+
+00:00:10.500 --> 00:00:12.325
+, and timeline evidence.
+
+00:00:12.325 --> 00:00:16.038
+Record unresolved work explicitly rather than inferring completion from an
+
+00:00:16.038 --> 00:00:17.512
+empty-looking view.
+
+00:00:17.512 --> 00:00:20.512
+On this slide, before handoff or export, reconcile
+
+00:00:20.512 --> 00:00:23.837
+the live tracker, pending queues, participant state,
+
+00:00:23.837 --> 00:00:26.188
+specialist outputs, and timeline.
+
+00:00:26.735 --> 00:00:29.960
+In practice, white Cell owns explicit control and review
+
+00:00:29.960 --> 00:00:30.847
+decisions;
+
+00:00:30.847 --> 00:00:32.773
+specialist seats own their approvals;
+
+00:00:32.773 --> 00:00:36.597
+Game Master owns session administration and evidence export.
+
+00:00:36.597 --> 00:00:39.310
+Before you continue, verify these points:
+
+00:00:39.310 --> 00:00:41.885
+Do not infer completion from visibility.
+
+00:00:41.885 --> 00:00:44.560
+Leave actionable notes when returning work.
+
+00:00:44.560 --> 00:00:47.960
+Start Here remains available above the session label.
+
+00:00:47.960 --> 00:00:51.560
+Use the highlighted Session reference area as your visual reference
+
+00:00:51.560 --> 00:00:53.235
+while you complete this check.

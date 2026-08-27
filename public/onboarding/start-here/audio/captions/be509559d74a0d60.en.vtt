@@ -1,0 +1,43 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.000
+Let’s walk through Exports.
+
+00:00:02.000 --> 00:00:05.362
+An export is evidence tied to one selected session.
+
+00:00:05.362 --> 00:00:08.537
+Reconcile the session identity and run state first, choose
+
+00:00:08.537 --> 00:00:10.925
+the format for the intended review, and retain the
+
+00:00:10.925 --> 00:00:13.988
+manifest that explains what the archive contains.
+
+00:00:13.988 --> 00:00:17.300
+On this slide, produce JSON, CSV, or
+
+00:00:17.300 --> 00:00:20.688
+research archives from the explicitly selected session.
+
+00:00:20.688 --> 00:00:24.550
+In practice, export only after reconciling session identity and
+
+00:00:24.550 --> 00:00:25.650
+run state.
+
+00:00:25.650 --> 00:00:28.762
+The archive is evidence, not a control action.
+
+00:00:29.260 --> 00:00:32.060
+When you are ready, use Open Exports to move
+
+00:00:32.060 --> 00:00:33.547
+to the live surface.
+
+00:00:33.547 --> 00:00:36.260
+The guide will not make the workflow decision for you
+
+00:00:36.260 --> 00:00:36.410
+.

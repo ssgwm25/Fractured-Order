@@ -1,0 +1,28 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:03.025
+Let’s walk through Transfer approved PLI.
+
+00:00:03.025 --> 00:00:06.375
+On this slide, use Approved PLI to copy finalized
+
+00:00:06.375 --> 00:00:10.338
+specialist JSON into Verba, then acknowledge the packet.
+
+00:00:10.338 --> 00:00:14.287
+In practice, keep the approved specialist payload intact across
+
+00:00:14.287 --> 00:00:16.725
+the external Verba handoff boundary.
+
+00:00:16.725 --> 00:00:19.700
+When you are ready, use Open Approved PLI to
+
+00:00:19.700 --> 00:00:21.438
+move to the live surface.
+
+00:00:21.438 --> 00:00:24.225
+The guide will not make the workflow decision for you
+
+00:00:24.225 --> 00:00:24.375
+.

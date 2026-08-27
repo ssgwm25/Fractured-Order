@@ -1,0 +1,46 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.788
+Let’s walk through Control arrival noise.
+
+00:00:02.788 --> 00:00:06.362
+Muting changes presentation noise, not workflow state.
+
+00:00:06.362 --> 00:00:09.325
+Use badges and NEW labels to locate unread work,
+
+00:00:09.325 --> 00:00:12.363
+then open the destination item so the durable arrival state
+
+00:00:12.363 --> 00:00:14.338
+clears for the correct reason.
+
+00:00:14.338 --> 00:00:18.337
+On this slide, mute notifications suppresses durable arrival notices
+
+00:00:18.337 --> 00:00:19.325
+only.
+
+00:00:19.325 --> 00:00:23.050
+Badges and NEW labels remain visible until each destination item
+
+00:00:23.050 --> 00:00:24.188
+is opened.
+
+00:00:24.188 --> 00:00:28.225
+In practice, mute presentation noise without hiding unread work
+
+00:00:28.225 --> 00:00:29.887
+or changing queue state.
+
+00:00:30.385 --> 00:00:33.835
+When you are ready, use Focus notification control to
+
+00:00:33.835 --> 00:00:35.698
+move to the live surface.
+
+00:00:35.698 --> 00:00:38.485
+The guide will not make the workflow decision for you
+
+00:00:38.485 --> 00:00:38.635
+.

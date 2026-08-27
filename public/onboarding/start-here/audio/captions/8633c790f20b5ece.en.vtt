@@ -1,0 +1,37 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.725
+Let’s walk through Close the specialist loop.
+
+00:00:02.725 --> 00:00:05.550
+On this slide, confirm no assigned item is left
+
+00:00:05.550 --> 00:00:08.488
+in an ambiguous state before leaving the console.
+
+00:00:08.488 --> 00:00:11.575
+In practice, pending means work remains.
+
+00:00:11.575 --> 00:00:15.787
+Finalized or acknowledged means the named specialist boundary was completed
+
+00:00:15.787 --> 00:00:17.438
+and remains auditable.
+
+00:00:17.438 --> 00:00:20.062
+Before you continue, verify these points:
+
+00:00:20.062 --> 00:00:21.750
+Check the active session.
+
+00:00:21.750 --> 00:00:23.825
+Verify the recorded status.
+
+00:00:23.825 --> 00:00:26.738
+Leave incomplete work pending rather than guessing.
+
+00:00:27.285 --> 00:00:31.172
+Use the highlighted Session reference area as your visual reference
+
+00:00:31.172 --> 00:00:32.910
+while you complete this check.

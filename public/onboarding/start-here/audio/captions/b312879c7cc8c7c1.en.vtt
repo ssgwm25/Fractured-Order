@@ -1,0 +1,40 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:03.388
+Let’s walk through Read the live exercise context.
+
+00:00:03.388 --> 00:00:05.737
+Use the tracker to place every record in the correct
+
+00:00:05.737 --> 00:00:07.237
+move and phase.
+
+00:00:07.237 --> 00:00:10.175
+Observer access is read-only, so treat the state as
+
+00:00:10.175 --> 00:00:14.550
+context for interpretation rather than permission to operate the exercise
+
+00:00:14.550 --> 00:00:14.713
+.
+
+00:00:14.713 --> 00:00:17.562
+On this slide, white Cell controls the move,
+
+00:00:17.562 --> 00:00:20.675
+phase, countdown, and timer state shown to every
+
+00:00:20.675 --> 00:00:21.613
+role.
+
+00:00:21.613 --> 00:00:24.762
+In practice, use the tracker to place each artifact
+
+00:00:24.762 --> 00:00:27.613
+and update in the correct exercise window.
+
+00:00:28.160 --> 00:00:31.747
+Use the highlighted Live tracker area as your visual reference
+
+00:00:31.747 --> 00:00:33.485
+while you complete this check.

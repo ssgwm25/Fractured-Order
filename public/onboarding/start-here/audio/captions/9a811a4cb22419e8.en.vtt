@@ -1,0 +1,52 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:02.688
+Let’s walk through Your specialist boundary.
+
+00:00:02.688 --> 00:00:05.963
+Confirm the queue and decision boundary assigned to this specialist
+
+00:00:05.963 --> 00:00:06.862
+seat.
+
+00:00:06.862 --> 00:00:09.475
+Visibility does not mean an item is ready, and
+
+00:00:09.475 --> 00:00:13.262
+no other operator may approve, override, return,
+
+00:00:13.262 --> 00:00:15.738
+copy, or acknowledge on your behalf.
+
+00:00:15.738 --> 00:00:19.400
+On this slide, as Diplomacy & Information SME,
+
+00:00:19.400 --> 00:00:22.438
+you own only the review or external handoff assigned to
+
+00:00:22.438 --> 00:00:23.337
+this seat.
+
+00:00:23.885 --> 00:00:27.148
+In practice, use the persisted source evidence, record
+
+00:00:27.148 --> 00:00:31.635
+each outcome explicitly, and leave deterministic exercise decisions
+
+00:00:31.635 --> 00:00:33.398
+with their owning workflow.
+
+00:00:33.398 --> 00:00:36.185
+Before you continue, verify these points:
+
+00:00:36.185 --> 00:00:38.472
+Work only the active session queue.
+
+00:00:38.472 --> 00:00:40.597
+Do not infer missing evidence.
+
+00:00:40.597 --> 00:00:44.585
+Acknowledge external transfers only after the copy step is complete
+
+00:00:44.585 --> 00:00:44.735
+.
