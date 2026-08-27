@@ -20,6 +20,10 @@ It does not equate one happy-path browser assertion with total correctness. Focu
 | Verba AI SME | `sme.verba` | SME authorization; action-narrative handoff queue; Approved PLI copy packets after Econ/NI/Dip-Info finalize; matching-seat acknowledgement |
 
 The browser role-matrix rehearsal uses 23 actors: one Game Master, one White Cell Lead, five SME operators, four Scribes, four Facilitators, and eight Notetaker seats.
+The TSJ and Verba page headers retain their seat-specific names, while their
+shared primary workspace is titled `Action handoffs`; both also expose the
+separate `Approved PLI` queue. The browser matrix asserts both levels so a
+shared workflow label cannot erase role identity.
 
 ## Capability IDs and evidence boundary
 

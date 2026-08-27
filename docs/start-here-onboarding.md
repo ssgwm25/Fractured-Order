@@ -68,13 +68,13 @@ state, or infer completion from visibility.
 | Team Facilitator | Role boundary; live tracker; Team Action Review; deck; proposal threads; RFIs; communications; activity; presentation mode; final White Cell handoff check |
 | Team Notetaker | Role boundary; live tracker; Quick Capture; Team Dynamics; Alliance Tracking; team artifacts; inbox; timeline; observation closeout |
 | Observer compatibility view | Read-only boundary; tracker; team artifacts; RFIs; responses; received proposals; journal; sentiments; timeline; no write-oriented guidance |
-| White Cell Lead / Support | Role boundary; live tracker; Simulation Settings; session tabs; every review queue; review history; Macro, Diplomacy/Information, NI/Escalation, and report PLI surfaces; journal; sentiments; RFIs; communications; timeline; notification control; operator closeout |
+| White Cell Lead / Support | Role boundary; live tracker; Simulation Settings; session tabs; every review queue; review history; Macro, Diplomacy/Information, NI/Escalation, report, and SME efficacy PLI surfaces; journal; sentiments; RFIs; communications; timeline; notification control; operator closeout |
 | Game Master | Role boundary; session tracker; dashboard; sessions; participants; exports; plugins; administration handoff |
 | Econ SME | Queue state; Macro chain; explicit approve/override/send-back controls; specialist closeout |
 | NI/Escalation SME | Queue state; Macro dependency; six-domain NI and Glasl evidence; explicit specialist controls; closeout |
 | Diplomacy & Information SME | Queue state; Macro dependency; paired outputs; explicit specialist controls; closeout |
-| TSJ SME | Queue state; source narrative; Copy then Mark done handoff; acknowledged history |
-| Verba SME | Queue state; source narrative; Copy then Mark done handoff; acknowledged history |
+| TSJ SME | Role boundary; action-handoff queue; source narrative; Copy then Mark done controls; approved PLI markdown transfer; acknowledged history |
+| Verba SME | Role boundary; action-handoff queue; source narrative; Copy then Mark done controls; approved PLI JSON transfer; acknowledged history |
 
 The legacy filenames `facilitator.js` and `scribe.js` do not represent the
 public labels. The former renders the Scribe workspace and the latter renders

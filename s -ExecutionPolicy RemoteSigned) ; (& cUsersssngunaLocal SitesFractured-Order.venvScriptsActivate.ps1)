@@ -1,0 +1,257 @@
+warning: in the working copy of 'docs/playthrough-automation.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/role-capability-test-matrix.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/start-here-onboarding.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/supabase-setup.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/start-here-audio/README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/start-here-audio/export-scripts.test.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/start-here-audio/owner-approval.example.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/roles/sme.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/roles/sme.test.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/roles/whitecell.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/roles/whitecell.test.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/e2e/live-demo-playthrough.e2e.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/e2e/live-demo-role-matrix.e2e.js', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/docs/playthrough-automation.md b/docs/playthrough-automation.md[m
+[1mindex 82ffda0..66f626b 100644[m
+[1m--- a/docs/playthrough-automation.md[m
+[1m+++ b/docs/playthrough-automation.md[m
+[36m@@ -192,10 +192,13 @@[m [mpercent-encoded built asset paths while retaining its root-directory traversal[m
+ guard. After the[m
+ multi-Notetaker capture batch, local actor pages reload from that shared[m
+ persisted state before cross-page assertions because the mock does not emulate[m
+[31m-Supabase Realtime fanout. Hosted mode keeps the pages live and requires Realtime[m
+[31m-convergence without that reload. The local run validates browser orchestration[m
+[31m-and workflow contracts, but it is not evidence of hosted Supabase capacity,[m
+[31m-write concurrency, or Realtime behavior.[m
+[32m+[m[32mSupabase Realtime fanout. The local playthrough applies the same explicit[m
+[32m+[m[32mreconciliation to White Cell after each recipient submits a proposal response,[m
+[32m+[m[32mbefore White Cell locates and forwards that sender-specific response. Hosted[m
+[32m+[m[32mmode keeps those pages live and requires Realtime convergence without a reload.[m
+[32m+[m[32mThe local run validates browser orchestration and workflow contracts, but it is[m
+[32m+[m[32mnot evidence of hosted Supabase capacity, write concurrency, or Realtime[m
+[32m+[m[32mbehavior.[m
+ [m
+ ## Focused Realtime Gate[m
+ [m
+[1mdiff --git a/docs/role-capability-test-matrix.md b/docs/role-capability-test-matrix.md[m
+[1mindex aaa6e00..6bd3348 100644[m
+[1m--- a/docs/role-capability-test-matrix.md[m
+[1m+++ b/docs/role-capability-test-matrix.md[m
+[36m@@ -20,6 +20,10 @@[m [mIt does not equate one happy-path browser assertion with total correctness. Focu[m
+ | Verba AI SME | `sme.verba` | SME authorization; action-narrative handoff queue; Approved PLI copy packets after Econ/NI/Dip-Info finalize; matching-seat acknowledgement |[m
+ [m
+ The browser role-matrix rehearsal uses 23 actors: one Game Master, one White Cell Lead, five SME operators, four Scribes, four Facilitators, and eight Notetaker seats.[m
+[32m+[m[32mThe TSJ and Verba page headers retain their seat-specific names, while their[m
+[32m+[m[32mshared primary workspace is titled `Action handoffs`; both also expose the[m
+[32m+[m[32mseparate `Approved PLI` queue. The browser matrix asserts both levels so a[m
+[32m+[m[32mshared workflow label cannot erase role identity.[m
+ [m
+ ## Capability IDs and evidence boundary[m
+ [m
+[1mdiff --git a/docs/start-here-onboarding.md b/docs/start-here-onboarding.md[m
+[1mindex 8842308..04b645f 100644[m
+[1m--- a/docs/start-here-onboarding.md[m
+[1m+++ b/docs/start-here-onboarding.md[m
+[36m@@ -68,13 +68,13 @@[m [mstate, or infer completion from visibility.[m
+ | Team Facilitator | Role boundary; live tracker; Team Action Review; deck; proposal threads; RFIs; communications; activity; presentation mode; final White Cell handoff check |[m
+ | Team Notetaker | Role boundary; live tracker; Quick Capture; Team Dynamics; Alliance Tracking; team artifacts; inbox; timeline; observation closeout |[m
+ | Observer compatibility view | Read-only boundary; tracker; team artifacts; RFIs; responses; received proposals; journal; sentiments; timeline; no write-oriented guidance |[m
+[31m-| White Cell Lead / Support | Role boundary; live tracker; Simulation Settings; session tabs; every review queue; review history; Macro, Diplomacy/Information, NI/Escalation, and report PLI surfaces; journal; sentiments; RFIs; communications; timeline; notification control; operator closeout |[m
+[32m+[m[32m| White Cell Lead / Support | Role boundary; live tracker; Simulation Settings; session tabs; every review queue; review history; Macro, Diplomacy/Information, NI/Escalation, report, and SME efficacy PLI surfaces; journal; sentiments; RFIs; communications; timeline; notification control; operator closeout |[m
+ | Game Master | Role boundary; session tracker; dashboard; sessions; participants; exports; plugins; administration handoff |[m
+ | Econ SME | Queue state; Macro chain; explicit approve/override/send-back controls; specialist closeout |[m
+ | NI/Escalation SME | Queue state; Macro dependency; six-domain NI and Glasl evidence; explicit specialist controls; closeout |[m
+ | Diplomacy & Information SME | Queue state; Macro dependency; paired outputs; explicit specialist controls; closeout |[m
+[31m-| TSJ SME | Queue state; source narrative; Copy then Mark done handoff; acknowledged history |[m
+[31m-| Verba SME | Queue state; source narrative; Copy then Mark done handoff; acknowledged history |[m
+[32m+[m[32m| TSJ SME | Role boundary; action-handoff queue; source narrative; Copy then Mark done controls; approved PLI markdown transfer; acknowledged history |[m
+[32m+[m[32m| Verba SME | Role boundary; action-handoff queue; source narrative; Copy then Mark done controls; approved PLI JSON transfer; acknowledged history |[m
+ [m
+ The legacy filenames `facilitator.js` and `scribe.js` do not represent the[m
+ public labels. The former renders the Scribe workspace and the latter renders[m
+[1mdiff --git a/docs/supabase-setup.md b/docs/supabase-setup.md[m
+[1mindex 45c02a5..12ade20 100644[m
+[1m--- a/docs/supabase-setup.md[m
+[1m+++ b/docs/supabase-setup.md[m
+[36m@@ -123,11 +123,19 @@[m [mis reapplied during repair, reapply[m
+ `data/2026-08-17_game_master_session_retirement.sql`, then apply[m
+ `data/2026-08-18_ssg_training_session.sql`, then apply[m
+ `data/2026-08-18_training_mastery_progress.sql`, then apply[m
+[31m-`data/2026-08-25_sme_pli_packets.sql`. Verify RPCs,[m
+[32m+[m[32m`data/2026-08-25_sme_pli_packets.sql`, then apply[m
+[32m+[m[32m`data/2026-08-26_decommission_ssg_training.sql`, then apply[m
+[32m+[m[32m`data/2026-08-26_session_role_name_snapshots.sql`. Verify RPCs,[m
+ triggers, policies, columns, and grants before a demo; a missing migration[m
+ record or failed verification is a deployment blocker.[m
+ [m
+[31m-## Protected SSG Training Session[m
+[32m+[m[32m## Historical SSG Training Migrations (Superseded)[m
+[32m+[m
+[32m+[m[32mThis section documents the historical state established by the August 18[m
+[32m+[m[32mmigrations because they remain forward-migration prerequisites. It is not the[m
+[32m+[m[32mcurrent runtime contract. Do not stop at this state or restore its RPCs,[m
+[32m+[m[32mpolicies, grants, template code, or browser activation path. The required[m
+[32m+[m[32mAugust 26 decommission described immediately below supersedes it.[m
+ [m
+ Apply `data/2026-08-18_ssg_training_session.sql` after the Game Master session[m
+ retirement migration, followed by[m
+[36m@@ -249,6 +257,87 @@[m [mtranscripts, or fixture bodies to these records. Counts of the bounded[m
+ `training_progress_events.event_type` values are the authoritative operational[m
+ event totals; those rows remain outside live evidence and research exports.[m
+ [m
+[32m+[m[32m## Retired SSG Training Archive And Reusable Session Code[m
+[32m+[m
+[32m+[m[32mApply `data/2026-08-26_decommission_ssg_training.sql` after the historical[m
+[32m+[m[32mtraining migrations. The forward-only decommission removes the training RPC[m
+[32m+[m[32msurface and authenticated access to the historical training tables, converts[m
+[32m+[m[32mthe fixed template into a protected, non-joinable archive, and clears its[m
+[32m+[m[32msession code and code metadata.[m
+[32m+[m
+[32m+[m[32m`TRAINING2026` is no longer reserved and has no special browser or database[m
+[32m+[m[32mbehavior. It may be assigned to an ordinary `live_exercise` and then uses the[m
+[32m+[m[32mnormal session lookup, seat, audit, export, archive, and deletion contracts.[m
+[32m+[m[32mHistorical attempt and progress rows remain stored for administrators; they[m
+[32m+[m[32mare not relabelled as live evidence and are not deleted by the decommission.[m
+[32m+[m
+[32m+[m[32mVerify the current archive and removed access surface:[m
+[32m+[m
+[32m+[m[32m```sql[m
+[32m+[m[32mselect id, name, status, session_code, session_classification, is_protected,[m
+[32m+[m[32m       deleted_at[m
+[32m+[m[32mfrom public.sessions[m
+[32m+[m[32mwhere id = '00000000-0000-4000-8000-000000002026'::uuid;[m
+[32m+[m
+[32m+[m[32mselect trigger_name, event_object_table, event_manipulation[m
+[32m+[m[32mfrom information_schema.triggers[m
+[32m+[m[32mwhere trigger_schema = 'public'[m
+[32m+[m[32m  and trigger_name in ([m
+[32m+[m[32m    'protect_protected_session',[m
+[32m+[m[32m    'prevent_non_live_game_state',[m
+[32m+[m[32m    'prevent_non_live_participant_seat'[m
+[32m+[m[32m  )[m
+[32m+[m[32morder by trigger_name, event_manipulation;[m
+[32m+[m
+[32m+[m[32mselect p.oid::regprocedure::text as forbidden_training_rpc[m
+[32m+[m[32mfrom pg_proc p[m
+[32m+[m[32mjoin pg_namespace n on n.oid = p.pronamespace[m
+[32m+[m[32mwhere n.nspname = 'public'[m
+[32m+[m[32m  and p.proname in ([m
+[32m+[m[32m    'start_or_resume_training_attempt',[m
+[32m+[m[32m    'get_training_attempt_bootstrap',[m
+[32m+[m[32m    'record_training_progress_event',[m
+[32m+[m[32m    'reset_training_attempt'[m
+[32m+[m[32m  )[m
+[32m+[m[32morder by forbidden_training_rpc;[m
+[32m+[m
+[32m+[m[32mselect grantee, table_name, privilege_type[m
+[32m+[m[32mfrom information_schema.role_table_grants[m
+[32m+[m[32mwhere table_schema = 'public'[m
+[32m+[m[32m  and table_name in ('training_attempts', 'training_progress_events')[m
+[32m+[m[32m  and grantee in ('PUBLIC', 'anon', 'authenticated')[m
+[32m+[m[32morder by table_name, grantee, privilege_type;[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mPass: the fixed UUID appears exactly once as `archived`,[m
+[32m+[m[32m`retired_training_archive`, protected, and code-free; all three current trigger[m
+[32m+[m[32mnames are represented for their declared events; `forbidden_training_rpc` has[m
+[32m+[m[32mzero rows; and the grants query has zero rows. If `TRAINING2026` is assigned to[m
+[32m+[m[32ma new live session, the ordinary join lookup must return that session without[m
+[32m+[m[32mstarting or resuming a historical training attempt.[m
+[32m+[m
+[32m+[m[32m## Session-Role Display-Name Snapshots[m
+[32m+[m
+[32m+[m[32mApply `data/2026-08-26_session_role_name_snapshots.sql` after the decommission.[m
+[32m+[m[32mIt backfills `session_participants.display_name_snapshot`, captures the current[m
+[32m+[m[32mparticipant name whenever a session-role seat is first claimed or reassigned,[m
+[32m+[m[32mand rejects later edits to a populated snapshot. Active rosters prefer that[m
+[32m+[m[32mimmutable value over the mutable browser identity in `participants.name`, so a[m
+[32m+[m[32mperson's name remains attached to the specific role they used in that session.[m
+[32m+[m
+[32m+[m[32mVerify the trigger contract:[m
+[32m+[m
+[32m+[m[32m```sql[m
+[32m+[m[32mselect trigger_name, event_manipulation[m
+[32m+[m[32mfrom information_schema.triggers[m
+[32m+[m[32mwhere trigger_schema = 'public'[m
+[32m+[m[32m  and event_object_table = 'session_participants'[m
+[32m+[m[32m  and trigger_name = 'capture_session_role_display_name_snapshot'[m
+[32m+[m[32morder by event_manipulation;[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mPass: exactly two rows are returned, one for `INSERT` and one for `UPDATE`.[m
+[32m+[m
+ ## Session Archival And Game Master Deletion[m
+ [m
+ Apply `data/2026-08-12_session_archive_transition.sql` before deploying the[m
+[36m@@ -744,9 +833,11 @@[m [mIf Supabase configuration is missing or placeholder-valued, the browser shows a[m
+ [m
+ - anonymous sign-in succeeds[m
+ - session-code lookup returns only active joinable sessions[m
+[31m-- exact `TRAINING2026` access starts or resumes only the caller's isolated 12-profile training attempt[m
+[31m-- protected training templates cannot be archived, deleted, renamed, recoded, reclassified, seated, or given game state[m
+[31m-- training attempts and progress events remain absent from live research exports and evidence manifests[m
+[32m+[m[32m- the retired training archive remains protected, archived, code-free, and unable to own participant seats or game state[m
+[32m+[m[32m- no training RPC is callable and historical training tables expose no `PUBLIC`, `anon`, or `authenticated` grants[m
+[32m+[m[32m- `TRAINING2026` follows the ordinary live-session path when assigned to a new exercise[m
+[32m+[m[32m- active rosters use the immutable session-role display-name snapshot captured for each claimed seat[m
+[32m+[m[32m- historical training attempts and progress events remain absent from live research exports and evidence manifests[m
+ - public clients cannot list all sessions from the landing page[m
+ - role seat limits are enforced by `claim_session_role_seat`[m
+ - White Cell and Game Master actions require operator grants[m
+[1mdiff --git a/scripts/start-here-audio/README.md b/scripts/start-here-audio/README.md[m
+[1mindex 5868e2a..1c78524 100644[m
+[1m--- a/scripts/start-here-audio/README.md[m
+[1m+++ b/scripts/start-here-audio/README.md[m
+[36m@@ -9,6 +9,11 @@[m [mcopy in the six role controllers. Orientation remains video-only. Identical[m
+ scripts share a content-addressed clip; a copy change creates a new filename so[m
+ stale narration cannot silently play.[m
+ [m
+[32m+[m[32mThe current source contract contains 24 role profiles, 257 slide references,[m
+[32m+[m[32mand 125 unique narration clips. The White Cell SME-efficacy walkthrough and[m
+[32m+[m[32mthe TSJ/Verba Approved PLI handoffs invalidate any earlier 122-clip review[m
+[32m+[m[32mbatch; generate and review a fresh batch before promotion.[m
+[32m+[m
+ Narration is not a verbatim modal readout. Role-focus clips establish ownership,[m
+ workflow sequence, and authority boundaries. Surface clips add what to inspect,[m
+ how to use the surface during play, what to verify before continuing, and how[m
+[1mdiff --git a/scripts/start-here-audio/export-scripts.test.js b/scripts/start-here-audio/export-scripts.test.js[m
+[1mindex 7831da4..5aa8893 100644[m
+[1m--- a/scripts/start-here-audio/export-scripts.test.js[m
+[1m+++ b/scripts/start-here-audio/export-scripts.test.js[m
+[36m@@ -6,8 +6,8 @@[m [mdescribe('Start Here narration export', () => {[m
+     it('covers every shipped role profile and slide from the live walkthrough copy', async () => {[m
+         const bundle = await buildStartHereAudioScripts();[m
+         expect(bundle.profileCount).toBe(24);[m
+[31m-        expect(bundle.slideReferenceCount).toBe(253);[m
+[31m-        expect(bundle.clipCount).toBe(122);[m
+[32m+[m[32m        expect(bundle.slideReferenceCount).toBe(257);[m
+[32m+[m[32m        expect(bundle.clipCount).toBe(125);[m
+         expect(bundle.entries.every((entry) => entry.scriptSha256 && entry.usedBy.length > 0)).toBe(true);[m
+         expect(bundle.profiles.every((profile) => profile.slides[0].kind === 'role-focus')).toBe(true);[m
+     });[m
+[1mdiff --git a/scripts/start-here-audio/owner-approval.example.json b/scripts/start-here-audio/owner-approval.example.json[m
+[1mindex f1ba22d..52fbd14 100644[m
+[1m--- a/scripts/start-here-audio/owner-approval.example.json[m
+[1m+++ b/scripts/start-here-audio/owner-approval.example.json[m
+[36m@@ -5,7 +5,7 @@[m
+   "notes": "",[m
+   "fullListenThrough": false,[m
+   "scriptBundleSha256": "",[m
+[31m-  "clipCount": 122,[m
+[32m+[m[32m  "clipCount": 125,[m
+   "qualityReview": {[m
+     "pronunciation": false,[m
+     "pacing": false,[m
+[1mdiff --git a/src/roles/sme.js b/src/roles/sme.js[m
+[1mindex 01501d2..4c44c21 100644[m
+[1m--- a/src/roles/sme.js[m
+[1m+++ b/src/roles/sme.js[m
+[36m@@ -9,6 +9,7 @@[m [mimport { syncService } from '../services/sync.js';[m
+ import { createLogger } from '../utils/logger.js';[m
+ import { showToast } from '../components/ui/Toast.js';[m
+ import { navigateToApp } from '../core/navigation.js';[m
+[32m+[m[32mimport { mountFollowAlong } from '../features/onboarding/followAlong.js';[m
+ import {[m
+     OPERATOR_SURFACES,[m
+     SME_ROLES,[m
+[36m@@ -42,6 +43,60 @@[m [mexport function getSmeQueueK

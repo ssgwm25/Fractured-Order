@@ -36,8 +36,8 @@ const SME_ROLES = Object.freeze([
     { id: 'econ', label: 'Econ SME' },
     { id: 'ni_escalation', label: 'NI/Escalation SME' },
     { id: 'diplomacy_information', label: 'Diplomacy & Information SME' },
-    { id: 'tsj', label: 'TSJ (Tribe Street Journal)' },
-    { id: 'verba', label: 'Verba AI SME' }
+    { id: 'tsj', label: 'TSJ (Tribe Street Journal)', queueTitle: 'Action handoffs', hasApprovedPli: true },
+    { id: 'verba', label: 'Verba AI SME', queueTitle: 'Action handoffs', hasApprovedPli: true }
 ]);
 
 const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
@@ -70,6 +70,8 @@ const LIVE_DEMO_ROLE_MATRIX = TEAM_OPTIONS.flatMap((team) => ([
     ...SME_ROLES.map((role) => ({
         actorName: `sme-${role.id.replaceAll('_', '-')}-matrix`,
         displayName: role.label,
+        queueTitle: role.queueTitle || role.label,
+        hasApprovedPli: role.hasApprovedPli === true,
         teamId: null,
         roleSurface: 'sme',
         smeRole: role.id
@@ -93,9 +95,15 @@ async function expectRoleSurface(page, roleCase) {
         await expect(page).toHaveURL(/\/sme\.html(?:\?.*)?$/);
         await expect(page.locator('#headerSessionMeta')).toContainText(SESSION_NAME);
         await expect(page.locator('#headerTitle')).toHaveText(roleCase.displayName);
-        await expect(page.locator('#smeQueueSectionTitle')).toHaveText(roleCase.displayName);
+        await expect(page.locator('#smeQueueSectionTitle')).toHaveText(roleCase.queueTitle);
         await expect(page.locator('#smeQueuePanel')).toBeVisible();
         await expect(page.locator('#smeQueuePanel .pli-sme-panel')).toBeVisible();
+        if (roleCase.hasApprovedPli) {
+            await expect(page.locator('#smePliPacketsNavItem')).toBeVisible();
+            await expect(page.locator('#smePliPacketsSectionTitle')).toHaveText('Approved PLI');
+        } else {
+            await expect(page.locator('#smePliPacketsNavItem')).toBeHidden();
+        }
         return;
     }
 

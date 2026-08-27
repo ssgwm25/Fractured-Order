@@ -719,6 +719,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                         ? blueNegotiationTerms
                         : 'Add a six-month review clause and a shared delivery checkpoint.'
                 });
+                if (!actorPool.useIndependentContexts) {
+                    await actors.whiteCellLead.reload();
+                    await expect(actors.whiteCellLead.locator('#sessionName')).toContainText(sessionName);
+                }
                 await reviewProposalResponse(actors.whiteCellLead, {
                     title: proposal.title,
                     senderTeam: proposal.recipient
@@ -730,6 +734,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 decision: 'negotiate',
                 negotiationTerms: redNegotiationTerms
             });
+            if (!actorPool.useIndependentContexts) {
+                await actors.whiteCellLead.reload();
+                await expect(actors.whiteCellLead.locator('#sessionName')).toContainText(sessionName);
+            }
             await reviewProposalResponse(actors.whiteCellLead, {
                 title: dualProposalTitle,
                 senderTeam: 'red'

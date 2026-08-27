@@ -53,6 +53,8 @@ async function loadSmeControllerWithMocks({
     vi.doMock('../core/navigation.js', () => ({
         navigateToApp: vi.fn()
     }));
+    const mountFollowAlong = vi.fn(() => ({ destroy: vi.fn() }));
+    vi.doMock('../features/onboarding/followAlong.js', () => ({ mountFollowAlong }));
     vi.doMock('../features/pli/PliMacroReview.js', () => ({ createPliMacroReview }));
     vi.doMock('../features/pli/NiEscalationReview.js', () => ({ createNiEscalationReview }));
     vi.doMock('../features/pli/DiplomacyInfoReview.js', () => ({ createDiplomacyInfoReview }));
@@ -91,7 +93,8 @@ async function loadSmeControllerWithMocks({
         createDiplomacyInfoReview,
         createSmeHandoffQueue,
         createSmePliPacketQueue,
-        packetHost
+        packetHost,
+        mountFollowAlong
     };
 }
 
@@ -138,6 +141,24 @@ describe('SME console access state', () => {
         expect(getSmeQueueKind('not_a_role')).toBeNull();
     });
 
+    it.each([
+        [SME_ROLES.ECON, 'Macro'],
+        [SME_ROLES.NI_ESCALATION, 'six domains'],
+        [SME_ROLES.DIPLOMACY_INFORMATION, 'paired outputs'],
+        [SME_ROLES.TSJ, 'Tribe Street Journal'],
+        [SME_ROLES.VERBA, 'Verba']
+    ])('provides role-scoped Start Here content for %s', async (role, expectedCopy) => {
+        globalThis.__ESG_DISABLE_AUTO_INIT__ = true;
+        const { getSmeOnboardingContent } = await import('./sme.js');
+
+        const content = getSmeOnboardingContent(role);
+
+        expect(content.roleLabel).toBeTruthy();
+        expect([content.summary, content.queueBody, content.queueNarrative].join(' ')).toContain(expectedCopy);
+        expect(content.controlsBody).toBeTruthy();
+        expect(content.controlsNarrative).toBeTruthy();
+    });
+
     it('calls mountRoleQueue during init after grant verification', async () => {
         const { SmeController } = await loadSmeControllerWithMocks({ role: 'sme_econ' });
         const controller = new SmeController();
@@ -149,6 +170,7 @@ describe('SME console access state', () => {
 
         expect(chromeSpy).toHaveBeenCalledTimes(1);
         expect(mountSpy).toHaveBeenCalledTimes(1);
+        expect(controller.onboarding).toBeTruthy();
         expect(loopSpy).toHaveBeenCalledTimes(1);
         expect(typeof controller.mountRolePanel).toBe('undefined');
         controller.destroy();
@@ -169,6 +191,12 @@ describe('SME console access state', () => {
         const expectedFactory = loaded[factoryName];
         expect(expectedFactory).toHaveBeenCalledTimes(1);
         expect(expectedFactory.mock.calls[0][0].container).toBe(loaded.host);
+        expect(loaded.mountFollowAlong).toHaveBeenCalledWith(expect.objectContaining({
+            storageKey: expect.stringContaining('followalong:sme:'),
+            roleLabel: expect.any(String),
+            summary: expect.any(String),
+            steps: expect.any(Array)
+        }));
 
         if (handoffSeat) {
             expect(expectedFactory.mock.calls[0][0].seat).toBe(handoffSeat);

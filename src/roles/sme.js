@@ -9,6 +9,7 @@ import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { showToast } from '../components/ui/Toast.js';
 import { navigateToApp } from '../core/navigation.js';
+import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 import {
     OPERATOR_SURFACES,
     SME_ROLES,
@@ -42,6 +43,60 @@ export function getSmeQueueKind(smeRole) {
     return SME_QUEUE_KINDS[smeRole] || null;
 }
 
+export function getSmeOnboardingContent(smeRole) {
+    const content = {
+        [SME_ROLES.ECON]: {
+            summary: 'Review Macro PLI evidence, then approve, override, or send it back without changing the deterministic source record.',
+            queueBody: 'Work the Macro queue in order and inspect the generated output alongside its evidence before recording a specialist decision.',
+            queueNarrative: 'Macro is the first specialist boundary. A finalized or explicitly skipped Macro review unlocks the downstream seats.',
+            controlsBody: 'Use the review footer to approve unchanged output, record an evidence-based override, or send incomplete work back.',
+            controlsNarrative: 'Make the outcome explicit and preserve the rationale another operator needs to audit the decision.'
+        },
+        [SME_ROLES.NI_ESCALATION]: {
+            summary: 'Review National Interest domains and escalation evidence after the Macro dependency clears.',
+            queueBody: 'Work only unlocked NI and Escalation records, checking the six domains and Glasl trajectory against the supplied evidence.',
+            queueNarrative: 'The queue remains dependency-gated. Do not treat a locked row as permission to infer or pre-approve its result.',
+            controlsBody: 'Use the specialist controls to approve, override with an auditable rationale, or send the record back for correction.',
+            controlsNarrative: 'Keep domain findings and escalation judgment attached to the same reviewed record.'
+        },
+        [SME_ROLES.DIPLOMACY_INFORMATION]: {
+            summary: 'Review the paired Diplomacy and Information outputs after the Macro dependency clears.',
+            queueBody: 'Inspect both paired outputs and their evidence before recording a specialist decision for the unlocked row.',
+            queueNarrative: 'Diplomacy and Information clear together at this specialist boundary; neither track should be silently omitted.',
+            controlsBody: 'Approve the paired result, record an evidence-based override, or return incomplete work through the explicit controls.',
+            controlsNarrative: 'Preserve why the paired result changed so White Cell can consume finalized evidence without impersonating the SME.'
+        },
+        [SME_ROLES.TSJ]: {
+            summary: 'Carry finalized action narratives and approved PLI into Tribe Street Journal through explicit, auditable handoffs.',
+            queueBody: 'Use Action handoffs to copy each White Cell-complete source narrative into Tribe Street Journal.',
+            queueNarrative: 'Copy the source before marking it done. The acknowledgement records the external TSJ handoff without rewriting the source.',
+            controlsBody: 'Use Copy, then Mark done, and leave pending work visible until the external handoff is complete.',
+            controlsNarrative: 'A completed acknowledgement proves the transfer step; it does not change White Cell adjudication.',
+            packetBody: 'Use Approved PLI to copy finalized specialist markdown into Tribe Street Journal, then acknowledge the packet.',
+            packetNarrative: 'Keep the approved specialist payload intact across the external TSJ handoff boundary.'
+        },
+        [SME_ROLES.VERBA]: {
+            summary: 'Carry finalized action narratives and approved PLI into Verba through explicit, auditable handoffs.',
+            queueBody: 'Use Action handoffs to copy each White Cell-complete source narrative into Verba.',
+            queueNarrative: 'Copy the source before marking it done. The acknowledgement records the external Verba handoff without rewriting the source.',
+            controlsBody: 'Use Copy, then Mark done, and leave pending work visible until the external handoff is complete.',
+            controlsNarrative: 'A completed acknowledgement proves the transfer step; it does not change White Cell adjudication.',
+            packetBody: 'Use Approved PLI to copy finalized specialist JSON into Verba, then acknowledge the packet.',
+            packetNarrative: 'Keep the approved specialist payload intact across the external Verba handoff boundary.'
+        }
+    };
+    const selected = content[smeRole];
+    if (selected) return { roleLabel: getSmeRoleDisplayLabel(smeRole), ...selected };
+    return {
+        roleLabel: getSmeRoleDisplayLabel(smeRole) || 'SME',
+        summary: 'Review the assigned specialist queue without changing deterministic source records.',
+        queueBody: 'Inspect the assigned queue and its evidence before recording a specialist outcome.',
+        queueNarrative: 'Keep every decision explicit and auditable.',
+        controlsBody: 'Use only the controls exposed for the authorized specialist seat.',
+        controlsNarrative: 'Do not infer or pre-approve unavailable work.'
+    };
+}
+
 export function getSmeAccessState(sessionStoreRef = sessionStore) {
     const sessionId = sessionStoreRef.getSessionId?.()
         || sessionStoreRef.getSessionData?.()?.id
@@ -70,6 +125,7 @@ export class SmeController {
         this.smeRole = null;
         this.panel = null;
         this.packetPanel = null;
+        this.onboarding = null;
         this.refreshTimer = null;
     }
 
@@ -112,6 +168,7 @@ export class SmeController {
             this.smeRole = accessState.smeRole;
             this.bindChrome();
             this.mountRoleQueue();
+            this.mountFollowAlongOnboarding();
             this.startRefreshLoop();
 
             const sessionId = accessState.sessionId;
@@ -266,6 +323,69 @@ export class SmeController {
         this.refreshQueue();
     }
 
+    mountFollowAlongOnboarding() {
+        const content = getSmeOnboardingContent(this.smeRole);
+        const queueTarget = '.sidebar-link[data-section="smeQueue"]';
+        const packetTarget = '.sidebar-link[data-section="smePliPackets"]';
+        const steps = [
+            {
+                title: 'Your specialist boundary',
+                body: `As ${content.roleLabel}, you own only the review or external handoff assigned to this seat.`,
+                narrative: 'Use the persisted source evidence, record each outcome explicitly, and leave deterministic exercise decisions with their owning workflow.',
+                details: ['Work only the active session queue.', 'Do not infer missing evidence.', 'Acknowledge external transfers only after the copy step is complete.']
+            },
+            {
+                title: 'Read queue state',
+                body: 'The queue badge, pending count, reviewed-history controls, and Refresh action show what is ready for this specialist seat.',
+                narrative: 'Refresh deliberately when coordinating a handoff; background refresh does not decide an outcome or clear an unread item.',
+                details: ['Pending means the seat still requires action.', 'Locked or empty rows are not approval failures.', 'Reviewed history remains read-only.'],
+                targetLabel: 'SME queue',
+                highlight: queueTarget,
+                action: { label: 'Open SME queue', selector: queueTarget }
+            },
+            {
+                title: 'Work the assigned queue',
+                body: content.queueBody,
+                narrative: content.queueNarrative,
+                targetLabel: 'Assigned queue',
+                highlight: queueTarget,
+                action: { label: 'Open assigned queue', selector: queueTarget }
+            },
+            {
+                title: 'Record an explicit outcome',
+                body: content.controlsBody,
+                narrative: content.controlsNarrative,
+                targetLabel: 'Workflow controls',
+                highlight: ['.pli-sme-footer', '.pli-sme-actions']
+            }
+        ];
+        if (this.smeRole === SME_ROLES.TSJ || this.smeRole === SME_ROLES.VERBA) {
+            steps.push({
+                title: 'Transfer approved PLI',
+                body: content.packetBody,
+                narrative: content.packetNarrative,
+                targetLabel: 'Approved PLI',
+                highlight: packetTarget,
+                action: { label: 'Open Approved PLI', selector: packetTarget }
+            });
+        }
+        steps.push({
+            title: 'Close the specialist loop',
+            body: 'Confirm no assigned item is left in an ambiguous state before leaving the console.',
+            narrative: 'Pending means work remains. Finalized or acknowledged means the named specialist boundary was completed and remains auditable.',
+            details: ['Check the active session.', 'Verify the recorded status.', 'Leave incomplete work pending rather than guessing.'],
+            targetLabel: 'Session reference',
+            highlight: '#headerSessionMeta'
+        });
+        this.onboarding = mountFollowAlong({
+            storageKey: `followalong:sme:${this.smeRole}`,
+            title: `${content.roleLabel} guide`,
+            roleLabel: content.roleLabel,
+            summary: content.summary,
+            steps
+        });
+    }
+
     refreshQueue() {
         this.panel?.refresh?.();
         this.packetPanel?.refresh?.();
@@ -326,6 +446,7 @@ export class SmeController {
         if (this.refreshTimer) clearInterval(this.refreshTimer);
         this.panel?.destroy?.();
         this.packetPanel?.destroy?.();
+        this.onboarding?.destroy?.();
     }
 }
 

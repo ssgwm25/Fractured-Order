@@ -123,11 +123,19 @@ is reapplied during repair, reapply
 `data/2026-08-17_game_master_session_retirement.sql`, then apply
 `data/2026-08-18_ssg_training_session.sql`, then apply
 `data/2026-08-18_training_mastery_progress.sql`, then apply
-`data/2026-08-25_sme_pli_packets.sql`. Verify RPCs,
+`data/2026-08-25_sme_pli_packets.sql`, then apply
+`data/2026-08-26_decommission_ssg_training.sql`, then apply
+`data/2026-08-26_session_role_name_snapshots.sql`. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
-## Protected SSG Training Session
+## Historical SSG Training Migrations (Superseded)
+
+This section documents the historical state established by the August 18
+migrations because they remain forward-migration prerequisites. It is not the
+current runtime contract. Do not stop at this state or restore its RPCs,
+policies, grants, template code, or browser activation path. The required
+August 26 decommission described immediately below supersedes it.
 
 Apply `data/2026-08-18_ssg_training_session.sql` after the Game Master session
 retirement migration, followed by
@@ -248,6 +256,87 @@ the owner-scoped attempt revision. Never add answer text, narration,
 transcripts, or fixture bodies to these records. Counts of the bounded
 `training_progress_events.event_type` values are the authoritative operational
 event totals; those rows remain outside live evidence and research exports.
+
+## Retired SSG Training Archive And Reusable Session Code
+
+Apply `data/2026-08-26_decommission_ssg_training.sql` after the historical
+training migrations. The forward-only decommission removes the training RPC
+surface and authenticated access to the historical training tables, converts
+the fixed template into a protected, non-joinable archive, and clears its
+session code and code metadata.
+
+`TRAINING2026` is no longer reserved and has no special browser or database
+behavior. It may be assigned to an ordinary `live_exercise` and then uses the
+normal session lookup, seat, audit, export, archive, and deletion contracts.
+Historical attempt and progress rows remain stored for administrators; they
+are not relabelled as live evidence and are not deleted by the decommission.
+
+Verify the current archive and removed access surface:
+
+```sql
+select id, name, status, session_code, session_classification, is_protected,
+       deleted_at
+from public.sessions
+where id = '00000000-0000-4000-8000-000000002026'::uuid;
+
+select trigger_name, event_object_table, event_manipulation
+from information_schema.triggers
+where trigger_schema = 'public'
+  and trigger_name in (
+    'protect_protected_session',
+    'prevent_non_live_game_state',
+    'prevent_non_live_participant_seat'
+  )
+order by trigger_name, event_manipulation;
+
+select p.oid::regprocedure::text as forbidden_training_rpc
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in (
+    'start_or_resume_training_attempt',
+    'get_training_attempt_bootstrap',
+    'record_training_progress_event',
+    'reset_training_attempt'
+  )
+order by forbidden_training_rpc;
+
+select grantee, table_name, privilege_type
+from information_schema.role_table_grants
+where table_schema = 'public'
+  and table_name in ('training_attempts', 'training_progress_events')
+  and grantee in ('PUBLIC', 'anon', 'authenticated')
+order by table_name, grantee, privilege_type;
+```
+
+Pass: the fixed UUID appears exactly once as `archived`,
+`retired_training_archive`, protected, and code-free; all three current trigger
+names are represented for their declared events; `forbidden_training_rpc` has
+zero rows; and the grants query has zero rows. If `TRAINING2026` is assigned to
+a new live session, the ordinary join lookup must return that session without
+starting or resuming a historical training attempt.
+
+## Session-Role Display-Name Snapshots
+
+Apply `data/2026-08-26_session_role_name_snapshots.sql` after the decommission.
+It backfills `session_participants.display_name_snapshot`, captures the current
+participant name whenever a session-role seat is first claimed or reassigned,
+and rejects later edits to a populated snapshot. Active rosters prefer that
+immutable value over the mutable browser identity in `participants.name`, so a
+person's name remains attached to the specific role they used in that session.
+
+Verify the trigger contract:
+
+```sql
+select trigger_name, event_manipulation
+from information_schema.triggers
+where trigger_schema = 'public'
+  and event_object_table = 'session_participants'
+  and trigger_name = 'capture_session_role_display_name_snapshot'
+order by event_manipulation;
+```
+
+Pass: exactly two rows are returned, one for `INSERT` and one for `UPDATE`.
 
 ## Session Archival And Game Master Deletion
 
@@ -744,9 +833,11 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 
 - anonymous sign-in succeeds
 - session-code lookup returns only active joinable sessions
-- exact `TRAINING2026` access starts or resumes only the caller's isolated 12-profile training attempt
-- protected training templates cannot be archived, deleted, renamed, recoded, reclassified, seated, or given game state
-- training attempts and progress events remain absent from live research exports and evidence manifests
+- the retired training archive remains protected, archived, code-free, and unable to own participant seats or game state
+- no training RPC is callable and historical training tables expose no `PUBLIC`, `anon`, or `authenticated` grants
+- `TRAINING2026` follows the ordinary live-session path when assigned to a new exercise
+- active rosters use the immutable session-role display-name snapshot captured for each claimed seat
+- historical training attempts and progress events remain absent from live research exports and evidence manifests
 - public clients cannot list all sessions from the landing page
 - role seat limits are enforced by `claim_session_role_seat`
 - White Cell and Game Master actions require operator grants

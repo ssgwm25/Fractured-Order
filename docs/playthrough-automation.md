@@ -192,10 +192,13 @@ percent-encoded built asset paths while retaining its root-directory traversal
 guard. After the
 multi-Notetaker capture batch, local actor pages reload from that shared
 persisted state before cross-page assertions because the mock does not emulate
-Supabase Realtime fanout. Hosted mode keeps the pages live and requires Realtime
-convergence without that reload. The local run validates browser orchestration
-and workflow contracts, but it is not evidence of hosted Supabase capacity,
-write concurrency, or Realtime behavior.
+Supabase Realtime fanout. The local playthrough applies the same explicit
+reconciliation to White Cell after each recipient submits a proposal response,
+before White Cell locates and forwards that sender-specific response. Hosted
+mode keeps those pages live and requires Realtime convergence without a reload.
+The local run validates browser orchestration and workflow contracts, but it is
+not evidence of hosted Supabase capacity, write concurrency, or Realtime
+behavior.
 
 ## Focused Realtime Gate
 
