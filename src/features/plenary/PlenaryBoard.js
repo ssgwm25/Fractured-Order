@@ -55,7 +55,7 @@ function teamActivityHtml(model) {
     return `
         <article class="plenary-panel">
             <div class="plenary-panel-head">
-                <h3 class="plenary-panel-title">Team activity</h3>
+                <h3 class="plenary-panel-title">Diplomatic activity</h3>
             </div>
             <div class="plenary-panel-body">
                 <div class="plenary-team-list">${rows}</div>
