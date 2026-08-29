@@ -46,10 +46,17 @@ function scaleLinear(min, max, start, end) {
  * @param {Object} indicator
  * @param {{ width?: number, height?: number }} [options]
  */
+function formatMacroPeriodLabel(period) {
+    const raw = String(period);
+    const match = raw.match(/^(?:20)?(\d{2})Q([1-4])$/i);
+    if (match) return `${match[1]} Q${match[2]}`;
+    return raw.replace(/^20/, '');
+}
+
 export function indicatorLineChartSvg(periods, indicator, options = {}) {
     const width = options.width ?? 360;
     const height = options.height ?? 200;
-    const pad = { top: 12, right: 10, bottom: 22, left: 36 };
+    const pad = { top: 16, right: 12, bottom: 30, left: 46 };
     const n = Math.max(periods?.length || 0, 1);
     const base = (indicator?.baseline || []).map(Number);
     const postRaw = indicator?.post_action || indicator?.baseline || [];
@@ -85,26 +92,37 @@ export function indicatorLineChartSvg(periods, indicator, options = {}) {
         ? periods
         : Array.from({ length: n }, (_, i) => String(i));
     const labelEvery = Math.max(1, Math.floor(n / 6));
-    const grid = periodList.map((period, i) => {
+    const xTicks = periodList.map((period, i) => {
         const label = String(period);
         const show = label.endsWith('Q1') || (!label.includes('Q') && i % labelEvery === 0);
-        const tick = show
-            ? `<text x="${x(i)}" y="${height - 6}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">${escapeHtml(label.replace(/^20/, ''))}</text>`
-            : '';
-        return `<line x1="${x(i)}" y1="${pad.top}" x2="${x(i)}" y2="${height - pad.bottom}" stroke="var(--color-border)" stroke-width="1"/>${tick}`;
+        if (!show) return '';
+        return `<text class="plenary-axis-x" x="${x(i)}" y="${height - 8}" text-anchor="middle" font-size="11" font-weight="600" font-family="var(--font-sans)" fill="var(--color-text)">${escapeHtml(formatMacroPeriodLabel(label))}</text>`;
     }).join('');
-    const yTicks = [min, (min + max) / 2, max].map((value) => (
-        `<text x="${pad.left - 4}" y="${y(value) + 3}" font-size="8" text-anchor="end" fill="var(--color-text-muted)">${value.toFixed(1)}</text>`
+    const yValues = [max, (min + max) / 2, min];
+    const yBaselines = ['hanging', 'middle', 'auto'];
+    const yGrid = yValues.map((value) => (
+        `<line x1="${pad.left}" y1="${y(value)}" x2="${width - pad.right}" y2="${y(value)}" stroke="var(--color-border)" stroke-width="1"/>`
     )).join('');
+    const yTicks = yValues.map((value, i) => (
+        `<text class="plenary-axis-y" x="${pad.left - 8}" y="${y(value)}" text-anchor="end" dominant-baseline="${yBaselines[i]}" font-size="13" font-weight="700" font-family="var(--font-mono)" fill="var(--color-text)">${value.toFixed(1)}</text>`
+    )).join('');
+    const vGrid = periodList.map((period, i) => {
+        const label = String(period);
+        const show = label.endsWith('Q1') || (!label.includes('Q') && i % labelEvery === 0);
+        if (!show) return '';
+        return `<line x1="${x(i)}" y1="${pad.top}" x2="${x(i)}" y2="${height - pad.bottom}" stroke="var(--color-border)" stroke-width="1"/>`;
+    }).join('');
     const label = String(indicator?.label || 'Indicator');
 
     return `
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)} baseline versus cumulative post-action" preserveAspectRatio="none">
-            ${grid}
+        <svg class="plenary-macro-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)} baseline versus cumulative post-action" preserveAspectRatio="xMidYMid meet">
+            ${vGrid}
+            ${yGrid}
             ${yTicks}
             ${fillSegments.join('')}
             <path d="${pathOf(base.slice(0, n), x, y)}" fill="none" stroke="var(--color-navy)" stroke-width="2"/>
             <path d="${pathOf(post.slice(0, n), x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2" stroke-dasharray="5 3"/>
+            ${xTicks}
         </svg>
     `;
 }

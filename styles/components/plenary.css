@@ -262,6 +262,33 @@ body.plenary-page {
     display: block;
 }
 
+.plenary-macro-chart {
+    overflow: visible;
+}
+
+.plenary-macro-chart .plenary-axis-y,
+.plenary-macro-chart .plenary-axis-x {
+    fill: var(--color-text);
+    letter-spacing: 0.04em;
+    paint-order: stroke fill;
+    stroke: var(--color-surface);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.plenary-macro-chart .plenary-axis-y {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.plenary-macro-chart .plenary-axis-x {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+}
+
 .plenary-panel-note {
     margin: 0;
     font-size: 0.75rem;

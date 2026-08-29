@@ -124,5 +124,9 @@ describe('plenaryCharts', () => {
         expect(svg).toContain('role="img"');
         expect(svg).toContain('Real GDP growth');
         expect(svg).toContain('var(--color-navy)');
+        expect(svg).toContain('preserveAspectRatio="xMidYMid meet"');
+        expect(svg).toContain('plenary-axis-y');
+        expect(svg).toContain('27 Q1');
+        expect(svg).not.toContain('preserveAspectRatio="none"');
     });
 });
