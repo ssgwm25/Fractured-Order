@@ -189,7 +189,7 @@ export function glaslLadderHtml(glasl = {}) {
 export function glaslStepChartSvg(points = [], options = {}) {
     const width = options.width ?? 420;
     const height = options.height ?? 110;
-    const pad = { top: 10, right: 10, bottom: 20, left: 24 };
+    const pad = { top: 10, right: 10, bottom: 20, left: 10 };
     if (!points.length) {
         return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Glasl trajectory"></svg>`;
     }
@@ -203,9 +203,6 @@ export function glaslStepChartSvg(points = [], options = {}) {
         if (team === 'green') return 'var(--color-team-green)';
         return 'var(--color-team-industry)';
     };
-    const ticks = [1, 4, 7, 9].map((stage) => (
-        `<text x="${pad.left - 4}" y="${y(stage) + 3}" font-size="8" text-anchor="end" fill="var(--color-text-muted)">${stage}</text>`
-    )).join('');
     const moveLabels = points.map((p, i) => (
         i === 0 || p.move !== points[i - 1].move
             ? `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">M${escapeHtml(String(p.move ?? '—'))}</text>`
@@ -213,7 +210,6 @@ export function glaslStepChartSvg(points = [], options = {}) {
     )).join('');
     return `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Glasl stage across finalized actions">
-            ${ticks}
             <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2"/>
             ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.stageAfter)}" r="3.5" fill="${teamColor(p.team)}"/>`).join('')}
             ${moveLabels}
