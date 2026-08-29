@@ -32,8 +32,8 @@ body.plenary-page {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    min-height: 60px;
-    padding: 0 4px;
+    min-height: 92px;
+    padding: 2px 4px;
 }
 
 .plenary-brand {
@@ -44,9 +44,9 @@ body.plenary-page {
 
 .plenary-brand-lockup {
     display: block;
-    height: 52px;
+    height: 88px;
     width: auto;
-    max-width: min(48vw, 420px);
+    max-width: min(62vw, 640px);
     object-fit: contain;
     object-position: left center;
 }
