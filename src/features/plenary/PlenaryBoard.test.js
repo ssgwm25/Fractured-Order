@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPlenaryBoard } from './PlenaryBoard.js';
-import { indicatorLineChartSvg } from './plenaryCharts.js';
+import { glaslStepChartSvg, indicatorLineChartSvg, orientationSparklineSvg } from './plenaryCharts.js';
 
 describe('PlenaryBoard', () => {
     it('renders the connect state with a landing-page link', () => {
@@ -60,10 +60,31 @@ describe('PlenaryBoard', () => {
         expect(container.innerHTML).toContain('Diplomacy Index');
         expect(container.innerHTML).not.toContain('plenary-ticker');
         expect(container.innerHTML).toContain('data-team="industry"');
+        expect(container.innerHTML).toContain('>A1</text>');
     });
 });
 
 describe('plenaryCharts', () => {
+    it('labels action-sequence charts A1, A2 rather than by move', () => {
+        const spark = orientationSparklineSvg([
+            { move: 1, net: 1 },
+            { move: 1, net: -1 },
+            { move: 2, net: 2 }
+        ]);
+        expect(spark).toContain('>A1</text>');
+        expect(spark).toContain('>A2</text>');
+        expect(spark).toContain('>A3</text>');
+        expect(spark).not.toContain('>M1</text>');
+
+        const glasl = glaslStepChartSvg([
+            { move: 1, team: 'blue', stageAfter: 5 },
+            { move: 2, team: 'red', stageAfter: 6 }
+        ]);
+        expect(glasl).toContain('>A1</text>');
+        expect(glasl).toContain('>A2</text>');
+        expect(glasl).not.toContain('>M1</text>');
+    });
+
     it('emits an accessible SVG for a baseline vs post-action series', () => {
         const svg = indicatorLineChartSvg(['2027Q1', '2027Q2'], {
             label: 'Real GDP growth',

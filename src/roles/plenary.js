@@ -45,6 +45,7 @@ export class PlenaryController {
         this.clockTimer = null;
         this.refreshing = false;
         this.reportRows = [];
+        this.actions = [];
         this.gameState = null;
         this.selection = {
             scope: PLI_REPORT_SCOPES.SIMULATION,
@@ -124,6 +125,7 @@ export class PlenaryController {
         const sessionId = this.getSessionId();
         if (!sessionId) {
             this.reportRows = [];
+            this.actions = [];
             this.gameState = null;
             this.board?.render({ mode: 'connect' });
             return;
@@ -138,6 +140,7 @@ export class PlenaryController {
             ]);
             const actionsById = new Map((actions || []).map((action) => [action.id, action]));
             this.reportRows = collectPlenaryReportRows(adjudications, actionsById);
+            this.actions = actions || [];
             this.gameState = gameState;
             this.syncScopeOptions();
             this.syncGameState();
@@ -174,7 +177,7 @@ export class PlenaryController {
     }
 
     syncGameState() {
-        const display = getHeaderGameStateDisplay(this.gameState, [], {
+        const display = getHeaderGameStateDisplay(this.gameState, this.actions, {
             fallbackToMoveOne: Boolean(this.getSessionId())
         });
         applyHeaderGameStateDisplay(display);

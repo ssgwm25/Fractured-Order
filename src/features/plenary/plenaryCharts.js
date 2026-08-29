@@ -26,6 +26,10 @@ function formatSigned(value) {
     return n > 0 ? `+${n}` : String(n);
 }
 
+function actionSequenceLabel(index) {
+    return `A${index + 1}`;
+}
+
 function pathOf(series, x, y) {
     return series
         .map((value, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(value).toFixed(1)}`)
@@ -145,7 +149,7 @@ export function orientationSparklineSvg(points = [], options = {}) {
     const height = options.height ?? 72;
     const pad = { top: 10, right: 12, bottom: 18, left: 28 };
     if (!points.length) {
-        return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Orientation net by move"></svg>`;
+        return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Orientation net by finalized action"></svg>`;
     }
     const values = points.map((p) => Number(p.net) || 0);
     let min = Math.min(0, ...values);
@@ -157,11 +161,11 @@ export function orientationSparklineSvg(points = [], options = {}) {
     const x = scaleLinear(0, Math.max(points.length - 1, 1), pad.left, width - pad.right);
     const y = scaleLinear(min, max, height - pad.bottom, pad.top);
     const zeroY = y(0);
-    const labels = points.map((p, i) => (
-        `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">M${escapeHtml(String(p.move))}</text>`
+    const labels = points.map((_p, i) => (
+        `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">${actionSequenceLabel(i)}</text>`
     )).join('');
     return `
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Orientation net by move">
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Orientation net by finalized action">
             <line x1="${pad.left}" y1="${zeroY}" x2="${width - pad.right}" y2="${zeroY}" stroke="var(--color-border)" stroke-width="1"/>
             <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-navy)" stroke-width="2"/>
             ${values.map((value, i) => `<circle cx="${x(i)}" cy="${y(value)}" r="3" fill="var(--color-gold)"/>`).join('')}
@@ -203,16 +207,14 @@ export function glaslStepChartSvg(points = [], options = {}) {
         if (team === 'green') return 'var(--color-team-green)';
         return 'var(--color-team-industry)';
     };
-    const moveLabels = points.map((p, i) => (
-        i === 0 || p.move !== points[i - 1].move
-            ? `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">M${escapeHtml(String(p.move ?? '—'))}</text>`
-            : ''
+    const actionLabels = points.map((_p, i) => (
+        `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">${actionSequenceLabel(i)}</text>`
     )).join('');
     return `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Glasl stage across finalized actions">
             <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2"/>
             ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.stageAfter)}" r="3.5" fill="${teamColor(p.team)}"/>`).join('')}
-            ${moveLabels}
+            ${actionLabels}
         </svg>
     `;
 }
