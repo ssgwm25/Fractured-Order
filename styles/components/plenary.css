@@ -372,12 +372,24 @@ body.plenary-page {
     font-size: 0.8rem;
 }
 
+.plenary-dip-layout .plenary-team-row {
+    font-size: 0.76rem;
+}
+
+.plenary-dip-layout .plenary-team-row > span:first-child {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    min-width: 0;
+}
+
 .plenary-team-swatch {
     display: inline-block;
     width: 8px;
     height: 8px;
     border-radius: 99px;
     margin-right: 6px;
+    flex-shrink: 0;
 }
 
 .plenary-team-row[data-team="blue"] .plenary-team-swatch { background: var(--color-team-blue); }
