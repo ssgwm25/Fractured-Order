@@ -4,6 +4,7 @@
 
 import { escapeHtml } from '../pli/pliShared.js';
 import {
+    diplomacyTrajectorySvg,
     glaslLadderHtml,
     glaslStepChartSvg,
     macroCardsHtml,
@@ -32,7 +33,8 @@ function emptyStateHtml() {
 
 function teamActivityHtml(model) {
     const teams = model.teams || [];
-    const bands = model.diplomacyBands || [];
+    const diplomacy = model.diplomacy || {};
+    const bands = diplomacy.bands || [];
     const rows = teams.map((team) => `
         <div class="plenary-team-row" data-team="${escapeHtml(team.id)}">
             <span><span class="plenary-team-swatch"></span>${escapeHtml(team.label)}</span>
@@ -40,10 +42,15 @@ function teamActivityHtml(model) {
             <span class="plenary-team-count">${escapeHtml(String(team.count))}</span>
         </div>
     `).join('');
-    const chips = bands.length
-        ? bands.map((entry) => `
-            <span class="plenary-band-chip">${escapeHtml(entry.band)} <strong>${escapeHtml(String(entry.count))}</strong></span>
-        `).join('')
+    const bandRows = bands.map((band) => `
+        <div class="plenary-team-row" data-band="${escapeHtml(band.key)}">
+            <span><span class="plenary-team-swatch"></span>${escapeHtml(band.label)}</span>
+            <div class="plenary-team-bar" aria-hidden="true"><span style="width:${Math.round((band.share || 0) * 100)}%"></span></div>
+            <span class="plenary-team-count">${escapeHtml(String(band.count))}</span>
+        </div>
+    `).join('');
+    const trajectory = diplomacy.hasData
+        ? diplomacyTrajectorySvg(diplomacy.points)
         : '<p class="plenary-panel-note">No Diplomacy Index bands in this scope.</p>';
     return `
         <article class="plenary-panel">
@@ -52,8 +59,14 @@ function teamActivityHtml(model) {
             </div>
             <div class="plenary-panel-body">
                 <div class="plenary-team-list">${rows}</div>
-                <h3 class="plenary-panel-title">Diplomacy Index</h3>
-                <div class="plenary-bands">${chips}</div>
+                <div class="plenary-panel-head">
+                    <h3 class="plenary-panel-title">Diplomacy Index</h3>
+                    <span class="plenary-panel-note">Pressure → Relationships</span>
+                </div>
+                <div class="plenary-dip-layout">
+                    <div class="plenary-team-list">${bandRows}</div>
+                    <div class="plenary-dip-chart">${trajectory}</div>
+                </div>
             </div>
         </article>
     `;

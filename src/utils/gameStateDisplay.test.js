@@ -125,4 +125,38 @@ describe('game state display helpers', () => {
             'Current exercise state: Strategic Orientation, Pre-Move 1.'
         );
     });
+
+    it('uses Move / Phase labels on the projector, never Pre-Move 1', () => {
+        const incomplete = getHeaderGameStateDisplay({
+            move: 1,
+            phase: 1
+        }, [
+            buildStrategicOrientationAction('blue')
+        ], { projector: true });
+
+        expect(incomplete).toMatchObject({
+            moveLabel: 'Move',
+            moveValue: '1',
+            phaseLabel: 'Phase',
+            phaseValue: 'Strategic Orientation'
+        });
+        expect(incomplete.phaseValue).not.toBe('Pre-Move 1');
+
+        const complete = getHeaderGameStateDisplay({
+            move: 1,
+            phase: 1
+        }, [
+            buildStrategicOrientationAction('blue'),
+            buildStrategicOrientationAction('green'),
+            buildStrategicOrientationAction('red'),
+            buildStrategicOrientationAction('industry')
+        ], { projector: true });
+
+        expect(complete).toMatchObject({
+            moveLabel: 'Move',
+            moveValue: '1',
+            phaseLabel: 'Phase',
+            phaseValue: 'Internal Deliberation'
+        });
+    });
 });

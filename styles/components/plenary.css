@@ -385,6 +385,30 @@ body.plenary-page {
 .plenary-team-row[data-team="green"] .plenary-team-swatch { background: var(--color-team-green); }
 .plenary-team-row[data-team="industry"] .plenary-team-swatch { background: var(--color-team-industry); }
 
+.plenary-team-row[data-band="Pressure"] .plenary-team-swatch,
+.plenary-team-row[data-band="Pressure"] .plenary-team-bar > span { background: var(--color-alert); }
+.plenary-team-row[data-band="Positioning"] .plenary-team-swatch,
+.plenary-team-row[data-band="Positioning"] .plenary-team-bar > span { background: var(--color-navy); }
+.plenary-team-row[data-band="Relationship-Building"] .plenary-team-swatch,
+.plenary-team-row[data-band="Relationship-Building"] .plenary-team-bar > span { background: var(--color-success); }
+
+.plenary-dip-layout {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 6px;
+}
+
+.plenary-dip-chart {
+    min-height: 0;
+}
+
+.plenary-dip-chart svg {
+    width: 100%;
+    height: 100%;
+}
+
 .plenary-team-bar {
     height: 8px;
     border-radius: 99px;

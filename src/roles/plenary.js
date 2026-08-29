@@ -178,7 +178,8 @@ export class PlenaryController {
 
     syncGameState() {
         const display = getHeaderGameStateDisplay(this.gameState, this.actions, {
-            fallbackToMoveOne: Boolean(this.getSessionId())
+            fallbackToMoveOne: Boolean(this.getSessionId()),
+            projector: true
         });
         applyHeaderGameStateDisplay(display);
     }

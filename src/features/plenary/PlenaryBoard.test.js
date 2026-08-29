@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createPlenaryBoard } from './PlenaryBoard.js';
-import { glaslStepChartSvg, indicatorLineChartSvg, orientationSparklineSvg } from './plenaryCharts.js';
+import {
+    diplomacyTrajectorySvg,
+    glaslStepChartSvg,
+    indicatorLineChartSvg,
+    orientationSparklineSvg
+} from './plenaryCharts.js';
 
 describe('PlenaryBoard', () => {
     it('renders the connect state with a landing-page link', () => {
@@ -51,7 +56,19 @@ describe('PlenaryBoard', () => {
                     { id: 'green', label: 'Green', count: 0, share: 0 },
                     { id: 'industry', label: 'Industry', count: 0, share: 0 }
                 ],
-                diplomacyBands: [{ band: 'Pressure', count: 1 }]
+                diplomacyBands: [{ band: 'Pressure', count: 1 }],
+                diplomacy: {
+                    hasData: true,
+                    bands: [
+                        { key: 'Pressure', label: 'Pressure', count: 2, share: 1 },
+                        { key: 'Positioning', label: 'Positioning', count: 0, share: 0 },
+                        { key: 'Relationship-Building', label: 'Relationships', count: 1, share: 0.5 }
+                    ],
+                    points: [
+                        { band: 'Pressure', team: 'blue', move: 1 },
+                        { band: 'Relationship-Building', team: 'green', move: 2 }
+                    ]
+                }
             }
         });
         expect(container.innerHTML).toContain('Real GDP growth');
@@ -61,6 +78,8 @@ describe('PlenaryBoard', () => {
         expect(container.innerHTML).not.toContain('plenary-ticker');
         expect(container.innerHTML).toContain('data-team="industry"');
         expect(container.innerHTML).toContain('>A1</text>');
+        expect(container.innerHTML).toContain('data-band="Pressure"');
+        expect(container.innerHTML).toContain('Pressure → Relationships');
     });
 });
 
@@ -83,6 +102,16 @@ describe('plenaryCharts', () => {
         expect(glasl).toContain('>A1</text>');
         expect(glasl).toContain('>A2</text>');
         expect(glasl).not.toContain('>M1</text>');
+
+        const diplomacy = diplomacyTrajectorySvg([
+            { band: 'Pressure', team: 'blue' },
+            { band: 'Positioning', team: 'red' },
+            { band: 'Relationship-Building', team: 'green' }
+        ]);
+        expect(diplomacy).toContain('>A1</text>');
+        expect(diplomacy).toContain('>A3</text>');
+        expect(diplomacy).toContain('Pressure');
+        expect(diplomacy).toContain('Relate');
     });
 
     it('emits an accessible SVG for a baseline vs post-action series', () => {

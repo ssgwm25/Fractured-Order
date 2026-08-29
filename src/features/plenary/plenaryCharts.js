@@ -219,6 +219,52 @@ export function glaslStepChartSvg(points = [], options = {}) {
     `;
 }
 
+export function diplomacyTrajectorySvg(points = [], options = {}) {
+    const width = options.width ?? 420;
+    const height = options.height ?? 88;
+    const pad = { top: 8, right: 10, bottom: 18, left: 58 };
+    const ranks = {
+        Pressure: 2,
+        Positioning: 1,
+        'Relationship-Building': 0
+    };
+    const axis = [
+        { rank: 2, label: 'Pressure' },
+        { rank: 1, label: 'Position' },
+        { rank: 0, label: 'Relate' }
+    ];
+    if (!points.length) {
+        return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Diplomacy Index trajectory"></svg>`;
+    }
+    const n = points.length;
+    const x = scaleLinear(0, Math.max(n - 1, 1), pad.left, width - pad.right);
+    const y = scaleLinear(0, 2, height - pad.bottom, pad.top);
+    const values = points.map((p) => ranks[p.band] ?? 1);
+    const teamColor = (team) => {
+        if (team === 'blue') return 'var(--color-team-blue)';
+        if (team === 'red') return 'var(--color-team-red)';
+        if (team === 'green') return 'var(--color-team-green)';
+        return 'var(--color-team-industry)';
+    };
+    const axisLabels = axis.map((entry) => (
+        `<text x="${pad.left - 6}" y="${y(entry.rank) + 3}" font-size="8" text-anchor="end" fill="var(--color-text-muted)">${escapeHtml(entry.label)}</text>`
+    )).join('');
+    const actionLabels = points.map((_p, i) => (
+        `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">${actionSequenceLabel(i)}</text>`
+    )).join('');
+    return `
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Diplomacy Index band across finalized actions">
+            ${axis.map((entry) => (
+                `<line x1="${pad.left}" y1="${y(entry.rank)}" x2="${width - pad.right}" y2="${y(entry.rank)}" stroke="var(--color-border)" stroke-width="1"/>`
+            )).join('')}
+            ${axisLabels}
+            <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2"/>
+            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(values[i])}" r="3.5" fill="${teamColor(p.team)}"/>`).join('')}
+            ${actionLabels}
+        </svg>
+    `;
+}
+
 export function macroCardsHtml(trend) {
     const periods = trend?.quarters || trend?.years || [];
     const indicators = trend?.indicators || {};

@@ -9,6 +9,7 @@ import {
     buildPlenaryModel,
     buildTickerItems,
     collectPlenaryReportRows,
+    rollupDiplomacy,
     rollupDiplomacyBands,
     rollupGlasl,
     rollupNationalInterest,
@@ -173,6 +174,40 @@ describe('plenaryData', () => {
         const ticker = buildTickerItems(rows);
         expect(ticker[0].actionId).toBe('a2');
         expect(ticker[0].glaslDelta).toBe(1);
+    });
+
+    it('rolls Diplomacy Index as three codebook bands plus an action trajectory', () => {
+        const rows = collectPlenaryReportRows([
+            makeRow({
+                id: 'adj-dip-1',
+                actionId: 'dip-1',
+                team: 'blue',
+                createdAt: '2026-08-01T00:00:00.000Z',
+                seatReviews: niSeat,
+                tracks: niTracks({ band: 'Pressure' })
+            }),
+            makeRow({
+                id: 'adj-dip-2',
+                actionId: 'dip-2',
+                team: 'green',
+                createdAt: '2026-08-02T00:00:00.000Z',
+                seatReviews: niSeat,
+                tracks: niTracks({ band: 'Relationship-Building' })
+            })
+        ]);
+        const diplomacy = rollupDiplomacy(rows);
+        expect(diplomacy.bands.map((band) => band.key)).toEqual([
+            'Pressure',
+            'Positioning',
+            'Relationship-Building'
+        ]);
+        expect(diplomacy.bands.find((band) => band.key === 'Pressure').count).toBe(1);
+        expect(diplomacy.bands.find((band) => band.key === 'Positioning').count).toBe(0);
+        expect(diplomacy.points.map((point) => point.band)).toEqual([
+            'Pressure',
+            'Relationship-Building'
+        ]);
+        expect(diplomacy.hasData).toBe(true);
     });
 
     it('plots one orientation sparkline point per finalized NI action', () => {

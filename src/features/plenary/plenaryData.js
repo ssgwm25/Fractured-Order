@@ -23,6 +23,12 @@ export const DEFAULT_GLASL_STAGE = 4;
 export const GLASL_OPERATING_MIN = 4;
 export const GLASL_OPERATING_MAX = 7;
 
+export const DIPLOMACY_BANDS = Object.freeze([
+    { key: 'Pressure', short: 'Pressure' },
+    { key: 'Positioning', short: 'Positioning' },
+    { key: 'Relationship-Building', short: 'Relationships' }
+]);
+
 export const MACRO_INDICATORS = Object.freeze([
     { key: 'real_gdp_growth', label: 'Real GDP growth' },
     { key: 'pce_inflation', label: 'PCE inflation' },
@@ -213,17 +219,47 @@ export function rollupTeamActivity(rows = []) {
 }
 
 export function rollupDiplomacyBands(rows = []) {
-    const counts = new Map();
+    return rollupDiplomacy(rows).bands
+        .filter((entry) => entry.count > 0)
+        .map((entry) => ({ band: entry.key, count: entry.count }));
+}
+
+function normalizeDiplomacyBand(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) return null;
+    if (raw.includes('relationship')) return 'Relationship-Building';
+    if (raw.includes('position')) return 'Positioning';
+    if (raw.includes('pressure')) return 'Pressure';
+    return null;
+}
+
+export function rollupDiplomacy(rows = []) {
+    const counts = Object.fromEntries(DIPLOMACY_BANDS.map((band) => [band.key, 0]));
+    const points = [];
     for (const row of rows) {
         if (!row?.finalized?.diplomacy_information) continue;
-        const band = row.tracks?.diplomacy?.band;
+        const band = normalizeDiplomacyBand(row.tracks?.diplomacy?.band);
         if (!band) continue;
-        const key = String(band);
-        counts.set(key, (counts.get(key) || 0) + 1);
+        counts[band] += 1;
+        points.push({
+            band,
+            team: String(row.team || 'unknown').toLowerCase(),
+            move: asNumber(row.move),
+            createdAt: row.createdAt || ''
+        });
     }
-    return [...counts.entries()]
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([band, count]) => ({ band, count }));
+    points.sort((a, b) => sortByCreatedAt(a, b, 1));
+    const max = Math.max(1, ...Object.values(counts));
+    return {
+        bands: DIPLOMACY_BANDS.map((band) => ({
+            key: band.key,
+            label: band.short,
+            count: counts[band.key],
+            share: counts[band.key] / max
+        })),
+        points: points.map(({ band, team, move }) => ({ band, team, move })),
+        hasData: points.length > 0
+    };
 }
 
 export function buildTickerItems(rows = []) {
@@ -289,6 +325,7 @@ export function buildPlenaryModel({
         ni: rollupNationalInterest(scoped),
         glasl: rollupGlasl(scoped),
         teams: rollupTeamActivity(scoped),
+        diplomacy: rollupDiplomacy(scoped),
         diplomacyBands: rollupDiplomacyBands(scoped),
         ticker: buildTickerItems(scoped)
     };

@@ -15,7 +15,8 @@ export function isStrategicOrientationHeaderState(gameState = null, actions = []
 }
 
 export function getHeaderGameStateDisplay(gameState = null, actions = [], {
-    fallbackToMoveOne = true
+    fallbackToMoveOne = true,
+    projector = false
 } = {}) {
     if (!gameState && !fallbackToMoveOne) {
         return {
@@ -31,8 +32,23 @@ export function getHeaderGameStateDisplay(gameState = null, actions = [], {
     const resolvedState = gameState || { move: 1, phase: 1 };
     const move = resolvedState.move ?? 1;
     const phase = resolvedState.phase ?? 1;
+    const isStrategicOrientation = isStrategicOrientationHeaderState(resolvedState, actions);
 
-    if (isStrategicOrientationHeaderState(resolvedState, actions)) {
+    if (projector) {
+        const phaseValue = isStrategicOrientation
+            ? 'Strategic Orientation'
+            : getPhaseLabel(phase);
+        return {
+            isStrategicOrientation,
+            moveLabel: 'Move',
+            moveValue: String(move),
+            phaseLabel: 'Phase',
+            phaseValue,
+            ariaLabel: `Current exercise state: Move ${move}, ${phaseValue}.`
+        };
+    }
+
+    if (isStrategicOrientation) {
         return {
             isStrategicOrientation: true,
             moveLabel: 'State',
