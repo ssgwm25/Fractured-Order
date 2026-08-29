@@ -86,7 +86,6 @@ function boardHtml(model) {
             <article class="plenary-panel">
                 <div class="plenary-panel-head">
                     <h3 class="plenary-panel-title">${escapeHtml(ni.title || 'National Interest')}</h3>
-                    <span class="plenary-panel-note">Cumulative domain deltas</span>
                 </div>
                 <div class="plenary-panel-body">
                     ${ni.hasData ? `
@@ -100,7 +99,6 @@ function boardHtml(model) {
             <article class="plenary-panel">
                 <div class="plenary-panel-head">
                     <h3 class="plenary-panel-title">Escalation (Glasl)</h3>
-                    <span class="plenary-panel-note">Start ${escapeHtml(String(glasl.startStage || 4))} · range 4–7</span>
                 </div>
                 <div class="plenary-panel-body">
                     <div class="plenary-glasl-layout">
