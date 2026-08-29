@@ -11,20 +11,6 @@ import {
     orientationSparklineSvg
 } from './plenaryCharts.js';
 
-function formatSigned(value) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return '—';
-    return n > 0 ? `+${n}` : String(n);
-}
-
-function tickerItemHtml(item) {
-    const team = escapeHtml(item.team);
-    const move = item.move != null ? `M${escapeHtml(String(item.move))}` : 'M—';
-    const glasl = item.glaslDelta == null ? '' : ` · Glasl ${escapeHtml(formatSigned(item.glaslDelta))}`;
-    const ni = item.niNet == null ? '' : ` · NI ${escapeHtml(formatSigned(item.niNet))}`;
-    return `<span class="plenary-ticker-item"><span class="plenary-ticker-team">${team}</span> · ${move} · <strong>${escapeHtml(item.title || 'Action')}</strong>${glasl}${ni}</span>`;
-}
-
 function connectStateHtml() {
     return `
         <div class="plenary-connect">
@@ -70,20 +56,6 @@ function teamActivityHtml(model) {
                 <div class="plenary-bands">${chips}</div>
             </div>
         </article>
-    `;
-}
-
-function tickerHtml(items = []) {
-    if (!items.length) {
-        return `<div class="plenary-ticker"><div class="plenary-ticker-track is-static"><span class="plenary-ticker-item">No finalized actions in this scope.</span></div></div>`;
-    }
-    const sequence = items.map(tickerItemHtml).join('');
-    const duplicate = items.length > 2 ? sequence : '';
-    const staticClass = items.length > 2 ? '' : ' is-static';
-    return `
-        <div class="plenary-ticker" aria-label="Latest finalized actions">
-            <div class="plenary-ticker-track${staticClass}">${sequence}${duplicate}</div>
-        </div>
     `;
 }
 
@@ -134,7 +106,6 @@ function boardHtml(model) {
             </article>
             ${teamActivityHtml(model)}
         </section>
-        ${tickerHtml(model.ticker)}
     `;
 }
 

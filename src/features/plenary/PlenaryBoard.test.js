@@ -11,7 +11,7 @@ describe('PlenaryBoard', () => {
         expect(container.innerHTML).toContain('href="./index.html"');
     });
 
-    it('renders macro charts, NI, Glasl, teams, and ticker from a model', () => {
+    it('renders macro charts, NI, Glasl, and teams from a model', () => {
         const container = { innerHTML: '' };
         const board = createPlenaryBoard(container);
         board.render({
@@ -51,15 +51,14 @@ describe('PlenaryBoard', () => {
                     { id: 'green', label: 'Green', count: 0, share: 0 },
                     { id: 'industry', label: 'Industry', count: 0, share: 0 }
                 ],
-                diplomacyBands: [{ band: 'Pressure', count: 1 }],
-                ticker: [{ team: 'blue', move: 1, title: 'Stabilize', glaslDelta: 1, niNet: 1 }]
+                diplomacyBands: [{ band: 'Pressure', count: 1 }]
             }
         });
         expect(container.innerHTML).toContain('Real GDP growth');
         expect(container.innerHTML).toContain('National Interest');
         expect(container.innerHTML).toContain('Escalation (Glasl)');
         expect(container.innerHTML).toContain('Diplomacy Index');
-        expect(container.innerHTML).toContain('Stabilize');
+        expect(container.innerHTML).not.toContain('plenary-ticker');
         expect(container.innerHTML).toContain('data-team="industry"');
     });
 });

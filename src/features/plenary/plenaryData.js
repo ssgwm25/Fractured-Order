@@ -111,7 +111,7 @@ export function rollupNationalInterest(rows = []) {
         primary: false
     }));
     const byKey = Object.fromEntries(domains.map((domain) => [domain.key, domain]));
-    const byMove = new Map();
+    const series = [];
 
     for (const row of rows) {
         if (!row?.finalized?.national_interest_escalation) continue;
@@ -121,7 +121,11 @@ export function rollupNationalInterest(rows = []) {
         const net = headlineNiNet(domainMap, ni);
         const move = asNumber(row.move);
         if (move != null && net != null) {
-            byMove.set(move, (byMove.get(move) || 0) + net);
+            series.push({
+                move,
+                net: Math.round(net * 100) / 100,
+                createdAt: row.createdAt || ''
+            });
         }
         const primaries = new Set(
             ni.orientation_assessment?.primary_domains || ni.primary_domains || []
@@ -141,9 +145,14 @@ export function rollupNationalInterest(rows = []) {
             ...domain,
             delta: Math.round(domain.delta * 100) / 100
         })),
-        orientationByMove: [...byMove.entries()]
-            .sort((a, b) => a[0] - b[0])
-            .map(([move, net]) => ({ move, net: Math.round(net * 100) / 100 })),
+        orientationByMove: series
+            .sort((a, b) => {
+                const left = Date.parse(a.createdAt) || 0;
+                const right = Date.parse(b.createdAt) || 0;
+                if (left !== right) return left - right;
+                return a.move - b.move;
+            })
+            .map(({ move, net }) => ({ move, net })),
         hasData: domains.some((domain) => domain.count > 0)
     };
 }

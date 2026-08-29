@@ -175,6 +175,36 @@ describe('plenaryData', () => {
         expect(ticker[0].glaslDelta).toBe(1);
     });
 
+    it('plots one orientation sparkline point per finalized NI action', () => {
+        const rows = collectPlenaryReportRows([
+            makeRow({
+                id: 'adj-m2-a',
+                actionId: 'a-m2-a',
+                team: 'red',
+                move: 2,
+                createdAt: '2026-08-02T00:00:00.000Z',
+                seatReviews: niSeat,
+                tracks: niTracks({ net: 1, domains: { 'NI-2': { delta: 1 } } })
+            }),
+            makeRow({
+                id: 'adj-m2-b',
+                actionId: 'a-m2-b',
+                team: 'green',
+                move: 2,
+                createdAt: '2026-08-03T00:00:00.000Z',
+                seatReviews: niSeat,
+                tracks: niTracks({
+                    net: -2,
+                    domains: { 'NI-3': { delta: -1 }, 'NI-4': { delta: -1 } }
+                })
+            })
+        ]);
+        expect(rollupNationalInterest(rows).orientationByMove).toEqual([
+            { move: 2, net: 1 },
+            { move: 2, net: -2 }
+        ]);
+    });
+
     it('defaults Glasl to stage 4 when no finalized escalation exists', () => {
         const glasl = rollupGlasl(collectFinalizedPliReportRows([
             makeRow({

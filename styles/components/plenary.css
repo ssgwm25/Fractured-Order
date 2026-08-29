@@ -168,7 +168,7 @@ body.plenary-page {
 .plenary-board {
     min-height: 0;
     display: grid;
-    grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr);
     gap: 10px;
 }
 
@@ -427,48 +427,6 @@ body.plenary-page {
 
 .plenary-band-chip strong {
     font-family: var(--font-mono);
-}
-
-.plenary-ticker {
-    overflow: hidden;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface);
-    min-height: 36px;
-    display: flex;
-    align-items: center;
-}
-
-.plenary-ticker-track {
-    display: flex;
-    gap: 28px;
-    width: max-content;
-    white-space: nowrap;
-    animation: plenary-ticker 42s linear infinite;
-    padding: 0 16px;
-}
-
-.plenary-ticker-track.is-static {
-    animation: none;
-}
-
-.plenary-ticker-item {
-    font-size: 0.8rem;
-    color: var(--color-text-secondary);
-}
-
-.plenary-ticker-item strong {
-    color: var(--color-text);
-}
-
-.plenary-ticker-team {
-    font-weight: 700;
-    text-transform: capitalize;
-}
-
-@keyframes plenary-ticker {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
 }
 
 @media (max-height: 700px) {
