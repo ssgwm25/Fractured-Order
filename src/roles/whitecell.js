@@ -125,6 +125,7 @@ import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.j
 import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js';
 import { createPliReportPanel } from '../features/pli/PliReportPanel.js';
 import { createPliSmeEfficacyPanel } from '../features/pli/PliSmeEfficacyPanel.js';
+import { bindPlenaryBoardOpener } from '../features/plenary/plenaryHandoff.js';
 import {
     SEATS as PLI_SEATS,
     PLI_VIEW_MODES,
@@ -408,6 +409,7 @@ export const WHITE_CELL_DOM_IDS = [
     'tribeStreetJournalList',
     'newVerbaAiUpdateBtn',
     'verbaAiList',
+    'openPlenaryBoardBtn',
     'timelineTeamFilter',
     'timelineRoleFilter',
     'timelineMoveFilter',
@@ -1674,7 +1676,14 @@ export class WhiteCellController {
         );
     }
 
+    bindPlenaryBoardLink() {
+        const button = document.getElementById('openPlenaryBoardBtn');
+        if (!button) return;
+        bindPlenaryBoardOpener(button);
+    }
+
     bindEventListeners() {
+        this.bindPlenaryBoardLink();
         const startTimerBtn = document.getElementById('startTimerBtn');
         const pauseTimerBtn = document.getElementById('pauseTimerBtn');
         const resetTimerBtn = document.getElementById('resetTimerBtn');

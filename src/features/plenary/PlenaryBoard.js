@@ -29,7 +29,7 @@ function connectStateHtml() {
     return `
         <div class="plenary-connect">
             <h2>Connect a session to this browser</h2>
-            <p>Sign in as White Cell or join a team seat from the landing page, then reopen this board. Only SME-finalized PLI outputs are projected.</p>
+            <p>Operator login lives in the White Cell tab. Use PLI Reports → Open Plenary Board so this projector tab receives the session. Only SME-finalized PLI outputs are projected.</p>
             <a class="btn btn-primary" href="./index.html">Open landing page</a>
         </div>
     `;
