@@ -5,7 +5,6 @@
 import { sessionStore } from '../stores/session.js';
 import { database } from '../services/database.js';
 import { createLogger } from '../utils/logger.js';
-import { applyHeaderGameStateDisplay, getHeaderGameStateDisplay } from '../utils/gameStateDisplay.js';
 import { createPlenaryBoard } from '../features/plenary/PlenaryBoard.js';
 import {
     PLI_REPORT_SCOPES,
@@ -143,7 +142,6 @@ export class PlenaryController {
             this.actions = actions || [];
             this.gameState = gameState;
             this.syncScopeOptions();
-            this.syncGameState();
             this.renderFromCache();
         } catch (error) {
             logger.error('Failed to refresh plenary board', error);
@@ -174,14 +172,6 @@ export class PlenaryController {
             select.value = PLI_REPORT_SCOPES.SIMULATION;
             this.selection = { scope: PLI_REPORT_SCOPES.SIMULATION, move: null };
         }
-    }
-
-    syncGameState() {
-        const display = getHeaderGameStateDisplay(this.gameState, this.actions, {
-            fallbackToMoveOne: Boolean(this.getSessionId()),
-            projector: true
-        });
-        applyHeaderGameStateDisplay(display);
     }
 
     renderFromCache() {

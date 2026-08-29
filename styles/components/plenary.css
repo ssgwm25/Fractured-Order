@@ -28,9 +28,9 @@ body.plenary-page {
 }
 
 .plenary-header {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 16px;
     min-height: 52px;
     padding: 0 4px;
@@ -72,56 +72,6 @@ body.plenary-page {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--color-gold);
-}
-
-.plenary-session {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    min-width: 0;
-    font-size: 0.92rem;
-    color: var(--color-text-secondary);
-}
-
-.plenary-session #sessionName {
-    font-weight: 600;
-    color: var(--color-text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.plenary-session-sep {
-    color: var(--color-text-muted);
-}
-
-.plenary-header .header-game-state {
-    display: inline-flex;
-    gap: 12px;
-    position: static;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-    border: 0;
-}
-
-.plenary-header .game-state-value {
-    font-size: 0.95rem;
-}
-
-.plenary-header .game-state-item {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 6px;
-    padding: 0 10px;
-}
-
-.plenary-header .game-state-label {
-    font-size: 0.68rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
 }
 
 .plenary-controls {
@@ -509,7 +459,7 @@ body.plenary-page {
 
 @media (max-width: 1100px) {
     .plenary-header {
-        grid-template-columns: 1fr;
+        flex-wrap: wrap;
     }
 
     .plenary-macro {
