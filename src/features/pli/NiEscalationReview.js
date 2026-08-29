@@ -38,7 +38,7 @@ import {
 const logger = createLogger('NiEscalationReview');
 const SEAT = SEATS.NATIONAL_INTEREST_ESCALATION;
 
-const NI_DOMAIN_LABELS = {
+export const NI_DOMAIN_LABELS = {
     'NI-1': 'Homeland & Strategic Access',
     'NI-2': 'Economic Prosperity & Tech Leadership',
     'NI-3': 'Alliance / Partner Credibility',
@@ -47,7 +47,7 @@ const NI_DOMAIN_LABELS = {
     'NI-6': 'Domestic Political Sustainability'
 };
 
-const GLASL_LABELS = {
+export const GLASL_LABELS = {
     1: 'Hardening',
     2: 'Debate & polemic',
     3: 'Actions, not words',

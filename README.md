@@ -43,6 +43,8 @@ The built-in teams are Blue, Red, Green, and Industry. Do not expand team geogra
 |-- index.html                 Landing and join flow
 |-- master.html                Game Master operator console
 |-- whitecell.html             White Cell operator interface
+|-- plenary.html               Plenary projector board for finalized PLI outputs
+|-- sme.html                   SME review consoles
 |-- pli/                       Petrihos Lever Index (multi-track adjudication + CI)
 |-- teams/
 |   |-- blue/
