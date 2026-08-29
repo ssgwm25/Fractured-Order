@@ -32,46 +32,23 @@ body.plenary-page {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    min-height: 52px;
+    min-height: 60px;
     padding: 0 4px;
 }
 
 .plenary-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    min-width: 0;
 }
 
-.plenary-brand-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: var(--color-navy);
-    color: #fff;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 0.85rem;
-    letter-spacing: 0.04em;
-}
-
-.plenary-brand-name {
-    margin: 0;
-    font-family: var(--font-serif);
-    font-size: 1.05rem;
-    font-weight: 600;
-    line-height: 1.15;
-    color: var(--color-text);
-}
-
-.plenary-brand-kind {
-    margin: 0;
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-gold);
+.plenary-brand-lockup {
+    display: block;
+    height: 52px;
+    width: auto;
+    max-width: min(48vw, 420px);
+    object-fit: contain;
+    object-position: left center;
 }
 
 .plenary-controls {
