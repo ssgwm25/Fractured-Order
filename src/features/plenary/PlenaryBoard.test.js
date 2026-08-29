@@ -86,14 +86,17 @@ describe('PlenaryBoard', () => {
 describe('plenaryCharts', () => {
     it('labels action-sequence charts A1, A2 rather than by move', () => {
         const spark = orientationSparklineSvg([
-            { move: 1, net: 1 },
-            { move: 1, net: -1 },
-            { move: 2, net: 2 }
+            { move: 1, net: 1, team: 'blue' },
+            { move: 1, net: -1, team: 'red' },
+            { move: 2, net: 2, team: 'green' }
         ]);
         expect(spark).toContain('>A1</text>');
         expect(spark).toContain('>A2</text>');
         expect(spark).toContain('>A3</text>');
         expect(spark).not.toContain('>M1</text>');
+        expect(spark).toContain('var(--color-team-blue)');
+        expect(spark).toContain('var(--color-team-red)');
+        expect(spark).toContain('var(--color-team-green)');
 
         const glasl = glaslStepChartSvg([
             { move: 1, team: 'blue', stageAfter: 5 },

@@ -130,6 +130,7 @@ export function rollupNationalInterest(rows = []) {
             series.push({
                 move,
                 net: Math.round(net * 100) / 100,
+                team: String(row.team || 'unknown').toLowerCase(),
                 createdAt: row.createdAt || ''
             });
         }
@@ -158,7 +159,7 @@ export function rollupNationalInterest(rows = []) {
                 if (left !== right) return left - right;
                 return a.move - b.move;
             })
-            .map(({ move, net }) => ({ move, net })),
+            .map(({ move, net, team }) => ({ move, net, team })),
         hasData: domains.some((domain) => domain.count > 0)
     };
 }

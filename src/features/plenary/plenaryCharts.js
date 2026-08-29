@@ -41,6 +41,13 @@ function scaleLinear(min, max, start, end) {
     return (value) => start + ((value - min) / span) * (end - start);
 }
 
+function teamFill(team) {
+    if (team === 'blue') return 'var(--color-team-blue)';
+    if (team === 'red') return 'var(--color-team-red)';
+    if (team === 'green') return 'var(--color-team-green)';
+    return 'var(--color-team-industry)';
+}
+
 /**
  * @param {string[]} periods
  * @param {Object} indicator
@@ -185,8 +192,8 @@ export function orientationSparklineSvg(points = [], options = {}) {
     return `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Orientation net by finalized action">
             <line x1="${pad.left}" y1="${zeroY}" x2="${width - pad.right}" y2="${zeroY}" stroke="var(--color-border)" stroke-width="1"/>
-            <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-navy)" stroke-width="2"/>
-            ${values.map((value, i) => `<circle cx="${x(i)}" cy="${y(value)}" r="3" fill="var(--color-gold)"/>`).join('')}
+            <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2"/>
+            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(Number(p.net) || 0)}" r="3.5" fill="${teamFill(p.team)}"/>`).join('')}
             ${labels}
         </svg>
     `;
@@ -219,19 +226,13 @@ export function glaslStepChartSvg(points = [], options = {}) {
     const x = scaleLinear(0, Math.max(n - 1, 1), pad.left, width - pad.right);
     const y = scaleLinear(1, 9, height - pad.bottom, pad.top);
     const values = points.map((p) => p.stageAfter);
-    const teamColor = (team) => {
-        if (team === 'blue') return 'var(--color-team-blue)';
-        if (team === 'red') return 'var(--color-team-red)';
-        if (team === 'green') return 'var(--color-team-green)';
-        return 'var(--color-team-industry)';
-    };
     const actionLabels = points.map((_p, i) => (
         `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">${actionSequenceLabel(i)}</text>`
     )).join('');
     return `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Glasl stage across finalized actions">
             <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2"/>
-            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.stageAfter)}" r="3.5" fill="${teamColor(p.team)}"/>`).join('')}
+            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.stageAfter)}" r="3.5" fill="${teamFill(p.team)}"/>`).join('')}
             ${actionLabels}
         </svg>
     `;
@@ -258,12 +259,6 @@ export function diplomacyTrajectorySvg(points = [], options = {}) {
     const x = scaleLinear(0, Math.max(n - 1, 1), pad.left, width - pad.right);
     const y = scaleLinear(0, 2, height - pad.bottom, pad.top);
     const values = points.map((p) => ranks[p.band] ?? 1);
-    const teamColor = (team) => {
-        if (team === 'blue') return 'var(--color-team-blue)';
-        if (team === 'red') return 'var(--color-team-red)';
-        if (team === 'green') return 'var(--color-team-green)';
-        return 'var(--color-team-industry)';
-    };
     const axisLabels = axis.map((entry) => (
         `<text x="${pad.left - 6}" y="${y(entry.rank) + 3}" font-size="8" text-anchor="end" fill="var(--color-text-muted)">${escapeHtml(entry.label)}</text>`
     )).join('');
@@ -277,7 +272,7 @@ export function diplomacyTrajectorySvg(points = [], options = {}) {
             )).join('')}
             ${axisLabels}
             <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2"/>
-            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(values[i])}" r="3.5" fill="${teamColor(p.team)}"/>`).join('')}
+            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(values[i])}" r="3.5" fill="${teamFill(p.team)}"/>`).join('')}
             ${actionLabels}
         </svg>
     `;

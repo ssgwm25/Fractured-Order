@@ -155,8 +155,8 @@ describe('plenaryData', () => {
         expect(ni.domains.find((d) => d.key === 'NI-1').delta).toBe(0);
         expect(ni.domains.find((d) => d.key === 'NI-1').primary).toBe(true);
         expect(ni.orientationByMove).toEqual([
-            { move: 1, net: 1 },
-            { move: 2, net: -2 }
+            { move: 1, net: 1, team: 'blue' },
+            { move: 2, net: -2, team: 'red' }
         ]);
 
         const glasl = rollupGlasl(rows);
@@ -235,8 +235,8 @@ describe('plenaryData', () => {
             })
         ]);
         expect(rollupNationalInterest(rows).orientationByMove).toEqual([
-            { move: 2, net: 1 },
-            { move: 2, net: -2 }
+            { move: 2, net: 1, team: 'red' },
+            { move: 2, net: -2, team: 'green' }
         ]);
     });
 
