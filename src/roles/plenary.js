@@ -126,7 +126,6 @@ export class PlenaryController {
             this.reportRows = [];
             this.gameState = null;
             this.board?.render({ mode: 'connect' });
-            this.syncMeta(null);
             return;
         }
 
@@ -181,36 +180,14 @@ export class PlenaryController {
         applyHeaderGameStateDisplay(display);
     }
 
-    syncMeta(model) {
-        const meta = document.getElementById('plenaryMeta');
-        if (!meta) return;
-        if (!model) {
-            meta.textContent = '';
-            return;
-        }
-        const parts = [];
-        if (model.actionCount != null) {
-            parts.push(`${model.actionCount} finalized`);
-        }
-        if (model.macroTrend?.action_count) {
-            parts.push(`${model.macroTrend.action_count} economic stacked`);
-        }
-        if (model.codebookVersion) {
-            parts.push(`Codebook ${model.codebookVersion}`);
-        }
-        meta.textContent = parts.join(' · ');
-    }
-
     renderFromCache() {
         const sessionId = this.getSessionId();
         if (!sessionId) {
             this.board?.render({ mode: 'connect' });
-            this.syncMeta(null);
             return;
         }
         if (!this.reportRows.length) {
             this.board?.render({ mode: 'empty' });
-            this.syncMeta({ actionCount: 0, codebookVersion: '' });
             return;
         }
         const model = buildPlenaryModel({
@@ -219,7 +196,6 @@ export class PlenaryController {
             gameState: this.gameState,
             sessionMeta: this.getSessionMeta()
         });
-        this.syncMeta(model);
         this.board?.render({ mode: 'ready', model });
     }
 
