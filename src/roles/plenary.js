@@ -32,7 +32,7 @@ function pinProjectionTheme() {
 
 function formatClock(date = new Date()) {
     return date.toLocaleTimeString(undefined, {
-        hour: '2-digit',
+        hour: 'numeric',
         minute: '2-digit'
     });
 }
