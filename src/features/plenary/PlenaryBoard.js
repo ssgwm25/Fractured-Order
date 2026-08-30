@@ -43,7 +43,6 @@ function unitMeterHtml(count, total) {
 function teamActivityHtml(model) {
     const teams = model.teams || [];
     const diplomacy = model.diplomacy || {};
-    const bands = diplomacy.bands || [];
     const total = (diplomacy.points || []).length
         || teams.reduce((sum, team) => sum + (Number(team.count) || 0), 0);
     const rows = teams.map((team) => `
@@ -51,13 +50,6 @@ function teamActivityHtml(model) {
             <span><span class="plenary-team-swatch"></span>${escapeHtml(team.label)}</span>
             ${unitMeterHtml(team.count, total)}
             <span class="plenary-team-count">${escapeHtml(String(team.count))}</span>
-        </div>
-    `).join('');
-    const bandRows = bands.map((band) => `
-        <div class="plenary-team-row" data-band="${escapeHtml(band.key)}">
-            <span><span class="plenary-team-swatch"></span>${escapeHtml(band.label)}</span>
-            ${unitMeterHtml(band.count, total)}
-            <span class="plenary-team-count">${escapeHtml(String(band.count))}</span>
         </div>
     `).join('');
     const trajectory = diplomacy.hasData
@@ -68,16 +60,12 @@ function teamActivityHtml(model) {
             <div class="plenary-panel-head">
                 <h3 class="plenary-panel-title">Diplomatic activity</h3>
             </div>
-            <div class="plenary-panel-body">
+            <div class="plenary-panel-body plenary-dip-body">
                 <div class="plenary-team-list">${rows}</div>
                 <div class="plenary-panel-head">
                     <h3 class="plenary-panel-title">Diplomacy Index</h3>
-                    <span class="plenary-panel-note">Pressure → Relationships</span>
                 </div>
-                <div class="plenary-dip-layout">
-                    <div class="plenary-team-list">${bandRows}</div>
-                    <div class="plenary-dip-chart">${trajectory}</div>
-                </div>
+                <div class="plenary-dip-chart">${trajectory}</div>
             </div>
         </article>
     `;

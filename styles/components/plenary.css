@@ -254,22 +254,10 @@ body.plenary-page {
 
 .plenary-ni-row {
     display: grid;
-    grid-template-columns: 8px 2.7rem 8.2rem minmax(0, 1fr) 2.4rem;
+    grid-template-columns: 2.7rem 8.2rem minmax(0, 1fr) 2.4rem;
     align-items: center;
     gap: 6px;
     min-height: 18px;
-}
-
-.plenary-ni-pip {
-    width: 6px;
-    height: 6px;
-    border-radius: 99px;
-    background: transparent;
-    justify-self: center;
-}
-
-.plenary-ni-row.is-primary .plenary-ni-pip {
-    background: var(--color-gold);
 }
 
 .plenary-ni-key {
@@ -421,7 +409,13 @@ body.plenary-page {
 .plenary-team-list {
     display: grid;
     gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 0;
+}
+
+.plenary-dip-body {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 8px;
 }
 
 .plenary-team-row {
@@ -432,11 +426,7 @@ body.plenary-page {
     font-size: 0.8rem;
 }
 
-.plenary-dip-layout .plenary-team-row {
-    font-size: 0.76rem;
-}
-
-.plenary-dip-layout .plenary-team-row > span:first-child {
+.plenary-team-row > span:first-child {
     display: flex;
     align-items: center;
     white-space: nowrap;
@@ -456,21 +446,6 @@ body.plenary-page {
 .plenary-team-row[data-team="red"] .plenary-team-swatch { background: var(--color-team-red); }
 .plenary-team-row[data-team="green"] .plenary-team-swatch { background: var(--color-team-green); }
 .plenary-team-row[data-team="industry"] .plenary-team-swatch { background: var(--color-team-industry); }
-
-.plenary-team-row[data-band="Pressure"] .plenary-team-swatch,
-.plenary-team-row[data-band="Pressure"] .plenary-unit-meter > span.is-filled { background: var(--color-alert); }
-.plenary-team-row[data-band="Positioning"] .plenary-team-swatch,
-.plenary-team-row[data-band="Positioning"] .plenary-unit-meter > span.is-filled { background: var(--color-navy); }
-.plenary-team-row[data-band="Relationship-Building"] .plenary-team-swatch,
-.plenary-team-row[data-band="Relationship-Building"] .plenary-unit-meter > span.is-filled { background: var(--color-success); }
-
-.plenary-dip-layout {
-    flex: 1;
-    min-height: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 6px;
-}
 
 .plenary-dip-chart {
     min-height: 0;

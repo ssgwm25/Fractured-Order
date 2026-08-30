@@ -146,7 +146,6 @@ export function niDomainRowsHtml(domains = []) {
             : `width:${pct.toFixed(1)}%;left:50%`;
         return `
             <div class="plenary-ni-row${primary}">
-                <span class="plenary-ni-pip" aria-hidden="true"></span>
                 <span class="plenary-ni-key">${escapeHtml(domain.key)}</span>
                 <span class="plenary-ni-name">${escapeHtml(name)}</span>
                 <div class="plenary-ni-meter" aria-hidden="true">
@@ -231,8 +230,8 @@ export function glaslStepChartSvg(points = [], options = {}) {
 
 export function diplomacyTrajectorySvg(points = [], options = {}) {
     const width = options.width ?? 420;
-    const height = options.height ?? 88;
-    const pad = { top: 8, right: 10, bottom: 18, left: 58 };
+    const height = options.height ?? 180;
+    const pad = { top: 14, right: 12, bottom: 26, left: 78 };
     const ranks = {
         Pressure: 2,
         Positioning: 1,
@@ -251,19 +250,19 @@ export function diplomacyTrajectorySvg(points = [], options = {}) {
     const y = scaleLinear(0, 2, height - pad.bottom, pad.top);
     const values = points.map((p) => ranks[p.band] ?? 1);
     const axisLabels = axis.map((entry) => (
-        `<text x="${pad.left - 6}" y="${y(entry.rank) + 3}" font-size="8" text-anchor="end" fill="var(--color-text-muted)">${escapeHtml(entry.label)}</text>`
+        `<text x="${pad.left - 8}" y="${y(entry.rank)}" text-anchor="end" dominant-baseline="middle" font-size="12" font-weight="600" font-family="var(--font-sans)" fill="var(--color-text)">${escapeHtml(entry.label)}</text>`
     )).join('');
     const actionLabels = points.map((_p, i) => (
-        `<text x="${x(i)}" y="${height - 4}" font-size="8" text-anchor="middle" fill="var(--color-text-muted)">${actionSequenceLabel(i)}</text>`
+        `<text x="${x(i)}" y="${height - 6}" font-size="12" font-weight="600" font-family="var(--font-sans)" text-anchor="middle" fill="var(--color-text-muted)">${actionSequenceLabel(i)}</text>`
     )).join('');
     return `
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Diplomacy Index band across finalized actions">
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Diplomacy Index band across finalized actions" preserveAspectRatio="xMidYMid meet">
             ${axis.map((entry) => (
                 `<line x1="${pad.left}" y1="${y(entry.rank)}" x2="${width - pad.right}" y2="${y(entry.rank)}" stroke="var(--color-border)" stroke-width="1"/>`
             )).join('')}
             ${axisLabels}
-            <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2"/>
-            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(values[i])}" r="3.5" fill="${teamFill(p.team)}"/>`).join('')}
+            <path d="${pathOf(values, x, y)}" fill="none" stroke="var(--color-gold)" stroke-width="2.5"/>
+            ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(values[i])}" r="5" fill="${teamFill(p.team)}"/>`).join('')}
             ${actionLabels}
         </svg>
     `;

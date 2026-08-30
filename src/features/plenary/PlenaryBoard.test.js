@@ -79,8 +79,8 @@ describe('PlenaryBoard', () => {
         expect(container.innerHTML).not.toContain('plenary-ticker');
         expect(container.innerHTML).toContain('data-team="industry"');
         expect(container.innerHTML).toContain('>A1</text>');
-        expect(container.innerHTML).toContain('data-band="Pressure"');
-        expect(container.innerHTML).toContain('Pressure → Relationships');
+        expect(container.innerHTML).not.toContain('data-band="Pressure"');
+        expect(container.innerHTML).not.toContain('Pressure → Relationships');
         expect(container.innerHTML).toContain('plenary-ni-row is-primary');
         expect(container.innerHTML).toContain('plenary-ni-key');
         expect(container.innerHTML).not.toContain('Homeland ·');
@@ -152,6 +152,7 @@ describe('plenaryCharts', () => {
         expect(html).toContain('is-pos');
         expect(html).toContain('is-neg');
         expect(html).not.toContain(' ·');
+        expect(html).not.toContain('plenary-ni-pip');
         expect(html).not.toContain('text-anchor="end"');
     });
 });
