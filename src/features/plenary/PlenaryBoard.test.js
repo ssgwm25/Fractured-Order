@@ -4,6 +4,7 @@ import {
     diplomacyTrajectorySvg,
     glaslStepChartSvg,
     indicatorLineChartSvg,
+    niDomainRowsHtml,
     orientationSparklineSvg
 } from './plenaryCharts.js';
 
@@ -60,9 +61,9 @@ describe('PlenaryBoard', () => {
                 diplomacy: {
                     hasData: true,
                     bands: [
-                        { key: 'Pressure', label: 'Pressure', count: 2, share: 1 },
+                        { key: 'Pressure', label: 'Pressure', count: 2, share: 2 / 3 },
                         { key: 'Positioning', label: 'Positioning', count: 0, share: 0 },
-                        { key: 'Relationship-Building', label: 'Relationships', count: 1, share: 0.5 }
+                        { key: 'Relationship-Building', label: 'Relationships', count: 1, share: 1 / 3 }
                     ],
                     points: [
                         { band: 'Pressure', team: 'blue', move: 1 },
@@ -80,6 +81,12 @@ describe('PlenaryBoard', () => {
         expect(container.innerHTML).toContain('>A1</text>');
         expect(container.innerHTML).toContain('data-band="Pressure"');
         expect(container.innerHTML).toContain('Pressure → Relationships');
+        expect(container.innerHTML).toContain('plenary-ni-row is-primary');
+        expect(container.innerHTML).toContain('plenary-ni-key');
+        expect(container.innerHTML).not.toContain('Homeland ·');
+        expect(container.innerHTML).toContain('plenary-unit-meter');
+        expect(container.innerHTML).toContain('is-filled');
+        expect(container.innerHTML).not.toContain('plenary-team-bar');
     });
 });
 
@@ -131,5 +138,20 @@ describe('plenaryCharts', () => {
         expect(svg).toContain('plenary-axis-y');
         expect(svg).toContain('27 Q1');
         expect(svg).not.toContain('preserveAspectRatio="none"');
+    });
+
+    it('left-aligns NI domain names and marks primaries without a trailing dot', () => {
+        const html = niDomainRowsHtml([
+            { key: 'NI-1', label: 'Homeland', delta: 1, primary: true },
+            { key: 'NI-4', label: 'Indo-Pacific', delta: -1, primary: false }
+        ]);
+        expect(html).toContain('plenary-ni-key');
+        expect(html).toContain('Homeland');
+        expect(html).toContain('Indo-Pacific');
+        expect(html).toContain('is-primary');
+        expect(html).toContain('is-pos');
+        expect(html).toContain('is-neg');
+        expect(html).not.toContain(' ·');
+        expect(html).not.toContain('text-anchor="end"');
     });
 });

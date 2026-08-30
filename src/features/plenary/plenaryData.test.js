@@ -168,6 +168,8 @@ describe('plenaryData', () => {
         expect(teams.find((t) => t.id === 'blue').count).toBe(1);
         expect(teams.find((t) => t.id === 'red').count).toBe(1);
         expect(teams.find((t) => t.id === 'industry').count).toBe(0);
+        expect(teams.find((t) => t.id === 'blue').share).toBe(0.5);
+        expect(teams.find((t) => t.id === 'red').share).toBe(0.5);
 
         expect(rollupDiplomacyBands(rows)).toEqual([{ band: 'Pressure', count: 2 }]);
 
@@ -203,11 +205,41 @@ describe('plenaryData', () => {
         ]);
         expect(diplomacy.bands.find((band) => band.key === 'Pressure').count).toBe(1);
         expect(diplomacy.bands.find((band) => band.key === 'Positioning').count).toBe(0);
+        expect(diplomacy.bands.find((band) => band.key === 'Pressure').share).toBe(0.5);
+        expect(diplomacy.bands.find((band) => band.key === 'Relationship-Building').share).toBe(0.5);
         expect(diplomacy.points.map((point) => point.band)).toEqual([
             'Pressure',
             'Relationship-Building'
         ]);
         expect(diplomacy.hasData).toBe(true);
+    });
+
+    it('counts diplomatic activity only for Diplomacy Index seats', () => {
+        const rows = collectPlenaryReportRows([
+            makeRow({
+                id: 'adj-dip',
+                actionId: 'a-dip',
+                team: 'blue',
+                createdAt: '2026-08-01T00:00:00.000Z',
+                seatReviews: niSeat,
+                tracks: niTracks({ band: 'Pressure' })
+            }),
+            makeRow({
+                id: 'adj-macro',
+                actionId: 'a-macro',
+                team: 'blue',
+                createdAt: '2026-08-02T00:00:00.000Z',
+                seatReviews: { macro: { status: 'approved' } },
+                tracks: { macro: { classification: { lever: 'industrial' } } }
+            })
+        ]);
+        expect(rows).toHaveLength(2);
+        const teams = rollupTeamActivity(rows);
+        const diplomacy = rollupDiplomacy(rows);
+        expect(diplomacy.points).toHaveLength(1);
+        expect(teams.find((t) => t.id === 'blue').count).toBe(1);
+        expect(teams.find((t) => t.id === 'blue').share).toBe(1);
+        expect(teams.reduce((sum, team) => sum + team.count, 0)).toBe(diplomacy.points.length);
     });
 
     it('plots one orientation sparkline point per finalized NI action', () => {

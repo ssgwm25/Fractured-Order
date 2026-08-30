@@ -7,8 +7,7 @@ import {
     GLASL_LABELS,
     GLASL_OPERATING_MAX,
     GLASL_OPERATING_MIN,
-    MACRO_INDICATORS,
-    NI_DOMAIN_LABELS
+    MACRO_INDICATORS
 } from './plenaryData.js';
 
 const NI_SHORT_LABELS = Object.freeze({
@@ -134,39 +133,31 @@ export function indicatorLineChartSvg(periods, indicator, options = {}) {
     `;
 }
 
-export function niDomainBarsSvg(domains = [], options = {}) {
-    const width = options.width ?? 420;
-    const rowH = options.rowHeight ?? 22;
-    const pad = { top: 4, right: 48, bottom: 4, left: 118 };
-    const height = pad.top + pad.bottom + Math.max(domains.length, 1) * rowH;
+export function niDomainRowsHtml(domains = []) {
     const maxAbs = Math.max(2, ...domains.map((d) => Math.abs(Number(d.delta) || 0)));
-    const x = scaleLinear(-maxAbs, maxAbs, pad.left, width - pad.right);
-    const zero = x(0);
-    const rows = domains.map((domain, i) => {
+    const rows = domains.map((domain) => {
         const delta = Number(domain.delta) || 0;
-        const y = pad.top + i * rowH + 4;
-        const barX = delta >= 0 ? zero : x(delta);
-        const barW = Math.abs(x(delta) - zero);
-        const fill = delta > 0
-            ? 'var(--color-success)'
-            : (delta < 0 ? 'var(--color-alert)' : 'var(--color-border)');
-        const stroke = domain.primary ? 'var(--color-gold)' : 'none';
+        const pct = Math.max(delta === 0 ? 0 : 4, (Math.abs(delta) / maxAbs) * 50);
+        const tone = delta > 0 ? 'is-pos' : (delta < 0 ? 'is-neg' : 'is-zero');
+        const primary = domain.primary ? ' is-primary' : '';
+        const name = NI_SHORT_LABELS[domain.key] || domain.label || domain.key;
+        const fillStyle = delta < 0
+            ? `width:${pct.toFixed(1)}%;right:50%;left:auto`
+            : `width:${pct.toFixed(1)}%;left:50%`;
         return `
-            <text x="${pad.left - 8}" y="${y + 11}" font-size="10" text-anchor="end" fill="var(--color-text)">
-                <title>${escapeHtml(`${domain.key}: ${domain.label || NI_DOMAIN_LABELS[domain.key] || ''}`)}</title>
-                ${escapeHtml(domain.key)} ${escapeHtml(NI_SHORT_LABELS[domain.key] || domain.label || '')}${domain.primary ? ' ·' : ''}
-            </text>
-            <rect x="${barX.toFixed(1)}" y="${y}" width="${Math.max(barW, 1).toFixed(1)}" height="14" rx="3" fill="${fill}" fill-opacity="0.85" stroke="${stroke}" stroke-width="1.5"/>
-            <text x="${width - pad.right + 6}" y="${y + 11}" font-size="10" font-weight="700" fill="var(--color-text)">${escapeHtml(formatSigned(delta))}</text>
+            <div class="plenary-ni-row${primary}">
+                <span class="plenary-ni-pip" aria-hidden="true"></span>
+                <span class="plenary-ni-key">${escapeHtml(domain.key)}</span>
+                <span class="plenary-ni-name">${escapeHtml(name)}</span>
+                <div class="plenary-ni-meter" aria-hidden="true">
+                    <span class="plenary-ni-zero"></span>
+                    <span class="plenary-ni-fill ${tone}" style="${fillStyle}"></span>
+                </div>
+                <span class="plenary-ni-delta">${escapeHtml(formatSigned(delta))}</span>
+            </div>
         `;
     }).join('');
-
-    return `
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="National Interest domain deltas" preserveAspectRatio="xMidYMid meet">
-            <line x1="${zero}" y1="${pad.top}" x2="${zero}" y2="${height - pad.bottom}" stroke="var(--color-border)" stroke-width="1"/>
-            ${rows}
-        </svg>
-    `;
+    return `<div class="plenary-ni-domains" role="img" aria-label="National Interest domain deltas">${rows}</div>`;
 }
 
 export function orientationSparklineSvg(points = [], options = {}) {

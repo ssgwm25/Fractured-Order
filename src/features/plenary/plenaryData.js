@@ -204,18 +204,19 @@ export function rollupGlasl(rows = []) {
 
 export function rollupTeamActivity(rows = []) {
     const counts = Object.fromEntries(TEAM_OPTIONS.map((team) => [team.id, 0]));
-    for (const row of rows) {
-        const id = String(row.team || '').toLowerCase();
+    const indexed = rollupDiplomacy(rows).points;
+    for (const point of indexed) {
+        const id = String(point.team || '').toLowerCase();
         if (Object.prototype.hasOwnProperty.call(counts, id)) {
             counts[id] += 1;
         }
     }
-    const max = Math.max(1, ...Object.values(counts));
+    const total = Math.max(1, indexed.length);
     return TEAM_OPTIONS.map((team) => ({
         id: team.id,
         label: team.shortLabel,
         count: counts[team.id],
-        share: counts[team.id] / max
+        share: counts[team.id] / total
     }));
 }
 
@@ -250,13 +251,13 @@ export function rollupDiplomacy(rows = []) {
         });
     }
     points.sort((a, b) => sortByCreatedAt(a, b, 1));
-    const max = Math.max(1, ...Object.values(counts));
+    const total = Math.max(1, points.length);
     return {
         bands: DIPLOMACY_BANDS.map((band) => ({
             key: band.key,
             label: band.short,
             count: counts[band.key],
-            share: counts[band.key] / max
+            share: counts[band.key] / total
         })),
         points: points.map(({ band, team, move }) => ({ band, team, move })),
         hasData: points.length > 0

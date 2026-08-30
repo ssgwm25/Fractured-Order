@@ -8,7 +8,7 @@ import {
     glaslLadderHtml,
     glaslStepChartSvg,
     macroCardsHtml,
-    niDomainBarsSvg,
+    niDomainRowsHtml,
     orientationSparklineSvg
 } from './plenaryCharts.js';
 
@@ -31,21 +31,32 @@ function emptyStateHtml() {
     `;
 }
 
+function unitMeterHtml(count, total) {
+    const filled = Math.max(0, Number(count) || 0);
+    if (!total) return '<div class="plenary-unit-meter" aria-hidden="true"></div>';
+    const cells = Array.from({ length: total }, (_, i) => (
+        `<span${i < filled ? ' class="is-filled"' : ''}></span>`
+    )).join('');
+    return `<div class="plenary-unit-meter" aria-hidden="true">${cells}</div>`;
+}
+
 function teamActivityHtml(model) {
     const teams = model.teams || [];
     const diplomacy = model.diplomacy || {};
     const bands = diplomacy.bands || [];
+    const total = (diplomacy.points || []).length
+        || teams.reduce((sum, team) => sum + (Number(team.count) || 0), 0);
     const rows = teams.map((team) => `
         <div class="plenary-team-row" data-team="${escapeHtml(team.id)}">
             <span><span class="plenary-team-swatch"></span>${escapeHtml(team.label)}</span>
-            <div class="plenary-team-bar" aria-hidden="true"><span style="width:${Math.round((team.share || 0) * 100)}%"></span></div>
+            ${unitMeterHtml(team.count, total)}
             <span class="plenary-team-count">${escapeHtml(String(team.count))}</span>
         </div>
     `).join('');
     const bandRows = bands.map((band) => `
         <div class="plenary-team-row" data-band="${escapeHtml(band.key)}">
             <span><span class="plenary-team-swatch"></span>${escapeHtml(band.label)}</span>
-            <div class="plenary-team-bar" aria-hidden="true"><span style="width:${Math.round((band.share || 0) * 100)}%"></span></div>
+            ${unitMeterHtml(band.count, total)}
             <span class="plenary-team-count">${escapeHtml(String(band.count))}</span>
         </div>
     `).join('');
@@ -90,7 +101,7 @@ function boardHtml(model) {
                 <div class="plenary-panel-body">
                     ${ni.hasData ? `
                         <div class="plenary-ni-layout">
-                            ${niDomainBarsSvg(ni.domains)}
+                            ${niDomainRowsHtml(ni.domains)}
                             ${orientationSparklineSvg(ni.orientationByMove)}
                         </div>
                     ` : '<p class="plenary-panel-note">No finalized National Interest deltas in this scope.</p>'}

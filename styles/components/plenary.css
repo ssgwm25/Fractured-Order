@@ -39,6 +39,7 @@ body.plenary-page {
 .plenary-brand {
     display: flex;
     align-items: center;
+    gap: 12px;
     min-width: 0;
 }
 
@@ -46,9 +47,22 @@ body.plenary-page {
     display: block;
     height: 88px;
     width: auto;
-    max-width: min(62vw, 640px);
+    max-width: min(42vw, 420px);
     object-fit: contain;
     object-position: left center;
+}
+
+.plenary-brand-title {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    /* Match STATECRAFT cap-height in the lockup (43px of 176, shown at 88px). */
+    font-size: calc(88px * 43 / 176 / 0.67);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #c5a059;
+    white-space: nowrap;
 }
 
 .plenary-controls {
@@ -229,6 +243,98 @@ body.plenary-page {
     min-height: 0;
 }
 
+.plenary-ni-domains {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    gap: 2px;
+}
+
+.plenary-ni-row {
+    display: grid;
+    grid-template-columns: 8px 2.7rem 8.2rem minmax(0, 1fr) 2.4rem;
+    align-items: center;
+    gap: 6px;
+    min-height: 18px;
+}
+
+.plenary-ni-pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 99px;
+    background: transparent;
+    justify-self: center;
+}
+
+.plenary-ni-row.is-primary .plenary-ni-pip {
+    background: var(--color-gold);
+}
+
+.plenary-ni-key {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.plenary-ni-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.plenary-ni-row.is-primary .plenary-ni-name {
+    color: var(--color-gold);
+}
+
+.plenary-ni-meter {
+    position: relative;
+    height: 10px;
+    border-radius: 99px;
+    background: var(--color-surface-alt);
+    overflow: hidden;
+}
+
+.plenary-ni-zero {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--color-border);
+}
+
+.plenary-ni-fill {
+    position: absolute;
+    top: 2px;
+    height: calc(100% - 4px);
+    border-radius: 99px;
+}
+
+.plenary-ni-fill.is-pos { background: var(--color-success); }
+.plenary-ni-fill.is-neg { background: var(--color-alert); }
+.plenary-ni-fill.is-zero {
+    left: calc(50% - 1px);
+    width: 2px !important;
+    background: var(--color-border);
+}
+
+.plenary-ni-row.is-primary .plenary-ni-fill {
+    box-shadow: inset 0 0 0 1px var(--color-gold);
+}
+
+.plenary-ni-delta {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 .plenary-ni-layout,
 .plenary-glasl-layout {
     flex: 1;
@@ -352,11 +458,11 @@ body.plenary-page {
 .plenary-team-row[data-team="industry"] .plenary-team-swatch { background: var(--color-team-industry); }
 
 .plenary-team-row[data-band="Pressure"] .plenary-team-swatch,
-.plenary-team-row[data-band="Pressure"] .plenary-team-bar > span { background: var(--color-alert); }
+.plenary-team-row[data-band="Pressure"] .plenary-unit-meter > span.is-filled { background: var(--color-alert); }
 .plenary-team-row[data-band="Positioning"] .plenary-team-swatch,
-.plenary-team-row[data-band="Positioning"] .plenary-team-bar > span { background: var(--color-navy); }
+.plenary-team-row[data-band="Positioning"] .plenary-unit-meter > span.is-filled { background: var(--color-navy); }
 .plenary-team-row[data-band="Relationship-Building"] .plenary-team-swatch,
-.plenary-team-row[data-band="Relationship-Building"] .plenary-team-bar > span { background: var(--color-success); }
+.plenary-team-row[data-band="Relationship-Building"] .plenary-unit-meter > span.is-filled { background: var(--color-success); }
 
 .plenary-dip-layout {
     flex: 1;
@@ -375,23 +481,25 @@ body.plenary-page {
     height: 100%;
 }
 
-.plenary-team-bar {
-    height: 8px;
-    border-radius: 99px;
+.plenary-unit-meter {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+}
+
+.plenary-unit-meter > span {
+    flex: 0 1 10px;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
     background: var(--color-surface-alt);
-    overflow: hidden;
 }
 
-.plenary-team-bar > span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-}
-
-.plenary-team-row[data-team="blue"] .plenary-team-bar > span { background: var(--color-team-blue); }
-.plenary-team-row[data-team="red"] .plenary-team-bar > span { background: var(--color-team-red); }
-.plenary-team-row[data-team="green"] .plenary-team-bar > span { background: var(--color-team-green); }
-.plenary-team-row[data-team="industry"] .plenary-team-bar > span { background: var(--color-team-industry); }
+.plenary-team-row[data-team="blue"] .plenary-unit-meter > span.is-filled { background: var(--color-team-blue); }
+.plenary-team-row[data-team="red"] .plenary-unit-meter > span.is-filled { background: var(--color-team-red); }
+.plenary-team-row[data-team="green"] .plenary-unit-meter > span.is-filled { background: var(--color-team-green); }
+.plenary-team-row[data-team="industry"] .plenary-unit-meter > span.is-filled { background: var(--color-team-industry); }
 
 .plenary-team-count {
     font-family: var(--font-mono);
