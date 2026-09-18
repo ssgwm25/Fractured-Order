@@ -22,8 +22,8 @@ describe('GC-04 seat context', () => {
         expect(getRoleDisplayName(role)).toContain(surface === 'scribe' ? 'Facilitator' : 'Scribe');
     });
 
-    it('keeps legacy role inversion and rejects unknown regional identifiers', () => {
-        expect(getRoleRoute('green_facilitator')).toBe('/teams/green/facilitator.html');
+    it.each(['/', '/Fractured-Order/'])('keeps legacy role inversion under %s and rejects unknown regional identifiers', (basePath) => {
+        expect(getRoleRoute('green_facilitator', { basePath })).toBe(`${basePath}teams/green/facilitator.html`);
         expect(getRoleDisplayName('green_facilitator')).toBe('Green Team Scribe');
         expect(buildRegionalRole('unknown', 'scribe')).toBeNull();
         expect(getRoleRoute('green_unknown_scribe')).toBeNull();

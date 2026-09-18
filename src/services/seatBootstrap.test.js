@@ -1,22 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { database, sessionStore } = vi.hoisted(() => ({
     database: { restoreSessionSeatContext: vi.fn() },
     sessionStore: { getSessionId: vi.fn(() => 'session'), getSessionParticipantId: vi.fn(() => 'seat'), confirmSeat: vi.fn() }
 }));
 vi.mock('./database.js', () => ({ database }));
 vi.mock('../stores/session.js', () => ({ sessionStore }));
-import { restoreConfirmedSeat } from './seatBootstrap.js';
+let restoreConfirmedSeat;
 
-beforeEach(() => {
-    vi.clearAllMocks();
-    database.restoreSessionSeatContext.mockResolvedValue({
-        session: { id: 'session', name: 'Fixture', status: 'active', session_topology_version: 2 },
-        seat: { id: 'seat', session_id: 'session', role: 'green_europe_scribe', delegation_id: 'europe', is_active: true }
-    });
+afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
 });
-describe('GC-04 startup and rejoin', () => {
+
+describe.each(['/', '/Fractured-Order/'])('GC-04 startup and rejoin under %s', (basePath) => {
+    beforeEach(async () => {
+        vi.clearAllMocks();
+        // Navigation captures Vite's base at import time. Test both deployment shapes
+        // independently of the developer shell or GitHub Actions environment.
+        vi.resetModules();
+        vi.stubEnv('BASE_URL', basePath);
+        ({ restoreConfirmedSeat } = await import('./seatBootstrap.js'));
+        database.restoreSessionSeatContext.mockResolvedValue({
+            session: { id: 'session', name: 'Fixture', status: 'active', session_topology_version: 2 },
+            seat: { id: 'seat', session_id: 'session', role: 'green_europe_scribe', delegation_id: 'europe', is_active: true }
+        });
+    });
     it('restores identity from the server seat on reload with no URL region', async () => {
-        const locationRef = new URL('https://example.test/teams/green/facilitator.html');
+        const locationRef = new URL(`https://example.test${basePath}teams/green/facilitator.html`);
         await expect(restoreConfirmedSeat({ locationRef })).resolves.toMatchObject({ role: 'green_europe_scribe', delegationId: 'europe' });
         expect(database.restoreSessionSeatContext).toHaveBeenCalledWith('session', 'seat');
         expect(sessionStore.confirmSeat).toHaveBeenCalledOnce();
@@ -26,7 +36,13 @@ describe('GC-04 startup and rejoin', () => {
         expect(sessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({ role: 'green_europe_scribe' }));
     });
     it('rejects mismatched deep links before confirming or rendering a workspace', async () => {
-        const locationRef = new URL('https://example.test/teams/green/facilitator.html?delegation=asian_pacific');
+        const locationRef = new URL(`https://example.test${basePath}teams/green/facilitator.html?delegation=asian_pacific`);
+        await expect(restoreConfirmedSeat({ locationRef })).rejects.toThrow('Permission error');
+        expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
+    });
+    it('rejects a different base path even when role and delegation match', async () => {
+        const wrongBase = basePath === '/' ? '/Fractured-Order/' : '/';
+        const locationRef = new URL(`https://example.test${wrongBase}teams/green/facilitator.html?delegation=europe`);
         await expect(restoreConfirmedSeat({ locationRef })).rejects.toThrow('Permission error');
         expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
     });

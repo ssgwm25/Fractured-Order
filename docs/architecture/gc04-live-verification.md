@@ -258,6 +258,59 @@ a separate cleanup receipt and does not rewrite a failed browser result as a pas
 
 ## Narrow regression command
 
+### Frontend CI regression follow-up
+
+The supplied 2026-09-18 Frontend validation logs report the same three failures
+in unit and coverage runs (110 files / 970 tests passed, three files / tests
+failed). Two GC-04 test fixtures assumed a host-root route while Vite derived
+`/Fractured-Order/` in GitHub Actions. The narration exporter also omitted
+`seatStorageKey` when evaluating the updated onboarding builders, causing a
+ReferenceError. Coverage reruns the tests and therefore encountered the same
+failures; these logs do not identify a separate coverage-threshold failure.
+
+The follow-up explicitly tests legacy routes and seat startup under both `/`
+and `/Fractured-Order/`, including wrong-base and delegation rejection. It adds
+the exporter's required helper with an explicit absent seat and verifies that
+an ambient regional seat cannot change catalog keys or narration. Existing
+profile/slide/clip counts remain asserted. The necessary scope expansion is
+limited to this narration-export dependency and its regression/documentation.
+Runtime route guards, workflow configuration, coverage requirements, migrations
+and approved media are unchanged. The coding agent has not executed tests.
+
+The subsequent human-supplied local transcript, starting at 19:45:30 on
+2026-09-18 with `VITE_PUBLIC_BASE_PATH=/Fractured-Order/`, records:
+
+- Targeted regressions: 3 files / 27 tests passed in 2.22 seconds.
+- Full unit suite: 113 files / 982 tests passed in 19.49 seconds.
+- Coverage run: 113 files / 982 tests passed in 20.42 seconds, followed by the
+  V8 coverage report and return to the PowerShell prompt without the configured
+  failure guard firing.
+
+These results verify the fixes locally. The earlier failed GitHub Actions run
+remains the latest supplied CI result; retain a fresh successful Frontend
+validation run after pushing the fixes. Local success does not establish
+deployed-site behavior or screen-reader observations.
+
+Run the narrow regression, then both complete CI test commands before pushing
+the fix (the base-path setting reproduces the failing CI route environment):
+
+```powershell
+$env:VITE_PUBLIC_BASE_PATH = "/Fractured-Order/"
+npm test -- src/core/seatContext.test.js src/services/seatBootstrap.test.js scripts/start-here-audio/export-scripts.test.js
+if ($LASTEXITCODE -ne 0) { throw "GC04 CI regression checks failed." }
+npm test -- --run
+if ($LASTEXITCODE -ne 0) { throw "Full unit suite failed." }
+npm run test:coverage
+if ($LASTEXITCODE -ne 0) { throw "Coverage run failed." }
+```
+
+Expected: all selected tests and both complete runs pass with exit code 0;
+coverage output is generated with no gate failures. Retain fresh Frontend
+validation results after committing and pushing the fix. Prior local browser
+success does not establish that these full-suite failures have been resolved.
+
+### Broader GC-04 tooling and lifecycle checks
+
 ```powershell
 npm test -- tests/unit/gc04-live-preflight.test.js tests/unit/gc04-live-check.test.js tests/unit/gc04-sql-runner.test.js src/stores/participants.gc04-context.test.js src/services/seatBootstrap.deck-cleanup.test.js src/stores/participants.test.js src/services/seatBootstrap.test.js
 ```

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seatStorageKey } from '../../src/core/seatContext.js';
 
 import {
     buildFollowAlongNarration,
@@ -51,11 +52,14 @@ async function extractNamedFunction(relativePath, functionName, nextFunctionName
 
 function captureConfig(body, context, dependencies = {}) {
     let captured = null;
-    const names = ['mountFollowAlong', ...Object.keys(dependencies)];
+    const names = ['mountFollowAlong', 'seatStorageKey', ...Object.keys(dependencies)];
     const values = [(config) => {
         captured = config;
         return Object.freeze({ destroy() {} });
-    }, ...Object.values(dependencies)];
+    // Export reusable narration profiles without binding them to a live seat.
+    // Explicit null preserves the catalog key even if this module is embedded
+    // in a process that already has a confirmed participant context.
+    }, (key) => seatStorageKey(key, null), ...Object.values(dependencies)];
     const invoke = new Function(...names, `return function buildStartHereProfile() {${body}\n}`)(...values);
     invoke.call(context);
     if (!captured) throw new Error('Start Here builder did not call mountFollowAlong().');

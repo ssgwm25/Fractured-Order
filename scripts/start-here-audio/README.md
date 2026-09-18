@@ -9,6 +9,13 @@ copy in the six role controllers. Orientation remains video-only. Identical
 scripts share a content-addressed clip; a copy change creates a new filename so
 stale narration cannot silently play.
 
+The exporter supplies the controllers' `seatStorageKey` dependency with an
+explicit absent seat. Exported profile keys remain reusable `followalong:...`
+catalog keys even if the calling process has a confirmed regional seat; the
+export never changes that seat. Browser onboarding continues to scope its
+progress keys to the authenticated seat. This GC-04 tooling dependency neither
+adds role profiles nor generates or approves new audio.
+
 The current source contract contains 24 role profiles, 257 slide references,
 and 125 unique narration clips. The White Cell SME-efficacy walkthrough and
 the TSJ/Verba Approved PLI handoffs invalidate any earlier 122-clip review
