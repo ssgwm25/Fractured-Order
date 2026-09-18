@@ -5,6 +5,42 @@ function isPlainObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+// Regional rows contain one seat's data. This validates the storage shape only;
+// Supabase resolves ownership from auth.uid() and the active session seat.
+export function buildScopedNotetakerWrite(noteData = {}) {
+    const {
+        session_id: sessionId, move, phase, expected_revision: expectedRevision,
+        dynamics_analysis: dynamics = {}, external_factors: external = {},
+        observation_timeline: observations = []
+    } = noteData;
+    if (!sessionId || !Number.isInteger(move) || move < 1 || move > 3
+        || !Number.isInteger(phase) || phase < 1 || phase > 5
+        || !Number.isInteger(expectedRevision) || expectedRevision < 0) {
+        throw new TypeError('Scoped notes require session, move, phase and expected revision (0 for a new row).');
+    }
+    if (![dynamics, external].every((section) => isPlainObject(section)
+        && !Object.hasOwn(section, 'team_entries') && !Object.hasOwn(section, 'participant_entries'))
+        || !Array.isArray(observations) || observations.some((entry) => !isPlainObject(entry)
+            || Object.hasOwn(entry, 'team_entries') || Object.hasOwn(entry, 'participant_entries'))) {
+        throw new TypeError('Scoped notes cannot contain a shared team or participant ledger.');
+    }
+    return {
+        requested_session_id: sessionId,
+        requested_move: move,
+        requested_phase: phase,
+        requested_expected_revision: expectedRevision,
+        requested_dynamics: dynamics,
+        requested_external: external,
+        requested_observations: observations
+    };
+}
+
+export function assertLegacyNotetakerStorage(record = {}) {
+    if (record.session_topology_version === 2 || record.delegation_id != null) {
+        throw new TypeError('Regional notes require scoped_notetaker_data; shared JSON storage is forbidden.');
+    }
+}
+
 function normalizeOptionalString(value) {
     if (typeof value !== 'string') {
         return null;

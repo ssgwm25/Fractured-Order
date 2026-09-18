@@ -94,6 +94,16 @@ const TEAM_MAP = Object.freeze(
 );
 const PUBLIC_TEAM_PATTERN = TEAM_OPTIONS.map((team) => team.id).join('|');
 const PUBLIC_TEAM_ROLE_REGEX = new RegExp(`^(${PUBLIC_TEAM_PATTERN})_(facilitator|scribe|notetaker)$`);
+export const GREEN_DELEGATIONS = Object.freeze({
+    asian_pacific: 'Green - Asia-Pacific',
+    europe: 'Green - Europe'
+});
+const REGIONAL_ROLE_REGEX = /^green_(asian_pacific|europe)_(scribe|facilitator|notetaker)$/;
+
+export function buildRegionalRole(delegationId, surface) {
+    if (!GREEN_DELEGATIONS[delegationId] || !isPublicRoleSurface(surface)) return null;
+    return `green_${delegationId}_${getSemanticRoleSurface(surface)}`;
+}
 const TEAM_ROUTE_REGEX = new RegExp(`^teams\\/(${PUBLIC_TEAM_PATTERN})\\/`);
 const WHITE_CELL_OPERATOR_ROLE_REGEX = new RegExp(
     `^(?:(${PUBLIC_TEAM_PATTERN})_)?whitecell(?:_(lead|support))?$`
@@ -204,6 +214,13 @@ export function parseTeamRole(role = '') {
     }
 
     const normalizedRole = normalizeWhiteCellOperatorRole(role);
+    const regional = normalizedRole.match(REGIONAL_ROLE_REGEX);
+    if (regional) {
+        return {
+            teamId: 'green', delegationId: regional[1], semanticRole: regional[2],
+            surface: getSemanticRoleSurface(regional[2]), operatorRole: null, smeRole: null
+        };
+    }
 
     if (normalizedRole === 'viewer') {
         return {
@@ -303,10 +320,15 @@ export function getRoleRoute(role, { observerTeamId = 'blue', basePath } = {}) {
         return null;
     }
 
-    return buildTeamRoute(parsedRole.teamId, parsedRole.surface, { basePath });
+    const route = buildTeamRoute(parsedRole.teamId, parsedRole.surface, { basePath });
+    return parsedRole.delegationId ? `${route}?delegation=${parsedRole.delegationId}` : route;
 }
 
 export function getRoleDisplayName(role, { observerTeamId = null } = {}) {
+    const regional = parseTeamRole(role);
+    if (regional.delegationId) {
+        return `${GREEN_DELEGATIONS[regional.delegationId]} ${getRoleSurfaceDisplayLabel(regional.surface)}`;
+    }
     if (role === 'white') {
         return 'Game Master';
     }
@@ -346,6 +368,7 @@ export function resolveTeamContext({
     documentRef = typeof document !== 'undefined' ? document : null,
     locationRef = typeof window !== 'undefined' ? window.location : null,
     fallbackTeamId = 'blue',
+    seat = null,
     basePath
 } = {}) {
     const datasetTeam = documentRef?.body?.dataset?.team;
@@ -364,6 +387,25 @@ export function resolveTeamContext({
     const labels = getTeamRoleLabels(team.id);
     const whitecellLeadRole = buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.LEAD);
     const whitecellSupportRole = buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.SUPPORT);
+
+    if (seat?.delegationId) {
+        if (team.id !== 'green' || !GREEN_DELEGATIONS[seat.delegationId]) {
+            throw new Error('Route does not match the confirmed delegation.');
+        }
+        const label = GREEN_DELEGATIONS[seat.delegationId];
+        const roleFor = (surface) => buildRegionalRole(seat.delegationId, surface);
+        return {
+            teamId: 'green', delegationId: seat.delegationId, teamLabel: label, teamShortLabel: label,
+            facilitatorRole: roleFor('facilitator'), scribeRole: roleFor('scribe'), notetakerRole: roleFor('notetaker'),
+            facilitatorLabel: `${label} Scribe`, scribeLabel: `${label} Facilitator`, notetakerLabel: `${label} Notetaker`,
+            facilitatorRoute: getRoleRoute(roleFor('facilitator'), { basePath }),
+            scribeRoute: getRoleRoute(roleFor('scribe'), { basePath }),
+            notetakerRoute: getRoleRoute(roleFor('notetaker'), { basePath }),
+            whitecellRole: whitecellLeadRole, whitecellLeadRole, whitecellSupportRole,
+            whitecellLabel: 'White Cell', whitecellLeadLabel: 'White Cell Lead', whitecellSupportLabel: 'White Cell Support',
+            whitecellRoute: buildAppPath(WHITE_CELL_CANONICAL_ROUTE, { basePath })
+        };
+    }
 
     return {
         teamId: team.id,

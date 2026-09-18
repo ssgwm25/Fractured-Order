@@ -6,6 +6,8 @@
  * only opening the destination marks the record read.
  */
 
+import { getConfirmedSeat, onSeatCleanup, seatStorageKey } from '../../core/seatContext.js';
+
 const STORAGE_VERSION = 1;
 const DEFAULT_MAX_RECORDS = 120;
 
@@ -75,13 +77,27 @@ export class DurableNotificationCenter {
         this.storage = storage;
         this.render = render;
         this.maxRecords = Math.max(20, Number(maxRecords) || DEFAULT_MAX_RECORDS);
-        this.storageKey = `statecraft:durable-notifications:${this.scope}`;
+        this.storageKey = seatStorageKey(`statecraft:durable-notifications:${this.scope}`);
         this.state = parseState(this.storage, this.storageKey);
         this.deliveredIds = new Set();
         this.activeElements = new Map();
+        const seat = getConfirmedSeat();
+        if (seat) {
+            const unsubscribe = onSeatCleanup((removed) => {
+                if (seatStorageKey('', removed) !== seatStorageKey('', seat)) return;
+                this.invalidated = true;
+                this.activeElements.forEach((element) => element?.remove?.());
+                this.activeElements.clear();
+                this.deliveredIds.clear();
+                this.state.records = {};
+                try { this.storage?.removeItem?.(this.storageKey); } catch { /* Best effort. */ }
+                unsubscribe();
+            });
+        }
     }
 
     persist() {
+        if (this.invalidated) return;
         if (!this.storage?.setItem) return;
 
         const sortedEntries = Object.entries(this.state.records)
@@ -205,6 +221,7 @@ export class DurableNotificationCenter {
     }
 
     notify(notification, { onOpen = null } = {}) {
+        if (this.invalidated) return null;
         const normalized = normalizeDurableNotification(notification);
         if (!normalized || this.deliveredIds.has(normalized.id)) return null;
 
@@ -226,6 +243,7 @@ export class DurableNotificationCenter {
     }
 
     restore({ onOpen = null } = {}) {
+        if (this.invalidated) return [];
         const restored = [];
         Object.values(this.state.records)
             .filter((record) => record.read !== true && record.dismissed !== true)

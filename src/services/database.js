@@ -35,7 +35,9 @@ import {
 } from '../features/actions/blueActionDetails.js';
 import {
     annotateObservationTimelineEntries,
+    assertLegacyNotetakerStorage,
     buildNotetakerParticipantContext,
+    buildScopedNotetakerWrite,
     mergeObservationTimeline,
     mergeParticipantScopedNotetakerSection
 } from '../features/notetaker/storage.js';
@@ -220,6 +222,8 @@ export function mergeNotetakerRecord(existingRecord = null, noteData = {}, {
     clientId = null,
     timestamp = new Date().toISOString()
 } = {}) {
+    assertLegacyNotetakerStorage(existingRecord || {});
+    assertLegacyNotetakerStorage(noteData);
     const resolvedTeamId = noteData.team ?? existingRecord?.team ?? null;
     const participantContext = buildNotetakerParticipantContext(noteData, {
         fallbackClientId: noteData.client_id ?? existingRecord?.client_id ?? clientId
@@ -703,6 +707,12 @@ export const database = {
      * @returns {Promise<Object>} Created session
      */
     async createSession(sessionData) {
+        if (sessionData.session_topology_version != null && sessionData.session_topology_version !== 1) {
+            throw new DatabaseError(
+                'Create a unified session, then configure its topology before claiming seats. Regional activation is pending.',
+                'createSession'
+            );
+        }
         await ensureAuthenticatedBrowser();
         logger.debug('Creating session:', sessionData.name);
 
@@ -728,6 +738,17 @@ export const database = {
         }
 
         logger.info('Session created:', data.id);
+        return data;
+    },
+
+    async configureSessionGreenTopology(sessionId, topologyVersion, rosterVersion = null) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('configure_session_green_topology', {
+            requested_session_id: sessionId,
+            requested_topology_version: topologyVersion,
+            requested_roster_version: rosterVersion
+        });
+        if (error) throw fromSupabaseError(error, 'configureSessionGreenTopology');
         return data;
     },
 
@@ -820,8 +841,19 @@ export const database = {
             id: data?.id,
             name: data?.name,
             session_code: data?.session_code ?? normalizedCode,
-            status: data?.status
+            status: data?.status,
+            session_topology_version: data?.session_topology_version
         };
+    },
+
+    async restoreSessionSeatContext(sessionId, participantId) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('restore_session_seat_context', {
+            requested_session_id: sessionId,
+            requested_session_participant_id: participantId
+        });
+        if (error) throw fromSupabaseError(error, 'restoreSessionSeatContext');
+        return data;
     },
 
     /**
@@ -1334,6 +1366,8 @@ export const database = {
                 move: resolvedActionData.move,
                 phase: resolvedActionData.phase,
                 team: resolvedActionData.team,
+                ...(Object.hasOwn(resolvedActionData, 'delegation_id')
+                    ? { delegation_id: resolvedActionData.delegation_id } : {}),
                 mechanism: resolvedActionData.mechanism,
                 sector: resolvedActionData.sector,
                 exposure_type: resolvedActionData.exposure_type,
@@ -1884,6 +1918,7 @@ export const database = {
             .insert({
                 session_id: requestData.session_id,
                 team: requestData.team,
+                ...(Object.hasOwn(requestData, 'delegation_id') ? { delegation_id: requestData.delegation_id } : {}),
                 client_id: requestData.client_id,
                 move: requestData.move,
                 phase: requestData.phase,
@@ -2134,6 +2169,7 @@ export const database = {
             .insert({
                 session_id: eventData.session_id,
                 team: eventData.team || 'blue',
+                ...(Object.hasOwn(eventData, 'delegation_id') ? { delegation_id: eventData.delegation_id } : {}),
                 type,
                 content,
                 category,
@@ -2272,6 +2308,12 @@ export const database = {
             this.fetchResearchTable('research_export_codebook', null),
             this.fetchResearchTable('artifact_workflow_reviews', sessionId)
         ]);
+        if (sessionBundle.session?.session_topology_version === 2) {
+            throw new DatabaseError(
+                'Regional publication exports require GC-11. Use fetchRegionalStorageEvidence to preserve the raw scoped records.',
+                'fetchResearchExportBundle'
+            );
+        }
         const researchNoteIds = new Set(
             researchNotes
                 .map((note) => note?.note_id)
@@ -2308,12 +2350,39 @@ export const database = {
 
     // ==================== NOTETAKER DATA ====================
 
+    async fetchRegionalStorageEvidence(sessionId) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('export_green_storage_evidence', {
+            requested_session_id: sessionId
+        });
+        if (error) throw fromSupabaseError(error, 'fetchRegionalStorageEvidence');
+        return data;
+    },
+
+    async saveScopedNotetakerData(noteData) {
+        const payload = buildScopedNotetakerWrite(noteData);
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('save_scoped_notetaker_data', payload);
+        if (error) throw fromSupabaseError(error, 'saveScopedNotetakerData');
+        return data;
+    },
+
+    async fetchScopedNotetakerData(sessionId, move = null) {
+        await ensureAuthenticatedBrowser();
+        let query = supabase.from('scoped_notetaker_data').select('*').eq('session_id', sessionId);
+        if (move != null) query = query.eq('move', move);
+        const { data, error } = await query.order('move', { ascending: true });
+        if (error) throw fromSupabaseError(error, 'fetchScopedNotetakerData');
+        return data || [];
+    },
+
     /**
      * Save or update notetaker data
      * @param {Object} noteData - Notetaker data
      * @returns {Promise<Object>} Saved data
      */
     async saveNotetakerData(noteData) {
+        assertLegacyNotetakerStorage(noteData);
         await ensureAuthenticatedBrowser();
         const normalizedPayload = {
             ...noteData,

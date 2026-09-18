@@ -93,9 +93,91 @@ Apply the authoritative ledger in this exact order:
 42. `data/2026-08-18_ssg_training_session.sql`
 43. `data/2026-08-18_training_mastery_progress.sql`
 44. `data/2026-08-25_sme_pli_packets.sql`
+45. `data/2026-08-26_decommission_ssg_training.sql`
+46. `data/2026-08-26_session_role_name_snapshots.sql`
+47. `data/2026-09-18_green_regional_storage.sql`
+48. `data/2026-09-19_green_regional_authorization.sql`
+49. `data/2026-09-20_gc03_terminal_revision_conflicts.sql`
+50. `data/2026-09-21_gc03_recipient_forward_uniqueness.sql`
+51. `data/2026-09-22_gc04_session_context.sql`
 
-The August 6 proposal-recipient migration remains the current owner of
-communications RLS and proposal-review behavior. The August 11 migration is an
+GC-04 adds topology to code lookup and authenticated seat restoration before
+participant workspace startup. Apply its migration before the matching frontend;
+missing topology/RPC blocks joining. See [GC-04 context verification](architecture/gc04-regional-context.md)
+for commands, expected results, recovery and remaining evidence. No GC-04 gate
+has been verified by the coding agent.
+
+The September 21 GC-03 dependency repairs the July proposal-wide forward index
+that prevented the August RPC from approving a second recipient. It installs
+`communications_proposal_recipient_root_unique` for one forward per proposal
+and recipient, and limits `idx_communications_one_forward_per_proposal` to
+historical messages without a thread. No existing message is changed. Unexpected
+index drift or duplicate evidence aborts the migration; never delete history to
+force installation. Run `tests/sql/gc03-recipient-forward-uniqueness.sql` afterward
+to verify the installed expressions on rollback-only temporary fixtures, then
+the hosted completion matrix. See the completion guide for exact commands.
+
+If GC-03 provisioning stops at an anonymous Auth rate limit before session setup,
+use the completion guide's `resume-auth RUN_UUID` workflow after the limit
+recovers. It refreshes saved identities and creates only missing actors, retains
+prior reports, and refuses any run that already attempted fixture setup. Do not
+raise Auth limits, change policies or create repeated fresh runs to bypass this
+failure. Token checkpoints remain local under ignored `test-results/`.
+
+The GC-02 migration installs staged regional storage, not regional play.
+Read [Regional Green storage](architecture/green-regional-storage.md) before
+applying it. No roster is seeded or approved; all authenticated v2 operational
+writes remain closed until GC-03 is installed. Unified sessions retain their existing UI.
+The two orientation indexes described there replace the July session/team index.
+
+GC-03 replaces the staging closure with seat-derived regional authorization.
+Read [Regional Green authorization](architecture/green-regional-authorization.md)
+for exact verification commands, retained revocations, the policy inventory and
+remaining activation dependencies. The human reported 69 passing tests across
+seven focused files, the expected rollback-check screenshot, and subsequently
+all three installation markers as `true` after the standalone migration steps.
+GC-03 markers are now present in the queried database; do not reapply the migration.
+The human subsequently passed both two-connection contention checks and the
+committed-count check in the existing project on `2026-09-18`, recorded in
+[hosted verification evidence](architecture/gc03-hosted-verification.md#evidence-limits).
+The focused hosted participant API matrix also passed on `2026-09-18`, with
+112 recorded HTTP responses and the expected six Edge authorization denials.
+The later completion record supplies the broader hosted lifecycle/workflow
+evidence. The human also supplied the rollback-only recipient-index assertion
+success screenshot, completing the requested GC-03 verification evidence.
+Do not reconstruct missing historical migration transcripts. The human owns
+prompt sign-off; no prompt-status table is changed here.
+An approved roster and later regional UI/workflow gates are still required.
+Do not reapply GC-02 over GC-03 or expose its private compatibility functions.
+GC-03 also changes `trigger-pli-adjudication` and `pli-report-narrative`: deploy
+their guarded entrypoints after the migration. The user chose the existing
+project because no rehearsal database is available; the authorization notes
+provide explicit project-targeted deployment commands and remaining limitations.
+The human supplied successful CLI deployments of both functions to
+`gsromgrxgrwwfywaoyme`, including the shared authorization helper in both uploads.
+The API report verifies HTTP 403 authorization responses from both functions
+for both regional Facilitators and the other-session identity. Deployment
+version IDs and matching no-dispatch denial logs are now recorded in the
+successful completion log report linked below.
+They use Supabase's built-in `SUPABASE_URL` and `SUPABASE_ANON_KEY` to validate the
+caller through PostgREST and deny regional derived work pending scoped inputs.
+The database migration alone does not close the old Edge dispatch path.
+
+For the remaining GC-03 evidence, use the
+[completion verification procedure](architecture/gc03-completion-verification.md).
+Run `78414608-28d8-4e03-b247-b38e5fec3b49` passed the complete hosted matrix and
+archived all five sessions. The read-only log retry
+`logs-results-1789765902941.json` matches all six denials to deployed versions
+5 (adjudication) and 8 (narrative). The human also supplied 45 passing offline
+tests. Both database repairs are confirmed by the live inventory. Keep all
+successful and failed reports and archived history. Do not repeat installation,
+Auth provisioning or hosted tests for this completed run. The completion record
+records the final rollback-only SQL success screenshot and readiness for human
+GC-03 sign-off. No additional verification run is required for this implementation.
+
+The August 6 proposal-recipient migration owns the base communications RLS and
+proposal-review behavior; GC-02 intersects those policies with its regional
+restriction and wraps the append RPC. The August 11 migration is an
 additive request-schema repair and does not replace any policy or function. The
 August 12 migration replaces evidence-destroying session deletion with audited
 archival. The August 17 migration adds the Game Master-only archived-session
@@ -125,7 +207,11 @@ is reapplied during repair, reapply
 `data/2026-08-18_training_mastery_progress.sql`, then apply
 `data/2026-08-25_sme_pli_packets.sql`, then apply
 `data/2026-08-26_decommission_ssg_training.sql`, then apply
-`data/2026-08-26_session_role_name_snapshots.sql`. Verify RPCs,
+`data/2026-08-26_session_role_name_snapshots.sql`. The GC-02 migration is a
+one-time additive owner: do not blindly reapply it during repair. If an earlier
+owner is reapplied after GC-02, stop and review the regional wrapper, restrictive
+policies, trigger ordering and orientation indexes before further operation;
+reinstall them through a reviewed forward repair. Verify RPCs,
 triggers, policies, columns, and grants before a demo; a missing migration
 record or failed verification is a deployment blocker.
 
@@ -451,7 +537,8 @@ select indexname
 from pg_indexes
 where schemaname = 'public'
   and indexname in (
-    'idx_actions_one_orientation_per_session_team',
+    'idx_actions_one_unified_orientation',
+    'idx_actions_one_regional_orientation',
     'idx_actions_session_idempotency_key',
     'idx_communications_one_forward_per_proposal'
   )
@@ -479,7 +566,14 @@ where schemaname = 'public'
 order by tablename, policyname;
 ```
 
-Pass: seven action columns, three unique indexes, two action triggers, and four Industry submission policies are returned. Proposal review through the current UI produces one recipient-specific forwarding communication per approved intended recipient, matching timeline rows, action-log revisions, and hash-chained research audit events; approving one recipient leaves every other recipient unchanged.
+After GC-02, the orientation check requires both partial indexes (NULL and
+non-NULL delegation); the original session/team orientation index must be absent.
+The remaining July checks are historical to that migration: later RFI policies
+supersede the Industry request policies. Use the current policy checks below and
+the GC-02 SQL regression for final-state evidence. Proposal review through the
+current unified UI must still produce one recipient-specific forwarding
+communication per approved intended recipient, matching timeline rows,
+action-log revisions, and hash-chained research events.
 
 ## Team-Neutral Artifact Review Workflow
 

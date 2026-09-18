@@ -66,6 +66,9 @@
                         </div>
                     </div>
 
+                    <button type="button" class="btn btn-secondary" id="checkSessionBtn">Check session</button>
+                    <p id="joinStatus" role="status" aria-live="polite" tabindex="-1"></p>
+
                     <fieldset class="lf-fieldset">
                         <legend>Team</legend>
                         <div class="lf-chips" role="group" aria-label="Team selection" aria-describedby="teamSelectionHelp">
@@ -86,6 +89,14 @@
                         <input type="hidden" id="selectedTeam" name="team" value="blue">
                     </fieldset>
 
+                    <fieldset class="lf-fieldset" id="delegationSelection" hidden>
+                        <legend>Green delegation</legend>
+                        <div class="lf-chips" role="group" aria-label="Green delegation">
+                            <button type="button" class="chip" data-delegation="asian_pacific" aria-pressed="false">Asia-Pacific</button>
+                            <button type="button" class="chip" data-delegation="europe" aria-pressed="false">Europe</button>
+                        </div>
+                        <p class="lf-help">Choose your delegation, then Scribe or Facilitator. Each role has one seat per delegation.</p>
+                    </fieldset>
                     <fieldset class="lf-fieldset">
                         <legend>Role</legend>
                         <div class="lf-chips" id="roleSelectionGroup" role="group" aria-label="Role selection"
@@ -114,6 +125,7 @@
                         <input type="hidden" id="selectedRole" name="role">
                     </fieldset>
 
+                    <p id="seatSelectionSummary" role="status" aria-live="polite"></p>
                     <button type="submit" class="btn btn-primary btn-full-width lf-submit">Join Session</button>
                 </form>
 

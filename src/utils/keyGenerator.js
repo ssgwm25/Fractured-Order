@@ -5,6 +5,7 @@
  */
 
 import { CONFIG } from '../core/config.js';
+import { getConfirmedSeat, seatStorageKey } from '../core/seatContext.js';
 
 /**
  * Generate a consistent storage key
@@ -14,6 +15,11 @@ import { CONFIG } from '../core/config.js';
  * @returns {string} Storage key
  */
 export function getStorageKey(dataType, sessionId, move = null) {
+    const seat = getConfirmedSeat();
+    if (seat) {
+        if (seat.sessionId !== sessionId) throw new Error('Local state session mismatch.');
+        return seatStorageKey(`${CONFIG.STORAGE_PREFIX}_${dataType}${move !== null ? `_move_${move}` : ''}`);
+    }
     if (!sessionId) {
         console.warn('[KeyGenerator] No session ID provided, using legacy key');
         return move !== null
@@ -34,6 +40,7 @@ export function getStorageKey(dataType, sessionId, move = null) {
  * @returns {string[]} Array of possible keys, prioritized from newest to oldest format
  */
 export function getPossibleKeys(dataType, sessionId, move = null) {
+    if (getConfirmedSeat()) return [getStorageKey(dataType, sessionId, move)];
     const keys = [];
 
     // Session-based key (preferred - newest format)

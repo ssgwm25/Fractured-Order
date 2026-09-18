@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../utils/logger.js';
+import { getConfirmedSeat, setConfirmedSeat, clearSeatLocalState } from '../core/seatContext.js';
 import {
     OPERATOR_SURFACES,
     isOperatorSurface,
@@ -349,6 +350,7 @@ function bindStorageListener() {
 
 export const sessionStore = {
     init() {
+        setConfirmedSeat(null);
         RETIRED_STORAGE_KEYS.forEach((key) => removeStoredValue(key));
         currentSessionId = getStoredValue(STORAGE_KEYS.SESSION_ID);
         currentClientId = getStoredValue(STORAGE_KEYS.CLIENT_ID) || this.generateClientId();
@@ -384,6 +386,7 @@ export const sessionStore = {
         }
 
         const hasChanged = currentSessionId !== sessionId;
+        if (hasChanged) this.invalidateSeat();
         currentSessionId = sessionId;
         setStoredValue(STORAGE_KEYS.SESSION_ID, sessionId);
 
@@ -419,6 +422,7 @@ export const sessionStore = {
     },
 
     setRole(role) {
+        if (currentRole !== normalizeSessionRole(role)) this.invalidateSeat();
         currentRole = normalizeSessionRole(role);
         setStoredValue(STORAGE_KEYS.ROLE, currentRole);
 
@@ -492,6 +496,37 @@ export const sessionStore = {
 
     getOperatorAuth() {
         return syncOperatorAuthFromStorage();
+    },
+
+    getConfirmedSeat,
+
+    invalidateSeat() {
+        clearSeatLocalState();
+        if (!getConfirmedSeat() && currentSessionData?.participantSessionId) {
+            clearSeatLocalState({ sessionId: currentSessionData.id, topology: currentSessionData.sessionTopologyVersion,
+                teamId: currentSessionData.team, delegationId: currentSessionData.delegationId,
+                role: currentSessionData.role, participantId: currentSessionData.participantSessionId });
+        }
+        setConfirmedSeat(null);
+    },
+
+    confirmSeat(seat) {
+        const previous = getConfirmedSeat();
+        const cached = currentSessionData;
+        if (previous && (previous.participantId !== seat.participantId || previous.role !== seat.role
+            || previous.sessionId !== seat.sessionId)) this.invalidateSeat();
+        if (cached?.participantSessionId && (cached.participantSessionId !== seat.participantId
+            || cached.role !== seat.role || cached.delegationId !== seat.delegationId)) {
+            clearSeatLocalState({ sessionId: cached.id, topology: cached.sessionTopologyVersion,
+                teamId: cached.team, delegationId: cached.delegationId, role: cached.role,
+                participantId: cached.participantSessionId });
+        }
+        this.setRole(seat.role);
+        setConfirmedSeat(seat);
+        this.mergeSessionData({ role: seat.role, team: seat.teamId, delegationId: seat.delegationId,
+            sessionTopologyVersion: seat.topology, roleSurface: seat.surface,
+            participantId: seat.participantId, participantSessionId: seat.participantId,
+            name: seat.sessionName, code: seat.sessionCode, displayName: seat.displayName });
     },
 
     setOperatorAuth(auth) {
@@ -615,6 +650,7 @@ export const sessionStore = {
 
     clear() {
         logger.info('Clearing session');
+        this.invalidateSeat();
 
         currentSessionId = null;
         currentRole = null;
@@ -646,13 +682,9 @@ export const sessionStore = {
         const params = new URLSearchParams(window.location.search);
         const sessionId = params.get('session');
 
-        if (sessionId) {
-            this.setSessionId(sessionId);
-            const url = new URL(window.location.href);
-            url.searchParams.delete('session');
-            window.history.replaceState({}, '', url);
-            return true;
-        }
+        // A URL is only a route hint. Startup validates it against the confirmed
+        // server seat; it must never overwrite the saved session or be stripped.
+        if (sessionId) return false;
 
         return false;
     },

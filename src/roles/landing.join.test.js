@@ -26,6 +26,7 @@ const {
         setRole: vi.fn(),
         setUserName: vi.fn(),
         setSessionData: vi.fn(),
+        confirmSeat: vi.fn(),
         setGameState: vi.fn(),
         setOperatorAuth: vi.fn()
     },
@@ -173,10 +174,11 @@ describe('landing secure join flow', () => {
             id: 'session-1',
             name: 'Alpha Session',
             session_code: 'ALPHA2026',
-            status: 'active'
+            status: 'active', session_topology_version: 1
         });
         mockDatabase.claimParticipantSeat.mockResolvedValue({
             id: 'session-participant-1',
+            session_id: 'session-1', role: 'blue_facilitator', is_active: true,
             claim_status: 'claimed'
         });
         mockDatabase.getGameState.mockResolvedValue({
@@ -211,9 +213,10 @@ describe('landing secure join flow', () => {
         expect(mockDatabase.getActiveSessions).not.toHaveBeenCalled();
         expect(mockDatabase.getActiveParticipants).not.toHaveBeenCalled();
         expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('session-1', 'blue_facilitator', 'Morgan');
-        expect(mockSyncService.initialize).toHaveBeenCalledWith('session-1', {
-            participantId: 'session-participant-1'
-        });
+        expect(mockSyncService.initialize).not.toHaveBeenCalled();
+        expect(mockSessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({
+            sessionId: 'session-1', role: 'blue_facilitator', topology: 1
+        }));
         expect(mockSessionStore.setSessionId).toHaveBeenCalledWith('session-1');
         expect(mockSessionStore.setSessionData).toHaveBeenCalledWith(expect.objectContaining({
             id: 'session-1',
@@ -233,6 +236,42 @@ describe('landing secure join flow', () => {
         expect(mockHideLoader).not.toHaveBeenCalled();
     });
 
+    it.each(['asian_pacific', 'europe'].flatMap((delegation) => ['facilitator', 'scribe'].map((surface) => [delegation, surface])))
+    ('claims %s / %s with the complete semantic identity visible first', async (delegation, surface) => {
+        const elements = { sessionCode: createElement('regional'), displayName: createElement('Synthetic participant'),
+            seatSelectionSummary: createErrorElement() };
+        global.document = { getElementById: (id) => elements[id] || null };
+        const semantic = surface === 'facilitator' ? 'scribe' : 'facilitator';
+        const role = `green_${delegation}_${semantic}`;
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({ id: 'regional', name: 'Synthetic session',
+            status: 'active', session_topology_version: 2 });
+        mockDatabase.claimParticipantSeat.mockImplementation(async () => {
+            expect(elements.seatSelectionSummary.textContent).toContain(delegation === 'europe' ? 'Europe' : 'Asia-Pacific');
+            expect(elements.seatSelectionSummary.textContent).toContain(semantic === 'scribe' ? 'Scribe' : 'Facilitator');
+            return { id: 'regional-seat', session_id: 'regional', role, delegation_id: delegation, is_active: true };
+        });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green'; controller.selectedDelegation = delegation;
+        controller.selectedRoleSurface = surface; controller.redirectToRole = vi.fn();
+        await controller.handleJoinSession({ preventDefault() {} });
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('regional', role, 'Synthetic participant');
+        expect(mockSessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({ role, delegationId: delegation }));
+        expect(controller.redirectToRole).toHaveBeenCalledWith(role);
+    });
+
+    it('does not claim a unified Green seat when session discovery reveals regional topology', async () => {
+        const elements = { sessionCode: createElement('regional'), displayName: createElement('Synthetic participant'), joinStatus: createElement() };
+        global.document = { getElementById: (id) => elements[id] || null };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({ id: 'regional', status: 'active', session_topology_version: 2 });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green'; controller.selectedRoleSurface = 'facilitator';
+        await controller.handleJoinSession({ preventDefault() {} });
+        expect(mockDatabase.claimParticipantSeat).not.toHaveBeenCalled();
+        expect(elements.joinStatus.textContent).toContain('Choose Asia-Pacific or Europe');
+    });
+
     it('sends TRAINING2026 through the ordinary live-session join path', async () => {
         const elements = {
             sessionCode: createElement('training2026'),
@@ -247,10 +286,11 @@ describe('landing secure join flow', () => {
             id: 'session-live-regression',
             name: 'Live regression',
             session_code: 'TRAINING2026',
-            status: 'active'
+            status: 'active', session_topology_version: 1
         });
         mockDatabase.claimParticipantSeat.mockResolvedValue({
             id: 'seat-live-regression',
+            session_id: 'session-live-regression', role: 'blue_facilitator', is_active: true,
             claim_status: 'claimed'
         });
         mockDatabase.getGameState.mockResolvedValue({ move: 1, phase: 1 });
@@ -511,10 +551,11 @@ describe('landing secure join flow', () => {
             id: 'session-2',
             name: 'Bravo Session',
             session_code: 'ALPHA2026',
-            status: 'active'
+            status: 'active', session_topology_version: 1
         });
         mockDatabase.claimParticipantSeat.mockResolvedValue({
             id: 'session-participant-2',
+            session_id: 'session-2', role: 'industry_scribe', is_active: true,
             claim_status: 'claimed'
         });
         mockDatabase.getGameState.mockResolvedValue({

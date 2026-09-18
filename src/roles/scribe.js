@@ -13,6 +13,8 @@ import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { confirmModal, showModal } from '../components/ui/Modal.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
+import { ensureSeatStartup } from '../services/seatBootstrap.js';
+import { seatStorageKey, bindControllerSeatCleanup } from '../core/seatContext.js';
 import {
     ENUMS,
     isAdjudicatedAction,
@@ -1096,6 +1098,11 @@ export class ScribeController {
     }
 
     async init() {
+        if (!await ensureSeatStartup()) return;
+        bindControllerSeatCleanup(this);
+        this.teamContext = resolveTeamContext({ seat: sessionStore.getConfirmedSeat?.() });
+        this.teamId = this.teamContext.teamId;
+        this.teamLabel = this.teamContext.teamLabel;
         logger.info('Initializing Facilitator support deck');
 
         const sessionId = sessionStore.getSessionId();
@@ -1147,7 +1154,9 @@ export class ScribeController {
         this.syncRfisFromStore();
         this.syncCommunicationsFromStore();
         await this.loadRfiRevisionHistory();
+        if (this.seatInvalidated) return;
         await this.loadDeck();
+        if (this.seatInvalidated) return;
         this.syncActionsFromStore();
         this.restoreDurableNotifications();
         this.mountFollowAlongOnboarding();
@@ -1166,7 +1175,7 @@ export class ScribeController {
             action: { label: `Open ${title}`, selector }
         });
         this.onboarding = mountFollowAlong({
-            storageKey: `followalong:scribe:${this.teamId}`,
+            storageKey: seatStorageKey(`followalong:scribe:${this.teamId}`),
             title: `${this.teamContext.scribeLabel} guide`,
             roleLabel: this.teamContext.scribeLabel,
             summary: `Guide ${this.teamLabel}'s discussion, review the Scribe handoff, project the working record, and submit the final team artifact to White Cell.`,
@@ -1225,7 +1234,7 @@ export class ScribeController {
         const headerTitle = document.querySelector('.header-title');
 
         if (roleLabel) {
-            roleLabel.textContent = 'Facilitator';
+            roleLabel.textContent = this.teamContext.delegationId ? this.teamContext.scribeLabel : 'Facilitator';
         }
 
         if (headerTitle) {
@@ -5435,7 +5444,7 @@ export class ScribeController {
         }
 
         try {
-            window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? 'true' : 'false');
+            window.localStorage.setItem(seatStorageKey(SIDEBAR_COLLAPSED_KEY), collapsed ? 'true' : 'false');
         } catch (error) {
             // Storage is best-effort; ignore failures.
         }
@@ -5450,7 +5459,7 @@ export class ScribeController {
     restoreSidebarState() {
         let collapsed = false;
         try {
-            collapsed = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+            collapsed = window.localStorage.getItem(seatStorageKey(SIDEBAR_COLLAPSED_KEY)) === 'true';
         } catch (error) {
             collapsed = false;
         }

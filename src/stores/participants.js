@@ -11,6 +11,7 @@
 
 import { database } from '../services/database.js';
 import { sessionStore } from './session.js';
+import { restoreConfirmedSeat } from '../services/seatBootstrap.js';
 import { createLogger } from '../utils/logger.js';
 import { CONFIG, getRoleLimit, isHeartbeatFresh } from '../core/config.js';
 
@@ -362,10 +363,34 @@ class ParticipantsStore {
             return;
         }
 
+        // Offline browsers cannot renew a server lease. Preserve regional rejoin
+        // context; sync.resync restores/validates the seat before loading data.
+        const regionalSeat = sessionStore.getConfirmedSeat?.()?.delegationId;
+        if (regionalSeat && globalThis.navigator?.onLine === false) return;
+
         try {
             const now = new Date().toISOString();
 
-            const updatedSeat = await database.updateHeartbeat(this.sessionId, this.currentParticipantId);
+            let updatedSeat;
+            try {
+                updatedSeat = await database.updateHeartbeat(this.sessionId, this.currentParticipantId);
+            } catch (error) {
+                const cause = error.originalError || error;
+                // An expired lease can race the reconnect resync. Reclaim only
+                // through the authenticated restore RPC, once, before retrying.
+                if (!regionalSeat || globalThis.navigator?.onLine === false
+                    || cause.code !== '42501' || cause.message !== 'GC03_SEAT_REJOIN_REQUIRED') throw error;
+                await restoreConfirmedSeat({ checkRoute: false });
+                updatedSeat = await database.updateHeartbeat(this.sessionId, this.currentParticipantId);
+            }
+            const confirmed = sessionStore.getConfirmedSeat?.();
+            if (confirmed && (updatedSeat?.id !== confirmed.participantId || updatedSeat?.role !== confirmed.role
+                || (updatedSeat?.delegation_id ?? null) !== confirmed.delegationId || updatedSeat?.revoked_at)) {
+                sessionStore.invalidateSeat();
+                sessionStore.notify();
+                this.stopHeartbeat();
+                return;
+            }
 
             // Update local state
             const participant = this.getById(this.currentParticipantId);
@@ -380,7 +405,19 @@ class ParticipantsStore {
 
             logger.debug('Heartbeat sent');
         } catch (err) {
+            const cause = err.originalError || err;
+            if (regionalSeat && globalThis.navigator?.onLine === false
+                && (!cause.code || cause.code === 'NETWORK_ERROR')
+                && /failed to fetch|network|offline|fetch failed/i.test(cause.message || '')) {
+                logger.debug('Regional heartbeat paused offline; server validation required on reconnect');
+                return;
+            }
             logger.error('Failed to send heartbeat:', err);
+            if (sessionStore.getConfirmedSeat?.()) {
+                sessionStore.invalidateSeat();
+                sessionStore.notify();
+                this.stopHeartbeat();
+            }
         }
     }
 
@@ -431,6 +468,9 @@ class ParticipantsStore {
         }
 
         this.pagehideHandler = () => {
+            // Regional reload/navigation keeps the lease; explicit logout still
+            // releases it. Closing the tab expires it through the 90-second lease.
+            if (sessionStore.getConfirmedSeat?.()?.delegationId) return;
             void database.disconnectParticipantKeepalive(this.sessionId, this.currentParticipantId);
         };
 
@@ -493,6 +533,14 @@ class ParticipantsStore {
      * @param {Participant} participant - Participant data
      */
     updateFromServer(eventType, participant) {
+        const confirmed = sessionStore.getConfirmedSeat?.();
+        if (confirmed && participant?.id === confirmed.participantId && (eventType === 'DELETE'
+            || participant.revoked_at || participant.is_active === false
+            || (participant.role && participant.role !== confirmed.role))) {
+            sessionStore.invalidateSeat();
+            sessionStore.notify();
+            this.stopHeartbeat();
+        }
         const existingParticipant = participant?.id
             ? this.participants.find((candidate) => candidate.id === participant.id)
             : null;

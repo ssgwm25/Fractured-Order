@@ -1,0 +1,61 @@
+{
+  "contract_version": "1.0.0",
+  "status": "proposed_not_activated",
+  "parent_team": "green",
+  "authority": "authenticated_active_session_seat",
+  "topologies": {
+    "unified_green": { "session_topology_version": 1, "required_orientations": ["blue", "green", "red", "industry"] },
+    "regional_green": { "session_topology_version": 2, "required_orientations": ["blue", "green:asian_pacific", "green:europe", "red", "industry"] }
+  },
+  "delegations": [
+    { "id": "asian_pacific", "label": "Green - Asia-Pacific", "forecast_target": "green_asian_pacific" },
+    { "id": "europe", "label": "Green - Europe", "forecast_target": "green_europe" }
+  ],
+  "roster": {
+    "status": "unresolved",
+    "approved_version": null,
+    "membership_validation_enabled": false,
+    "candidates": [
+      { "id": "proposal_form", "source": "src/features/actions/proposalDetails.js", "asian_pacific": ["ROK", "ASEAN", "Japan"], "europe": ["EU", "France", "UK"] },
+      { "id": "green_briefing", "source": "decks/green/fractured-order-green-facilitator-deck.html", "asian_pacific": ["Australia", "Japan", "Republic of Korea"], "europe": ["European Union", "Germany", "United Kingdom"] }
+    ]
+  },
+  "regional_seats": [
+    { "role": "green_asian_pacific_facilitator", "semantic_role": "facilitator", "delegation_id": "asian_pacific", "capacity": 1, "route": "teams/green/scribe.html?delegation=asian_pacific", "permission_profile": "regional_facilitator" },
+    { "role": "green_asian_pacific_scribe", "semantic_role": "scribe", "delegation_id": "asian_pacific", "capacity": 1, "route": "teams/green/facilitator.html?delegation=asian_pacific", "permission_profile": "regional_scribe" },
+    { "role": "green_europe_facilitator", "semantic_role": "facilitator", "delegation_id": "europe", "capacity": 1, "route": "teams/green/scribe.html?delegation=europe", "permission_profile": "regional_facilitator" },
+    { "role": "green_europe_scribe", "semantic_role": "scribe", "delegation_id": "europe", "capacity": 1, "route": "teams/green/facilitator.html?delegation=europe", "permission_profile": "regional_scribe" },
+    { "role": "green_asian_pacific_notetaker", "semantic_role": "notetaker", "delegation_id": "asian_pacific", "capacity": 1, "route": "teams/green/notetaker.html?delegation=asian_pacific", "permission_profile": "regional_notetaker" },
+    { "role": "green_europe_notetaker", "semantic_role": "notetaker", "delegation_id": "europe", "capacity": 1, "route": "teams/green/notetaker.html?delegation=europe", "permission_profile": "regional_notetaker" }
+  ],
+  "legacy_seats": [
+    { "role": "green_facilitator", "semantic_role": "scribe", "delegation_id": null, "capacity": 1, "route": "teams/green/facilitator.html", "permission_profile": "legacy_scribe" },
+    { "role": "green_scribe", "semantic_role": "facilitator", "delegation_id": null, "capacity": 1, "route": "teams/green/scribe.html", "permission_profile": "legacy_facilitator" },
+    { "role": "green_notetaker", "semantic_role": "notetaker", "delegation_id": null, "capacity": 2, "route": "teams/green/notetaker.html", "permission_profile": "legacy_notetaker" }
+  ],
+  "other_roles": [
+    { "role": "whitecell_lead", "permission_profile": "white_cell", "route": "whitecell.html" },
+    { "role": "whitecell_support", "permission_profile": "white_cell", "route": "whitecell.html" },
+    { "role": "white", "permission_profile": "game_master", "route": "master.html" },
+    { "role": "sme_econ", "permission_profile": "sme_review", "route": "sme.html" },
+    { "role": "sme_ni_escalation", "permission_profile": "sme_review", "route": "sme.html" },
+    { "role": "sme_diplomacy_information", "permission_profile": "sme_review", "route": "sme.html" },
+    { "role": "sme_tsj", "permission_profile": "sme_handoff", "route": "sme.html" },
+    { "role": "sme_verba", "permission_profile": "sme_handoff", "route": "sme.html" },
+    { "role": "viewer", "permission_profile": "observer", "route": "teams/green/facilitator.html?mode=observer" }
+  ],
+  "permission_columns": ["read_artifacts", "edit_artifacts", "submit_artifacts", "rfis", "direct_messages", "proposal_threads", "notes", "review_or_control"],
+  "permission_matrix": {
+    "regional_scribe": ["own", "draft_returned", "no", "read_own", "addressed", "read_own", "no", "no"],
+    "regional_facilitator": ["own", "forwarded_returned", "own", "manage_own", "own_white_cell", "append_own", "no", "no"],
+    "regional_notetaker": ["own_released", "no", "no", "read_own", "addressed", "no", "own_seat", "no"],
+    "legacy_scribe": ["legacy_session", "draft_returned", "legacy_submit", "read_own", "legacy_addressed", "legacy_append", "legacy_notes_read", "no"],
+    "legacy_facilitator": ["legacy_session", "forwarded_returned", "own", "manage_own", "own_white_cell", "legacy_append", "legacy_notes_read", "no"],
+    "legacy_notetaker": ["legacy_session", "no", "no", "read_own", "legacy_addressed", "legacy_thread_read", "legacy_notes_write", "no"],
+    "white_cell": ["both", "no", "no", "review_both", "both", "review_both", "read_both", "white_cell"],
+    "game_master": ["both", "no", "no", "read_both", "read_both", "read_both", "read_both", "session_admin"],
+    "sme_review": ["assigned", "no", "no", "no", "no", "no", "no", "matching_pli_seat"],
+    "sme_handoff": ["released_packets", "no", "no", "no", "no", "no", "no", "matching_ack"],
+    "observer": ["released", "no", "no", "no", "addressed", "no", "no", "no"]
+  }
+}

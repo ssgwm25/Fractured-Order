@@ -25,6 +25,8 @@ import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
 import { debounce } from '../utils/debounce.js';
 import { navigateToApp } from '../core/navigation.js';
 import { ROLE_SURFACES, buildTeamRole, resolveTeamContext } from '../core/teamContext.js';
+import { ensureSeatStartup } from '../services/seatBootstrap.js';
+import { seatStorageKey, bindControllerSeatCleanup } from '../core/seatContext.js';
 import {
     buildNotetakerParticipantContext,
     filterObservationTimelineByTeam,
@@ -244,6 +246,11 @@ export class NotetakerController {
      * Initialize the Notetaker interface
      */
     async init() {
+        if (!await ensureSeatStartup()) return;
+        bindControllerSeatCleanup(this);
+        this.teamContext = resolveTeamContext({ seat: sessionStore.getConfirmedSeat?.() });
+        this.teamId = this.teamContext.teamId;
+        this.teamLabel = this.teamContext.teamLabel;
         logger.info('Initializing Notetaker interface');
 
         // Check for valid session
@@ -270,6 +277,7 @@ export class NotetakerController {
         await syncService.initialize(sessionId, {
             participantId: sessionStore.getSessionParticipantId?.() || null
         });
+        if (this.seatInvalidated) return;
         this.bindEventListeners();
         this.setupAutoSave();
         this.subscribeToLiveData();
@@ -296,7 +304,7 @@ export class NotetakerController {
             action: { label: `Open ${title}`, selector: navTarget(section) }
         });
         this.onboarding = mountFollowAlong({
-            storageKey: `followalong:notetaker:${this.teamId}`,
+            storageKey: seatStorageKey(`followalong:notetaker:${this.teamId}`),
             title: `${this.teamContext.notetakerLabel} guide`,
             roleLabel: this.teamContext.notetakerLabel,
             summary: `Preserve how ${this.teamLabel} reached its decisions: the dynamics, alliances, turning points, observations, and sequence behind the formal record.`,

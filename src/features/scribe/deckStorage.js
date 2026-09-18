@@ -1,3 +1,5 @@
+import { getConfirmedSeat, onSeatCleanup } from '../../core/seatContext.js';
+
 const SCRIBE_DECK_STORAGE_DB = 'esg-scribe-decks';
 const SCRIBE_DECK_STORAGE_STORE = 'uploaded-decks';
 const SCRIBE_DECK_STORAGE_VERSION = 1;
@@ -165,7 +167,7 @@ async function runDeckStorageRequest(mode, callback) {
     });
 }
 
-export function buildUploadedScribeDeckStorageKey(sessionId = '', teamId = '') {
+export function buildUploadedScribeDeckStorageKey(sessionId = '', teamId = '', delegationId = null) {
     const normalizedSessionId = String(sessionId || '').trim();
     const normalizedTeamId = String(teamId || '').trim().toLowerCase();
 
@@ -173,7 +175,10 @@ export function buildUploadedScribeDeckStorageKey(sessionId = '', teamId = '') {
         throw new Error('Uploaded facilitator decks require both a session ID and team ID.');
     }
 
-    return `scribe-deck:${normalizedSessionId}:${normalizedTeamId}`;
+    if (delegationId && (normalizedTeamId !== 'green' || !['asian_pacific', 'europe'].includes(delegationId))) {
+        throw new Error('Invalid deck delegation.');
+    }
+    return `scribe-deck:${normalizedSessionId}:${normalizedTeamId}${delegationId ? `:${delegationId}` : ''}`;
 }
 
 export async function saveUploadedScribeDeck({
@@ -210,6 +215,10 @@ export async function saveUploadedScribeDeck({
 }
 
 export async function getUploadedScribeDeck(storageKey = '') {
+    const seat = getConfirmedSeat();
+    if (seat?.delegationId && storageKey !== buildUploadedScribeDeckStorageKey(seat.sessionId, seat.teamId, seat.delegationId)) {
+        throw new Error('This uploaded deck is not assigned to your confirmed delegation. Ask White Cell for a regional assignment.');
+    }
     const normalizedStorageKey = String(storageKey || '').trim();
     if (!normalizedStorageKey) {
         return null;
@@ -227,3 +236,10 @@ export async function deleteUploadedScribeDeck(storageKey = '') {
     await runDeckStorageRequest('readwrite', (store) => store.delete(normalizedStorageKey));
     return true;
 }
+
+onSeatCleanup((seat) => {
+    if (seat.delegationId && resolveIndexedDb()) {
+        void deleteUploadedScribeDeck(buildUploadedScribeDeckStorageKey(seat.sessionId, seat.teamId, seat.delegationId))
+            .catch(() => {}); // Access remains blocked if browser storage is unavailable.
+    }
+});

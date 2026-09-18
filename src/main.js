@@ -6,6 +6,7 @@
  */
 
 import { sessionStore } from './stores/session.js';
+import { ensureSeatStartup, renderSeatGate } from './services/seatBootstrap.js';
 import { gameStateStore } from './stores/gameState.js';
 import { actionsStore } from './stores/actions.js';
 import { participantsStore } from './stores/participants.js';
@@ -98,6 +99,21 @@ async function initApp() {
         hideLoader();
         return;
     }
+
+    if (!await ensureSeatStartup()) { hideLoader(); return; }
+
+    // Revocation/seat changes must discard rendered private data as well as keys.
+    let seatWasConfirmed = Boolean(sessionStore.getConfirmedSeat?.());
+    sessionStore.subscribe(() => {
+        if (seatWasConfirmed && !sessionStore.getConfirmedSeat?.()) {
+            seatWasConfirmed = false;
+            renderSeatGate('Session validation lost. Live updates and workspace access are unavailable. Retry validation or return to join.', { retry: true });
+            void syncService.reset();
+            Array.from(document.body.children).forEach((node) => {
+                if (node.id !== 'seatContextStatus' && !['SCRIPT', 'STYLE', 'LINK'].includes(node.tagName)) node.remove();
+            });
+        }
+    });
 
     // Setup global error handling
     setupErrorHandling();
@@ -959,7 +975,7 @@ function setupSyncLifecycle() {
             || null;
         const shouldInitialize = shouldInitializeLiveSync(snapshot, {
             landingPage: isLandingPage()
-        });
+        }) && (!isPublicRoleSurface(parseTeamRole(snapshot.role).surface) || Boolean(sessionStore.getConfirmedSeat?.()));
 
         if (!shouldInitialize) {
             if (currentSyncSessionId) {

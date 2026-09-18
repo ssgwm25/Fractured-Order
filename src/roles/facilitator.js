@@ -112,6 +112,8 @@ import {
     isSubmittedAction
 } from '../core/enums.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
+import { ensureSeatStartup } from '../services/seatBootstrap.js';
+import { seatStorageKey, bindControllerSeatCleanup } from '../core/seatContext.js';
 import { navigateToApp } from '../core/navigation.js';
 import { WHITE_CELL_PLUGIN_IDS } from '../features/plugins/registry.js';
 import {
@@ -306,6 +308,11 @@ export class FacilitatorController {
     }
 
     async init() {
+        if (!await ensureSeatStartup()) return;
+        bindControllerSeatCleanup(this);
+        this.teamContext = resolveTeamContext({ seat: sessionStore.getConfirmedSeat?.() });
+        this.teamId = this.teamContext.teamId;
+        this.teamLabel = this.teamContext.teamLabel;
         logger.info('Initializing Scribe workspace');
 
         const sessionId = sessionStore.getSessionId();
@@ -348,6 +355,7 @@ export class FacilitatorController {
         await syncService.initialize(sessionId, {
             participantId: sessionStore.getSessionParticipantId?.() || null
         });
+        if (this.seatInvalidated) return;
         this.configureAccessMode();
         this.bindEventListeners();
         this.actions = actionsStore.getByTeam(this.teamId);
@@ -378,7 +386,7 @@ export class FacilitatorController {
         });
         if (this.isReadOnly) {
             this.onboarding = mountFollowAlong({
-                storageKey: `followalong:observer:${this.teamId}`,
+                storageKey: seatStorageKey(`followalong:observer:${this.teamId}`),
                 title: `${this.teamLabel} Observer guide`,
                 roleLabel: `${this.teamLabel} Observer`,
                 summary: 'Follow the team record and exercise state without creating, editing, forwarding, or submitting artifacts.',
@@ -421,7 +429,7 @@ export class FacilitatorController {
             ? `Create and revise your team's ${actionNoun} here. Forward completed actions to the Facilitator; the Facilitator projects and submits them to White Cell.`
             : `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`;
         this.onboarding = mountFollowAlong({
-            storageKey: `followalong:facilitator:${this.teamId}`,
+            storageKey: seatStorageKey(`followalong:facilitator:${this.teamId}`),
             title: `${this.teamContext.facilitatorLabel} guide`,
             roleLabel: this.teamContext.facilitatorLabel,
             summary: `Own ${this.teamLabel}'s written decision record, preserve its rationale, and hand complete work across the explicit review boundary.`,
@@ -509,7 +517,8 @@ export class FacilitatorController {
             : 'facilitator';
 
         if (roleLabel) {
-            roleLabel.textContent = this.isReadOnly ? 'Observer' : this.getCurrentLeadSurfaceLabel();
+            roleLabel.textContent = this.isReadOnly ? 'Observer'
+                : this.teamContext.delegationId ? this.teamContext.facilitatorLabel : this.getCurrentLeadSurfaceLabel();
         }
 
         if (headerTitle) {

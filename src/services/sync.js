@@ -18,6 +18,7 @@ import { timelineStore } from '../stores/timeline.js';
 import { participantsStore } from '../stores/participants.js';
 import { communicationsStore } from '../stores/communications.js';
 import { sessionStore } from '../stores/session.js';
+import { restoreConfirmedSeat } from './seatBootstrap.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('SyncService');
@@ -279,6 +280,14 @@ class SyncService {
             this.setStatus(SYNC_STATUS.SYNCING);
 
             try {
+                if (sessionStore.getConfirmedSeat?.()) {
+                    try { await restoreConfirmedSeat({ checkRoute: false }); }
+                    catch (error) {
+                        sessionStore.invalidateSeat();
+                        sessionStore.notify();
+                        throw error;
+                    }
+                }
                 await Promise.all([
                     gameStateStore.initialize(this.sessionId),
                     actionsStore.reconcileActions(),

@@ -273,6 +273,31 @@ describe('sessionStore snapshot model', () => {
         });
     });
 
+    it('does not let a URL overwrite the persisted session reference', async () => {
+        sessionStorage.setItem('esg_session_id', 'confirmed-session');
+        window.location.search = '?session=forged-session';
+        const { sessionStore } = await loadSessionStore();
+        expect(sessionStore.getSessionId()).toBe('confirmed-session');
+        expect(window.location.search).toBe('?session=forged-session');
+        expect(sessionStore.restoreFromUrl()).toBe(false);
+    });
+
+    it('requires server reconfirmation after reload and clears authority on logout', async () => {
+        const { sessionStore } = await loadSessionStore();
+        sessionStore.setSessionId('session');
+        const seat = { sessionId: 'session', participantId: 'seat', role: 'green_europe_scribe',
+            topology: 2, teamId: 'green', delegationId: 'europe', surface: 'facilitator' };
+        sessionStore.confirmSeat(seat);
+        expect(sessionStore.getConfirmedSeat()).toEqual(seat);
+        expect(sessionStore.getSessionData()).toMatchObject({ delegationId: 'europe', sessionTopologyVersion: 2 });
+        sessionStore.init();
+        expect(sessionStore.getConfirmedSeat()).toBeNull();
+        sessionStore.confirmSeat(seat);
+        sessionStore.clear();
+        expect(sessionStore.getConfirmedSeat()).toBeNull();
+        expect(sessionStore.getSessionParticipantId()).toBeNull();
+    });
+
     it('clears retired training context during initialization', async () => {
         sessionStorage.setItem('esg_training_context', JSON.stringify({ attemptId: 'retired' }));
         const { sessionStore } = await loadSessionStore();

@@ -254,7 +254,14 @@ describe('repository operator docs contract', () => {
             'data/2026-08-17_game_master_session_retirement.sql',
             'data/2026-08-18_ssg_training_session.sql',
             'data/2026-08-18_training_mastery_progress.sql',
-            'data/2026-08-25_sme_pli_packets.sql'
+            'data/2026-08-25_sme_pli_packets.sql',
+            'data/2026-08-26_decommission_ssg_training.sql',
+            'data/2026-08-26_session_role_name_snapshots.sql',
+            'data/2026-09-18_green_regional_storage.sql',
+            'data/2026-09-19_green_regional_authorization.sql',
+            'data/2026-09-20_gc03_terminal_revision_conflicts.sql',
+            'data/2026-09-21_gc03_recipient_forward_uniqueness.sql',
+            'data/2026-09-22_gc04_session_context.sql'
         ];
 
         let priorIndex = -1;

@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { auditedDerivedAuthorization } from "../_shared/authorizeDerivedOperation.js";
 
 /**
  * Fire-and-forget trigger: dispatch GitHub Actions workflow `pli-adjudicate.yml`
@@ -75,6 +76,17 @@ Deno.serve(async (req: Request) => {
   }
   if (!isUuid(sessionId)) {
     return jsonResponse({ error: "sessionId must be a UUID" }, 400, origin);
+  }
+
+  const authorization = await auditedDerivedAuthorization({
+    deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID"),
+    supabaseUrl: Deno.env.get("SUPABASE_URL"), anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
+    authorization: authHeader, sessionId, operation: "adjudicate",
+  });
+  if (!authorization.allowed) {
+    const denied = jsonResponse({ error: "Session operation is not authorized" }, 403, origin);
+    denied.headers.set("x-gc03-request-id", authorization.requestId);
+    return denied;
   }
 
   const dryRun = payload.dryRun === true;

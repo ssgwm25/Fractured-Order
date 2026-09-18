@@ -2,12 +2,76 @@
 
 Database migrations in this repository are forward-only once live workflow records exist. Roll back the application first; preserve additive schema and review history unless a database owner has verified that the migration never accepted a production write.
 
-The sole authoritative forward migration order is the 45-step dated ledger in
+The sole authoritative forward migration order is the dated ledger in
 `docs/supabase-setup.md`. There is no reverse SQL order and the deprecated
 `data/COMPLETE_SCHEMA.sql`, `data/updated_supabase_schema.sql`, and
 `data/updated_supabase_migration.sql` snapshots are never rollback inputs. A
 rollback means frontend-first containment followed by a forward fix; it does
 not mean replaying historical schemas or dropping additive workflow objects.
+
+## Regional Green Storage Containment
+
+After `data/2026-09-22_gc04_session_context.sql`, retain the authenticated
+`restore_session_seat_context` function and topology-bearing lookup. Contain
+with a compatible frontend and repair forward. Never use URL or cached role
+fallback to recover a denied regional seat. See [GC-04 recovery and evidence](architecture/gc04-regional-context.md).
+
+After `data/2026-09-19_green_regional_authorization.sql`, retain restrictive scope
+policies, final mutation guards, private compatibility RPCs and every
+`session_participants.revoked_at` marker. Never clear a revocation or delete its
+seat to revive a stale client; scoped notes retain that seat as historical
+authorship. Contain with the unified frontend and repair forward. Do not restore
+an older permissive policy or pre-authorization proposal retry RPC. See
+[GC-03 verification and dependencies](architecture/green-regional-authorization.md).
+Keep the authorization guards in both PLI Edge Functions during containment;
+reverting to the old Bearer-header-only handlers reopens external dispatch.
+
+The GC-03 completion harness adds request-correlated authorization logging to
+the guarded Edge entrypoints. Keep the authorization check if containing a
+logging problem; removing the log invalidates correlated-log evidence until a
+forward fix is deployed and checked. Retain partial completion reports. The
+new run's `cleanup.sql` archives only its five exact synthetic sessions and
+removes its temporary grants; it is fixture cleanup, not a migration rollback.
+See [completion verification](architecture/gc03-completion-verification.md).
+
+After `data/2026-09-20_gc03_terminal_revision_conflicts.sql`, retain terminal
+PT409 responses for stale application revisions and proposal thread parents.
+Restoring deliberate 40001 raises can reintroduce automatic RPC retry timeouts.
+The repair changes no stored records or policies. If installation detects
+unexpected function/site drift, its transaction aborts; retain the error and
+inspect installed definitions before a forward correction. Do not replay old
+function owners or expose the private append implementation. Preserve the
+failed completion report and its archived fixtures; verify a fix with a fresh
+run rather than reopening or erasing history.
+
+For environments ending at `data/2026-09-18_green_regional_storage.sql`, retain the explicit GC-02
+activation closure until the later regional authorization work is verified.
+After `data/2026-09-21_gc03_recipient_forward_uniqueness.sql`, retain recipient
+root uniqueness and the legacy-only proposal-wide index. Restoring the old
+unconditional proposal-wide index blocks valid second-recipient approvals and
+can fail once two roots exist. Keep all roots, reviews and thread history;
+contain at the application and repair forward. The associated SQL regression
+uses temporary index fixtures and rolls back without changing public records.
+GC-04 adds regional join and context validation; later regional workflow prompts
+remain separate dependencies. Stop regional
+setup/writes when investigating a failure; do not bypass the closure with a
+browser service-role key or shared JSON storage.
+
+Keep `session_topology_version`, `topology_frozen_at`, the approved roster
+version/snapshot, `session_topology_locks`, all delegation/audience fields,
+both orientation indexes, scoped note rows and their retained-seat references.
+Never clear a freeze or convert an occupied v2 session to v1. Preserve the
+private unified append implementation and its regional wrapper; restoring the
+old public RPC alone would reopen its pre-write retry read.
+
+Use the operator-only `export_green_storage_evidence` RPC to preserve the raw
+regional session, seat/name, artifact, review, communication/thread, timeline,
+note and captured audit records. Keep this compatible reader and all historical
+snapshots through a frontend rollback. Publication-format exports remain a
+GC-11 dependency; they are not a substitute for retaining raw scoped evidence.
+Repair forward. Do not drop columns/tables, merge delegations, restore shared
+note ledgers, or rewrite historical unified records. See the exact commands and
+remaining evidence in [Regional Green storage](architecture/green-regional-storage.md).
 
 ## Game Master Session Retirement Rollback
 

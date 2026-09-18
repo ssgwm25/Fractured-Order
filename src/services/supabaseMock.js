@@ -29,6 +29,10 @@ const MOCK_TABLES = [
     'communications',
     'timeline',
     'notetaker_data',
+    'scoped_notetaker_data',
+    'action_logs',
+    'action_relationships',
+    'rfi_action_links',
     'pli_adjudications',
     'sme_handoffs',
     'sme_pli_packets',
@@ -208,12 +212,20 @@ function withMockStateWriteLock(callback) {
     return pendingWrite;
 }
 
+let mockRequestAuthUserId;
+
 function mutateMockState(callback) {
+    const requestAuthUserId = getCurrentAuthUserId();
     return withMockStateWriteLock(() => {
-        const state = readMockState();
-        const result = callback(state);
-        writeMockState(state);
-        return result;
+        mockRequestAuthUserId = requestAuthUserId;
+        try {
+            const state = readMockState();
+            const result = callback(state);
+            if (!result?.error) writeMockState(state);
+            return result;
+        } finally {
+            mockRequestAuthUserId = undefined;
+        }
     });
 }
 
@@ -485,7 +497,7 @@ function writeMockAuthSession(session) {
 }
 
 function getCurrentAuthUserId() {
-    return readMockAuthSession()?.user?.id || null;
+    return mockRequestAuthUserId !== undefined ? mockRequestAuthUserId : readMockAuthSession()?.user?.id || null;
 }
 
 function nextId(state, tableName) {
@@ -499,6 +511,40 @@ function getTimestamp() {
 }
 
 function normalizeInsertRow(tableName, payload, state) {
+    const row = normalizeLegacyInsertRow(tableName, payload, state);
+    if (!isRegionalSession(state, row.session_id)) return row;
+    if (tableName === 'communications') {
+        const source = row.metadata?.source_proposal_id || row.metadata?.source_action_id
+            ? state.tables.actions.find((entry) => entry.id === (row.metadata.source_proposal_id || row.metadata.source_action_id) && entry.session_id === row.session_id)
+            : state.tables.requests.find((entry) => entry.id === row.linked_request_id && entry.session_id === row.session_id);
+        row.owner_team = source?.team || (/^(blue|red|green|industry)_/.exec(row.from_role)?.[1]) || 'white_cell';
+        row.sender_delegation_id = regionalDelegation(row.from_role);
+        row.delegation_id = source ? source.delegation_id ?? null : row.sender_delegation_id;
+        row.recipient_delegation_id = regionalDelegation(row.to_role)
+            || (row.to_role === 'green' ? source?.delegation_id || row.recipient_delegation_id : null) || null;
+        row.recipient_scope ||= row.to_role === 'all' ? 'session'
+            : row.to_role === 'green' && row.recipient_delegation_id ? 'delegation'
+                : ['blue', 'red', 'industry', 'white_cell'].includes(row.to_role) ? 'team' : 'role';
+    } else if (tableName === 'timeline') {
+        const source = state.tables.actions.find((entry) => entry.id === row.metadata?.related_id && entry.session_id === row.session_id)
+            || state.tables.requests.find((entry) => entry.id === row.metadata?.related_id && entry.session_id === row.session_id);
+        const message = state.tables.communications.find((entry) => entry.id === row.metadata?.communication_id && entry.session_id === row.session_id);
+        row.owner_team = source?.team || message?.owner_team || row.team;
+        row.delegation_id = source?.delegation_id ?? message?.delegation_id ?? row.delegation_id ?? null;
+    } else if (tableName === 'artifact_workflow_reviews') {
+        const source = (row.artifact_kind === 'rfi' ? state.tables.requests : state.tables.actions).find((entry) => entry.id === row.artifact_id);
+        row.delegation_id = source?.delegation_id ?? null;
+    } else if (tableName === 'actions') {
+        row.created_by_auth_user_id = getCurrentAuthUserId();
+        row.created_by_role = getLiveDemoParticipantRole(state, getCurrentAuthUserId(), row.session_id);
+        if (row.status !== 'submitted' && String(row.ally_contingencies || '').toLowerCase().includes('scribe handoff: forwarded')) {
+            row.workflow_state = 'forwarded_to_facilitator';
+        }
+    }
+    return row;
+}
+
+function normalizeLegacyInsertRow(tableName, payload, state) {
     const timestamp = getTimestamp();
     const baseRow = {
         id: payload.id || nextId(state, tableName),
@@ -746,8 +792,127 @@ function normalizeSeatRole(role = '') {
     return `whitecell_${match[2] || 'lead'}`;
 }
 
+function regionalDelegation(role) {
+    return /^(green)_(asian_pacific|europe)_(facilitator|scribe|notetaker)$/.exec(role || '')?.[2] ?? null;
+}
+
+function isRegionalSession(state, sessionId) {
+    return state.tables.sessions.some((session) => session.id === sessionId && session.session_topology_version === 2);
+}
+
+function regionalOperator(state, authUserId, sessionId) {
+    return liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+        || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', sessionId);
+}
+
+function authorizeMockDerivedOperation(state, authUserId, sessionId, operation) {
+    const session = state.tables.sessions.find((row) => row.id === sessionId);
+    return Boolean(authUserId && session && !isRegionalSession(state, sessionId)
+        && session.session_classification === 'live_exercise' && !session.is_protected
+        && (operation === 'adjudicate' && session.status === 'active'
+            || operation === 'narrative' && ['active', 'archived'].includes(session.status))
+        && regionalOperator(state, authUserId, sessionId));
+}
+
+function regionalOwns(state, authUserId, row, teamField = 'team', delegationField = 'delegation_id') {
+    const seat = getParticipantSeatForSession(state, authUserId, row.session_id);
+    return Boolean(seat && getLiveDemoParticipantTeam(state, authUserId, row.session_id) === row[teamField]
+        && (seat.delegation_id ?? null) === (row[delegationField] ?? null));
+}
+
+function regionalCapability(state, authUserId, sessionId, capability) {
+    const surface = getLiveDemoParticipantSurface(state, authUserId, sessionId);
+    return Boolean(getParticipantSeatForSession(state, authUserId, sessionId)) && ({
+        draft: 'facilitator', submit: 'scribe', rfi: 'scribe', direct: 'scribe', thread: 'scribe', notes: 'notetaker'
+    })[capability] === surface;
+}
+
+function regionalCanRead(state, tableName, row, authUserId) {
+    if (regionalOperator(state, authUserId, row.session_id)) return true;
+    const seat = getParticipantSeatForSession(state, authUserId, row.session_id);
+    if (!seat) return false;
+    const surface = getLiveDemoParticipantSurface(state, authUserId, row.session_id);
+    const team = getLiveDemoParticipantTeam(state, authUserId, row.session_id);
+    const author = ['facilitator', 'scribe'].includes(surface);
+    switch (tableName) {
+        case 'session_participants': case 'game_state': return true;
+        case 'actions': return regionalOwns(state, authUserId, row)
+            && (author || surface === 'notetaker' && row.workflow_state === 'completed');
+        case 'requests': return regionalOwns(state, authUserId, row);
+        case 'scoped_notetaker_data': return surface === 'notetaker' && row.session_participant_id === seat.id;
+        case 'artifact_workflow_reviews': return author && regionalOwns(state, authUserId, row);
+        case 'communications': {
+            if (['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(row.type)) {
+                if (!author) return false;
+                if (row.type === 'PROPOSAL_RESPONSE_REVIEW') return row.from_role === seat.role;
+                return regionalOwns(state, authUserId, row, 'owner_team')
+                    || ['blue', 'red'].includes(team) && team === row.metadata?.recipient_team;
+            }
+            return row.from_role === seat.role || ['white_cell', 'whitecell', 'whitecell_lead', 'whitecell_support'].includes(row.from_role) && (
+                row.recipient_scope === 'session'
+                || row.recipient_scope === 'both_green_delegations' && team === 'green'
+                || row.recipient_scope === 'role' && row.to_role === seat.role
+                || row.recipient_scope === 'delegation' && team === 'green' && row.recipient_delegation_id === seat.delegation_id
+                || row.recipient_scope === 'team' && team !== 'green' && row.to_role === team);
+        }
+        case 'timeline': {
+            if (row.metadata?.communication_id) {
+                const message = state.tables.communications.find((entry) => entry.id === row.metadata.communication_id && entry.session_id === row.session_id);
+                return Boolean(message && regionalCanRead(state, 'communications', message, authUserId));
+            }
+            return author && regionalOwns(state, authUserId, row, 'owner_team');
+        }
+        case 'action_logs': case 'action_relationships': case 'rfi_action_links': {
+            const action = state.tables.actions.find((entry) => entry.id === (row.action_id || row.source_action_id) && entry.session_id === row.session_id);
+            if (!action || !regionalCanRead(state, 'actions', action, authUserId)) return false;
+            if (tableName === 'action_relationships' && row.target_action_id) {
+                const target = state.tables.actions.find((entry) => entry.id === row.target_action_id && entry.session_id === row.session_id);
+                return Boolean(target && regionalCanRead(state, 'actions', target, authUserId));
+            }
+            if (tableName === 'rfi_action_links') {
+                const request = state.tables.requests.find((entry) => entry.id === row.request_id && entry.session_id === row.session_id);
+                return Boolean(request && regionalCanRead(state, 'requests', request, authUserId));
+            }
+            return true;
+        }
+        default: return false;
+    }
+}
+
+function regionalCanWrite(state, tableName, row, old, authUserId) {
+    const session = state.tables.sessions.find((entry) => entry.id === row.session_id);
+    if (session?.status !== 'active' || session.is_protected || !session.green_roster_version || !session.green_roster_snapshot) return false;
+    if (old && ['session_id', 'team', 'delegation_id'].some((key) => (old[key] ?? null) !== (row[key] ?? null))) return false;
+    const capability = (name) => regionalCapability(state, authUserId, row.session_id, name);
+    if (['actions', 'requests'].includes(tableName) && !regionalOwns(state, authUserId, row)) return false;
+    switch (tableName) {
+        case 'actions': {
+            const status = row.status || 'draft';
+            if (['reviewed_at', 'reviewed_by_auth_user_id', 'reviewed_by_role', 'review_notes', 'outcome', 'adjudication', 'adjudication_notes'].some((key) => !compareValues(row[key] ?? null, old?.[key] ?? null))
+                || (row.revision_number ?? 1) !== (old?.revision_number ?? 1)) return false;
+            if (!old) return capability('draft') && status === 'draft';
+            return old.status === 'draft' && (
+                capability('draft') && ['draft', 'returned_to_team'].includes(old.workflow_state) && status === 'draft'
+                || capability('submit') && ['forwarded_to_facilitator', 'returned_to_team'].includes(old.workflow_state) && ['draft', 'submitted'].includes(status));
+        }
+        case 'requests': return capability('rfi');
+        case 'communications': return !old && capability('direct') && row.from_role === getLiveDemoParticipantRole(state, authUserId, row.session_id)
+            && row.type === 'direct' && row.to_role === 'white_cell'
+            && !row.linked_request_id && !row.metadata?.source_proposal_id && !row.metadata?.source_action_id
+            && (row.owner_team == null || row.owner_team === getLiveDemoParticipantTeam(state, authUserId, row.session_id))
+            && (row.recipient_scope == null || row.recipient_scope === 'team') && row.recipient_delegation_id == null
+            && (row.sender_delegation_id == null || row.sender_delegation_id === regionalDelegation(row.from_role))
+            && (row.delegation_id == null || row.delegation_id === regionalDelegation(row.from_role));
+        case 'timeline': return !old && ['facilitator', 'scribe'].includes(getLiveDemoParticipantSurface(state, authUserId, row.session_id))
+            && regionalCanRead(state, tableName, row, authUserId);
+        default: return false;
+    }
+}
+
 function getSessionRoleSeatLimit(role = '') {
     const normalizedRole = normalizeSeatRole(role);
+
+    if (regionalDelegation(normalizedRole)) return 1;
 
     if (/^(blue|red|green|industry)_facilitator$/.test(normalizedRole)) {
         return 1;
@@ -809,6 +974,14 @@ function getParticipantSeatForSession(state, authUserId, sessionId, { activeOnly
             return rightTimestamp - leftTimestamp;
         });
 
+    if (activeOnly && isRegionalSession(state, sessionId)) {
+        const session = state.tables.sessions.find((entry) => entry.id === sessionId);
+        const current = matchingSeats.filter((seat) => !seat.revoked_at && !seat.left_at && !seat.disconnected_at
+            && new Date(seat.heartbeat_at || seat.last_seen || seat.joined_at).getTime() >= Date.now() - 90000
+            && (seat.delegation_id ?? null) === regionalDelegation(normalizeSeatRole(seat.role)));
+        return session?.status === 'active' && session.session_classification === 'live_exercise'
+            && !session.is_protected && current.length === 1 ? current[0] : null;
+    }
     return matchingSeats[0] || null;
 }
 
@@ -819,6 +992,10 @@ function getLiveDemoParticipantRole(state, authUserId, sessionId) {
 
 function getLiveDemoParticipantSurface(state, authUserId, sessionId) {
     const role = getLiveDemoParticipantRole(state, authUserId, sessionId);
+
+    if (regionalDelegation(role)) {
+        return role.endsWith('_facilitator') ? 'scribe' : role.endsWith('_scribe') ? 'facilitator' : 'notetaker';
+    }
 
     if (role === 'viewer') {
         return 'viewer';
@@ -889,7 +1066,7 @@ function liveDemoCanReadSession(state, authUserId, sessionId) {
     return Boolean(
         getParticipantSeatForSession(state, authUserId, sessionId, { activeOnly: true })
         || liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
-        || liveDemoHasOperatorGrant(state, authUserId, 'whitecell')
+        || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', isRegionalSession(state, sessionId) ? sessionId : null)
     );
 }
 
@@ -912,6 +1089,8 @@ function canReleaseStaleSessionRoleSeats(state, authUserId, sessionId) {
 }
 
 function liveDemoCanWriteSession(state, authUserId, sessionId) {
+    if (isRegionalSession(state, sessionId)
+        && state.tables.sessions.find((entry) => entry.id === sessionId)?.status !== 'active') return false;
     if (!liveDemoCanReadSession(state, authUserId, sessionId)) {
         return false;
     }
@@ -934,6 +1113,11 @@ function liveDemoCanWriteTeamSession(state, authUserId, sessionId, teamId, allow
 }
 
 function canReadTableRow(state, tableName, row, authUserId) {
+    if (tableName === 'research_note_revision') {
+        const note = state.tables.research_note.find((entry) => entry.note_id === row.note_id);
+        return Boolean(note && canReadTableRow(state, 'research_note', note, authUserId));
+    }
+    if (isRegionalSession(state, row.session_id) && !regionalCanRead(state, tableName, row, authUserId)) return false;
     if (tableName === 'operator_grants') {
         return Boolean(authUserId && row.auth_user_id === authUserId);
     }
@@ -1052,6 +1236,7 @@ function canReadTableRow(state, tableName, row, authUserId) {
 }
 
 function canInsertTableRow(state, tableName, row, authUserId) {
+    if (isRegionalSession(state, row.session_id) && !regionalCanWrite(state, tableName, row, null, authUserId)) return false;
     switch (tableName) {
         case 'actions':
             return liveDemoCanWriteTeamSession(
@@ -1119,6 +1304,8 @@ function canInsertTableRow(state, tableName, row, authUserId) {
 }
 
 function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
+    if ((isRegionalSession(state, currentRow.session_id) || isRegionalSession(state, nextRow.session_id))
+        && !regionalCanWrite(state, tableName, nextRow, currentRow, authUserId)) return false;
     switch (tableName) {
         case 'actions':
             return (
@@ -1534,6 +1721,7 @@ function archiveLiveDemoSession(state, {
 }
 
 function releaseStaleSessionRoleSeats(state, sessionId, timeoutSeconds = 90) {
+    if (isRegionalSession(state, sessionId)) timeoutSeconds = 90;
     const cutoff = Date.now() - (Math.max(timeoutSeconds, 1) * 1000);
     let releasedCount = 0;
 
@@ -1628,6 +1816,17 @@ function claimSessionRoleSeat(state, {
         return { data: null, error: { message: 'This session is not currently joinable.' } };
     }
 
+    const regional = isRegionalSession(state, requested_session_id);
+    const delegation = regionalDelegation(normalizedRole);
+    if ((!regional && delegation) || (regional && normalizedRole.startsWith('green') && !delegation)) {
+        return { data: null, error: { code: '42501', message: 'GC03_TOPOLOGY_ROLE_MISMATCH' } };
+    }
+    if (regional && (!session.green_roster_version || !session.green_roster_snapshot)) {
+        return { data: null, error: { code: '23514', message: 'GC02_APPROVED_ROSTER_REQUIRED' } };
+    }
+    if (state.tables.participants.some((entry) => entry.client_id === normalizedClientId && entry.auth_user_id !== authUserId)) {
+        return { data: null, error: { code: '42501', message: 'GC03_CLIENT_IDENTITY_CONFLICT' } };
+    }
     releaseStaleSessionRoleSeats(state, requested_session_id, requested_timeout_seconds);
 
     let participant = state.tables.participants.find((entry) => entry.auth_user_id === authUserId);
@@ -1657,6 +1856,10 @@ function claimSessionRoleSeat(state, {
         entry.session_id === requested_session_id && entry.participant_id === participant.id
     )) || null;
 
+    if (regional && (existingSeat?.revoked_at || existingSeat && existingSeat.role !== normalizedRole)) {
+        return { data: null, error: { code: '42501', message: existingSeat.revoked_at ? 'GC03_SEAT_REVOKED' : 'GC03_SEAT_ROLE_IMMUTABLE' } };
+    }
+
     const activeClaimCount = state.tables.session_participants.filter((entry) => (
         entry.session_id === requested_session_id &&
         entry.role === normalizedRole &&
@@ -1675,11 +1878,20 @@ function claimSessionRoleSeat(state, {
     let claimStatus = 'claimed';
     const now = getTimestamp();
 
+    if (regional) {
+        state.tables.session_participants.forEach((entry) => {
+            if (entry.session_id === requested_session_id && entry.role === normalizedRole && !entry.is_active && entry.id !== seat?.id) {
+                entry.revoked_at ||= now;
+            }
+        });
+    }
+
     if (!seat) {
         seat = normalizeInsertRow('session_participants', {
             session_id: requested_session_id,
             participant_id: participant.id,
             role: normalizedRole,
+            delegation_id: delegation,
             display_name_snapshot: normalizedName ?? participant.name ?? 'Unknown',
             is_active: true,
             heartbeat_at: now,
@@ -1735,6 +1947,15 @@ function heartbeatSessionRoleSeat(state, {
             data: null,
             error: { message: 'A claimed seat is required to send heartbeats.' }
         };
+    }
+
+    const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
+    if (session?.status !== 'active' || session.is_protected || session.session_classification !== 'live_exercise') {
+        return { data: null, error: { code: '42501', message: 'This session is not currently joinable.' } };
+    }
+    if (isRegionalSession(state, requested_session_id)
+        && getParticipantSeatForSession(state, authUserId, requested_session_id)?.id !== requested_session_participant_id) {
+        return { data: null, error: { code: '42501', message: 'GC03_SEAT_REJOIN_REQUIRED' } };
     }
 
     releaseStaleSessionRoleSeats(state, requested_session_id, requested_timeout_seconds);
@@ -1798,6 +2019,10 @@ function disconnectSessionRoleSeat(state, {
     requested_timeout_seconds = 90
 }) {
     const authUserId = getCurrentAuthUserId();
+    const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
+    if (session?.status !== 'active' || session.is_protected || session.session_classification !== 'live_exercise') {
+        return { data: null, error: { code: '42501', message: 'This session is not currently joinable.' } };
+    }
     if (!requested_session_id || !requested_session_participant_id) {
         return { data: null, error: null };
     }
@@ -1840,6 +2065,14 @@ function operatorRemoveSessionParticipant(state, {
     requested_session_participant_id
 }) {
     const authUserId = getCurrentAuthUserId();
+    const regional = isRegionalSession(state, requested_session_id);
+    const session = state.tables.sessions.find((entry) => entry.id === requested_session_id);
+    if (session?.status !== 'active' || session.is_protected || session.session_classification !== 'live_exercise') {
+        return { data: null, error: { code: '42501', message: 'This session is not currently joinable.' } };
+    }
+    if (regional && !regionalOperator(state, authUserId, requested_session_id)) {
+        return { data: null, error: { code: '42501', message: 'Session operator authorization is required.' } };
+    }
     if (!hasPrivilegedSessionAdminGrant(state, authUserId)) {
         return { data: null, error: { message: 'Game Master or White Cell authorization is required.' } };
     }
@@ -1873,12 +2106,14 @@ function operatorRemoveSessionParticipant(state, {
         updated_at: removedAt
     };
 
-    state.tables.session_participants = state.tables.session_participants.filter((entry) => entry.id !== seat.id);
+    state.tables.session_participants = regional
+        ? state.tables.session_participants.map((entry) => entry.id === seat.id ? { ...removedSeat, revoked_at: seat.revoked_at || removedAt } : entry)
+        : state.tables.session_participants.filter((entry) => entry.id !== seat.id);
 
     if (participant?.auth_user_id) {
         state.tables.operator_grants = state.tables.operator_grants.filter((entry) => !(
             entry.auth_user_id === participant.auth_user_id
-            && entry.surface === 'whitecell'
+            && (entry.surface === 'whitecell' || regional && entry.surface === 'sme')
             && entry.session_id === requested_session_id
         ));
     }
@@ -2051,7 +2286,7 @@ function operatorReviewArtifact(state, params) {
         if (revisionNumber !== expectedRevision) {
             return {
                 data: null,
-                error: { message: `Stale artifact revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
+                error: { code: 'PT409', message: `Stale artifact revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
             };
         }
 
@@ -2147,7 +2382,7 @@ function operatorReviewArtifact(state, params) {
     if (revisionNumber !== expectedRevision) {
         return {
             data: null,
-            error: { message: `Stale artifact revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
+            error: { code: 'PT409', message: `Stale artifact revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
         };
     }
     if (
@@ -2454,7 +2689,7 @@ function operatorReviewProposalThreaded(state, params) {
     if (expectedRevision !== null && expectedRevision !== revisionNumber) {
         return {
             data: null,
-            error: { message: `Stale proposal revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
+            error: { code: 'PT409', message: `Stale proposal revision. Expected ${expectedRevision}, current ${revisionNumber}.` }
         };
     }
 
@@ -2637,6 +2872,11 @@ function appendProposalThreadMessage(state, params) {
     if (!parent || !parent.metadata?.thread_id) {
         return { data: null, error: { message: 'Proposal thread parent message not found.' } };
     }
+    if (isRegionalSession(state, parent.session_id) && (
+        !regionalCapability(state, authUserId, parent.session_id, 'thread')
+        || !regionalCanRead(state, 'communications', parent, authUserId))) {
+        return { data: null, error: { code: '42501', message: 'GC03_THREAD_SCOPE_DENIED' } };
+    }
     if (!content) return { data: null, error: { message: 'Parent message and content are required.' } };
     if (!['recipient_response', 'negotiation_message', 'thread_closed'].includes(messageType)) {
         return { data: null, error: { message: 'Unsupported proposal thread message type.' } };
@@ -2663,6 +2903,10 @@ function appendProposalThreadMessage(state, params) {
             entry.metadata?.client_message_id === clientMessageId
         ));
         if (existing) {
+            if (isRegionalSession(state, parent.session_id) && (existing.session_id !== parent.session_id
+                || !regionalCanRead(state, 'communications', existing, authUserId) || existing.from_role !== participantRole)) {
+                return { data: null, error: { code: '42501', message: 'GC03_THREAD_SCOPE_DENIED' } };
+            }
             if (
                 existing.metadata.thread_id !== parent.metadata.thread_id
                 || normalizeTeamId(existing.metadata.sender_team) !== participantTeam
@@ -2685,7 +2929,7 @@ function appendProposalThreadMessage(state, params) {
         .sort((left, right) => Number(right.metadata.round_number) - Number(left.metadata.round_number));
     const latest = messages[0];
     if (latest?.id !== parent.id) {
-        return { data: null, error: { message: 'A newer proposal thread round already exists.' } };
+        return { data: null, error: { code: 'PT409', message: 'A newer proposal thread round already exists.' } };
     }
     if (latest.metadata.message_type === 'thread_closed') {
         return { data: null, error: { message: 'Closed proposal threads are immutable.' } };
@@ -2769,7 +3013,7 @@ function operatorForwardProposalResponse(state, params) {
         ))
         .sort((left, right) => Number(right.metadata.round_number) - Number(left.metadata.round_number))[0];
     if (!parent || latest?.id !== parent.id) {
-        return { data: null, error: { message: 'A newer proposal thread round already exists.' } };
+        return { data: null, error: { code: 'PT409', message: 'A newer proposal thread round already exists.' } };
     }
 
     const timestamp = getTimestamp();
@@ -3412,6 +3656,64 @@ export function createE2EMockSupabaseClient() {
             return 'ok';
         },
         rpc: async (functionName, params = {}) => {
+            if (functionName.startsWith('gc03_') || functionName.startsWith('gc02_unified_')) {
+                return { data: null, error: { code: '42501', message: 'Private compatibility function' } };
+            }
+            if (functionName === 'green_authorize_derived_operation') {
+                return { data: authorizeMockDerivedOperation(readMockState(), getCurrentAuthUserId(), params.requested_session_id, params.requested_operation), error: null };
+            }
+            if (functionName === 'green_has_capability') {
+                return { data: regionalCapability(readMockState(), getCurrentAuthUserId(), params.requested_session_id, params.requested_capability), error: null };
+            }
+            if (functionName === 'green_semantic_role') {
+                const surface = getLiveDemoParticipantSurface(readMockState(), getCurrentAuthUserId(), params.requested_session_id);
+                return { data: surface === 'scribe' ? 'facilitator' : surface === 'facilitator' ? 'scribe' : surface, error: null };
+            }
+            if (functionName.startsWith('operator_') || functionName === 'archive_live_demo_session') {
+                const state = readMockState();
+                const id = params.requested_action_id || params.requested_artifact_id || params.requested_request_id || params.requested_review_communication_id;
+                const source = [...state.tables.actions, ...state.tables.requests, ...state.tables.communications].find((entry) => entry.id === id);
+                const sid = params.requested_session_id || source?.session_id;
+                if (isRegionalSession(state, sid) && !regionalOperator(state, getCurrentAuthUserId(), sid)) {
+                    return { data: null, error: { code: '42501', message: 'Session operator authorization is required.' } };
+                }
+            }
+            if (functionName === 'save_scoped_notetaker_data') {
+                return mutateMockState((state) => {
+                    const sid = params.requested_session_id;
+                    const uid = getCurrentAuthUserId();
+                    const seat = getParticipantSeatForSession(state, uid, sid);
+                    if (!isRegionalSession(state, sid) || !regionalCapability(state, uid, sid, 'notes')) {
+                        return { data: null, error: { code: '42501', message: 'GC02_ACTIVE_NOTETAKER_SEAT_REQUIRED' } };
+                    }
+                    const objects = [params.requested_dynamics, params.requested_external];
+                    if (!Number.isInteger(params.requested_expected_revision) || params.requested_expected_revision < 0) {
+                        return { data: null, error: { code: '22023', message: 'GC02_NOTE_REVISION_REQUIRED' } };
+                    }
+                    if (!Number.isInteger(params.requested_move) || params.requested_move < 1 || params.requested_move > 3
+                        || !Number.isInteger(params.requested_phase) || params.requested_phase < 1 || params.requested_phase > 5
+                        || objects.some((value) => !value || typeof value !== 'object' || Array.isArray(value)
+                            || Object.hasOwn(value, 'team_entries') || Object.hasOwn(value, 'participant_entries'))
+                        || !Array.isArray(params.requested_observations)
+                        || params.requested_observations.some((entry) => !entry || typeof entry !== 'object' || Array.isArray(entry)
+                            || Object.hasOwn(entry, 'team_entries') || Object.hasOwn(entry, 'participant_entries')
+                            || Object.hasOwn(entry, 'team') && entry.team !== getLiveDemoParticipantTeam(state, uid, sid)
+                            || Object.hasOwn(entry, 'delegation_id') && entry.delegation_id !== (seat.delegation_id ?? null)
+                            || Object.hasOwn(entry, 'session_participant_id') && entry.session_participant_id !== seat.id)) {
+                        return { data: null, error: { code: '23514', message: 'GC02_NOTE_ENTRY_SCOPE_MISMATCH' } };
+                    }
+                    const existing = state.tables.scoped_notetaker_data.find((row) => row.session_participant_id === seat.id && row.move === params.requested_move);
+                    if ((existing?.revision || 0) !== params.requested_expected_revision) {
+                        return { data: null, error: { code: 'PT409', message: 'GC02_NOTE_REVISION_CONFLICT' } };
+                    }
+                    const row = { ...(existing || { id: nextId(state, 'scoped_notetaker_data') }), session_id: sid,
+                        session_participant_id: seat.id, team: getLiveDemoParticipantTeam(state, uid, sid), delegation_id: seat.delegation_id ?? null,
+                        move: params.requested_move, phase: params.requested_phase, dynamics_analysis: cloneValue(params.requested_dynamics),
+                        external_factors: cloneValue(params.requested_external), observation_timeline: cloneValue(params.requested_observations), revision: (existing?.revision || 0) + 1 };
+                    if (existing) Object.assign(existing, row); else state.tables.scoped_notetaker_data.push(row);
+                    return { data: cloneValue(row), error: null };
+                });
+            }
             if (functionName === 'lookup_joinable_session_by_code') {
                 const normalizedCode = String(params?.requested_code || '').trim().toUpperCase();
                 const state = readMockState();
@@ -3447,7 +3749,8 @@ export function createE2EMockSupabaseClient() {
                         id: session.id,
                         name: session.name,
                         session_code: session.session_code || session.metadata?.session_code || normalizedCode,
-                        status: session.status
+                        status: session.status,
+                        session_topology_version: session.session_topology_version ?? 1
                     },
                     error: null
                 };
@@ -3471,6 +3774,25 @@ export function createE2EMockSupabaseClient() {
 
             if (functionName === 'claim_session_role_seat') {
                 return mutateMockState((state) => claimSessionRoleSeat(state, params));
+            }
+
+            if (functionName === 'restore_session_seat_context') {
+                return mutateMockState((state) => {
+                    const p = state.tables.participants.find((entry) => entry.auth_user_id === getCurrentAuthUserId());
+                    const seats = state.tables.session_participants.filter((entry) => entry.participant_id === p?.id
+                        && entry.session_id === params.requested_session_id);
+                    const seat = seats[0];
+                    if (seats.length !== 1 || seat.id !== params.requested_session_participant_id || seat.revoked_at) {
+                        return { data: null, error: { code: '42501', message: 'GC04_INVALID_SESSION_SEAT' } };
+                    }
+                    const result = claimSessionRoleSeat(state, { requested_session_id: seat.session_id,
+                        requested_role: seat.role, requested_client_id: p.client_id });
+                    if (result.error) return result;
+                    const session = state.tables.sessions.find((entry) => entry.id === seat.session_id);
+                    return { data: { seat: result.data, session: { id: session.id, name: session.name,
+                        session_code: session.session_code, status: session.status,
+                        session_topology_version: session.session_topology_version ?? 1 } }, error: null };
+                });
             }
 
             if (functionName === 'heartbeat_session_role_seat') {
@@ -3586,6 +3908,11 @@ export function createE2EMockSupabaseClient() {
         },
         functions: {
             async invoke(functionName, options = {}) {
+                if (['pli-report-narrative', 'trigger-pli-adjudication'].includes(functionName)
+                    && !authorizeMockDerivedOperation(readMockState(), getCurrentAuthUserId(), options.body?.sessionId,
+                        functionName === 'pli-report-narrative' ? 'narrative' : 'adjudicate')) {
+                    return { data: null, error: { code: '42501', message: 'Session operation is not authorized' } };
+                }
                 if (functionName === 'pli-report-narrative') {
                     const body = options?.body || {};
                     const actionCount = Array.isArray(body?.factPack?.actions)

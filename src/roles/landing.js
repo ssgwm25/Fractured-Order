@@ -13,6 +13,8 @@ import { createLogger } from '../utils/logger.js';
 import { showToast } from '../components/ui/Toast.js';
 import { validateSessionCode } from '../utils/validation.js';
 import { navigateToApp } from '../core/navigation.js';
+import { restoreConfirmedSeat } from '../services/seatBootstrap.js';
+import { validateSeatEnvelope } from '../core/seatContext.js';
 import { getUserMessage } from '../core/errors.js';
 import brandMarkUrl from '../img/Gold No Background.png';
 import {
@@ -31,6 +33,7 @@ import {
     getSmeRoleDisplayLabel,
     parseTeamRole
 } from '../core/teamContext.js';
+import { buildRegionalRole, GREEN_DELEGATIONS } from '../core/teamContext.js';
 
 const logger = createLogger('Landing');
 
@@ -61,6 +64,9 @@ export class LandingController {
         this.selectedTeam = TEAM_OPTIONS[0].id;
         this.selectedRoleSurface = null;
         this.selectedRole = null;
+        this.selectedDelegation = null;
+        this.resolvedSession = null;
+        this.joining = false;
     }
 
     /**
@@ -99,6 +105,9 @@ export class LandingController {
         const displayNameInput = document.getElementById('displayName');
         const sessionCodeInput = document.getElementById('sessionCode');
         sessionCodeInput?.addEventListener('input', () => {
+            this.resolvedSession = null;
+            this.selectedDelegation = null;
+            this.updateSelectedRole();
             this.clearFieldError('sessionCode');
             this.syncStaffSessionCodes(sessionCodeInput.value);
         });
@@ -118,6 +127,14 @@ export class LandingController {
         const roleButtons = document.querySelectorAll('.chip[data-role-surface]');
         roleButtons.forEach((button) => {
             button.addEventListener('click', () => this.selectRole(button));
+        });
+        document.getElementById('checkSessionBtn')?.addEventListener('click', () => this.checkSession());
+        document.querySelectorAll('[data-delegation]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.selectedDelegation = button.dataset.delegation;
+                this.selectedRoleSurface = null;
+                this.updateSelectedRole();
+            });
         });
 
         const operatorSessionCodeInput = document.getElementById('operatorSessionCode');
@@ -302,6 +319,7 @@ export class LandingController {
      * @param {HTMLElement} button - Role button element
      */
     selectRole(button) {
+        if (button.disabled) return;
         const requestedSurface = button.dataset.roleSurface || null;
         if (!isPublicRoleSurface(requestedSurface)) {
             showToast({
@@ -328,19 +346,66 @@ export class LandingController {
     }
 
     updateSelectedRole() {
+        const regional = this.resolvedSession?.session_topology_version === 2 && this.selectedTeam === 'green';
+        const regionField = document.getElementById('delegationSelection');
+        if (regionField) regionField.hidden = !regional;
+        document.querySelectorAll?.('[data-delegation]')?.forEach((button) => {
+            button.setAttribute('aria-pressed', String(button.dataset.delegation === this.selectedDelegation));
+        });
+        if (regional && this.selectedRoleSurface === 'notetaker') this.selectedRoleSurface = null;
+        document.querySelectorAll?.('.chip[data-role-surface]')?.forEach((button) => {
+            button.hidden = regional && button.dataset.roleSurface === 'notetaker';
+            button.disabled = regional && !this.selectedDelegation;
+            button.setAttribute('aria-pressed', String(button.dataset.roleSurface === this.selectedRoleSurface));
+            button.classList.toggle?.('selected', button.dataset.roleSurface === this.selectedRoleSurface);
+        });
         if (!this.selectedRoleSurface) {
             this.selectedRole = null;
         } else {
-            this.selectedRole = buildTeamRole(this.selectedTeam, this.selectedRoleSurface);
+            this.selectedRole = regional
+                ? buildRegionalRole(this.selectedDelegation, this.selectedRoleSurface)
+                : buildTeamRole(this.selectedTeam, this.selectedRoleSurface);
         }
 
         const roleInput = document.getElementById('selectedRole');
         if (roleInput) {
             roleInput.value = this.selectedRole || '';
         }
+        const summary = document.getElementById('seatSelectionSummary');
+        if (summary) summary.textContent = this.selectedRole
+            ? `Seat to claim: ${getRoleDisplayName(this.selectedRole)}`
+            : regional ? 'Choose a Green delegation, then Scribe or Facilitator.' : 'Choose a role.';
+    }
+
+    async checkSession() {
+        const code = document.getElementById('sessionCode')?.value?.trim().toUpperCase();
+        const status = document.getElementById('joinStatus');
+        if (status) status.textContent = 'Checking session…';
+        try {
+            const error = validateSessionCode(code);
+            if (error) throw new Error(error);
+            await this.prewarmBrowserIdentity({ interactive: true });
+            const session = await this.findSessionByCode(code);
+            if (document.getElementById('sessionCode')?.value?.trim().toUpperCase() !== code) return null;
+            if (!session?.id || ![1, 2].includes(session.session_topology_version)) {
+                throw new Error('Session topology unavailable. Ask the operator to verify GC-04 setup.');
+            }
+            this.resolvedSession = { ...session, lookupCode: code };
+            this.updateSelectedRole();
+            if (status) status.textContent = `${session.name}: ${session.session_topology_version === 2 ? 'regional Green' : 'unified Green'} session.`;
+            return this.resolvedSession;
+        } catch (error) {
+            this.resolvedSession = null;
+            if (status) { status.textContent = `${error.message} Check the code and retry.`; status.focus?.(); }
+            showToast({ message: getUserMessage(error, { fallback: error.message }), type: 'error' });
+            return null;
+        }
     }
 
     resolveRequestedPublicRole() {
+        if (this.resolvedSession?.session_topology_version === 2 && this.selectedTeam === 'green') {
+            return buildRegionalRole(this.selectedDelegation, this.selectedRoleSurface);
+        }
         if (!this.selectedRoleSurface || !isPublicRoleSurface(this.selectedRoleSurface)) {
             return this.selectedRole;
         }
@@ -371,6 +436,13 @@ export class LandingController {
      */
     async handleJoinSession(e) {
         e.preventDefault();
+        if (this.joining) return;
+        this.joining = true;
+        try { await this.joinParticipant(e); }
+        finally { this.joining = false; }
+    }
+
+    async joinParticipant(e) {
 
         const codeInput = document.getElementById('sessionCode');
         const nameInput = document.getElementById('displayName');
@@ -403,6 +475,17 @@ export class LandingController {
             return;
         }
 
+        if (this.resolvedSession?.lookupCode !== sessionCode) {
+            if (!await this.checkSession()) return;
+        }
+        if (this.resolvedSession?.session_topology_version === 2 && this.selectedTeam === 'green'
+            && !this.selectedDelegation) {
+            const status = document.getElementById('joinStatus');
+            if (status) status.textContent = 'Choose Asia-Pacific or Europe, then Scribe or Facilitator.';
+            document.querySelector?.('[data-delegation]')?.focus();
+            return;
+        }
+
         const requestedRole = this.resolveRequestedPublicRole();
         if (!requestedRole) {
             this.setFieldError('roleSelection', 'Please select a role', { focus: true });
@@ -416,7 +499,7 @@ export class LandingController {
         const parsedRole = parseTeamRole(requestedRole);
         const participantTeam = parsedRole.teamId || this.selectedTeam;
         const teamConfig = TEAM_OPTIONS.find((option) => option.id === participantTeam);
-        const teamLabel = teamConfig?.shortLabel || titleCase(participantTeam);
+        const teamLabel = GREEN_DELEGATIONS[parsedRole.delegationId] || teamConfig?.shortLabel || titleCase(participantTeam);
         const roleLabel = getRoleSurfaceDisplayLabel(parsedRole.surface || this.selectedRoleSurface);
         const confirmation = this.showJoinConfirmation({
             displayName,
@@ -428,10 +511,18 @@ export class LandingController {
             await this.prewarmBrowserIdentity({ interactive: true });
 
             const session = await this.findSessionByCode(sessionCode);
+            if (session.session_topology_version !== this.resolvedSession.session_topology_version) {
+                this.resolvedSession = null;
+                throw new Error('Session topology changed. Check the session and select your seat again.');
+            }
             const sessionCodeFromLookup = session.session_code || sessionCode;
             confirmation.setSessionName(session.name);
 
             const participant = await database.claimParticipantSeat(session.id, requestedRole, displayName);
+            const confirmedSeat = validateSeatEnvelope({ seat: participant, session }, {
+                sessionId: session.id, participantId: participant.id
+            });
+            if (confirmedSeat.role !== requestedRole) throw new Error('Confirmed seat does not match the requested role.');
             this.selectedRole = requestedRole;
 
             // Store session data
@@ -451,6 +542,7 @@ export class LandingController {
                 roleSurface: this.selectedRoleSurface,
                 seatClaimStatus: participant.claim_status || 'claimed'
             });
+            sessionStore.confirmSeat(confirmedSeat);
 
             // Load game state
             try {
@@ -462,9 +554,8 @@ export class LandingController {
                 // Game state might not exist yet for new sessions
             }
 
-            await syncService.initialize(session.id, {
-                participantId: participant.id
-            });
+            // The workspace starts sync after server-confirmed startup. Navigation
+            // must not convert a successful claim into a second claim on sync failure.
 
             logger.info('Joined session:', session.id, 'as', requestedRole);
 
@@ -482,6 +573,8 @@ export class LandingController {
                 }),
                 type: 'error'
             });
+            const status = document.getElementById('joinStatus');
+            if (status) { status.textContent = `${err.message} Retry joining, or choose another available seat.`; status.focus?.(); }
         }
     }
 
@@ -516,6 +609,10 @@ export class LandingController {
         overlay.setAttribute('aria-live', 'polite');
         overlay.setAttribute('aria-atomic', 'true');
         overlay.setAttribute('aria-busy', 'true');
+        overlay.setAttribute('tabindex', '-1');
+        const previousFocus = document.activeElement;
+        const formPanel = document.querySelector?.('.form-main');
+        if (formPanel) formPanel.inert = true;
 
         const brandMark = document.createElement('img');
         brandMark.className = 'atm-mark jc-brand-mark';
@@ -557,6 +654,7 @@ export class LandingController {
         card.append(check, name, sessionName, meta, status);
         overlay.append(brandMark, card);
         document.body.appendChild(overlay);
+        overlay.focus?.();
 
         const raf = typeof requestAnimationFrame === 'function'
             ? requestAnimationFrame
@@ -577,6 +675,8 @@ export class LandingController {
                 if (settled) return;
                 settled = true;
                 overlay.remove();
+                if (formPanel) formPanel.inert = false;
+                previousFocus?.focus?.();
             },
             setSessionName: (resolvedSessionName) => {
                 const normalizedSessionName = String(resolvedSessionName || '').trim();
@@ -867,7 +967,7 @@ export class LandingController {
     /**
      * Resume existing session
      */
-    resumeSession() {
+    async resumeSession() {
         const sessionData = sessionStore.getSessionData();
         if (!sessionData?.role) {
             showToast({ message: 'Could not determine role. Please rejoin.', type: 'error' });
@@ -875,7 +975,15 @@ export class LandingController {
             return;
         }
 
-        this.redirectToRole(sessionData.role);
+        try {
+            const seat = await restoreConfirmedSeat({ checkRoute: false });
+            this.redirectToRole(seat.role);
+        } catch (error) {
+            sessionStore.invalidateSeat();
+            const status = document.getElementById('joinStatus');
+            if (status) { status.textContent = `${error.message} Retry Resume Session or rejoin.`; status.focus?.(); }
+            showToast({ message: error.message, type: 'error' });
+        }
     }
 
     /**
@@ -896,6 +1004,7 @@ export class LandingController {
             }
         }
 
+        await syncService.reset();
         sessionStore.clear();
 
         // Hide resume section

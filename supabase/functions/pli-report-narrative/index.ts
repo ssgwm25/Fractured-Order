@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { auditedDerivedAuthorization } from "../_shared/authorizeDerivedOperation.js";
 
 const ALLOWED_ORIGINS = new Set([
   "https://ssgwm25.github.io",
@@ -149,6 +150,17 @@ Deno.serve(async (req: Request) => {
   }
   if (serialized.length > MAX_FACT_PACK_CHARS) {
     return jsonResponse({ error: "factPack is too large" }, 413, origin);
+  }
+
+  const authorization = await auditedDerivedAuthorization({
+    deploymentId: Deno.env.get("DENO_DEPLOYMENT_ID"),
+    supabaseUrl: Deno.env.get("SUPABASE_URL"), anonKey: Deno.env.get("SUPABASE_ANON_KEY"),
+    authorization: authHeader, sessionId, operation: "narrative",
+  });
+  if (!authorization.allowed) {
+    const denied = jsonResponse({ error: "Session operation is not authorized" }, 403, origin);
+    denied.headers.set("x-gc03-request-id", authorization.requestId);
+    return denied;
   }
 
   const apiKey = Deno.env.get("CURSOR_API_KEY")
