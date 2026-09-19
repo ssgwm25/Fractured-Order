@@ -9,7 +9,7 @@ const repositoryUrl = new URL('../../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, repositoryUrl), 'utf8');
 const contract = JSON.parse(read('docs/architecture/green-regional-contract.json'));
 const document = read('docs/architecture/green-regional-contract.md');
-const allSeats = [...contract.regional_seats, ...contract.legacy_seats];
+const allSeats = [...contract.regional_seats, ...contract.legacy_seats, ...contract.shared_seats];
 
 function permission(profile, capability) {
     const index = contract.permission_columns.indexOf(capability);
@@ -20,7 +20,7 @@ function permission(profile, capability) {
 // These audit the proposed specification and existing compatibility adapters.
 // They do not execute proposed permissions or constitute regional RLS evidence.
 describe('GC-01 regional Green specification', () => {
-    it('allocates exactly one Facilitator, Scribe and existing Notetaker per region', () => {
+    it('preserves the original paired model with one Facilitator, Scribe and existing Notetaker per region', () => {
         expect(contract.parent_team).toBe('green');
         expect(contract.authority).toBe('authenticated_active_session_seat');
         expect(contract.delegations.map(({ id }) => id)).toEqual(['asian_pacific', 'europe']);
@@ -124,7 +124,7 @@ describe('GC-01 regional Green specification', () => {
     it('keeps the architecture identity and permission tables synchronized with the fixture', () => {
         expect(document).toContain(`Contract version **${contract.contract_version}**`);
         for (const seat of allSeats) {
-            const topology = seat.delegation_id === null ? 1 : 2;
+            const topology = seat.delegation_id === null && seat.role !== 'green_shared_facilitator' ? 1 : 2;
             expect(document).toContain(`| ${topology} | \`${seat.role}\` | ${seat.semantic_role} | ${seat.delegation_id} | ${seat.capacity} | \`${seat.route}\` | ${seat.permission_profile} |`);
         }
         for (const role of contract.other_roles) {
@@ -149,5 +149,17 @@ describe('GC-01 regional Green specification', () => {
         for (const [, relativePath] of document.matchAll(/\]\(([^)#]+)(?:#[^)]*)?\)/g)) {
             expect(existsSync(new URL(relativePath, new URL('docs/architecture/green-regional-contract.md', repositoryUrl))), relativePath).toBe(true);
         }
+    });
+    it('pins the new three-seat model independently of the five-submission gate and old evidence', () => {
+        const model = contract.seat_models.shared_facilitator_v1;
+        expect(model.session_topology_version).toBe(2);
+        expect(model.operational_roles).toEqual(['green_asian_pacific_scribe', 'green_europe_scribe', 'green_shared_facilitator']);
+        expect(model.notetaker_roles).toHaveLength(2);
+        expect(contract.shared_seats).toHaveLength(1);
+        expect(contract.shared_seats[0]).toMatchObject({ capacity: 1, delegation_id: null, semantic_role: 'facilitator', route: 'teams/green/scribe.html' });
+        expect(permission('shared_facilitator_foundation', 'submit_artifacts')).toBe('no');
+        expect(permission('shared_facilitator_foundation', 'proposal_threads')).toBe('no');
+        expect(model.deferred_mutations).toEqual(['GC-05', 'GC-06', 'GC-07']);
+        expect(contract.topologies.regional_green.required_orientations).toHaveLength(5);
     });
 });

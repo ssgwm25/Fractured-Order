@@ -300,6 +300,25 @@ async function loadScribeModule() {
 }
 
 describe('legacy scribe route and corrected Facilitator support surface', () => {
+    it('GC04A shared foundation renders an owned read-only summary and cannot invoke workflow writes', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+        controller.teamContext = { ...controller.teamContext, sharedFacilitator: true };
+        const action = { id: 'regional-fixture', delegation_id: 'europe', goal: '<Synthetic proposal>', status: 'draft',
+            workflow_state: 'forwarded_to_facilitator' };
+        const html = controller.renderSharedRegionalRecord(action);
+        expect(html).toContain('Green - Europe');
+        expect(html).toContain('&lt;Synthetic proposal&gt;');
+        expect(html).toContain('not yet enabled');
+        expect(html).not.toContain('<button');
+        mockSubmitAction.mockClear(); mockUpdateDraftAction.mockClear(); mockAppendProposalThreadMessage.mockClear();
+        await controller.submitScribeAction(action);
+        await controller.submitScribeProposal(action);
+        await controller.submitFacilitatorProposalDecision({ id: 'thread' }, 'accept');
+        expect(mockSubmitAction).not.toHaveBeenCalled();
+        expect(mockUpdateDraftAction).not.toHaveBeenCalled();
+        expect(mockAppendProposalThreadMessage).not.toHaveBeenCalled();
+    });
     afterEach(() => {
         vi.clearAllMocks();
         vi.restoreAllMocks();

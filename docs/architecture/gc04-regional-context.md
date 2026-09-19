@@ -1,9 +1,19 @@
 # GC-04 join, routing and persistent regional context
 
+The implementation and evidence below describe the original four-seat regional
+model. The new three-seat model is tracked separately in
+[GC-04A](gc04a-shared-facilitator.md); earlier PASS results are not evidence for
+that model. Manual screen-reader checks were subsequently excluded by the user,
+not performed or passed.
+
 Human-run unit, build, local browser and database SQL checks have passed as
 reported below. The local frontend also passed the automated matrix against
-real rehearsal Supabase. Screen-reader and deployed-site verification remain
-outstanding; GC-04 is not signed off.
+real rehearsal Supabase. The deployed site subsequently passed all 20 automated
+checkpoints. Retained build/deployment provenance remains outstanding; GC-04 is
+not signed off here. Screen-reader verification was excluded by the user, not
+passed. This historical evidence remains the paired/unified baseline; the
+GC-04A `--shared` runner supplies separate three-seat, contention and IndexedDB
+cleanup procedures before GC-04A sign-off.
 
 Participants enter the session code and use **Check session**, choose Green,
 choose Asia-Pacific or Europe, then choose Scribe or Facilitator. The complete
@@ -81,6 +91,59 @@ and retry state. Do not relabel the historical briefing as regional approval.
 
 ## Human verification
 
+### Legacy-session topology compatibility
+
+The user reported `PLENUM2026` blocked on the deployed landing page with
+"Session topology unavailable". Inspection found a GC-04 compatibility defect:
+GC-02 intentionally leaves pre-existing sessions' stored topology NULL and
+defines that as unified version 1; September 22 returned raw NULL to clients
+that correctly require explicit server topology. The passing regional rehearsal
+matrix used new version-2 sessions and did not cover this historical case.
+The live PLENUM2026 row has not been queried by the coding agent.
+
+Apply `data/2026-09-23_gc04_legacy_session_topology.sql` through Supabase SQL
+Editor as postgres after the already-installed September 22 migration. Expected:
+successful transaction with no errors. This additive migration replaces only the
+lookup and restore functions, normalizing NULL to 1 in their returned JSON.
+It preserves the authenticated ownership checks, active-session restrictions,
+revocation handling, seat locking and execute grants. Historical sessions, seats,
+artifacts and roster snapshots are not rewritten. Regional version 2 stays 2.
+Do not reapply September 22 or change PLENUM2026 to version 2 as a workaround.
+
+Paste all of `tests/sql/gc04-legacy-session-editor.sql` into SQL Editor and run.
+It is read-only, uses synthetic JWT claims, contains PLENUM2026 already, and
+requires no copied IDs. Expected: one PASS row; for an older NULL-topology
+session, `stored_topology` is NULL, `returned_topology` is 1, and `session_status`
+is active. Missing/inactive sessions error rather than pass. This checks lookup
+under simulated identity, not live Auth or seat restoration.
+
+Then refresh the deployed site, enter PLENUM2026 and click Check session.
+Expected: the session is identified as unified Green, with the existing legacy
+role choices. The Check session button remains available for retry or another
+code; Join Session claims the selected seat. Verify join, reload and Resume with
+an authorized available seat. No frontend rebuild is required for the SQL fix.
+Browser NULL/missing/unknown topology remains blocked instead of silently falling
+back. Historical unified Green is not presented as a regional session.
+
+Human-run regression commands:
+
+```powershell
+npm test -- tests/unit/gc04-legacy-topology.test.js src/roles/landing.join.test.js src/core/seatContext.test.js src/services/seatBootstrap.test.js
+```
+
+Expected: all four files pass. The migration contract test pins both function
+bodies and grants to September 22 except their two response normalizations and
+CREATE OR REPLACE; landing tests pin unified Green success and invalid-topology
+denial. Paste `tests/sql/gc04-session-context-editor.sql` into SQL Editor after
+the migration to recheck regional authority; expected four PASS rows, nine
+assertions each, ending in ROLLBACK. The new migration and tests have not been
+executed by the coding agent. Fresh SQL and PLENUM2026 join/reload evidence remain
+required; earlier regional results do not establish legacy-session recovery.
+
+Necessary scope expansion: the additive compatibility migration, focused tests,
+the read-only diagnostic and setup/rollback documentation. No UI, authorization
+policy, participant decision, PLI scoring or historical-record change is included.
+
 No commands below were executed by the coding agent.
 
 ### Reported verification results
@@ -119,7 +182,7 @@ The subsequent hosted-run transcript reports 25 tests passing across six files
 and a successful 8.76-second build. Live run
 `e82ee015-ee19-4658-b318-7e8df3ee5cfa` failed at the missing deployed
 `#checkSessionBtn` before any checkpoint; its saved report confirms successful
-fixture archival. The deployed frontend needs the GC-04 changes. The hosted
+fixture archival. At that stage the deployed frontend lacked the GC-04 changes. The hosted
 runner now checks landing markup before provisioning and rejects shell commands
 at its screen-reader prompt; see the live verification procedure for recovery.
 
@@ -137,6 +200,17 @@ The report records source hashes and working-tree state with HEAD
 uncommitted changes. No manual observations were recorded, so `manualPassed`
 and overall `passed` remain false. This supplies local integration evidence
 without claiming deployed routing, deployment provenance or screen-reader approval.
+
+Deployed run `0f9d94cd-63de-471b-88cb-769ff2f38177` subsequently passed on
+2026-09-18 (23:52:22 to 23:54:01 UTC). Its saved `results.json` under
+`test-results/gc04-live/0f9d94cd-63de-471b-88cb-769ff2f38177/` confirms the
+GitHub Pages target `https://ssgwm25.github.io/Fractured-Order/`, the same
+rehearsal project and Chromium version, all 20 automated checkpoints, no browser
+errors or asset failure, and successful fixture archival. The report records
+clean working-tree state at `fc1e04e4bd4018cdded53dfa890bb627326ac8e2` and
+source/fetched asset hashes. This supplies deployed browser integration evidence;
+retain matching build/deployment provenance separately. Zero manual observations
+were recorded, so `manualPassed` and overall `passed` remain false.
 
 ### Reproduction commands
 
@@ -223,8 +297,8 @@ node --preserve-symlinks --preserve-symlinks-main scripts/gc04-live-check.mjs --
 
 It prompts for deployment/credential inputs when not configured, never for
 fixture UUIDs. Expected: 20 automated checkpoints, 24 manual observations and
-successful archival. The first hosted run failed on deployment mismatch as
-recorded above; no passing full-matrix result has been supplied yet.
+successful archival. The latest hosted automated matrix passed as recorded above;
+the combined automated/manual matrix remains incomplete.
 
 ## Dependencies and evidence still required
 
@@ -238,10 +312,11 @@ recorded above; no passing full-matrix result has been supplied yet.
   does not claim end-to-end regional workflow completion.
 - Unit/build/browser and SQL results are reported above. Local frontend integration
   with hosted Auth/RPC/RLS, keyboard operation, removal cleanup and reconnect is
-  supported by run `118695e2-7338-454e-bd56-0861c3920891`. Manual screen-reader
-  observations and a fresh deployed-site matrix with candidate/build/deployment
-  provenance remain required. The local report records the project, source hashes
-  and uncommitted working-tree state; it does not establish deployed behavior.
+  supported by run `118695e2-7338-454e-bd56-0861c3920891`. Deployed-site automation
+  is supported by run `0f9d94cd-63de-471b-88cb-769ff2f38177`. Manual screen-reader
+  observations and retained candidate/build/deployment provenance remain required.
+  The hosted report includes source/fetched asset hashes and clean working-tree
+  state, but does not itself verify the build/deployment workflow chain.
 
 For lookup/restore permission errors, verify identity, live session status,
 revocation and installed function definitions. For full seats, select an

@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from '../utils/logger.js';
-import { getConfirmedSeat, setConfirmedSeat, clearSeatLocalState } from '../core/seatContext.js';
+import { getConfirmedSeat, setConfirmedSeat, clearSeatLocalState, seatStorageKey } from '../core/seatContext.js';
 import {
     OPERATOR_SURFACES,
     isOperatorSurface,
@@ -504,6 +504,7 @@ export const sessionStore = {
         clearSeatLocalState();
         if (!getConfirmedSeat() && currentSessionData?.participantSessionId) {
             clearSeatLocalState({ sessionId: currentSessionData.id, topology: currentSessionData.sessionTopologyVersion,
+                greenSeatModel: currentSessionData.greenSeatModel,
                 teamId: currentSessionData.team, delegationId: currentSessionData.delegationId,
                 role: currentSessionData.role, participantId: currentSessionData.participantSessionId });
         }
@@ -513,18 +514,17 @@ export const sessionStore = {
     confirmSeat(seat) {
         const previous = getConfirmedSeat();
         const cached = currentSessionData;
-        if (previous && (previous.participantId !== seat.participantId || previous.role !== seat.role
-            || previous.sessionId !== seat.sessionId)) this.invalidateSeat();
-        if (cached?.participantSessionId && (cached.participantSessionId !== seat.participantId
-            || cached.role !== seat.role || cached.delegationId !== seat.delegationId)) {
-            clearSeatLocalState({ sessionId: cached.id, topology: cached.sessionTopologyVersion,
-                teamId: cached.team, delegationId: cached.delegationId, role: cached.role,
-                participantId: cached.participantSessionId });
+        if (previous && seatStorageKey('', previous) !== seatStorageKey('', seat)) this.invalidateSeat();
+        const cachedSeat = cached?.participantSessionId ? { sessionId: cached.id, topology: cached.sessionTopologyVersion,
+            greenSeatModel: cached.greenSeatModel, teamId: cached.team, delegationId: cached.delegationId,
+            role: cached.role, participantId: cached.participantSessionId } : null;
+        if (cachedSeat && seatStorageKey('', cachedSeat) !== seatStorageKey('', seat)) {
+            clearSeatLocalState(cachedSeat);
         }
         this.setRole(seat.role);
         setConfirmedSeat(seat);
         this.mergeSessionData({ role: seat.role, team: seat.teamId, delegationId: seat.delegationId,
-            sessionTopologyVersion: seat.topology, roleSurface: seat.surface,
+            sessionTopologyVersion: seat.topology, greenSeatModel: seat.greenSeatModel, roleSurface: seat.surface,
             participantId: seat.participantId, participantSessionId: seat.participantId,
             name: seat.sessionName, code: seat.sessionCode, displayName: seat.displayName });
     },

@@ -1,4 +1,5 @@
 import { getConfirmedSeat, onSeatCleanup } from '../../core/seatContext.js';
+import { SHARED_GREEN_FACILITATOR, SHARED_GREEN_MODEL } from '../../core/teamContext.js';
 
 const SCRIBE_DECK_STORAGE_DB = 'esg-scribe-decks';
 const SCRIBE_DECK_STORAGE_STORE = 'uploaded-decks';
@@ -181,6 +182,13 @@ export function buildUploadedScribeDeckStorageKey(sessionId = '', teamId = '', d
     return `scribe-deck:${normalizedSessionId}:${normalizedTeamId}${delegationId ? `:${delegationId}` : ''}`;
 }
 
+export function getSeatDeckStorageKey(seat) {
+    if (seat?.role === SHARED_GREEN_FACILITATOR && seat.greenSeatModel === SHARED_GREEN_MODEL) {
+        return `scribe-deck:${seat.sessionId}:green:${SHARED_GREEN_MODEL}:${seat.participantId}`;
+    }
+    return buildUploadedScribeDeckStorageKey(seat.sessionId, seat.teamId, seat.delegationId);
+}
+
 export async function saveUploadedScribeDeck({
     storageKey = '',
     sessionId = '',
@@ -216,7 +224,7 @@ export async function saveUploadedScribeDeck({
 
 export async function getUploadedScribeDeck(storageKey = '') {
     const seat = getConfirmedSeat();
-    if (seat?.delegationId && storageKey !== buildUploadedScribeDeckStorageKey(seat.sessionId, seat.teamId, seat.delegationId)) {
+    if ((seat?.delegationId || seat?.role === SHARED_GREEN_FACILITATOR) && storageKey !== getSeatDeckStorageKey(seat)) {
         throw new Error('This uploaded deck is not assigned to your confirmed delegation. Ask White Cell for a regional assignment.');
     }
     const normalizedStorageKey = String(storageKey || '').trim();
@@ -238,8 +246,8 @@ export async function deleteUploadedScribeDeck(storageKey = '') {
 }
 
 onSeatCleanup((seat) => {
-    if (seat.delegationId && resolveIndexedDb()) {
-        void deleteUploadedScribeDeck(buildUploadedScribeDeckStorageKey(seat.sessionId, seat.teamId, seat.delegationId))
+    if ((seat.delegationId || seat.role === SHARED_GREEN_FACILITATOR) && resolveIndexedDb()) {
+        void deleteUploadedScribeDeck(getSeatDeckStorageKey(seat))
             .catch(() => {}); // Access remains blocked if browser storage is unavailable.
     }
 });

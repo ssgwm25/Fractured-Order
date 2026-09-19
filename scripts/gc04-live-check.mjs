@@ -10,12 +10,14 @@ import { chromium } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { promptToken } from './gc03-race-runner.mjs';
 import { publicKey } from './gc03-hosted-check.mjs';
-import { ROLES, LOCAL_APP_BASE_URL, check, uuid, appUrl, manifest, setupSql, cleanupSql, manualComplete, automatedComplete, redact } from './gc04-live-contract.mjs';
-import { joinActor, verifyScope, verifyRecovery, verifyRoutes, verifyRemoval } from './gc04-live-browser.mjs';
+import { ROLES, SHARED_ROLES, LOCAL_APP_BASE_URL, check, uuid, appUrl, manifest, setupSql, cleanupSql, archivedComplete,
+    fixtureSessions, manualComplete, automatedComplete, redact } from './gc04-live-contract.mjs';
+import { joinActor, verifyScope, verifyRecovery, verifyRoutes, verifyRemoval, verifySharedView } from './gc04-live-browser.mjs';
+import { verifySharedRace } from './gc04a-live-race.mjs';
 import { inspectDeployment, screenReaderAnswer } from './gc04-live-preflight.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
-const files = ['scripts/gc04-live-check.mjs', 'scripts/gc04-live-contract.mjs', 'scripts/gc04-live-browser.mjs', 'scripts/gc04-live-preflight.mjs',
+const files = ['scripts/gc04-live-check.mjs', 'scripts/gc04-live-contract.mjs', 'scripts/gc04-live-browser.mjs', 'scripts/gc04-live-preflight.mjs', 'scripts/gc04-deck-probe.mjs',
     'data/2026-09-22_gc04_session_context.sql', 'src/services/seatBootstrap.js', 'src/core/seatContext.js',
     'src/core/teamContext.js', 'src/core/navigation.js', 'src/stores/session.js', 'src/main.js',
     'src/roles/landing.js', 'src/services/sync.js', 'src/stores/participants.js', 'vite.config.js',
@@ -34,7 +36,7 @@ async function management(token, projectRef, query) {
     check(response.ok && Array.isArray(data), `management SQL failed (${response.status}): ${data.message || 'unexpected response'}`);
     return { data, status: response.status, requestId: response.headers.get('sb-request-id') || response.headers.get('x-request-id') };
 }
-async function configuration(localMode = false) {
+async function configuration(localMode = false, shared = false) {
     let env = '';
     try { env = await readFile('.env.local', 'utf8'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const candidate = process.env.VITE_SUPABASE_URL || env.match(/^\s*VITE_SUPABASE_URL\s*=\s*['"]?([^\s'"]+)/m)?.[1];
@@ -42,19 +44,20 @@ async function configuration(localMode = false) {
         || await ask('Supabase rehearsal project reference: ');
     check(/^[a-z]{20}$/.test(projectRef), 'expected a 20-letter project reference');
     // Ignore a previously configured hosted URL when explicitly checking the local candidate.
-    const baseURL = appUrl(localMode ? LOCAL_APP_BASE_URL
-        : process.env.PLAYWRIGHT_BASE_URL || await ask('Deployed app directory URL (including /Fractured-Order/): '), { local: localMode });
+    const baseURL = appUrl(shared && process.env.GC04A_BASE_URL ? process.env.GC04A_BASE_URL : localMode ? LOCAL_APP_BASE_URL
+        : process.env.PLAYWRIGHT_BASE_URL || await ask('Deployed app directory URL (including its base path): '), { local: localMode, shared });
     console.log(`GC04 target: ${baseURL}\nSupabase project: ${projectRef}`);
     if (localMode) console.log('Local frontend with real rehearsal Supabase. Synthetic fixtures will be created and archived. This does not verify deployment.');
+    if (shared) console.log('GC04A foundation: three hosted identities, observed two-connection contention and two archived synthetic sessions. Screen-reader checks excluded.');
     return { projectRef, baseURL };
 }
-async function preflight(baseURL, localMode = false) {
+async function preflight(baseURL, localMode = false, shared = false) {
     const directory = resolve('test-results/gc04-live');
     await mkdir(directory, { recursive: true });
     const output = resolve(directory, `preflight-${randomUUID()}.json`);
     let result;
     try {
-        result = await inspectDeployment(baseURL, fetch, { local: localMode });
+        result = await inspectDeployment(baseURL, fetch, { local: localMode, shared });
         check(result.passed, `GC04_DEPLOYMENT_MISMATCH: ${result.url} lacks ${result.missing.join(', ')}. `
             + (localMode ? 'Rebuild with VITE_PUBLIC_BASE_PATH=/Fractured-Order/ and serve dist on port 4174, then retry.'
                 : 'Publish the GC04 frontend through Deploy GitHub Pages, then retry. npm run build only builds local files.'));
@@ -77,9 +80,10 @@ const manualInstructions = {
     removal: 'Verify access loss is announced, private content is absent from browse/tab navigation, and the retry/join controls are reachable.'
 };
 
-async function run(manualMode, localMode = false) {
-    const config = await configuration(localMode);
-    const deployment = await preflight(config.baseURL, localMode);
+async function run(manualMode, localMode = false, shared = false) {
+    check(!shared || !manualMode, '--shared excludes manual screen-reader checks');
+    const config = await configuration(localMode, shared);
+    const deployment = await preflight(config.baseURL, localMode, shared);
     let screenReader;
     if (manualMode) {
         while (true) {
@@ -99,25 +103,31 @@ async function run(manualMode, localMode = false) {
     const auth = await operator.auth.signInAnonymously({ options: { data: { gc04_operator_fixture: true } } });
     check(!auth.error && auth.data?.session, `operator test identity: ${auth.error?.message || 'missing session'}`);
     secrets.push(auth.data.session.access_token, auth.data.session.refresh_token);
-    const m = manifest(config.projectRef, config.baseURL, auth.data.user.id, { local: localMode });
+    const m = manifest(config.projectRef, config.baseURL, auth.data.user.id, { local: localMode, shared });
     const directory = resolve('test-results/gc04-live', m.run);
     await mkdir(directory, { recursive: true });
     const report = { run: m.run, target: m.target, projectRef: m.projectRef, baseURL: m.baseURL, startedAt: new Date().toISOString(),
         requests: [], checkpoints: [], manual: [], assets: {}, browserErrors: [], sourceHashes: {},
         automatedPassed: false, manualPassed: false, cleanupPassed: false, passed: false, deploymentPreflight: deployment,
         ...(screenReader ? { screenReader } : {}) };
-    const save = () => writeFile(resolve(directory, 'results.json'), JSON.stringify(redact(report, secrets), null, 2));
+    if (shared) Object.assign(report, { stage: m.stage, greenSeatModel: m.greenSeatModel, manualStatus: 'excluded_by_user' });
+    let pendingSave = Promise.resolve();
+    const save = () => {
+        const snapshot = JSON.stringify(redact(report, secrets), null, 2);
+        pendingSave = pendingSave.then(() => writeFile(resolve(directory, 'results.json'), snapshot));
+        return pendingSave;
+    };
     await writeFile(resolve(directory, 'manifest.json'), JSON.stringify(m, null, 2), { flag: 'wx' });
     await writeFile(resolve(directory, 'cleanup.sql'), cleanupSql(m), { flag: 'wx' });
     await save();
     console.log(`Fixture run: ${m.run}\nIf interrupted, archive with: node scripts/gc04-live-check.mjs cleanup ${m.run}`);
-    const sql = async (label, query) => {
+    const sql = async (label, query, receipt = false) => {
         const entry = { label, at: new Date().toISOString(), sqlSha256: sha(query), completed: false };
         report.requests.push(entry); await save();
         await writeFile(resolve(directory, `${label}-${randomUUID()}.sql`), query, { flag: 'wx' });
         const response = await management(config.token, m.projectRef, query);
         Object.assign(entry, { completed: true, status: response.status, requestId: response.requestId });
-        await save(); return response.data;
+        await save(); return receipt ? response : response.data;
     };
     let browser, setupAttempted = false;
     const pending = new Set(), contexts = [];
@@ -189,13 +199,24 @@ async function run(manualMode, localMode = false) {
         report.sourceRevision = (await git('git', ['rev-parse', 'HEAD'])).stdout.trim();
         report.workingTree = (await git('git', ['status', '--porcelain'])).stdout;
         for (const file of files) report.sourceHashes[file] = sha(await readFile(file));
+        if (shared) for (const file of ['scripts/gc04a-live-race.mjs', 'scripts/gc03-race-runner.mjs',
+            'data/2026-09-24_gc04a_shared_facilitator.sql', 'data/2026-09-23_gc04_legacy_session_topology.sql',
+            'src/features/scribe/sharedGreenContext.js', 'src/features/scribe/deckStorage.js', 'src/roles/scribe.js']) {
+            report.sourceHashes[file] = sha(await readFile(file));
+        }
         browser = await chromium.launch({ headless: !manualMode, args: manualMode ? ['--force-renderer-accessibility'] : [] });
         report.browserVersion = browser.version();
         setupAttempted = true; await save();
         check((await sql('setup', setupSql(m)))[0]?.run_id === m.run, 'fixture setup receipt');
+        if (shared) {
+            await verifySharedRace(m, (label, query) => sql(label, query, true), report);
+            await save(); console.log('PASS: shared seat contention; distinct matching PostgreSQL connections and one committed winner.');
+        }
         const actors = [];
-        for (const [index, role] of ROLES.entries()) actors.push(await joinActor(browser, role, runtime, index));
-        check(new Set(actors.map(a => a.info.userId)).size === 4, 'four independent hosted identities');
+        const roles = shared ? SHARED_ROLES : ROLES;
+        for (const [index, role] of roles.entries()) actors.push(await joinActor(browser, role, runtime, index));
+        check(new Set(actors.map(a => a.info.userId)).size === roles.length, 'independent hosted identities for every seat');
+        if (shared) await verifySharedView(actors.find(actor => !actor.region), runtime);
         for (const actor of actors) {
             await verifyScope(actor, actors, runtime);
             await verifyRecovery(actor, runtime);
@@ -205,7 +226,7 @@ async function run(manualMode, localMode = false) {
         await Promise.all([...pending]);
         check(!report.assetFailure && Object.values(report.assets).some(a => a.resource === 'script'), report.assetFailure || 'missing hosted asset evidence');
         check(report.browserErrors.length === 0, 'unhandled browser errors; inspect report');
-        check(automatedComplete(report.checkpoints), 'incomplete automated matrix');
+        check(automatedComplete(report.checkpoints, { shared }) && (!shared || report.race?.passed), 'incomplete automated matrix');
         report.automatedPassed = true;
         report.manualPassed = manualMode && manualComplete(report.manual);
     } catch (error) {
@@ -218,24 +239,26 @@ async function run(manualMode, localMode = false) {
         if (setupAttempted) {
             try {
                 // A network timeout may follow a committed setup; inspect exact fixture ID.
-                const found = await sql('cleanup-presence', `SELECT id FROM public.sessions WHERE id='${m.sessionId}';`);
+                const ids = fixtureSessions(m).map(({ id }) => `'${id}'`).join(',');
+                const found = await sql('cleanup-presence', `SELECT id FROM public.sessions WHERE id IN (${ids});`);
                 if (found.length) {
                     const archived = await sql('archive', cleanupSql(m));
-                    check(archived.length === 1 && archived[0].id === m.sessionId && archived[0].status === 'archived', 'fixture archival');
+                    check(archivedComplete(archived, m), 'fixture archival');
                 }
                 report.cleanupPassed = true;
             } catch (error) { report.cleanupFailure = error.message; }
         }
         await operator.auth.signOut().catch(() => {});
         report.finishedAt = new Date().toISOString();
-        report.passed = report.automatedPassed && report.manualPassed && report.cleanupPassed;
+        report.passed = report.automatedPassed && (shared || report.manualPassed) && report.cleanupPassed;
         await save();
         console.log(`Evidence: ${resolve(directory, 'results.json')}`);
         if (report.failure) console.error(redact(report.failure, secrets));
         if (!report.cleanupPassed && setupAttempted) console.error(`Archive retry: node scripts/gc04-live-check.mjs cleanup ${m.run}`);
     }
     if (!report.automatedPassed || !report.cleanupPassed || (manualMode && !report.manualPassed)) process.exitCode = 1;
-    else console.log(manualMode ? 'PASS: automated matrix, recorded manual checks and fixture archival. Review evidence before GC04 sign-off.'
+    else console.log(shared ? 'PASS: GC04A foundation automation, observed database contention and both fixture archives. Manual screen-reader checks excluded, not passed. Review fresh evidence before sign-off.'
+        : manualMode ? 'PASS: automated matrix, recorded manual checks and fixture archival. Review evidence before GC04 sign-off.'
         : 'Automated matrix and archival passed. Screen-reader evidence remains pending; run with --manual.');
     if (localMode) console.log('Evidence target: local frontend. Deployed routing and deployment provenance remain unverified.');
 }
@@ -245,19 +268,20 @@ async function cleanup(runId) {
     check(m.run === runId, 'cleanup run mismatch');
     const query = cleanupSql(m), token = await promptToken();
     const result = await management(token, m.projectRef, query);
-    check(result.data.length === 1 && result.data[0].id === m.sessionId && result.data[0].status === 'archived', 'cleanup receipt');
+    check(archivedComplete(result.data, m), 'cleanup receipt');
     await writeFile(resolve(directory, `cleanup-retry-${randomUUID()}.json`), JSON.stringify({ ...result, at: new Date().toISOString() }, null, 2));
     console.log('Synthetic fixture archived; history retained. Original test results are unchanged.');
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
     const args = process.argv.slice(2);
     const localMode = args.includes('--local');
-    const task = args[0] === 'preflight' && args.slice(1).every(arg => arg === '--local')
-        ? (async () => preflight(appUrl(localMode ? LOCAL_APP_BASE_URL
+    const shared = args.includes('--shared');
+    const task = args[0] === 'preflight' && args.slice(1).every(arg => ['--local', '--shared'].includes(arg))
+        ? (async () => preflight(appUrl(shared && process.env.GC04A_BASE_URL ? process.env.GC04A_BASE_URL : localMode ? LOCAL_APP_BASE_URL
             : process.env.PLAYWRIGHT_BASE_URL || await ask('Deployed app directory URL (including /Fractured-Order/): '),
-        { local: localMode }), localMode))()
+        { local: localMode, shared }), localMode, shared))()
         : args[0] === 'cleanup' && args.length === 2 ? cleanup(args[1])
-        : args.every(arg => ['--manual', '--local'].includes(arg)) ? run(args.includes('--manual'), localMode)
-            : Promise.reject(new Error('Usage: node scripts/gc04-live-check.mjs [--manual] [--local] | preflight [--local] | cleanup RUN_ID'));
+        : args.every(arg => ['--manual', '--local', '--shared'].includes(arg)) ? run(args.includes('--manual'), localMode, shared)
+            : Promise.reject(new Error('Usage: node scripts/gc04-live-check.mjs [--shared | --manual] [--local] | preflight [--shared] [--local] | cleanup RUN_ID'));
     task.catch(error => { console.error(redact(error.message)); process.exitCode = 1; });
 }

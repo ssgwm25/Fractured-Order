@@ -1,8 +1,24 @@
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.1",
   "status": "proposed_not_activated",
   "parent_team": "green",
   "authority": "authenticated_active_session_seat",
+  "seat_models": {
+    "unified_v1": { "session_topology_version": 1, "persisted_green_seat_model": null },
+    "regional_pairs_v1": { "session_topology_version": 2, "persisted_green_seat_model": null, "seats": "regional_seats" },
+    "shared_facilitator_v1": {
+      "session_topology_version": 2,
+      "persisted_green_seat_model": "shared_facilitator_v1",
+      "operational_roles": ["green_asian_pacific_scribe", "green_europe_scribe", "green_shared_facilitator"],
+      "notetaker_roles": ["green_asian_pacific_notetaker", "green_europe_notetaker"],
+      "shared_read_workflow_states": ["forwarded_to_facilitator", "submitted_to_white_cell", "completed"],
+      "deferred_mutations": ["GC-05", "GC-06", "GC-07"],
+      "creation_ui": "GC-08"
+    }
+  },
+  "shared_seats": [
+    { "role": "green_shared_facilitator", "semantic_role": "facilitator", "delegation_id": null, "capacity": 1, "route": "teams/green/scribe.html", "permission_profile": "shared_facilitator_foundation" }
+  ],
   "topologies": {
     "unified_green": { "session_topology_version": 1, "required_orientations": ["blue", "green", "red", "industry"] },
     "regional_green": { "session_topology_version": 2, "required_orientations": ["blue", "green:asian_pacific", "green:europe", "red", "industry"] }
@@ -46,6 +62,7 @@
   ],
   "permission_columns": ["read_artifacts", "edit_artifacts", "submit_artifacts", "rfis", "direct_messages", "proposal_threads", "notes", "review_or_control"],
   "permission_matrix": {
+    "shared_facilitator_foundation": ["both_forwarded_submitted_completed", "no", "no", "no", "addressed_read_only", "no", "no", "no"],
     "regional_scribe": ["own", "draft_returned", "no", "read_own", "addressed", "read_own", "no", "no"],
     "regional_facilitator": ["own", "forwarded_returned", "own", "manage_own", "own_white_cell", "append_own", "no", "no"],
     "regional_notetaker": ["own_released", "no", "no", "read_own", "addressed", "no", "own_seat", "no"],

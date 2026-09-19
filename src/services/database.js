@@ -741,6 +741,15 @@ export const database = {
         return data;
     },
 
+    async configureSessionGreenSharedFacilitator(sessionId, rosterVersion) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('configure_session_green_shared_facilitator', {
+            sid: sessionId, roster_version: rosterVersion
+        });
+        if (error) throw fromSupabaseError(error, 'configureSessionGreenSharedFacilitator');
+        return data;
+    },
+
     async configureSessionGreenTopology(sessionId, topologyVersion, rosterVersion = null) {
         await ensureAuthenticatedBrowser();
         const { data, error } = await supabase.rpc('configure_session_green_topology', {
@@ -842,7 +851,8 @@ export const database = {
             name: data?.name,
             session_code: data?.session_code ?? normalizedCode,
             status: data?.status,
-            session_topology_version: data?.session_topology_version
+            session_topology_version: data?.session_topology_version,
+            green_seat_model: data?.green_seat_model
         };
     },
 

@@ -33,7 +33,7 @@ import {
     getSmeRoleDisplayLabel,
     parseTeamRole
 } from '../core/teamContext.js';
-import { buildRegionalRole, GREEN_DELEGATIONS } from '../core/teamContext.js';
+import { buildGreenJoinRole, getGreenSeatModel, GREEN_DELEGATIONS, SHARED_GREEN_MODEL } from '../core/teamContext.js';
 
 const logger = createLogger('Landing');
 
@@ -347,15 +347,40 @@ export class LandingController {
 
     updateSelectedRole() {
         const regional = this.resolvedSession?.session_topology_version === 2 && this.selectedTeam === 'green';
+        const shared = regional && this.resolvedSession.green_seat_model === SHARED_GREEN_MODEL;
         const regionField = document.getElementById('delegationSelection');
         if (regionField) regionField.hidden = !regional;
+        const help = document.getElementById('delegationSelectionHelp');
+        if (help) help.textContent = shared
+            ? 'Scribes: choose Asia-Pacific or Europe. The single shared Facilitator serves both regions and does not choose a delegation.'
+            : 'Choose your delegation, then Scribe or Facilitator. Each role has one seat per delegation.';
+        const roleHelp = document.getElementById('roleSelectionHelp');
+        if (roleHelp) roleHelp.textContent = shared
+            ? 'Two regional Scribe seats and one shared Facilitator seat.'
+            : regional ? 'One Scribe and one Facilitator per delegation.'
+                : 'Scribe and Facilitator are single-seat roles. Notetaker supports two seats per team.';
         document.querySelectorAll?.('[data-delegation]')?.forEach((button) => {
             button.setAttribute('aria-pressed', String(button.dataset.delegation === this.selectedDelegation));
         });
         if (regional && this.selectedRoleSurface === 'notetaker') this.selectedRoleSurface = null;
         document.querySelectorAll?.('.chip[data-role-surface]')?.forEach((button) => {
             button.hidden = regional && button.dataset.roleSurface === 'notetaker';
-            button.disabled = regional && !this.selectedDelegation;
+            button.disabled = regional && !this.selectedDelegation && !(shared && button.dataset.roleSurface === 'scribe');
+            if (button.dataset.roleSurface === 'scribe') {
+                const label = button.querySelector?.('[data-role-label]');
+                if (label) label.textContent = shared ? 'Shared Facilitator' : 'Facilitator';
+                const description = shared ? 'Shared Facilitator, one seat for Asia-Pacific and Europe, opens the support deck'
+                    : regional ? 'Facilitator, one seat per delegation, opens the support deck'
+                        : 'Facilitator, one seat per team, opens the support slide deck';
+                button.setAttribute('aria-label', description);
+                button.setAttribute('title', description);
+            }
+            if (button.dataset.roleSurface === 'facilitator') {
+                const description = regional ? 'Scribe, one seat per delegation, records regional decisions'
+                    : 'Scribe, one seat per team, records and forwards team decisions';
+                button.setAttribute('aria-label', description);
+                button.setAttribute('title', description);
+            }
             button.setAttribute('aria-pressed', String(button.dataset.roleSurface === this.selectedRoleSurface));
             button.classList.toggle?.('selected', button.dataset.roleSurface === this.selectedRoleSurface);
         });
@@ -363,7 +388,7 @@ export class LandingController {
             this.selectedRole = null;
         } else {
             this.selectedRole = regional
-                ? buildRegionalRole(this.selectedDelegation, this.selectedRoleSurface)
+                ? buildGreenJoinRole(this.resolvedSession, this.selectedDelegation, this.selectedRoleSurface)
                 : buildTeamRole(this.selectedTeam, this.selectedRoleSurface);
         }
 
@@ -374,7 +399,8 @@ export class LandingController {
         const summary = document.getElementById('seatSelectionSummary');
         if (summary) summary.textContent = this.selectedRole
             ? `Seat to claim: ${getRoleDisplayName(this.selectedRole)}`
-            : regional ? 'Choose a Green delegation, then Scribe or Facilitator.' : 'Choose a role.';
+            : shared ? 'Choose a delegation and Scribe, or choose Shared Facilitator for both regions.'
+                : regional ? 'Choose a Green delegation, then Scribe or Facilitator.' : 'Choose a role.';
     }
 
     async checkSession() {
@@ -390,12 +416,17 @@ export class LandingController {
             if (!session?.id || ![1, 2].includes(session.session_topology_version)) {
                 throw new Error('Session topology unavailable. Ask the operator to verify GC-04 setup.');
             }
+            const model = getGreenSeatModel(session);
             this.resolvedSession = { ...session, lookupCode: code };
             this.updateSelectedRole();
-            if (status) status.textContent = `${session.name}: ${session.session_topology_version === 2 ? 'regional Green' : 'unified Green'} session.`;
+            if (status) status.textContent = `${session.name}: ${model === SHARED_GREEN_MODEL
+                ? 'regional Green — two Scribes and one shared Facilitator'
+                : session.session_topology_version === 2 ? 'regional Green' : 'unified Green'} session.`;
             return this.resolvedSession;
         } catch (error) {
             this.resolvedSession = null;
+            this.selectedRoleSurface = null;
+            this.updateSelectedRole();
             if (status) { status.textContent = `${error.message} Check the code and retry.`; status.focus?.(); }
             showToast({ message: getUserMessage(error, { fallback: error.message }), type: 'error' });
             return null;
@@ -404,7 +435,7 @@ export class LandingController {
 
     resolveRequestedPublicRole() {
         if (this.resolvedSession?.session_topology_version === 2 && this.selectedTeam === 'green') {
-            return buildRegionalRole(this.selectedDelegation, this.selectedRoleSurface);
+            return buildGreenJoinRole(this.resolvedSession, this.selectedDelegation, this.selectedRoleSurface);
         }
         if (!this.selectedRoleSurface || !isPublicRoleSurface(this.selectedRoleSurface)) {
             return this.selectedRole;
@@ -479,7 +510,8 @@ export class LandingController {
             if (!await this.checkSession()) return;
         }
         if (this.resolvedSession?.session_topology_version === 2 && this.selectedTeam === 'green'
-            && !this.selectedDelegation) {
+            && !this.selectedDelegation
+            && !(this.resolvedSession.green_seat_model === SHARED_GREEN_MODEL && this.selectedRoleSurface === 'scribe')) {
             const status = document.getElementById('joinStatus');
             if (status) status.textContent = 'Choose Asia-Pacific or Europe, then Scribe or Facilitator.';
             document.querySelector?.('[data-delegation]')?.focus();
@@ -499,7 +531,8 @@ export class LandingController {
         const parsedRole = parseTeamRole(requestedRole);
         const participantTeam = parsedRole.teamId || this.selectedTeam;
         const teamConfig = TEAM_OPTIONS.find((option) => option.id === participantTeam);
-        const teamLabel = GREEN_DELEGATIONS[parsedRole.delegationId] || teamConfig?.shortLabel || titleCase(participantTeam);
+        const teamLabel = parsedRole.sharedFacilitator ? 'Green — Asia-Pacific and Europe'
+            : GREEN_DELEGATIONS[parsedRole.delegationId] || teamConfig?.shortLabel || titleCase(participantTeam);
         const roleLabel = getRoleSurfaceDisplayLabel(parsedRole.surface || this.selectedRoleSurface);
         const confirmation = this.showJoinConfirmation({
             displayName,
@@ -511,7 +544,8 @@ export class LandingController {
             await this.prewarmBrowserIdentity({ interactive: true });
 
             const session = await this.findSessionByCode(sessionCode);
-            if (session.session_topology_version !== this.resolvedSession.session_topology_version) {
+            if (session.id !== this.resolvedSession.id
+                || getGreenSeatModel(session) !== getGreenSeatModel(this.resolvedSession)) {
                 this.resolvedSession = null;
                 throw new Error('Session topology changed. Check the session and select your seat again.');
             }
@@ -519,6 +553,11 @@ export class LandingController {
             confirmation.setSessionName(session.name);
 
             const participant = await database.claimParticipantSeat(session.id, requestedRole, displayName);
+            const expectedModel = getGreenSeatModel(session);
+            if ((expectedModel === SHARED_GREEN_MODEL || participant.green_seat_model != null)
+                && participant.green_seat_model !== expectedModel) {
+                throw new Error('Session seat model changed during claim. Check the session and rejoin.');
+            }
             const confirmedSeat = validateSeatEnvelope({ seat: participant, session }, {
                 sessionId: session.id, participantId: participant.id
             });

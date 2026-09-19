@@ -800,6 +800,16 @@ function isRegionalSession(state, sessionId) {
     return state.tables.sessions.some((session) => session.id === sessionId && session.session_topology_version === 2);
 }
 
+function greenSeatModel(session) {
+    return session?.green_seat_model ?? (session?.session_topology_version === 2 ? 'regional_pairs_v1' : 'unified_v1');
+}
+
+function seatModelAllowsRole(session, role) {
+    const shared = greenSeatModel(session) === 'shared_facilitator_v1';
+    if (role === 'green_shared_facilitator') return shared && session.session_topology_version === 2;
+    return !(shared && ['green_asian_pacific_facilitator', 'green_europe_facilitator'].includes(role));
+}
+
 function regionalOperator(state, authUserId, sessionId) {
     return liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
         || liveDemoHasOperatorGrant(state, authUserId, 'whitecell', sessionId);
@@ -816,11 +826,12 @@ function authorizeMockDerivedOperation(state, authUserId, sessionId, operation) 
 
 function regionalOwns(state, authUserId, row, teamField = 'team', delegationField = 'delegation_id') {
     const seat = getParticipantSeatForSession(state, authUserId, row.session_id);
-    return Boolean(seat && getLiveDemoParticipantTeam(state, authUserId, row.session_id) === row[teamField]
+    return Boolean(seat && seat.role !== 'green_shared_facilitator' && getLiveDemoParticipantTeam(state, authUserId, row.session_id) === row[teamField]
         && (seat.delegation_id ?? null) === (row[delegationField] ?? null));
 }
 
 function regionalCapability(state, authUserId, sessionId, capability) {
+    if (getLiveDemoParticipantRole(state, authUserId, sessionId) === 'green_shared_facilitator') return false;
     const surface = getLiveDemoParticipantSurface(state, authUserId, sessionId);
     return Boolean(getParticipantSeatForSession(state, authUserId, sessionId)) && ({
         draft: 'facilitator', submit: 'scribe', rfi: 'scribe', direct: 'scribe', thread: 'scribe', notes: 'notetaker'
@@ -834,6 +845,16 @@ function regionalCanRead(state, tableName, row, authUserId) {
     const surface = getLiveDemoParticipantSurface(state, authUserId, row.session_id);
     const team = getLiveDemoParticipantTeam(state, authUserId, row.session_id);
     const author = ['facilitator', 'scribe'].includes(surface);
+    if (seat.role === 'green_shared_facilitator') {
+        if (['session_participants', 'game_state'].includes(tableName)) return true;
+        if (tableName === 'actions') return row.team === 'green'
+            && ['asian_pacific', 'europe'].includes(row.delegation_id)
+            && ['forwarded_to_facilitator', 'submitted_to_white_cell', 'completed'].includes(row.workflow_state);
+        if (tableName === 'communications') return row.from_role === 'white_cell'
+            && !['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(row.type)
+            && (row.to_role === seat.role || ['session', 'both_green_delegations'].includes(row.recipient_scope));
+        return false;
+    }
     switch (tableName) {
         case 'session_participants': case 'game_state': return true;
         case 'actions': return regionalOwns(state, authUserId, row)
@@ -880,6 +901,7 @@ function regionalCanRead(state, tableName, row, authUserId) {
 }
 
 function regionalCanWrite(state, tableName, row, old, authUserId) {
+    if (getLiveDemoParticipantRole(state, authUserId, row.session_id) === 'green_shared_facilitator') return false;
     const session = state.tables.sessions.find((entry) => entry.id === row.session_id);
     if (session?.status !== 'active' || session.is_protected || !session.green_roster_version || !session.green_roster_snapshot) return false;
     if (old && ['session_id', 'team', 'delegation_id'].some((key) => (old[key] ?? null) !== (row[key] ?? null))) return false;
@@ -912,7 +934,7 @@ function regionalCanWrite(state, tableName, row, old, authUserId) {
 function getSessionRoleSeatLimit(role = '') {
     const normalizedRole = normalizeSeatRole(role);
 
-    if (regionalDelegation(normalizedRole)) return 1;
+    if (regionalDelegation(normalizedRole) || normalizedRole === 'green_shared_facilitator') return 1;
 
     if (/^(blue|red|green|industry)_facilitator$/.test(normalizedRole)) {
         return 1;
@@ -976,7 +998,8 @@ function getParticipantSeatForSession(state, authUserId, sessionId, { activeOnly
 
     if (activeOnly && isRegionalSession(state, sessionId)) {
         const session = state.tables.sessions.find((entry) => entry.id === sessionId);
-        const current = matchingSeats.filter((seat) => !seat.revoked_at && !seat.left_at && !seat.disconnected_at
+        const current = matchingSeats.filter((seat) => seatModelAllowsRole(session, seat.role)
+            && !seat.revoked_at && !seat.left_at && !seat.disconnected_at
             && new Date(seat.heartbeat_at || seat.last_seen || seat.joined_at).getTime() >= Date.now() - 90000
             && (seat.delegation_id ?? null) === regionalDelegation(normalizeSeatRole(seat.role)));
         return session?.status === 'active' && session.session_classification === 'live_exercise'
@@ -992,6 +1015,7 @@ function getLiveDemoParticipantRole(state, authUserId, sessionId) {
 
 function getLiveDemoParticipantSurface(state, authUserId, sessionId) {
     const role = getLiveDemoParticipantRole(state, authUserId, sessionId);
+    if (role === 'green_shared_facilitator') return 'scribe';
 
     if (regionalDelegation(role)) {
         return role.endsWith('_facilitator') ? 'scribe' : role.endsWith('_scribe') ? 'facilitator' : 'notetaker';
@@ -1818,7 +1842,10 @@ function claimSessionRoleSeat(state, {
 
     const regional = isRegionalSession(state, requested_session_id);
     const delegation = regionalDelegation(normalizedRole);
-    if ((!regional && delegation) || (regional && normalizedRole.startsWith('green') && !delegation)) {
+    if (!seatModelAllowsRole(session, normalizedRole)) {
+        return { data: null, error: { code: '42501', message: 'GC04A_SEAT_MODEL_ROLE_MISMATCH' } };
+    }
+    if ((!regional && delegation) || (regional && normalizedRole.startsWith('green') && !delegation && normalizedRole !== 'green_shared_facilitator')) {
         return { data: null, error: { code: '42501', message: 'GC03_TOPOLOGY_ROLE_MISMATCH' } };
     }
     if (regional && (!session.green_roster_version || !session.green_roster_snapshot)) {
@@ -1929,7 +1956,8 @@ function claimSessionRoleSeat(state, {
             ...buildParticipantSeatPayload(state, seat),
             seat_limit: roleLimit,
             active_count: activeClaimCount + 1,
-            claim_status: claimStatus
+            claim_status: claimStatus,
+            green_seat_model: greenSeatModel(session)
         },
         error: null
     };
@@ -3750,7 +3778,8 @@ export function createE2EMockSupabaseClient() {
                         name: session.name,
                         session_code: session.session_code || session.metadata?.session_code || normalizedCode,
                         status: session.status,
-                        session_topology_version: session.session_topology_version ?? 1
+                        session_topology_version: session.session_topology_version ?? 1,
+                        green_seat_model: greenSeatModel(session)
                     },
                     error: null
                 };
@@ -3791,7 +3820,8 @@ export function createE2EMockSupabaseClient() {
                     const session = state.tables.sessions.find((entry) => entry.id === seat.session_id);
                     return { data: { seat: result.data, session: { id: session.id, name: session.name,
                         session_code: session.session_code, status: session.status,
-                        session_topology_version: session.session_topology_version ?? 1 } }, error: null };
+                        session_topology_version: session.session_topology_version ?? 1,
+                        green_seat_model: greenSeatModel(session) } }, error: null };
                 });
             }
 

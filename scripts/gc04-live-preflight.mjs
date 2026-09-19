@@ -11,15 +11,17 @@ export function missingLandingControls(html) {
     const $ = load(html);
     return LANDING_CONTROLS.filter(selector => $(selector).length !== 1);
 }
-export async function inspectDeployment(baseURL, send = fetch, { local = false } = {}) {
-    const url = appUrl(baseURL, { local });
+export async function inspectDeployment(baseURL, send = fetch, { local = false, shared = false } = {}) {
+    const url = appUrl(baseURL, { local, shared });
     // Static GET only: no browser JS, Auth provisioning or database changes.
     const response = await send(url, { redirect: 'error', cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }, signal: AbortSignal.timeout(20000) });
     check(response.status === 200, `deployment preflight HTTP ${response.status} at ${url}`);
     const html = await response.text();
     const missing = missingLandingControls(html);
+    if (shared && load(html)('[data-role-surface="scribe"] [data-role-label]').length !== 1) missing.push('shared Facilitator role label');
     return { url, target: local ? 'local' : 'hosted', status: response.status, checkedAt: new Date().toISOString(),
+        requestedModel: shared ? 'shared_facilitator_v1' : 'regional_pairs_v1',
         sha256: createHash('sha256').update(html).digest('hex'), missing, passed: missing.length === 0 };
 }
 export function screenReaderAnswer(value) {

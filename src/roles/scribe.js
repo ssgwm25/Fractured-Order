@@ -15,6 +15,8 @@ import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { ensureSeatStartup } from '../services/seatBootstrap.js';
 import { seatStorageKey, bindControllerSeatCleanup } from '../core/seatContext.js';
+import { mountSharedGreenContext, SHARED_GREEN_WORKFLOW_NOTICE } from '../features/scribe/sharedGreenContext.js';
+import { GREEN_DELEGATIONS } from '../core/teamContext.js';
 import {
     ENUMS,
     isAdjudicatedAction,
@@ -1146,6 +1148,10 @@ export class ScribeController {
 
         this.configureShell();
         this.bindEventListeners();
+        mountSharedGreenContext(sessionStore.getConfirmedSeat?.(), (delegation) => {
+            this.workingDelegation = delegation;
+            this.syncActionsFromStore();
+        });
         this.subscribeToLiveData();
         this.primeNotifications();
         this.syncDeckAssignmentFromStore({ reload: false });
@@ -1165,6 +1171,7 @@ export class ScribeController {
     }
 
     mountFollowAlongOnboarding() {
+        if (this.teamContext.sharedFacilitator) return; // Shared-role guide belongs to GC-09.
         const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         const workspaceStep = (title, selector, body, narrative) => ({
             title,
@@ -1234,7 +1241,8 @@ export class ScribeController {
         const headerTitle = document.querySelector('.header-title');
 
         if (roleLabel) {
-            roleLabel.textContent = this.teamContext.delegationId ? this.teamContext.scribeLabel : 'Facilitator';
+            roleLabel.textContent = this.teamContext.delegationId || this.teamContext.sharedFacilitator
+                ? this.teamContext.scribeLabel : 'Facilitator';
         }
 
         if (headerTitle) {
@@ -1565,7 +1573,8 @@ export class ScribeController {
         data = null
     } = {}) {
         const previousRenderState = serializeTeamActionRenderState(this.teamActions);
-        const nextTeamActions = actionsStore.getByTeam(this.teamId);
+        const nextTeamActions = actionsStore.getByTeam(this.teamId).filter((action) =>
+            !this.teamContext.sharedFacilitator || action.delegation_id === this.workingDelegation);
         const teamActionsChanged = previousRenderState !== serializeTeamActionRenderState(nextTeamActions);
 
         this.teamActions = nextTeamActions;
@@ -3463,6 +3472,7 @@ export class ScribeController {
     }
 
     async editProjectedAction(actionId = '') {
+        if (this.teamContext.sharedFacilitator) return;
         const action = this.teamActions.find((candidate) => candidate?.id === actionId);
         if (!action || !isDraftAction(action)) {
             showToast({ message: 'Only forwarded draft actions can be edited.', type: 'error' });
@@ -3925,6 +3935,7 @@ export class ScribeController {
     }
 
     async submitScribeAction(action = {}, selections = {}) {
+        if (this.teamContext.sharedFacilitator) return;
         const wasReturned = getArtifactLifecycleViewModel(action).isReturned;
         if (isStrategicOrientationAction(action)) {
             await this.submitScribeStrategicOrientation(action);
@@ -3985,6 +3996,7 @@ export class ScribeController {
     }
 
     async submitScribeProposal(action = {}) {
+        if (this.teamContext.sharedFacilitator) return;
         if (!isDraftAction(action) || !isProposalForwardedToScribe(action)) {
             showToast({ message: 'Only scribe-forwarded proposal drafts can be submitted by the facilitator.', type: 'error' });
             return;
@@ -4036,6 +4048,7 @@ export class ScribeController {
     }
 
     async submitScribeStrategicOrientation(action = {}) {
+        if (this.teamContext.sharedFacilitator) return;
         if (!isDraftAction(action) || !isStrategicOrientationForwardedToScribe(action)) {
             showToast({ message: 'Only scribe-forwarded Strategic Orientation drafts can be submitted by the facilitator.', type: 'error' });
             return;
@@ -4091,6 +4104,7 @@ export class ScribeController {
     }
 
     renderOwnProposalSlide(slide, viewModel = getProposalViewModel(slide.action || {})) {
+        if (this.teamContext.sharedFacilitator) return this.renderSharedRegionalRecord(slide.action);
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
         const lifecycle = getArtifactLifecycleViewModel(action);
@@ -4345,6 +4359,7 @@ export class ScribeController {
     }
 
     renderStrategicOrientationSlide(slide, viewModel = getStrategicOrientationViewModel(slide.action || {})) {
+        if (this.teamContext.sharedFacilitator) return this.renderSharedRegionalRecord(slide.action);
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
         const lifecycleArtifact = getActionSlideLifecycleArtifact(action);
@@ -4561,6 +4576,7 @@ export class ScribeController {
     }
 
     async handleFacilitatorProposalDecision(communicationId = '', decision = '') {
+        if (this.teamContext.sharedFacilitator) return;
         const communication = communicationsStore.getAll().find((entry) => entry?.id === communicationId);
         if (!communication) {
             showToast({ message: 'Proposal not found. Refresh the facilitator view and try again.', type: 'error' });
@@ -4669,6 +4685,7 @@ export class ScribeController {
     }
 
     async submitLegacyFacilitatorProposalDecision(communication = {}, decision = '', negotiationTerms = '') {
+        if (this.teamContext.sharedFacilitator) return;
         const sessionId = sessionStore.getSessionId();
         const latestCommunication = communicationsStore.getAll()
             .find((entry) => entry?.id === communication?.id) || communication;
@@ -4754,6 +4771,7 @@ export class ScribeController {
     }
 
     async submitFacilitatorProposalDecision(communication = {}, decision = '', negotiationTerms = '') {
+        if (this.teamContext.sharedFacilitator) return;
         const sessionId = sessionStore.getSessionId();
         const latestParent = communicationsStore.getAll().find((entry) => entry?.id === communication?.id) || communication;
         const threadMetadata = getProposalThreadMetadata(latestParent);
@@ -4796,7 +4814,17 @@ export class ScribeController {
         }
     }
 
+    renderSharedRegionalRecord(action = {}) {
+        return `<article class="scribe-action-slide">
+            <p>${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || 'Regional records')}</p>
+            <h2>${escapeHtml(action.goal || 'No released record in this view')}</h2>
+            <p>${escapeHtml(action.workflow_state || '')}</p>
+            <p>${escapeHtml(SHARED_GREEN_WORKFLOW_NOTICE)}</p>
+        </article>`;
+    }
+
     renderActionSlide(slide) {
+        if (this.teamContext.sharedFacilitator) return this.renderSharedRegionalRecord(slide.action);
         if (slide.slideType === 'action-placeholder') {
             return `
                 <article class="scribe-action-slide scribe-action-slide-placeholder">
@@ -4918,6 +4946,7 @@ export class ScribeController {
     }
 
     renderRfiSlide(slide = {}) {
+        if (this.teamContext.sharedFacilitator) return `<article class="scribe-action-slide"><h2>RFIs</h2><p>${escapeHtml(SHARED_GREEN_WORKFLOW_NOTICE)}</p></article>`;
         if (slide.slideType === 'rfi-placeholder') {
             return `
                 <article class="facilitator-workspace facilitator-rfi-workspace" aria-labelledby="facilitator-rfi-workspace-title">
@@ -5134,6 +5163,10 @@ export class ScribeController {
     }
 
     showFacilitatorRfiModal(request = null) {
+        if (this.teamContext.sharedFacilitator) {
+            showToast({ message: SHARED_GREEN_WORKFLOW_NOTICE, type: 'info' });
+            return;
+        }
         if (request && request.workflow_state !== 'returned_to_team') {
             showToast({ message: 'Only an RFI returned for clarification can be edited.', type: 'error' });
             return;
@@ -5173,6 +5206,10 @@ export class ScribeController {
     }
 
     showFacilitatorCommunicationModal() {
+        if (this.teamContext.sharedFacilitator) {
+            showToast({ message: SHARED_GREEN_WORKFLOW_NOTICE, type: 'info' });
+            return;
+        }
         const content = document.createElement('div');
         content.innerHTML = `
             <form id="facilitatorCommunicationForm">
@@ -5209,6 +5246,7 @@ export class ScribeController {
     }
 
     async sendFacilitatorCommunication(content, modal = null) {
+        if (this.teamContext.sharedFacilitator) return;
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {
             showToast({ message: 'No active session.', type: 'error' });

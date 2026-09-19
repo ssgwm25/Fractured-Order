@@ -1,4 +1,4 @@
-import { getRoleRoute, parseTeamRole } from './teamContext.js';
+import { getRoleRoute, parseTeamRole, getGreenSeatModel, SHARED_GREEN_MODEL, SHARED_GREEN_FACILITATOR } from './teamContext.js';
 
 // Memory only: persisted state is a rejoin hint, never confirmed authority.
 let confirmedSeat = null;
@@ -29,17 +29,23 @@ export function validateSeatEnvelope(envelope, { sessionId, participantId } = {}
     const session = envelope?.session;
     const parsed = parseTeamRole(seat?.role);
     const topology = session?.session_topology_version;
+    let greenSeatModel;
+    try { greenSeatModel = getGreenSeatModel(session); } catch { /* Invalid envelope below. */ }
+    const shared = parsed.sharedFacilitator === true;
     if (!seat?.id || seat.id !== participantId || seat.session_id !== sessionId
         || session?.id !== sessionId || session.status !== 'active'
-        || ![1, 2].includes(topology) || !parsed.surface
+        || !greenSeatModel || !parsed.surface
+        || (seat.green_seat_model != null && seat.green_seat_model !== greenSeatModel)
         || seat.is_active !== true || seat.revoked_at || seat.left_at || seat.disconnected_at
         || (seat.delegation_id ?? null) !== (parsed.delegationId ?? null)
         || (parsed.delegationId && topology !== 2)
-        || (topology === 2 && parsed.teamId === 'green' && !parsed.delegationId)) {
+        || (shared && greenSeatModel !== SHARED_GREEN_MODEL)
+        || (greenSeatModel === SHARED_GREEN_MODEL && parsed.delegationId && parsed.semanticRole === 'facilitator')
+        || (topology === 2 && parsed.teamId === 'green' && !parsed.delegationId && !shared)) {
         throw new Error('Invalid session seat. Rejoin or contact the operator.');
     }
     return Object.freeze({
-        sessionId, participantId: seat.id, role: seat.role, topology,
+        sessionId, participantId: seat.id, role: seat.role, topology, greenSeatModel,
         teamId: parsed.teamId, delegationId: parsed.delegationId ?? null,
         surface: parsed.surface, displayName: seat.display_name_snapshot || seat.display_name || '',
         sessionName: session.name, sessionCode: session.session_code
@@ -56,7 +62,7 @@ export function validateSeatRoute(seat, locationRef, { basePath } = {}) {
         || (params.has('delegation') && params.get('delegation') !== seat.delegationId)
         || (params.has('role') && params.get('role') !== seat.role)
         || (params.has('team') && params.get('team') !== seat.teamId)
-        || params.has('mode')) {
+        || ['mode', 'green_seat_model', 'seat_model', 'topology', 'session_topology_version'].some((key) => params.has(key))) {
         throw new Error('Permission error: this route does not match your confirmed session seat.');
     }
     return true;
@@ -64,7 +70,21 @@ export function validateSeatRoute(seat, locationRef, { basePath } = {}) {
 
 export function seatStorageKey(key, seat = confirmedSeat) {
     if (!seat) return key;
-    return `gc04:${[seat.sessionId, seat.topology, seat.teamId, seat.delegationId || 'unified', seat.role, seat.participantId].map(encodeURIComponent).join(':')}:${key}`;
+    const model = seat.greenSeatModel === SHARED_GREEN_MODEL ? `:${SHARED_GREEN_MODEL}` : '';
+    return `gc04:${[seat.sessionId, seat.topology, seat.teamId, seat.delegationId || (model ? 'shared' : 'unified'), seat.role, seat.participantId].map(encodeURIComponent).join(':')}${model}:${key}`;
+}
+
+// Working view is never authority. Require an explicit owner for drafts and
+// other regional working state in the shared workspace; the deck stays global
+// to this seat. No fallback to the previous region or a unified draft key.
+export function regionalSeatStorageKey(key, delegationId, seat = confirmedSeat) {
+    if (!seat || !['asian_pacific', 'europe'].includes(delegationId)
+        || seat.teamId !== 'green' || seat.topology !== 2
+        || (seat.delegationId !== delegationId
+            && !(seat.role === SHARED_GREEN_FACILITATOR && seat.greenSeatModel === SHARED_GREEN_MODEL))) {
+        throw new Error('Regional state does not match the confirmed seat.');
+    }
+    return seatStorageKey(`region:${delegationId}:${key}`, seat);
 }
 
 export function clearSeatLocalState(seat = confirmedSeat) {

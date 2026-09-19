@@ -260,6 +260,70 @@ describe('landing secure join flow', () => {
         expect(controller.redirectToRole).toHaveBeenCalledWith(role);
     });
 
+    it.each([
+        ['asian_pacific', 'facilitator', 'green_asian_pacific_scribe'],
+        ['europe', 'facilitator', 'green_europe_scribe'],
+        [null, 'scribe', 'green_shared_facilitator']
+    ])('GC04A joins %s / %s with the full confirmed model', async (delegation, surface, role) => {
+        const elements = { sessionCode: createElement('shared2026'), displayName: createElement('Synthetic participant'),
+            seatSelectionSummary: createElement(), joinStatus: createElement() };
+        global.document = { getElementById: (id) => elements[id] || null };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({ id: 'shared', status: 'active',
+            session_topology_version: 2, green_seat_model: 'shared_facilitator_v1' });
+        mockDatabase.claimParticipantSeat.mockImplementation(async () => {
+            expect(elements.seatSelectionSummary.textContent).toContain(delegation === 'europe' ? 'Europe' : 'Asia-Pacific');
+            if (!delegation) expect(elements.seatSelectionSummary.textContent).toContain('Shared Facilitator');
+            return { id: 'shared-seat', session_id: 'shared', role, delegation_id: delegation, is_active: true,
+                green_seat_model: 'shared_facilitator_v1' };
+        });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green'; controller.selectedDelegation = delegation; controller.selectedRoleSurface = surface;
+        controller.redirectToRole = vi.fn();
+        controller.showJoinConfirmation = vi.fn(() => ({ confirm: async () => {}, dismiss() {}, setSessionName() {} }));
+        await controller.handleJoinSession({ preventDefault() {} });
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('shared', role, 'Synthetic participant');
+        expect(mockSessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({ role, delegationId: delegation,
+            greenSeatModel: 'shared_facilitator_v1' }));
+        expect(controller.redirectToRole).toHaveBeenCalledWith(role);
+    });
+
+    it('GC04A requires reselection if the server model changes between checking and joining', async () => {
+        const elements = { sessionCode: createElement('shared2026'), displayName: createElement('Synthetic participant'), joinStatus: createElement() };
+        global.document = { getElementById: (id) => elements[id] || null };
+        const session = { id: 'shared', status: 'active', session_topology_version: 2 };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValueOnce({ ...session, green_seat_model: 'shared_facilitator_v1' })
+            .mockResolvedValueOnce({ ...session, green_seat_model: 'regional_pairs_v1' });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green'; controller.selectedRoleSurface = 'scribe';
+        controller.showJoinConfirmation = vi.fn(() => ({ confirm: async () => {}, dismiss() {}, setSessionName() {} }));
+        await controller.handleJoinSession({ preventDefault() {} });
+        expect(mockDatabase.claimParticipantSeat).not.toHaveBeenCalled();
+        expect(mockSessionStore.confirmSeat).not.toHaveBeenCalled();
+        expect(elements.joinStatus.textContent).toContain('Session topology changed');
+    });
+
+    it('GC04A rejects a different model returned by the atomic claim before opening a workspace', async () => {
+        const elements = { sessionCode: createElement('shared2026'), displayName: createElement('Synthetic participant'), joinStatus: createElement() };
+        global.document = { getElementById: (id) => elements[id] || null };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({ id: 'shared', status: 'active',
+            session_topology_version: 2, green_seat_model: 'regional_pairs_v1' });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({ id: 'shared-seat', session_id: 'shared',
+            role: 'green_europe_scribe', delegation_id: 'europe', is_active: true,
+            green_seat_model: 'shared_facilitator_v1' });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green'; controller.selectedDelegation = 'europe'; controller.selectedRoleSurface = 'facilitator';
+        controller.redirectToRole = vi.fn();
+        controller.showJoinConfirmation = vi.fn(() => ({ confirm: async () => {}, dismiss() {}, setSessionName() {} }));
+        await controller.handleJoinSession({ preventDefault() {} });
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('shared', 'green_europe_scribe', 'Synthetic participant');
+        expect(mockSessionStore.confirmSeat).not.toHaveBeenCalled();
+        expect(controller.redirectToRole).not.toHaveBeenCalled();
+        expect(elements.joinStatus.textContent).toContain('Session seat model changed during claim');
+    });
+
     it('does not claim a unified Green seat when session discovery reveals regional topology', async () => {
         const elements = { sessionCode: createElement('regional'), displayName: createElement('Synthetic participant'), joinStatus: createElement() };
         global.document = { getElementById: (id) => elements[id] || null };
@@ -270,6 +334,43 @@ describe('landing secure join flow', () => {
         await controller.handleJoinSession({ preventDefault() {} });
         expect(mockDatabase.claimParticipantSeat).not.toHaveBeenCalled();
         expect(elements.joinStatus.textContent).toContain('Choose Asia-Pacific or Europe');
+    });
+
+    it('joins unified Green when PLENUM2026 lookup supplies server-resolved version 1', async () => {
+        const elements = { sessionCode: createElement('plenum2026'), displayName: createElement('Synthetic participant') };
+        global.document = { getElementById: (id) => elements[id] || null };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({ id: 'legacy-session', name: 'Synthetic legacy fixture',
+            status: 'active', session_topology_version: 1 });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({ id: 'legacy-seat', session_id: 'legacy-session',
+            role: 'green_facilitator', is_active: true });
+        mockDatabase.getGameState.mockResolvedValue({ move: 1, phase: 1 });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green'; controller.selectedRoleSurface = 'facilitator';
+        controller.redirectToRole = vi.fn();
+        await controller.handleJoinSession({ preventDefault() {} });
+        expect(mockDatabase.claimParticipantSeat).toHaveBeenCalledWith('legacy-session', 'green_facilitator', 'Synthetic participant');
+        expect(mockSessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({
+            topology: 1, role: 'green_facilitator', delegationId: null
+        }));
+        expect(controller.redirectToRole).toHaveBeenCalledWith('green_facilitator');
+    });
+
+    it.each([undefined, null, 0, 3, '1'])('rejects unavailable or unsupported topology %s without a browser fallback', async (topology) => {
+        const elements = { sessionCode: createElement('plenum2026'), displayName: createElement('Synthetic participant'),
+            joinStatus: createElement() };
+        global.document = { getElementById: (id) => elements[id] || null };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({ id: 'legacy-session', status: 'active',
+            session_topology_version: topology });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.selectedTeam = 'green'; controller.selectedRoleSurface = 'facilitator';
+        await controller.handleJoinSession({ preventDefault() {} });
+        expect(controller.resolvedSession).toBeNull();
+        expect(elements.joinStatus.textContent).toContain('Session topology unavailable');
+        expect(mockDatabase.claimParticipantSeat).not.toHaveBeenCalled();
+        expect(mockSessionStore.confirmSeat).not.toHaveBeenCalled();
+        expect(mockDatabase.getActiveSessions).not.toHaveBeenCalled();
     });
 
     it('sends TRAINING2026 through the ordinary live-session join path', async () => {

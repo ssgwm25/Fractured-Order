@@ -4,6 +4,13 @@ This runner closes the tooling gap between the local browser/SQL checks and a
 real deployed participant session. It has not been executed by the coding agent.
 No live gate is reported passed until a fresh run supplies the required evidence.
 
+The default runner and historical reports below describe GC-04's four-seat
+regional baseline. The new `--shared` mode belongs to GC-04A and verifies three
+hosted seats, observed database contention and actual uploaded-deck removal.
+Use the [GC-04A commands and pass conditions](gc04a-shared-facilitator.md#hosted-authentication-contention-and-indexeddb-cleanup)
+for that amendment. Old manifests and reports retain their original semantics.
+Manual screen-reader checks are excluded for GC-04A, not recorded as passed.
+
 The user supplied a run on 2026-09-18: all 25 selected unit tests passed and
 Vite built successfully in 8.76 seconds. Live run
 `e82ee015-ee19-4658-b318-7e8df3ee5cfa` failed before its first checkpoint because
@@ -27,9 +34,27 @@ HEAD `2a2ada60cbcee6d96d487bf948248b8651a33ad6`; this does not claim the
 uncommitted candidate was deployed or that HEAD alone identifies its contents.
 
 No manual observations were recorded: `manualPassed: false` and `passed: false`
-are expected for this automation-only run. Screen-reader observations and a
-fresh deployed-site run with deployment provenance remain outstanding. The
-earlier failed hosted report is retained unchanged.
+are expected for this automation-only run. The earlier failed hosted report
+is retained unchanged.
+
+The subsequent deployed-site run `0f9d94cd-63de-471b-88cb-769ff2f38177`
+completed on 2026-09-18 from 23:52:22 to 23:54:01 UTC. Its saved report at
+`test-results/gc04-live/0f9d94cd-63de-471b-88cb-769ff2f38177/results.json`
+confirms `target: "hosted"` at `https://ssgwm25.github.io/Fractured-Order/`,
+rehearsal project `gsromgrxgrwwfywaoyme`, Chromium 143.0.7499.4, a passing
+deployment preflight and all 20 automated checkpoints across the four roles.
+No browser errors or asset failure were recorded, and fixture archival passed.
+This supplies deployed Auth/RPC/RLS, keyboard join/reload/Resume, base-path and
+tampering, reconnect and operator-removal cleanup evidence. The runner recorded
+clean working-tree state at `fc1e04e4bd4018cdded53dfa890bb627326ac8e2`, with
+source and fetched asset hashes. Retain the matching build/deployment workflow
+provenance; the recorded local revision alone does not prove asset provenance.
+
+The deployed report has `automatedPassed: true`, `cleanupPassed: true`, zero
+manual observations, `manualPassed: false` and `passed: false`. Those fields
+retain the original runner's meaning. The user subsequently excluded manual
+screen-reader checks; do not rewrite these reports or use them as GC-04A evidence.
+Matching deployment provenance and human sign-off remain separate requirements.
 
 ## Check the local candidate before committing
 

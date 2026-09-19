@@ -26,4 +26,14 @@ describe('GC-04 database context RPCs', () => {
         await expect(database.restoreSessionSeatContext('session', 'seat')).rejects.toThrow();
         expect(supabase.from).not.toHaveBeenCalled();
     });
+    it('GC04A preserves the server model and sends setup references without a browser roster snapshot', async () => {
+        supabase.rpc.mockResolvedValueOnce({ data: { id: 'session', session_topology_version: 2, green_seat_model: 'shared_facilitator_v1' }, error: null });
+        expect(await database.lookupJoinableSessionByCode('gc04a')).toMatchObject({ green_seat_model: 'shared_facilitator_v1' });
+        supabase.rpc.mockResolvedValueOnce({ data: { id: 'session', green_seat_model: 'shared_facilitator_v1' }, error: null });
+        await database.configureSessionGreenSharedFacilitator('session', 'approved-roster-reference');
+        expect(supabase.rpc).toHaveBeenLastCalledWith('configure_session_green_shared_facilitator', {
+            sid: 'session', roster_version: 'approved-roster-reference'
+        });
+        expect(supabase.from).not.toHaveBeenCalled();
+    });
 });

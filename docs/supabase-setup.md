@@ -100,6 +100,28 @@ Apply the authoritative ledger in this exact order:
 49. `data/2026-09-20_gc03_terminal_revision_conflicts.sql`
 50. `data/2026-09-21_gc03_recipient_forward_uniqueness.sql`
 51. `data/2026-09-22_gc04_session_context.sql`
+52. `data/2026-09-23_gc04_legacy_session_topology.sql`
+53. `data/2026-09-24_gc04a_shared_facilitator.sql`
+
+GC-04A adds the explicit `shared_facilitator_v1` staffing model, authenticated
+setup/claim/restore checks and a single shared Green Facilitator seat. Existing
+sessions remain unified or paired regional sessions. Apply once after September
+23 and retain the September 20/21 workflow repairs. Its operational mutations
+remain closed at this foundation stage: GC-05 adds orientation-only authority,
+GC-06 adds proposals/approved threads, and GC-07 adds scoped RFIs/direct messages.
+Each later migration must preserve earlier capabilities and remaining denials;
+Game Master atomic creation/UI remains GC-08. See the
+[GC-04A installation and verification runbook](architecture/gc04a-shared-facilitator.md)
+for the self-contained SQL Editor suite and exact local commands. No migration
+or verification was executed by the agent for GC-04A.
+
+The September 23 compatibility fix reports historical NULL topology as version 1
+in authenticated lookup and seat-restore responses, matching GC-02 semantics.
+It does not update historical rows or convert unified Green sessions to regional.
+Apply this new file once after September 22; do not rerun September 22's CREATE
+FUNCTION migration. No frontend rebuild is required for this database fix.
+See the [legacy-session verification procedure](architecture/gc04-regional-context.md#legacy-session-topology-compatibility)
+for the PLENUM2026 read-only check, regression commands and expected results.
 
 GC-04 adds topology to code lookup and authenticated seat restoration before
 participant workspace startup. Apply its migration before the matching frontend;

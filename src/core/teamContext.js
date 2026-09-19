@@ -98,6 +98,29 @@ export const GREEN_DELEGATIONS = Object.freeze({
     asian_pacific: 'Green - Asia-Pacific',
     europe: 'Green - Europe'
 });
+export const SHARED_GREEN_FACILITATOR = 'green_shared_facilitator';
+export const SHARED_GREEN_MODEL = 'shared_facilitator_v1';
+
+// Only confirmed server responses supply this discriminator. Missing fields on
+// old responses retain the old model; they never enable a shared seat.
+export function getGreenSeatModel(session) {
+    const topology = session?.session_topology_version;
+    const model = session?.green_seat_model
+        ?? (topology === 2 ? 'regional_pairs_v1' : 'unified_v1');
+    if (![1, 2].includes(topology)
+        || (topology === 1 && model !== 'unified_v1')
+        || (topology === 2 && !['regional_pairs_v1', SHARED_GREEN_MODEL].includes(model))) {
+        throw new Error('Session seat model unavailable. Ask the operator to verify GC-04A setup.');
+    }
+    return model;
+}
+
+export function buildGreenJoinRole(session, delegationId, surface) {
+    const model = getGreenSeatModel(session);
+    if (model === 'unified_v1') return buildTeamRole('green', surface);
+    if (model === SHARED_GREEN_MODEL && surface === ROLE_SURFACES.SCRIBE) return SHARED_GREEN_FACILITATOR;
+    return buildRegionalRole(delegationId, surface);
+}
 const REGIONAL_ROLE_REGEX = /^green_(asian_pacific|europe)_(scribe|facilitator|notetaker)$/;
 
 export function buildRegionalRole(delegationId, surface) {
@@ -214,6 +237,10 @@ export function parseTeamRole(role = '') {
     }
 
     const normalizedRole = normalizeWhiteCellOperatorRole(role);
+    if (normalizedRole === SHARED_GREEN_FACILITATOR) {
+        return { teamId: 'green', delegationId: null, semanticRole: 'facilitator',
+            surface: ROLE_SURFACES.SCRIBE, operatorRole: null, smeRole: null, sharedFacilitator: true };
+    }
     const regional = normalizedRole.match(REGIONAL_ROLE_REGEX);
     if (regional) {
         return {
@@ -325,6 +352,7 @@ export function getRoleRoute(role, { observerTeamId = 'blue', basePath } = {}) {
 }
 
 export function getRoleDisplayName(role, { observerTeamId = null } = {}) {
+    if (role === SHARED_GREEN_FACILITATOR) return 'Green Shared Facilitator — Asia-Pacific and Europe';
     const regional = parseTeamRole(role);
     if (regional.delegationId) {
         return `${GREEN_DELEGATIONS[regional.delegationId]} ${getRoleSurfaceDisplayLabel(regional.surface)}`;
@@ -388,16 +416,33 @@ export function resolveTeamContext({
     const whitecellLeadRole = buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.LEAD);
     const whitecellSupportRole = buildWhiteCellOperatorRole(WHITE_CELL_OPERATOR_ROLES.SUPPORT);
 
+    if (seat?.role === SHARED_GREEN_FACILITATOR) {
+        if (team.id !== 'green' || seat.greenSeatModel !== SHARED_GREEN_MODEL) {
+            throw new Error('Route does not match the confirmed shared Facilitator seat.');
+        }
+        return {
+            teamId: 'green', delegationId: null, sharedFacilitator: true,
+            teamLabel: 'Green — Asia-Pacific and Europe', teamShortLabel: 'Green — both regions',
+            facilitatorRole: null, facilitatorRoute: null, facilitatorLabel: 'Regional Scribes',
+            scribeRole: SHARED_GREEN_FACILITATOR, scribeLabel: getRoleDisplayName(SHARED_GREEN_FACILITATOR),
+            scribeRoute: getRoleRoute(SHARED_GREEN_FACILITATOR, { basePath }),
+            notetakerRole: null, notetakerRoute: null, notetakerLabel: 'Regional Notetakers',
+            whitecellRole: whitecellLeadRole, whitecellLeadRole, whitecellSupportRole,
+            whitecellLabel: 'White Cell', whitecellLeadLabel: 'White Cell Lead', whitecellSupportLabel: 'White Cell Support',
+            whitecellRoute: buildAppPath(WHITE_CELL_CANONICAL_ROUTE, { basePath })
+        };
+    }
     if (seat?.delegationId) {
         if (team.id !== 'green' || !GREEN_DELEGATIONS[seat.delegationId]) {
             throw new Error('Route does not match the confirmed delegation.');
         }
         const label = GREEN_DELEGATIONS[seat.delegationId];
-        const roleFor = (surface) => buildRegionalRole(seat.delegationId, surface);
+        const roleFor = (surface) => surface === 'scribe' && seat.greenSeatModel === SHARED_GREEN_MODEL
+            ? SHARED_GREEN_FACILITATOR : buildRegionalRole(seat.delegationId, surface);
         return {
             teamId: 'green', delegationId: seat.delegationId, teamLabel: label, teamShortLabel: label,
             facilitatorRole: roleFor('facilitator'), scribeRole: roleFor('scribe'), notetakerRole: roleFor('notetaker'),
-            facilitatorLabel: `${label} Scribe`, scribeLabel: `${label} Facilitator`, notetakerLabel: `${label} Notetaker`,
+            facilitatorLabel: `${label} Scribe`, scribeLabel: getRoleDisplayName(roleFor('scribe')), notetakerLabel: `${label} Notetaker`,
             facilitatorRoute: getRoleRoute(roleFor('facilitator'), { basePath }),
             scribeRoute: getRoleRoute(roleFor('scribe'), { basePath }),
             notetakerRoute: getRoleRoute(roleFor('notetaker'), { basePath }),

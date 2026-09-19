@@ -55,6 +55,7 @@ export const CONFIG = {
 
     // Role limits per session
     ROLE_LIMITS: {
+        green_shared_facilitator: 1,
         white: LIVE_DEMO_SEAT_LIMITS.gameMaster,
         ...TEAM_ROLE_LIMITS,
         ...WHITE_CELL_ROLE_LIMITS,

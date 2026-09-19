@@ -15,13 +15,15 @@ import { participantsStore } from './participants.js';
 beforeEach(() => {
     vi.resetAllMocks();
     vi.stubGlobal('navigator', { onLine: true });
-    sessionStore.getConfirmedSeat.mockReturnValue({ participantId: 'seat', role: 'green_europe_scribe', delegationId: 'europe' });
     participantsStore.sessionId = 'session';
     participantsStore.currentParticipantId = 'seat';
 });
 afterEach(() => { participantsStore.reset(); vi.unstubAllGlobals(); });
 
-describe('GC04 offline heartbeat and server denial', () => {
+describe.each([['green_europe_scribe', 'europe'], ['green_shared_facilitator', null]])('GC04/04A heartbeat: %s', (role, delegation) => {
+    beforeEach(() => {
+        sessionStore.getConfirmedSeat.mockReturnValue({ participantId: 'seat', role, delegationId: delegation, topology: 2 });
+    });
     it('pauses offline heartbeats without discarding rejoin context or renewing the lease', async () => {
         navigator.onLine = false;
         await participantsStore.sendHeartbeat();
@@ -53,7 +55,7 @@ describe('GC04 offline heartbeat and server denial', () => {
     });
     it('revalidates an expired lease on the server before retrying the heartbeat once', async () => {
         database.updateHeartbeat.mockRejectedValueOnce({ originalError: { code: '42501', message: 'GC03_SEAT_REJOIN_REQUIRED' } })
-            .mockResolvedValueOnce({ id: 'seat', role: 'green_europe_scribe', delegation_id: 'europe' });
+            .mockResolvedValueOnce({ id: 'seat', role, delegation_id: delegation });
         restoreConfirmedSeat.mockResolvedValue({ participantId: 'seat' });
         await participantsStore.sendHeartbeat();
         expect(restoreConfirmedSeat).toHaveBeenCalledWith({ checkRoute: false });

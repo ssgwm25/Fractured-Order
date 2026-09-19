@@ -20,6 +20,9 @@ class MemoryStorage {
     clear() {
         this.store.clear();
     }
+
+    get length() { return this.store.size; }
+    key(index) { return [...this.store.keys()][index]; }
 }
 
 function createWindow(url = 'http://localhost/') {
@@ -296,6 +299,22 @@ describe('sessionStore snapshot model', () => {
         sessionStore.clear();
         expect(sessionStore.getConfirmedSeat()).toBeNull();
         expect(sessionStore.getSessionParticipantId()).toBeNull();
+    });
+
+    it('GC04A retains the model only as a reload hint and clears its namespace when validation fails', async () => {
+        const { sessionStore } = await loadSessionStore();
+        const { seatStorageKey } = await import('../core/seatContext.js');
+        sessionStore.setSessionId('session');
+        const seat = { sessionId: 'session', participantId: 'shared-seat', role: 'green_shared_facilitator', topology: 2,
+            greenSeatModel: 'shared_facilitator_v1', teamId: 'green', delegationId: null, surface: 'scribe' };
+        sessionStore.confirmSeat(seat);
+        const key = seatStorageKey('region:europe:draft', seat);
+        localStorage.setItem(key, 'private');
+        expect(sessionStore.getSessionData().greenSeatModel).toBe('shared_facilitator_v1');
+        sessionStore.init();
+        expect(sessionStore.getConfirmedSeat()).toBeNull();
+        sessionStore.invalidateSeat();
+        expect(localStorage.getItem(key)).toBeNull();
     });
 
     it('clears retired training context during initialization', async () => {

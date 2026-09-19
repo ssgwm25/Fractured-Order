@@ -365,7 +365,7 @@ class ParticipantsStore {
 
         // Offline browsers cannot renew a server lease. Preserve regional rejoin
         // context; sync.resync restores/validates the seat before loading data.
-        const regionalSeat = sessionStore.getConfirmedSeat?.()?.delegationId;
+        const regionalSeat = sessionStore.getConfirmedSeat?.()?.topology === 2;
         if (regionalSeat && globalThis.navigator?.onLine === false) return;
 
         try {
@@ -470,7 +470,7 @@ class ParticipantsStore {
         this.pagehideHandler = () => {
             // Regional reload/navigation keeps the lease; explicit logout still
             // releases it. Closing the tab expires it through the 90-second lease.
-            if (sessionStore.getConfirmedSeat?.()?.delegationId) return;
+            if (sessionStore.getConfirmedSeat?.()?.topology === 2) return;
             void database.disconnectParticipantKeepalive(this.sessionId, this.currentParticipantId);
         };
 

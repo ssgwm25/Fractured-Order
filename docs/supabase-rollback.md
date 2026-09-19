@@ -11,6 +11,20 @@ not mean replaying historical schemas or dropping additive workflow objects.
 
 ## Regional Green Storage Containment
 
+After `data/2026-09-24_gc04a_shared_facilitator.sql`, retain the seat-model column,
+frozen model, shared-seat unique index and model-aware claim/restore/RLS helpers.
+Stop new shared-session setup during containment and use a compatible frontend.
+Do not unset a frozen model, convert existing participants into regional
+Facilitators, or reapply older helpers over shared sessions. Preserve all
+tombstones, artifact owners and historical evidence; fix forward. See
+[GC-04A scope and pending evidence](architecture/gc04a-shared-facilitator.md).
+
+After `data/2026-09-23_gc04_legacy_session_topology.sql`, retain response-only
+NULL-to-v1 normalization in both GC-04 RPCs. Reverting to their September 22
+responses blocks historical unified sessions at join and reload. Repair forward;
+never backfill historical topology, bypass the browser guard, change regional
+grants, or clear seat revocations to recover a legacy session.
+
 After `data/2026-09-22_gc04_session_context.sql`, retain the authenticated
 `restore_session_seat_context` function and topology-bearing lookup. Contain
 with a compatible frontend and repair forward. Never use URL or cached role

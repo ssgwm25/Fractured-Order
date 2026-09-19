@@ -1,12 +1,54 @@
 # GC-01: Regional Green identity and permission contract
 
-Contract version **1.0.0**, source review **2026-09-18**. Status: proposed,
+Contract version **1.1.1**, source review **2026-09-18**. Status: proposed,
 not activated; human review and verification pending. This is the implementation
 reference for GC-02 through GC-12 in the [prompt book](../green-cell-regional-split-prompt-book.md).
 The [declarative contract](green-regional-contract.json) contains the exact
 identifiers, route mappings, roster candidates, and permission matrix. It is a
 specification fixture, not a runtime authorization service. No production code
 imports it, and no regional functionality is enabled by GC-01.
+
+## GC-04A shared-Facilitator amendment
+
+The new target uses `session_topology_version=2` and the independent persisted
+`green_seat_model='shared_facilitator_v1'`: two regional Scribes and one shared
+Green Facilitator. NULL model on existing topology 2 remains `regional_pairs_v1`;
+NULL model on topology 1 or historical NULL topology remains `unified_v1`.
+Those are response labels, not historical backfills. An unknown model is denied.
+The original GC-01 source inventory below records the earlier paired model.
+
+The shared seat's `delegation_id` is NULL; its explicit role/model authorizes
+bounded reads from the two existing owners. Owned Green artifacts still require
+exactly one region. No third owning delegation or merged proposal is introduced.
+New sessions reject either per-region Facilitator role; old sessions reject the
+new shared role. The two Notetaker identities/capacity remain unchanged.
+
+The read-only foundation profile below describes the GC-04A implementation;
+GC-05 adds orientation-specific submission/return recovery, GC-06 adds proposal
+and approved-thread operations, and GC-07 adds scoped RFIs/direct communications.
+Each must extend the preceding stage with tested per-artifact/revision/recipient
+contracts, matching SQL, adapter/mock, UI controls and notices. Do not enable a
+generic shared write capability or defer GC-05 submission authority to GC-06.
+The foundation excludes drafts, returned drafts, notes, recipient threads and other teams.
+Five orientation subjects remain required in either regional model. Rehearsal
+targets become 19 operational / 24 role-matrix actors; preserve old 20/25 results
+as evidence of the earlier model only. No roster decision has been made.
+
+GC-04A implementation, deferred workflows and exact verification instructions:
+[shared-Facilitator reconciliation](gc04a-shared-facilitator.md). Its additive
+migration and tests have not been executed by the agent. This amendment does
+not declare the exercise operational or any gate passed.
+
+The JSON fixture's `deferred_mutations` lists implementation owners, not enabled
+permissions. Its foundation permission matrix remains unchanged in version 1.1.1.
+Later prompts must version the applicable permission expectations and preserve
+historical evidence; no model label or document update activates those operations.
+GC-08 composes atomic creation around GC-04A setup/freeze rules; GC-09 reconciles
+guidance with completed workflows; GC-10 preserves scoring; GC-11 exports staffing
+model separately from topology/ownership; GC-12 verifies each stage and all three
+compatible session models. See the prompt book for each stage's tests/acceptance.
+
+## Historical GC-01 baseline
 
 GC-01 delivers architecture, the fixture, and narrow contract regression tests.
 Storage, RLS/RPCs, join UI, and workflow changes belong to later prompts. Adding
@@ -108,6 +150,7 @@ seat. Routes reuse existing HTML/controllers; no new Vite entry pages are needed
 
 | Topology | Persisted role | Semantic role | Delegation | Capacity | Route | Permission profile |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2 | `green_shared_facilitator` | facilitator | null | 1 | `teams/green/scribe.html` | shared_facilitator_foundation |
 | 2 | `green_asian_pacific_facilitator` | facilitator | asian_pacific | 1 | `teams/green/scribe.html?delegation=asian_pacific` | regional_facilitator |
 | 2 | `green_asian_pacific_scribe` | scribe | asian_pacific | 1 | `teams/green/facilitator.html?delegation=asian_pacific` | regional_scribe |
 | 2 | `green_europe_facilitator` | facilitator | europe | 1 | `teams/green/scribe.html?delegation=europe` | regional_facilitator |
@@ -158,6 +201,7 @@ cross-region private reads or writes. The fixture uses these exact column names.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | regional_scribe | own | draft_returned | no | read_own | addressed | read_own | no | no |
 | regional_facilitator | own | forwarded_returned | own | manage_own | own_white_cell | append_own | no | no |
+| shared_facilitator_foundation | both_forwarded_submitted_completed | no | no | no | addressed_read_only | no | no | no |
 | regional_notetaker | own_released | no | no | read_own | addressed | no | own_seat | no |
 | legacy_scribe | legacy_session | draft_returned | legacy_submit | read_own | legacy_addressed | legacy_append | legacy_notes_read | no |
 | legacy_facilitator | legacy_session | forwarded_returned | own | manage_own | own_white_cell | legacy_append | legacy_notes_read | no |

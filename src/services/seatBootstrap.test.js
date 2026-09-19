@@ -35,6 +35,20 @@ describe.each(['/', '/Fractured-Order/'])('GC-04 startup and rejoin under %s', (
         await restoreConfirmedSeat({ checkRoute: false, locationRef: new URL('https://example.test/') });
         expect(sessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({ role: 'green_europe_scribe' }));
     });
+    it('GC04A restores the shared model on reload and rejects a forged owning delegation', async () => {
+        database.restoreSessionSeatContext.mockResolvedValue({
+            session: { id: 'session', status: 'active', session_topology_version: 2, green_seat_model: 'shared_facilitator_v1' },
+            seat: { id: 'seat', session_id: 'session', role: 'green_shared_facilitator', delegation_id: null, is_active: true }
+        });
+        const locationRef = new URL(`https://example.test${basePath}teams/green/scribe.html`);
+        await expect(restoreConfirmedSeat({ locationRef })).resolves.toMatchObject({
+            role: 'green_shared_facilitator', greenSeatModel: 'shared_facilitator_v1', delegationId: null
+        });
+        sessionStore.confirmSeat.mockClear();
+        locationRef.search = '?delegation=europe';
+        await expect(restoreConfirmedSeat({ locationRef })).rejects.toThrow('Permission error');
+        expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
+    });
     it('rejects mismatched deep links before confirming or rendering a workspace', async () => {
         const locationRef = new URL(`https://example.test${basePath}teams/green/facilitator.html?delegation=asian_pacific`);
         await expect(restoreConfirmedSeat({ locationRef })).rejects.toThrow('Permission error');

@@ -95,7 +95,7 @@
                             <button type="button" class="chip" data-delegation="asian_pacific" aria-pressed="false">Asia-Pacific</button>
                             <button type="button" class="chip" data-delegation="europe" aria-pressed="false">Europe</button>
                         </div>
-                        <p class="lf-help">Choose your delegation, then Scribe or Facilitator. Each role has one seat per delegation.</p>
+                        <p class="lf-help" id="delegationSelectionHelp">Choose your delegation, then Scribe or Facilitator. Each role has one seat per delegation.</p>
                     </fieldset>
                     <fieldset class="lf-fieldset">
                         <legend>Role</legend>
@@ -111,7 +111,7 @@
                                 title="1 seat per team &middot; Opens the support slide deck"
                                 aria-label="Facilitator, one seat per team, opens the support slide deck">
                                 <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                                Facilitator
+                                <span data-role-label>Facilitator</span>
                             </button>
                             <button type="button" class="chip chip--role" data-role-surface="notetaker" aria-pressed="false"
                                 title="2 seats per team &middot; Captures notes, quotes, key moments"
