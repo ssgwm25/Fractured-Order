@@ -178,6 +178,14 @@ Pass:
 
 ## Hosted Source Verification
 
+For GC05, use the [supplemental evidence runbook](architecture/gc05-evidence-follow-up.md)
+to bind deployed HTML/JS/CSS and unauthenticated route checks to a successful Pages
+workflow and matching clean source commit. Its collector verifies an existing
+deployment; it does not deploy or apply migrations. The earlier release matrix
+above remains a separate contract. A GC05 supplemental pass is not a full release
+sign-off, and historical installation timestamps must not be inferred from a new
+schema snapshot.
+
 Known live URL:
 
 ```text

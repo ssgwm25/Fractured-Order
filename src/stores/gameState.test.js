@@ -6,6 +6,7 @@ const {
     mockDatabase: {
         getGameState: vi.fn(),
         createGameState: vi.fn(),
+        getOrientationCompletion: vi.fn(),
         updateGameState: vi.fn()
     }
 }));
@@ -66,10 +67,24 @@ function buildGameState(overrides = {}) {
 }
 
 describe('GameStateStore resilience', () => {
+    it('GC05 checks each move/phase mutation against fresh completion and fails closed', async () => {
+        const { gameStateStore } = await loadGameStateModule();
+        gameStateStore.state = buildGameState();
+        mockDatabase.getOrientationCompletion.mockResolvedValue({ complete: false, missingTeams: ['green:europe'] });
+        for (const mutate of [() => gameStateStore.advancePhase(), () => gameStateStore.advanceMove(),
+            () => gameStateStore.persistState({ move: 3, phase: 5 }, 'jump')]) {
+            await expect(mutate()).rejects.toThrow('green:europe');
+        }
+        expect(mockDatabase.updateGameState).not.toHaveBeenCalled();
+        mockDatabase.getOrientationCompletion.mockRejectedValue(new Error('Completion unavailable'));
+        await expect(gameStateStore.advancePhase()).rejects.toThrow('Completion unavailable');
+        expect(mockDatabase.updateGameState).not.toHaveBeenCalled();
+    });
     beforeEach(() => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-04-08T16:30:00.000Z'));
         vi.clearAllMocks();
+        mockDatabase.getOrientationCompletion.mockResolvedValue({ complete: true, missingTeams: [] });
     });
 
     afterEach(() => {

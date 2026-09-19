@@ -6,7 +6,8 @@ const {
     mockSessionStore
 } = vi.hoisted(() => ({
     mockSupabase: {
-        from: vi.fn()
+        from: vi.fn(),
+        rpc: vi.fn()
     },
     mockEnsureBrowserIdentity: vi.fn(),
     mockSessionStore: {
@@ -95,6 +96,33 @@ describe('database action write contracts', () => {
 
     afterEach(() => {
         vi.useRealTimers();
+    });
+
+    it('GC05 sends only persisted scope and expected versions on regional submission', async () => {
+        const { database } = await import('./database.js');
+        const action = { id: 'orientation-europe', session_id: 's', delegation_id: 'europe',
+            revision_number: 2, row_version: 4, role: 'whitecell_lead', artifact_type: 'proposal' };
+        mockSupabase.rpc.mockResolvedValue({ data: [{ ...action, status: 'submitted' }], error: null });
+        expect((await database.submitRegionalOrientation(action)).id).toBe(action.id);
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('submit_regional_orientation', {
+            requested_session_id: 's', requested_delegation_id: 'europe', requested_action_id: action.id,
+            requested_expected_revision: 2, requested_expected_row_version: 4
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+
+    it('GC05 binds corrected handoff to its captured revision and never falls back to table writes', async () => {
+        const { database } = await import('./database.js');
+        mockSupabase.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'GC05_STALE_ORIENTATION_REVISION' } });
+        await expect(database.handoffRegionalOrientation({ sessionId: 's', delegationId: 'europe',
+            action: { id: 'a', revision_number: 2, row_version: 4 }, details: 'captured details', goal: 'correction'
+        })).rejects.toThrow('GC05_STALE_ORIENTATION_REVISION');
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('handoff_regional_orientation', {
+            requested_session_id: 's', requested_delegation_id: 'europe', requested_action_id: 'a',
+            requested_expected_revision: 2, requested_expected_row_version: 4,
+            requested_details: 'captured details', requested_goal: 'correction'
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalled();
     });
 
     it('stores multi-recipient proposal approval state at the action write boundary', async () => {

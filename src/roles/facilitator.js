@@ -734,7 +734,8 @@ export class FacilitatorController {
     }
 
     getStrategicOrientationGateState() {
-        return getStrategicOrientationCompletion(this.getActionStoreSnapshot());
+        return gameStateStore.getOrientationCompletion?.()
+            || getStrategicOrientationCompletion(this.getActionStoreSnapshot(), sessionStore.getSessionData?.() || {});
     }
 
     isStrategicOrientationGateActive() {
@@ -752,6 +753,8 @@ export class FacilitatorController {
         const labels = {
             blue: 'Blue selection',
             green: 'Green forecast',
+            'green:asian_pacific': 'Green - Asia-Pacific orientation',
+            'green:europe': 'Green - Europe orientation',
             red: 'Red forecast',
             industry: 'Industry forecast'
         };
@@ -785,6 +788,7 @@ export class FacilitatorController {
         this.storeUnsubscribers.push(
             actionsStore.subscribe(() => {
                 this.syncActionsFromStore();
+                gameStateStore.refreshOrientationCompletion?.().catch((error) => logger.warn('Orientation completion unavailable', error));
             })
         );
 
@@ -2576,8 +2580,16 @@ export class FacilitatorController {
         `;
     }
 
-    showCreateActionModal() {
+    async showCreateActionModal() {
         if (!this.requireWriteAccess()) return;
+
+        if (this.teamContext?.delegationId) {
+            try { await gameStateStore.refreshOrientationCompletion(); }
+            catch (_error) {
+                showToast({ message: 'Orientation completion is unavailable. Refresh and retry.', type: 'error' });
+                return;
+            }
+        }
 
         if (this.isStrategicOrientationGateActive()) {
             showToast({
@@ -2807,6 +2819,7 @@ export class FacilitatorController {
     getStrategicOrientationActionForTeam() {
         return this.getActionStoreSnapshot().find((action) => (
             action?.team === this.teamId
+            && (!this.teamContext?.delegationId || action.delegation_id === this.teamContext.delegationId)
             && isStrategicOrientationAction(action)
         )) || null;
     }
@@ -2954,6 +2967,7 @@ export class FacilitatorController {
             forecastActionDescription: viewModel.forecastActionDescription || '',
             strategyDescription: viewModel.strategyDescription || ''
         };
+        content.__strategicOrientationExpectedAction = action.id ? { ...action } : null;
 
         return content;
     }
@@ -3028,7 +3042,9 @@ export class FacilitatorController {
                 this.renderStrategicOrientationErrors(content, errors);
                 return;
             }
-            this.submitStrategicOrientation(modal, state, { actionId, isEdit }).catch((err) => {
+            this.submitStrategicOrientation(modal, state, {
+                actionId, isEdit, expectedAction: content.__strategicOrientationExpectedAction
+            }).catch((err) => {
                 logger.error('Failed to forward Strategic Orientation:', err);
             });
         });
@@ -3122,7 +3138,7 @@ export class FacilitatorController {
         };
     }
 
-    async submitStrategicOrientation(modal, data = {}, { actionId = null, isEdit = false } = {}) {
+    async submitStrategicOrientation(modal, data = {}, { actionId = null, isEdit = false, expectedAction = null } = {}) {
         if (!this.requireWriteAccess()) return;
 
         const errors = this.validateStrategicOrientationData(data);
@@ -3168,7 +3184,14 @@ export class FacilitatorController {
             const option = STRATEGIC_ORIENTATION_OPTIONS[payloadViewModel.orientation];
             let action;
 
-            if (isEdit && actionId) {
+            if (this.teamContext?.delegationId) {
+                action = await database.handoffRegionalOrientation({
+                    sessionId, delegationId: this.teamContext.delegationId,
+                    action: isEdit ? (expectedAction || existingAction) : null,
+                    details: payload.ally_contingencies, goal: payload.goal
+                });
+                actionsStore.updateFromServer(isEdit ? 'UPDATE' : 'INSERT', action);
+            } else if (isEdit && actionId) {
                 action = await database.updateDraftAction(actionId, payload);
                 actionsStore.updateFromServer('UPDATE', action);
             } else {

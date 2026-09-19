@@ -102,6 +102,16 @@ Apply the authoritative ledger in this exact order:
 51. `data/2026-09-22_gc04_session_context.sql`
 52. `data/2026-09-23_gc04_legacy_session_topology.sql`
 53. `data/2026-09-24_gc04a_shared_facilitator.sql`
+54. `data/2026-09-25_gc05_regional_orientations.sql`
+
+GC-05 adds revision-bound regional Scribe handoff and Facilitator submission for
+Strategic Orientation, its White Cell return/correction cycle, and a database
+move/phase gate requiring five regional or four unified submissions. Apply once
+after the complete ledger above, before the matching frontend. It preserves
+GC-04A's proposal/thread/RFI/direct-message denials and does not create an
+operational roster or creation UI. See the [GC-05 verification runbook](architecture/gc05-regional-orientations.md)
+for the self-contained SQL rehearsal, local commands, pass conditions and evidence
+still required. No GC-05 migration or tests were executed by the agent.
 
 GC-04A adds the explicit `shared_facilitator_v1` staffing model, authenticated
 setup/claim/restore checks and a single shared Green Facilitator seat. Existing

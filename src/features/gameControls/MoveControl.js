@@ -134,7 +134,7 @@ export function createMoveControl(options = {}) {
             }
         } catch (err) {
             logger.error('Failed to advance move:', err);
-            showToast({ message: 'Failed to advance move', type: 'error' });
+            showToast({ message: err.message || 'Failed to advance move. Refresh and retry.', type: 'error' });
         }
     }
 

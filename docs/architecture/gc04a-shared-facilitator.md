@@ -166,7 +166,8 @@ if ($LASTEXITCODE -ne 0) { throw 'GC04A live tooling regressions failed.' }
 ```
 
 Expected: all tests pass, including legacy manifest cleanup, shared fixture
-containment, incomplete/duplicate checkpoint rejection, both race outcomes and
+containment, one-grant setup and sequential scoped grant/archive/revoke cleanup,
+rejection of unrelated operator authority, incomplete/duplicate checkpoint rejection, both race outcomes and
 rejection of absent/mismatched contention or committed-state evidence.
 
 After the human installs the GC-04A migration and deploys the corresponding
@@ -226,8 +227,13 @@ its previous base-path validation and ignores `GC04A_BASE_URL`.
 
 Each run generates two isolated sessions, its own IDs/code and clearly synthetic
 empty roster/transport markers. Unlike SQL Editor tests, browser fixtures must
-persist through separate requests; cleanup archives them and preserves history,
-then removes only their temporary session-scoped operator grants. The empty roster
+persist through separate requests. Setup creates one White Cell grant for the
+browser session; the contention fixture needs no operator grant. The database
+allows only one grant per auth identity and surface, regardless of session.
+Cleanup validates both fixtures and rejects unrelated/global operator authority,
+then grants access, archives and revokes access for each session sequentially in
+one transaction. Retry cleanup also supports already-archived fixtures. Only
+the manifest's temporary session-scoped grants are removed; history is preserved. The empty roster
 is test provenance, never exercise approval. No existing exercise is configured,
 claimed, converted or deleted. Reports, exact submitted SQL, hashes and manifest
 are written under `test-results/gc04-live/<generated-run-id>/`. The runner prints
@@ -240,6 +246,26 @@ evidence, not a skip/pass. Preserve reports with their actual base, environment,
 source revision/working-tree hashes and fetched asset hashes. Later migrations
 that enable submissions need versioned expected permissions, not a weakened
 foundation test. No new hosted run has been executed by the agent.
+
+### Duplicate operator-grant setup failure
+
+Run `ea7071e5-8153-4575-915f-2e148595029f` passed deployed frontend preflight
+but failed fixture setup with PostgreSQL `23505` on
+`idx_operator_grants_auth_surface`. The old setup attempted two White Cell grants
+for the same operator. Its retained
+`test-results/gc04-live/ea7071e5-8153-4575-915f-2e148595029f/results.json`
+records `cleanupPassed: true`: setup rolled back and the presence check found no
+fixture sessions. No manual archival is needed for that attempt; no browser or
+contention checks passed in that run.
+
+The repair changes the local runner's generated setup/cleanup SQL, not the
+database constraint or deployed application. Run the focused tooling regressions
+above, then rerun
+`node --preserve-symlinks --preserve-symlinks-main scripts/gc04-live-check.mjs --shared`.
+This repair needs no migration, build or frontend redeployment. Fresh hosted
+output must show the 16 checkpoints, observed contention and both archives before
+those checks can be considered verified. The earlier 24 tooling test passes did
+not exercise the installed database's grant uniqueness constraint.
 
 ## Outstanding evidence and dependencies
 

@@ -1,7 +1,7 @@
 import { getConfirmedSeat, onSeatCleanup, seatStorageKey } from '../../core/seatContext.js';
 import { GREEN_DELEGATIONS, SHARED_GREEN_FACILITATOR, SHARED_GREEN_MODEL } from '../../core/teamContext.js';
 
-export const SHARED_GREEN_WORKFLOW_NOTICE = 'Shared Facilitator submission, RFI creation and proposal replies are not yet enabled. The support deck and released regional records are available.';
+export const SHARED_GREEN_WORKFLOW_NOTICE = 'Submit each region’s Scribe-forwarded Strategic Orientation independently. White Cell returns go to the originating Scribe for correction and a new handoff. Proposal submission and replies, RFI creation and direct messages are not yet enabled.';
 
 function resolveViewStorage() {
     try { return globalThis.sessionStorage; } catch { return null; }

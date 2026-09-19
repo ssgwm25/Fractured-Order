@@ -119,6 +119,7 @@ class GameStateStore {
                 await this.createInitialState(sessionId);
             }
 
+            await this.refreshOrientationCompletion().catch((error) => logger.warn('Orientation completion unavailable', error));
             return this.state;
         } catch (err) {
             if (isMissingGameStateError(err)) {
@@ -156,6 +157,24 @@ class GameStateStore {
      */
     getState() {
         return this.state;
+    }
+
+    getOrientationCompletion() {
+        return this.orientationCompletion?.sessionId === this.state?.session_id
+            ? this.orientationCompletion?.value : null;
+    }
+
+    async refreshOrientationCompletion() {
+        const sessionId = this.state?.session_id;
+        if (!sessionId) return null;
+        const request = this.orientationRequest = (this.orientationRequest || 0) + 1;
+        this.orientationCompletion = null;
+        const value = await database.getOrientationCompletion(sessionId);
+        if (request === this.orientationRequest && sessionId === this.state?.session_id) {
+            this.orientationCompletion = { sessionId, value };
+            this.notify('orientation_completion', this.state);
+        }
+        return value;
     }
 
     /**
@@ -534,6 +553,16 @@ class GameStateStore {
             return this.state;
         }
 
+        const nextMove = updates.move ?? this.state.move;
+        const nextPhase = updates.phase ?? this.state.phase;
+        if ((nextMove !== this.state.move || nextPhase !== this.state.phase)
+            && (nextMove !== 1 || nextPhase !== 1)) {
+            const completion = await database.getOrientationCompletion(this.state.session_id);
+            if (!completion?.complete) {
+                throw new Error(`Strategic Orientation submissions missing: ${(completion?.missingTeams || []).join(', ') || 'completion unavailable'}.`);
+            }
+        }
+
         const data = await database.updateGameState(this.state.session_id, updates);
         this.applyServerState(data, event);
         return this.state;
@@ -681,6 +710,8 @@ class GameStateStore {
      * Reset store state
      */
     reset() {
+        this.orientationRequest = (this.orientationRequest || 0) + 1;
+        this.orientationCompletion = null;
         this.stopLocalTimer();
         this.state = null;
         this.initialized = false;
@@ -693,6 +724,8 @@ class GameStateStore {
      * Cleanup on destroy
      */
     destroy() {
+        this.orientationRequest = (this.orientationRequest || 0) + 1;
+        this.orientationCompletion = null;
         this.stopLocalTimer();
         this.state = null;
         this.subscribers.clear();

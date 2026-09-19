@@ -138,7 +138,7 @@ export function createPhaseControl(options = {}) {
             }
         } catch (err) {
             logger.error('Failed to advance phase:', err);
-            showToast({ message: 'Failed to advance phase', type: 'error' });
+            showToast({ message: err.message || 'Failed to advance phase. Refresh and retry.', type: 'error' });
         }
     }
 

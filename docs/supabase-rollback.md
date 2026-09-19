@@ -11,6 +11,15 @@ not mean replaying historical schemas or dropping additive workflow objects.
 
 ## Regional Green Storage Containment
 
+After `data/2026-09-25_gc05_regional_orientations.sql`, retain the handoff revision
+column, orientation RPCs, restrictive write policy, read guards and database
+move/phase gate. Stop affected regional submissions and contain with a compatible
+frontend; fix forward. Do not remove the gate, clear handoff/review evidence,
+reapply GC-04A's blanket shared denial, or relabel historical Green records.
+Existing four-seat revision-one handoffs remain readable/submittable without
+backfilling a marker; corrected revisions require a new originating-Scribe
+handoff. See [GC-05 recovery and verification](architecture/gc05-regional-orientations.md).
+
 After `data/2026-09-24_gc04a_shared_facilitator.sql`, retain the seat-model column,
 frozen model, shared-seat unique index and model-aware claim/restore/RLS helpers.
 Stop new shared-session setup during containment and use a compatible frontend.

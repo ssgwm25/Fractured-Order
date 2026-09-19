@@ -2388,6 +2388,17 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Strategic Orientation');
     });
 
+    it('GC05 identifies the persisted regional owner in the review title', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        global.document = createFakeDocument();
+        const controller = new WhiteCellController();
+        for (const [delegation_id, label] of [['asian_pacific', 'Green - Asia-Pacific'], ['europe', 'Green - Europe']]) {
+            const action = { ...buildStrategicOrientationAction('green'), delegation_id };
+            expect(controller.getStrategicOrientationReviewTitle(action)).toContain(label);
+        }
+        expect(controller.getStrategicOrientationReviewTitle(buildStrategicOrientationAction('green'))).not.toContain('Europe');
+    });
+
     it('labels new Blue Strategic Orientation records as orientation and forecast in the White Cell card and review dialog', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         global.document = createFakeDocument();

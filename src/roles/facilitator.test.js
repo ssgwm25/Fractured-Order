@@ -103,6 +103,7 @@ const showModal = vi.fn();
 const createTimelineEvent = vi.fn();
 const createAction = vi.fn();
 const updateDraftAction = vi.fn();
+const handoffRegionalOrientation = vi.fn();
 const submitActionRecord = vi.fn();
 const deleteDraftAction = vi.fn();
 const createRequest = vi.fn();
@@ -132,6 +133,7 @@ vi.mock('../services/database.js', () => ({
     database: {
         createAction,
         updateDraftAction,
+        handoffRegionalOrientation,
         submitAction: submitActionRecord,
         deleteDraftAction,
         createRequest,
@@ -502,6 +504,26 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             type: 'success'
         });
         expect(modal.close).toHaveBeenCalled();
+    });
+
+    it('GC05 forwards the regional correction with the modal revision rather than a newer store revision', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('gc05');
+        const expectedAction = { ...(await createStrategicOrientationAction()), team: 'green', delegation_id: 'europe', revision_number: 2, row_version: 4 };
+        vi.spyOn(actionsStore, 'getAll').mockReturnValue([{ ...expectedAction, revision_number: 3, row_version: 9 }]);
+        handoffRegionalOrientation.mockResolvedValue({ ...expectedAction, session_id: 'gc05', row_version: 5 });
+        createTimelineEvent.mockResolvedValue({ id: 'gc05-forwarded' });
+        const controller = new FacilitatorController();
+        controller.teamId = 'green'; controller.teamLabel = 'Green - Europe';
+        controller.teamContext = { ...controller.teamContext, delegationId: 'europe' };
+        controller.role = 'green_europe_scribe'; controller.isReadOnly = false;
+        await controller.submitStrategicOrientation({ close: vi.fn() }, { ownOrientation: 'pressure', forecasts: { blue: 'reframe' }, strategyDescription: 'Synthetic correction' },
+            { actionId: expectedAction.id, isEdit: true, expectedAction });
+        expect(handoffRegionalOrientation).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'gc05', delegationId: 'europe', action: expectedAction }));
+        expect(createAction).not.toHaveBeenCalled();
+        expect(updateDraftAction).not.toHaveBeenCalled();
     });
 
     it('renders the Strategic Orientation modal without the removed explanatory copy', async () => {

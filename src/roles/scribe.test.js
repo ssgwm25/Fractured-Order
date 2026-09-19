@@ -32,6 +32,7 @@ const {
     mockShowModal,
     mockShowLoader,
     mockSubmitAction,
+    mockSubmitRegionalOrientation,
     mockUpdateDraftAction,
     mockUpdateProposalRecipientStatus
 } = vi.hoisted(() => ({
@@ -45,6 +46,7 @@ const {
     mockShowModal: vi.fn(),
     mockShowLoader: vi.fn(() => ({})),
     mockSubmitAction: vi.fn(),
+    mockSubmitRegionalOrientation: vi.fn(),
     mockUpdateDraftAction: vi.fn(),
     mockUpdateProposalRecipientStatus: vi.fn()
 }));
@@ -93,6 +95,7 @@ vi.mock('../services/database.js', () => ({
         updateDraftAction: mockUpdateDraftAction,
         updateProposalRecipientStatus: mockUpdateProposalRecipientStatus,
         submitAction: mockSubmitAction,
+        submitRegionalOrientation: mockSubmitRegionalOrientation,
         createTimelineEvent: mockCreateTimelineEvent,
         fetchArtifactWorkflowReviews: mockFetchArtifactWorkflowReviews
     }
@@ -300,6 +303,32 @@ async function loadScribeModule() {
 }
 
 describe('legacy scribe route and corrected Facilitator support surface', () => {
+    it('GC05 exposes region-specific orientation controls and submits only the captured revision', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamContext = { ...controller.teamContext, sharedFacilitator: true };
+        const action = { id: 'gc05-orientation', session_id: 'gc05', team: 'green', delegation_id: 'europe',
+            status: 'draft', workflow_state: 'forwarded_to_facilitator', revision_number: 2, row_version: 4, orientation_handoff_revision: 2,
+            mechanism: 'Strategic Orientation', ally_contingencies: serializeStrategicOrientationDetails({ team: 'green', ownOrientation: 'pressure',
+                forecastTargets: [{ key: 'blue', orientation: 'reframe' }], strategyDescription: 'Synthetic strategy', scribeHandoff: 'Forwarded' }) };
+        const html = controller.renderActionSlide({ action, slideType: 'strategic-orientation' });
+        expect(html).toContain('Green - Europe');
+        expect(html).toContain('data-scribe-action-submit');
+        expect(html).toContain('Synthetic strategy');
+        expect(controller.renderPresentationToolbar(action)).not.toContain('>Edit</button>');
+        const returned = { ...action, workflow_state: 'returned_to_team', orientation_handoff_revision: null, review_notes: 'Correct this region' };
+        expect(controller.renderScribeStrategicOrientationSubmissionControls(returned)).toContain('originating regional Scribe');
+        expect(controller.renderPresentationToolbar(returned)).not.toContain('data-scribe-action-submit');
+        mockSubmitRegionalOrientation.mockResolvedValue({ ...action, status: 'submitted', workflow_state: 'resubmitted' });
+        await controller.submitScribeAction(action);
+        expect(mockSubmitRegionalOrientation).toHaveBeenCalledWith(action);
+        expect(mockSubmitAction).not.toHaveBeenCalled();
+        expect(mockCreateTimelineEvent).not.toHaveBeenCalled();
+        const deferred = controller.renderSharedRegionalRecord({ ...action, goal: 'Synthetic proposal' });
+        expect(deferred).toContain('Proposal submission and replies, RFI creation and direct messages are not yet enabled');
+        expect(deferred).not.toContain('<button');
+    });
     it('GC04A shared foundation renders an owned read-only summary and cannot invoke workflow writes', async () => {
         const { ScribeController } = await loadScribeModule();
         const controller = new ScribeController();

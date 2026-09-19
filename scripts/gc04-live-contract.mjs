@@ -112,9 +112,10 @@ UPDATE public.sessions SET green_roster_version=a.version,
 ${m.version === 2 ? `green_seat_model='${SHARED_MODEL}',` : ''}
 green_roster_snapshot=a.snapshot||jsonb_build_object('approved_by',a.approved_by,'approved_at',a.approved_at)
 FROM public.green_roster_approvals a WHERE a.version=${literal(m.roster)} AND id='${id}';
-INSERT INTO public.game_state(session_id,move,phase) VALUES('${id}',1,1);
+INSERT INTO public.game_state(session_id,move,phase) VALUES('${id}',1,1);`).join('\n')}
+-- One grant per auth identity/surface; the contention fixture needs no operator grant.
 INSERT INTO public.operator_grants(auth_user_id,surface,role,session_id)
-VALUES('${m.operatorId}','whitecell','whitecell_lead','${id}');`).join('\n')}
+VALUES('${m.operatorId}','whitecell','whitecell_lead','${m.sessionId}');
 ${Object.entries(m.actions).map(([region, id]) => `INSERT INTO public.actions(id,session_id,team,delegation_id,move,phase,mechanism,sector,artifact_type,proposal_recipient_team,goal)
 VALUES('${id}','${m.sessionId}','green','${region}',1,1,'Proposal','','proposal','blue','GC04 synthetic ${region} transport marker');`).join('\n')}
 ${m.version === 2 ? Object.entries(m.forwarded).map(([region, id]) => `INSERT INTO public.actions(id,session_id,team,delegation_id,move,phase,mechanism,sector,artifact_type,proposal_recipient_team,goal)
@@ -125,16 +126,29 @@ SELECT '${m.run}' AS run_id;`;
 }
 export function cleanupSql(m) {
     validateManifest(m);
+    const sessionIds = fixtureSessions(m).map(({ id }) => `'${id}'`).join(',');
     return `${begin}
 ${fixtureGuard(m)}
+-- Never replace a global, foreign-session or differently scoped operator grant.
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM public.operator_grants
+WHERE auth_user_id='${m.operatorId}' AND surface='whitecell'
+AND (session_id IS NULL OR session_id NOT IN (${sessionIds})
+OR role IS DISTINCT FROM 'whitecell_lead' OR team_id IS NOT NULL)) THEN
+RAISE EXCEPTION 'GC04 operator grant mismatch: refusing to replace unrelated authority'; END IF; END $$;
+DELETE FROM public.operator_grants WHERE auth_user_id='${m.operatorId}' AND surface='whitecell'
+AND session_id IN (${sessionIds}) AND role='whitecell_lead' AND team_id IS NULL;
 ${fixtureSessions(m).map(({ id }) => `
+-- Grant/archive/revoke sequentially to respect idx_operator_grants_auth_surface.
+INSERT INTO public.operator_grants(auth_user_id,surface,role,session_id)
+VALUES('${m.operatorId}','whitecell','whitecell_lead','${id}');
 SELECT set_config('request.jwt.claim.sub','${m.operatorId}',true);
 SELECT set_config('request.jwt.claims','{"sub":"${m.operatorId}","role":"authenticated"}',true);
 SET LOCAL ROLE authenticated;
 DO $$ BEGIN IF EXISTS(SELECT 1 FROM public.sessions WHERE id='${id}' AND status='active') THEN
 PERFORM public.archive_live_demo_session('${id}'::uuid); END IF; END $$;
 RESET ROLE; SET LOCAL request.jwt.claim.sub=''; SET LOCAL request.jwt.claims='{}';
-DELETE FROM public.operator_grants WHERE auth_user_id='${m.operatorId}' AND surface='whitecell' AND session_id='${id}';`).join('\n')}
+DELETE FROM public.operator_grants WHERE auth_user_id='${m.operatorId}' AND surface='whitecell'
+AND session_id='${id}' AND role='whitecell_lead' AND team_id IS NULL;`).join('\n')}
 COMMIT;
 SELECT id,status FROM public.sessions WHERE id IN (${fixtureSessions(m).map(({ id }) => `'${id}'`).join(',')});`;
 }

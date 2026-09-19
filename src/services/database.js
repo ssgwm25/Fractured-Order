@@ -1345,6 +1345,41 @@ export const database = {
 
     // ==================== ACTIONS ====================
 
+    async getOrientationCompletion(sessionId) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('get_orientation_completion', { requested_session_id: sessionId });
+        if (error) throw fromSupabaseError(error, 'getOrientationCompletion');
+        return data;
+    },
+
+    async handoffRegionalOrientation({ sessionId, delegationId, action = null, details, goal }) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('handoff_regional_orientation', {
+            requested_session_id: sessionId,
+            requested_delegation_id: delegationId,
+            requested_action_id: action?.id ?? null,
+            requested_expected_revision: action?.revision_number ?? null,
+            requested_expected_row_version: action?.row_version ?? null,
+            requested_details: details,
+            requested_goal: goal
+        });
+        if (error) throw fromSupabaseError(error, 'handoffRegionalOrientation');
+        return normalizeArtifactWorkflowRecord(Array.isArray(data) ? data[0] : data, 'action');
+    },
+
+    async submitRegionalOrientation(action) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('submit_regional_orientation', {
+            requested_session_id: action.session_id,
+            requested_delegation_id: action.delegation_id,
+            requested_action_id: action.id,
+            requested_expected_revision: action.revision_number,
+            requested_expected_row_version: action.row_version
+        });
+        if (error) throw fromSupabaseError(error, 'submitRegionalOrientation');
+        return normalizeArtifactWorkflowRecord(Array.isArray(data) ? data[0] : data, 'action');
+    },
+
     /**
      * Create an action
      * @param {Object} actionData - Action data

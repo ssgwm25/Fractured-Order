@@ -105,6 +105,7 @@ import {
 } from '../features/notifications/workflowNotifications.js';
 import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import {
+    GREEN_DELEGATIONS,
     OPERATOR_SURFACES,
     ROLE_SURFACES,
     TEAM_OPTIONS,
@@ -1987,6 +1988,7 @@ export class WhiteCellController {
 
         this.storeUnsubscribers.push(
             actionsStore.subscribe((event) => {
+                gameStateStore.refreshOrientationCompletion?.().catch((error) => logger.warn('Orientation completion unavailable', error));
                 this.syncActionsFromStore({
                     announce: event === 'created' || event === 'updated' || event === 'reconciled'
                 });
@@ -2526,7 +2528,8 @@ export class WhiteCellController {
     }
 
     getStrategicOrientationGateState() {
-        return getStrategicOrientationCompletion(actionsStore.getAll());
+        return gameStateStore.getOrientationCompletion?.()
+            || getStrategicOrientationCompletion(actionsStore.getAll(), sessionStore.getSessionData?.() || {});
     }
 
     isStrategicOrientationPeriodComplete() {
@@ -2552,6 +2555,8 @@ export class WhiteCellController {
         const labels = {
             blue: 'Blue selection',
             green: 'Green forecast',
+            'green:asian_pacific': 'Green - Asia-Pacific orientation',
+            'green:europe': 'Green - Europe orientation',
             red: 'Red forecast',
             industry: 'Industry forecast'
         };
@@ -3407,6 +3412,9 @@ export class WhiteCellController {
     }
 
     getStrategicOrientationReviewTitle(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
+        if (action.team === 'green' && GREEN_DELEGATIONS[action.delegation_id]) {
+            return `${GREEN_DELEGATIONS[action.delegation_id]}: ${viewModel.title}`;
+        }
         if (!viewModel.hasStrategicOrientationDetails || !viewModel.isSelection) {
             return viewModel.title;
         }

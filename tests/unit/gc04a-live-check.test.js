@@ -14,6 +14,45 @@ const receipt = (side, changes = {}) => ({ status: 200, data: [{ receipt: {
 const committed = { status: 200, data: [{ result: 'GC04A committed shared seat count is one' }] };
 
 describe('GC04A live verification containment and evidence', () => {
+    it.each([false, true])('keeps one operator grant per identity/surface through setup and archival (shared=%s)', shared => {
+        const m = manifest('abcdefghijklmnopqrst', 'https://example.test/Fractured-Order/', randomUUID(), { shared });
+        const insert = id => `INSERT INTO public.operator_grants(auth_user_id,surface,role,session_id)
+VALUES('${m.operatorId}','whitecell','whitecell_lead','${id}');`;
+        const setupGrants = setupSql(m).match(/INSERT INTO public\.operator_grants\b[^;]+;/g);
+        expect(setupGrants).toEqual([insert(m.sessionId)]);
+
+        // Check the full grant lifecycle, including cleanup retries after an archive.
+        // The installed index excludes session_id: simultaneous per-session grants fail.
+        const cleanup = cleanupSql(m), ids = fixtureSessions(m).map(({ id }) => `'${id}'`).join(',');
+        const operations = cleanup.match(/(?:INSERT INTO|DELETE FROM) public\.operator_grants\b[^;]+;|PERFORM public\.archive_live_demo_session\([^;]+;/g);
+        expect(operations).toEqual([
+            `DELETE FROM public.operator_grants WHERE auth_user_id='${m.operatorId}' AND surface='whitecell'
+AND session_id IN (${ids}) AND role='whitecell_lead' AND team_id IS NULL;`,
+            ...fixtureSessions(m).flatMap(({ id }) => [insert(id),
+                `PERFORM public.archive_live_demo_session('${id}'::uuid);`,
+                `DELETE FROM public.operator_grants WHERE auth_user_id='${m.operatorId}' AND surface='whitecell'
+AND session_id='${id}' AND role='whitecell_lead' AND team_id IS NULL;`
+            ])
+        ]);
+        for (const { id } of fixtureSessions(m)) {
+            expect(cleanup).toContain(`IF EXISTS(SELECT 1 FROM public.sessions WHERE id='${id}' AND status='active')`);
+        }
+        expect(cleanup.trimStart().startsWith('BEGIN;')).toBe(true);
+        expect(cleanup.match(/COMMIT;/g)).toHaveLength(1);
+        expect(cleanup.lastIndexOf('DELETE FROM public.operator_grants')).toBeLessThan(cleanup.indexOf('COMMIT;'));
+    });
+    it.each([false, true])('guards fixture ownership and unrelated operator authority before cleanup (shared=%s)', shared => {
+        const m = manifest('abcdefghijklmnopqrst', 'https://example.test/Fractured-Order/', randomUUID(), { shared });
+        const cleanup = cleanupSql(m), ids = fixtureSessions(m).map(({ id }) => `'${id}'`).join(',');
+        expect(cleanup).toContain(`WHERE auth_user_id='${m.operatorId}' AND surface='whitecell'
+AND (session_id IS NULL OR session_id NOT IN (${ids})
+OR role IS DISTINCT FROM 'whitecell_lead' OR team_id IS NOT NULL)`);
+        const guardEnd = cleanup.indexOf('GC04 operator grant mismatch');
+        expect(guardEnd).toBeGreaterThan(cleanup.indexOf(fixtureGuard(m)) + fixtureGuard(m).length);
+        expect(guardEnd).toBeLessThan(cleanup.indexOf('DELETE FROM public.operator_grants'));
+        expect(guardEnd).toBeLessThan(cleanup.indexOf('INSERT INTO public.operator_grants'));
+        expect(setupSql(m) + cleanup).not.toMatch(/ON CONFLICT|(?:DROP|ALTER)\s+(?:INDEX|TABLE)|DISABLE TRIGGER/i);
+    });
     it('generates distinct shared browser/race fixtures and archives both without deleting history', () => {
         const m = make(), setup = setupSql(m), cleanup = cleanupSql(m);
         expect(m.version).toBe(2);

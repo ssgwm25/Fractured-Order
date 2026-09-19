@@ -130,7 +130,10 @@ describe('GC-01 regional Green specification', () => {
         for (const role of contract.other_roles) {
             expect(document).toContain(`| \`${role.role}\` | \`${role.route}\` | ${role.permission_profile} |`);
         }
-        const profiles = new Set([...allSeats, ...contract.other_roles].map(({ permission_profile }) => permission_profile));
+        const profiles = new Set([
+            ...[...allSeats, ...contract.other_roles].map(({ permission_profile }) => permission_profile),
+            ...contract.historical_permission_profiles
+        ]);
         expect([...profiles].sort()).toEqual(Object.keys(contract.permission_matrix).sort());
         expect(document).toContain(`| Profile | ${contract.permission_columns.join(' | ')} |`);
         for (const [profile, permissions] of Object.entries(contract.permission_matrix)) {
@@ -159,7 +162,9 @@ describe('GC-01 regional Green specification', () => {
         expect(contract.shared_seats[0]).toMatchObject({ capacity: 1, delegation_id: null, semantic_role: 'facilitator', route: 'teams/green/scribe.html' });
         expect(permission('shared_facilitator_foundation', 'submit_artifacts')).toBe('no');
         expect(permission('shared_facilitator_foundation', 'proposal_threads')).toBe('no');
-        expect(model.deferred_mutations).toEqual(['GC-05', 'GC-06', 'GC-07']);
+        expect(model.deferred_mutations).toEqual(['GC-06', 'GC-07']);
+        expect(model.permission_stage).toBe('GC-05-orientations');
+        expect(permission('shared_facilitator_orientations', 'submit_artifacts')).toBe('orientation_handoff_revision_only');
         expect(contract.topologies.regional_green.required_orientations).toHaveLength(5);
     });
 });

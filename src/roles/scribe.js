@@ -3258,6 +3258,17 @@ export class ScribeController {
     }
 
     renderPresentationToolbar(action = {}, actionViewModel = getBlueActionViewModel(action)) {
+        if ((this.teamContext.sharedFacilitator || action.delegation_id) && isStrategicOrientationAction(action)) {
+            const legacyPair = !this.teamContext.sharedFacilitator && action.orientation_handoff_revision == null
+                && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator';
+            const ready = isDraftAction(action) && isStrategicOrientationForwardedToScribe(action)
+                && (action.orientation_handoff_revision === action.revision_number || legacyPair);
+            const returned = getArtifactLifecycleViewModel(action).isReturned;
+            return `<footer class="scribe-presentation-toolbar scribe-presentation-toolbar--handoff-only">
+                <p role="status">${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || 'Green')}: ${ready ? 'Ready to submit this Scribe handoff.' : isDraftAction(action) ? 'Awaiting the originating Scribe’s corrected handoff.' : 'Submitted to White Cell.'}</p>
+                ${ready ? `<button type="button" class="btn btn-primary" data-scribe-action-submit data-action-id="${escapeHtml(action.id)}">${returned ? 'Resubmit to White Cell' : 'Submit to White Cell'}</button>` : ''}
+            </footer>`;
+        }
         const actionId = String(action.id || '');
         const isOrientation = isStrategicOrientationAction(action);
         const isProposal = isProposalAction(action);
@@ -3551,6 +3562,12 @@ export class ScribeController {
     }
 
     renderScribeStrategicOrientationSubmissionControls(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
+        if (action.delegation_id && isDraftAction(action)
+            && action.orientation_handoff_revision !== action.revision_number
+            && !(!this.teamContext.sharedFacilitator && action.orientation_handoff_revision == null
+                && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator')) {
+            return '<p role="status">Awaiting a corrected handoff from the originating regional Scribe. Refresh to retry after the Scribe forwards this revision.</p>';
+        }
         if (!isDraftAction(action)) {
             return '';
         }
@@ -3583,7 +3600,7 @@ export class ScribeController {
                 </div>
 
                 <p class="scribe-action-slide-lead-note">
-                    Project this orientation and its forecasts for ${escapeHtml(this.teamLabel)}, verify the team sees their completed work, then submit it to White Cell.
+                    Project this orientation and its forecasts for ${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || this.teamLabel)}, verify the team sees their completed work, then submit it to White Cell.
                 </p>
 
                 <div class="scribe-action-slide-submit-actions">
@@ -3935,7 +3952,7 @@ export class ScribeController {
     }
 
     async submitScribeAction(action = {}, selections = {}) {
-        if (this.teamContext.sharedFacilitator) return;
+        if (this.teamContext.sharedFacilitator && !isStrategicOrientationAction(action)) return;
         const wasReturned = getArtifactLifecycleViewModel(action).isReturned;
         if (isStrategicOrientationAction(action)) {
             await this.submitScribeStrategicOrientation(action);
@@ -4048,7 +4065,6 @@ export class ScribeController {
     }
 
     async submitScribeStrategicOrientation(action = {}) {
-        if (this.teamContext.sharedFacilitator) return;
         if (!isDraftAction(action) || !isStrategicOrientationForwardedToScribe(action)) {
             showToast({ message: 'Only scribe-forwarded Strategic Orientation drafts can be submitted by the facilitator.', type: 'error' });
             return;
@@ -4059,35 +4075,41 @@ export class ScribeController {
         const loader = showLoader({ message: 'Submitting Strategic Orientation to White Cell...' });
 
         try {
-            const submittedAction = await database.submitAction(action.id);
+            const submittedAction = action.delegation_id
+                ? await database.submitRegionalOrientation(action)
+                : await database.submitAction(action.id);
             actionsStore.updateFromServer('UPDATE', submittedAction);
 
-            const timelineEvent = await database.createTimelineEvent({
-                session_id: submittedAction.session_id || action.session_id,
-                type: 'STRATEGIC_ORIENTATION_SUBMITTED',
-                content: `Strategic Orientation submitted to White Cell by Facilitator: ${submittedAction.goal || action.goal || viewModel.title}`,
-                metadata: {
-                    related_id: submittedAction.id || action.id,
-                    role: this.role || this.teamContext.scribeRole,
-                    submitted_by: 'facilitator',
-                    legacy_submitted_by: 'scribe',
-                    strategic_orientation: true,
-                    period: STRATEGIC_ORIENTATION_PERIOD,
-                    artifact_type: viewModel.artifactType,
-                    orientation: viewModel.orientation,
-                    own_orientation: viewModel.ownOrientation,
-                    forecast_targets: viewModel.forecastTargets,
-                    orientation_rationale: viewModel.orientationRationale,
-                    forecast_action_description: viewModel.forecastActionDescription,
-                    strategy_description: viewModel.strategyDescription,
-                    revision_number: submittedAction.revision_number || action.revision_number || 1,
-                    workflow_state: submittedAction.workflow_state || null
-                },
-                team: this.teamId,
-                move: submittedAction.move ?? action.move ?? 1,
-                phase: submittedAction.phase ?? action.phase ?? 1
-            });
-            timelineStore.updateFromServer('INSERT', timelineEvent);
+            // Regional RPCs retain atomic audit records; browser timeline writes
+            // remain closed for the shared seat.
+            if (!action.delegation_id) {
+                const timelineEvent = await database.createTimelineEvent({
+                    session_id: submittedAction.session_id || action.session_id,
+                    type: 'STRATEGIC_ORIENTATION_SUBMITTED',
+                    content: `Strategic Orientation submitted to White Cell by Facilitator: ${submittedAction.goal || action.goal || viewModel.title}`,
+                    metadata: {
+                        related_id: submittedAction.id || action.id,
+                        role: this.role || this.teamContext.scribeRole,
+                        submitted_by: 'facilitator',
+                        legacy_submitted_by: 'scribe',
+                        strategic_orientation: true,
+                        period: STRATEGIC_ORIENTATION_PERIOD,
+                        artifact_type: viewModel.artifactType,
+                        orientation: viewModel.orientation,
+                        own_orientation: viewModel.ownOrientation,
+                        forecast_targets: viewModel.forecastTargets,
+                        orientation_rationale: viewModel.orientationRationale,
+                        forecast_action_description: viewModel.forecastActionDescription,
+                        strategy_description: viewModel.strategyDescription,
+                        revision_number: submittedAction.revision_number || action.revision_number || 1,
+                        workflow_state: submittedAction.workflow_state || null
+                    },
+                    team: this.teamId,
+                    move: submittedAction.move ?? action.move ?? 1,
+                    phase: submittedAction.phase ?? action.phase ?? 1
+                });
+                timelineStore.updateFromServer('INSERT', timelineEvent);
+            }
 
             showToast({
                 message: wasReturned
@@ -4359,7 +4381,6 @@ export class ScribeController {
     }
 
     renderStrategicOrientationSlide(slide, viewModel = getStrategicOrientationViewModel(slide.action || {})) {
-        if (this.teamContext.sharedFacilitator) return this.renderSharedRegionalRecord(slide.action);
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
         const lifecycleArtifact = getActionSlideLifecycleArtifact(action);
@@ -4374,7 +4395,7 @@ export class ScribeController {
             <article class="scribe-action-slide scribe-orientation-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
-                        <p class="scribe-action-slide-eyebrow">${escapeHtml(viewModel.teamLabel)}</p>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || viewModel.teamLabel)}</p>
                         <h2 class="scribe-action-slide-title">Strategic Orientation</h2>
                     </div>
                     <div class="scribe-action-slide-status">
@@ -4824,7 +4845,7 @@ export class ScribeController {
     }
 
     renderActionSlide(slide) {
-        if (this.teamContext.sharedFacilitator) return this.renderSharedRegionalRecord(slide.action);
+        if (this.teamContext.sharedFacilitator && !isStrategicOrientationAction(slide.action || {})) return this.renderSharedRegionalRecord(slide.action);
         if (slide.slideType === 'action-placeholder') {
             return `
                 <article class="scribe-action-slide scribe-action-slide-placeholder">

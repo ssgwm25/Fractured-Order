@@ -1,6 +1,6 @@
 # GC-01: Regional Green identity and permission contract
 
-Contract version **1.1.1**, source review **2026-09-18**. Status: proposed,
+Contract version **1.2.0**, GC-05 amendment **2026-09-25**. Status: proposed,
 not activated; human review and verification pending. This is the implementation
 reference for GC-02 through GC-12 in the [prompt book](../green-cell-regional-split-prompt-book.md).
 The [declarative contract](green-regional-contract.json) contains the exact
@@ -40,7 +40,11 @@ migration and tests have not been executed by the agent. This amendment does
 not declare the exercise operational or any gate passed.
 
 The JSON fixture's `deferred_mutations` lists implementation owners, not enabled
-permissions. Its foundation permission matrix remains unchanged in version 1.1.1.
+permissions. The historical foundation profile remains unchanged. Version 1.2.0
+selects `shared_facilitator_orientations`: orientation submission is bound to the
+persisted region and Scribe handoff revision; returned orientations and their
+linked review/revision records are readable. Private drafts and unrelated shared
+writes remain closed. See [GC-05 implementation and verification](gc05-regional-orientations.md).
 Later prompts must version the applicable permission expectations and preserve
 historical evidence; no model label or document update activates those operations.
 GC-08 composes atomic creation around GC-04A setup/freeze rules; GC-09 reconciles
@@ -150,7 +154,7 @@ seat. Routes reuse existing HTML/controllers; no new Vite entry pages are needed
 
 | Topology | Persisted role | Semantic role | Delegation | Capacity | Route | Permission profile |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `green_shared_facilitator` | facilitator | null | 1 | `teams/green/scribe.html` | shared_facilitator_foundation |
+| 2 | `green_shared_facilitator` | facilitator | null | 1 | `teams/green/scribe.html` | shared_facilitator_orientations |
 | 2 | `green_asian_pacific_facilitator` | facilitator | asian_pacific | 1 | `teams/green/scribe.html?delegation=asian_pacific` | regional_facilitator |
 | 2 | `green_asian_pacific_scribe` | scribe | asian_pacific | 1 | `teams/green/facilitator.html?delegation=asian_pacific` | regional_scribe |
 | 2 | `green_europe_facilitator` | facilitator | europe | 1 | `teams/green/scribe.html?delegation=europe` | regional_facilitator |
@@ -202,6 +206,7 @@ cross-region private reads or writes. The fixture uses these exact column names.
 | regional_scribe | own | draft_returned | no | read_own | addressed | read_own | no | no |
 | regional_facilitator | own | forwarded_returned | own | manage_own | own_white_cell | append_own | no | no |
 | shared_facilitator_foundation | both_forwarded_submitted_completed | no | no | no | addressed_read_only | no | no | no |
+| shared_facilitator_orientations | foundation_plus_orientation_returns_reviews | no | orientation_handoff_revision_only | no | addressed_read_only | no | no | no |
 | regional_notetaker | own_released | no | no | read_own | addressed | no | own_seat | no |
 | legacy_scribe | legacy_session | draft_returned | legacy_submit | read_own | legacy_addressed | legacy_append | legacy_notes_read | no |
 | legacy_facilitator | legacy_session | forwarded_returned | own | manage_own | own_white_cell | legacy_append | legacy_notes_read | no |

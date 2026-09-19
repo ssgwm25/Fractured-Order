@@ -698,26 +698,33 @@ export function isStrategicOrientationSubmittedToWhiteCell(action = {}) {
         && SUBMITTED_TO_WHITE_CELL_STATUSES.has(action?.status);
 }
 
-export function getStrategicOrientationCompletion(actions = []) {
+export function getStrategicOrientationCompletion(actions = [], session = {}) {
+    const regional = (session.session_topology_version ?? session.sessionTopologyVersion) === 2;
+    const sessionId = session.id ?? session.sessionId;
+    const requiredTeams = regional
+        ? ['blue', 'green:asian_pacific', 'green:europe', 'red', 'industry']
+        : [...STRATEGIC_ORIENTATION_REQUIRED_TEAMS];
     const submittedTeams = new Set();
 
     (actions || []).forEach((action) => {
-        if (!isStrategicOrientationSubmittedToWhiteCell(action)) {
+        if (action.is_deleted || (sessionId && action.session_id !== sessionId)
+            || !isStrategicOrientationSubmittedToWhiteCell(action)) {
             return;
         }
 
-        const viewModel = getStrategicOrientationViewModel(action);
-        const teamId = viewModel.team || action.team;
-        if (STRATEGIC_ORIENTATION_REQUIRED_TEAMS.includes(teamId)) {
+        // Ownership is the persisted row, never the participant-written envelope.
+        const teamId = regional && action.team === 'green'
+            ? `green:${action.delegation_id}` : action.team;
+        if (requiredTeams.includes(teamId)) {
             submittedTeams.add(teamId);
         }
     });
 
-    const missingTeams = STRATEGIC_ORIENTATION_REQUIRED_TEAMS.filter((teamId) => !submittedTeams.has(teamId));
+    const missingTeams = requiredTeams.filter((teamId) => !submittedTeams.has(teamId));
 
     return {
         complete: missingTeams.length === 0,
-        requiredTeams: [...STRATEGIC_ORIENTATION_REQUIRED_TEAMS],
+        requiredTeams,
         submittedTeams: [...submittedTeams],
         missingTeams
     };

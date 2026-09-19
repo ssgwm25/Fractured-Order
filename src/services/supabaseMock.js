@@ -1,3 +1,5 @@
+import { getStrategicOrientationCompletion, parseStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
+
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
@@ -846,10 +848,20 @@ function regionalCanRead(state, tableName, row, authUserId) {
     const team = getLiveDemoParticipantTeam(state, authUserId, row.session_id);
     const author = ['facilitator', 'scribe'].includes(surface);
     if (seat.role === 'green_shared_facilitator') {
+        if (tableName === 'artifact_workflow_reviews' || tableName === 'action_logs') {
+            const action = state.tables.actions.find((a) => a.id === (row.artifact_id || row.action_id)
+                && a.session_id === row.session_id);
+            return Boolean(action && isRegionalOrientation(action)
+                && (tableName !== 'artifact_workflow_reviews' || (row.artifact_kind === 'strategic_orientation'
+                    && row.team === action.team && row.delegation_id === action.delegation_id
+                    && row.artifact_type === action.artifact_type && row.next_revision_number <= action.revision_number))
+                && regionalCanRead(state, 'actions', action, authUserId));
+        }
         if (['session_participants', 'game_state'].includes(tableName)) return true;
         if (tableName === 'actions') return row.team === 'green'
             && ['asian_pacific', 'europe'].includes(row.delegation_id)
-            && ['forwarded_to_facilitator', 'submitted_to_white_cell', 'completed'].includes(row.workflow_state);
+            && (['forwarded_to_facilitator', 'submitted_to_white_cell', 'completed'].includes(row.workflow_state)
+                || isRegionalOrientation(row) && ['returned_to_team', 'resubmitted'].includes(row.workflow_state));
         if (tableName === 'communications') return row.from_role === 'white_cell'
             && !['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(row.type)
             && (row.to_role === seat.role || ['session', 'both_green_delegations'].includes(row.recipient_scope));
@@ -909,6 +921,9 @@ function regionalCanWrite(state, tableName, row, old, authUserId) {
     if (['actions', 'requests'].includes(tableName) && !regionalOwns(state, authUserId, row)) return false;
     switch (tableName) {
         case 'actions': {
+            // Match the orientation-only restrictive RLS policy: direct table
+            // writes cannot bypass revision-bound handoff/submission RPCs.
+            if (isRegionalOrientation(row) || isRegionalOrientation(old)) return false;
             const status = row.status || 'draft';
             if (['reviewed_at', 'reviewed_by_auth_user_id', 'reviewed_by_role', 'review_notes', 'outcome', 'adjudication', 'adjudication_notes'].some((key) => !compareValues(row[key] ?? null, old?.[key] ?? null))
                 || (row.revision_number ?? 1) !== (old?.revision_number ?? 1)) return false;
@@ -2181,6 +2196,87 @@ function listActiveSessionParticipants(state, {
     };
 }
 
+function isRegionalOrientation(action) {
+    return action?.team === 'green' && ['asian_pacific', 'europe'].includes(action.delegation_id)
+        && ['strategic_orientation_selection', 'strategic_orientation_forecast'].includes(action.artifact_type)
+        && Boolean(parseStrategicOrientationDetails(action.ally_contingencies));
+}
+
+function orientationCompletion(state, sessionId) {
+    const session = state.tables.sessions.find((s) => s.id === sessionId);
+    return getStrategicOrientationCompletion(state.tables.actions, session || { id: sessionId });
+}
+
+function orientationGateError(state, next, old = null) {
+    if (old && next.session_id === old.session_id && next.move === old.move && next.phase === old.phase || next.move === 1 && next.phase === 1) return null;
+    const result = orientationCompletion(state, next.session_id);
+    return result.complete ? null : { code: '23514', message: `Strategic Orientation submissions missing: ${result.missingTeams.join(', ')}` };
+}
+
+function regionalOrientationOperation(state, params, operation) {
+    const auth = getCurrentAuthUserId();
+    const sid = params.requested_session_id;
+    const delegation = params.requested_delegation_id;
+    const seat = getParticipantSeatForSession(state, auth, sid);
+    const session = state.tables.sessions.find((s) => s.id === sid);
+    const denied = (code = '42501', message = 'GC05_ORIENTATION_SCOPE_DENIED') => ({ data: null, error: { code, message } });
+    if (!seat || !session?.green_roster_version || !session.green_roster_snapshot
+        || !isRegionalSession(state, sid) || !['asian_pacific', 'europe'].includes(delegation)) return denied();
+    const allowed = operation === 'handoff'
+        ? seat.role === `green_${delegation}_scribe` && seat.delegation_id === delegation
+        : seat.role === `green_${delegation}_facilitator` && seat.delegation_id === delegation
+            || seat.role === 'green_shared_facilitator'
+                && state.tables.sessions.some((s) => s.id === sid && s.green_seat_model === 'shared_facilitator_v1');
+    if (!allowed) return denied();
+    let action = state.tables.actions.find((a) => a.id === params.requested_action_id);
+    if (params.requested_action_id != null) {
+        if (!action || action.session_id !== sid || action.delegation_id !== delegation || action.is_deleted
+            || !isRegionalOrientation(action)) return denied();
+        if (action.revision_number !== params.requested_expected_revision || action.row_version !== params.requested_expected_row_version) {
+            return denied('PT409', 'GC05_STALE_ORIENTATION_REVISION');
+        }
+    } else if (operation !== 'handoff') return denied();
+    const timestamp = getTimestamp();
+    if (operation === 'handoff') {
+        const details = parseStrategicOrientationDetails(params.requested_details);
+        if (!details || details.team !== 'green' || details.contractVersion !== 2
+            || details.artifactType !== 'orientation_and_forecast' || details.period !== 'pre_move_1'
+            || !details.ownOrientation || details.forecastTargets.length !== 1
+            || details.forecastTargets[0].key !== 'blue' || !details.strategyDescription || details.scribeHandoff !== 'Forwarded') {
+            return denied('23514', 'GC05_ORIENTATION_DETAILS_REQUIRED');
+        }
+        if (!action) {
+            if (params.requested_expected_revision != null || params.requested_expected_row_version != null) return denied('PT409', 'GC05_NEW_ORIENTATION_VERSION');
+            if (state.tables.actions.some((a) => a.session_id === sid && a.delegation_id === delegation
+                && !a.is_deleted && isRegionalOrientation(a))) return denied('23505', 'GC05_DUPLICATE_ORIENTATION');
+            const game = state.tables.game_state.find((g) => g.session_id === sid);
+            if (!game || game.move !== 1 || game.phase !== 1) return denied('23514', 'Orientation requires initial game state.');
+            action = normalizeInsertRow('actions', { session_id: sid, team: 'green', delegation_id: delegation,
+                move: 1, phase: 1, status: 'draft', artifact_type: 'strategic_orientation_forecast',
+                mechanism: 'Strategic Orientation', sector: '', exposure_type: 'pre_move_1',
+                created_by_auth_user_id: auth, created_by_role: seat.role }, state);
+        } else {
+            if (action.status !== 'draft' || !['draft', 'returned_to_team'].includes(action.workflow_state)) return denied('23514', 'GC05_ORIENTATION_HANDOFF_STATE');
+            action = { ...action, row_version: action.row_version + 1 };
+        }
+        action = { ...action, goal: params.requested_goal, ally_contingencies: params.requested_details,
+            expected_outcomes: details.ownOrientation.tag, orientation_handoff_revision: action.revision_number,
+            workflow_state: action.workflow_state === 'returned_to_team' ? 'returned_to_team' : 'forwarded_to_facilitator' };
+    } else {
+        const pairedLegacyHandoff = state.tables.sessions.some((s) => s.id === sid && greenSeatModel(s) === 'regional_pairs_v1')
+            && action.orientation_handoff_revision == null && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator';
+        if (action.status !== 'draft' || !['forwarded_to_facilitator', 'returned_to_team'].includes(action.workflow_state)
+            || action.orientation_handoff_revision !== action.revision_number && !pairedLegacyHandoff) return denied('23514', 'GC05_ORIENTATION_HANDOFF_REQUIRED');
+        action = { ...action, status: 'submitted', row_version: action.row_version + 1,
+            workflow_state: action.workflow_state === 'returned_to_team' ? 'resubmitted' : 'submitted_to_white_cell',
+            submitted_at: timestamp, submitted_by_auth_user_id: auth, submitted_by_role: seat.role };
+    }
+    action = { ...action, updated_at: timestamp, last_modified_by_auth_user_id: auth, last_modified_by_role: seat.role };
+    const index = state.tables.actions.findIndex((a) => a.id === action.id);
+    if (index < 0) state.tables.actions.push(action); else state.tables.actions[index] = action;
+    return { data: cloneValue(action), error: null };
+}
+
 function operatorUpdateGameState(state, params) {
     const authUserId = getCurrentAuthUserId();
     const grant = getOperatorGrant(state, authUserId, 'whitecell');
@@ -2208,6 +2304,9 @@ function operatorUpdateGameState(state, params) {
         updated_at: getTimestamp()
     };
 
+    const gateError = orientationGateError(state, updated, gameState);
+    if (gateError) return { data: null, error: gateError };
+
     state.tables.game_state = state.tables.game_state.map((entry) => (
         entry.id === updated.id ? updated : entry
     ));
@@ -2232,7 +2331,6 @@ function operatorAdjudicateAction(state, params) {
     if (!grant || grant.session_id !== action.session_id) {
         return { data: null, error: { message: 'White Cell operator authorization is required.' } };
     }
-
     if (action.status !== 'submitted') {
         return { data: null, error: { message: 'Only submitted actions can be adjudicated.' } };
     }
@@ -2377,6 +2475,10 @@ function operatorReviewArtifact(state, params) {
     if (!grant || grant.session_id !== action.session_id) {
         return { data: null, error: { message: 'White Cell operator authorization is required.' } };
     }
+    if (kind === 'strategic_orientation' && isRegionalSession(state, action.session_id)
+        && getLiveDemoParticipantSurface(state, authUserId, action.session_id) !== 'whitecell') {
+        return { data: null, error: { code: '42501', message: 'An active White Cell session seat is required.' } };
+    }
     if (String(action.team || '').trim().toLowerCase() !== team) {
         return { data: null, error: { message: 'Requested team does not match the artifact submitting team.' } };
     }
@@ -2443,6 +2545,7 @@ function operatorReviewArtifact(state, params) {
     const updatedAction = {
         ...action,
         status: isReturn ? 'draft' : 'adjudicated',
+        orientation_handoff_revision: isReturn ? null : action.orientation_handoff_revision,
         workflow_state: isReturn ? 'returned_to_team' : 'completed',
         revision_number: nextRevision,
         prior_workflow_state: action.workflow_state,
@@ -2461,6 +2564,7 @@ function operatorReviewArtifact(state, params) {
     };
     const review = normalizeInsertRow('artifact_workflow_reviews', {
         session_id: action.session_id,
+        delegation_id: action.delegation_id ?? null,
         artifact_kind: kind,
         artifact_id: action.id,
         artifact_type: artifactType,
@@ -3864,6 +3968,15 @@ export function createE2EMockSupabaseClient() {
                 return mutateMockState((state) => listActiveSessionParticipants(state, params));
             }
 
+            if (functionName === 'get_orientation_completion') {
+                const state = readMockState();
+                if (!liveDemoCanReadSession(state, getCurrentAuthUserId(), params.requested_session_id)) return { data: null, error: buildRlsError('actions') };
+                return { data: orientationCompletion(state, params.requested_session_id), error: null };
+            }
+            if (functionName === 'handoff_regional_orientation' || functionName === 'submit_regional_orientation') {
+                return mutateMockState((state) => regionalOrientationOperation(state, params,
+                    functionName === 'handoff_regional_orientation' ? 'handoff' : 'submit'));
+            }
             if (functionName === 'operator_update_game_state') {
                 return mutateMockState((state) => operatorUpdateGameState(state, params));
             }
