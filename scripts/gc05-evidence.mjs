@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { promptToken } from './gc03-race-runner.mjs';
+import { promptGitHubToken, lookupGitHubWorkflow, assertGitHubLookup } from './gc05-github.mjs';
 import { redact } from './gc04-live-contract.mjs';
 import { MANAGEMENT_PROBE, assertManagementReady } from './gc05-live-contract.mjs';
 import { evidencePaths, deployedURL, deploymentRun, assertDeploymentRun, assertBrowserReport, assertAssetReceipt,
@@ -107,7 +108,7 @@ async function sqlRun(report, directory, secrets) {
     report.sql = assertSqlReceipt(await send('assertions-and-rollback', sqlEvidenceQuery(suite), false), report.suiteSha256);
     report.sqlPassed = true;
 }
-async function browserRun(mode, report, paths) {
+async function browserRun(mode, report, paths, secrets) {
     const hosted = mode === 'deployed';
     const target = hosted ? deployedURL(process.env.GC05_DEPLOYED_URL
         || await ask('Deployed website directory URL: ')) : 'http://127.0.0.1:4174/';
@@ -117,13 +118,11 @@ async function browserRun(mode, report, paths) {
         const workflow = deploymentRun(process.env.GC05_DEPLOYMENT_RUN_URL
             || await ask('Successful Deploy GitHub Pages Actions run URL: '));
         report.workflow = { ...workflow };
-        const response = await fetch(workflow.api, { redirect: 'error', headers: { Accept: 'application/vnd.github+json' },
-            signal: AbortSignal.timeout(30000) });
-        report.workflow.status = response.status;
-        check(response.ok, `Deployment workflow lookup failed: HTTP ${response.status}`);
-        const data = await response.json();
-        report.workflow.receipt = data;
-        assertDeploymentRun(data, report.source, workflow.url);
+        const token = await promptGitHubToken();
+        if (token) secrets.push(token);
+        report.workflow = await lookupGitHubWorkflow(workflow.url, token);
+        assertGitHubLookup(report.workflow);
+        assertDeploymentRun(report.workflow.receipt, report.source, workflow.url);
     }
     const pkg = JSON.parse(await readFile('package.json', 'utf8'));
     const basePath = new URL(target).pathname;
@@ -166,7 +165,7 @@ export async function main(mode) {
         report.operator = process.env.GC05_EVIDENCE_OPERATOR || await ask('Evidence operator name or initials: ');
         check(report.operator.length > 0, 'An operator label is required.');
         if (mode === 'sql') await sqlRun(report, paths.directory, secrets);
-        else await browserRun(mode, report, paths);
+        else await browserRun(mode, report, paths, secrets);
         const finalSource = await sourceSnapshot();
         check(JSON.stringify(finalSource) === JSON.stringify(report.source), 'Source changed during verification; retain this failed run and retry.');
         report.passed = true;

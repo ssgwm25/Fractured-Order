@@ -212,9 +212,64 @@ if ($LASTEXITCODE -ne 0) { throw 'GC05 deployed verification failed; retain its 
 At the terminal prompt, paste the successful **Deploy GitHub Pages** Actions run
 URL. Find it in the repository's **Actions → Deploy GitHub Pages → successful
 run**, and copy the browser URL (`https://github.com/OWNER/REPO/actions/runs/NUMBER`).
-Alternatively set `GC05_DEPLOYMENT_RUN_URL` to that URL before running. No token
-is required for a public GitHub Actions run. Private or inaccessible run metadata
-remains a blocker; this tool does not silently skip provenance checks.
+Alternatively set `GC05_DEPLOYMENT_RUN_URL` to that URL before running.
+
+The collector now asks for a **GitHub personal access token** at a hidden prompt.
+For this repository's restricted workflow metadata, use a fine-grained token
+whose resource owner/repository access includes `ssgwm25/Fractured-Order`, with
+**Actions: read** repository permission. Create it under GitHub Settings >
+Developer settings > Personal access tokens > Fine-grained tokens. Follow any
+required owner approval for the repository. This is a GitHub credential, not the
+Supabase token used for SQL. GitHub documents the read permission for
+[Get a workflow run](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
+
+Paste the token only at the hidden terminal prompt. Do not place it in chat,
+shell command history, `.env.local` or a `VITE_` variable. The collector holds it
+in the Node process, sends it only in the Authorization header of the derived
+`https://api.github.com/repos/.../actions/runs/...` GET request, rejects redirects,
+and redacts it from response/error evidence. It is not passed to build or browser
+child processes. No new credential environment variable is introduced.
+An empty entry preserves unauthenticated access for public runs; noninteractive
+execution also remains public-only. A failed authenticated request is recorded
+without falling back to anonymous access or skipping provenance checks.
+
+The change adds `scripts/gc05-github.mjs`, integrates it in
+`scripts/gc05-evidence.mjs`, and adds `tests/unit/gc05-github.test.js`; this runbook
+is the fourth changed file. No application, migration or workflow permission is
+changed. The supplied unauthenticated failure remains at
+`output/release-evidence/gc05/f0b534aa-1d84-4d1c-9207-6a648c9fb599/results.json`:
+HTTP 404, `passed: false`, from `2026-09-19T05:40:36.386Z` through
+`2026-09-19T05:40:40.568Z`. It recorded a clean checkout at
+`a2905cbe1942a8241445256c7d1560dc217363e6`. The human confirmed that the referenced
+successful run is visible when signed into GitHub. No deployed browser checks
+ran in that attempt, and its result is not rewritten.
+
+First verify the authentication correction (no network, SQL or browser launch):
+
+```powershell
+npm test -- tests/unit/gc05-github.test.js tests/unit/gc05-evidence.test.js tests/unit/gc05-browser-config.test.js tests/unit/gc05-sql-runner.test.js
+if ($LASTEXITCODE -ne 0) { throw 'GC05 authenticated evidence tooling checks failed.' }
+```
+
+Expected: **49 tests pass across four files**, without skips. The 15 new cases
+cover authenticated/public requests, exact GitHub destination, redirect refusal,
+malformed token rejection, error/receipt redaction, HTTP failures and malformed
+JSON. Existing clean-commit, workflow and asset checks remain in force. These
+tests have not been executed by the agent.
+
+The human supplied a successful rerun: **49 tests passed across all four files**,
+none reported skipped, using Vitest 1.6.1. The transcript records start
+`01:52:20` and duration `1.65s`; it supplies no calendar date or source hash.
+This includes all 15 authenticated-lookup regressions. It does not establish
+live GitHub access or a deployed-site pass.
+
+Next, review and commit these four changed files through the normal
+release process and use the successful Pages run for that new commit. The older
+run URL for commit `a2905cb` cannot prove a later commit. Ensure the checkout is
+clean and update `GC05_DEPLOYMENT_RUN_URL` to the new run URL (or remove that
+environment variable so the collector asks for it). Then execute the deployed
+command above and supply the GitHub token when prompted. This correction does
+not authorize the agent to commit, publish, or execute verification commands.
 
 The collector fetches that workflow receipt, requires a successful Pages run
 whose SHA matches the clean checkout, builds the matching base locally, then
@@ -250,7 +305,10 @@ assertions with verified fixture rollback and recorded metadata as detailed
 above. The fresh root-path browser collection passed both cases and its saved
 JSON hash was verified. Deployed verification still awaits a clean checkout
 matching a published Pages commit, its successful workflow run URL, and human
-execution of the deployed collector. The current working tree is uncommitted;
+execution of the deployed collector with authenticated workflow access. The
+authentication tooling now has a supplied 49-test passing run, including the 15
+new cases. That correction must be committed before using the deployed collector.
+The current working tree is uncommitted;
 do not treat the local browser pass as deployment provenance. The historical
 GC05 acceptance remains scoped as stated by the human; it is not automatically
 expanded when tooling is added. Record actual result paths, times and outcomes
