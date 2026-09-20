@@ -279,8 +279,16 @@ and the landing directory URL. Redirects, stale files and missing routes fail.
 It then runs two dedicated checks against the deployed URL without starting a
 local server: landing controls/reload with the mock disabled, and direct Green
 workspace URLs retaining the unauthenticated seat gate and Return to join path.
-All write requests and Supabase requests are blocked; any attempted backend
-access fails the check. Service workers are blocked so they cannot bypass request
+All write requests and Supabase requests are blocked. The landing page's existing
+anonymous-identity prewarm attempts `POST /auth/v1/signup` on load. The check
+records this exact request to the configured production Supabase origin as
+expected only after `route.abort('blockedbyclient')` completes. It never forwards
+or fulfills it, creates an identity, or supplies a fake auth response. Every other
+backend request, every other write and any failed abort fail the check. The two
+cases wait for a blocked bootstrap on each landing navigation and attach sanitized
+origin/path/method/abort receipts to the browser report. No request headers,
+bodies, credentials or query values are copied into these receipts.
+Service workers are blocked so they cannot bypass request
 interception. The deployed spec is excluded from ordinary local runs; the
 explicit deployed collector requires both cases to run without skips.
 
@@ -300,16 +308,63 @@ not passed by this collector.
 
 ## Evidence status
 
+### Deployed browser harness correction
+
+Human run `30ba8ae5-2324-4c41-9994-1f1057a6cd0b` verified the matching Pages
+workflow and all deployed asset bytes (`deployedAssetsPassed: true`), then failed
+both browser cases in their shared teardown assertion. Its retained browser log
+and traces show three intercepted `POST /auth/v1/signup` attempts to
+`gsromgrxgrwwfywaoyme.supabase.co`. The original assertion required zero attempted
+backend requests, conflicting with `LandingController.init()` calling
+`prewarmBrowserIdentity()`. Retain the failed report unchanged; it is not a pass.
+
+The correction changes verification tooling only: `tests/e2e/gc05-deployed.e2e.js`,
+the new `tests/e2e/support/gc05DeployedRequests.js`, the new
+`tests/unit/gc05-deployed-requests.test.js`, and this runbook. Production identity
+bootstrap, permission checks and database functions are unchanged. This explicitly
+corrects the earlier zero-attempt expectation while preserving zero backend
+traffic. The deployed checks cover rendering and seat gates with identity
+bootstrap deliberately blocked; they do not establish successful hosted sign-in.
+
+Run the narrow tooling regression before committing these four files:
+
+```powershell
+npm test -- tests/unit/gc05-deployed-requests.test.js tests/unit/gc05-evidence.test.js tests/unit/gc05-browser-config.test.js tests/unit/gc05-github.test.js tests/unit/gc05-sql-runner.test.js
+if ($LASTEXITCODE -ne 0) { throw 'GC05 deployed containment tooling checks failed.' }
+```
+
+Expected: 64 tests across five files, no failures or skips. The 15 added cases
+cover exact-origin signup blocking, unexpected backend/write traffic, failed and
+pending aborts, missing bootstrap evidence and invalid backend configuration.
+No tests or browser runs were executed by the agent. After human verification,
+commit the four files and publish through the normal Pages workflow. The collector
+requires a clean checkout at that new successful Pages commit, even though the
+application bundle is unchanged. Clear the old workflow URL and provide the new
+successful **Deploy GitHub Pages** run when asked:
+
+```powershell
+Remove-Item Env:GC05_DEPLOYMENT_RUN_URL -ErrorAction SilentlyContinue
+$env:GC05_DEPLOYED_URL = 'https://ssgwm25.github.io/Fractured-Order/'
+node --preserve-symlinks --preserve-symlinks-main scripts/gc05-evidence.mjs deployed
+if ($LASTEXITCODE -ne 0) { throw 'GC05 deployed verification failed; retain its report.' }
+```
+
+Expected: matching workflow and assets, both browser cases passing with retained
+blocked-bootstrap receipts, and `PASS: GC05 deployed`. Fresh execution remains
+required; the historical local/hosted acceptance and operational roster boundary
+are unchanged.
+
+### Earlier evidence
+
 The tooling rerun passed 34 tests, and the fresh SQL collection passed 102
 assertions with verified fixture rollback and recorded metadata as detailed
 above. The fresh root-path browser collection passed both cases and its saved
-JSON hash was verified. Deployed verification still awaits a clean checkout
-matching a published Pages commit, its successful workflow run URL, and human
-execution of the deployed collector with authenticated workflow access. The
-authentication tooling now has a supplied 49-test passing run, including the 15
-new cases. That correction must be committed before using the deployed collector.
-The current working tree is uncommitted;
-do not treat the local browser pass as deployment provenance. The historical
+JSON hash was verified. The authentication tooling has a supplied 49-test passing
+run, including its 15 authentication cases. The later deployed run recorded above
+verified workflow access and served asset identity but failed browser teardown.
+The new containment correction remains untested and uncommitted; it requires its
+own clean published commit and fresh deployed browser evidence. Do not treat the
+local browser pass as deployment provenance. The historical
 GC05 acceptance remains scoped as stated by the human; it is not automatically
 expanded when tooling is added. Record actual result paths, times and outcomes
 after execution.
