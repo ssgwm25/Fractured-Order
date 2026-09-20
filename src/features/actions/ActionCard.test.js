@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createActionCard } from './ActionCard.js';
+import { createActionCard, createCompactActionCard } from './ActionCard.js';
 import { serializeProposalDetails } from './proposalDetails.js';
 
 const priorDocument = globalThis.document;
@@ -31,6 +31,12 @@ afterEach(() => {
 });
 
 describe('proposal action cards', () => {
+    it.each([createActionCard, createCompactActionCard])('shows region and revision without relabeling unified records', (render) => {
+        globalThis.document = { createElement: (tagName) => createFakeElement(tagName) };
+        const action = { id:'regional',goal:'Synthetic proposal',status:'draft',delegation_id:'europe',revision_number:3 };
+        expect(render(action, {showActions:false}).innerHTML).toContain('Green - Europe &middot; Revision 3');
+        expect(render({...action,delegation_id:null}, {showActions:false}).innerHTML).not.toContain('Green - Europe');
+    });
     it('uses lifecycle state and never renders historical outcome badges', () => {
         globalThis.document = { createElement: (tagName) => createFakeElement(tagName) };
 

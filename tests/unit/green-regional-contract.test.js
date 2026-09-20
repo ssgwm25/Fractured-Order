@@ -72,10 +72,7 @@ describe('GC-01 regional Green specification', () => {
         }
     });
 
-    it('retains conflicting roster evidence without approving a union or a global-target roster', () => {
-        expect(contract.roster.status).toBe('unresolved');
-        expect(contract.roster.approved_version).toBeNull();
-        expect(contract.roster.membership_validation_enabled).toBe(false);
+    it('retains the original conflicting roster evidence without rewriting the briefing', () => {
         const [form, briefing] = contract.roster.candidates;
         expect(contract.roster.candidates).toHaveLength(2);
         expect([...form.asian_pacific, ...form.europe].sort()).toEqual([...PROPOSAL_ORIGINATORS].sort());
@@ -88,6 +85,25 @@ describe('GC-01 regional Green specification', () => {
         for (const entity of [...briefing.asian_pacific, ...briefing.europe]) {
             expect(slide).toContain(`<li>${entity}</li>`);
         }
+    });
+
+    it('pins the explicitly approved regional roster with supplied session-bound validation and no membership expansion', () => {
+        expect(contract.roster.status).toBe('approved');
+        expect(contract.roster.approved_version).toBe('green-roster-v1');
+        expect(contract.roster.approval_source).toBe('Explicit user instruction in this conversation');
+        expect(contract.roster.approval_date).toBe('2026-09-20');
+        expect(contract.roster.approved_members).toEqual({
+            asian_pacific: ['ROK', 'Japan', 'ASEAN'], europe: ['UK', 'France', 'EU']
+        });
+        expect(contract.roster.approved_labels).toEqual({
+            ROK: 'South Korea', Japan: 'Japan', ASEAN: 'ASEAN', UK: 'UK', France: 'France', EU: 'EU'
+        });
+        expect(contract.roster.aliases).toEqual({ 'South Korea': 'ROK' });
+        expect(Object.values(contract.roster.approved_members).flat().sort())
+            .toEqual([...PROPOSAL_ORIGINATORS].sort());
+        expect(contract.roster.membership_validation_enabled).toBe(true);
+        expect(contract.status).toBe('proposed_not_activated');
+        expect(document).toContain('green-roster-v1');
     });
 
     it('keeps regional drafting, submission, private threads and notes in separate capabilities', () => {
@@ -123,22 +139,23 @@ describe('GC-01 regional Green specification', () => {
 
     it('keeps the architecture identity and permission tables synchronized with the fixture', () => {
         expect(document).toContain(`Contract version **${contract.contract_version}**`);
+        const tableRows = document.split(/\r?\n/).filter((line) => line.startsWith('| '));
         for (const seat of allSeats) {
             const topology = seat.delegation_id === null && seat.role !== 'green_shared_facilitator' ? 1 : 2;
-            expect(document).toContain(`| ${topology} | \`${seat.role}\` | ${seat.semantic_role} | ${seat.delegation_id} | ${seat.capacity} | \`${seat.route}\` | ${seat.permission_profile} |`);
+            expect(tableRows).toContain(`| ${topology} | \`${seat.role}\` | ${seat.semantic_role} | ${seat.delegation_id} | ${seat.capacity} | \`${seat.route}\` | ${seat.permission_profile} |`);
         }
         for (const role of contract.other_roles) {
-            expect(document).toContain(`| \`${role.role}\` | \`${role.route}\` | ${role.permission_profile} |`);
+            expect(tableRows.some((row) => row.startsWith(`| \`${role.role}\` | \`${role.route}\` | ${role.permission_profile} |`))).toBe(true);
         }
         const profiles = new Set([
             ...[...allSeats, ...contract.other_roles].map(({ permission_profile }) => permission_profile),
             ...contract.historical_permission_profiles
         ]);
         expect([...profiles].sort()).toEqual(Object.keys(contract.permission_matrix).sort());
-        expect(document).toContain(`| Profile | ${contract.permission_columns.join(' | ')} |`);
+        expect(tableRows).toContain(`| Profile | ${contract.permission_columns.join(' | ')} |`);
         for (const [profile, permissions] of Object.entries(contract.permission_matrix)) {
             expect(permissions).toHaveLength(contract.permission_columns.length);
-            expect(document).toContain(`| ${profile} | ${permissions.join(' | ')} |`);
+            expect(tableRows).toContain(`| ${profile} | ${permissions.join(' | ')} |`);
         }
     });
 
@@ -162,9 +179,12 @@ describe('GC-01 regional Green specification', () => {
         expect(contract.shared_seats[0]).toMatchObject({ capacity: 1, delegation_id: null, semantic_role: 'facilitator', route: 'teams/green/scribe.html' });
         expect(permission('shared_facilitator_foundation', 'submit_artifacts')).toBe('no');
         expect(permission('shared_facilitator_foundation', 'proposal_threads')).toBe('no');
-        expect(model.deferred_mutations).toEqual(['GC-06', 'GC-07']);
-        expect(model.permission_stage).toBe('GC-05-orientations');
+        expect(model.deferred_mutations).toEqual(['GC-07']);
+        expect(model.permission_stage).toBe('GC-06-proposals');
         expect(permission('shared_facilitator_orientations', 'submit_artifacts')).toBe('orientation_handoff_revision_only');
+        expect(permission('shared_facilitator_proposals', 'proposal_threads')).toBe('approved_current_revision_threads');
+        expect(permission('shared_facilitator_proposals', 'rfis')).toBe('no');
+        expect(permission('shared_facilitator_proposals', 'notes')).toBe('no');
         expect(contract.topologies.regional_green.required_orientations).toHaveLength(5);
     });
 });

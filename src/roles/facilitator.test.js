@@ -1237,6 +1237,18 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(content.innerHTML).toContain('data-proposal-supply-chain-area="true"');
     });
 
+    it('GC06 renders only the approved regional originators and retains all required fields', async () => {
+        global.document = createFakeDocument();
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'green'; controller.teamContext = { ...controller.teamContext,delegationId:'europe' };
+        controller.proposalRoster = { members:['UK','France','EU'],aliases:{} };
+        const content = controller.createGreenProposalContent({ delegation_id:'europe' });
+        for (const member of ['UK','France','EU']) expect(content.innerHTML).toContain('value="' + member + '"');
+        for (const member of ['ROK','Japan','ASEAN']) expect(content.innerHTML).not.toContain('value="' + member + '"');
+        for (const field of ['Intended Partners','Focus Sectors','supply chain focus','Supply Chain Area','Timing &amp; Conditions','Expected Outcome']) expect(content.innerHTML).toContain(field);
+    });
+
     it('uses independent partner and focus-sector checkbox groups in the Green proposal modal', async () => {
         global.document = createFakeDocument();
         const { FacilitatorController } = await loadFacilitatorModule();
@@ -1270,6 +1282,33 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(content.innerHTML).not.toContain('Proposal Category');
         expect(content.innerHTML).not.toContain('id="proposalCategory"');
         expect(content.innerHTML).not.toContain('id="proposalDelivery"');
+    });
+
+    it.each([
+        ['asian_pacific', 'green_asian_pacific_scribe', false, false],
+        ['europe', 'green_europe_scribe', false, false],
+        ['asian_pacific', 'green_asian_pacific_facilitator', false, true],
+        ['europe', 'green_europe_facilitator', false, true],
+        ['asian_pacific', 'green_shared_facilitator', true, true],
+        ['europe', 'green_shared_facilitator', true, true]
+    ])('keeps returned %s proposal controls specific to %s', async (delegation, role, sharedFacilitator, saveChanges) => {
+        global.document = createFakeDocument();
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const controller = new FacilitatorController();
+        controller.teamId = 'green'; controller.role = role;
+        controller.teamContext = { ...controller.teamContext, delegationId: sharedFacilitator ? null : delegation, sharedFacilitator };
+        const originator = delegation === 'europe' ? 'UK' : 'ROK';
+        controller.proposalRoster = { members: [originator], aliases: {} };
+        const content = controller.createGreenProposalContent({
+            id: 'returned-regional', team: 'green', delegation_id: delegation, status: 'draft',
+            workflow_state: 'returned_to_team', revision_number: 2, proposal_handoff_revision: null,
+            ally_contingencies: serializeProposalDetails({ originators: [originator], scribeHandoff: 'Forwarded' })
+        }, { isEdit: true });
+        expect(content.innerHTML.includes('data-proposal-nav="saveChanges"')).toBe(saveChanges);
+        expect(content.innerHTML.includes('data-proposal-nav="forward"')).toBe(!saveChanges);
+        expect(content.innerHTML.includes('data-proposal-nav="saveDraft"')).toBe(!saveChanges);
+        expect(content.innerHTML).toContain('Current revision:</strong> 2');
     });
 
     it('reopens a returned proposal with reviewer notes, identity, and revision history visible', async () => {

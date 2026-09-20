@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serializeProposalDetails } from '../features/actions/proposalDetails.js';
 import { createE2EMockSupabaseClient } from './supabaseMock.js';
 
 const stateKey = 'esg_e2e_backend_state';
@@ -16,12 +17,20 @@ function claim(user, role, session = 'regional', extra = {}) {
     return api.rpc('claim_session_role_seat', { requested_session_id: session, requested_role: role,
         requested_name: user, requested_client_id: `client-${user}`, ...extra });
 }
+function createProposal(operation = 'save') {
+    return api.rpc('write_regional_proposal', { requested_session_id:'regional',requested_delegation_id:'asian_pacific',
+        requested_action_id:null,requested_expected_revision:null,requested_expected_row_version:null,requested_operation:operation,
+        requested_client_key:'gc06',requested_payload:{ goal:'Synthetic proposal',expected_outcomes:'Synthetic outcome',sector:'Agriculture',
+            ally_contingencies:serializeProposalDetails({ originators:['ROK'],objective:'Synthetic objective',recipientTeams:['blue'],
+                intendedPartners:'Blue',focusSectors:['Agriculture'],supplyChainFocusDecision:'No',timingAndConditions:'Synthetic timing',
+                scribeHandoff:operation === 'save' ? 'Draft' : 'Forwarded' }) } });
+}
 function action(delegation = 'asian_pacific', extra = {}) {
     return { session_id: 'regional', team: 'green', delegation_id: delegation, move: 1, phase: 1,
         mechanism: 'Proposal', artifact_type: 'proposal', status: 'draft', goal: 'Synthetic proposal', ...extra };
 }
 
-describe('GC-03 direct API authorization (mock; SQL evidence is separate)', () => {
+describe('GC-03 regional authority with GC-06 proposal RPC replacement (mock; SQL evidence is separate)', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-09-18T12:00:00Z'));
@@ -34,8 +43,8 @@ describe('GC-03 direct API authorization (mock; SQL evidence is separate)', () =
             id, status: 'active', session_classification: 'live_exercise', is_protected: false,
             session_topology_version: id === 'legacy' ? 1 : 2,
             green_roster_version: id === 'legacy' ? null : 'synthetic-test-only',
-            green_roster_snapshot: id === 'legacy' ? null : { fixture: true }
-        })) } }));
+            green_roster_snapshot: id === 'legacy' ? null : { asian_pacific:['ROK'],europe:['UK'],aliases:{} }
+        })), game_state:[{id:'regional-game',session_id:'regional',move:1,phase:1}] } }));
     });
     afterEach(() => {
         vi.useRealTimers();
@@ -65,7 +74,7 @@ describe('GC-03 direct API authorization (mock; SQL evidence is separate)', () =
 
     it('binds reads, edits and submission to the session seat, ignoring global role and spoofed scope', async () => {
         await claim('ap', 'green_asian_pacific_scribe');
-        const created = await api.from('actions').insert(action()).select().single();
+        const created = await createProposal();
         expect(created.error).toBeNull();
         const id = created.data.id;
         seed((tables) => { tables.participants.find((row) => row.auth_user_id === 'ap').role = 'green_europe_facilitator'; });
@@ -81,9 +90,11 @@ describe('GC-03 direct API authorization (mock; SQL evidence is separate)', () =
 
     it('permits only the semantic Facilitator to submit a forwarded regional draft and send an RFI', async () => {
         await claim('ap-scribe', 'green_asian_pacific_scribe');
-        const created = await api.from('actions').insert(action('asian_pacific', { ally_contingencies: 'Scribe Handoff: forwarded' })).select().single();
+        const created = await createProposal('forward');
         await claim('ap-facilitator', 'green_asian_pacific_facilitator');
-        expect((await api.from('actions').update({ status: 'submitted' }).eq('id', created.data.id)).error).toBeNull();
+        expect((await api.from('actions').update({ status: 'submitted' }).eq('id', created.data.id)).error?.code).toBe('42501');
+        expect((await api.rpc('write_regional_proposal', { requested_session_id:'regional',requested_delegation_id:'asian_pacific',
+            requested_action_id:created.data.id,requested_expected_revision:1,requested_expected_row_version:1,requested_operation:'submit',requested_payload:{} })).error).toBeNull();
         expect((await api.from('requests').insert({ session_id: 'regional', team: 'green', delegation_id: 'asian_pacific', query: 'Synthetic question' })).error).toBeNull();
         expect((await api.from('communications').insert({ session_id: 'regional', type: 'direct', to_role: 'white_cell',
             from_role: 'green_europe_facilitator', content: 'Spoof', metadata: { source_team: 'green' } })).error?.code).toBe('42501');

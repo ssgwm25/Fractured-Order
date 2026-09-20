@@ -1,10 +1,11 @@
 # GC-01: Regional Green identity and permission contract
 
-Contract version **1.2.0**, GC-05 amendment **2026-09-25**. Status: proposed,
+Contract version **1.3.0**, roster decision recorded **2026-09-20**;
+GC-06 migration amendment **2026-09-26**. Status: proposed,
 not activated; human review and verification pending. This is the implementation
 reference for GC-02 through GC-12 in the [prompt book](../green-cell-regional-split-prompt-book.md).
 The [declarative contract](green-regional-contract.json) contains the exact
-identifiers, route mappings, roster candidates, and permission matrix. It is a
+identifiers, route mappings, approved roster and historical candidates, and permission matrix. It is a
 specification fixture, not a runtime authorization service. No production code
 imports it, and no regional functionality is enabled by GC-01.
 
@@ -32,7 +33,8 @@ generic shared write capability or defer GC-05 submission authority to GC-06.
 The foundation excludes drafts, returned drafts, notes, recipient threads and other teams.
 Five orientation subjects remain required in either regional model. Rehearsal
 targets become 19 operational / 24 role-matrix actors; preserve old 20/25 results
-as evidence of the earlier model only. No roster decision has been made.
+as evidence of the earlier model only. The subsequent roster decision is recorded
+under D-02 below; it does not activate a session.
 
 GC-04A implementation, deferred workflows and exact verification instructions:
 [shared-Facilitator reconciliation](gc04a-shared-facilitator.md). Its additive
@@ -40,8 +42,8 @@ migration and tests have not been executed by the agent. This amendment does
 not declare the exercise operational or any gate passed.
 
 The JSON fixture's `deferred_mutations` lists implementation owners, not enabled
-permissions. The historical foundation profile remains unchanged. Version 1.2.0
-selects `shared_facilitator_orientations`: orientation submission is bound to the
+permissions. The historical foundation profile remains unchanged. Historical version 1.2.0
+selected `shared_facilitator_orientations`: orientation submission is bound to the
 persisted region and Scribe handoff revision; returned orientations and their
 linked review/revision records are readable. Private drafts and unrelated shared
 writes remain closed. See [GC-05 implementation and verification](gc05-regional-orientations.md).
@@ -51,6 +53,12 @@ GC-08 composes atomic creation around GC-04A setup/freeze rules; GC-09 reconcile
 guidance with completed workflows; GC-10 preserves scoring; GC-11 exports staffing
 model separately from topology/ownership; GC-12 verifies each stage and all three
 compatible session models. See the prompt book for each stage's tests/acceptance.
+
+GC-06 selects `shared_facilitator_proposals`, retaining the two earlier profiles
+as historical contracts. Proposal RPCs bind active seat, owner, state, revision and
+row version. Threads require a persisted approval for their exact source revision
+and recipient; private notes, shared RFIs and direct creation remain closed. See
+[GC-06 implementation and human verification](gc06-regional-proposals.md).
 
 ## Historical GC-01 baseline
 
@@ -96,7 +104,7 @@ These are reserved contract fields for GC-02, not claims that columns exist now.
 | `session_topology_version` | Integer `1` means unified Green; integer `2` means regional Green. Unknown versions fail closed. This version does not replace artifact envelope, revision, export, or PLI versions. |
 | `team` | Remains `green` for both delegations. No new parent teams. |
 | `delegation_id` | Exactly `asian_pacific` or `europe` on v2 Green seats and owned records; `null` on v1 Green and all non-Green records. A missing delegation on a v2 Green write is invalid, not a unified record. |
-| `green_roster_version` | Immutable approved roster identifier `green-roster-v1` for the first explicit choice. **No approved version exists yet**; the fixture records `null`. Never persist a candidate ID or the word `pending` as an approved roster. |
+| `green_roster_version` | `green-roster-v1` records the user's first explicit roster choice under D-02. Database registration and frozen session binding still require their existing authorized server path; this fixture is not a database approval receipt. Never persist a candidate ID or the word `pending` as an approved roster. |
 | `green_roster_snapshot` | With the approved version, freeze per-delegation represented entity IDs, display labels, explicit aliases, source references, approving exercise authority and approval date. Never resolve membership against a mutable global list. |
 | `role` / `semantic_role` | Preserve the original persisted role; resolve semantic role and workspace using the explicit registry below. Never derive authority by splitting arbitrary strings or inverting every suffix. |
 | Ownership key | `(session_id, team, delegation_id)` plus the existing artifact ID/revision or Notetaker seat identity. Persist authoritative scope alongside the artifact and its snapshots; text envelopes cannot override it. |
@@ -116,7 +124,25 @@ predicate stays the existing one; submitted-to-White-Cell is not silently change
 to approved/completed. Enforce uniqueness with explicit NULL handling. One region
 cannot satisfy the other region's gate. One global clock, move and phase remain.
 
-## Roster decision D-02: unresolved and blocking membership validation
+## Roster decision D-02: approved as green-roster-v1
+
+On 2026-09-20 the user explicitly approved **Asia-Pacific: South Korea, Japan,
+ASEAN; Europe: UK, France, EU** in this conversation. This is the approval source
+for `green-roster-v1`, recorded in contract version 1.2.1. Keep the existing
+proposal identifier `ROK` for South Korea, with that explicit label/alias.
+The exact canonical lists are `ROK, Japan, ASEAN` and `UK, France, EU`.
+EU and ASEAN remain single represented entities; no member countries are added.
+
+This records the roster choice only. No database approval row, operational
+session, migration, permission or historical artifact was created or changed.
+Registration must use the existing approval mechanism with actual operator
+provenance, followed by frozen session snapshots and GC-06 server-side membership
+validation. GC-06 supplies that validation; `membership_validation_enabled` now
+describes the supplied code, not an installed migration or a passed gate. Actual
+registry provenance and the frozen operational session snapshot remain prerequisites.
+Briefing reconciliation remains GC-09.
+
+The following discrepancy is retained as historical source evidence:
 
 | Candidate/source | Asia-Pacific represented entities | Europe represented entities |
 | --- | --- | --- |
@@ -126,23 +152,21 @@ cannot satisfy the other region's gate. One global clock, move and phase remain.
 The form contains a flat list, not a regional membership mapping. The table
 records the candidate partition from the prompt book, not a deployed validator.
 ROK/Republic of Korea, EU/European Union and UK/United Kingdom have corresponding
-labels; approval must record any canonical aliases. ASEAN versus Australia and
+labels. ASEAN versus Australia and
 France versus Germany are substantive conflicts. EU and ASEAN are represented
 entities: neither expands automatically into member countries.
 
-An authorized exercise owner must explicitly choose one of these rosters, or
-supply a separately authorized replacement, before membership validation or final
-regional materials are implemented. Record the exact two lists, aliases, source,
-approver, date and version in this contract/fixture and the book's decision register.
-GC-01 does not choose, merge, or enlarge either candidate. No participant is
-assigned a decision or an entity commitment by this document.
+The approved selection matches the proposal-form candidate, without merging or
+enlarging either list. Retain both historical candidates and their source
+references. No participant is assigned a decision or an entity commitment by
+this document.
 
 `ENUMS.TARGETS` and the Blue action country/industry focus lists describe possible
 action targets, not Green membership. They include entities outside either
 candidate and must never supply regional originator permissions. Membership
-validation remains disabled in the specification fixture while approval is null;
-that is a blocker to operational activation, not permission to accept arbitrary
-originators. Foundational storage and authorization work can proceed independently.
+validation remains disabled in the specification fixture pending implementation;
+the recorded choice does not permit arbitrary originators or prove operational
+activation. GC-06 must enforce the approved, session-bound regional membership.
 
 ## Identity and route matrix
 
@@ -154,7 +178,7 @@ seat. Routes reuse existing HTML/controllers; no new Vite entry pages are needed
 
 | Topology | Persisted role | Semantic role | Delegation | Capacity | Route | Permission profile |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `green_shared_facilitator` | facilitator | null | 1 | `teams/green/scribe.html` | shared_facilitator_orientations |
+| 2 | `green_shared_facilitator` | facilitator | null | 1 | `teams/green/scribe.html` | shared_facilitator_proposals |
 | 2 | `green_asian_pacific_facilitator` | facilitator | asian_pacific | 1 | `teams/green/scribe.html?delegation=asian_pacific` | regional_facilitator |
 | 2 | `green_asian_pacific_scribe` | scribe | asian_pacific | 1 | `teams/green/facilitator.html?delegation=asian_pacific` | regional_scribe |
 | 2 | `green_europe_facilitator` | facilitator | europe | 1 | `teams/green/scribe.html?delegation=europe` | regional_facilitator |
@@ -207,6 +231,7 @@ cross-region private reads or writes. The fixture uses these exact column names.
 | regional_facilitator | own | forwarded_returned | own | manage_own | own_white_cell | append_own | no | no |
 | shared_facilitator_foundation | both_forwarded_submitted_completed | no | no | no | addressed_read_only | no | no | no |
 | shared_facilitator_orientations | foundation_plus_orientation_returns_reviews | no | orientation_handoff_revision_only | no | addressed_read_only | no | no | no |
+| shared_facilitator_proposals | orientations_plus_owned_proposal_returns_threads | proposal_forwarded_returned | orientation_and_proposal_handoff_revision_only | no | addressed_read_only | approved_current_revision_threads | no | no |
 | regional_notetaker | own_released | no | no | read_own | addressed | no | own_seat | no |
 | legacy_scribe | legacy_session | draft_returned | legacy_submit | read_own | legacy_addressed | legacy_append | legacy_notes_read | no |
 | legacy_facilitator | legacy_session | forwarded_returned | own | manage_own | own_white_cell | legacy_append | legacy_notes_read | no |
@@ -406,15 +431,17 @@ git diff --check
 
 Expected pass: the new contract tests reconcile all seats/routes/profile rows,
 retain legacy role inversion, cap Notetakers at two, distinguish the two roster
-candidates without approval, pin regional submission/SME boundaries and four/five
+candidates as historical evidence, pin the approved roster without runtime activation,
+pin regional submission/SME boundaries and four/five
 orientation subjects, and verify the book link and source paths. Existing focused
 tests remain green. `git diff --check` reports no whitespace errors. These checks
 verify a specification and legacy contracts, **not implemented regional RLS**.
 
 Unresolved dependencies/evidence:
 
-1. D-02 explicit exercise-owner roster choice and approval record; required before
-   membership validation, operational v2 activation and final regional materials.
+1. D-02 roster choice is now recorded. Actual database registration, frozen session
+   binding, GC-06 membership validation and GC-09 final materials remain required;
+   the recorded decision is not evidence that those operations have occurred.
 2. Human review of this contract and fresh focused-test output from this revision.
 3. GC-02–03 additive storage/RPC/RLS implementation, migration evidence and real
    Supabase tests using separate identities: same-seat contention, cross-region

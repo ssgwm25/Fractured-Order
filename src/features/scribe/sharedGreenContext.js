@@ -1,7 +1,7 @@
 import { getConfirmedSeat, onSeatCleanup, seatStorageKey } from '../../core/seatContext.js';
 import { GREEN_DELEGATIONS, SHARED_GREEN_FACILITATOR, SHARED_GREEN_MODEL } from '../../core/teamContext.js';
 
-export const SHARED_GREEN_WORKFLOW_NOTICE = 'Submit each region’s Scribe-forwarded Strategic Orientation independently. White Cell returns go to the originating Scribe for correction and a new handoff. Proposal submission and replies, RFI creation and direct messages are not yet enabled.';
+export const SHARED_GREEN_WORKFLOW_NOTICE = 'Review and submit each delegation’s Scribe-forwarded orientations and proposals separately. Edit proposals in their permitted draft states; returned revisions need the originating Scribe’s new handoff. Approved recipient threads remain separate by delegation, recipient and revision. RFI creation and direct messages are not yet enabled; private drafts and notes remain inaccessible.';
 
 function resolveViewStorage() {
     try { return globalThis.sessionStorage; } catch { return null; }

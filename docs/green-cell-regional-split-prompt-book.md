@@ -3,13 +3,13 @@
 | Document field | Value |
 | --- | --- |
 | Project | Fractured Order on Plenum |
-| Document version | 1.5 |
+| Document version | 1.7 |
 | Created | 2026-09-18 |
-| Last updated | 2026-09-18 |
-| Status | Proposed architecture and implementation queue; implementation not verified |
+| Last updated | 2026-09-20 |
+| Status | Implementation queue; GC-05 verified in the recorded scope; other prompt statuses remain as recorded |
 | Requested outcome | One shared Green Facilitator for deck, RFIs and White Cell submission; one proposal Scribe each for Asia-Pacific and Europe |
 | Coverage | Platform implementation, session operation, verification, and historical compatibility |
-| Evidence basis | Repository source review; no tests, migrations, or deployments run for this document |
+| Evidence basis | Repository source review plus human-run GC-05 evidence and explicit completion authorization; see the completion record below |
 
 ## Contents
 
@@ -78,17 +78,17 @@ Suggested status (human confirms gate completion):
 
 ## Implementation status
 
-All entries begin as not started. Creating this prompt book does not complete
-GC-01 or any implementation gate.
+Entries began as not started. Status changes require human authorization and
+recorded evidence; creating this prompt book does not complete any gate.
 
 | ID | Task | Dependencies | Status | Evidence / implementation notes |
 | --- | --- | --- | --- | --- |
-| [GC-01](#gc-01-establish-the-regional-green-contract) | Regional contract and impact inventory | None | Not started | Reconcile shared-Facilitator model before further implementation; roster decision pending |
+| [GC-01](#gc-01-establish-the-regional-green-contract) | Regional contract and impact inventory | None | Not started | Reconcile shared-Facilitator model before further implementation; roster choice recorded in D-02 |
 | [GC-02](#gc-02-add-session-topology-and-regional-data-ownership) | Session topology and storage | GC-01 | Not started | No migration applied |
 | [GC-03](#gc-03-implement-secure-regional-seat-claims-and-permissions) | Seats and server authorization | GC-02 | Not started | Real Supabase evidence required |
 | [GC-04](#gc-04-implement-join-routing-and-persistent-regional-context) | Join, routes, and session context | GC-03 | Not started | Original four-seat/unified compatibility baseline; GC-04A owns the shared-seat amendment |
 | [GC-04A](#gc-04a-reconcile-the-shared-green-facilitator-foundation) | Shared Facilitator identity, authority and join reconciliation | GC-01–04; GC-03 repairs | Not started | Fresh three-seat evidence required; retain old four-seat evidence |
-| [GC-05](#gc-05-implement-separate-orientations-and-the-five-submission-gate) | Orientations and move gate | Verified GC-04A foundation | Not started | Enable orientation-only shared submission; preserve four/five-submission gates |
+| [GC-05](#gc-05-implement-separate-orientations-and-the-five-submission-gate) | Orientations and move gate | Verified GC-04A foundation | Verified (complete) | Human-authorized completion; orientation-only shared submission and four/five-submission gates. See [completion evidence and limits](#gc-05-completion-record). |
 | [GC-06](#gc-06-implement-regional-proposals-and-handoffs) | Proposals and regional handoffs | GC-05; approved roster | Not started | Preserve revisions and recipient threads |
 | [GC-07](#gc-07-scope-rfis-communications-and-notifications) | RFIs and communications | GC-04A; GC-05/06 permission contracts | Not started | Enable scoped RFIs/direct messages; preserve proposal-thread authorization |
 | [GC-08](#gc-08-update-white-cell-realtime-and-session-administration) | Regional session setup, White Cell and recovery | GC-04A setup contract; GC-05–07; approved roster for regional activation | Not started | Atomic creation around the frozen staffing model; no private payload leakage |
@@ -96,6 +96,49 @@ GC-01 or any implementation gate.
 | [GC-10](#gc-10-preserve-pli-behavior-and-regional-attribution) | PLI attribution | GC-04A identity; GC-05 orientation contract; GC-06 proposals | Not started | Scoring methodology unchanged |
 | [GC-11](#gc-11-extend-research-exports-and-historical-compatibility) | Research and historical exports | GC-04A model/identity; GC-07 through GC-10 | Not started | Export staffing model separately from topology and artifact ownership |
 | [GC-12](#gc-12-build-the-rehearsal-and-release-evidence-package) | Rehearsal and release evidence | GC-01 through GC-11, including GC-04A | Not started | Fresh stage-specific permissions and three-model compatibility evidence required |
+
+### GC-05 completion record
+
+The human explicitly requested that GC-05 be marked complete after accepting
+the tested local frontend and hosted Supabase scope and reviewing the subsequent
+deployed verification. This records that authorization; it does not change the
+prompt's requirements or the status of another prompt.
+
+- Implementation and hosted authorization/return/resubmission evidence:
+  [GC-05 implementation record](architecture/gc05-regional-orientations.md),
+  including hosted run `f2c25e5a-8b88-4b91-a211-b04b92beed0c`.
+- Fresh SQL metadata and fixture rollback: run
+  `43d91357-72e2-4009-b770-af295db157b1`, 102 distinct PASS assertions.
+- Fresh root-browser evidence: run `4d890589-c8e8-46c6-877c-638e13f942f2`,
+  both cases passing. Earlier missing root JSON remains a historical limitation.
+- The human supplied 64 passing evidence-tooling tests across five files,
+  including all 15 deployed-request containment cases.
+- Deployed run `8d0d3efb-05bd-41bf-9be2-53263f11fd24`, operator `Sethu`,
+  `2026-09-20T01:38:28.647Z` through `2026-09-20T01:40:15.379Z`: workflow,
+  all deployed asset comparisons and both browser cases passed, with no skips,
+  failures, flakiness or runner errors. The clean source revision and successful
+  [Pages run](https://github.com/ssgwm25/Fractured-Order/actions/runs/35481161077)
+  both identify `59810bc807ef76b45c3d3d4d0f31c78bbe4aeb7b`.
+  The retained browser JSON hash was verified as
+  `e2546e121a73b94d66b1119a63a1b12cc25cebc9b78dcd7db997471e999dd0d7`.
+
+The three supplemental reports remain under
+`output/release-evidence/gc05/<run-id>/results.json`; retain each whole evidence
+directory outside Git, including failed attempts. See the
+[follow-up runbook](architecture/gc05-evidence-follow-up.md) for the capture
+procedures and earlier failures. This status-only documentation update does not
+relabel the verified source revision or require another runtime verification run.
+
+The deployed browser check covers unauthenticated rendering, routes and seat
+gates with startup sign-in requests blocked. It does not prove an authenticated
+deployed orientation cycle. Operational roster/creation approval, manual
+screen-reader checks and that additional browser rehearsal remain separate.
+Original SQL execution metadata and the lost historical browser JSON are not
+retroactively reconstructed by the fresh reports.
+
+Next in dependency order is [GC-06](#gc-06-implement-regional-proposals-and-handoffs).
+The subsequent user-approved roster is recorded in D-02. GC-05 completion itself
+does not approve a roster or enable proposal permissions.
 
 ## Decisions and prerequisites
 
@@ -117,7 +160,7 @@ fields are not gate claims.
 | ID | Topic | Current position | Resolution / effect |
 | --- | --- | --- | --- |
 | D-01 | Green topology | Confirmed target: two regional Scribes and one shared Green Facilitator | Reconcile GC-01 through GC-04; GC-08 provides creation UI |
-| D-02 | Country/entity roster | Unresolved: proposal form and briefing disagree | Resolve before roster-dependent validation and final materials |
+| D-02 | Country/entity roster | Approved by explicit user instruction: Asia-Pacific = South Korea, Japan, ASEAN; Europe = UK, France, EU | `green-roster-v1`; database registration/session binding and GC-06 validation still required; preserve the older briefing as historical evidence until GC-09 reconciliation |
 | D-03 | Existing Green Notetakers | Proposed: preserve two seats, assign one per region | Formalize scoped storage and claims; add no seats |
 | D-04 | Cross-region privacy | Scribes remain isolated; shared Facilitator has explicit server-authorized workflow access to both delegations | Define artifact-state, RFI and recipient boundaries in GC-01 and enforce in GC-03 |
 | D-05 | Session compatibility | Preserve unified sessions and existing four-seat regional sessions; new shared-Facilitator sessions carry explicit versioned configuration | No implicit conversion or reinterpretation of version 2 |
@@ -125,7 +168,19 @@ fields are not gate claims.
 | D-07 | PLI methodology | Preserve current Green routing and Blue-orientation dependency | Regional attribution must not change scoring |
 | D-08 | Capability sequence | GC-04A read-only foundation; GC-05 orientations; GC-06 proposals/approved threads; GC-07 RFIs/direct messages | Each prompt delivers server checks, required reads, UI and minimum White Cell flow together; GC-08 integrates administration and GC-09 completes guidance |
 
-### Roster discrepancy
+### Approved roster and historical discrepancy
+
+The user resolved D-02 on 2026-09-20: **Asia-Pacific: South Korea, Japan, ASEAN;
+Europe: UK, France, EU**. Record this as `green-roster-v1`. It matches the existing
+proposal-form candidate. Preserve `ROK` as the canonical proposal identifier for
+South Korea, with the approved display label/alias; the other identifiers remain
+`Japan`, `ASEAN`, `UK`, `France` and `EU`.
+
+The decision is recorded in [contract version 1.2.1](architecture/green-regional-contract.md)
+and its JSON fixture. It does not register the approval in Supabase or activate
+an operational session. Those steps must preserve the existing immutable approval
+and frozen session contract. GC-06 implements roster-dependent authorization;
+GC-09 reconciles final briefing materials. Historical source lists remain below.
 
 | Source | Asia-Pacific | Europe |
 | --- | --- | --- |
@@ -139,8 +194,8 @@ Sources:
 Do not combine these lists automatically. EU and ASEAN are represented entities,
 rather than individual countries. The approved exercise roster determines which
 entities each delegation represents. Do not derive Green membership from the
-global target-country list or current real-world geography. Record the chosen
-roster and version here when resolved; no roster choice is assumed in version 1.0.
+global target-country list or current real-world geography. Version 1.0 assumed
+no roster choice; the explicit decision above supersedes that unresolved state.
 
 ## Repository findings
 
@@ -1479,6 +1534,8 @@ regional membership validation and final session materials.
 
 | Date | Version | Change | Verification status |
 | --- | --- | --- | --- |
+| 2026-09-20 | 1.7 | Recorded the user's exact D-02 roster as green-roster-v1 and synchronized contract version 1.2.1 and its narrow regression. | Roster decision only; no database registration, activation, tests, migrations or deployment executed; GC-06 remains the next implementation task |
+| 2026-09-20 | 1.6 | Recorded human-authorized GC-05 completion, its evidence scope and limitations; identified GC-06 as the next prompt with roster approval still required. | Existing human-run SQL, local browser, hosted Auth/RPC and deployed evidence recorded; no new tests, migrations, builds or deployments executed for this status update |
 | 2026-09-18 | 1.0 | Converted the reviewed prompt book into a maintained Markdown reference; added stable prompt IDs, navigation, dependencies, status tracking, and decision register. | Documentation only; implementation and runtime gates not run |
 | 2026-09-18 | 1.1 | User-requested GC-08 scope addition: Game Master unified/regional creation choice, approved-roster selection, atomic server-authorized setup, freeze protection, recovery, and UI-to-regional-join acceptance tests. | Prompt update only; no implementation or verification status changed |
 | 2026-09-18 | 1.2 | User clarified two regional Scribes forwarding to one shared Green Facilitator for deck, RFIs and White Cell submission. Updated target, decisions, affected GC prompts, setup acceptance, operating cards and target rehearsal counts; requires GC-01 through GC-04 reconciliation before GC-05. | Documentation only; existing four-seat runtime, contracts, historical records and test evidence unchanged; new-model verification pending |

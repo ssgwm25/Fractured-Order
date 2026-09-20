@@ -214,6 +214,45 @@ were recorded, so `manualPassed` and overall `passed` remain false.
 
 ### Reproduction commands
 
+During the later GC-06 compatibility rerun, the human reported
+`42P01: relation "gc04_run" does not exist`. This failure does not erase the
+historical results above or establish a cause from the message alone. The SQL
+Editor runner now uses the same containment pattern as GC-04A/GC-05/GC-06:
+one server-side block creates and uses the temporary tables and composite types,
+with explicit `pg_temp` references. The outer result query reads a transaction-
+local JSON report, preserving the four grouped result columns. Missing or empty
+reports return FAIL. Unexpected errors retain SQLSTATE and add the stage and
+stacked SQL context to MESSAGE. All 36 seat assertions, authenticated role
+switches and the final rollback remain. No installed function, policy or
+migration changes are required; this is a necessary GC-06 verification dependency.
+
+Run the updated runner checks, then recopy the entire SQL file:
+
+```powershell
+npm test -- tests/unit/gc04-sql-runner.test.js
+if ($LASTEXITCODE -ne 0) { throw 'GC04 SQL runner checks failed.' }
+Get-Content -Raw -Encoding UTF8 'tests/sql/gc04-session-context-editor.sql' | Set-Clipboard
+```
+
+Expected: six tests pass, including three new containment/diagnostic/reporting
+checks. These inspect source structure and do not execute SQL. Paste the copied
+file into a new SQL Editor query and run everything as postgres with RLS enabled.
+Expected: four PASS rows with nine assertions each (36 total), followed by
+rollback. Retain any full `GC04 stage=...` error. No tests or SQL were executed
+by the agent.
+
+The subsequent human terminal output reports **six runner tests passed** in
+Vitest 1.6.1, start time `00:31:35`, duration `3.44s`, with no failures or skips.
+The accompanying SQL Editor screenshot shows all four regional roles PASS with
+nine assertions each (**36 total**). Its visible checks cover disconnected
+rejoin, foreign-seat denial, join, legacy workspace mapping, topology lookup,
+identity restoration, revoked-seat denial, stale rejoin and wrong-session denial.
+This is fresh user-supplied GC-04 compatibility evidence during GC-06 verification;
+it is separate from the historical GC-04 runs above. The screenshot does not
+identify the database, executed-source hash or independently confirm rollback
+cleanup. Those receipts and GC-06 browser/hosted/concurrency evidence remain
+outstanding; no full GC-06 gate is declared passed.
+
 ```powershell
 npm test -- src/core/seatContext.test.js src/services/seatBootstrap.test.js src/services/database.seat-context.test.js src/roles/landing.join.test.js src/core/teamContext.test.js src/core/navigation.test.js src/stores/session.test.js tests/unit/repo-docs-contract.test.js
 npm run build
@@ -269,7 +308,7 @@ and client commands, keep both entry points on one suite, and guard rollback:
 npm test -- tests/unit/gc04-sql-runner.test.js
 ```
 
-Expected: all three checks pass. These source checks do not execute PostgreSQL
+Expected: all six checks pass. These source checks do not execute PostgreSQL
 and cannot establish that the SQL assertions pass on the installed database.
 
 Also verify on the freshly built candidate at `/Fractured-Order/`: all four

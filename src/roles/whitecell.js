@@ -3319,7 +3319,7 @@ export class WhiteCellController {
             const messages = getProposalThreadForRecipient(
                 communicationsStore.getAll(),
                 action?.id,
-                recipientTeam
+                recipientTeam, action.delegation_id ? action.revision_number : null
             );
             const persistedApproval = proposal.recipientApprovalStates?.[recipientTeam];
             const status = messages.length
@@ -4522,6 +4522,8 @@ export class WhiteCellController {
                 <h4 class="font-semibold" style="margin: 0;">${this.escapeHtml(proposal.title)}</h4>
             </div>
             ${this.renderSummaryCard('Response Details', [
+                { label: 'Delegation', value: GREEN_DELEGATIONS[action.delegation_id] || '' },
+                { label: 'Revision', value: String(response.metadata?.source_revision || action.revision_number || 1) },
                 { label: 'Response type', value: responseLabel },
                 { label: 'From', value: senderLabel },
                 { label: 'Forward to', value: sourceLabel },
@@ -4775,6 +4777,7 @@ export class WhiteCellController {
                 : await database.reviewProposal(action.id, {
                     decision: selectedDecision,
                     recipient_team: reviewOptions.recipientTeam || null,
+                    expected_revision: Number(action.revision_number || 1),
                     adjudication_notes: notes || null
                 });
             const updatedAction = isReturn ? reviewResult?.artifact : reviewResult?.action;

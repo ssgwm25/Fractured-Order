@@ -10,6 +10,7 @@ import {
     normalizeScribeDeckPath
 } from '../features/scribe/deckConfig.js';
 import { buildAppPath } from '../core/navigation.js';
+import { serializeProposalDetails } from '../features/actions/proposalDetails.js';
 import { serializeBlueActionDetails } from '../features/actions/blueActionDetails.js';
 import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
@@ -33,6 +34,7 @@ const {
     mockShowLoader,
     mockSubmitAction,
     mockSubmitRegionalOrientation,
+    mockWriteRegionalProposal,
     mockUpdateDraftAction,
     mockUpdateProposalRecipientStatus
 } = vi.hoisted(() => ({
@@ -47,6 +49,7 @@ const {
     mockShowLoader: vi.fn(() => ({})),
     mockSubmitAction: vi.fn(),
     mockSubmitRegionalOrientation: vi.fn(),
+    mockWriteRegionalProposal: vi.fn(),
     mockUpdateDraftAction: vi.fn(),
     mockUpdateProposalRecipientStatus: vi.fn()
 }));
@@ -96,6 +99,7 @@ vi.mock('../services/database.js', () => ({
         updateProposalRecipientStatus: mockUpdateProposalRecipientStatus,
         submitAction: mockSubmitAction,
         submitRegionalOrientation: mockSubmitRegionalOrientation,
+        writeRegionalProposal: mockWriteRegionalProposal,
         createTimelineEvent: mockCreateTimelineEvent,
         fetchArtifactWorkflowReviews: mockFetchArtifactWorkflowReviews
     }
@@ -303,6 +307,26 @@ async function loadScribeModule() {
 }
 
 describe('legacy scribe route and corrected Facilitator support surface', () => {
+    it('GC06 renders owned proposal details, revision and controls and submits the captured row version', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamContext = { ...controller.teamContext, sharedFacilitator: true };
+        const action = { id:'gc06',session_id:'shared',team:'green',delegation_id:'europe',status:'draft',
+            artifact_type:'proposal',workflow_state:'forwarded_to_facilitator',revision_number:2,row_version:4,proposal_handoff_revision:2,
+            ally_contingencies:serializeProposalDetails({ originators:['UK'],objective:'Synthetic objective',recipientTeams:['blue','red'],scribeHandoff:'Forwarded' }) };
+        const html = controller.renderActionSlide({ action,slideType:'own-proposal' });
+        expect(html).toContain('Green - Europe'); expect(html).toContain('Revision 2');
+        expect(html).toContain('Synthetic objective'); expect(html).toContain('data-scribe-action-edit'); expect(html).toContain('data-scribe-action-submit');
+        const returned = { ...action,workflow_state:'returned_to_team',proposal_handoff_revision:null };
+        expect(controller.renderPresentationToolbar(returned)).toContain('corrected proposal handoff');
+        expect(controller.renderPresentationToolbar(returned)).not.toContain('data-scribe-action-submit');
+        mockWriteRegionalProposal.mockResolvedValue({ ...action,status:'submitted' });
+        await controller.submitScribeProposal(action);
+        expect(mockWriteRegionalProposal).toHaveBeenCalledWith({ sessionId:'shared',delegationId:'europe',action,operation:'submit' });
+        expect(mockSubmitAction).not.toHaveBeenCalled(); expect(mockCreateTimelineEvent).not.toHaveBeenCalled();
+    });
+
     it('GC05 exposes region-specific orientation controls and submits only the captured revision', async () => {
         const { ScribeController } = await loadScribeModule();
         global.document = createFakeDocument();
@@ -326,7 +350,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(mockSubmitAction).not.toHaveBeenCalled();
         expect(mockCreateTimelineEvent).not.toHaveBeenCalled();
         const deferred = controller.renderSharedRegionalRecord({ ...action, goal: 'Synthetic proposal' });
-        expect(deferred).toContain('Proposal submission and replies, RFI creation and direct messages are not yet enabled');
+        expect(deferred).toContain('RFI creation and direct messages are not yet enabled');
         expect(deferred).not.toContain('<button');
     });
     it('GC04A shared foundation renders an owned read-only summary and cannot invoke workflow writes', async () => {

@@ -103,6 +103,19 @@ Apply the authoritative ledger in this exact order:
 52. `data/2026-09-23_gc04_legacy_session_topology.sql`
 53. `data/2026-09-24_gc04a_shared_facilitator.sql`
 54. `data/2026-09-25_gc05_regional_orientations.sql`
+55. `data/2026-09-26_gc06_regional_proposals.sql`
+56. `data/2026-09-27_gc06_released_thread_round_order.sql`
+
+GC-06 adds proposal-specific regional draft/handoff/edit/submission and approved
+recipient-thread authority. Apply after GC-05; it preserves orientations and
+keeps shared RFIs, direct creation and notes closed. It requires a real approved
+registry entry frozen on the session; it does not register or convert a roster.
+Regional recipient approvals are now unique per proposal, recipient and revision;
+unified history keeps the previous rule. See the [GC-06 runbook](architecture/gc06-regional-proposals.md)
+for exact verification, required evidence and drift handling. The September 27
+repair makes released replies outrank their retained review requests at the same
+round number. Unreviewed higher rounds still block a new response; stale-parent
+conflicts remain PT409. Apply this repair before rerunning the GC-06 SQL suite.
 
 GC-05 adds revision-bound regional Scribe handoff and Facilitator submission for
 Strategic Orientation, its White Cell return/correction cycle, and a database
@@ -973,7 +986,7 @@ If Supabase configuration is missing or placeholder-valued, the browser shows a 
 - same-team Facilitators can create/resubmit RFIs and send direct text to White Cell; Scribes retain read-only RFI history and other teams cannot read those records
 - action artifacts have a first-class type, workflow state, monotonic row version, structured snapshot, and server-owned transition timestamps
 - Blue and Red action returns, Strategic Orientation review, and RFI clarification returns use one revision-aware White Cell RPC; completed artifacts reject further review writes
-- each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication per intended recipient
+- each session/team has at most one active Strategic Orientation artifact and each proposal has at most one forwarding communication per intended recipient (per revision for regional proposals after GC-06)
 - each `operator_review_proposal` call atomically records one recipient approval, round-zero communication, and recipient-specific timeline row; completing the final intended approval closes the artifact workflow without creating an outcome
 - each `append_proposal_thread_message` call atomically creates one immutable next round, and stale parents, duplicate client IDs, cross-team access, and cross-session access fail closed
 - every action creation, revision, handoff, submission, deletion, and adjudication is represented in action logs and the research audit chain

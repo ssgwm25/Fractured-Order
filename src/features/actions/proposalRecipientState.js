@@ -197,17 +197,19 @@ export function getProposalThreadMessages(communications = [], threadId = '') {
 export function getProposalThreadForRecipient(
     communications = [],
     sourceProposalId = '',
-    recipientTeam = ''
+    recipientTeam = '',
+    sourceRevision = null
 ) {
     const normalizedProposalId = normalizeString(sourceProposalId);
     const normalizedRecipient = normalizeTeam(recipientTeam);
     if (!normalizedProposalId || !normalizedRecipient) return [];
 
-    const root = (communications || []).find((communication) => {
+    const root = [...(communications || [])].sort((a, b) => Number(b.metadata?.source_revision || 0) - Number(a.metadata?.source_revision || 0)).find((communication) => {
         const thread = getProposalThreadMetadata(communication);
         return thread
             && thread.sourceProposalId === normalizedProposalId
             && thread.recipientTeam === normalizedRecipient
+            && (sourceRevision == null || thread.sourceRevision === Number(sourceRevision))
             && thread.roundNumber === 0;
     });
 

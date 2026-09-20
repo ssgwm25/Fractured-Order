@@ -8,6 +8,8 @@
  * `getProposalViewModel`.
  */
 
+import { GREEN_DELEGATIONS } from '../../core/teamContext.js';
+
 export const PROPOSAL_DETAILS_PREFIX = 'Proposal Details';
 export const PROPOSAL_ACTION_MECHANISM = 'Proposal';
 
@@ -193,6 +195,7 @@ function buildProposalArtifactDetails(viewModel = {}) {
         isIndustryProposal ? viewModel.category : ''
     );
     return [
+        { label: 'Delegation', value: viewModel.delegationLabel },
         { label: 'Proposal Objective', value: viewModel.objective },
         { label: 'Originators', value: formatDetailSelection(viewModel.originators) },
         { label: 'Instrument of Power', value: instrumentOfPower },
@@ -373,13 +376,14 @@ export function getProposalViewModel(action = {}) {
     const recipientApprovalStates = Object.fromEntries(recipientTeams.map((team) => [
         team,
         normalizeString(persistedRecipientReviews?.[team]?.status)
-            || details?.recipientApprovalStates?.[team]
+            || (!action.delegation_id && details?.recipientApprovalStates?.[team])
             || PROPOSAL_RECIPIENT_APPROVAL_STATUS.PENDING
     ]));
 
     const viewModel = {
         hasProposalDetails: Boolean(details),
         team: normalizeString(action.team).toLowerCase(),
+        delegationLabel: GREEN_DELEGATIONS[action.delegation_id] || '',
         title: action.goal || action.title || 'Untitled proposal',
         originators: details?.originators || [],
         objective: details?.objective || '',

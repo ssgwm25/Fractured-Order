@@ -232,3 +232,22 @@ with a forward deployment after the rehearsal. Any deleted or rewritten
 history, outcome minted for a current completion, inability of the prior client
 to read accepted rows, or missing current-head rollback evidence blocks the
 release.
+
+## GC-06 regional proposals
+
+After `data/2026-09-26_gc06_regional_proposals.sql`, retain proposal handoff
+revisions, recipient roots, review history and every negotiation round. Do not
+restore the old proposal/recipient-only index after a corrected revision has
+received an approval. Contain affected writes and repair forward; a prior
+frontend can display history but cannot perform regional proposal writes through
+the retired direct-table path. Never reapply GC-04A/GC-05 helper definitions over
+GC-06 or remove regional RLS to recover a workflow. Record the exact error,
+source revision, session, artifact/revision/recipient and migration state. See
+[GC-06 verification](architecture/gc06-regional-proposals.md); earlier passing
+reports remain historical evidence and cannot pass this permission stage.
+
+The September 27 GC-06 thread-order repair changes only the private append
+helper's ordering. Do not delete review requests or negotiation rounds to recover
+from a stale-parent error. Preserve the repaired ordering, the GC-06 wrapper and
+the existing PT409 guard. If installation reports definition/ACL drift, stop and
+inspect the installed helper; do not replace it with an older complete function.

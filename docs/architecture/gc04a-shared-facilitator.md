@@ -111,6 +111,50 @@ or create concurrent connections. Rerun the unchanged
 `tests/sql/gc04-session-context-editor.sql` for four-seat compatibility (four
 rows, nine assertions each).
 
+### SQL Editor runner correction during GC-06 compatibility checks
+
+The human reported `42P01: relation "gc04a_run" does not exist` during the
+GC-06 compatibility rerun. The message does not identify the exact failing
+statement or establish a database/editor cause. The suite now follows the
+GC-05/GC-06 runner pattern: one server-side block creates and uses all temporary
+tables and their composite types, with explicit `pg_temp` references. The
+outer result query reads a transaction-local JSON report and keeps the existing
+role/status/assertions_passed/checks columns. Missing or empty reports return
+FAIL. Unexpected errors preserve SQLSTATE and include stage and stacked SQL
+context in MESSAGE. The fixture assertions, role switches, installed controls
+and final rollback remain intact. No migration or runtime change is required.
+
+This is a necessary GC-06 compatibility-test dependency, not a new foundation
+permission stage or a passing result. Run the narrow structure regressions:
+
+```powershell
+npm test -- tests/unit/gc04a-sql-runner.test.js tests/unit/gc04a-context.test.js
+if ($LASTEXITCODE -ne 0) { throw 'GC04A SQL runner regressions failed.' }
+```
+
+Expected: all cases pass, including the three new runner structure checks.
+Then recopy the corrected SQL file:
+
+```powershell
+Get-Content -Raw -Encoding UTF8 'tests/sql/gc04a-shared-facilitator-editor.sql' | Set-Clipboard
+```
+
+Paste into a new SQL Editor query and run the entire file as postgres, with
+RLS enabled. Expected: three role rows with nine assertions each and one boundary
+row with 22, all PASS (49 total), followed by rollback. If it fails, retain the
+complete `GC04A stage=...` message. No tests or SQL were executed by the agent.
+
+The subsequent human output reports **10 tests passed across two files**:
+three runner structure checks and seven GC-04A context checks, using Vitest
+1.6.1, start time `00:26:01`, duration `5.09s`. No failures or skips are reported.
+The accompanying SQL Editor screenshot shows all four result rows PASS:
+boundary = 22, Asia-Pacific Scribe = 9, Europe Scribe = 9, shared Facilitator = 9,
+for **49 assertions total**. The checks column is cropped, so individual labels
+are not fully visible. This is user-supplied GC-04A compatibility evidence during
+GC-06 verification, not a new hosted-foundation verdict. The displayed source
+ends with ROLLBACK; an independent cleanup receipt, database identity and
+executed-source hash were not supplied. Preserve the earlier failed attempt.
+
 Local browser checks use a dedicated local-only configuration. It starts and
 stops its own server, does not request operator credentials, and preserves
 four-seat cases. Port 4174 must be free; existing Playwright Chromium must be

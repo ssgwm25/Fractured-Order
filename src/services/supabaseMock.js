@@ -1,3 +1,4 @@
+import { parseProposalDetails } from '../features/actions/proposalDetails.js';
 import { getStrategicOrientationCompletion, parseStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
@@ -520,7 +521,7 @@ function normalizeInsertRow(tableName, payload, state) {
             ? state.tables.actions.find((entry) => entry.id === (row.metadata.source_proposal_id || row.metadata.source_action_id) && entry.session_id === row.session_id)
             : state.tables.requests.find((entry) => entry.id === row.linked_request_id && entry.session_id === row.session_id);
         row.owner_team = source?.team || (/^(blue|red|green|industry)_/.exec(row.from_role)?.[1]) || 'white_cell';
-        row.sender_delegation_id = regionalDelegation(row.from_role);
+        row.sender_delegation_id = row.from_role === 'green_shared_facilitator' && source?.artifact_type === 'proposal' ? source.delegation_id : regionalDelegation(row.from_role);
         row.delegation_id = source ? source.delegation_id ?? null : row.sender_delegation_id;
         row.recipient_delegation_id = regionalDelegation(row.to_role)
             || (row.to_role === 'green' ? source?.delegation_id || row.recipient_delegation_id : null) || null;
@@ -848,11 +849,15 @@ function regionalCanRead(state, tableName, row, authUserId) {
     const team = getLiveDemoParticipantTeam(state, authUserId, row.session_id);
     const author = ['facilitator', 'scribe'].includes(surface);
     if (seat.role === 'green_shared_facilitator') {
+        if (tableName === 'communications' && ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(row.type)) {
+            return row.owner_team === 'green' && regionalThreadSource(state, row)
+                && (row.type !== 'PROPOSAL_RESPONSE_REVIEW' || row.from_role === seat.role);
+        }
         if (tableName === 'artifact_workflow_reviews' || tableName === 'action_logs') {
             const action = state.tables.actions.find((a) => a.id === (row.artifact_id || row.action_id)
                 && a.session_id === row.session_id);
-            return Boolean(action && isRegionalOrientation(action)
-                && (tableName !== 'artifact_workflow_reviews' || (row.artifact_kind === 'strategic_orientation'
+            return Boolean(action && (isRegionalOrientation(action) || isRegionalProposal(action))
+                && (tableName !== 'artifact_workflow_reviews' || (row.artifact_kind === (isRegionalProposal(action) ? 'action' : 'strategic_orientation')
                     && row.team === action.team && row.delegation_id === action.delegation_id
                     && row.artifact_type === action.artifact_type && row.next_revision_number <= action.revision_number))
                 && regionalCanRead(state, 'actions', action, authUserId));
@@ -861,7 +866,7 @@ function regionalCanRead(state, tableName, row, authUserId) {
         if (tableName === 'actions') return row.team === 'green'
             && ['asian_pacific', 'europe'].includes(row.delegation_id)
             && (['forwarded_to_facilitator', 'submitted_to_white_cell', 'completed'].includes(row.workflow_state)
-                || isRegionalOrientation(row) && ['returned_to_team', 'resubmitted'].includes(row.workflow_state));
+                || (isRegionalOrientation(row) || isRegionalProposal(row)) && ['returned_to_team', 'resubmitted'].includes(row.workflow_state));
         if (tableName === 'communications') return row.from_role === 'white_cell'
             && !['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(row.type)
             && (row.to_role === seat.role || ['session', 'both_green_delegations'].includes(row.recipient_scope));
@@ -923,7 +928,7 @@ function regionalCanWrite(state, tableName, row, old, authUserId) {
         case 'actions': {
             // Match the orientation-only restrictive RLS policy: direct table
             // writes cannot bypass revision-bound handoff/submission RPCs.
-            if (isRegionalOrientation(row) || isRegionalOrientation(old)) return false;
+            if (isRegionalOrientation(row) || isRegionalOrientation(old) || row.artifact_type === 'proposal' && row.team === 'green' || isRegionalProposal(old)) return false;
             const status = row.status || 'draft';
             if (['reviewed_at', 'reviewed_by_auth_user_id', 'reviewed_by_role', 'review_notes', 'outcome', 'adjudication', 'adjudication_notes'].some((key) => !compareValues(row[key] ?? null, old?.[key] ?? null))
                 || (row.revision_number ?? 1) !== (old?.revision_number ?? 1)) return false;
@@ -2196,6 +2201,106 @@ function listActiveSessionParticipants(state, {
     };
 }
 
+
+function isRegionalProposal(action) {
+    return action?.team === 'green' && ['asian_pacific', 'europe'].includes(action.delegation_id)
+        && action.artifact_type === 'proposal' && Boolean(parseProposalDetails(action.ally_contingencies));
+}
+
+function regionalProposalRoster(state, params) {
+    const sid = params.requested_session_id, delegation = params.requested_delegation_id;
+    const seat = getParticipantSeatForSession(state, getCurrentAuthUserId(), sid);
+    const session = state.tables.sessions.find((row) => row.id === sid);
+    if (!seat || !isRegionalSession(state, sid) || !['asian_pacific', 'europe'].includes(delegation)
+        || !['green_shared_facilitator', 'green_' + delegation + '_scribe', 'green_' + delegation + '_facilitator'].includes(seat.role)) {
+        return { data: null, error: { code: '42501', message: 'GC06_ROSTER_SCOPE_DENIED' } };
+    }
+    const members = session.green_roster_snapshot?.[delegation];
+    if (!session.green_roster_version || !Array.isArray(members) || !members.length) {
+        return { data: null, error: { code: '23514', message: 'GC06_APPROVED_SESSION_ROSTER_REQUIRED' } };
+    }
+    return { data: { members, aliases: session.green_roster_snapshot.aliases || {} }, error: null };
+}
+
+function regionalProposalOperation(state, params) {
+    const roster = regionalProposalRoster(state, params);
+    if (roster.error) return roster;
+    const sid = params.requested_session_id, delegation = params.requested_delegation_id;
+    const auth = getCurrentAuthUserId(), seat = getParticipantSeatForSession(state, auth, sid);
+    const operation = params.requested_operation, payload = params.requested_payload || {};
+    const denied = (code = '42501', message = 'GC06_PROPOSAL_SCOPE_DENIED') => ({ data: null, error: { code, message } });
+    const scribe = seat.role === 'green_' + delegation + '_scribe';
+    const facilitator = ['green_shared_facilitator', 'green_' + delegation + '_facilitator'].includes(seat.role);
+    if (!(scribe && ['save', 'forward'].includes(operation) || facilitator && ['edit', 'submit'].includes(operation))) return denied();
+    let action = state.tables.actions.find((a) => a.id === params.requested_action_id);
+    if (params.requested_action_id != null) {
+        if (!action || action.session_id !== sid || action.delegation_id !== delegation || action.is_deleted || !isRegionalProposal(action)) return denied();
+        if (action.revision_number !== params.requested_expected_revision || action.row_version !== params.requested_expected_row_version) return denied('PT409', 'GC06_STALE_PROPOSAL_REVISION');
+        if (action.status !== 'draft' || !(scribe && ['draft', 'returned_to_team'].includes(action.workflow_state)
+            || facilitator && ['forwarded_to_facilitator', 'returned_to_team'].includes(action.workflow_state))) return denied('23514', 'GC06_PROPOSAL_STATE_DENIED');
+    } else if (!scribe || params.requested_expected_revision != null || params.requested_expected_row_version != null) return denied();
+    const old = action;
+    if (operation === 'submit') {
+        if (Object.keys(payload).length) return denied();
+        const legacyPair = state.tables.sessions.some((s) => s.id === sid && greenSeatModel(s) === 'regional_pairs_v1')
+            && action.proposal_handoff_revision == null && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator';
+        if (action.proposal_handoff_revision !== action.revision_number && !legacyPair) return denied('23514', 'GC06_SCRIBE_HANDOFF_REQUIRED');
+        action = { ...action, status: 'submitted', submitted_at: getTimestamp(), submitted_by_auth_user_id: auth, submitted_by_role: seat.role,
+            workflow_state: action.workflow_state === 'returned_to_team' ? 'resubmitted' : 'submitted_to_white_cell' };
+    } else {
+        if (Object.keys(payload).some((key) => !['goal', 'sector', 'expected_outcomes', 'ally_contingencies'].includes(key))) return denied();
+        for (const label of ['Originators','Recipient Teams','Focus Sectors','Supply Chain Areas']) {
+            const raw = readLegacyActionDetail(payload.ally_contingencies, label);
+            let values;
+            try { values = raw?.startsWith('[') ? JSON.parse(raw) : readLegacyActionList(payload.ally_contingencies,label); }
+            catch (_error) { return denied('23514','GC06_PROPOSAL_DETAILS_REQUIRED'); }
+            if (!Array.isArray(values) || values.some((value) => typeof value !== 'string' || !value.trim())
+                || label === 'Recipient Teams' && values.some((value) => !['blue','red'].includes(value))) return denied('23514','GC06_PROPOSAL_DETAILS_REQUIRED');
+        }
+        const proposal = parseProposalDetails(payload.ally_contingencies);
+        if (!proposal || proposal.scribeHandoff !== (operation === 'save' ? 'Draft' : 'Forwarded')) return denied('23514', 'GC06_PROPOSAL_DETAILS_REQUIRED');
+        if (!proposal.originators.length || proposal.originators.some((origin) => !roster.data.members.includes(roster.data.aliases[origin] || origin))) return denied('23514', 'GC06_INVALID_ORIGINATOR');
+        if (!payload.goal?.trim() || !payload.expected_outcomes?.trim() || !proposal.objective || !proposal.intendedPartners
+            || !proposal.timingAndConditions || !proposal.recipientTeams.length || !proposal.focusSectors.length
+            || !['Yes','No'].includes(proposal.supplyChainFocusDecision) || proposal.supplyChainFocusDecision === 'Yes' && !proposal.supplyChainAreas.length) return denied('23514', 'GC06_PROPOSAL_DETAILS_REQUIRED');
+        if (!action) {
+            if (!params.requested_client_key?.trim()) return denied('22023', 'GC06_CLIENT_KEY_REQUIRED');
+            const key = 'gc06:' + delegation + ':' + seat.id + ':' + params.requested_client_key;
+            const retry = state.tables.actions.find((a) => a.session_id === sid && a.idempotency_key === key);
+            if (retry) return retry.goal === payload.goal && retry.ally_contingencies === payload.ally_contingencies && retry.expected_outcomes === payload.expected_outcomes
+                ? { data: cloneValue(retry), error: null } : denied('PT409', 'GC06_IDEMPOTENCY_CONFLICT');
+            const game = state.tables.game_state.find((g) => g.session_id === sid);
+            if (!game) return denied('23514', 'Game state required');
+            action = normalizeInsertRow('actions', { session_id: sid, delegation_id: delegation, team: 'green',
+                artifact_type: 'proposal', status: 'draft', mechanism: 'Proposal', move: game.move, phase: game.phase,
+                idempotency_key: key }, state);
+        }
+        action = { ...action, ...payload, sector: proposal.focusSectors[0], proposal_recipient_team: proposal.recipientTeams[0],
+            artifact_payload: { ...action.artifact_payload, proposal },
+            proposal_handoff_revision: scribe ? (operation === 'forward' ? action.revision_number : null) : action.proposal_handoff_revision,
+            workflow_state: action.workflow_state === 'returned_to_team' ? 'returned_to_team' : operation === 'save' ? 'draft' : 'forwarded_to_facilitator' };
+    }
+    action = { ...action, updated_at: getTimestamp(), row_version: old ? old.row_version + 1 : 1,
+        last_modified_by_auth_user_id: auth, last_modified_by_role: seat.role };
+    const index = state.tables.actions.findIndex((a) => a.id === action.id);
+    if (index < 0) state.tables.actions.push(action); else state.tables.actions[index] = action;
+    return { data: cloneValue(action), error: null };
+}
+
+function regionalThreadSource(state, row, current = false) {
+    const m = row.metadata || {};
+    const source = state.tables.actions.find((a) => a.id === m.source_proposal_id && a.session_id === row.session_id
+        && a.artifact_type === 'proposal' && !a.is_deleted && a.team === m.source_team && a.team === row.owner_team
+        && (a.delegation_id ?? null) === (row.delegation_id ?? null));
+    const root = state.tables.communications.find((r) => r.session_id === row.session_id && r.type === 'PROPOSAL_FORWARDED'
+        && r.metadata?.source_proposal_id === source?.id && r.metadata?.thread_id === m.thread_id
+        && r.metadata?.recipient_team === m.recipient_team && r.metadata?.source_revision === m.source_revision
+        && (r.delegation_id ?? null) === (source?.delegation_id ?? null));
+    return Boolean(source && root && (!current || ['submitted', 'adjudicated'].includes(source.status)
+        && source.revision_number === Number(m.source_revision)
+        && source.artifact_payload?.proposal_recipient_reviews?.[m.recipient_team]?.thread_id === m.thread_id));
+}
+
 function isRegionalOrientation(action) {
     return action?.team === 'green' && ['asian_pacific', 'europe'].includes(action.delegation_id)
         && ['strategic_orientation_selection', 'strategic_orientation_forecast'].includes(action.artifact_type)
@@ -2475,8 +2580,9 @@ function operatorReviewArtifact(state, params) {
     if (!grant || grant.session_id !== action.session_id) {
         return { data: null, error: { message: 'White Cell operator authorization is required.' } };
     }
-    if (kind === 'strategic_orientation' && isRegionalSession(state, action.session_id)
-        && getLiveDemoParticipantSurface(state, authUserId, action.session_id) !== 'whitecell') {
+    if ((kind === 'strategic_orientation' || isRegionalProposal(action)) && isRegionalSession(state, action.session_id)
+        && (getLiveDemoParticipantSurface(state, authUserId, action.session_id) !== 'whitecell'
+            || isRegionalProposal(action) && params.requested_expected_revision == null)) {
         return { data: null, error: { code: '42501', message: 'An active White Cell session seat is required.' } };
     }
     if (String(action.team || '').trim().toLowerCase() !== team) {
@@ -2546,6 +2652,13 @@ function operatorReviewArtifact(state, params) {
         ...action,
         status: isReturn ? 'draft' : 'adjudicated',
         orientation_handoff_revision: isReturn ? null : action.orientation_handoff_revision,
+        ...(isRegionalProposal(action) ? {
+            proposal_handoff_revision: isReturn ? null : action.proposal_handoff_revision,
+            artifact_payload: isReturn ? { ...action.artifact_payload,
+                proposal_recipient_review_history: { ...action.artifact_payload?.proposal_recipient_review_history,
+                    [action.revision_number]: action.artifact_payload?.proposal_recipient_reviews || {} },
+                proposal_recipient_reviews: {} } : action.artifact_payload
+        } : {}),
         workflow_state: isReturn ? 'returned_to_team' : 'completed',
         revision_number: nextRevision,
         prior_workflow_state: action.workflow_state,
@@ -2809,6 +2922,7 @@ function operatorReviewProposalThreaded(state, params) {
     if (action.artifact_type !== 'proposal') {
         return { data: null, error: { message: 'Only proposal artifacts can use operator_review_proposal.' } };
     }
+    if (isRegionalSession(state, action.session_id) && (getLiveDemoParticipantSurface(state, authUserId, action.session_id) !== 'whitecell' || expectedRevision == null)) return { data: null, error: { code: '42501', message: 'Active reviewer and revision required.' } };
     if (!grant) return { data: null, error: { message: 'White Cell operator authorization is required.' } };
     if (decision !== 'forward_to_recipient') {
         return { data: null, error: { message: 'Recipient approvals only support forward_to_recipient.' } };
@@ -2841,6 +2955,7 @@ function operatorReviewProposalThreaded(state, params) {
     const existingCommunication = state.tables.communications.find((entry) => (
         entry.type === 'PROPOSAL_FORWARDED'
         && entry.metadata?.source_proposal_id === action.id
+        && (!action.delegation_id || Number(entry.metadata?.source_revision) === action.revision_number)
         && normalizeTeamId(entry.metadata?.recipient_team) === recipientTeam
     ));
     if (existingCommunication) {
@@ -2964,6 +3079,7 @@ function operatorReviewProposalThreaded(state, params) {
         .filter((entry) => (
             entry.type === 'PROPOSAL_FORWARDED'
             && entry.metadata?.source_proposal_id === action.id
+        && (!action.delegation_id || Number(entry.metadata?.source_revision) === action.revision_number)
         ))
         .map((entry) => normalizeTeamId(entry.metadata?.recipient_team)));
     if (intendedRecipients.every((team) => approvedRecipients.has(team))) {
@@ -2999,15 +3115,19 @@ function appendProposalThreadMessage(state, params) {
     const content = String(params?.requested_content || '').trim();
     const messageType = String(params?.requested_message_type || '').trim().toLowerCase();
     const facilitatorDecision = String(params?.requested_facilitator_decision || '').trim().toLowerCase() || null;
-    const clientMessageId = String(params?.requested_client_message_id || '').trim() || null;
+    let clientMessageId = String(params?.requested_client_message_id || '').trim() || null;
 
     if (!parent || !parent.metadata?.thread_id) {
         return { data: null, error: { message: 'Proposal thread parent message not found.' } };
     }
     if (isRegionalSession(state, parent.session_id) && (
-        !regionalCapability(state, authUserId, parent.session_id, 'thread')
+        !(regionalCapability(state, authUserId, parent.session_id, 'thread') || getLiveDemoParticipantRole(state, authUserId, parent.session_id) === 'green_shared_facilitator' && parent.owner_team === 'green')
+        || !regionalThreadSource(state, parent, true)
         || !regionalCanRead(state, 'communications', parent, authUserId))) {
         return { data: null, error: { code: '42501', message: 'GC03_THREAD_SCOPE_DENIED' } };
+    }
+    if (isRegionalSession(state, parent.session_id) && clientMessageId) {
+        clientMessageId = 'gc06:' + parent.session_id + ':' + getParticipantSeatForSession(state, authUserId, parent.session_id).id + ':' + parent.metadata.thread_id + ':' + clientMessageId;
     }
     if (!content) return { data: null, error: { message: 'Parent message and content are required.' } };
     if (!['recipient_response', 'negotiation_message', 'thread_closed'].includes(messageType)) {
@@ -3080,7 +3200,7 @@ function appendProposalThreadMessage(state, params) {
         && !state.tables.communications.some((candidate) => candidate.metadata?.review_request_id === entry.id)
     ));
     if (pendingReview) {
-        return { data: null, error: { message: 'This proposal response is awaiting White Cell review.' } };
+        return { data: null, error: { code: 'PT409', message: 'This proposal response is awaiting White Cell review.' } };
     }
 
     const timestamp = getTimestamp();
@@ -3128,6 +3248,8 @@ function operatorForwardProposalResponse(state, params) {
     const grant = getOperatorGrant(state, authUserId, 'whitecell', review.session_id);
     if (!grant) return { data: null, error: { message: 'White Cell operator authorization is required.' } };
 
+    if (isRegionalSession(state, review.session_id) && (getLiveDemoParticipantSurface(state, authUserId, review.session_id) !== 'whitecell'
+        || !regionalThreadSource(state, review, true))) return { data: null, error: { code: '42501', message: 'GC06_RESPONSE_FORWARD_DENIED' } };
     const existing = state.tables.communications.find((entry) => (
         entry.metadata?.review_request_id === review.id
     ));
@@ -3997,6 +4119,8 @@ export function createE2EMockSupabaseClient() {
                 return mutateMockState((state) => operatorCompleteActionWithNotifications(state, params));
             }
 
+            if (functionName === 'get_regional_proposal_roster') return { ...regionalProposalRoster(readMockState(), params) };
+            if (functionName === 'write_regional_proposal') return mutateMockState((state) => regionalProposalOperation(state, params));
             if (functionName === 'operator_review_proposal') {
                 return mutateMockState((state) => operatorReviewProposalThreaded(state, params));
             }

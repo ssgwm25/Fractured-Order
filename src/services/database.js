@@ -1345,6 +1345,28 @@ export const database = {
 
     // ==================== ACTIONS ====================
 
+    async getRegionalProposalRoster(sessionId, delegationId) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('get_regional_proposal_roster', {
+            requested_session_id: sessionId, requested_delegation_id: delegationId
+        });
+        if (error) throw fromSupabaseError(error, 'getRegionalProposalRoster');
+        return data;
+    },
+
+    async writeRegionalProposal({ sessionId, delegationId, action = null, operation, payload = {}, clientKey = null }) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('write_regional_proposal', {
+            requested_session_id: sessionId, requested_delegation_id: delegationId,
+            requested_action_id: action?.id ?? null,
+            requested_expected_revision: action?.revision_number ?? null,
+            requested_expected_row_version: action?.row_version ?? null,
+            requested_operation: operation, requested_payload: payload, requested_client_key: clientKey
+        });
+        if (error) throw fromSupabaseError(error, 'writeRegionalProposal');
+        return normalizeArtifactWorkflowRecord(Array.isArray(data) ? data[0] : data, 'action');
+    },
+
     async getOrientationCompletion(sessionId) {
         await ensureAuthenticatedBrowser();
         const { data, error } = await supabase.rpc('get_orientation_completion', { requested_session_id: sessionId });

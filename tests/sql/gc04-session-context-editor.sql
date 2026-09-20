@@ -11,6 +11,17 @@ RESET ROLE;
 SET LOCAL request.jwt.claim.sub = '';
 SET LOCAL request.jwt.claims = '{}';
 
+SET LOCAL gc04.rehearsal_result='';
+
+-- Keep fixture creation, composite types and all reads inside one server-side block.
+DO $gc04_suite$
+DECLARE
+    gc04_stage TEXT := 'prerequisites';
+    gc04_report JSONB;
+    gc04_error_state TEXT;
+    gc04_error_message TEXT;
+    gc04_error_context TEXT;
+BEGIN
 DO $$ BEGIN
     IF to_regprocedure('public.restore_session_seat_context(uuid,uuid)') IS NULL THEN
         RAISE EXCEPTION 'GC04 prerequisite missing: install 2026-09-22_gc04_session_context.sql';
@@ -21,6 +32,7 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+gc04_stage := 'fixture_tables';
 CREATE TEMP TABLE gc04_run AS SELECT gen_random_uuid() AS session_id,
     gen_random_uuid() AS other_session_id,
     'GC04-' || upper(gen_random_uuid()::TEXT) AS session_code,
@@ -31,15 +43,16 @@ CREATE TEMP TABLE gc04_actors (
     workspace TEXT NOT NULL, auth_id UUID NOT NULL DEFAULT gen_random_uuid(),
     seat_id UUID, participant_id UUID
 );
-INSERT INTO gc04_actors(role, delegation, semantic_role, workspace) VALUES
+INSERT INTO pg_temp.gc04_actors(role, delegation, semantic_role, workspace) VALUES
     ('green_asian_pacific_scribe', 'asian_pacific', 'scribe', 'facilitator'),
     ('green_asian_pacific_facilitator', 'asian_pacific', 'facilitator', 'scribe'),
     ('green_europe_scribe', 'europe', 'scribe', 'facilitator'),
     ('green_europe_facilitator', 'europe', 'facilitator', 'scribe');
 CREATE TEMP TABLE gc04_results(role TEXT, assertion TEXT, PRIMARY KEY(role, assertion));
-GRANT SELECT ON gc04_run, gc04_actors TO authenticated;
-GRANT INSERT ON gc04_results TO authenticated;
+GRANT SELECT ON pg_temp.gc04_run, pg_temp.gc04_actors TO authenticated;
+GRANT INSERT ON pg_temp.gc04_results TO authenticated;
 
+gc04_stage := 'fixture_helpers';
 CREATE FUNCTION pg_temp.gc04_identity(identity_id UUID) RETURNS VOID LANGUAGE plpgsql AS $$ BEGIN
     PERFORM set_config('request.jwt.claim.sub', COALESCE(identity_id::TEXT, ''), true);
     PERFORM set_config('request.jwt.claims', CASE WHEN identity_id IS NULL THEN '{}'
@@ -50,9 +63,9 @@ RETURNS VOID LANGUAGE plpgsql AS $$ BEGIN
     IF ok IS DISTINCT FROM true THEN
         RAISE EXCEPTION 'GC04 failed [%]: %', actor_role, label;
     END IF;
-    INSERT INTO gc04_results VALUES(actor_role, label);
+    INSERT INTO pg_temp.gc04_results VALUES(actor_role, label);
 END $$;
-CREATE FUNCTION pg_temp.gc04_restored(result JSONB, actor gc04_actors, expected_session UUID)
+CREATE FUNCTION pg_temp.gc04_restored(result JSONB, actor pg_temp.gc04_actors, expected_session UUID)
 RETURNS BOOLEAN LANGUAGE SQL AS $$
     SELECT result->'seat'->>'id' = (actor).seat_id::TEXT
         AND result->'seat'->>'participant_id' = (actor).participant_id::TEXT
@@ -66,26 +79,28 @@ RETURNS BOOLEAN LANGUAGE SQL AS $$
         AND result->'session'->>'status' = 'active'
 $$;
 
+gc04_stage := 'fixture_sessions';
 -- New, uncommitted fixtures only. Never select or mutate an existing exercise.
 INSERT INTO public.green_roster_approvals(version, snapshot, approved_by, approved_at)
 SELECT roster_version,
     '{"asian_pacific":[],"europe":[],"aliases":{},"source_references":["GC04 rolled-back synthetic SQL fixture only"]}'::JSONB,
-    'Regression fixture, not exercise approval', NOW() FROM gc04_run;
+    'Regression fixture, not exercise approval', NOW() FROM pg_temp.gc04_run;
 INSERT INTO public.sessions(id, name, status, session_topology_version, session_code)
-SELECT session_id, 'GC04 synthetic ' || session_id, 'active', 2, session_code FROM gc04_run
+SELECT session_id, 'GC04 synthetic ' || session_id, 'active', 2, session_code FROM pg_temp.gc04_run
 UNION ALL
-SELECT other_session_id, 'GC04 synthetic ' || other_session_id, 'active', 2, NULL FROM gc04_run;
+SELECT other_session_id, 'GC04 synthetic ' || other_session_id, 'active', 2, NULL FROM pg_temp.gc04_run;
 UPDATE public.sessions s SET green_roster_version = a.version,
     green_roster_snapshot = a.snapshot || jsonb_build_object('approved_by', a.approved_by, 'approved_at', a.approved_at)
-FROM gc04_run r JOIN public.green_roster_approvals a ON a.version = r.roster_version
+FROM pg_temp.gc04_run r JOIN public.green_roster_approvals a ON a.version = r.roster_version
 WHERE s.id IN (r.session_id, r.other_session_id);
 INSERT INTO public.game_state(session_id, move, phase)
-SELECT session_id, 1, 1 FROM gc04_run UNION ALL SELECT other_session_id, 1, 1 FROM gc04_run;
+SELECT session_id, 1, 1 FROM pg_temp.gc04_run UNION ALL SELECT other_session_id, 1, 1 FROM pg_temp.gc04_run;
 
-DO $$ DECLARE actor gc04_actors; run gc04_run; seat JSONB;
+gc04_stage := 'seat_claims';
+DO $$ DECLARE actor pg_temp.gc04_actors; run pg_temp.gc04_run; seat JSONB;
 BEGIN
-    SELECT * INTO STRICT run FROM gc04_run;
-    FOR actor IN SELECT * FROM gc04_actors ORDER BY role LOOP
+    SELECT * INTO STRICT run FROM pg_temp.gc04_run;
+    FOR actor IN SELECT * FROM pg_temp.gc04_actors ORDER BY role LOOP
         PERFORM pg_temp.gc04_identity(actor.auth_id);
         SET LOCAL ROLE authenticated;
         seat := public.claim_session_role_seat(run.session_id, actor.role,
@@ -95,18 +110,19 @@ BEGIN
             AND seat->>'id' IS NOT NULL AND seat->>'participant_id' IS NOT NULL,
             actor.role, 'join');
         RESET ROLE;
-        UPDATE gc04_actors SET seat_id = (seat->>'id')::UUID,
+        UPDATE pg_temp.gc04_actors SET seat_id = (seat->>'id')::UUID,
             participant_id = (seat->>'participant_id')::UUID WHERE role = actor.role;
     END LOOP;
     PERFORM pg_temp.gc04_identity(NULL);
 END $$;
 
-DO $$ DECLARE actor gc04_actors; run gc04_run; result JSONB; foreign_seat UUID; denied BOOLEAN;
+gc04_stage := 'seat_restore_and_revocation';
+DO $$ DECLARE actor pg_temp.gc04_actors; run pg_temp.gc04_run; result JSONB; foreign_seat UUID; denied BOOLEAN;
 BEGIN
-    SELECT * INTO STRICT run FROM gc04_run;
-    FOR actor IN SELECT * FROM gc04_actors ORDER BY role LOOP
+    SELECT * INTO STRICT run FROM pg_temp.gc04_run;
+    FOR actor IN SELECT * FROM pg_temp.gc04_actors ORDER BY role LOOP
         -- An occupied seat from the other region, belonging to another identity.
-        SELECT seat_id INTO STRICT foreign_seat FROM gc04_actors
+        SELECT seat_id INTO STRICT foreign_seat FROM pg_temp.gc04_actors
             WHERE delegation <> actor.delegation AND semantic_role = actor.semantic_role;
         PERFORM pg_temp.gc04_identity(actor.auth_id);
         SET LOCAL ROLE authenticated;
@@ -153,7 +169,7 @@ BEGIN
 
     -- Revoke only after every foreign-seat check; revoked foreign fixtures could
     -- otherwise hide an ownership defect. Only this run's new rows are touched.
-    FOR actor IN SELECT * FROM gc04_actors ORDER BY role LOOP
+    FOR actor IN SELECT * FROM pg_temp.gc04_actors ORDER BY role LOOP
         UPDATE public.session_participants SET revoked_at = NOW(), is_active = false
             WHERE id = actor.seat_id AND session_id = run.session_id;
         IF NOT FOUND THEN RAISE EXCEPTION 'GC04 synthetic revocation seat missing'; END IF;
@@ -170,12 +186,41 @@ BEGIN
         RESET ROLE;
         PERFORM pg_temp.gc04_identity(NULL);
     END LOOP;
-    IF (SELECT count(*) FROM gc04_results) <> 36 THEN
+    IF (SELECT count(*) FROM pg_temp.gc04_results) <> 36 THEN
         RAISE EXCEPTION 'GC04 incomplete matrix: expected 36 assertions';
     END IF;
 END $$;
 
-SELECT role, 'PASS' AS status, count(*) AS assertions_passed,
-    string_agg(assertion, ', ' ORDER BY assertion) AS checks
-FROM gc04_results GROUP BY role ORDER BY role;
+gc04_stage := 'report';
+SELECT jsonb_build_object('suite','GC04','assertions',sum(assertions_passed),
+    'results',jsonb_agg(to_jsonb(grouped) ORDER BY role))
+INTO gc04_report
+FROM (
+    SELECT role, 'PASS' AS status, count(*) AS assertions_passed,
+        string_agg(assertion, ', ' ORDER BY assertion) AS checks
+    FROM pg_temp.gc04_results GROUP BY role
+) AS grouped;
+PERFORM set_config('gc04.rehearsal_result',gc04_report::TEXT,true);
+EXCEPTION WHEN OTHERS THEN
+    -- Fixture writes roll back before rethrowing. Include context in MESSAGE
+    -- because SQL Editor may omit separate DETAIL and CONTEXT fields.
+    GET STACKED DIAGNOSTICS gc04_error_state=RETURNED_SQLSTATE,
+        gc04_error_message=MESSAGE_TEXT, gc04_error_context=PG_EXCEPTION_CONTEXT;
+    RAISE EXCEPTION USING ERRCODE=gc04_error_state,
+        MESSAGE=format('GC04 stage=%s SQLSTATE=%s: %s | context: %s',
+            gc04_stage,gc04_error_state,gc04_error_message,gc04_error_context);
+END $gc04_suite$;
+
+-- Preserve the grouped result columns without reading temporary relations here.
+-- Missing or empty reports fail; final rollback clears both fixtures and report.
+WITH report AS (
+    SELECT NULLIF(current_setting('gc04.rehearsal_result',true),'')::JSONB AS value
+)
+SELECT entry->>'role' AS role, entry->>'status' AS status,
+    (entry->>'assertions_passed')::BIGINT AS assertions_passed, entry->>'checks' AS checks
+FROM report CROSS JOIN LATERAL jsonb_array_elements(CASE
+    WHEN (value->>'assertions')::BIGINT > 0 THEN value->'results'
+    ELSE '[{"role":"runner","status":"FAIL","assertions_passed":0,"checks":"GC04 runner did not produce a report"}]'::JSONB
+END) AS checks(entry)
+ORDER BY role;
 ROLLBACK;

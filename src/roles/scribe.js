@@ -537,7 +537,7 @@ export function buildFacilitatorProposalSlides(communications = [], {
                 ? getProposalThreadStatus(getProposalThreadForRecipient(
                     communications,
                     snapshot.metadata.source_proposal_id,
-                    snapshot.metadata.recipient_team
+                    snapshot.metadata.recipient_team, snapshot.metadata.source_revision
                 ))
                 : getProposalRecipientStatus(communication);
             return {
@@ -2150,7 +2150,7 @@ export class ScribeController {
                 : `proposal-${getProposalThreadForRecipient(
                     communicationsStore.getAll(),
                     thread.sourceProposalId,
-                    thread.recipientTeam
+                    thread.recipientTeam, thread.sourceRevision
                 )[0]?.id || ''}`;
             const durableNotification = buildProposalRoundNotification(communication);
             if (durableNotification) durableNotification.destination.slideKey = slideKey;
@@ -3258,6 +3258,11 @@ export class ScribeController {
     }
 
     renderPresentationToolbar(action = {}, actionViewModel = getBlueActionViewModel(action)) {
+        if (action.delegation_id && isProposalAction(action) && isDraftAction(action)
+            && action.proposal_handoff_revision !== action.revision_number
+            && !(!this.teamContext.sharedFacilitator && action.proposal_handoff_revision == null && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator')) {
+            return '<p role="status">Awaiting the originating Scribe’s corrected proposal handoff before submission.</p>';
+        }
         if ((this.teamContext.sharedFacilitator || action.delegation_id) && isStrategicOrientationAction(action)) {
             const legacyPair = !this.teamContext.sharedFacilitator && action.orientation_handoff_revision == null
                 && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator';
@@ -3483,9 +3488,8 @@ export class ScribeController {
     }
 
     async editProjectedAction(actionId = '') {
-        if (this.teamContext.sharedFacilitator) return;
         const action = this.teamActions.find((candidate) => candidate?.id === actionId);
-        if (!action || !isDraftAction(action)) {
+        if (!action || !isDraftAction(action) || this.teamContext.sharedFacilitator && !isProposalAction(action)) {
             showToast({ message: 'Only forwarded draft actions can be edited.', type: 'error' });
             return;
         }
@@ -3502,6 +3506,10 @@ export class ScribeController {
         this.actionEditorController.teamLabel = this.teamLabel;
         this.actionEditorController.isReadOnly = false;
 
+        if (action.delegation_id && isProposalAction(action)) {
+            try { this.actionEditorController.proposalRoster = await database.getRegionalProposalRoster(action.session_id, action.delegation_id); }
+            catch (_error) { showToast({ message: 'Approved roster unavailable. Refresh and retry.', type: 'error' }); return; }
+        }
         if (this.isPresentationModeActive()) {
             this.openPresentationEditPanel(action);
             return;
@@ -3952,7 +3960,7 @@ export class ScribeController {
     }
 
     async submitScribeAction(action = {}, selections = {}) {
-        if (this.teamContext.sharedFacilitator && !isStrategicOrientationAction(action)) return;
+        if (this.teamContext.sharedFacilitator && !isStrategicOrientationAction(action) && !isProposalAction(action)) return;
         const wasReturned = getArtifactLifecycleViewModel(action).isReturned;
         if (isStrategicOrientationAction(action)) {
             await this.submitScribeStrategicOrientation(action);
@@ -4013,7 +4021,6 @@ export class ScribeController {
     }
 
     async submitScribeProposal(action = {}) {
-        if (this.teamContext.sharedFacilitator) return;
         if (!isDraftAction(action) || !isProposalForwardedToScribe(action)) {
             showToast({ message: 'Only scribe-forwarded proposal drafts can be submitted by the facilitator.', type: 'error' });
             return;
@@ -4025,9 +4032,12 @@ export class ScribeController {
         const loader = showLoader({ message: 'Submitting proposal to White Cell...' });
 
         try {
-            const submittedAction = await database.submitAction(action.id);
+            const submittedAction = action.delegation_id
+                ? await database.writeRegionalProposal({ sessionId: action.session_id, delegationId: action.delegation_id, action, operation: 'submit' })
+                : await database.submitAction(action.id);
             actionsStore.updateFromServer('UPDATE', submittedAction);
 
+            if (!action.delegation_id) {
             const timelineEvent = await database.createTimelineEvent({
                 session_id: submittedAction.session_id || action.session_id,
                 type: 'PROPOSAL_SUBMITTED',
@@ -4048,6 +4058,7 @@ export class ScribeController {
                 phase: submittedAction.phase ?? action.phase ?? 1
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
+            }
 
             this.closePresentationEditPanel();
             showToast({
@@ -4126,9 +4137,10 @@ export class ScribeController {
     }
 
     renderOwnProposalSlide(slide, viewModel = getProposalViewModel(slide.action || {})) {
-        if (this.teamContext.sharedFacilitator) return this.renderSharedRegionalRecord(slide.action);
         const action = slide.action || {};
         const isDraftPreview = isDraftAction(action);
+        const ready = !action.delegation_id || action.proposal_handoff_revision === action.revision_number
+            || !this.teamContext.sharedFacilitator && action.proposal_handoff_revision == null && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator';
         const lifecycle = getArtifactLifecycleViewModel(action);
         // Each recipient stays in an isolated, append-only thread so its
         // approval and response history cannot leak into another team's view.
@@ -4139,7 +4151,7 @@ export class ScribeController {
             <article class="scribe-action-slide scribe-own-proposal-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
-                        <p class="scribe-action-slide-eyebrow">${escapeHtml(this.teamLabel)} Proposal</p>
+                        <p class="scribe-action-slide-eyebrow">${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || this.teamLabel)} Proposal &middot; Revision ${escapeHtml(String(action.revision_number || 1))}</p>
                         <h2 class="scribe-action-slide-title">${escapeHtml(viewModel.title)}</h2>
                         <p class="scribe-action-slide-summary">Intended recipient: ${escapeHtml(recipientLabel)}</p>
                     </div>
@@ -4172,6 +4184,9 @@ export class ScribeController {
                     </section>
 
                     ${this.renderOwnProposalProcess(action, viewModel)}
+                    ${action.delegation_id && action.revision_number > 1 ? `<details><summary>Earlier proposal thread revisions</summary><ol>${communicationsStore.getAll()
+                        .filter((row) => row.metadata?.source_proposal_id === action.id && Number(row.metadata?.source_revision) < action.revision_number && isProposalThreadMessage(row))
+                        .map((row) => `<li>Revision ${escapeHtml(String(row.metadata.source_revision))} &middot; ${escapeHtml(row.metadata.recipient_team)} &middot; Round ${escapeHtml(String(row.metadata.round_number))}: ${escapeHtml(row.content || '')}</li>`).join('') || '<li>No earlier released thread rounds.</li>'}</ol></details>` : ''}
 
                     ${lifecycle.isReturned ? `
                         <section class="scribe-action-slide-return" aria-label="White Cell proposal return details">
@@ -4204,7 +4219,7 @@ export class ScribeController {
                                     <button
                                         type="button"
                                         class="btn btn-primary"
-                                        data-scribe-action-submit
+                                        data-scribe-action-submit ${ready ? '' : 'disabled'}
                                         data-action-id="${escapeHtml(String(action.id || ''))}"
                                     >${lifecycle.isReturned ? 'Resubmit to White Cell' : 'Forward to White Cell'}</button>
                                 </div>
@@ -4342,11 +4357,12 @@ export class ScribeController {
                     <p class="scribe-action-slide-section-label">Proposal threads</p>
                     ${recipients.map((recipientTeam) => {
                         const recipientLabel = this.getTeamLabel(recipientTeam);
-                        const messages = getProposalThreadForRecipient(allCommunications, action.id, recipientTeam);
+                        const messages = getProposalThreadForRecipient(allCommunications, action.id, recipientTeam, action.delegation_id ? action.revision_number : null);
                         const status = getProposalThreadStatus(messages);
                         const latest = getLatestProposalThreadMessage(messages);
                         const latestMetadata = getProposalThreadMetadata(latest);
-                        const canReply = latestMetadata
+                        const pending = getPendingProposalResponseReviews(allCommunications, action.id).some((row) => row.metadata?.thread_id === latestMetadata?.threadId);
+                        const canReply = latestMetadata && !pending && !isDraftAction(action)
                             && latestMetadata.senderTeam !== this.teamId
                             && status !== PROPOSAL_RECIPIENT_STATUSES.CLOSED;
                         const pendingDetail = lifecycle.isReturned
@@ -4477,7 +4493,7 @@ export class ScribeController {
         const messages = getProposalThreadForRecipient(
             proposalCommunications,
             metadata.source_proposal_id,
-            metadata.recipient_team
+            metadata.recipient_team, metadata.source_revision
         );
         const pendingResponse = getPendingProposalResponseReviews(
             proposalCommunications,
@@ -4514,7 +4530,7 @@ export class ScribeController {
             <article class="scribe-action-slide scribe-proposal-slide" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
-                        <p class="scribe-action-slide-eyebrow">Proposal from ${escapeHtml(formatTeamLabel(sourceTeam))}</p>
+                        <p class="scribe-action-slide-eyebrow">Proposal from ${escapeHtml(GREEN_DELEGATIONS[communication.delegation_id] || formatTeamLabel(sourceTeam))} &middot; Revision ${escapeHtml(String(metadata.source_revision || 1))}</p>
                         <h2 class="scribe-action-slide-title">${escapeHtml(title)}</h2>
                         <p class="scribe-action-slide-summary">Forwarded by White Cell for ${escapeHtml(this.teamLabel)} consideration.</p>
                     </div>
@@ -4597,7 +4613,6 @@ export class ScribeController {
     }
 
     async handleFacilitatorProposalDecision(communicationId = '', decision = '') {
-        if (this.teamContext.sharedFacilitator) return;
         const communication = communicationsStore.getAll().find((entry) => entry?.id === communicationId);
         if (!communication) {
             showToast({ message: 'Proposal not found. Refresh the facilitator view and try again.', type: 'error' });
@@ -4609,7 +4624,7 @@ export class ScribeController {
             ? getProposalThreadForRecipient(
                 communicationsStore.getAll(),
                 threadMetadata.sourceProposalId,
-                threadMetadata.recipientTeam
+                threadMetadata.recipientTeam, threadMetadata.sourceRevision
             )
             : [];
         if (getProposalThreadStatus(threadMessages) === PROPOSAL_RECIPIENT_STATUSES.CLOSED) {
@@ -4792,7 +4807,6 @@ export class ScribeController {
     }
 
     async submitFacilitatorProposalDecision(communication = {}, decision = '', negotiationTerms = '') {
-        if (this.teamContext.sharedFacilitator) return;
         const sessionId = sessionStore.getSessionId();
         const latestParent = communicationsStore.getAll().find((entry) => entry?.id === communication?.id) || communication;
         const threadMetadata = getProposalThreadMetadata(latestParent);
@@ -4845,7 +4859,7 @@ export class ScribeController {
     }
 
     renderActionSlide(slide) {
-        if (this.teamContext.sharedFacilitator && !isStrategicOrientationAction(slide.action || {})) return this.renderSharedRegionalRecord(slide.action);
+        if (this.teamContext.sharedFacilitator && !isStrategicOrientationAction(slide.action || {}) && !isProposalAction(slide.action || {})) return this.renderSharedRegionalRecord(slide.action);
         if (slide.slideType === 'action-placeholder') {
             return `
                 <article class="scribe-action-slide scribe-action-slide-placeholder">

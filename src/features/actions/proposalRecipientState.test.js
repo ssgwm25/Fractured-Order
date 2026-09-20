@@ -33,6 +33,14 @@ function message({ id, threadId, recipientTeam, round, parentId = null, senderTe
 }
 
 describe('proposal recipient threads', () => {
+    it('GC06 isolates a corrected revision without removing the earlier thread', () => {
+        const old = message({ id:'old',threadId:'old-thread',recipientTeam:'blue',round:0,senderTeam:'white_cell',messageType:'proposal_forwarded' });
+        const current = { ...old,id:'current',metadata:{ ...old.metadata,thread_id:'current-thread',source_revision:3 } };
+        expect(getProposalThreadForRecipient([old,current],'proposal-1','blue',2).map((r)=>r.id)).toEqual(['old']);
+        expect(getProposalThreadForRecipient([old,current],'proposal-1','blue',3).map((r)=>r.id)).toEqual(['current']);
+        expect(getProposalThreadForRecipient([old,current],'proposal-1','blue',4)).toEqual([]);
+    });
+
     it('keeps recipient threads isolated and orders immutable rounds', () => {
         const blueRoot = message({ id: 'blue-0', threadId: 'blue-thread', recipientTeam: 'blue', round: 0, senderTeam: 'white_cell', messageType: 'proposal_forwarded', content: 'Forwarded to Blue' });
         const blueReply = message({ id: 'blue-1', threadId: 'blue-thread', recipientTeam: 'blue', round: 1, parentId: 'blue-0', senderTeam: 'blue', messageType: 'negotiation_message', content: 'Blue terms' });

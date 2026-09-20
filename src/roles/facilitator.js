@@ -111,7 +111,7 @@ import {
     isDraftAction,
     isSubmittedAction
 } from '../core/enums.js';
-import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
+import { GREEN_DELEGATIONS, getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { ensureSeatStartup } from '../services/seatBootstrap.js';
 import { seatStorageKey, bindControllerSeatCleanup } from '../core/seatContext.js';
 import { navigateToApp } from '../core/navigation.js';
@@ -358,7 +358,7 @@ export class FacilitatorController {
         if (this.seatInvalidated) return;
         this.configureAccessMode();
         this.bindEventListeners();
-        this.actions = actionsStore.getByTeam(this.teamId);
+        this.actions = actionsStore.getByTeam(this.teamId).filter((action) => !this.teamContext?.delegationId || action.delegation_id === this.teamContext.delegationId);
         this.captureAuthoredProposalResponseArrivals();
         this.subscribeToLiveData();
         this.syncActionsFromStore();
@@ -866,7 +866,7 @@ export class FacilitatorController {
     }
 
     syncActionsFromStore() {
-        this.actions = actionsStore.getByTeam(this.teamId);
+        this.actions = actionsStore.getByTeam(this.teamId).filter((action) => !this.teamContext?.delegationId || action.delegation_id === this.teamContext.delegationId);
         this.updateStrategicOrientationControlAvailability();
         this.renderActionsList();
 
@@ -1484,6 +1484,7 @@ export class FacilitatorController {
             .filter((communication) => (
                 communication?.type === 'PROPOSAL_FORWARDED'
                 && communication?.metadata?.source_proposal_id === action.id
+                && (!action.delegation_id || Number(communication.metadata.source_revision) === action.revision_number)
             ))
             .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))[0] || null;
     }
@@ -2329,9 +2330,10 @@ export class FacilitatorController {
         const lifecycle = getArtifactLifecycleViewModel(lifecycleArtifact);
         const canManageDraft = !this.isReadOnly
             && canEditAction(action)
-            && (!isStrategicOrientationFlow || isReturnedToBlue);
+            && (!isStrategicOrientationFlow || isReturnedToBlue)
+            && !(isGreenProposalFlow && action.delegation_id && action.workflow_state === 'forwarded_to_facilitator');
         const canSubmitDraft = !this.isReadOnly && canSubmitAction(action);
-        const canRemoveDraft = !this.isReadOnly && !isStrategicOrientationFlow && canDeleteAction(action);
+        const canRemoveDraft = !this.isReadOnly && !isStrategicOrientationFlow && !(isGreenProposalFlow && action.delegation_id) && canDeleteAction(action);
         const forwardedProposalCommunication = isGreenProposalFlow
             ? this.getForwardedProposalCommunication(action)
             : null;
@@ -3510,7 +3512,15 @@ export class FacilitatorController {
         }
     }
 
-    showGreenProposalModal(action = null) {
+    async showGreenProposalModal(action = null) {
+        const delegation = action?.delegation_id || this.teamContext?.delegationId;
+        if (delegation) {
+            try { this.proposalRoster = await database.getRegionalProposalRoster(sessionStore.getSessionId(), delegation); }
+            catch (_error) {
+                showToast({ message: 'Approved proposal roster unavailable. Refresh your seat and retry.', type: 'error' });
+                return;
+            }
+        }
         const isEdit = Boolean(action?.id);
         const isIndustryProposal = this.teamId === 'industry';
         const content = isIndustryProposal
@@ -3582,6 +3592,12 @@ export class FacilitatorController {
         const content = document.createElement('div');
         const viewModel = getProposalViewModel(action);
         const isIndustryProposal = proposalKind === 'industry';
+        const regionalFacilitator = Boolean(action.delegation_id
+            && (this.teamContext?.sharedFacilitator || this.role?.endsWith('_facilitator')));
+        const requiresRegionalHandoff = Boolean(action.delegation_id
+            && getArtifactLifecycleViewModel(action).isReturned && !regionalFacilitator);
+        const showSaveChanges = regionalFacilitator || (isEdit
+            && viewModel.scribeHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED && !requiresRegionalHandoff);
         const builtInSectorValues = PROPOSAL_SECTORS.filter((value) => value !== 'Other');
         const customSectorValue = viewModel.focusSectors.find(
             (value) => value && !builtInSectorValues.includes(value) && value !== 'Other'
@@ -3602,10 +3618,10 @@ export class FacilitatorController {
                         class="form-checkbox"
                         type="checkbox"
                         data-proposal-originator="true"
-                        value="${value}"
-                        ${viewModel.originators.includes(value) ? 'checked' : ''}
+                        value="${this.escapeHtml(value)}"
+                        ${viewModel.originators.some((origin) => (this.proposalRoster?.aliases?.[origin] || origin) === value) ? 'checked' : ''}
                     >
-                    <span class="form-check-label">${value}</span>
+                    <span class="form-check-label">${this.escapeHtml(value)}</span>
                 </label>
             `;
         };
@@ -3614,6 +3630,7 @@ export class FacilitatorController {
 
         content.innerHTML = `
             <form id="${this.escapeHtml(formId)}" novalidate>
+                ${action.delegation_id || this.teamContext?.delegationId ? `<p>${this.escapeHtml(GREEN_DELEGATIONS[action.delegation_id || this.teamContext.delegationId])} &middot; Revision ${this.escapeHtml(String(action.revision_number || 1))}</p>` : ''}
                 ${this.renderProposalRevisionContext(action)}
                 <div class="form-group">
                     <label class="form-label" for="proposalTitle">Proposal Title *</label>
@@ -3645,7 +3662,7 @@ export class FacilitatorController {
                     <fieldset class="form-group">
                         <legend class="form-label">Originator *</legend>
                         <div class="form-check-grid">
-                            ${PROPOSAL_ORIGINATORS.map(renderOriginatorCheckbox).join('')}
+                            ${(action.delegation_id || this.teamContext?.delegationId ? this.proposalRoster?.members || [] : PROPOSAL_ORIGINATORS).map(renderOriginatorCheckbox).join('')}
                         </div>
                     </fieldset>
                     <div class="form-group">
@@ -3742,7 +3759,7 @@ export class FacilitatorController {
                 <div style="display: flex; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
                     <button type="button" class="btn btn-secondary" data-proposal-nav="cancel">Cancel</button>
                     <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end;">
-                        ${isEdit && viewModel.scribeHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED ? `
+                        ${showSaveChanges ? `
                             <button type="button" class="btn btn-primary" data-proposal-nav="saveChanges">Save Changes</button>
                         ` : `
                             <button type="button" class="btn btn-secondary" data-proposal-nav="saveDraft">Save Draft</button>
@@ -3753,6 +3770,11 @@ export class FacilitatorController {
             </form>
         `;
 
+        const form = content.querySelector('form');
+        if (form) {
+            form.proposalSnapshot = action.id ? { ...action } : null;
+            form.proposalClientKey = globalThis.crypto.randomUUID();
+        }
         return content;
     }
 
@@ -3947,6 +3969,42 @@ export class FacilitatorController {
         };
     }
 
+    async saveRegionalProposalForm(modal, form, operation) {
+        if (form.dataset.saving === 'true') return;
+        const action = form.proposalSnapshot;
+        const delegationId = action?.delegation_id || this.teamContext?.delegationId;
+        const data = this.getGreenProposalData(form);
+        const error = this.validateGreenProposal(data);
+        if (error) { showToast({ message: error, type: 'error' }); return; }
+        if (!data.originators.every((value) => this.proposalRoster?.members?.includes(value))) {
+            showToast({ message: 'Choose originators from this delegation’s approved session roster.', type: 'error' });
+            return;
+        }
+        const semanticFacilitator = this.teamContext?.sharedFacilitator || this.role?.endsWith('_facilitator');
+        const requestedOperation = semanticFacilitator ? 'edit' : operation;
+        const values = action ? { ...getProposalViewModel(action), ...data } : data;
+        const built = this.buildGreenProposalPayload(values, { scribeHandoff: requestedOperation === 'save' ? 'Draft' : 'Forwarded' });
+        form.dataset.saving = 'true';
+        const buttons = [...form.querySelectorAll('[data-proposal-nav]')];
+        buttons.forEach((button) => { button.disabled = true; });
+        try {
+            const saved = await database.writeRegionalProposal({
+                sessionId: sessionStore.getSessionId(), delegationId, action, operation: requestedOperation,
+                clientKey: form.proposalClientKey,
+                payload: { goal: built.goal, sector: built.sector, expected_outcomes: built.expected_outcomes, ally_contingencies: built.ally_contingencies }
+            });
+            actionsStore.updateFromServer(action ? 'UPDATE' : 'INSERT', saved);
+            form.proposalSnapshot = saved;
+            showToast({ message: requestedOperation === 'forward' ? 'Proposal handed to the Facilitator.' : 'Proposal changes saved.', type: 'success' });
+            modal?.close();
+        } catch (error) {
+            showToast({ message: getUserMessage(error, { fallback: 'Proposal could not be saved. Refresh the proposal and retry.' }), type: 'error' });
+        } finally {
+            form.dataset.saving = 'false';
+            buttons.forEach((button) => { button.disabled = false; });
+        }
+    }
+
     async saveGreenProposalDraft(modal, form, {
         recipientTeam = null,
         actionId = null,
@@ -3954,6 +4012,8 @@ export class FacilitatorController {
         scribeHandoff = PROPOSAL_SCRIBE_HANDOFF.DRAFT
     } = {}) {
         if (!this.requireWriteAccess()) return;
+        if (form.proposalSnapshot?.delegation_id || this.teamContext?.delegationId) return this.saveRegionalProposalForm(modal, form, 'save');
+
 
         const data = this.getGreenProposalData(form);
         const error = this.validateGreenProposal(data);
@@ -4045,6 +4105,8 @@ export class FacilitatorController {
         isEdit = false
     } = {}) {
         if (!this.requireWriteAccess()) return;
+        if (form.proposalSnapshot?.delegation_id || this.teamContext?.delegationId) return this.saveRegionalProposalForm(modal, form, 'forward');
+
 
         const data = this.getGreenProposalData(form);
         const error = this.validateGreenProposal(data);

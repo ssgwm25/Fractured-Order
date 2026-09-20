@@ -9,6 +9,13 @@ import {
 } from './proposalDetails.js';
 
 describe('proposalDetails scribe handoff', () => {
+    it('uses persisted regional approvals and ignores narrative approval claims', () => {
+        const action = { delegation_id:'europe', revision_number:2, ally_contingencies:serializeProposalDetails({
+            recipientTeams:['blue','red'], recipientApprovalStates:{blue:'approved_forwarded',red:'approved_forwarded'}
+        }), artifact_payload:{proposal_recipient_reviews:{blue:{status:'approved_forwarded'}}} };
+        expect(getProposalViewModel(action).recipientApprovalStates).toEqual({blue:'approved_forwarded',red:'pending_white_cell_approval'});
+        expect(getProposalViewModel(action).delegationLabel).toBe('Green - Europe');
+    });
     it('round-trips every multi-select, Industry, supply-chain, and revision field', () => {
         const serialized = serializeProposalDetails({
             originators: ['Industry', 'Japan'],

@@ -7,6 +7,7 @@
 
 import { createArtifactLifecycleBadge, createPriorityBadge } from '../../components/ui/Badge.js';
 import { formatRelativeTime } from '../../utils/formatting.js';
+import { GREEN_DELEGATIONS } from '../../core/teamContext.js';
 import { ENUMS } from '../../core/enums.js';
 
 /**
@@ -55,6 +56,7 @@ export function createActionCard(action, options = {}) {
                 <h3 class="action-card-title">${escapeHtml(goal)}</h3>
                 <div class="action-card-badges">
                     ${statusBadge.outerHTML}
+                    ${action.delegation_id ? `<span>${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || action.delegation_id)} &middot; Revision ${escapeHtml(String(action.revision_number || 1))}</span>` : ''}
                     ${priorityBadge.outerHTML}
                 </div>
             </div>
@@ -176,6 +178,7 @@ export function createCompactActionCard(action, options = {}) {
             <span class="action-card-compact-mechanism">${action.mechanism || ''}</span>
         </div>
         <div class="action-card-compact-status">
+            ${action.delegation_id ? `<span>${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || action.delegation_id)} &middot; Revision ${escapeHtml(String(action.revision_number || 1))}</span>` : ''}
             ${statusBadge.outerHTML}
         </div>
     `;
