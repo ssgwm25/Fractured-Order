@@ -707,7 +707,11 @@ describe('landing secure join flow', () => {
         expect(mockDatabase.getActiveSessions).not.toHaveBeenCalled();
     });
 
-    it('authorizes White Cell with session code + access code', async () => {
+    it.each([
+        ['shared', 2, 'shared_facilitator_v1'],
+        ['pairs', 2, null],
+        ['unified', 1, null]
+    ])('authorizes %s White Cell without starting a landing-page heartbeat', async (_model, topology, greenSeatModel) => {
         const elements = {
             operatorSessionCode: createElement('alpha2026'),
             operatorAccessCode: createElement('admin2025')
@@ -723,7 +727,7 @@ describe('landing secure join flow', () => {
             id: 'session-1',
             name: 'Alpha Session',
             session_code: 'ALPHA2026',
-            status: 'active'
+            status: 'active', session_topology_version: topology, green_seat_model: greenSeatModel
         });
         mockDatabase.authorizeOperatorAccess.mockResolvedValue({
             id: 'grant-1',
@@ -735,6 +739,8 @@ describe('landing secure join flow', () => {
         });
         mockDatabase.claimParticipantSeat.mockResolvedValue({
             id: 'session-participant-1',
+            session_id: 'session-1', role: 'whitecell_lead', delegation_id: null,
+            is_active: true, display_name_snapshot: 'White Cell Lead',
             claim_status: 'claimed'
         });
         mockDatabase.getGameState.mockResolvedValue({
@@ -761,9 +767,13 @@ describe('landing secure join flow', () => {
             'whitecell_lead',
             'White Cell Lead'
         );
-        expect(mockSyncService.initialize).toHaveBeenCalledWith('session-1', {
-            participantId: 'session-participant-1'
-        });
+        expect(mockSyncService.initialize).not.toHaveBeenCalled();
+        expect(mockSessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({
+            sessionId: 'session-1', participantId: 'session-participant-1',
+            role: 'whitecell_lead', topology, delegationId: null
+        }));
+        expect(mockSessionStore.confirmSeat.mock.invocationCallOrder[0])
+            .toBeLessThan(controller.redirectToRole.mock.invocationCallOrder[0]);
         expect(mockSessionStore.setOperatorAuth).toHaveBeenCalledWith(expect.objectContaining({
             id: 'grant-1',
             surface: 'whitecell',
@@ -774,6 +784,32 @@ describe('landing secure join flow', () => {
             operatorName: 'White Cell Lead'
         }));
         expect(controller.redirectToRole).toHaveBeenCalledWith('whitecell_lead');
+    });
+
+    it.each([
+        { role: 'whitecell_support' },
+        { revoked_at: '2026-09-20T00:00:00Z' },
+        { session_id: 'another-session' }
+    ])('rejects a mismatched or revoked White Cell claim: %j', async (override) => {
+        global.document = { getElementById: () => null };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({
+            id: 'session-1', status: 'active', session_topology_version: 2,
+            green_seat_model: 'shared_facilitator_v1'
+        });
+        mockDatabase.authorizeOperatorAccess.mockResolvedValue({ role: 'whitecell_lead' });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({
+            id: 'seat-1', session_id: 'session-1', role: 'whitecell_lead', is_active: true, ...override
+        });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.resolveStaffSessionCode = () => 'ALPHA2026';
+        controller.resolveStaffDisplayName = () => 'White Cell Lead';
+        controller.redirectToRole = vi.fn();
+        await expect(controller.authorizeWhiteCell('lead', 'admin2025')).rejects.toThrow(/seat/i);
+        expect(mockSessionStore.confirmSeat).not.toHaveBeenCalled();
+        expect(mockSessionStore.setSessionData).not.toHaveBeenCalled();
+        expect(mockSyncService.initialize).not.toHaveBeenCalled();
+        expect(controller.redirectToRole).not.toHaveBeenCalled();
     });
 
     it('authorizes SME with session code + access code (role from button)', async () => {

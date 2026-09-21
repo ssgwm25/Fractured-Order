@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.3.0",
+  "contract_version": "1.4.0",
   "status": "proposed_not_activated",
   "parent_team": "green",
   "authority": "authenticated_active_session_seat",
@@ -12,13 +12,13 @@
       "operational_roles": ["green_asian_pacific_scribe", "green_europe_scribe", "green_shared_facilitator"],
       "notetaker_roles": ["green_asian_pacific_notetaker", "green_europe_notetaker"],
       "shared_read_workflow_states": ["forwarded_to_facilitator", "submitted_to_white_cell", "completed"],
-      "permission_stage": "GC-06-proposals",
-      "deferred_mutations": ["GC-07"],
+      "permission_stage": "GC-07-messaging",
+      "deferred_mutations": [],
       "creation_ui": "GC-08"
     }
   },
   "shared_seats": [
-    { "role": "green_shared_facilitator", "semantic_role": "facilitator", "delegation_id": null, "capacity": 1, "route": "teams/green/scribe.html", "permission_profile": "shared_facilitator_proposals" }
+    { "role": "green_shared_facilitator", "semantic_role": "facilitator", "delegation_id": null, "capacity": 1, "route": "teams/green/scribe.html", "permission_profile": "shared_facilitator_messaging" }
   ],
   "topologies": {
     "unified_green": { "session_topology_version": 1, "required_orientations": ["blue", "green", "red", "industry"] },
@@ -70,8 +70,9 @@
     { "role": "viewer", "permission_profile": "observer", "route": "teams/green/facilitator.html?mode=observer" }
   ],
   "permission_columns": ["read_artifacts", "edit_artifacts", "submit_artifacts", "rfis", "direct_messages", "proposal_threads", "notes", "review_or_control"],
-  "historical_permission_profiles": ["shared_facilitator_foundation", "shared_facilitator_orientations"],
+  "historical_permission_profiles": ["shared_facilitator_foundation", "shared_facilitator_orientations", "shared_facilitator_proposals"],
   "permission_matrix": {
+    "shared_facilitator_messaging": ["orientations_plus_owned_proposal_returns_threads", "proposal_forwarded_returned", "orientation_and_proposal_handoff_revision_only", "manage_explicit_region_revision", "scoped_white_cell", "approved_current_revision_threads", "no", "no"],
     "shared_facilitator_foundation": ["both_forwarded_submitted_completed", "no", "no", "no", "addressed_read_only", "no", "no", "no"],
     "shared_facilitator_orientations": ["foundation_plus_orientation_returns_reviews", "no", "orientation_handoff_revision_only", "no", "addressed_read_only", "no", "no", "no"],
     "shared_facilitator_proposals": ["orientations_plus_owned_proposal_returns_threads", "proposal_forwarded_returned", "orientation_and_proposal_handoff_revision_only", "no", "addressed_read_only", "approved_current_revision_threads", "no", "no"],

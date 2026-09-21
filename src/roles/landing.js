@@ -890,6 +890,10 @@ export class LandingController {
             operatorName
         });
         const participant = await database.claimParticipantSeat(session.id, whiteCellRole, operatorName);
+        const confirmedSeat = validateSeatEnvelope({ seat: participant, session }, {
+            sessionId: session.id, participantId: participant.id
+        });
+        if (confirmedSeat.role !== whiteCellRole) throw new Error('Confirmed seat does not match the requested role.');
 
         sessionStore.clear();
         sessionStore.setSessionId(session.id);
@@ -908,6 +912,7 @@ export class LandingController {
             operatorMode: true,
             seatClaimStatus: participant.claim_status || 'claimed'
         });
+        sessionStore.confirmSeat(confirmedSeat);
         sessionStore.setOperatorAuth({
             ...grant,
             sessionId: grant?.sessionId || session.id,
@@ -926,10 +931,8 @@ export class LandingController {
             logger.warn('Failed to preload White Cell game state:', error);
         }
 
-        await syncService.initialize(session.id, {
-            participantId: participant.id
-        });
-
+        // Start sync in the validated workspace. A landing-page heartbeat also
+        // installs a pagehide disconnect, which can race the navigation.
         await confirmation.confirm();
         this.redirectToRole(whiteCellRole);
     }

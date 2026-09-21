@@ -1,7 +1,7 @@
 # GC-01: Regional Green identity and permission contract
 
-Contract version **1.3.0**, roster decision recorded **2026-09-20**;
-GC-06 migration amendment **2026-09-26**. Status: proposed,
+Contract version **1.4.0**, roster decision recorded **2026-09-20**;
+GC-07 migration amendment **2026-09-28**. Status: proposed,
 not activated; human review and verification pending. This is the implementation
 reference for GC-02 through GC-12 in the [prompt book](../green-cell-regional-split-prompt-book.md).
 The [declarative contract](green-regional-contract.json) contains the exact
@@ -10,6 +10,13 @@ specification fixture, not a runtime authorization service. No production code
 imports it, and no regional functionality is enabled by GC-01.
 
 ## GC-04A shared-Facilitator amendment
+
+GC-07 adds the `shared_facilitator_messaging` permission profile; the previous
+foundation, orientation and proposal profiles remain historical stage contracts.
+RFIs and direct messages require an explicit owning region; RFI correction and
+answer operations require the persisted revision. See the
+[GC-07 implementation and verification runbook](gc07-regional-messaging.md).
+No gate or session activation is implied by this fixture amendment.
 
 The new target uses `session_topology_version=2` and the independent persisted
 `green_seat_model='shared_facilitator_v1'`: two regional Scribes and one shared
@@ -54,10 +61,10 @@ guidance with completed workflows; GC-10 preserves scoring; GC-11 exports staffi
 model separately from topology/ownership; GC-12 verifies each stage and all three
 compatible session models. See the prompt book for each stage's tests/acceptance.
 
-GC-06 selects `shared_facilitator_proposals`, retaining the two earlier profiles
+Historical version 1.3.0 selected `shared_facilitator_proposals`, retaining the two earlier profiles
 as historical contracts. Proposal RPCs bind active seat, owner, state, revision and
 row version. Threads require a persisted approval for their exact source revision
-and recipient; private notes, shared RFIs and direct creation remain closed. See
+and recipient; private notes, shared RFIs and direct creation remained closed at that stage. See
 [GC-06 implementation and human verification](gc06-regional-proposals.md).
 
 ## Historical GC-01 baseline
@@ -178,7 +185,7 @@ seat. Routes reuse existing HTML/controllers; no new Vite entry pages are needed
 
 | Topology | Persisted role | Semantic role | Delegation | Capacity | Route | Permission profile |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2 | `green_shared_facilitator` | facilitator | null | 1 | `teams/green/scribe.html` | shared_facilitator_proposals |
+| 2 | `green_shared_facilitator` | facilitator | null | 1 | `teams/green/scribe.html` | shared_facilitator_messaging |
 | 2 | `green_asian_pacific_facilitator` | facilitator | asian_pacific | 1 | `teams/green/scribe.html?delegation=asian_pacific` | regional_facilitator |
 | 2 | `green_asian_pacific_scribe` | scribe | asian_pacific | 1 | `teams/green/facilitator.html?delegation=asian_pacific` | regional_scribe |
 | 2 | `green_europe_facilitator` | facilitator | europe | 1 | `teams/green/scribe.html?delegation=europe` | regional_facilitator |
@@ -232,6 +239,7 @@ cross-region private reads or writes. The fixture uses these exact column names.
 | shared_facilitator_foundation | both_forwarded_submitted_completed | no | no | no | addressed_read_only | no | no | no |
 | shared_facilitator_orientations | foundation_plus_orientation_returns_reviews | no | orientation_handoff_revision_only | no | addressed_read_only | no | no | no |
 | shared_facilitator_proposals | orientations_plus_owned_proposal_returns_threads | proposal_forwarded_returned | orientation_and_proposal_handoff_revision_only | no | addressed_read_only | approved_current_revision_threads | no | no |
+| shared_facilitator_messaging | orientations_plus_owned_proposal_returns_threads | proposal_forwarded_returned | orientation_and_proposal_handoff_revision_only | manage_explicit_region_revision | scoped_white_cell | approved_current_revision_threads | no | no |
 | regional_notetaker | own_released | no | no | read_own | addressed | no | own_seat | no |
 | legacy_scribe | legacy_session | draft_returned | legacy_submit | read_own | legacy_addressed | legacy_append | legacy_notes_read | no |
 | legacy_facilitator | legacy_session | forwarded_returned | own | manage_own | own_white_cell | legacy_append | legacy_notes_read | no |
@@ -258,6 +266,13 @@ Permission terms have these exact bounds:
   `manage_own`: only that region's Facilitator creates, corrects and resubmits;
   only White Cell returns/answers. RFI questions/answers are not implicitly shared
   across Green. Lifecycle restrictions continue to apply.
+- `manage_explicit_region_revision`: the shared Facilitator can read both RFI
+  streams and create for an explicit region; correction/resubmission binds the
+  persisted owner, returned state and captured revision. Each regional Scribe
+  still reads only its own stream. `scoped_white_cell` permits shared Facilitator
+  direct messages to White Cell with explicit regional ownership. These GC-07
+  permissions require the authenticated active seat and server checks; they do
+  not grant general parent-Green writes or access to private notes.
 - `addressed`: only explicit role/delegation/shared announcements addressed to the
   seat. A Facilitator-to-White-Cell direct exchange stays private to that
   Facilitator seat and operators, unless White Cell explicitly releases a copy.

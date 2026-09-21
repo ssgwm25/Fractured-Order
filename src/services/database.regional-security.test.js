@@ -95,7 +95,9 @@ describe('GC-03 regional authority with GC-06 proposal RPC replacement (mock; SQ
         expect((await api.from('actions').update({ status: 'submitted' }).eq('id', created.data.id)).error?.code).toBe('42501');
         expect((await api.rpc('write_regional_proposal', { requested_session_id:'regional',requested_delegation_id:'asian_pacific',
             requested_action_id:created.data.id,requested_expected_revision:1,requested_expected_row_version:1,requested_operation:'submit',requested_payload:{} })).error).toBeNull();
-        expect((await api.from('requests').insert({ session_id: 'regional', team: 'green', delegation_id: 'asian_pacific', query: 'Synthetic question' })).error).toBeNull();
+        expect((await api.rpc('write_regional_rfi', { requested_session_id: 'regional', requested_delegation_id: 'asian_pacific',
+            requested_request_id: null, requested_expected_revision: null, requested_query: 'Synthetic question',
+            requested_categories: ['Other'], requested_client_key: 'gc07-compatibility' })).error).toBeNull();
         expect((await api.from('communications').insert({ session_id: 'regional', type: 'direct', to_role: 'white_cell',
             from_role: 'green_europe_facilitator', content: 'Spoof', metadata: { source_team: 'green' } })).error?.code).toBe('42501');
         identity('ap-scribe');

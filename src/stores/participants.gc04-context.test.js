@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { database, sessionStore, restoreConfirmedSeat } = vi.hoisted(() => ({
-    database: { updateHeartbeat: vi.fn() },
+    database: { updateHeartbeat: vi.fn(), disconnectParticipantKeepalive: vi.fn() },
     sessionStore: { getConfirmedSeat: vi.fn(), invalidateSeat: vi.fn(), notify: vi.fn() },
     restoreConfirmedSeat: vi.fn()
 }));
@@ -20,9 +20,24 @@ beforeEach(() => {
 });
 afterEach(() => { participantsStore.reset(); vi.unstubAllGlobals(); });
 
-describe.each([['green_europe_scribe', 'europe'], ['green_shared_facilitator', null]])('GC04/04A heartbeat: %s', (role, delegation) => {
+it('retains the legacy unified White Cell pagehide disconnect', () => {
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    sessionStore.getConfirmedSeat.mockReturnValue({ participantId: 'seat', role: 'whitecell_lead', topology: 1 });
+    participantsStore.bindPagehideKeepalive();
+    participantsStore.pagehideHandler();
+    expect(database.disconnectParticipantKeepalive).toHaveBeenCalledWith('session', 'seat');
+});
+
+describe.each([['green_europe_scribe', 'europe'], ['green_shared_facilitator', null],
+    ['whitecell_lead', null], ['whitecell_support', null]])('GC04/04A/07 heartbeat: %s', (role, delegation) => {
     beforeEach(() => {
         sessionStore.getConfirmedSeat.mockReturnValue({ participantId: 'seat', role, delegationId: delegation, topology: 2 });
+    });
+    it('preserves the confirmed regional lease during page navigation', () => {
+        vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+        participantsStore.bindPagehideKeepalive();
+        participantsStore.pagehideHandler();
+        expect(database.disconnectParticipantKeepalive).not.toHaveBeenCalled();
     });
     it('pauses offline heartbeats without discarding rejoin context or renewing the lease', async () => {
         navigator.onLine = false;

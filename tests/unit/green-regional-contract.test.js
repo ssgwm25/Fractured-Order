@@ -179,8 +179,8 @@ describe('GC-01 regional Green specification', () => {
         expect(contract.shared_seats[0]).toMatchObject({ capacity: 1, delegation_id: null, semantic_role: 'facilitator', route: 'teams/green/scribe.html' });
         expect(permission('shared_facilitator_foundation', 'submit_artifacts')).toBe('no');
         expect(permission('shared_facilitator_foundation', 'proposal_threads')).toBe('no');
-        expect(model.deferred_mutations).toEqual(['GC-07']);
-        expect(model.permission_stage).toBe('GC-06-proposals');
+        expect(model.deferred_mutations).toEqual([]);
+        expect(model.permission_stage).toBe('GC-07-messaging');
         expect(permission('shared_facilitator_orientations', 'submit_artifacts')).toBe('orientation_handoff_revision_only');
         expect(permission('shared_facilitator_proposals', 'proposal_threads')).toBe('approved_current_revision_threads');
         expect(permission('shared_facilitator_proposals', 'rfis')).toBe('no');

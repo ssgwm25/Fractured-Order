@@ -18,6 +18,34 @@ const BLUE_TEAM_CONTEXT = {
 };
 
 describe('white cell targeting helpers', () => {
+    const ap = { teamId: 'green', delegationId: 'asian_pacific', facilitatorRole: 'green_asian_pacific_scribe', scribeRole: 'green_asian_pacific_facilitator' };
+    const eu = { teamId: 'green', delegationId: 'europe', facilitatorRole: 'green_europe_scribe', scribeRole: 'green_europe_facilitator' };
+    const shared = { teamId: 'green', sharedFacilitator: true, scribeRole: 'green_shared_facilitator' };
+
+    it('GC07 keeps role and delegation audiences narrower than parent Green metadata', () => {
+        const role = { from_role: 'white_cell', to_role: 'green_europe_scribe', recipient_scope: 'role', recipient_delegation_id: 'europe',
+            metadata: { recipient_team: 'green', recipient_role: 'green_europe_scribe' } };
+        expect(isWhiteCellCommunicationVisibleToLead(role, eu)).toBe(true);
+        expect(isWhiteCellCommunicationVisibleToLead(role, ap)).toBe(false);
+        expect(isWhiteCellCommunicationVisibleToScribe(role, shared)).toBe(false);
+        const regional = { from_role: 'white_cell', to_role: 'green', recipient_scope: 'delegation', recipient_delegation_id: 'europe', metadata: { recipient_team: 'green' } };
+        expect(isWhiteCellCommunicationVisibleToLead(regional, eu)).toBe(true);
+        expect(isWhiteCellCommunicationVisibleToLead(regional, ap)).toBe(false);
+        expect(isWhiteCellCommunicationVisibleToScribe(regional, shared)).toBe(true);
+        expect(isWhiteCellCommunicationVisibleToLead({ ...regional, recipient_delegation_id: 'forged' }, eu)).toBe(false);
+        expect(isWhiteCellCommunicationVisibleToLead({ ...role, recipient_scope: 'team' }, ap)).toBe(false);
+    });
+
+    it('GC07 renders both Green and session notices and preserves regional timeline targeting', () => {
+        const both = { from_role: 'white_cell', to_role: 'green', recipient_scope: 'both_green_delegations' };
+        for (const context of [ap, eu]) expect(isWhiteCellCommunicationVisibleToLead(both, context)).toBe(true);
+        expect(isWhiteCellCommunicationVisibleToLead(both, BLUE_TEAM_CONTEXT)).toBe(false);
+        expect(isWhiteCellCommunicationVisibleToScribe(both, shared)).toBe(true);
+        const metadata = buildWhiteCellRecipientMetadata('green_europe');
+        expect(metadata).toMatchObject({ recipient_scope: 'delegation', recipient_delegation_id: 'europe', recipient_team: 'green' });
+        expect(isWhiteCellTimelineEventVisibleToLead({ team: 'white_cell', metadata }, eu)).toBe(true);
+        expect(isWhiteCellTimelineEventVisibleToLead({ team: 'white_cell', metadata }, ap)).toBe(false);
+    });
     it('shows lead communications only when they are addressed to the team or a lead seat', () => {
         expect(isWhiteCellCommunicationVisibleToLead({
             from_role: 'white_cell',

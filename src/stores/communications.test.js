@@ -25,6 +25,20 @@ async function loadCommunicationsStore() {
 }
 
 describe('communicationsStore realtime reconciliation', () => {
+    it('GC07 removes disappeared private messages and ignores a snapshot arriving after reset', async () => {
+        const { communicationsStore } = await loadCommunicationsStore();
+        communicationsStore.sessionId = 'regional';
+        communicationsStore.communications = [{ id: 'private', delegation_id: 'europe' }];
+        mockDatabase.fetchCommunications.mockResolvedValue([]);
+        await communicationsStore.reconcileCommunications();
+        expect(communicationsStore.getAll()).toEqual([]);
+        mockDatabase.fetchCommunications.mockImplementation(async () => {
+            communicationsStore.reset();
+            return [{ id: 'old-seat-message' }];
+        });
+        await communicationsStore.reconcileCommunications();
+        expect(communicationsStore.getAll()).toEqual([]);
+    });
     beforeEach(() => {
         vi.clearAllMocks();
     });

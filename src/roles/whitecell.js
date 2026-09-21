@@ -12,6 +12,7 @@ import { participantsStore } from '../stores/participants.js';
 import { communicationsStore } from '../stores/communications.js';
 import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
+import { ensureSeatStartup } from '../services/seatBootstrap.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
 import { showDurableNotification, showToast } from '../components/ui/Toast.js';
@@ -117,6 +118,7 @@ import {
 } from '../core/teamContext.js';
 import {
     WHITE_CELL_UPDATE_KINDS,
+    regionalRecipientOptions,
     buildWhiteCellRecipientMetadata,
     getWhiteCellCommunicationUpdateKind,
     isTeamCaptureTimelineEvent
@@ -150,6 +152,7 @@ import {
 } from '../features/scribe/deckConfig.js';
 import {
     buildUploadedScribeDeckStorageKey,
+    getSeatDeckStorageKey,
     saveUploadedScribeDeck
 } from '../features/scribe/deckStorage.js';
 import {
@@ -715,13 +718,15 @@ function sortWhiteCellFilterValues(values = [], orderedValues = []) {
     });
 }
 
-export function buildWhiteCellCommunicationRecipientOptions() {
+export function buildWhiteCellCommunicationRecipientOptions(session = sessionStore.getState?.() || {}) {
+    const regional = regionalRecipientOptions(session);
     return [
         {
             value: WHITE_CELL_ALL_TEAMS_RECIPIENT,
             label: 'All Teams'
         },
         ...TEAM_OPTIONS.flatMap((team) => {
+            if (team.id === 'green' && regional.length) return regional;
             const facilitatorRole = buildTeamRole(team.id, ROLE_SURFACES.FACILITATOR);
             const scribeRole = buildTeamRole(team.id, ROLE_SURFACES.SCRIBE);
             const notetakerRole = buildTeamRole(team.id, ROLE_SURFACES.NOTETAKER);
@@ -1316,6 +1321,9 @@ export class WhiteCellController {
 
     async init() {
         logger.info('Initializing White Cell interface');
+        // main.js and this controller start independently; both must await the
+        // same server restore before any heartbeat or protected workspace read.
+        if (!await ensureSeatStartup()) return;
 
         const accessState = getWhiteCellAccessState(this.teamContext, sessionStore);
         if (!accessState.allowed) {
@@ -4992,7 +5000,7 @@ export class WhiteCellController {
             return `
                 <div class="card card-bordered" data-rfi-id="${rfi.id}" style="padding: var(--space-4); margin-bottom: var(--space-3);${isNew ? ' background: var(--color-surface-alt);' : ''}">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-2); gap: var(--space-2);">
-                        <span class="text-xs text-gray-500">${this.escapeHtml(this.formatTeamLabel(rfi.team))} | ${formatRelativeTime(rfi.created_at)}</span>
+                        <span class="text-xs text-gray-500">${this.escapeHtml(GREEN_DELEGATIONS[rfi.delegation_id] || this.formatTeamLabel(rfi.team))} | Revision ${Number(rfi.revision_number) || 1} | ${formatRelativeTime(rfi.created_at)}</span>
                         <div style="display: flex; gap: var(--space-2);">
                             ${createArtifactLifecycleBadge(rfi, { size: 'sm' }).outerHTML}
                             ${isNew ? createBadge({ text: 'NEW', variant: 'warning', size: 'sm', rounded: true }).outerHTML : ''}
@@ -5148,7 +5156,7 @@ export class WhiteCellController {
                     return_notes: notes,
                     revision_number: rfi.revision_number || 1,
                     next_revision_number: updatedRequest.revision_number || 1,
-                    ...buildWhiteCellRecipientMetadata(rfi.team)
+                    ...buildWhiteCellRecipientMetadata(rfi.delegation_id ? `green_${rfi.delegation_id}` : rfi.team)
                 },
                 team: 'white_cell',
                 move: rfi.move ?? gameState.move ?? 1,
@@ -5198,7 +5206,7 @@ export class WhiteCellController {
                     label: 'Send Response',
                     variant: 'primary',
                     onClick: () => {
-                        this.handleRfiResponse(modalRef.current, rfi.id).catch((err) => {
+                        this.handleRfiResponse(modalRef.current, rfi.id, rfi).catch((err) => {
                             logger.error('Failed to send RFI response:', err);
                         });
                         return false;
@@ -5208,7 +5216,7 @@ export class WhiteCellController {
         });
     }
 
-    async handleRfiResponse(modal, rfiId) {
+    async handleRfiResponse(modal, rfiId, reviewedRequest = null) {
         const response = document.getElementById('rfiResponse')?.value?.trim();
         if (!response) {
             showToast({ message: 'Please enter a response', type: 'error' });
@@ -5242,7 +5250,7 @@ export class WhiteCellController {
                 response,
                 status: 'answered',
                 responded_at: new Date().toISOString()
-            });
+            }, ...((reviewedRequest || latestRequest)?.delegation_id ? [reviewedRequest || latestRequest] : []));
             requestsStore.updateFromServer('UPDATE', updatedRequest);
 
             const gameState = this.getCurrentGameState();
@@ -5253,7 +5261,7 @@ export class WhiteCellController {
                 metadata: {
                     related_id: rfiId,
                     role: this.getTimelineActorRole(),
-                    ...buildWhiteCellRecipientMetadata(updatedRequest.team)
+                    ...buildWhiteCellRecipientMetadata(updatedRequest.delegation_id ? `green_${updatedRequest.delegation_id}` : updatedRequest.team)
                 },
                 team: 'white_cell',
                 move: gameState.move ?? 1,
@@ -5327,7 +5335,9 @@ export class WhiteCellController {
                 content: `White Cell ${type.toLowerCase()} sent to ${this.formatCommunicationRecipient(recipient)}`,
                 metadata: {
                     role: this.getTimelineActorRole(),
-                    ...recipientMetadata
+                    ...recipientMetadata,
+                    ...communication.metadata,
+                    ...(communication.recipient_scope ? { communication_id: communication.id } : {})
                 },
                 team: 'white_cell',
                 move: gameState.move ?? 1,
@@ -5455,7 +5465,9 @@ export class WhiteCellController {
                 content: `White Cell sent a ${sectionLabel} to ${this.formatCommunicationRecipient(recipient)}`,
                 metadata: {
                     role: this.getTimelineActorRole(),
-                    ...recipientMetadata
+                    ...recipientMetadata,
+                    ...communication.metadata,
+                    ...(communication.recipient_scope ? { communication_id: communication.id } : {})
                 },
                 team: 'white_cell',
                 move: gameState.move ?? 1,
@@ -5952,93 +5964,107 @@ export class WhiteCellController {
         });
 
         try {
-            if (deckSource === SCRIBE_DECK_SOURCE_UPLOAD) {
-                const slides = parseScribeDeckHtml(await uploadedFile.text());
-                await saveUploadedScribeDeck({
-                    storageKey: deckStorageKey,
-                    sessionId,
-                    teamId: team.id,
-                    deckLabel,
-                    fileName: deckFileName,
-                    slides
+            const session = sessionStore.getSessionData?.() || {};
+            const regionalGreen = team.id === 'green' && regionalRecipientOptions(session).length > 0;
+            const sharedGreen = regionalGreen && (session.greenSeatModel || session.green_seat_model) === 'shared_facilitator_v1';
+            const recipients = sharedGreen ? ['green_shared_facilitator'] : regionalGreen
+                ? ['green_asian_pacific_facilitator', 'green_europe_facilitator'] : [buildTeamRole(team.id, ROLE_SURFACES.SCRIBE)];
+            const slides = deckSource === SCRIBE_DECK_SOURCE_UPLOAD ? parseScribeDeckHtml(await uploadedFile.text()) : null;
+            if (!slides) await this.validateScribeDeckPath(deckPath);
+            for (const recipientRole of recipients) {
+                if (slides) {
+                    if (sharedGreen) {
+                        const seat = participantsStore.getActiveByRole('green_shared_facilitator')[0];
+                        if (!seat?.id) throw new Error('The shared Facilitator must join before an uploaded deck can be assigned.');
+                        deckStorageKey = getSeatDeckStorageKey({ sessionId, teamId: 'green', role: recipientRole,
+                            greenSeatModel: 'shared_facilitator_v1', participantId: seat.id });
+                    } else if (regionalGreen) deckStorageKey = buildUploadedScribeDeckStorageKey(sessionId, 'green', parseTeamRole(recipientRole).delegationId);
+                    await saveUploadedScribeDeck({
+                        storageKey: deckStorageKey,
+                        sessionId,
+                        teamId: team.id,
+                        deckLabel,
+                        fileName: deckFileName,
+                        slides
+                    });
+                }
+                const recipientMetadata = buildWhiteCellRecipientMetadata(recipientRole, {
+                    content_kind: SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND,
+                    deck_label: deckLabel,
+                    deck_source: deckSource,
+                    ...(deckSource === SCRIBE_DECK_SOURCE_UPLOAD
+                        ? {
+                            deck_storage_key: deckStorageKey,
+                            deck_file_name: deckFileName
+                        }
+                        : {
+                            deck_path: deckPath
+                        }),
+                    source: WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE,
+                    actor_role: this.getTimelineActorRole()
                 });
-            } else {
-                await this.validateScribeDeckPath(deckPath);
+                const content = buildScribeDeckAssignmentCommunicationContent({
+                    teamLabel: team.label,
+                    deckLabel,
+                    deckPath,
+                    deckSource,
+                    deckFileName
+                });
+                const communication = await database.createCommunication({
+                    session_id: sessionId,
+                    from_role: 'white_cell',
+                    to_role: recipientRole,
+                    type: 'GUIDANCE',
+                    content,
+                    metadata: recipientMetadata
+                });
+                communicationsStore.updateFromServer('INSERT', {
+                    ...communication,
+                    session_id: sessionId,
+                    from_role: 'white_cell',
+                    to_role: recipientRole,
+                    type: 'GUIDANCE',
+                    content,
+                    metadata: communication.metadata || recipientMetadata,
+                    created_at: communication?.created_at || new Date().toISOString()
+                });
+
+                const gameState = this.getCurrentGameState();
+                const timelineEvent = await database.createTimelineEvent({
+                    session_id: sessionId,
+                    type: 'GUIDANCE',
+                    content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
+                        ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
+                        : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
+                    metadata: {
+                        role: this.getTimelineActorRole(),
+                        ...recipientMetadata,
+                        ...communication.metadata,
+                        ...(communication.recipient_scope ? { communication_id: communication.id } : {})
+                    },
+                    team: 'white_cell',
+                    move: gameState.move ?? 1,
+                    phase: gameState.phase ?? 1
+                });
+                timelineStore.updateFromServer('INSERT', {
+                    ...timelineEvent,
+                    session_id: sessionId,
+                    type: 'GUIDANCE',
+                    content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
+                        ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
+                        : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
+                    metadata: {
+                        role: this.getTimelineActorRole(),
+                        ...recipientMetadata,
+                        ...communication.metadata,
+                        ...(communication.recipient_scope ? { communication_id: communication.id } : {})
+                    },
+                    team: 'white_cell',
+                    move: gameState.move ?? 1,
+                    phase: gameState.phase ?? 1,
+                    created_at: timelineEvent?.created_at || new Date().toISOString()
+                });
             }
-
-            const recipientRole = buildTeamRole(team.id, ROLE_SURFACES.SCRIBE);
-            const recipientMetadata = buildWhiteCellRecipientMetadata(recipientRole, {
-                content_kind: SCRIBE_DECK_ASSIGNMENT_CONTENT_KIND,
-                deck_label: deckLabel,
-                deck_source: deckSource,
-                ...(deckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                    ? {
-                        deck_storage_key: deckStorageKey,
-                        deck_file_name: deckFileName
-                    }
-                    : {
-                        deck_path: deckPath
-                    }),
-                source: WHITE_CELL_SCRIBE_DECK_ASSIGNMENT_SOURCE,
-                actor_role: this.getTimelineActorRole()
-            });
-            const content = buildScribeDeckAssignmentCommunicationContent({
-                teamLabel: team.label,
-                deckLabel,
-                deckPath,
-                deckSource,
-                deckFileName
-            });
-            const communication = await database.createCommunication({
-                session_id: sessionId,
-                from_role: 'white_cell',
-                to_role: recipientRole,
-                type: 'GUIDANCE',
-                content,
-                metadata: recipientMetadata
-            });
-            communicationsStore.updateFromServer('INSERT', {
-                ...communication,
-                session_id: sessionId,
-                from_role: 'white_cell',
-                to_role: recipientRole,
-                type: 'GUIDANCE',
-                content,
-                metadata: recipientMetadata,
-                created_at: communication?.created_at || new Date().toISOString()
-            });
-
-            const gameState = this.getCurrentGameState();
-            const timelineEvent = await database.createTimelineEvent({
-                session_id: sessionId,
-                type: 'GUIDANCE',
-                content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                    ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
-                    : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
-                metadata: {
-                    role: this.getTimelineActorRole(),
-                    ...recipientMetadata
-                },
-                team: 'white_cell',
-                move: gameState.move ?? 1,
-                phase: gameState.phase ?? 1
-            });
-            timelineStore.updateFromServer('INSERT', {
-                ...timelineEvent,
-                session_id: sessionId,
-                type: 'GUIDANCE',
-                content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                    ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
-                    : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
-                metadata: {
-                    role: this.getTimelineActorRole(),
-                    ...recipientMetadata
-                },
-                team: 'white_cell',
-                move: gameState.move ?? 1,
-                phase: gameState.phase ?? 1,
-                created_at: timelineEvent?.created_at || new Date().toISOString()
-            });
 
             showToast({
                 message: useUpload
@@ -6662,6 +6688,8 @@ export class WhiteCellController {
     }
 
     formatCommunicationRecipient(recipient) {
+        const regional = regionalRecipientOptions(sessionStore.getState?.() || {}).find((option) => option.value === recipient);
+        if (regional) return regional.label;
         if (recipient === WHITE_CELL_ALL_TEAMS_RECIPIENT) {
             return 'All Teams';
         }

@@ -15,7 +15,7 @@ import { buildAppPath, navigateToApp } from '../core/navigation.js';
 import { getRoleRoute, resolveTeamContext } from '../core/teamContext.js';
 import { ensureSeatStartup } from '../services/seatBootstrap.js';
 import { seatStorageKey, bindControllerSeatCleanup } from '../core/seatContext.js';
-import { mountSharedGreenContext, SHARED_GREEN_WORKFLOW_NOTICE } from '../features/scribe/sharedGreenContext.js';
+import { mountSharedGreenContext, selectSharedGreenView, SHARED_GREEN_WORKFLOW_NOTICE } from '../features/scribe/sharedGreenContext.js';
 import { GREEN_DELEGATIONS } from '../core/teamContext.js';
 import {
     ENUMS,
@@ -647,7 +647,7 @@ function isWhiteCellRole(role = '') {
 
 export function isFacilitatorDirectCommunication(communication = {}, teamContext = {}) {
     const type = String(communication?.type || '').trim().toUpperCase();
-    if (type === 'PROPOSAL_FORWARDED' || type === 'PROPOSAL_RESPONSE') {
+    if (['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(type)) {
         return false;
     }
 
@@ -1151,6 +1151,8 @@ export class ScribeController {
         mountSharedGreenContext(sessionStore.getConfirmedSeat?.(), (delegation) => {
             this.workingDelegation = delegation;
             this.syncActionsFromStore();
+            this.syncRfisFromStore();
+            this.syncCommunicationsFromStore();
         });
         this.subscribeToLiveData();
         this.primeNotifications();
@@ -1794,7 +1796,8 @@ export class ScribeController {
                 destination: {
                     surface: 'facilitator',
                     slideKey: metadata.source_proposal_id ? `action-${metadata.source_proposal_id}` : '',
-                    recordId: String(metadata.source_proposal_id || communication.id)
+                    recordId: String(metadata.source_proposal_id || communication.id),
+                    ...(communication.delegation_id ? { delegationId: communication.delegation_id } : {})
                 },
                 createdAt: recipientEntry?.response_sent_at || recipientEntry?.responded_at || communication.updated_at,
                 type: 'warning'
@@ -1898,7 +1901,8 @@ export class ScribeController {
     }
 
     syncRfisFromStore({ event = '', data = null } = {}) {
-        this.teamRfis = requestsStore.getByTeam(this.teamId);
+        this.teamRfis = requestsStore.getByTeam(this.teamId).filter((request) =>
+            !this.teamContext.sharedFacilitator || request.delegation_id === this.workingDelegation);
         this.processRfiNotifications({ event, data });
 
         if (!this.facilitatorDeckSlides.length && !this.sections.length) {
@@ -1911,10 +1915,12 @@ export class ScribeController {
         // RFI workspace is already active.
         const shouldFocusRfi = this.activeFacilitatorView === 'rfis'
             && ['created', 'updated', 'resubmitted', 'responded'].includes(event)
-            && data?.team === this.teamId;
+            && data?.team === this.teamId && this.teamRfis.some((request) => request.id === data.id);
         this.rebuildDeck({
             preferredSlideKey: shouldFocusRfi ? `rfi-${data.id}` : this.getCurrentSlideKey(),
-            preferLiveSection: shouldFocusRfi ? RFIS_SECTION_ID : ''
+            // A region switch can remove the selected record. Keep this
+            // workspace open on its next record or empty state.
+            preferLiveSection: this.activeFacilitatorView === 'rfis' ? RFIS_SECTION_ID : ''
         });
         if (this.deckSlides.length) {
             this.renderSlide();
@@ -2002,7 +2008,10 @@ export class ScribeController {
 
     syncCommunicationsFromStore({ event = '', data = null } = {}) {
         this.directCommunications = communicationsStore.getAll()
-            .filter((communication) => isFacilitatorDirectCommunication(communication, this.teamContext));
+            .filter((communication) => isFacilitatorDirectCommunication(communication, this.teamContext))
+            .filter((communication) => !this.teamContext.sharedFacilitator
+                || !(communication.delegation_id || communication.recipient_delegation_id)
+                || (communication.delegation_id || communication.recipient_delegation_id) === this.workingDelegation);
 
         if (!this.facilitatorDeckSlides.length && !this.sections.length) {
             return;
@@ -2019,7 +2028,7 @@ export class ScribeController {
             preferredSlideKey: shouldFocusCommunication
                 ? `communication-${data.id}`
                 : this.getCurrentSlideKey(),
-            preferLiveSection: shouldFocusCommunication ? COMMUNICATIONS_SECTION_ID : ''
+            preferLiveSection: this.activeFacilitatorView === 'communications' ? COMMUNICATIONS_SECTION_ID : ''
         });
         if (this.deckSlides.length) {
             this.renderSlide();
@@ -2324,6 +2333,13 @@ export class ScribeController {
     }
 
     openNotificationDestination(notification = {}) {
+        const region = notification.destination?.delegationId;
+        if (this.teamContext.sharedFacilitator && region && region !== this.workingDelegation) {
+            this.workingDelegation = selectSharedGreenView(sessionStore.getConfirmedSeat(), region);
+            const selector = document.getElementById('sharedGreenWorkingRegion');
+            if (selector) { selector.value = region; selector.dispatchEvent(new Event('change')); }
+            this.syncActionsFromStore(); this.syncRfisFromStore(); this.syncCommunicationsFromStore();
+        }
         const entry = this.notifications.find((candidate) => candidate.id === notification.id);
         if (entry) {
             entry.read = true;
@@ -4981,7 +4997,6 @@ export class ScribeController {
     }
 
     renderRfiSlide(slide = {}) {
-        if (this.teamContext.sharedFacilitator) return `<article class="scribe-action-slide"><h2>RFIs</h2><p>${escapeHtml(SHARED_GREEN_WORKFLOW_NOTICE)}</p></article>`;
         if (slide.slideType === 'rfi-placeholder') {
             return `
                 <article class="facilitator-workspace facilitator-rfi-workspace" aria-labelledby="facilitator-rfi-workspace-title">
@@ -5011,7 +5026,7 @@ export class ScribeController {
                 <header class="facilitator-workspace-header">
                     <div>
                         <p class="facilitator-workspace-eyebrow">${escapeHtml(this.teamLabel)} | White Cell workflow</p>
-                        <h2 id="facilitator-rfi-title" class="facilitator-workspace-title">Request for Information</h2>
+                        <h2 id="facilitator-rfi-title" class="facilitator-workspace-title">Request for Information${request.delegation_id ? ` — ${request.delegation_id === 'europe' ? 'Europe' : 'Asia-Pacific'}` : ''}</h2>
                         <p class="facilitator-workspace-summary">Updated ${escapeHtml(formatRelativeTime(request.updated_at || request.created_at))}</p>
                     </div>
                     <div class="facilitator-workspace-header-actions">
@@ -5198,10 +5213,7 @@ export class ScribeController {
     }
 
     showFacilitatorRfiModal(request = null) {
-        if (this.teamContext.sharedFacilitator) {
-            showToast({ message: SHARED_GREEN_WORKFLOW_NOTICE, type: 'info' });
-            return;
-        }
+        const delegationId = request?.delegation_id || (this.teamContext.sharedFacilitator ? this.workingDelegation : this.teamContext.delegationId);
         if (request && request.workflow_state !== 'returned_to_team') {
             showToast({ message: 'Only an RFI returned for clarification can be edited.', type: 'error' });
             return;
@@ -5210,9 +5222,15 @@ export class ScribeController {
         const modalRef = { current: null };
         const form = createRfiForm({
             team: this.teamId,
+            delegationId,
             request,
             onCancel: () => modalRef.current?.close?.(),
             onSubmit: async (savedRequest) => {
+                if (savedRequest.delegation_id) {
+                    // The regional RPC commits its timeline evidence atomically.
+                    modalRef.current?.close?.();
+                    return;
+                }
                 const gameState = gameStateStore.getState();
                 const timelineEvent = await database.createTimelineEvent({
                     session_id: savedRequest.session_id || sessionStore.getSessionId(),
@@ -5233,7 +5251,7 @@ export class ScribeController {
         });
 
         modalRef.current = showModal({
-            title: request ? 'Clarify and Resubmit RFI' : 'New Request for Information',
+            title: `${request ? 'Clarify and Resubmit RFI' : 'New Request for Information'}${delegationId ? ` — ${delegationId === 'europe' ? 'Europe' : 'Asia-Pacific'}` : ''}`,
             content: form,
             size: 'md',
             buttons: []
@@ -5241,10 +5259,8 @@ export class ScribeController {
     }
 
     showFacilitatorCommunicationModal() {
-        if (this.teamContext.sharedFacilitator) {
-            showToast({ message: SHARED_GREEN_WORKFLOW_NOTICE, type: 'info' });
-            return;
-        }
+        const delegationId = this.teamContext.sharedFacilitator ? this.workingDelegation : this.teamContext.delegationId;
+        const clientKey = globalThis.crypto.randomUUID();
         const content = document.createElement('div');
         content.innerHTML = `
             <form id="facilitatorCommunicationForm">
@@ -5257,7 +5273,7 @@ export class ScribeController {
         `;
         const modalRef = { current: null };
         modalRef.current = showModal({
-            title: 'Message White Cell',
+            title: `Message White Cell${delegationId ? ` — ${delegationId === 'europe' ? 'Europe' : 'Asia-Pacific'}` : ''}`,
             content,
             size: 'md',
             buttons: [
@@ -5272,7 +5288,7 @@ export class ScribeController {
                             content.querySelector('#facilitatorCommunicationMessage')?.focus?.();
                             return false;
                         }
-                        this.sendFacilitatorCommunication(message, modalRef.current);
+                        this.sendFacilitatorCommunication(message, modalRef.current, { delegationId, clientKey });
                         return false;
                     }
                 }
@@ -5280,8 +5296,7 @@ export class ScribeController {
         });
     }
 
-    async sendFacilitatorCommunication(content, modal = null) {
-        if (this.teamContext.sharedFacilitator) return;
+    async sendFacilitatorCommunication(content, modal = null, { delegationId = this.teamContext.delegationId, clientKey = globalThis.crypto.randomUUID() } = {}) {
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) {
             showToast({ message: 'No active session.', type: 'error' });
@@ -5297,6 +5312,7 @@ export class ScribeController {
                 from_role: this.teamContext.scribeRole,
                 to_role: 'white_cell',
                 content,
+                ...(delegationId ? { delegation_id: delegationId, client_key: clientKey } : {}),
                 metadata: {
                     source_team: this.teamId,
                     source_role: this.teamContext.scribeRole,
@@ -5305,6 +5321,11 @@ export class ScribeController {
                 }
             });
             communicationsStore.updateFromServer('INSERT', communication);
+            if (delegationId) {
+                showToast({ message: 'Message sent to White Cell', type: 'success' });
+                modal?.close?.();
+                return;
+            }
             const timelineEvent = await database.createTimelineEvent({
                 session_id: sessionId,
                 type: 'DIRECT_COMMUNICATION_SENT',

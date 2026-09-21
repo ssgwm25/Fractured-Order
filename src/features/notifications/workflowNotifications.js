@@ -1,4 +1,5 @@
 import { resolveArtifactWorkflowState } from '../actions/artifactLifecycle.js';
+import { GREEN_DELEGATIONS } from '../../core/teamContext.js';
 import {
     getProposalResponseReviewMetadata,
     getProposalThreadMetadata
@@ -27,6 +28,11 @@ function revision(record = {}) {
 
 function artifactTitle(record = {}, fallback = 'Untitled artifact') {
     return text(record.goal || record.title || record.query || record.question) || fallback;
+}
+
+function regionalLabel(record) {
+    const region = record.delegation_id || record.recipient_delegation_id;
+    return GREEN_DELEGATIONS[region] ? `${GREEN_DELEGATIONS[region]}: ` : '';
 }
 
 function communicationArtifact(communication = {}) {
@@ -94,8 +100,8 @@ export function buildRfiWorkflowNotification(record = {}, { audience = 'facilita
         return {
             id: buildWorkflowNotificationId('rfi-submission', recordId, `${state}:r${revision(record)}`),
             family: 'rfi-submission',
-            source: teamLabel(record.team),
-            artifact: `RFI: ${artifactTitle(record, 'Request for information')}`,
+            source: GREEN_DELEGATIONS[record.delegation_id] || teamLabel(record.team),
+            artifact: `${regionalLabel(record)}RFI: ${artifactTitle(record, 'Request for information')}`,
             requiredAction: 'Review the request and return it or provide an answer.',
             destinationLabel: 'Open RFI',
             destination: { surface: 'whitecell', section: 'requests', recordId },
@@ -114,12 +120,12 @@ export function buildRfiWorkflowNotification(record = {}, { audience = 'facilita
         ),
         family: isReturned ? 'rfi-return' : 'rfi-answer',
         source: 'White Cell',
-        artifact: `RFI: ${artifactTitle(record, 'Request for information')}`,
+        artifact: `${regionalLabel(record)}RFI: ${artifactTitle(record, 'Request for information')}`,
         requiredAction: isReturned
             ? 'Review the clarification notes, revise, and resubmit.'
             : 'Open and read the White Cell answer.',
         destinationLabel: 'Open RFI',
-        destination: { surface: 'facilitator', slideKey: `rfi-${recordId}`, recordId },
+        destination: { surface: 'facilitator', slideKey: `rfi-${recordId}`, recordId, ...(record.delegation_id ? { delegationId: record.delegation_id } : {}) },
         createdAt: text(record.responded_at || record.updated_at || record.created_at),
         type: isReturned ? 'warning' : 'info'
     };
@@ -147,7 +153,8 @@ export function buildProposalRoundNotification(communication = {}, { audience = 
         destinationLabel: 'Open proposal thread',
         destination: audience === 'whitecell'
             ? { surface: 'whitecell', section: 'proposals', recordId: String(thread.sourceProposalId), communicationId: String(communication.id) }
-            : { surface: 'facilitator', slideKey, recordId: String(thread.sourceProposalId), communicationId: String(communication.id) },
+            : { surface: 'facilitator', slideKey, recordId: String(thread.sourceProposalId), communicationId: String(communication.id),
+                ...(communication.delegation_id ? { delegationId: communication.delegation_id } : {}) },
         createdAt: text(thread.sentAt || communication.created_at),
         type: 'warning'
     };
@@ -188,12 +195,13 @@ export function buildDirectCommunicationNotification(communication = {}, { audie
         id: buildWorkflowNotificationId('direct-communication', communication.id),
         family: 'direct-communication',
         source: fromWhiteCell ? 'White Cell' : teamLabel(communication.metadata?.source_team || communication.team || communication.from_role),
-        artifact: communicationArtifact(communication),
+        artifact: regionalLabel(communication) + communicationArtifact(communication),
         requiredAction: 'Open and read the message; reply if action is required.',
         destinationLabel: 'Open communication',
         destination: audience === 'whitecell'
             ? { surface: 'whitecell', section: 'communications', recordId: String(communication.id) }
-            : { surface: 'facilitator', slideKey: `communication-${communication.id}`, recordId: String(communication.id) },
+            : { surface: 'facilitator', slideKey: `communication-${communication.id}`, recordId: String(communication.id),
+                ...((communication.delegation_id || communication.recipient_delegation_id) ? { delegationId: communication.delegation_id || communication.recipient_delegation_id } : {}) },
         createdAt: text(communication.created_at || communication.updated_at),
         type: 'info'
     };

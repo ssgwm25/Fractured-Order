@@ -10,6 +10,16 @@ import {
 } from './workflowNotifications.js';
 
 describe('workflow notification event families', () => {
+    it('GC07 retains region in RFI and direct destinations without changing durable identity', () => {
+        const rfi = buildRfiWorkflowNotification({ id: 'regional-rfi', team: 'green', delegation_id: 'europe',
+            workflow_state: 'completed', revision_number: 2, response: 'Synthetic answer' });
+        expect(rfi.destination).toMatchObject({ delegationId: 'europe', recordId: 'regional-rfi' });
+        expect(rfi.artifact).toContain('Green - Europe');
+        const message = buildDirectCommunicationNotification({ id: 'regional-message', from_role: 'white_cell',
+            recipient_delegation_id: 'asian_pacific', content: 'Synthetic guidance' });
+        expect(message.id).toBe('direct-communication:regional-message');
+        expect(message.destination.delegationId).toBe('asian_pacific');
+    });
     it('builds persisted artifact submission and return identities', () => {
         const submitted = buildWhiteCellArtifactNotification({
             id: 'action-1', team: 'blue', goal: 'Port access', workflow_state: 'submitted_to_white_cell', revision_number: 2

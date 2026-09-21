@@ -1,4 +1,5 @@
 import { parseProposalDetails } from '../features/actions/proposalDetails.js';
+import { parseTeamRole } from '../core/teamContext.js';
 import { getStrategicOrientationCompletion, parseStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
 
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
@@ -395,6 +396,9 @@ function createMockRealtimeChannel(channelName = '') {
                         );
 
                         changes.forEach((change) => {
+                            const row = change.new || change.old;
+                            if (isRegionalSession(nextState, row?.session_id)
+                                && !canReadTableRow(nextState, tableName, row, getCurrentAuthUserId())) return;
                             subscriptions.forEach((subscription) => {
                                 if (subscription.eventName !== 'postgres_changes') {
                                     return;
@@ -521,13 +525,16 @@ function normalizeInsertRow(tableName, payload, state) {
             ? state.tables.actions.find((entry) => entry.id === (row.metadata.source_proposal_id || row.metadata.source_action_id) && entry.session_id === row.session_id)
             : state.tables.requests.find((entry) => entry.id === row.linked_request_id && entry.session_id === row.session_id);
         row.owner_team = source?.team || (/^(blue|red|green|industry)_/.exec(row.from_role)?.[1]) || 'white_cell';
-        row.sender_delegation_id = row.from_role === 'green_shared_facilitator' && source?.artifact_type === 'proposal' ? source.delegation_id : regionalDelegation(row.from_role);
+        row.sender_delegation_id = row.from_role === 'green_shared_facilitator'
+            ? source?.delegation_id || row.delegation_id : regionalDelegation(row.from_role);
         row.delegation_id = source ? source.delegation_id ?? null : row.sender_delegation_id;
         row.recipient_delegation_id = regionalDelegation(row.to_role)
             || (row.to_role === 'green' ? source?.delegation_id || row.recipient_delegation_id : null) || null;
         row.recipient_scope ||= row.to_role === 'all' ? 'session'
             : row.to_role === 'green' && row.recipient_delegation_id ? 'delegation'
                 : ['blue', 'red', 'industry', 'white_cell'].includes(row.to_role) ? 'team' : 'role';
+        row.metadata = { ...row.metadata, recipient_scope: row.recipient_scope,
+            recipient_delegation_id: row.recipient_delegation_id, sender_delegation_id: row.sender_delegation_id };
     } else if (tableName === 'timeline') {
         const source = state.tables.actions.find((entry) => entry.id === row.metadata?.related_id && entry.session_id === row.session_id)
             || state.tables.requests.find((entry) => entry.id === row.metadata?.related_id && entry.session_id === row.session_id);
@@ -849,6 +856,18 @@ function regionalCanRead(state, tableName, row, authUserId) {
     const team = getLiveDemoParticipantTeam(state, authUserId, row.session_id);
     const author = ['facilitator', 'scribe'].includes(surface);
     if (seat.role === 'green_shared_facilitator') {
+        if (tableName === 'requests') return row.team === 'green' && ['asian_pacific', 'europe'].includes(row.delegation_id);
+        if (tableName === 'artifact_workflow_reviews' && row.artifact_kind === 'rfi') {
+            const request = state.tables.requests.find((r) => r.id === row.artifact_id && r.session_id === row.session_id);
+            return Boolean(request && request.team === row.team && request.delegation_id === row.delegation_id
+                && regionalCanRead(state, 'requests', request, authUserId));
+        }
+        if (tableName === 'timeline') {
+            const source = row.metadata?.communication_id
+                ? state.tables.communications.find((c) => c.id === row.metadata.communication_id && c.session_id === row.session_id)
+                : state.tables.requests.find((r) => r.id === row.metadata?.related_id && r.session_id === row.session_id);
+            return Boolean(source && regionalCanRead(state, row.metadata?.communication_id ? 'communications' : 'requests', source, authUserId));
+        }
         if (tableName === 'communications' && ['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(row.type)) {
             return row.owner_team === 'green' && regionalThreadSource(state, row)
                 && (row.type !== 'PROPOSAL_RESPONSE_REVIEW' || row.from_role === seat.role);
@@ -867,9 +886,9 @@ function regionalCanRead(state, tableName, row, authUserId) {
             && ['asian_pacific', 'europe'].includes(row.delegation_id)
             && (['forwarded_to_facilitator', 'submitted_to_white_cell', 'completed'].includes(row.workflow_state)
                 || (isRegionalOrientation(row) || isRegionalProposal(row)) && ['returned_to_team', 'resubmitted'].includes(row.workflow_state));
-        if (tableName === 'communications') return row.from_role === 'white_cell'
-            && !['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(row.type)
-            && (row.to_role === seat.role || ['session', 'both_green_delegations'].includes(row.recipient_scope));
+        if (tableName === 'communications') return row.from_role === seat.role || row.from_role === 'white_cell'
+            && (row.to_role === seat.role || ['session', 'both_green_delegations'].includes(row.recipient_scope)
+                || row.recipient_scope === 'delegation' && ['asian_pacific', 'europe'].includes(row.recipient_delegation_id));
         return false;
     }
     switch (tableName) {
@@ -937,8 +956,8 @@ function regionalCanWrite(state, tableName, row, old, authUserId) {
                 capability('draft') && ['draft', 'returned_to_team'].includes(old.workflow_state) && status === 'draft'
                 || capability('submit') && ['forwarded_to_facilitator', 'returned_to_team'].includes(old.workflow_state) && ['draft', 'submitted'].includes(status));
         }
-        case 'requests': return capability('rfi');
-        case 'communications': return !old && capability('direct') && row.from_role === getLiveDemoParticipantRole(state, authUserId, row.session_id)
+        case 'requests': return row.team !== 'green' && capability('rfi');
+        case 'communications': return !old && !row.from_role?.startsWith('green_') && capability('direct') && row.from_role === getLiveDemoParticipantRole(state, authUserId, row.session_id)
             && row.type === 'direct' && row.to_role === 'white_cell'
             && !row.linked_request_id && !row.metadata?.source_proposal_id && !row.metadata?.source_action_id
             && (row.owner_team == null || row.owner_team === getLiveDemoParticipantTeam(state, authUserId, row.session_id))
@@ -2492,6 +2511,10 @@ function operatorReviewArtifact(state, params) {
         if (!request) {
             return { data: null, error: { message: 'RFI not found.' } };
         }
+        if (request.team === 'green' && isRegionalSession(state, request.session_id)) {
+            const seat = getParticipantSeatForSession(state, authUserId, request.session_id);
+            if (!seat || !['whitecell_lead', 'whitecell_support'].includes(seat.role)) return gc07Error();
+        }
         if (!grant || grant.session_id !== request.session_id) {
             return { data: null, error: { message: 'White Cell operator authorization is required.' } };
         }
@@ -2750,7 +2773,9 @@ function operatorCompleteActionWithNotifications(state, params) {
         };
     }
 
-    const reviewResult = operatorReviewArtifact(state, {
+    // Mirror the SQL transaction: a failed delivery must not complete the action.
+    const transaction = cloneValue(state);
+    const reviewResult = operatorReviewArtifact(transaction, {
         requested_artifact_kind: 'action',
         requested_artifact_id: action.id,
         requested_review_decision: 'complete',
@@ -2760,8 +2785,9 @@ function operatorCompleteActionWithNotifications(state, params) {
     });
     if (reviewResult.error) return reviewResult;
 
-    const communications = approvedTeams.map((recipientTeam) => {
-        const communicationResult = operatorSendCommunication(state, {
+    const communications = [];
+    for (const recipientTeam of approvedTeams) {
+        const communicationResult = operatorSendCommunication(transaction, {
             requested_session_id: action.session_id,
             requested_to_role: recipientTeam,
             requested_type: 'ACTION_NOTIFICATION',
@@ -2784,8 +2810,10 @@ function operatorCompleteActionWithNotifications(state, params) {
                 })
             }
         });
-        return communicationResult.data;
-    });
+        if (communicationResult.error) return communicationResult;
+        communications.push(communicationResult.data);
+    }
+    Object.assign(state, transaction);
 
     return {
         data: {
@@ -3432,13 +3460,101 @@ function deleteLiveDemoSession(state, {
     };
 }
 
-function operatorAnswerRequest(state, params) {
+function gc07Error(code = '42501', message = 'GC07_SCOPE_DENIED') {
+    return { data: null, error: { code, message } };
+}
+
+function regionalMessagingOperation(state, params, direct = false) {
+    const sid = params.requested_session_id, region = params.requested_delegation_id;
+    const seat = getParticipantSeatForSession(state, getCurrentAuthUserId(), sid);
+    if (!isRegionalSession(state, sid) || !['asian_pacific', 'europe'].includes(region)
+        || !seat || !['green_shared_facilitator', `green_${region}_facilitator`].includes(seat.role)) return gc07Error();
+    const content = String(direct ? params.requested_content || '' : params.requested_query || '').trim();
+    if (content.length < (direct ? 1 : 10) || content.length > 2000
+        || !direct && (!params.requested_categories?.length || params.requested_categories.some((c) => !String(c || '').trim()))) {
+        return gc07Error('22023', 'GC07_CONTENT_REQUIRED');
+    }
+    const table = direct ? 'communications' : 'requests';
+    let row;
+    if (!direct && params.requested_request_id != null) {
+        row = state.tables.requests.find((r) => r.id === params.requested_request_id);
+        if (!row || row.session_id !== sid || row.team !== 'green' || row.delegation_id !== region) return gc07Error();
+        if (row.revision_number !== params.requested_expected_revision) return gc07Error('PT409', 'GC07_STALE_RFI_REVISION');
+        if (row.status !== 'pending' || row.workflow_state !== 'returned_to_team'
+            || row.query === content && compareValues(row.categories, params.requested_categories)) return gc07Error('23514', 'GC07_RFI_STATE_DENIED');
+        row = { ...row, query: content, categories: cloneValue(params.requested_categories), workflow_state: 'resubmitted', updated_at: getTimestamp() };
+        state.tables.requests = state.tables.requests.map((r) => r.id === row.id ? row : r);
+    } else {
+        if (!params.requested_client_key?.trim() || !direct && params.requested_expected_revision != null) return gc07Error('22023', 'GC07_CLIENT_KEY_REQUIRED');
+        const key = `gc07:${region}:${seat.id}:${params.requested_client_key}`;
+        row = state.tables[table].find((r) => r.session_id === sid && r.gc07_client_key === key);
+        if (row) return (direct ? row.content !== content : row.query !== content || !compareValues(row.categories, params.requested_categories))
+            ? gc07Error('PT409', 'GC07_RETRY_CONFLICT') : { data: cloneValue(row), error: null };
+        const game = state.tables.game_state.find((g) => g.session_id === sid);
+        if (!game) return gc07Error('23514', 'GC07_GAME_STATE_REQUIRED');
+        row = normalizeInsertRow(table, { session_id: sid, team: 'green', delegation_id: region,
+            move: game.move, phase: game.phase, gc07_client_key: key,
+            ...(direct ? { from_role: seat.role, to_role: 'white_cell', type: 'direct', content, metadata: { source_team: 'green' } }
+                : { query: content, categories: params.requested_categories, status: 'pending', workflow_state: 'submitted_to_white_cell', revision_number: 1 }) }, state);
+        state.tables[table].push(row);
+    }
+    state.tables.timeline.push(normalizeInsertRow('timeline', { session_id: sid, team: 'green', move: row.move, phase: row.phase || 1,
+        type: direct ? 'DIRECT_COMMUNICATION_SENT' : params.requested_request_id ? 'RFI_RESUBMITTED' : 'RFI_CREATED',
+        content: 'Green regional communication', metadata: direct ? { communication_id: row.id } : { related_id: row.id } }, state));
+    return { data: cloneValue(row), error: null };
+}
+
+function regionalOperatorAudience(state, params) {
+    const sid = params.requested_session_id;
+    const target = params.requested_to_role;
+    const metadata = params.requested_metadata || {};
+    const seat = getParticipantSeatForSession(state, getCurrentAuthUserId(), sid);
+    if (!seat || !['whitecell_lead', 'whitecell_support'].includes(seat.role)) return gc07Error();
+    let region = null, scope, toRole = target;
+    if (params.requested_linked_request_id) {
+        const request = state.tables.requests.find((r) => r.id === params.requested_linked_request_id && r.session_id === sid);
+        if (!request || request.team !== target) return gc07Error('23514', 'GC07_RFI_AUDIENCE_CONFLICT');
+        region = request.delegation_id; scope = region ? 'delegation' : 'team';
+    } else if (['green_asian_pacific', 'green_europe'].includes(target)) {
+        region = target.slice(6); scope = 'delegation'; toRole = 'green';
+    } else if (target === 'green') scope = 'both_green_delegations';
+    else if (target === 'all') scope = 'session';
+    else if (['blue', 'red', 'industry'].includes(target)) scope = 'team';
+    else {
+        scope = 'role'; region = regionalDelegation(target);
+        const session = state.tables.sessions.find((s) => s.id === sid);
+        if (target?.startsWith('green') && (!seatModelAllowsRole(session, target) || !region && target !== 'green_shared_facilitator')) return gc07Error();
+        if (!parseTeamRole(target).surface) return gc07Error();
+    }
+    if (metadata.recipient_scope && metadata.recipient_scope !== scope
+        && !(metadata.recipient_scope === 'team' && (scope === 'both_green_delegations' || params.requested_linked_request_id))
+        && !(metadata.recipient_scope === 'all' && scope === 'session')
+        || metadata.recipient_role && (scope !== 'role' || metadata.recipient_role !== target)
+        || metadata.recipient_delegation_id && metadata.recipient_delegation_id !== region
+        || metadata.recipient && metadata.recipient !== target
+        || metadata.recipient_team && metadata.recipient_team !== (target?.startsWith('green') ? 'green' : scope === 'team' ? target : scope === 'role' ? target.split('_')[0] : null)) return gc07Error('23514', 'GC07_AUDIENCE_METADATA_CONFLICT');
+    return { data: { to_role: toRole, recipient_scope: scope, recipient_delegation_id: region,
+        metadata: { ...metadata, recipient: target, recipient_scope: scope, recipient_delegation_id: region,
+            recipient_role: scope === 'role' ? target : null, recipient_team: target?.startsWith('green') ? 'green' : scope === 'team' ? target : scope === 'role' ? target.split('_')[0] : null,
+            resolved_delivery_audience: scope === 'both_green_delegations' ? ['asian_pacific', 'europe'] : [scope === 'role' ? target : region || target] } }, error: null };
+}
+
+function operatorAnswerRequest(state, params, regional = false) {
     const authUserId = getCurrentAuthUserId();
     const grant = getOperatorGrant(state, authUserId, 'whitecell');
     const request = state.tables.requests.find((entry) => entry.id === params?.requested_request_id);
 
     if (!request) {
         return { data: null, error: { message: 'Request not found.' } };
+    }
+
+    if (isRegionalSession(state, request.session_id) && request.team === 'green') {
+        const seat = getParticipantSeatForSession(state, authUserId, request.session_id);
+        if (!regional || !seat || !['whitecell_lead', 'whitecell_support'].includes(seat.role)
+            || request.session_id !== params.requested_session_id || request.delegation_id !== params.requested_delegation_id) return gc07Error();
+        if (request.revision_number !== params.requested_expected_revision) return gc07Error('PT409', 'GC07_STALE_RFI_REVISION');
+        if (!['submitted_to_white_cell', 'resubmitted'].includes(request.workflow_state)) return gc07Error('23514', 'GC07_RFI_STATE_DENIED');
+        if (!String(params.requested_response || '').trim()) return gc07Error('22023', 'A response is required.');
     }
 
     if (!grant || grant.session_id !== request.session_id) {
@@ -3467,9 +3583,18 @@ function operatorAnswerRequest(state, params) {
         updated_at: getTimestamp()
     };
 
-    state.tables.requests = state.tables.requests.map((entry) => (
+    const transaction = regional ? cloneValue(state) : state;
+    transaction.tables.requests = transaction.tables.requests.map((entry) => (
         entry.id === updated.id ? updated : entry
     ));
+
+    if (regional) {
+        const delivery = operatorSendCommunication(transaction, { requested_session_id: request.session_id,
+            requested_to_role: request.team, requested_type: 'RFI_RESPONSE', requested_content: updated.response,
+            requested_linked_request_id: request.id });
+        if (delivery.error) return delivery;
+        Object.assign(state, transaction);
+    }
 
     return {
         data: cloneValue(updated),
@@ -3485,6 +3610,9 @@ function operatorSendCommunication(state, params) {
         return { data: null, error: { message: 'White Cell operator authorization is required.' } };
     }
 
+    const audience = isRegionalSession(state, params.requested_session_id) ? regionalOperatorAudience(state, params) : null;
+    if (audience?.error) return audience;
+
     const sessionState = state.tables.game_state.find((entry) => entry.session_id === params?.requested_session_id);
     const communication = normalizeInsertRow('communications', {
         session_id: params?.requested_session_id,
@@ -3496,10 +3624,11 @@ function operatorSendCommunication(state, params) {
         content: params?.requested_content || '',
         linked_request_id: params?.requested_linked_request_id || null,
         client_id: authUserId,
+        ...(audience?.data || {}),
         metadata: {
-            ...(params?.requested_metadata && typeof params.requested_metadata === 'object'
+            ...(audience?.data?.metadata || (params?.requested_metadata && typeof params.requested_metadata === 'object'
                 ? cloneValue(params.requested_metadata)
-                : {}),
+                : {})),
             operator_role: grant.role,
             operator_auth_user_id: authUserId
         }
@@ -4121,6 +4250,9 @@ export function createE2EMockSupabaseClient() {
 
             if (functionName === 'get_regional_proposal_roster') return { ...regionalProposalRoster(readMockState(), params) };
             if (functionName === 'write_regional_proposal') return mutateMockState((state) => regionalProposalOperation(state, params));
+            if (functionName === 'write_regional_rfi') return mutateMockState((state) => regionalMessagingOperation(state, params));
+            if (functionName === 'send_regional_direct_message') return mutateMockState((state) => regionalMessagingOperation(state, params, true));
+            if (functionName === 'operator_answer_regional_rfi') return mutateMockState((state) => operatorAnswerRequest(state, params, true));
             if (functionName === 'operator_review_proposal') {
                 return mutateMockState((state) => operatorReviewProposalThreaded(state, params));
             }

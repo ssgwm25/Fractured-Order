@@ -71,4 +71,17 @@ describe('RequestsStore RFI resubmission', () => {
         })).rejects.toThrow('Only an RFI returned for clarification can be resubmitted');
         expect(mockUpdateRequest).not.toHaveBeenCalled();
     });
+
+    it('GC07 submits the revision seen when the correction form opened, even after a newer return arrives', async () => {
+        const { requestsStore } = await loadRequestsStore();
+        const reviewed = { id: 'regional-rfi', session_id: 'regional', team: 'green', delegation_id: 'europe',
+            status: 'pending', workflow_state: 'returned_to_team', revision_number: 2 };
+        requestsStore.sessionId = 'regional';
+        requestsStore.requests = [{ ...reviewed, revision_number: 3 }];
+        mockUpdateRequest.mockRejectedValue(new Error('GC07_STALE_RFI_REVISION'));
+        const updates = { query: 'Synthetic correction based on revision two', categories: ['Other'] };
+        await expect(requestsStore.resubmit(reviewed.id, updates, reviewed)).rejects.toThrow('GC07_STALE_RFI_REVISION');
+        expect(mockUpdateRequest).toHaveBeenCalledWith(reviewed.id, updates, reviewed);
+        expect(requestsStore.getById(reviewed.id).revision_number).toBe(3);
+    });
 });

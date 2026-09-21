@@ -1,4 +1,45 @@
-import { ROLE_SURFACES, getRoleDisplayName, getRoleSurfaceDisplayLabel, parseTeamRole } from '../../core/teamContext.js';
+import { ROLE_SURFACES, GREEN_DELEGATIONS, getRoleDisplayName, getRoleSurfaceDisplayLabel, parseTeamRole } from '../../core/teamContext.js';
+
+export function regionalRecipientOptions(session = {}) {
+    session = session.sessionData || session;
+    const regional = (session.sessionTopologyVersion ?? session.session_topology_version ?? session.topology) === 2;
+    if (!regional) return [];
+    const shared = (session.greenSeatModel ?? session.green_seat_model) === 'shared_facilitator_v1';
+    return [
+        { value: 'green', label: 'Both Green delegations' },
+        ...Object.entries(GREEN_DELEGATIONS).flatMap(([region, label]) => [
+            { value: `green_${region}`, label },
+            ...['scribe', 'notetaker', ...(!shared ? ['facilitator'] : [])].map((role) => ({
+                value: `green_${region}_${role}`, label: getRoleDisplayName(`green_${region}_${role}`)
+            }))
+        ]),
+        ...(shared ? [{ value: 'green_shared_facilitator', label: 'Shared Green Facilitator' }] : [])
+    ];
+}
+
+// Rendering only. RLS and RPCs independently enforce these audiences. Persisted
+// columns take precedence; role/delegation metadata cannot fall back to team.
+function scopedVisibility(record, context, role) {
+    const metadata = record.metadata || {};
+    const scope = record.recipient_scope || metadata.recipient_scope;
+    const region = record.recipient_delegation_id || metadata.recipient_delegation_id;
+    if (['PROPOSAL_FORWARDED', 'PROPOSAL_RESPONSE', 'PROPOSAL_RESPONSE_REVIEW'].includes(record.type)) return null;
+    const addressed = record.to_role || metadata.recipient;
+    const regionalRole = parseTeamRole(addressed).delegationId && parseTeamRole(addressed).surface || addressed === 'green_shared_facilitator';
+    const targetRole = metadata.recipient_role || (scope === 'role' || regionalRole ? addressed : null);
+    if (metadata.recipient_role && regionalRole && metadata.recipient_role !== addressed) return false;
+    if (targetRole) {
+        if (context.delegationId || context.sharedFacilitator || parseTeamRole(targetRole).delegationId || targetRole === 'green_shared_facilitator') return targetRole === role;
+        return null; // Retain legacy lead/scribe visibility conventions.
+    }
+    if (scope === 'role') return false;
+    if (region || scope === 'delegation') return Object.hasOwn(GREEN_DELEGATIONS, region)
+        && context.teamId === 'green' && (context.sharedFacilitator || context.delegationId === region);
+    if (scope === 'both_green_delegations') return context.teamId === 'green';
+    if (scope === 'session') return true;
+    if (scope && !['team', 'all'].includes(scope)) return false;
+    return null;
+}
 
 export const WHITE_CELL_UPDATE_KINDS = Object.freeze({
     TRIBE_STREET_JOURNAL: 'TRIBE_STREET_JOURNAL',
@@ -42,6 +83,12 @@ export function resolveCommunicationRecipientContext(recipient = '') {
         };
     }
 
+    const region = normalizedRecipient.replace(/^green_/, '');
+    if (Object.hasOwn(GREEN_DELEGATIONS, region)) return {
+        recipient: normalizedRecipient, recipientScope: 'delegation', recipientTeam: 'green',
+        recipientRole: null, recipientDelegation: region
+    };
+
     const parsedRole = parseTeamRole(normalizedRecipient);
     if (parsedRole.teamId && parsedRole.surface) {
         return {
@@ -67,7 +114,8 @@ export function buildWhiteCellRecipientMetadata(recipient = '', extraMetadata = 
         recipient: recipientContext.recipient || null,
         recipient_scope: recipientContext.recipientScope || null,
         recipient_team: recipientContext.recipientTeam || null,
-        recipient_role: recipientContext.recipientRole || null
+        recipient_role: recipientContext.recipientRole || null,
+        ...(recipientContext.recipientDelegation ? { recipient_delegation_id: recipientContext.recipientDelegation } : {})
     };
 }
 
@@ -124,6 +172,8 @@ function buildNotetakerRecipientSet(teamContext = {}) {
 }
 
 export function isWhiteCellCommunicationVisibleToLead(communication = {}, teamContext = {}) {
+    const scoped = scopedVisibility(communication, teamContext, teamContext.facilitatorRole);
+    if (isWhiteCellSenderRole(communication.from_role) && scoped !== null) return scoped;
     return isVisibleWhiteCellCommunication(
         communication,
         buildLeadRecipientSet(teamContext),
@@ -132,6 +182,8 @@ export function isWhiteCellCommunicationVisibleToLead(communication = {}, teamCo
 }
 
 export function isWhiteCellCommunicationVisibleToScribe(communication = {}, teamContext = {}) {
+    const scoped = scopedVisibility(communication, teamContext, teamContext.scribeRole);
+    if (isWhiteCellSenderRole(communication.from_role) && scoped !== null) return scoped;
     return isVisibleWhiteCellCommunication(
         communication,
         buildScribeRecipientSet(teamContext),
@@ -140,6 +192,8 @@ export function isWhiteCellCommunicationVisibleToScribe(communication = {}, team
 }
 
 export function isWhiteCellCommunicationVisibleToNotetaker(communication = {}, teamContext = {}) {
+    const scoped = scopedVisibility(communication, teamContext, teamContext.notetakerRole);
+    if (isWhiteCellSenderRole(communication.from_role) && scoped !== null) return scoped;
     return isVisibleWhiteCellCommunication(
         communication,
         buildNotetakerRecipientSet(teamContext),
@@ -294,6 +348,8 @@ function isVisibleWhiteCellTeamEvent(event = {}, recipientSet = new Set(), expec
 }
 
 export function isWhiteCellTimelineEventVisibleToLead(event = {}, teamContext = {}) {
+    const scoped = scopedVisibility(event, teamContext, teamContext.facilitatorRole);
+    if (event.team === 'white_cell' && scoped !== null) return scoped;
     return isVisibleWhiteCellTeamEvent(
         event,
         buildLeadRecipientSet(teamContext),
@@ -302,6 +358,8 @@ export function isWhiteCellTimelineEventVisibleToLead(event = {}, teamContext = 
 }
 
 export function isWhiteCellTimelineEventVisibleToNotetaker(event = {}, teamContext = {}) {
+    const scoped = scopedVisibility(event, teamContext, teamContext.notetakerRole);
+    if (event.team === 'white_cell' && scoped !== null) return scoped;
     return isVisibleWhiteCellTeamEvent(
         event,
         buildNotetakerRecipientSet(teamContext),
@@ -313,6 +371,7 @@ export function getWhiteCellUpdateAudienceLabel(recipient = '', {
     teamLabel = null
 } = {}) {
     const recipientContext = resolveCommunicationRecipientContext(recipient);
+    if (recipientContext.recipientDelegation) return GREEN_DELEGATIONS[recipientContext.recipientDelegation];
     if (recipientContext.recipient === 'all') {
         return 'All Teams';
     }

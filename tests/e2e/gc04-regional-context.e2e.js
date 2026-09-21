@@ -105,7 +105,7 @@ for (const [delegation, surface, label] of [
         await page.keyboard.press('Enter');
         await expect(page.locator('#sessionRoleLabel')).toHaveText(label);
         if (!delegation) {
-            await expect(page.locator('#sharedGreenWorkflowNotice')).toContainText('not yet enabled');
+            await expect(page.locator('#sharedGreenWorkflowNotice')).toContainText('Private drafts and notes remain inaccessible');
             await page.locator('#sharedGreenWorkingRegion').focus();
             await page.keyboard.press('End');
             await page.keyboard.press('Enter');

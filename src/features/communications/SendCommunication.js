@@ -14,6 +14,7 @@ import { showModal } from '../../components/ui/Modal.js';
 import { createLogger } from '../../utils/logger.js';
 import { getUserMessage } from '../../core/errors.js';
 import { TEAM_OPTIONS } from '../../core/teamContext.js';
+import { buildWhiteCellRecipientMetadata, regionalRecipientOptions } from './targeting.js';
 
 const logger = createLogger('SendCommunication');
 
@@ -34,6 +35,11 @@ const RECIPIENTS = [
     { value: 'all', label: 'All Teams' },
     ...TEAM_OPTIONS.filter((team) => team.id !== 'blue').map((team) => ({ value: team.id, label: team.label }))
 ];
+
+function recipients() {
+    const regional = regionalRecipientOptions(sessionStore.getState?.() || {});
+    return regional.length ? [...RECIPIENTS.filter((option) => option.value !== 'green'), ...regional] : RECIPIENTS;
+}
 
 /**
  * Create a send communication component
@@ -81,7 +87,7 @@ export function createSendCommunication(options = {}) {
             <div class="form-group">
                 <label class="form-label" for="commRecipient">Recipient</label>
                 <select id="commRecipient" class="form-select" required>
-                    ${RECIPIENTS.map(r => `<option value="${r.value}">${r.label}</option>`).join('')}
+                    ${recipients().map(r => `<option value="${r.value}">${r.label}</option>`).join('')}
                 </select>
             </div>
 
@@ -158,12 +164,13 @@ export function createSendCommunication(options = {}) {
         setSubmitPending(form, true, 'Sending...');
         try {
             // Save communication to database
-            await database.createCommunication({
+            const communication = await database.createCommunication({
                 session_id: sessionId,
-                from_team: 'white_cell',
-                to_team: recipient,
-                message_type: commType,
-                subject: subject || null,
+                from_role: 'white_cell',
+                to_role: recipient,
+                type: commType,
+                title: subject || null,
+                metadata: buildWhiteCellRecipientMetadata(recipient),
                 content,
                 move: gameStateStore.getCurrentMove()
             });
@@ -175,7 +182,8 @@ export function createSendCommunication(options = {}) {
                 team: 'white_cell',
                 move: gameStateStore.getCurrentMove(),
                 metadata: {
-                    to_team: recipient,
+                    communication_id: communication.id,
+                    ...communication.metadata,
                     content_preview: content.substring(0, 100)
                 }
             });
@@ -222,7 +230,7 @@ export function createSendCommunication(options = {}) {
      * @returns {string}
      */
     function getRecipientLabel(value) {
-        return RECIPIENTS.find(r => r.value === value)?.label || value;
+        return recipients().find(r => r.value === value)?.label || value;
     }
 
     /**
@@ -258,7 +266,7 @@ export function showSendCommunicationModal(options = {}) {
                 <div class="form-group">
                     <label class="form-label" for="modalCommRecipient">Recipient</label>
                     <select id="modalCommRecipient" class="form-select" required>
-                        ${RECIPIENTS.map(r => `<option value="${r.value}">${r.label}</option>`).join('')}
+                        ${recipients().map(r => `<option value="${r.value}">${r.label}</option>`).join('')}
                     </select>
                 </div>
 
@@ -315,11 +323,12 @@ export function showSendCommunicationModal(options = {}) {
                         content.querySelector('#modalCommForm')?.setAttribute('aria-busy', 'true');
 
                         (async () => {
-                            await database.createCommunication({
+                            const communication = await database.createCommunication({
                                 session_id: sessionId,
-                                from_team: 'white_cell',
-                                to_team: recipient,
-                                message_type: commType,
+                                from_role: 'white_cell',
+                                to_role: recipient,
+                                type: commType,
+                                metadata: buildWhiteCellRecipientMetadata(recipient),
                                 content: message,
                                 move: gameStateStore.getCurrentMove()
                             });
@@ -327,6 +336,7 @@ export function showSendCommunicationModal(options = {}) {
                             await timelineStore.create({
                                 type: commType,
                                 content: `${commType} to ${recipient}`,
+                                metadata: { ...communication.metadata, communication_id: communication.id },
                                 team: 'white_cell',
                                 move: gameStateStore.getCurrentMove()
                             });

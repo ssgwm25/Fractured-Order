@@ -9,6 +9,7 @@
  */
 
 import { database } from '../services/database.js';
+import { getConfirmedSeat } from '../core/seatContext.js';
 import { getProposalThreadMessageKey } from '../features/actions/proposalRecipientState.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -83,7 +84,9 @@ class CommunicationsStore {
         }
 
         try {
-            const data = await database.fetchCommunications(this.sessionId);
+            const sessionId = this.sessionId, seat = getConfirmedSeat();
+            const data = await database.fetchCommunications(sessionId);
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return;
             this.communications = deduplicateCommunications(data || []).sort(
                 (left, right) => new Date(right.created_at) - new Date(left.created_at)
             );
@@ -111,12 +114,14 @@ class CommunicationsStore {
         }
 
         try {
+            const sessionId = this.sessionId, seat = getConfirmedSeat();
             const communicationsAtQueryStart = new Map(
                 this.communications
                     .filter((communication) => getCommunicationIdentity(communication))
                     .map((communication) => [getCommunicationIdentity(communication), communication])
             );
             const fetchedCommunications = await database.fetchCommunications(this.sessionId) || [];
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return [];
             const reconciledById = new Map(
                 deduplicateCommunications(fetchedCommunications)
                     .filter((communication) => getCommunicationIdentity(communication))
@@ -129,8 +134,7 @@ class CommunicationsStore {
                 if (
                     communication?.id
                     && (
-                        !reconciledById.has(getCommunicationIdentity(communication))
-                        || communicationsAtQueryStart.get(getCommunicationIdentity(communication)) !== communication
+                        communicationsAtQueryStart.get(getCommunicationIdentity(communication)) !== communication
                     )
                 ) {
                     reconciledById.set(getCommunicationIdentity(communication), communication);

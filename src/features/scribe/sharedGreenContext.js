@@ -1,7 +1,7 @@
 import { getConfirmedSeat, onSeatCleanup, seatStorageKey } from '../../core/seatContext.js';
 import { GREEN_DELEGATIONS, SHARED_GREEN_FACILITATOR, SHARED_GREEN_MODEL } from '../../core/teamContext.js';
 
-export const SHARED_GREEN_WORKFLOW_NOTICE = 'Review and submit each delegation’s Scribe-forwarded orientations and proposals separately. Edit proposals in their permitted draft states; returned revisions need the originating Scribe’s new handoff. Approved recipient threads remain separate by delegation, recipient and revision. RFI creation and direct messages are not yet enabled; private drafts and notes remain inaccessible.';
+export const SHARED_GREEN_WORKFLOW_NOTICE = 'Review and submit each delegation’s Scribe-forwarded orientations and proposals separately. Edit proposals in their permitted draft states; returned revisions need the originating Scribe’s new handoff. Approved recipient threads remain separate by delegation, recipient and revision. Create RFIs and message White Cell for the selected region; answers retain that region. Private drafts and notes remain inaccessible.';
 
 function resolveViewStorage() {
     try { return globalThis.sessionStorage; } catch { return null; }
@@ -28,7 +28,7 @@ export function mountSharedGreenContext(seat, onChange) {
     const host = document.getElementById('main-content');
     if (!host) return null;
     const panel = document.createElement('section');
-    panel.className = 'card card-bordered p-4';
+    panel.className = 'shared-green-context card card-bordered p-4';
     panel.setAttribute('aria-label', 'Shared Green Facilitator regional context');
     const label = document.createElement('label');
     label.htmlFor = 'sharedGreenWorkingRegion';
@@ -55,11 +55,12 @@ export function mountSharedGreenContext(seat, onChange) {
     };
     select.addEventListener('change', update);
     panel.append(label, select, notice, status);
+    host.classList.add('scribe-main--shared-green');
     host.prepend(panel);
     update();
     const stop = onSeatCleanup((removed) => {
         if (seatStorageKey('', removed) !== seatStorageKey('', seat)) return;
-        select.disabled = true; panel.remove(); stop();
+        select.disabled = true; panel.remove(); host.classList.remove('scribe-main--shared-green'); stop();
     });
     return panel;
 }

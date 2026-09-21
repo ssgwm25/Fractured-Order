@@ -13,6 +13,20 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 describe('workflow store reconnect reconciliation', () => {
+    it('GC07 removes cached RFIs absent from the authorized snapshot and ignores a response after reset', async () => {
+        const { requestsStore } = await import('./requests.js');
+        requestsStore.sessionId = 'regional';
+        requestsStore.requests = [{ id: 'private', delegation_id: 'europe' }];
+        mockDatabase.fetchRequests.mockResolvedValue([]);
+        await requestsStore.reconcileRequests();
+        expect(requestsStore.getAll()).toEqual([]);
+        mockDatabase.fetchRequests.mockImplementation(async () => {
+            requestsStore.reset();
+            return [{ id: 'old-seat-record' }];
+        });
+        await requestsStore.reconcileRequests();
+        expect(requestsStore.getAll()).toEqual([]);
+    });
     afterEach(() => {
         vi.clearAllMocks();
         vi.resetModules();

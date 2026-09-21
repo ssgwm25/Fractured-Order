@@ -233,6 +233,18 @@ history, outcome minted for a current completion, inability of the prior client
 to read accepted rows, or missing current-head rollback evidence blocks the
 release.
 
+## GC-07 messaging containment
+
+After `data/2026-09-28_gc07_regional_messaging.sql`, retain all request identities,
+revisions, review snapshots, communication audiences and retry keys. Contain
+affected regional writes and repair forward. An older frontend may read history
+but cannot use direct table writes for regional Green RFIs/messages, or the old
+answer signature for regional Green RFIs. Do not restore GC-04A/05/06 helper
+definitions, expose `gc07_legacy_answer_request`, drop audience columns or merge
+regional records. Preserve the database migration receipt and failed attempt.
+Use the [GC-07 runbook](architecture/gc07-regional-messaging.md) for error handling,
+exact rehearsal commands and outstanding hosted evidence.
+
 ## GC-06 regional proposals
 
 After `data/2026-09-26_gc06_regional_proposals.sql`, retain proposal handoff

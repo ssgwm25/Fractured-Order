@@ -1043,8 +1043,31 @@ describe('White Cell DOM contract', () => {
         }));
     });
 
+    it('waits for seat validation before White Cell grant checks or sync', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const bootstrap = await import('../services/seatBootstrap.js');
+        const { database } = await import('../services/database.js');
+        const { syncService } = await import('../services/sync.js');
+        let finishValidation;
+        vi.spyOn(bootstrap, 'ensureSeatStartup').mockReturnValue(new Promise((resolve) => { finishValidation = resolve; }));
+        const grant = vi.spyOn(database, 'requireOperatorGrant');
+        const sync = vi.spyOn(syncService, 'initialize');
+        const controller = new WhiteCellController();
+        const render = vi.spyOn(controller, 'renderScribeDeckSettings');
+        const startup = controller.init();
+        expect(grant).not.toHaveBeenCalled();
+        expect(sync).not.toHaveBeenCalled();
+        finishValidation(false);
+        await startup;
+        expect(grant).not.toHaveBeenCalled();
+        expect(sync).not.toHaveBeenCalled();
+        expect(render).not.toHaveBeenCalled();
+    });
+
     it('renders default facilitator deck controls before live communication sync finishes', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
+        const bootstrap = await import('../services/seatBootstrap.js');
+        const startup = vi.spyOn(bootstrap, 'ensureSeatStartup').mockResolvedValue(true);
         const { database } = await import('../services/database.js');
         const { sessionStore } = await import('../stores/session.js');
         const { syncService } = await import('../services/sync.js');
@@ -1091,6 +1114,7 @@ describe('White Cell DOM contract', () => {
 
         await controller.init();
 
+        expect(startup.mock.invocationCallOrder[0]).toBeLessThan(database.requireOperatorGrant.mock.invocationCallOrder[0]);
         expect(syncService.initialize).toHaveBeenCalledWith('session-42', {
             participantId: null
         });
@@ -1285,6 +1309,15 @@ describe('White Cell DOM contract', () => {
 
     it('builds cross-team White Cell communication recipients', async () => {
         const { buildWhiteCellCommunicationRecipientOptions } = await loadWhiteCellModule();
+        const sharedOptions = buildWhiteCellCommunicationRecipientOptions({ sessionTopologyVersion: 2, greenSeatModel: 'shared_facilitator_v1' });
+        expect(sharedOptions.map((option) => option.value)).toEqual(expect.arrayContaining([
+            'green', 'green_europe', 'green_asian_pacific', 'green_europe_scribe', 'green_asian_pacific_scribe', 'green_shared_facilitator'
+        ]));
+        expect(sharedOptions.map((option) => option.value)).not.toContain('green_europe_facilitator');
+        expect(sharedOptions.map((option) => option.value)).not.toContain('green_scribe');
+        const pairedOptions = buildWhiteCellCommunicationRecipientOptions({ sessionTopologyVersion: 2 });
+        expect(pairedOptions.map((option) => option.value)).toContain('green_europe_facilitator');
+        expect(pairedOptions.map((option) => option.value)).not.toContain('green_shared_facilitator');
 
         expect(buildWhiteCellCommunicationRecipientOptions()).toEqual(expect.arrayContaining([
             { value: 'all', label: 'All Teams' },

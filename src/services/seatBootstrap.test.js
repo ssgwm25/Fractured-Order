@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { database, sessionStore } = vi.hoisted(() => ({
     database: { restoreSessionSeatContext: vi.fn() },
-    sessionStore: { getSessionId: vi.fn(() => 'session'), getSessionParticipantId: vi.fn(() => 'seat'), confirmSeat: vi.fn() }
+    sessionStore: { getSessionId: vi.fn(() => 'session'), getSessionParticipantId: vi.fn(() => 'seat'),
+        getRole: vi.fn(() => 'whitecell_lead'), confirmSeat: vi.fn(), invalidateSeat: vi.fn() }
 }));
 vi.mock('./database.js', () => ({ database }));
 vi.mock('../stores/session.js', () => ({ sessionStore }));
@@ -9,7 +10,74 @@ let restoreConfirmedSeat;
 
 afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.resetModules();
+});
+
+describe.each(['/', '/Fractured-Order/'])('GC07 White Cell startup under %s', (basePath) => {
+    let ensureSeatStartup, shell, panel;
+    beforeEach(async () => {
+        vi.clearAllMocks();
+        vi.resetModules();
+        vi.stubEnv('BASE_URL', basePath);
+        vi.stubGlobal('window', { location: new URL(`https://example.test${basePath}whitecell.html`) });
+        shell = { hidden: false, inert: false };
+        panel = null;
+        vi.stubGlobal('document', {
+            querySelectorAll: () => [shell],
+            getElementById: (id) => id === 'seatContextStatus' ? panel : null,
+            createElement: () => ({ children: [], attributes: {}, focus: vi.fn(),
+                setAttribute(name, value) { this.attributes[name] = value; },
+                replaceChildren() { this.children = []; },
+                append(child) { this.children.push(child); }, addEventListener() {} }),
+            body: { prepend: (node) => { panel = node; } }
+        });
+        ({ ensureSeatStartup } = await import('./seatBootstrap.js'));
+    });
+
+    it.each([
+        ['shared', 2, 'shared_facilitator_v1'], ['pairs', 2, null], ['unified', 1, null]
+    ])('restores %s White Cell once before revealing either startup caller', async (_model, topology, model) => {
+        let resolveRestore;
+        database.restoreSessionSeatContext.mockReturnValue(new Promise((resolve) => { resolveRestore = resolve; }));
+        const first = ensureSeatStartup();
+        const second = ensureSeatStartup();
+        expect(first).toBe(second);
+        expect(shell).toEqual({ hidden: true, inert: true });
+        expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
+        resolveRestore({
+            session: { id: 'session', status: 'active', session_topology_version: topology, green_seat_model: model },
+            seat: { id: 'seat', session_id: 'session', role: 'whitecell_lead', is_active: true }
+        });
+        await expect(first).resolves.toBe(true);
+        expect(database.restoreSessionSeatContext).toHaveBeenCalledOnce();
+        expect(database.restoreSessionSeatContext).toHaveBeenCalledWith('session', 'seat');
+        expect(sessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({ role: 'whitecell_lead', topology }));
+        expect(shell).toEqual({ hidden: false, inert: false });
+    });
+
+    it('keeps a denied White Cell seat behind the accessible retry gate', async () => {
+        database.restoreSessionSeatContext.mockRejectedValue(Object.assign(new Error('GC04_INVALID_SESSION_SEAT'), { code: '42501' }));
+        await expect(ensureSeatStartup()).resolves.toBe(false);
+        expect(shell).toEqual({ hidden: true, inert: true });
+        expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
+        expect(sessionStore.invalidateSeat).toHaveBeenCalledOnce();
+        expect(panel.attributes.role).toBe('alert');
+        expect(panel.focus).toHaveBeenCalledOnce();
+        expect(panel.children.map((node) => node.textContent)).toEqual([
+            expect.stringContaining('Session permission denied'), 'Retry session validation', 'Return to join'
+        ]);
+    });
+
+    it('rejects a Green seat on the White Cell route', async () => {
+        database.restoreSessionSeatContext.mockResolvedValue({
+            session: { id: 'session', status: 'active', session_topology_version: 2 },
+            seat: { id: 'seat', session_id: 'session', role: 'green_europe_scribe', delegation_id: 'europe', is_active: true }
+        });
+        await expect(ensureSeatStartup()).resolves.toBe(false);
+        expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
+        expect(shell.hidden).toBe(true);
+    });
 });
 
 describe.each(['/', '/Fractured-Order/'])('GC-04 startup and rejoin under %s', (basePath) => {

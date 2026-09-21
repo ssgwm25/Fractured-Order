@@ -230,7 +230,10 @@ DO $$ DECLARE v_sid UUID; other UUID; actor RECORD; scribe RECORD; r RECORD; pro
     PERFORM pg_temp.denied(format('INSERT INTO public.requests(session_id,team,delegation_id,query) VALUES(%L,''green'',''europe'',''denied'')',v_sid),'42501','shared RFI denied');
     PERFORM pg_temp.denied(format('INSERT INTO public.communications(session_id,move,from_role,to_role,type,content) VALUES(%L,1,''green_shared_facilitator'',''white_cell'',''direct'',''denied'')',v_sid),
         '42501,23514','shared direct message denied');
-    PERFORM pg_temp.check_true(NOT EXISTS(SELECT 1 FROM public.requests WHERE id=rfi),'shared private RFI read denied');
+    -- GC07 now grants scoped RFI reads; all orientation and direct-table guards above remain.
+    PERFORM pg_temp.check_true(EXISTS(SELECT 1 FROM public.requests WHERE id=rfi)
+        = (to_regprocedure('public.write_regional_rfi(uuid,text,uuid,bigint,text,text[],text)') IS NOT NULL),
+        'shared RFI reads match installed permission stage');
     PERFORM pg_temp.denied(format('SELECT public.append_proposal_thread_message(%L,''denied'',''PROPOSAL_RESPONSE_REVIEW'',NULL,NULL)',
         (SELECT id FROM public.communications WHERE session_id=v_sid AND content='GC05 synthetic parent')),'42501','shared thread denied');
     RESET ROLE;

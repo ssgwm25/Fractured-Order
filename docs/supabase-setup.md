@@ -105,6 +105,17 @@ Apply the authoritative ledger in this exact order:
 54. `data/2026-09-25_gc05_regional_orientations.sql`
 55. `data/2026-09-26_gc06_regional_proposals.sql`
 56. `data/2026-09-27_gc06_released_thread_round_order.sql`
+57. `data/2026-09-28_gc07_regional_messaging.sql`
+
+GC-07 enables scoped Green Facilitator RFIs and direct messages with explicit
+region/revision RPCs in shared and paired sessions. White Cell audiences resolve
+to a delegation, both Green delegations, or an individual role; a Blue/Red request
+to inform Green still needs White Cell approval and resolves to both regions.
+It retains the GC-05/06 helpers, proposal approvals and private-note boundary.
+Apply once after September 27, then use the
+[GC-07 verification runbook](architecture/gc07-regional-messaging.md). No migration
+or gate execution is implied by this ledger entry. Do not reapply older helper
+definitions over this stage. Unified sessions retain their existing RPC/table paths.
 
 GC-06 adds proposal-specific regional draft/handoff/edit/submission and approved
 recipient-thread authority. Apply after GC-05; it preserves orientations and

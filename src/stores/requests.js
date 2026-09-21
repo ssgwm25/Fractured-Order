@@ -10,6 +10,7 @@
  */
 
 import { database } from '../services/database.js';
+import { getConfirmedSeat } from '../core/seatContext.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('RequestsStore');
@@ -113,7 +114,9 @@ class RequestsStore {
         }
 
         try {
-            const data = await database.fetchRequests(this.sessionId);
+            const sessionId = this.sessionId, seat = getConfirmedSeat();
+            const data = await database.fetchRequests(sessionId);
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return;
 
             this.requests = data || [];
             logger.info(`Loaded ${this.requests.length} requests`);
@@ -243,8 +246,10 @@ class RequestsStore {
         try {
             const data = await database.createRequest(newRequest);
 
-            this.requests.push(data);
-            this.notify('created', data);
+            if (!this.requests.some((request) => request.id === data.id)) {
+                this.requests.push(data);
+                this.notify('created', data);
+            }
             logger.info('RFI created:', data.id);
 
             return data;
@@ -272,7 +277,8 @@ class RequestsStore {
                 responded_at: new Date().toISOString()
             };
 
-            const data = await database.updateRequest(id, updates);
+            const existing = this.getById(id);
+            const data = await database.updateRequest(id, updates, ...(existing?.delegation_id ? [existing] : []));
 
             // Update local state
             const index = this.requests.findIndex(r => r.id === id);
@@ -292,17 +298,19 @@ class RequestsStore {
 
     async reconcileRequests() {
         if (!this.sessionId) return [];
+        const sessionId = this.sessionId, seat = getConfirmedSeat();
 
         const atQueryStart = new Map(this.requests
             .filter((request) => request?.id)
             .map((request) => [request.id, getRequestSyncFingerprint(request)]));
         const fetched = await database.fetchRequests(this.sessionId) || [];
+        if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return [];
         const reconciled = new Map(fetched.filter((request) => request?.id).map((request) => [request.id, request]));
 
         this.requests.forEach((request) => {
             if (!request?.id) return;
             const changedDuringQuery = atQueryStart.get(request.id) !== getRequestSyncFingerprint(request);
-            if (!reconciled.has(request.id) || changedDuringQuery) reconciled.set(request.id, request);
+            if (changedDuringQuery) reconciled.set(request.id, request);
         });
 
         const discovered = fetched.filter((request) => (
@@ -320,7 +328,7 @@ class RequestsStore {
      * @param {{query: string, categories: string[]}} updates
      * @returns {Promise<Request>}
      */
-    async resubmit(id, updates = {}) {
+    async resubmit(id, updates = {}, reviewedRequest = null) {
         const existing = this.getById(id);
         if (!existing || existing.status !== REQUEST_STATUS.PENDING || existing.workflow_state !== 'returned_to_team') {
             throw new Error('Only an RFI returned for clarification can be resubmitted');
@@ -329,7 +337,7 @@ class RequestsStore {
         const data = await database.updateRequest(id, {
             query: updates.query,
             categories: updates.categories
-        });
+        }, ...(existing.delegation_id ? [reviewedRequest || existing] : []));
         const index = this.requests.findIndex((request) => request.id === id);
         if (index !== -1) {
             this.requests[index] = data;

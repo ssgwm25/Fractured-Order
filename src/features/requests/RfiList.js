@@ -215,7 +215,7 @@ function createRfiCard(rfi, options = {}) {
     card.innerHTML = `
         <div class="rfi-card-header">
             <div class="rfi-card-meta">
-                <span class="rfi-card-team">${rfi.team || 'Unknown'}</span>
+                <span class="rfi-card-team">${escapeHtml(rfi.team || 'Unknown')}${rfi.delegation_id ? ` — ${rfi.delegation_id === 'europe' ? 'Europe' : 'Asia-Pacific'}` : ''} · Revision ${Number(rfi.revision_number) || 1}</span>
                 <span class="rfi-card-separator">•</span>
                 <span class="rfi-card-time">${formatRelativeTime(rfi.created_at)}</span>
                 <span class="rfi-card-separator">•</span>

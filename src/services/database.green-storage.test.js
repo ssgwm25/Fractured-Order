@@ -13,6 +13,26 @@ import { database, mergeNotetakerRecord, normalizeArtifactWorkflowRecord } from 
 describe('GC-02 database storage boundary', () => {
     beforeEach(() => vi.clearAllMocks());
 
+    it('GC07 sends explicit scope and the captured RFI revision through RPCs without table fallback', async () => {
+        const rfi = { id: 'rfi', session_id: 'regional', team: 'green', delegation_id: 'europe', revision_number: 2,
+            workflow_state: 'returned_to_team', query: 'Synthetic clarification?', categories: ['Other'] };
+        supabase.rpc.mockResolvedValue({ data: rfi, error: null });
+        await database.updateRequest(rfi.id, { query: 'Synthetic corrected question?', categories: ['Other'] }, rfi);
+        expect(supabase.rpc).toHaveBeenLastCalledWith('write_regional_rfi', expect.objectContaining({
+            requested_session_id: 'regional', requested_delegation_id: 'europe', requested_request_id: 'rfi', requested_expected_revision: 2
+        }));
+        await database.updateRequest(rfi.id, { response: 'Synthetic answer', status: 'answered' }, rfi);
+        expect(supabase.rpc).toHaveBeenLastCalledWith('operator_answer_regional_rfi', expect.objectContaining({
+            requested_session_id: 'regional', requested_delegation_id: 'europe', requested_expected_revision: 2
+        }));
+        await database.createCommunication({ session_id: 'regional', type: 'direct', delegation_id: 'asian_pacific',
+            from_role: 'forged-browser-role', content: 'Synthetic message', client_key: 'retry' });
+        expect(supabase.rpc).toHaveBeenLastCalledWith('send_regional_direct_message', {
+            requested_session_id: 'regional', requested_delegation_id: 'asian_pacific', requested_content: 'Synthetic message', requested_client_key: 'retry'
+        });
+        expect(supabase.from).not.toHaveBeenCalled();
+    });
+
     it('passes topology and an approval identifier, never browser-authored roster approval', async () => {
         const session = { id: 'session', session_topology_version: 2, green_roster_version: null };
         supabase.rpc.mockResolvedValueOnce({ data: session, error: null });

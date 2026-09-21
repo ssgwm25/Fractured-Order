@@ -1374,6 +1374,37 @@ body::before {
     overflow: hidden;
 }
 
+/* Shared regional context sits above the stage. Let the main region scroll
+   when context plus record content exceed the viewport, including mobile. */
+.scribe-main.scribe-main--shared-green {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: var(--space-4);
+    overflow-y: auto;
+}
+
+.scribe-main--shared-green > .shared-green-context {
+    flex: 0 0 auto;
+    width: 100%;
+}
+
+.scribe-main--shared-green > .scribe-stage-card {
+    flex: 1 0 auto;
+    height: auto;
+    min-height: 0;
+}
+
+.scribe-main--shared-green .scribe-stage-frame,
+.scribe-main--shared-green .scribe-stage-action-shell {
+    height: auto;
+    min-width: 0;
+}
+
+.scribe-main--shared-green .facilitator-workspace {
+    max-height: none;
+    overflow: visible;
+}
+
 .scribe-stage-frame {
     position: relative;
     display: grid;
@@ -2250,6 +2281,12 @@ body[data-facilitator-workspace="communications"] .scribe-stage-nav,
 body[data-facilitator-workspace="rfis"] #presentBtn,
 body[data-facilitator-workspace="communications"] #presentBtn {
     display: none;
+}
+
+body[data-facilitator-workspace="rfis"] .scribe-main--shared-green .scribe-stage-frame,
+body[data-facilitator-workspace="communications"] .scribe-main--shared-green .scribe-stage-frame {
+    padding: 0;
+    align-items: start;
 }
 
 .scribe-action-slide-return {

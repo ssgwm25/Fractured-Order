@@ -1979,6 +1979,9 @@ export const database = {
      */
     async createRequest(requestData) {
         await ensureAuthenticatedBrowser();
+        if (requestData.team === 'green' && requestData.delegation_id) {
+            return this.writeRegionalRfi(requestData);
+        }
         const query = requestData.query ?? requestData.question ?? null;
         const { data, error } = await supabase
             .from('requests')
@@ -2044,8 +2047,33 @@ export const database = {
      * @param {Object} updates - Updates to apply
      * @returns {Promise<Object>} Updated request
      */
-    async updateRequest(requestId, updates) {
+    async writeRegionalRfi(request) {
         await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('write_regional_rfi', {
+            requested_session_id: request.session_id, requested_delegation_id: request.delegation_id,
+            requested_request_id: request.id ?? null, requested_expected_revision: request.revision_number ?? null,
+            requested_query: request.query, requested_categories: request.categories,
+            requested_client_key: request.client_key ?? null
+        });
+        if (error) throw fromSupabaseError(error, 'writeRegionalRfi');
+        return normalizeArtifactWorkflowRecord(data, 'rfi');
+    },
+
+    async updateRequest(requestId, updates, existing = null) {
+        await ensureAuthenticatedBrowser();
+
+        if (existing?.team === 'green' && existing?.delegation_id) {
+            if (!isOperatorRequestResponseUpdate(updates)) return this.writeRegionalRfi({
+                ...existing, id: requestId, query: updates.query, categories: updates.categories
+            });
+            const { data, error } = await supabase.rpc('operator_answer_regional_rfi', {
+                requested_session_id: existing.session_id, requested_delegation_id: existing.delegation_id,
+                requested_request_id: requestId, requested_expected_revision: existing.revision_number,
+                requested_response: updates.response
+            });
+            if (error) throw fromSupabaseError(error, 'updateRequest');
+            return normalizeArtifactWorkflowRecord(data, 'rfi');
+        }
 
         if (isOperatorRequestResponseUpdate(updates)) {
             const { data, error } = await supabase.rpc('operator_answer_request', {
@@ -2084,6 +2112,15 @@ export const database = {
      */
     async createCommunication(commData) {
         await ensureAuthenticatedBrowser();
+
+        if (commData.type === 'direct' && commData.delegation_id) {
+            const { data, error } = await supabase.rpc('send_regional_direct_message', {
+                requested_session_id: commData.session_id, requested_delegation_id: commData.delegation_id,
+                requested_content: commData.content, requested_client_key: commData.client_key
+            });
+            if (error) throw fromSupabaseError(error, 'createCommunication');
+            return data;
+        }
 
         if (shouldUseOperatorCommunicationPath(commData)) {
             const { data, error } = await supabase.rpc('operator_send_communication', {

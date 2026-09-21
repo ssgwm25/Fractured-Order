@@ -25,7 +25,8 @@ const logger = createLogger('RfiForm');
  * @returns {HTMLElement}
  */
 export function createRfiForm(options = {}) {
-    const { team = 'blue', request = null, onSubmit, onCancel } = options;
+    const { team = 'blue', delegationId = null, request = null, onSubmit, onCancel } = options;
+    const clientKey = globalThis.crypto.randomUUID();
     let isSubmitting = false;
     const isResubmission = request?.workflow_state === 'returned_to_team';
     const form = document.createElement('form');
@@ -133,6 +134,7 @@ export function createRfiForm(options = {}) {
             const rfiData = {
                 query,
                 team,
+                ...(delegationId ? { delegation_id: delegationId, client_key: clientKey } : {}),
                 move: gameStateStore.getCurrentMove(),
                 phase: gameStateStore.getCurrentPhase(),
                 client_id: sessionStore.getClientId(),
@@ -140,7 +142,7 @@ export function createRfiForm(options = {}) {
             };
 
             const result = isResubmission
-                ? await requestsStore.resubmit(request.id, rfiData)
+                ? await requestsStore.resubmit(request.id, rfiData, ...(request.delegation_id ? [request] : []))
                 : await requestsStore.create(rfiData);
             showToast({
                 message: isResubmission ? 'RFI resubmitted successfully' : 'RFI submitted successfully',

@@ -350,7 +350,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(mockSubmitAction).not.toHaveBeenCalled();
         expect(mockCreateTimelineEvent).not.toHaveBeenCalled();
         const deferred = controller.renderSharedRegionalRecord({ ...action, goal: 'Synthetic proposal' });
-        expect(deferred).toContain('RFI creation and direct messages are not yet enabled');
+        expect(deferred).toContain('Create RFIs and message White Cell for the selected region');
         expect(deferred).not.toContain('<button');
     });
     it('GC04A shared foundation renders an owned read-only summary and cannot invoke workflow writes', async () => {
@@ -362,7 +362,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         const html = controller.renderSharedRegionalRecord(action);
         expect(html).toContain('Green - Europe');
         expect(html).toContain('&lt;Synthetic proposal&gt;');
-        expect(html).toContain('not yet enabled');
+        expect(html).toContain('Private drafts and notes remain inaccessible');
         expect(html).not.toContain('<button');
         mockSubmitAction.mockClear(); mockUpdateDraftAction.mockClear(); mockAppendProposalThreadMessage.mockClear();
         await controller.submitScribeAction(action);
@@ -2200,6 +2200,42 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             preferLiveSection: 'direct-communications'
         });
         expect(controller.renderSlide).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ['rfis', true], ['rfis', false],
+        ['communications', true], ['communications', false]
+    ])('GC07 keeps %s open when changing region (destination records: %s)', async (view, populated) => {
+        const { ScribeController } = await loadScribeModule();
+        const { requestsStore } = await import('../stores/requests.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const regions = populated ? ['europe', 'asian_pacific'] : ['europe'];
+        const records = regions.map((delegation_id) => ({ id: delegation_id, delegation_id,
+            team: 'green', query: 'Synthetic regional question?', status: 'pending',
+            workflow_state: 'submitted_to_white_cell', revision_number: 1,
+            from_role: 'green_shared_facilitator', to_role: 'white_cell', type: 'direct',
+            content: `Synthetic ${delegation_id} message` }));
+        vi.spyOn(requestsStore, 'getByTeam').mockReturnValue(records);
+        vi.spyOn(communicationsStore, 'getAll').mockReturnValue(records);
+        const controller = new ScribeController();
+        controller.teamId = 'green';
+        controller.teamContext = { teamId: 'green', sharedFacilitator: true, scribeRole: 'green_shared_facilitator' };
+        controller.facilitatorDeckSlides = [{ n: 1, title: 'Overview', src: 'data:image/png;base64,AAA=' }];
+        controller.teamRfis = records.filter((record) => record.delegation_id === 'europe');
+        controller.directCommunications = controller.teamRfis;
+        const prefix = view === 'rfis' ? 'rfi' : 'communication';
+        controller.rebuildDeck({ preferredSlideKey: `${prefix}-europe` });
+        controller.activeFacilitatorView = view;
+        controller.renderSlide = vi.fn();
+        controller.workingDelegation = 'asian_pacific';
+
+        if (view === 'rfis') controller.syncRfisFromStore();
+        else controller.syncCommunicationsFromStore();
+
+        expect(controller.getCurrentSlideKey()).toBe(populated ? `${prefix}-asian_pacific` : `${view}-placeholder`);
+        expect(view === 'rfis' ? controller.teamRfis : controller.directCommunications)
+            .toEqual(populated ? [records[1]] : []);
+        expect(controller.renderSlide).toHaveBeenCalledOnce();
     });
 
     it('does not let a delayed RFI update steal the active Facilitator workspace', async () => {

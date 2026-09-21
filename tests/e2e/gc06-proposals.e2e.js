@@ -46,7 +46,7 @@ async function openRegion(page, region) {
 
 test('one shared workspace submits both proposals independently and retains deferred notices', async ({ context, page }) => {
     await openSharedWorkspace(context, page);
-    await expect(page.locator('#sharedGreenWorkflowNotice')).toContainText('RFI creation and direct messages are not yet enabled');
+    await expect(page.locator('#sharedGreenWorkflowNotice')).toContainText('Create RFIs and message White Cell for the selected region');
     for (const region of ['asian_pacific', 'europe']) {
         await openRegion(page, region);
         const button = page.locator(`[data-scribe-action-submit][data-action-id="gc06-${region}"]:visible`).first();
