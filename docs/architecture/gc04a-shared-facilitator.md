@@ -1,5 +1,10 @@
 # GC-04A: Shared Green Facilitator foundation
 
+This document retains the historical foundation stage, including its then-deferred
+workflows. Current GC05–GC07 controls and GC09 participant guidance are described
+in [GC09 session support](gc09-session-support.md). The later guidance does not
+alter the original foundation evidence or declare its overall gate passed.
+
 Implementation supplied; **not verified**. No tests, npm commands, migrations or
 deployments were executed by the agent. The prompt-book status remains for the
 human to update after fresh evidence. Earlier GC-04 four-seat results remain

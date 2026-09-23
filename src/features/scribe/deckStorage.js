@@ -246,7 +246,11 @@ export async function deleteUploadedScribeDeck(storageKey = '') {
 }
 
 onSeatCleanup((seat) => {
-    if ((seat.delegationId || seat.role === SHARED_GREEN_FACILITATOR) && resolveIndexedDb()) {
+    const ownsUnifiedGreenDeck = seat.role === 'green_scribe'
+        && seat.teamId === 'green'
+        && !seat.delegationId;
+    if ((seat.delegationId || seat.role === SHARED_GREEN_FACILITATOR || ownsUnifiedGreenDeck)
+        && resolveIndexedDb()) {
         void deleteUploadedScribeDeck(getSeatDeckStorageKey(seat))
             .catch(() => {}); // Access remains blocked if browser storage is unavailable.
     }

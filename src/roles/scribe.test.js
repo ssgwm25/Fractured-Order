@@ -476,6 +476,21 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(guide.steps[8].details).toContain('Projection does not equal submission.');
     });
 
+    it('GC09 mounts the shared Facilitator guide instead of skipping onboarding', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const controller = new ScribeController();
+        controller.teamId = 'green';
+        controller.teamContext = { teamId: 'green', sharedFacilitator: true,
+            scribeRole: 'green_shared_facilitator', scribeLabel: 'Shared Green Facilitator' };
+        mockMountFollowAlong.mockClear();
+        controller.mountFollowAlongOnboarding();
+        const guide = mockMountFollowAlong.mock.calls[0][0];
+        expect(guide.textOnly).toBe(true);
+        expect(guide.summary).toContain('submit each separately');
+        expect(guide.steps.some((step) => step.title === 'Choose the working region')).toBe(true);
+        expect(guide.steps.find((step) => step.title === 'RFIs').body).toContain('owning region');
+    });
+
     it('builds team-scoped Facilitator RFI slides with returned and answered workflow state', async () => {
         const { buildFacilitatorRfiSlides } = await loadScribeModule();
         const result = buildFacilitatorRfiSlides([
@@ -934,6 +949,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             message: 'Assigned uploaded deck is not cached in this browser. Loaded the default team deck instead.',
             type: 'warning'
         });
+        expect(controller.deckLoadNotice).toContain('Showing the default team deck');
+        expect(controller.deckLoadNotice).toContain('did not transfer the file');
     });
 
     it('keeps forwarded action slides usable when the support deck cannot load', async () => {

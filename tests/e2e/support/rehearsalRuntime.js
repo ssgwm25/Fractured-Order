@@ -41,11 +41,20 @@ export function isHostedRehearsal(baseUrl) {
     return Boolean(String(baseUrl || '').trim());
 }
 
-export function getConfiguredAppBaseUrl(baseUrl = process.env.PLAYWRIGHT_BASE_URL || DEFAULT_LOCAL_APP_BASE_URL) {
+function getLocalAppBaseUrl() {
+    // A local project subpath is navigation context, not a hosted-run flag.
+    // Assign pathname so even malformed input cannot change the loopback origin.
+    const url = new URL(DEFAULT_LOCAL_APP_BASE_URL);
+    const basePath = process.env.VITE_PUBLIC_BASE_PATH || '/';
+    url.pathname = basePath.endsWith('/') ? basePath : `${basePath}/`;
+    return url.toString();
+}
+
+export function getConfiguredAppBaseUrl(baseUrl = process.env.PLAYWRIGHT_BASE_URL || getLocalAppBaseUrl()) {
     return new URL('./', baseUrl).toString();
 }
 
-export function buildAppUrl(relativePath = '', baseUrl = process.env.PLAYWRIGHT_BASE_URL || DEFAULT_LOCAL_APP_BASE_URL) {
+export function buildAppUrl(relativePath = '', baseUrl = process.env.PLAYWRIGHT_BASE_URL || getLocalAppBaseUrl()) {
     return new URL(relativePath || '.', getConfiguredAppBaseUrl(baseUrl)).toString();
 }
 

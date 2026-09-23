@@ -240,6 +240,26 @@ describe('mountFollowAlong', () => {
         delete global.document;
     });
 
+    it('keeps current Green text usable without resolving or playing historical narration', () => {
+        const { sidebar } = createSidebar();
+        const resolveAudioUrl = vi.fn(() => '/historical.mp3');
+        const instance = mountFollowAlong({ sidebar, storageKey: 'green-guide', overviewMedia: false,
+            textOnly: true, mediaNotice: 'No replacement narration has been approved.',
+            roleLabel: 'Shared Green Facilitator', summary: 'Review each region separately.', resolveAudioUrl,
+            steps: [{ title: 'RFIs', body: 'Choose the region before creating an RFI.',
+                narrative: 'Scribes read answers; the Facilitator corrects returned RFIs.' }] });
+        const root = getGuide(sidebar);
+        instance.goToStep(0);
+        expect(resolveAudioUrl).not.toHaveBeenCalled();
+        expect(root.dataset.audioState).toBe('unavailable');
+        expect(root.querySelectorAll('.follow-along-audio-button').every((button) => button.disabled)).toBe(true);
+        const transcript = root.querySelector('.follow-along-audio-transcript');
+        expect(transcript.children[0].textContent).toContain('no approved audio');
+        expect(transcript.children[1].textContent).toContain('Facilitator corrects returned RFIs');
+        expect(transcript.children[1].textContent).not.toContain('Use an RFI when the team needs');
+        expect(root.querySelector('.follow-along-media-status').textContent).toContain('No replacement');
+    });
+
     it('keeps a previously completed guide mounted above the session footer', () => {
         storage.setItem('tour', JSON.stringify({ done: true, step: 1 }));
         const { sidebar, session } = createSidebar();

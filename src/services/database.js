@@ -7,7 +7,8 @@ import { ensureBrowserIdentity, getRuntimeConfigStatus, supabase } from './supab
 import { sessionStore } from '../stores/session.js';
 import { createLogger } from '../utils/logger.js';
 import { CONFIG, getRoleLimit } from '../core/config.js';
-import { DatabaseError, NotFoundError, fromSupabaseError } from '../core/errors.js';
+import { DatabaseError, NotFoundError, fromSupabaseError as buildSupabaseError } from '../core/errors.js';
+import { diagnoseRegionalError } from './regionalDiagnostics.js';
 import {
     ENUMS,
     canAdjudicateAction,
@@ -61,6 +62,11 @@ import {
 import { buildPliSmePacket, emptyEditDiff } from '../features/pli/pliSmeEdits.js';
 
 const logger = createLogger('Database');
+
+function fromSupabaseError(error, operation) {
+    diagnoseRegionalError(error);
+    return buildSupabaseError(error, operation);
+}
 
 const SME_SEAT_WRITE_MAP = Object.freeze({
     [SME_ROLES.ECON]: PLI_SEATS.MACRO,
@@ -738,6 +744,34 @@ export const database = {
         }
 
         logger.info('Session created:', data.id);
+        return data;
+    },
+
+    async listApprovedGreenRosters() {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('list_approved_green_rosters');
+        if (error) throw fromSupabaseError(error, 'listApprovedGreenRosters');
+        return data || [];
+    },
+
+    async createConfiguredSession(sessionData, requestKey) {
+        await ensureAuthenticatedBrowser();
+        const { data, error } = await supabase.rpc('create_configured_live_session', {
+            requested_name: sessionData.name,
+            requested_session_code: sessionData.session_code,
+            requested_description: sessionData.description || null,
+            requested_green_configuration: sessionData.green_configuration,
+            requested_roster_version: sessionData.roster_version || null,
+            requested_request_key: requestKey
+        });
+        if (error) throw fromSupabaseError(error, 'createConfiguredSession');
+        const regional = sessionData.green_configuration === 'shared_facilitator_v1';
+        if (!data?.id || (regional
+            ? data.session_topology_version !== 2 || data.green_seat_model !== 'shared_facilitator_v1'
+                || data.green_roster_version !== sessionData.roster_version || !data.green_roster_snapshot
+            : data.session_topology_version !== 1 || data.green_seat_model != null)) {
+            throw new DatabaseError('Server configuration could not be confirmed. Recover the same creation request.', 'createConfiguredSession');
+        }
         return data;
     },
 

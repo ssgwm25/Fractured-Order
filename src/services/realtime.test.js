@@ -60,6 +60,35 @@ function latestRecord(channelType) {
 }
 
 describe('RealtimeService subscription readiness and recovery', () => {
+    it('GC08 does not erase new subscriptions when old channel removal finishes late', async () => {
+        const service = new RealtimeService();
+        await service.initialize('old-session');
+        let finishRemoval;
+        mockSupabase.removeChannel.mockImplementationOnce(() => new Promise((resolve) => { finishRemoval = resolve; }));
+        const reset = service.reset();
+        await service.initialize('new-session');
+        finishRemoval();
+        await reset;
+        expect(service.sessionId).toBe('new-session');
+        expect(service.channels.size).toBe(6);
+        expect(service.channelTokens.size).toBe(6);
+        await service.reset();
+    });
+    it('GC08 ignores delayed events from replaced channels and mismatched sessions', async () => {
+        const service = new RealtimeService();
+        await service.initialize('old-session');
+        const oldChannel = latestRecord(CHANNELS.ACTIONS);
+        await service.reset();
+        await service.initialize('new-session');
+        const listener = vi.fn();
+        service.on(CHANNELS.ACTIONS, listener);
+        oldChannel.changeHandler({ eventType: 'INSERT', new: { id: 'secret', session_id: 'old-session' } });
+        latestRecord(CHANNELS.ACTIONS).changeHandler({ eventType: 'INSERT', new: { id: 'wrong-session', session_id: 'old-session' } });
+        expect(listener).not.toHaveBeenCalled();
+        latestRecord(CHANNELS.ACTIONS).changeHandler({ eventType: 'INSERT', new: { id: 'current', session_id: 'new-session' } });
+        expect(listener).toHaveBeenCalledTimes(1);
+        await service.reset();
+    });
     beforeEach(() => {
         vi.useFakeTimers();
         vi.clearAllMocks();

@@ -13,6 +13,7 @@
  */
 
 import { supabase } from './supabase.js';
+import { getConfirmedSeat, seatStorageKey } from '../core/seatContext.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('RealtimeService');
@@ -80,26 +81,29 @@ export class RealtimeService {
             return;
         }
 
-        if (this.connected && this.sessionId === sessionId && this.channels.size > 0) {
+        const contextKey = getConfirmedSeat() ? seatStorageKey('') : `operator:${sessionId}`;
+        if (this.connected && this.sessionId === sessionId && this.contextKey === contextKey && this.channels.size > 0) {
             logger.info('Real-time service already initialized for this session');
             return;
         }
 
-        if (this.sessionId && this.sessionId !== sessionId) {
+        if (this.sessionId && (this.sessionId !== sessionId || this.contextKey !== contextKey)) {
             await this.reset();
         }
 
         this.sessionId = sessionId;
+        this.contextKey = contextKey;
+        const generation = ++this.lifecycleGeneration;
         logger.info('Initializing real-time service for session:', sessionId);
 
         try {
             // Subscribe to all relevant tables
-            await this.subscribeToGameState();
-            await this.subscribeToActions();
-            await this.subscribeToRequests();
-            await this.subscribeToTimeline();
-            await this.subscribeToParticipants();
-            await this.subscribeToCommunications();
+            for (const subscribe of [this.subscribeToGameState, this.subscribeToActions,
+                this.subscribeToRequests, this.subscribeToTimeline, this.subscribeToParticipants, this.subscribeToCommunications]) {
+                if (generation !== this.lifecycleGeneration) return;
+                await subscribe.call(this);
+            }
+            if (generation !== this.lifecycleGeneration) return;
 
             this.updateConnectedState();
             logger.info('Real-time service subscriptions requested');
@@ -129,7 +133,7 @@ export class RealtimeService {
                     table: 'game_state',
                     filter: `session_id=eq.${this.sessionId}`
                 },
-                (payload) => this.handleChange(CHANNELS.GAME_STATE, payload)
+                (payload) => this.handleCurrentChange(CHANNELS.GAME_STATE, channelToken, payload)
             )
             .subscribe((status) => {
                 if (this.channelTokens.get(CHANNELS.GAME_STATE) === channelToken) {
@@ -161,7 +165,7 @@ export class RealtimeService {
                     table: 'actions',
                     filter: `session_id=eq.${this.sessionId}`
                 },
-                (payload) => this.handleChange(CHANNELS.ACTIONS, payload)
+                (payload) => this.handleCurrentChange(CHANNELS.ACTIONS, channelToken, payload)
             )
             .subscribe((status) => {
                 if (this.channelTokens.get(CHANNELS.ACTIONS) === channelToken) {
@@ -193,7 +197,7 @@ export class RealtimeService {
                     table: 'requests',
                     filter: `session_id=eq.${this.sessionId}`
                 },
-                (payload) => this.handleChange(CHANNELS.REQUESTS, payload)
+                (payload) => this.handleCurrentChange(CHANNELS.REQUESTS, channelToken, payload)
             )
             .subscribe((status) => {
                 if (this.channelTokens.get(CHANNELS.REQUESTS) === channelToken) {
@@ -225,7 +229,7 @@ export class RealtimeService {
                     table: 'timeline',
                     filter: `session_id=eq.${this.sessionId}`
                 },
-                (payload) => this.handleChange(CHANNELS.TIMELINE, payload)
+                (payload) => this.handleCurrentChange(CHANNELS.TIMELINE, channelToken, payload)
             )
             .subscribe((status) => {
                 if (this.channelTokens.get(CHANNELS.TIMELINE) === channelToken) {
@@ -257,7 +261,7 @@ export class RealtimeService {
                     table: 'session_participants',  // Changed from 'participants' to track active session presence
                     filter: `session_id=eq.${this.sessionId}`
                 },
-                (payload) => this.handleChange(CHANNELS.PARTICIPANTS, payload)
+                (payload) => this.handleCurrentChange(CHANNELS.PARTICIPANTS, channelToken, payload)
             )
             .subscribe((status) => {
                 if (this.channelTokens.get(CHANNELS.PARTICIPANTS) === channelToken) {
@@ -289,7 +293,7 @@ export class RealtimeService {
                     table: 'communications',
                     filter: `session_id=eq.${this.sessionId}`
                 },
-                (payload) => this.handleChange(CHANNELS.COMMUNICATIONS, payload)
+                (payload) => this.handleCurrentChange(CHANNELS.COMMUNICATIONS, channelToken, payload)
             )
             .subscribe((status) => {
                 if (this.channelTokens.get(CHANNELS.COMMUNICATIONS) === channelToken) {
@@ -344,6 +348,14 @@ export class RealtimeService {
      * @param {string} channelType - Channel type
      * @param {Object} payload - Change payload
      */
+    handleCurrentChange(channelType, token, payload) {
+        const key = getConfirmedSeat() ? seatStorageKey('') : `operator:${this.sessionId}`;
+        if (this.channelTokens.get(channelType) !== token || key !== this.contextKey) return;
+        const record = payload.new?.session_id ? payload.new : payload.old;
+        if (record?.session_id && record.session_id !== this.sessionId) return;
+        this.handleChange(channelType, payload);
+    }
+
     handleChange(channelType, payload) {
         const { eventType, new: newRecord, old: oldRecord } = payload;
 
@@ -524,18 +536,13 @@ export class RealtimeService {
     async unsubscribeAll() {
         logger.info('Unsubscribing from all channels');
         this.lifecycleGeneration += 1;
+        this.channelTokens.clear();
+        this.handlers.clear();
         for (const channelType of this.reconnectTimers.keys()) {
             this.clearReconnectTimer(channelType);
         }
 
-        for (const [channelType, channel] of this.channels) {
-            try {
-                await supabase.removeChannel(channel);
-            } catch (err) {
-                logger.error(`Error unsubscribing from ${channelType}:`, err);
-            }
-        }
-
+        const channels = [...this.channels];
         this.channels.clear();
         this.handlers.clear();
         this.channelStatuses.clear();
@@ -543,6 +550,13 @@ export class RealtimeService {
         this.reconnectingChannels.clear();
         this.reconnectAttempts.clear();
         this.connected = false;
+        for (const [channelType, channel] of channels) {
+            try {
+                await supabase.removeChannel(channel);
+            } catch (err) {
+                logger.error(`Error unsubscribing from ${channelType}:`, err);
+            }
+        }
     }
 
     /**
@@ -577,8 +591,9 @@ export class RealtimeService {
      * Reset service state
      */
     async reset() {
-        await this.unsubscribeAll();
         this.sessionId = null;
+        this.contextKey = null;
+        await this.unsubscribeAll();
         logger.info('Real-time service reset');
     }
 

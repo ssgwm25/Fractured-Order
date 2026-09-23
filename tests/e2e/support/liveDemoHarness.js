@@ -118,7 +118,9 @@ async function activateAndCaptureWorkflowToast(page, control, expectedMessage, {
         await activateReconciledControl(control);
         const outcomeHandle = await page.waitForFunction(({ captureKey, expected }) => {
             const capturedEntries = globalThis[captureKey]?.entries || [];
-            const success = capturedEntries.find((entry) => entry.text.includes(expected));
+            const messages = (Array.isArray(expected) ? expected : [expected])
+                .map((message) => String(message || '').trim()).filter(Boolean);
+            const success = capturedEntries.find((entry) => messages.some((message) => entry.text.includes(message)));
             if (success) return success;
 
             return capturedEntries.find((entry) => entry.type === 'error') || null;
@@ -1004,6 +1006,8 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
     const orientationSlide = actionFrame.locator('.scribe-orientation-slide');
     const panel = page.locator('[data-scribe-action-submit-panel]').filter({ hasText: 'Facilitator-to-White Cell handoff' }).first();
     await expect(orientationSlide).toBeVisible();
+    const actionId = await orientationSlide.getAttribute('data-action-id');
+    expect(actionId).toBeTruthy();
     await expect(orientationSlide.locator('.scribe-action-slide-title')).toContainText('Strategic Orientation');
     await expect(panel).toBeVisible();
     const submitButton = panel.getByRole('button', { name: /^(?:Submit|Resubmit) to White Cell$/ });
@@ -1016,7 +1020,12 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
     await expect(panel).toHaveCount(0);
     const expectedState = isResubmission ? 'Resubmitted' : 'Submitted to White Cell';
     await expect(actionSlideLink).toContainText(expectedState);
-    await expect(actionFrame.locator('.scribe-presentation-toolbar-status')).toHaveText(`${expectedState}.`);
+    // Regional orientations use different toolbar markup. The visible lifecycle
+    // badge in Team Action Review is shared by regional and legacy records.
+    await expect(orientationSlide).toHaveAttribute('data-action-id', actionId);
+    await expect(orientationSlide.locator('.scribe-action-slide-status')
+        .getByText(expectedState, { exact: true })).toBeVisible();
+    return actionId;
 }
 
 export async function adjudicateAction(page, {
@@ -1316,7 +1325,7 @@ export async function createProposal(page, {
     await activateAndCaptureWorkflowToast(
         page,
         modal.locator('[data-proposal-nav="forward"]'),
-        'Proposal forwarded to Facilitator'
+        ['Proposal forwarded to Facilitator', 'Proposal handed to the Facilitator.']
     );
     await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
     await expect(page.locator('#actionsList')).toContainText(title);

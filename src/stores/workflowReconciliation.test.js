@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const { mockDatabase } = vi.hoisted(() => ({
     mockDatabase: {
         fetchActions: vi.fn(),
-        fetchRequests: vi.fn()
+        fetchRequests: vi.fn(),
+        fetchTimeline: vi.fn()
     }
 }));
 
@@ -13,6 +14,36 @@ vi.mock('../utils/logger.js', () => ({
 }));
 
 describe('workflow store reconnect reconciliation', () => {
+    it('GC08 ignores timeline responses after teardown and same-session reinitialization', async () => {
+        const { timelineStore } = await import('./timeline.js');
+        timelineStore.sessionId = 'regional';
+        mockDatabase.fetchTimeline.mockImplementation(async () => {
+            timelineStore.reset();
+            timelineStore.sessionId = 'regional';
+            return [{ id: 'old-private-event', created_at: '2026-09-21T00:00:00Z' }];
+        });
+        await timelineStore.loadEvents();
+        expect(timelineStore.getAll()).toEqual([]);
+    });
+    it('GC08 removes actions absent from the authorized snapshot and rejects late responses after same-session reset', async () => {
+        const { actionsStore } = await import('./actions.js');
+        actionsStore.sessionId = 'regional';
+        actionsStore.actions = [{ id: 'previously-readable', delegation_id: 'europe' }];
+        mockDatabase.fetchActions.mockResolvedValue([]);
+        await actionsStore.reconcileActions();
+        expect(actionsStore.getAll()).toEqual([]);
+        mockDatabase.fetchActions.mockImplementation(async () => {
+            actionsStore.reset();
+            actionsStore.sessionId = 'regional';
+            return [{ id: 'old-context' }];
+        });
+        await actionsStore.reconcileActions();
+        expect(actionsStore.getAll()).toEqual([]);
+        await actionsStore.loadActions();
+        expect(actionsStore.getAll()).toEqual([]);
+        await actionsStore.initialize('regional');
+        expect(actionsStore.initialized).toBe(false);
+    });
     it('GC07 removes cached RFIs absent from the authorized snapshot and ignores a response after reset', async () => {
         const { requestsStore } = await import('./requests.js');
         requestsStore.sessionId = 'regional';

@@ -6,6 +6,7 @@
  */
 
 import { participantsStore } from '../../stores/index.js';
+import { sessionStore } from '../../stores/session.js';
 import { createBadge } from '../../components/ui/Badge.js';
 import { showInlineLoader } from '../../components/ui/Loader.js';
 import { formatRelativeTime } from '../../utils/formatting.js';
@@ -17,6 +18,8 @@ import {
     getRoleSurfaceDisplayLabel,
     normalizeWhiteCellOperatorRole
 } from '../../core/teamContext.js';
+import { GREEN_DELEGATIONS, getRoleDisplayName } from '../../core/teamContext.js';
+import { regionalView } from './regionalView.js';
 
 const logger = createLogger('ParticipantList');
 
@@ -27,6 +30,12 @@ const UNKNOWN_ROLE_CONFIG = Object.freeze({
 });
 
 const ROLE_CONFIG = {
+    green_shared_facilitator: { label: 'Shared Green Facilitator', color: 'info', icon: 'G' },
+    ...Object.fromEntries(Object.keys(GREEN_DELEGATIONS).flatMap((region) =>
+        ['scribe', 'facilitator', 'notetaker'].map((role) => {
+            const key = `green_${region}_${role}`;
+            return [key, { label: getRoleDisplayName(key), color: 'info', icon: 'G' }];
+        }))),
     white: { label: 'Game Master', color: 'primary', icon: 'GM' },
     viewer: { label: 'Observer', color: 'default', icon: 'OB' },
     whitecell_lead: { label: 'White Cell Lead', color: 'warning', icon: 'WL' },
@@ -48,7 +57,9 @@ export function getParticipantRoleConfig(role) {
     return ROLE_CONFIG[normalizeParticipantRoleKey(role)] || UNKNOWN_ROLE_CONFIG;
 }
 
-export function getParticipantRoleCountEntries(activeParticipants = []) {
+export function getParticipantRoleCountEntries(activeParticipants = [], session = {}) {
+    const regional = (session.sessionTopologyVersion ?? session.session_topology_version) === 2;
+    const shared = (session.greenSeatModel ?? session.green_seat_model) === 'shared_facilitator_v1';
     const activeRoleKeys = new Set(
         activeParticipants
             .map((participant) => normalizeParticipantRoleKey(participant.role))
@@ -56,6 +67,12 @@ export function getParticipantRoleCountEntries(activeParticipants = []) {
     );
 
     return Object.entries(ROLE_CONFIG).filter(([role]) => {
+        if (role === 'green_shared_facilitator') return regional ? shared : activeRoleKeys.has(role);
+        if (role.startsWith('green_asian_pacific_') || role.startsWith('green_europe_')) {
+            if (role.endsWith('_notetaker')) return activeRoleKeys.has(role);
+            return regional ? (!shared || !role.endsWith('_facilitator')) : activeRoleKeys.has(role);
+        }
+        if (regional && role.startsWith('green_')) return false;
         if (role === 'viewer') {
             return activeRoleKeys.has(role);
         }
@@ -108,8 +125,8 @@ export function createParticipantList(options = {}) {
     const inactiveContainer = wrapper.querySelector('#inactiveParticipants');
 
     function render() {
-        const active = participantsStore.getActive();
-        const all = participantsStore.getAll();
+        const all = regionalView(listContainer, participantsStore.getAll(), render, { sessionId: participantsStore.sessionId });
+        const active = participantsStore.getActive().filter((row) => all.some((entry) => entry.id === row.id));
         const inactive = all.filter((participant) => !active.find((candidate) => candidate.id === participant.id));
 
         if (showRoleCounts && roleCountsContainer) {
@@ -148,7 +165,7 @@ export function createParticipantList(options = {}) {
             counts[normalizedRole] = (counts[normalizedRole] || 0) + 1;
         });
 
-        roleCountsContainer.innerHTML = getParticipantRoleCountEntries(activeParticipants).map(([role, config]) => {
+        roleCountsContainer.innerHTML = getParticipantRoleCountEntries(activeParticipants, sessionStore.getSessionData?.() || {}).map(([role, config]) => {
             const count = counts[role] || 0;
             const limit = getRoleLimit(role);
             const hasFiniteSeatLimit = Number.isFinite(limit) && limit > 0;
@@ -244,7 +261,7 @@ function createParticipantCard(participant, options = {}) {
             <span class="participant-card-icon">${config.icon}</span>
         </div>
         <div class="participant-card-info">
-            <span class="participant-card-name">${escapeHtml(participant.display_name || 'Unknown')}</span>
+            <span class="participant-card-name">${escapeHtml(participant.display_name_snapshot || participant.display_name || 'Unknown')}</span>
             <span class="participant-card-role">${config.label}</span>
         </div>
         <div class="participant-card-status">

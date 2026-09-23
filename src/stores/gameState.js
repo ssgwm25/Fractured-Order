@@ -87,6 +87,7 @@ class GameStateStore {
 
         /** @type {number} */
         this.lastServerSync = 0;
+        this.lifecycleGeneration = 0;
     }
 
     /**
@@ -101,9 +102,11 @@ class GameStateStore {
         }
 
         logger.info('Initializing game state store for session:', sessionId);
+        const generation = ++this.lifecycleGeneration;
 
         try {
             const data = await database.getGameState(sessionId);
+            if (generation !== this.lifecycleGeneration) return null;
 
             if (data) {
                 this.initialized = true;
@@ -119,9 +122,11 @@ class GameStateStore {
                 await this.createInitialState(sessionId);
             }
 
+            if (generation !== this.lifecycleGeneration) return null;
             await this.refreshOrientationCompletion().catch((error) => logger.warn('Orientation completion unavailable', error));
             return this.state;
         } catch (err) {
+            if (generation !== this.lifecycleGeneration) return null;
             if (isMissingGameStateError(err)) {
                 logger.warn(
                     'Game state row is missing for this session. Using local defaults until the backend is backfilled.'
@@ -142,7 +147,9 @@ class GameStateStore {
      * @returns {Promise<GameState>}
      */
     async createInitialState(sessionId) {
+        const generation = this.lifecycleGeneration;
         const data = await database.createGameState(sessionId);
+        if (generation !== this.lifecycleGeneration) return null;
 
         this.initialized = true;
         this.applyServerState(data, 'created');
@@ -710,6 +717,7 @@ class GameStateStore {
      * Reset store state
      */
     reset() {
+        this.lifecycleGeneration += 1;
         this.orientationRequest = (this.orientationRequest || 0) + 1;
         this.orientationCompletion = null;
         this.stopLocalTimer();
@@ -724,6 +732,7 @@ class GameStateStore {
      * Cleanup on destroy
      */
     destroy() {
+        this.lifecycleGeneration += 1;
         this.orientationRequest = (this.orientationRequest || 0) + 1;
         this.orientationCompletion = null;
         this.stopLocalTimer();

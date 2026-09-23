@@ -128,6 +128,35 @@ async function loadSyncModule() {
 }
 
 describe('syncService live bootstrap', () => {
+    it.each(['unified_v1', 'regional_pairs_v1', 'shared_facilitator_v1'])('GC08 clears protected stores when a %s seat is invalidated', async (greenSeatModel) => {
+        const { syncService } = await loadSyncModule();
+        const { setConfirmedSeat, clearSeatLocalState } = await import('../core/seatContext.js');
+        const seat = { sessionId: 'removed-session', participantId: 'seat',
+            role: greenSeatModel === 'unified_v1' ? 'green_facilitator' : greenSeatModel === 'shared_facilitator_v1' ? 'green_shared_facilitator' : 'green_europe_scribe',
+            topology: greenSeatModel === 'unified_v1' ? 1 : 2, greenSeatModel, teamId: 'green',
+            delegationId: greenSeatModel === 'regional_pairs_v1' ? 'europe' : null };
+        setConfirmedSeat(seat);
+        await syncService.initialize(seat.sessionId);
+        clearSeatLocalState(seat);
+        expect(mockActionsStore.reset).toHaveBeenCalled();
+        expect(mockRequestsStore.reset).toHaveBeenCalled();
+        expect(mockCommunicationsStore.reset).toHaveBeenCalled();
+        expect(mockTimelineStore.reset).toHaveBeenCalled();
+        expect(syncService.sessionId).toBeNull();
+        setConfirmedSeat(null);
+    });
+
+    it('GC08 cannot finish initialization after teardown while participant restoration is pending', async () => {
+        let finish;
+        mockParticipantsStore.initialize.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+        const { syncService } = await loadSyncModule();
+        const pending = syncService.initialize('old-session');
+        await syncService.reset();
+        finish([]);
+        await pending;
+        expect(mockActionsStore.initialize).not.toHaveBeenCalled();
+        expect(syncService.initialized).toBe(false);
+    });
     beforeEach(() => {
         vi.clearAllMocks();
         channelHandlers.clear();
@@ -279,7 +308,7 @@ describe('syncService live bootstrap', () => {
         expect(mockActionsStore.reconcileActions).toHaveBeenCalledTimes(2);
         expect(mockRequestsStore.reconcileRequests).toHaveBeenCalledTimes(2);
         expect(mockTimelineStore.loadEvents).toHaveBeenCalledTimes(1);
-        expect(mockParticipantsStore.loadParticipants).toHaveBeenCalledWith({ tolerateError: true });
+        expect(mockParticipantsStore.loadParticipants).toHaveBeenCalledWith({ tolerateError: false });
         expect(mockCommunicationsStore.reconcileCommunications).toHaveBeenCalledTimes(2);
         expect(syncService.getStatus()).toBe(SYNC_STATUS.SYNCED);
     });

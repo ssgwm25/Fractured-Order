@@ -36,6 +36,10 @@ async function openSharedWorkspace(context, page, returned = false) {
     await page.locator('[data-role-surface="scribe"]').click();
     await page.locator('#joinForm button[type="submit"]').click();
     await expect(page.locator('#sessionRoleLabel')).toContainText('Shared Facilitator');
+    // GC09 supplies a real shared-seat guide. Close it through the keyboard before workflow checks.
+    await expect(page.locator('.follow-along')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.follow-along')).toHaveAttribute('data-minimized', 'true');
     await page.locator('#teamActionReviewViewBtn').click();
 }
 

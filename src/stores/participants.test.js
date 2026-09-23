@@ -48,6 +48,19 @@ async function loadParticipantsModule() {
 }
 
 describe('ParticipantsStore resilience', () => {
+    it('GC08 cannot restart presence or repopulate the roster after teardown during initialization', async () => {
+        const { participantsStore } = await loadParticipantsModule();
+        mockDatabase.getSessionParticipants.mockImplementation(async () => {
+            participantsStore.reset();
+            return [{ id: 'revoked-context', is_active: true }];
+        });
+        await participantsStore.initialize('session-1', 'seat-participant-1');
+        expect(participantsStore.participants).toEqual([]);
+        expect(participantsStore.initialized).toBe(false);
+        expect(participantsStore.heartbeatInterval).toBeNull();
+        expect(participantsStore.cleanupInterval).toBeNull();
+        expect(mockDatabase.updateHeartbeat).not.toHaveBeenCalled();
+    });
     beforeEach(() => {
         vi.useFakeTimers();
         vi.clearAllMocks();

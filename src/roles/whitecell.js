@@ -11,6 +11,7 @@ import { timelineStore } from '../stores/timeline.js';
 import { participantsStore } from '../stores/participants.js';
 import { communicationsStore } from '../stores/communications.js';
 import { database } from '../services/database.js';
+import { regionalView, matchesRegionalView, regionalAttribution } from '../features/participants/regionalView.js';
 import { syncService } from '../services/sync.js';
 import { ensureSeatStartup } from '../services/seatBootstrap.js';
 import { createLogger } from '../utils/logger.js';
@@ -155,6 +156,7 @@ import {
     getSeatDeckStorageKey,
     saveUploadedScribeDeck
 } from '../features/scribe/deckStorage.js';
+import { greenDeckAssignmentOptions, greenDeckAssignmentRoles } from '../features/scribe/deckAssignment.js';
 import {
     buildDefaultPluginState,
     getRegisteredPlugins,
@@ -1220,16 +1222,17 @@ export function buildWhiteCellScribeDeckAssignments(communications = []) {
 
 function buildScribeDeckAssignmentCommunicationContent({
     teamLabel = 'Team',
+    recipientLabel = `${teamLabel} Facilitator`,
     deckLabel = DEFAULT_SCRIBE_DECK_LABEL,
     deckPath = DEFAULT_SCRIBE_DECK_PATH,
     deckSource = SCRIBE_DECK_SOURCE_REPO,
     deckFileName = ''
 } = {}) {
     if (deckSource === SCRIBE_DECK_SOURCE_UPLOAD) {
-        return `White Cell uploaded "${deckLabel}" to ${teamLabel} Facilitator (${deckFileName || 'browser upload'}).`;
+        return `White Cell uploaded "${deckLabel}" to ${recipientLabel} (${deckFileName || 'browser upload'}).`;
     }
 
-    return `White Cell loaded "${deckLabel}" into ${teamLabel} Facilitator (${deckPath}).`;
+    return `White Cell loaded "${deckLabel}" into ${recipientLabel} (${deckPath}).`;
 }
 
 export class WhiteCellController {
@@ -3578,6 +3581,11 @@ export class WhiteCellController {
 
     renderReviewQueue(container, items = [], { section, newIds, ariaLabel, emptyMessage } = {}) {
         if (!container) return;
+        items = regionalView(container, items, () => {
+            if (section === 'proposals') this.renderProposals();
+            else if (section === 'responses') this.renderMoveResponses();
+            else this.renderStrategicOrientationReview();
+        }, { sessionId: sessionStore.getSessionId() });
 
         if (items.length === 0) {
             container.innerHTML = `<p class="text-sm text-gray-500">${this.escapeHtml(emptyMessage)}</p>`;
@@ -3887,7 +3895,7 @@ export class WhiteCellController {
             }
         }
 
-        const teamLabel = this.formatTeamLabel(review.team || priorRequest.team);
+        const teamLabel = regionalAttribution(review) || regionalAttribution(priorRequest) || this.formatTeamLabel(review.team || priorRequest.team);
         const revisionNumber = Number(review.revision_number || priorRequest.revision_number) || 1;
         const reviewerLabel = getRoleDisplayName(review.reviewer_role)
             || review.reviewer_role
@@ -4977,9 +4985,12 @@ export class WhiteCellController {
         const container = document.getElementById('rfiQueue');
         if (!container) return;
 
-        const activeRfis = this.rfiActiveView === 'history' ? this.rfiHistory : this.rfis;
+        const activeRfis = regionalView(container, this.rfiActiveView === 'history' ? this.rfiHistory : this.rfis,
+            () => this.renderRfiQueue(), { sessionId: sessionStore.getSessionId(),
+                regional: [...this.rfis, ...this.rfiHistory, ...this.returnedRevisionHistory].some((row) => regionalAttribution(row)) });
         const returnedRfiReviews = this.rfiActiveView === 'history'
-            ? this.returnedRevisionHistory.filter((review) => review.artifact_kind === 'rfi')
+            ? this.returnedRevisionHistory.filter((review) => review.artifact_kind === 'rfi'
+                && matchesRegionalView(review, container._regionalView?.select.value))
             : [];
         const visibleRfis = activeRfis.slice(0, WHITE_CELL_RFI_RENDER_LIMIT);
         const visibleReturnedReviews = returnedRfiReviews.slice(
@@ -5668,7 +5679,8 @@ export class WhiteCellController {
         if (!summary || !container) return;
 
         const activeSession = sessionStore.getSessionData?.() || null;
-        const filteredParticipants = filterWhiteCellParticipants(this.participants, {
+        const filteredParticipants = filterWhiteCellParticipants(regionalView(container, this.participants,
+            () => { this.selectedParticipantSeatIds.clear(); this.renderParticipants(); }, { sessionId: sessionStore.getSessionId() }), {
             ...this.participantFilters,
             activeSession
         });
@@ -5787,7 +5799,10 @@ export class WhiteCellController {
             return;
         }
 
-        summary.textContent = "Set the slide deck each team's facilitator presents.";
+        summary.textContent = "Set the slide deck each team's facilitator presents. Confirm the assignment scope before sending; a regional view never changes a shared deck assignment.";
+        const previousScope = document.getElementById('scribeDeckScope-green');
+        const selectedScope = previousScope?.dataset?.sessionId === sessionStore.getSessionId()
+            ? previousScope.value : null;
 
         container.innerHTML = TEAM_OPTIONS.map((team) => {
             const assignment = this.scribeDeckAssignments[team.id] || buildDefaultScribeDeckAssignment(team);
@@ -5813,6 +5828,21 @@ export class WhiteCellController {
                 ? assignment.deckPath
                 : '';
             const teamId = this.escapeHtml(team.id);
+            const scopeOptions = team.id === 'green' ? greenDeckAssignmentOptions(sessionStore.getSessionData?.() || {}) : [];
+            const scopeControl = scopeOptions.length ? `
+                <div class="form-group">
+                    <label class="form-label" for="scribeDeckScope-green">Green assignment scope</label>
+                    <select class="form-select" id="scribeDeckScope-green" data-session-id="${this.escapeHtml(sessionStore.getSessionId() || '')}">
+                        ${scopeOptions.length > 1 ? '<option value="">Choose regional deck recipients</option>' : ''}
+                        ${scopeOptions.map((option) => `<option value="${option.value}"${option.value === selectedScope ? ' selected' : ''}>${this.escapeHtml(option.label)}</option>`).join('')}
+                    </select>
+                    <p class="form-help">Shared sessions keep one deck for both views. Label Asia-Pacific and Europe reference sections inside that deck; these are not private regional assets.</p>
+                    <ul>${[...new Set(scopeOptions.flatMap((option) => option.roles))].map((role) => {
+                        const notice = this.communications.find((entry) => entry.to_role === role && getScribeDeckAssignmentDetails(entry));
+                        const current = notice && getScribeDeckAssignmentDetails(notice);
+                        return `<li>${this.escapeHtml(getRoleDisplayName(role))}: ${this.escapeHtml(current?.deckLabel || DEFAULT_SCRIBE_DECK_LABEL)}${current?.deckSource === SCRIBE_DECK_SOURCE_UPLOAD ? ' (browser-local upload)' : ''}</li>`;
+                    }).join('')}</ul>
+                </div>` : '';
 
             return `
                 <section class="card card-bordered scribe-deck-card" data-deck-method="${method}">
@@ -5824,6 +5854,7 @@ export class WhiteCellController {
                         </div>
                         ${sourceBadge}
                     </div>
+                    ${scopeControl}
 
                     <div class="scribe-deck-toggle" role="group" aria-label="Deck source for ${this.escapeHtml(team.label)} Facilitator">
                         <button type="button" data-scribe-deck-method="repo" data-scribe-deck-team="${teamId}" aria-pressed="${method === 'repo'}">Repo deck</button>
@@ -5871,7 +5902,7 @@ export class WhiteCellController {
                                 type="file"
                                 accept=".html,text/html"
                             >
-                            <p class="form-help">Cached in this browser — same-device facilitator tabs only.</p>
+                            <p class="form-help">Cached in this browser profile only. The notice does not transfer the file. A missing or inaccessible upload shows the default deck with a warning; repository decks work across browsers.</p>
                         </div>
                         <div class="card-actions" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
                             <button type="button" class="btn btn-primary btn-sm" data-scribe-deck-action="upload" data-scribe-deck-team="${teamId}">Upload deck</button>
@@ -5967,11 +5998,14 @@ export class WhiteCellController {
             const session = sessionStore.getSessionData?.() || {};
             const regionalGreen = team.id === 'green' && regionalRecipientOptions(session).length > 0;
             const sharedGreen = regionalGreen && (session.greenSeatModel || session.green_seat_model) === 'shared_facilitator_v1';
-            const recipients = sharedGreen ? ['green_shared_facilitator'] : regionalGreen
-                ? ['green_asian_pacific_facilitator', 'green_europe_facilitator'] : [buildTeamRole(team.id, ROLE_SURFACES.SCRIBE)];
+            const recipients = team.id === 'green'
+                ? greenDeckAssignmentRoles(session, document.getElementById('scribeDeckScope-green')?.value
+                    ?? (regionalGreen ? '' : 'unified'))
+                : [buildTeamRole(team.id, ROLE_SURFACES.SCRIBE)];
             const slides = deckSource === SCRIBE_DECK_SOURCE_UPLOAD ? parseScribeDeckHtml(await uploadedFile.text()) : null;
             if (!slides) await this.validateScribeDeckPath(deckPath);
             for (const recipientRole of recipients) {
+                const recipientLabel = regionalGreen ? getRoleDisplayName(recipientRole) : `${team.label} Facilitator`;
                 if (slides) {
                     if (sharedGreen) {
                         const seat = participantsStore.getActiveByRole('green_shared_facilitator')[0];
@@ -6005,6 +6039,7 @@ export class WhiteCellController {
                 });
                 const content = buildScribeDeckAssignmentCommunicationContent({
                     teamLabel: team.label,
+                    recipientLabel,
                     deckLabel,
                     deckPath,
                     deckSource,
@@ -6034,8 +6069,8 @@ export class WhiteCellController {
                     session_id: sessionId,
                     type: 'GUIDANCE',
                     content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                        ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
-                        : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
+                        ? `White Cell uploaded ${deckLabel} to ${recipientLabel}`
+                        : `White Cell loaded ${deckLabel} into ${recipientLabel}`,
                     metadata: {
                         role: this.getTimelineActorRole(),
                         ...recipientMetadata,
@@ -6051,8 +6086,8 @@ export class WhiteCellController {
                     session_id: sessionId,
                     type: 'GUIDANCE',
                     content: deckSource === SCRIBE_DECK_SOURCE_UPLOAD
-                        ? `White Cell uploaded ${deckLabel} to ${team.label} Facilitator`
-                        : `White Cell loaded ${deckLabel} into ${team.label} Facilitator`,
+                        ? `White Cell uploaded ${deckLabel} to ${recipientLabel}`
+                        : `White Cell loaded ${deckLabel} into ${recipientLabel}`,
                     metadata: {
                         role: this.getTimelineActorRole(),
                         ...recipientMetadata,
@@ -6639,13 +6674,15 @@ export class WhiteCellController {
         const container = document.getElementById('commHistory');
         if (!container) return;
 
-        if (this.communications.length === 0) {
+        const communications = regionalView(container, this.communications, () => this.renderCommunicationHistory(),
+            { sessionId: sessionStore.getSessionId() });
+        if (communications.length === 0) {
             container.innerHTML = '<p class="text-sm text-gray-500">No communications have been exchanged yet.</p>';
             return;
         }
 
-        const visibleCommunications = this.communications.slice(0, WHITE_CELL_COMMUNICATION_RENDER_LIMIT);
-        const hiddenCount = Math.max(0, this.communications.length - visibleCommunications.length);
+        const visibleCommunications = communications.slice(0, WHITE_CELL_COMMUNICATION_RENDER_LIMIT);
+        const hiddenCount = Math.max(0, communications.length - visibleCommunications.length);
 
         container.innerHTML = `
             ${hiddenCount ? `<p class="text-xs text-gray-500" style="margin: 0 0 var(--space-3);">Showing the first ${WHITE_CELL_COMMUNICATION_RENDER_LIMIT} of ${this.communications.length} communications.</p>` : ''}
@@ -6663,6 +6700,7 @@ export class WhiteCellController {
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2);">
                         <div>
                             <p class="text-sm font-semibold">${this.escapeHtml(counterpartLabel)}</p>
+                            <p class="text-xs">${this.escapeHtml(regionalAttribution(communication))}</p>
                             <p class="text-xs text-gray-500">${formatRelativeTime(communication.created_at)}</p>
                         </div>
                         ${createBadge({ text: thread ? `THREAD ROUND ${thread.roundNumber}` : (isNegotiationRequest ? 'NEGOTIATION REQUESTED' : (communication.type || 'MESSAGE')), size: 'sm' }).outerHTML}

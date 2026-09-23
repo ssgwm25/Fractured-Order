@@ -63,6 +63,21 @@ state, or infer completion from visibility.
 
 ## Role coverage
 
+Green guidance follows the confirmed session model. The shared Facilitator now
+has Start Here, alongside both regional Scribes and the two existing regional
+Notetakers. Paired and unified sessions retain model-specific instructions.
+Regional Scribes author/handoff their own records and read RFIs; the Facilitator
+creates/corrects RFIs, submits each handoff separately, and keeps approved
+recipient threads isolated by region, recipient and revision.
+
+Green guides currently use **visible text and a current text transcript only**.
+The older overview video/transcript is labeled historical; it is not current
+regional role guidance. Existing approved narration is retained but not reused
+for these Green guides. No replacement audio has been generated or approved.
+See [GC09 support and verification](architecture/gc09-session-support.md) for the
+support transcript, deck scope, approved membership, browser-local upload limits
+and outstanding media/accessibility/hosted evidence.
+
 | Role surface | Walkthrough coverage |
 | --- | --- |
 | Team Scribe | Role boundary; live tracker; Strategic Orientation and team-specific action/proposal authoring; RFIs; responses; received proposals; Tribe Street Journal; population sentiments; timeline; Quick Capture; explicit handoff check |

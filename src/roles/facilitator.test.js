@@ -271,6 +271,26 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         }
     });
 
+    it.each(['asian_pacific', 'europe'])('GC09 mounts Intercom and read-only RFI guidance for the %s Scribe', async (region) => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { gameStateStore } = await import('../stores/gameState.js');
+        const controller = new FacilitatorController();
+        controller.teamId = 'green'; controller.isReadOnly = false;
+        controller.role = `green_${region}_scribe`;
+        controller.teamContext = { teamId: 'green', delegationId: region, teamLabel: region,
+            facilitatorRole: controller.role, scribeRole: 'green_shared_facilitator', facilitatorLabel: 'Regional Scribe' };
+        try {
+            gameStateStore.state = { plugin_state: { intercom: { enabled: true } } };
+            expect(controller.shouldRunIntercomReceiver()).toBe(true);
+            mockMountFollowAlong.mockClear();
+            controller.mountFollowAlongOnboarding();
+            const guide = mockMountFollowAlong.mock.calls[0][0];
+            expect(guide.steps.find((step) => step.title === 'RFIs').narrative).toContain('Scribes cannot create');
+            controller.isReadOnly = true;
+            expect(controller.shouldRunIntercomReceiver()).toBe(false);
+        } finally { gameStateStore.reset(); }
+    });
+
     it('ships a standalone Tribe Street Journal sidebar section in the Scribe workspace', () => {
         const html = readFileSync(FACILITATOR_HTML_PATH, 'utf8');
 
@@ -890,6 +910,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         const guide = mockMountFollowAlong.mock.calls[0][0];
         expect(guide.steps.map((step) => step.title)).toEqual([
+            'Green staffing and ownership',
             'Your role in the exercise',
             'Read the live tracker',
             'Build proposals',
@@ -900,7 +921,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             'Population Sentiments',
             'Timeline',
             'Quick Capture',
-            'Close the loop'
+            'Close the loop',
+            'Announcements and recovery'
         ]);
         expect(flattenHighlights(guide.steps)).toEqual([
             '#header-game-state',
@@ -915,14 +937,13 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             '.sidebar-link[data-section="capture"]',
             '.sidebar-session'
         ]);
-        expect(guide.steps[1].body).toContain('Strategic Orientation before Move 1');
-        expect(guide.steps[0].body).toContain('durable Green Team record');
-        expect(guide.steps[2].body).toContain('Strategic Orientation and move tabs');
-        expect(guide.steps[2].body).toContain('exactly what was noted');
-        expect(guide.steps[2].body).toContain("Create and revise your team's proposals");
-        expect(guide.steps[5].body).toContain('Acknowledge, decline, ignore, or answer proposals');
+        expect(guide.summary).toContain('unified Green session');
+        expect(guide.textOnly).toBe(true);
+        expect(guide.steps.find((step) => step.title === 'Read the live tracker').body).toContain('Strategic Orientation before Move 1');
+        expect(guide.steps.find((step) => step.title === 'Build proposals').body).toContain('unified Green record');
+        expect(guide.steps.find((step) => step.title === 'RFIs').narrative).toContain('Scribes cannot create');
+        expect(guide.steps.find((step) => step.title === 'Received Proposals').body).toContain('Acknowledge, decline, ignore, or answer proposals');
     });
-
     it('mounts an Industry facilitator guide with the same proposal flow', async () => {
         global.document = {
             ...createFakeDocument(),

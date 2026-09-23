@@ -9,6 +9,7 @@
  */
 
 import { database } from '../services/database.js';
+import { getConfirmedSeat } from '../core/seatContext.js';
 import { sessionStore } from './session.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -110,10 +111,12 @@ class TimelineStore {
         }
 
         this.sessionId = sessionId;
+        const generation = this.generation = (this.generation || 0) + 1;
         logger.info('Initializing timeline store for session:', sessionId);
 
         try {
             await this.loadEvents();
+            if (generation !== this.generation) return [];
             this.initialized = true;
             this.notify('initialized', this.events);
             return this.events;
@@ -133,7 +136,9 @@ class TimelineStore {
         }
 
         try {
-            const data = await database.fetchTimeline(this.sessionId);
+            const sessionId = this.sessionId, seat = getConfirmedSeat(), generation = this.generation;
+            const data = await database.fetchTimeline(sessionId);
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat() || generation !== this.generation) return;
 
             // Sort by creation time descending (newest first)
             this.events = (data || [])
@@ -519,6 +524,7 @@ class TimelineStore {
      * Reset store state
      */
     reset() {
+        this.generation = (this.generation || 0) + 1;
         this.events = [];
         this.filters = {
             move: null,

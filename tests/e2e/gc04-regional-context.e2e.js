@@ -7,15 +7,16 @@ import { seedDeckProbe, readDeckProbe } from '../../scripts/gc04-deck-probe.mjs'
 test.skip(Boolean(process.env.PLAYWRIGHT_BASE_URL && !['localhost', '127.0.0.1'].includes(new URL(process.env.PLAYWRIGHT_BASE_URL).hostname)),
     'Run mock browser coverage against a local build only.');
 
-async function seed(page, { occupiedRole = null, shared = false } = {}) {
+async function seed(page, { occupiedRole = null, shared = false, unified = false } = {}) {
     await page.goto(buildAppUrl());
     await page.waitForFunction(() => Boolean(globalThis.__ESG_E2E_BACKEND__));
-    await page.evaluate(({ occupiedRole, shared }) => {
+    await page.evaluate(({ occupiedRole, shared, unified }) => {
         const state = globalThis.__ESG_E2E_BACKEND__.dump();
         const now = new Date().toISOString();
         state.tables.sessions.push({ id: 'gc04-session', name: 'GC04 synthetic fixture', session_code: 'GC04TEST',
             status: 'active', session_classification: 'live_exercise', is_protected: false,
-            session_topology_version: 2, green_seat_model: shared ? 'shared_facilitator_v1' : null,
+            session_topology_version: unified ? 1 : 2,
+            green_seat_model: shared ? 'shared_facilitator_v1' : unified ? 'unified_v1' : null,
             green_roster_version: 'synthetic-browser-only',
             green_roster_snapshot: { fixture: true }, created_at: now });
         state.tables.game_state.push({ id: 'gc04-state', session_id: 'gc04-session', move: 1, phase: 1,
@@ -26,16 +27,20 @@ async function seed(page, { occupiedRole = null, shared = false } = {}) {
                 role: occupiedRole, delegation_id: occupiedRole === 'green_shared_facilitator' ? null : 'europe', is_active: true, heartbeat_at: now, joined_at: now });
         }
         localStorage.setItem('esg_e2e_backend_state', JSON.stringify(state));
-    }, { occupiedRole, shared });
+    }, { occupiedRole, shared, unified });
     await page.locator('#sessionCode').fill('GC04TEST');
     await page.locator('#displayName').fill('Synthetic participant');
     await page.locator('#checkSessionBtn').focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#joinStatus')).toContainText('regional Green');
+    await expect(page.locator('#joinStatus')).toContainText(unified ? 'unified Green' : 'regional Green');
     await page.locator('[data-team="green"]').focus();
     await page.keyboard.press('Space');
-    await expect(page.locator('#delegationSelection')).toBeVisible();
-    await expect(page.locator('[data-role-surface="notetaker"]')).toBeHidden();
+    if (unified) {
+        await expect(page.locator('#delegationSelection')).toBeHidden();
+    } else {
+        await expect(page.locator('#delegationSelection')).toBeVisible();
+        await expect(page.locator('[data-role-surface="notetaker"]')).toBeHidden();
+    }
 }
 
 for (const delegation of ['asian_pacific', 'europe']) {
@@ -139,6 +144,9 @@ test('GC04A full shared seat offers retry without creating a regional Facilitato
 });
 
 test('GC04A shared seat reconnect and simulated removal clear the DOM and scoped storage', async ({ context, page }) => {
+    // Install before application timers. Revocation can remove permission to
+    // receive the seat's own realtime row; the 30s heartbeat is the fallback.
+    await page.clock.install();
     await enableE2EMockBackend(context);
     await seed(page, { shared: true });
     await page.locator('[data-role-surface="scribe"]').click();
@@ -172,9 +180,47 @@ test('GC04A shared seat reconnect and simulated removal clear the DOM and scoped
         window.dispatchEvent(new StorageEvent('storage', { key, oldValue, newValue }));
         return prefix;
     });
+    // Exercise the normal scheduled heartbeat and denied restore RPC, without
+    // injecting an authorized event or extending the cleanup assertion timeout.
+    await page.clock.fastForward(30000);
     await expect(page.locator('#seatContextStatus')).toContainText('Session validation lost');
     await expect(page.locator('.app-layout, .scribe-shell, #sharedGreenWorkingRegion')).toHaveCount(0);
     expect(await page.evaluate((prefix) => [localStorage, sessionStorage].every((store) =>
         Object.keys(store).every((key) => !key.startsWith(prefix))), prefix)).toBe(true);
+    await expect.poll(() => readDeckProbe(page, deckKey), { timeout: 15000 }).toEqual({ own: false, retained: true });
+});
+
+test('unified Green Facilitator removal deletes only its browser-local uploaded deck', async ({ context, page }) => {
+    await page.clock.install();
+    await enableE2EMockBackend(context);
+    await seed(page, { unified: true });
+    await page.locator('[data-role-surface="scribe"]').click();
+    await expect(page.locator('#seatSelectionSummary')).toContainText('Green Team Facilitator');
+    await page.locator('#joinForm button[type="submit"]').click();
+    await expect(page.locator('#sessionRoleLabel')).toHaveText('Green Team Facilitator');
+
+    const deckKey = await page.evaluate(() => {
+        const seat = JSON.parse(sessionStorage.getItem('esg_session_data'));
+        return `scribe-deck:${seat.id}:green`;
+    });
+    await seedDeckProbe(page, deckKey);
+    expect(await readDeckProbe(page, deckKey)).toEqual({ own: true, retained: true });
+
+    await page.evaluate(() => {
+        const cached = JSON.parse(sessionStorage.getItem('esg_session_data'));
+        const key = 'esg_e2e_backend_state';
+        const oldValue = localStorage.getItem(key);
+        const state = JSON.parse(oldValue);
+        const seat = state.tables.session_participants.find((row) => row.id === cached.participantSessionId);
+        seat.is_active = false;
+        seat.revoked_at = new Date().toISOString();
+        const newValue = JSON.stringify(state);
+        localStorage.setItem(key, newValue);
+        window.dispatchEvent(new StorageEvent('storage', { key, oldValue, newValue }));
+    });
+
+    await page.clock.fastForward(30000);
+    await expect(page.locator('#seatContextStatus')).toContainText('Session validation lost');
+    await expect(page.locator('.app-layout, .scribe-shell')).toHaveCount(0);
     await expect.poll(() => readDeckProbe(page, deckKey), { timeout: 15000 }).toEqual({ own: false, retained: true });
 });

@@ -98,7 +98,9 @@ export function mountFollowAlong({
     overviewMedia = PLATFORM_OVERVIEW_MEDIA,
     popup = true,
     AudioConstructor = windowRef?.Audio || (typeof Audio !== 'undefined' ? Audio : null),
-    resolveAudioUrl = resolveApprovedStartHereAudioUrl
+    resolveAudioUrl = resolveApprovedStartHereAudioUrl,
+    textOnly = false,
+    mediaNotice = ''
 } = {}) {
     const resolvedSidebar = sidebar || documentRef?.getElementById?.('sidebar');
     if (!resolvedSidebar || !documentRef?.createElement || !Array.isArray(steps) || steps.length === 0) return null;
@@ -168,6 +170,7 @@ export function mountFollowAlong({
     body.inert = minimized;
     const bodyInner = createElement(documentRef, 'div', 'follow-along-body-inner');
     const bodyPad = createElement(documentRef, 'div', 'follow-along-body-pad');
+    if (mediaNotice) bodyPad.appendChild(createElement(documentRef, 'p', 'follow-along-media-status', mediaNotice));
     const roleBrief = createElement(documentRef, 'section', 'follow-along-role-brief');
     roleBrief.setAttribute('aria-label', `${roleLabel} role focus`);
     const roleBriefLabel = createElement(documentRef, 'p', 'follow-along-section-label', 'Role focus');
@@ -232,7 +235,7 @@ export function mountFollowAlong({
     audioStatus.setAttribute('aria-atomic', 'true');
     audioGuide.append(playAudioButton, pauseAudioButton, stopAudioButton, audioStatus);
     const audioTranscript = createElement(documentRef, 'details', 'follow-along-audio-transcript');
-    const audioTranscriptSummary = createElement(documentRef, 'summary', '', 'Audio transcript');
+    const audioTranscriptSummary = createElement(documentRef, 'summary', '', textOnly ? 'Current text transcript (no approved audio)' : 'Audio transcript');
     const audioTranscriptText = createElement(documentRef, 'p');
     audioTranscript.append(audioTranscriptSummary, audioTranscriptText);
     slideTools.append(dots, audioGuide);
@@ -254,7 +257,7 @@ export function mountFollowAlong({
         const overviewCopy = createElement(documentRef, 'div', 'follow-along-overview-copy');
         const overviewEyebrow = createElement(documentRef, 'p', 'follow-along-section-label', `Orientation · ${overviewMedia.durationLabel || '2:28'}`);
         const overviewTitle = createElement(documentRef, 'h2', 'follow-along-overview-title', 'Platform overview');
-        const overviewText = createElement(documentRef, 'p', 'follow-along-overview-text', 'See the shared exercise flow before you work through your role.');
+        const overviewText = createElement(documentRef, 'p', 'follow-along-overview-text', overviewMedia.notice || 'See the shared exercise flow before you work through your role.');
         overviewCopy.append(overviewEyebrow, overviewTitle, overviewText);
         const mediaToggle = createElement(documentRef, 'button', 'follow-along-overview-toggle', 'Watch');
         mediaToggle.type = 'button';
@@ -405,13 +408,15 @@ export function mountFollowAlong({
             return;
         }
 
-        const narration = buildFollowAlongNarration({
-            storageKey,
-            roleLabel,
-            summary,
-            step: isRoleFocus ? null : step
-        });
-        const sourceUrl = typeof resolveAudioUrl === 'function' ? resolveAudioUrl(narration) : null;
+        const narration = textOnly
+            ? (isRoleFocus ? `${roleLabel}. ${summary}` : [step.title, step.body, step.narrative, ...(step.details || [])].filter(Boolean).join(' '))
+            : buildFollowAlongNarration({
+                storageKey,
+                roleLabel,
+                summary,
+                step: isRoleFocus ? null : step
+            });
+        const sourceUrl = !textOnly && typeof resolveAudioUrl === 'function' ? resolveAudioUrl(narration) : null;
         audioTranscriptText.textContent = narration;
         const sourceChanged = sourceUrl && audio.dataset?.sourceUrl !== sourceUrl;
         if (sourceChanged) {
@@ -428,7 +433,7 @@ export function mountFollowAlong({
         stopAudioButton.disabled = unavailable;
         root.dataset.audioState = unavailable ? 'unavailable' : 'ready';
         audioStatus.textContent = unavailable
-            ? 'Audio guide unavailable for this slide.'
+            ? 'Audio guide unavailable for this slide. Use the visible text and transcript.'
             : 'AI-generated Kokoro audio guide ready.';
     }
 

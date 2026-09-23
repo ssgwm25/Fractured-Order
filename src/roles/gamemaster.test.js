@@ -154,6 +154,14 @@ describe('GameMaster export wiring', () => {
 });
 
 describe('GameMaster session administration', () => {
+    it('GC08 exposes labelled native controls, both explicit models and live recovery status', () => {
+        const html = getCreateSessionFormHtml();
+        expect(html).toContain('for="newSessionGreenConfiguration"');
+        expect(html).toContain('value="unified_v1"');
+        expect(html).toContain('value="shared_facilitator_v1"');
+        expect(html).toContain('for="newSessionRoster"');
+        expect(html).toContain('id="newSessionCreationStatus" role="status" aria-live="polite"');
+    });
     it('uses modal-scoped create-session ids that do not collide with the sidebar session name', () => {
         const html = getCreateSessionFormHtml();
 

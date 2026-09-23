@@ -61,10 +61,12 @@ class CommunicationsStore {
         }
 
         this.sessionId = sessionId;
+        const generation = this.generation = (this.generation || 0) + 1;
         logger.info('Initializing communications store for session:', sessionId);
 
         try {
             await this.loadCommunications();
+            if (generation !== this.generation) return [];
             this.initialized = true;
             this.notify('initialized', this.getAll());
             return this.getAll();
@@ -84,9 +86,9 @@ class CommunicationsStore {
         }
 
         try {
-            const sessionId = this.sessionId, seat = getConfirmedSeat();
+            const sessionId = this.sessionId, seat = getConfirmedSeat(), generation = this.generation;
             const data = await database.fetchCommunications(sessionId);
-            if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return;
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat() || generation !== this.generation) return;
             this.communications = deduplicateCommunications(data || []).sort(
                 (left, right) => new Date(right.created_at) - new Date(left.created_at)
             );
@@ -114,14 +116,14 @@ class CommunicationsStore {
         }
 
         try {
-            const sessionId = this.sessionId, seat = getConfirmedSeat();
+            const sessionId = this.sessionId, seat = getConfirmedSeat(), generation = this.generation;
             const communicationsAtQueryStart = new Map(
                 this.communications
                     .filter((communication) => getCommunicationIdentity(communication))
                     .map((communication) => [getCommunicationIdentity(communication), communication])
             );
             const fetchedCommunications = await database.fetchCommunications(this.sessionId) || [];
-            if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return [];
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat() || generation !== this.generation) return [];
             const reconciledById = new Map(
                 deduplicateCommunications(fetchedCommunications)
                     .filter((communication) => getCommunicationIdentity(communication))
@@ -248,6 +250,7 @@ class CommunicationsStore {
      * Reset store state while preserving subscriptions for session changes
      */
     reset() {
+        this.generation = (this.generation || 0) + 1;
         this.communications = [];
         this.initialized = false;
         this.sessionId = null;

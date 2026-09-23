@@ -91,10 +91,12 @@ class RequestsStore {
         }
 
         this.sessionId = sessionId;
+        const generation = this.generation = (this.generation || 0) + 1;
         logger.info('Initializing requests store for session:', sessionId);
 
         try {
             await this.loadRequests();
+            if (generation !== this.generation) return [];
             this.initialized = true;
             this.notify('initialized', this.requests);
             return this.requests;
@@ -114,9 +116,9 @@ class RequestsStore {
         }
 
         try {
-            const sessionId = this.sessionId, seat = getConfirmedSeat();
+            const sessionId = this.sessionId, seat = getConfirmedSeat(), generation = this.generation;
             const data = await database.fetchRequests(sessionId);
-            if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return;
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat() || generation !== this.generation) return;
 
             this.requests = data || [];
             logger.info(`Loaded ${this.requests.length} requests`);
@@ -298,13 +300,13 @@ class RequestsStore {
 
     async reconcileRequests() {
         if (!this.sessionId) return [];
-        const sessionId = this.sessionId, seat = getConfirmedSeat();
+        const sessionId = this.sessionId, seat = getConfirmedSeat(), generation = this.generation;
 
         const atQueryStart = new Map(this.requests
             .filter((request) => request?.id)
             .map((request) => [request.id, getRequestSyncFingerprint(request)]));
         const fetched = await database.fetchRequests(this.sessionId) || [];
-        if (sessionId !== this.sessionId || seat !== getConfirmedSeat()) return [];
+        if (sessionId !== this.sessionId || seat !== getConfirmedSeat() || generation !== this.generation) return [];
         const reconciled = new Map(fetched.filter((request) => request?.id).map((request) => [request.id, request]));
 
         this.requests.forEach((request) => {
@@ -495,6 +497,7 @@ class RequestsStore {
      * Reset store state
      */
     reset() {
+        this.generation = (this.generation || 0) + 1;
         this.requests = [];
         this.filters = {
             status: null,

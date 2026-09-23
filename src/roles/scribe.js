@@ -84,11 +84,14 @@ import {
     getScribeDeckAssignmentDetails,
     getSectionIndexForSlideKey,
     parseScribeDeckHtml,
+    renderScribeGuidanceSlide,
     SCRIBE_DECK_SOURCE_REPO,
     SCRIBE_DECK_SOURCE_UPLOAD
 } from '../features/scribe/deckConfig.js';
 import { getUploadedScribeDeck } from '../features/scribe/deckStorage.js';
+import { deckAssignmentScopeLabel } from '../features/scribe/deckAssignment.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
+import { adaptGreenGuide } from '../features/onboarding/greenGuidance.js';
 import { createRfiForm } from '../features/requests/RfiForm.js';
 import { getUserMessage } from '../core/errors.js';
 import {
@@ -1173,7 +1176,6 @@ export class ScribeController {
     }
 
     mountFollowAlongOnboarding() {
-        if (this.teamContext.sharedFacilitator) return; // Shared-role guide belongs to GC-09.
         const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         const workspaceStep = (title, selector, body, narrative) => ({
             title,
@@ -1183,7 +1185,7 @@ export class ScribeController {
             highlight: selector,
             action: { label: `Open ${title}`, selector }
         });
-        this.onboarding = mountFollowAlong({
+        this.onboarding = mountFollowAlong(adaptGreenGuide({
             storageKey: seatStorageKey(`followalong:scribe:${this.teamId}`),
             title: `${this.teamContext.scribeLabel} guide`,
             roleLabel: this.teamContext.scribeLabel,
@@ -1229,7 +1231,7 @@ export class ScribeController {
                     highlight: '.sidebar-session'
                 }
             ]
-        });
+        }, this.teamContext, 'facilitator'));
     }
 
     configureShell() {
@@ -2573,6 +2575,7 @@ export class ScribeController {
         preferredSlideKey = ''
     } = {}) {
         const requestedDeckSource = deckSource || SCRIBE_DECK_SOURCE_REPO;
+        this.deckLoadNotice = '';
         this.setDeckState('loading');
         this.renderDeckState({
             title: `Loading ${deckLabel || 'support deck'}`,
@@ -2592,6 +2595,7 @@ export class ScribeController {
 
                     this.facilitatorDeckSlides = uploadedDeck.slides;
                 } catch (error) {
+                    this.deckLoadNotice = 'Assigned upload unavailable in this browser profile. Showing the default team deck; the assignment notice did not transfer the file.';
                     logger.warn('Assigned uploaded facilitator deck unavailable in this browser, falling back to the team default deck.', {
                         deckStorageKey,
                         fallbackDeckPath: defaultDeckPath,
@@ -2618,6 +2622,7 @@ export class ScribeController {
                         fallbackDeckPath: defaultDeckPath,
                         error
                     });
+                    this.deckLoadNotice = 'Assigned repository deck unavailable. Showing the default team deck; ask White Cell to check the assigned path.';
                     showToast({
                         message: 'Assigned facilitator deck unavailable. Loaded the default team deck instead.',
                         type: 'warning'
@@ -2716,7 +2721,7 @@ export class ScribeController {
             );
         } else {
             this.currentSlideIndex = Math.max(
-                this.deckSlides.findIndex((slide) => slide.slideType === 'image'),
+                this.deckSlides.findIndex((slide) => ['guidance', 'image'].includes(slide.slideType)),
                 0
             );
         }
@@ -2960,7 +2965,8 @@ export class ScribeController {
             'Support deck',
             this.activeDeckLabel || DEFAULT_SCRIBE_DECK_LABEL,
             `${this.facilitatorDeckSlides.length} ${this.facilitatorDeckSlides.length === 1 ? 'slide' : 'slides'}`
-        );
+        ) + `<p>${escapeHtml(deckAssignmentScopeLabel(this.teamContext))}</p>`
+            + (this.deckLoadNotice ? `<p role="status">${escapeHtml(this.deckLoadNotice)}</p>` : '');
     }
 
     getActionMarkSlideGroups(section = {}) {
@@ -3219,7 +3225,9 @@ export class ScribeController {
         if (actionFrame) {
             actionFrame.hidden = slide.slideType === 'image';
             if (slide.slideType !== 'image') {
-                actionFrame.innerHTML = slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder'
+                actionFrame.innerHTML = slide.slideType === 'guidance'
+                    ? renderScribeGuidanceSlide(slide)
+                    : slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder'
                     ? this.renderProposalSlide(slide)
                     : slide.slideType === 'rfi' || slide.slideType === 'rfi-placeholder'
                         ? this.renderRfiSlide(slide)
@@ -3232,7 +3240,7 @@ export class ScribeController {
         }
 
         if (announcement) {
-            announcement.textContent = slide.slideType === 'image'
+            announcement.textContent = ['image', 'guidance'].includes(slide.slideType)
                 ? `${activeSection.label}. ${slide.title}. Slide ${this.currentSlideIndex + 1} of ${this.deckSlides.length}.`
                 : slide.slideType === 'proposal' || slide.slideType === 'proposal-placeholder'
                     ? `${activeSection.label}. ${slide.title}. Proposal ${slideIndexWithinSection + 1} of ${Math.max(activeSection.slideCount || activeSection.slides.length, 1)}.`

@@ -1089,9 +1089,10 @@ describe('White Cell DOM contract', () => {
         });
         vi.spyOn(database, 'fetchArtifactWorkflowReviews').mockResolvedValue([]);
         vi.spyOn(syncService, 'initialize').mockImplementation(async () => {
-            expect(fakeDocument.elements.scribeDeckSettingsSummary.textContent).toBe(
+            expect(fakeDocument.elements.scribeDeckSettingsSummary.textContent).toContain(
                 "Set the slide deck each team's facilitator presents."
             );
+            expect(fakeDocument.elements.scribeDeckSettingsSummary.textContent).toContain('Confirm the assignment scope');
             expect(fakeDocument.elements.scribeDeckSettingsList.innerHTML).toContain('Blue Team Facilitator');
             expect(fakeDocument.elements.scribeDeckSettingsList.innerHTML).toContain('data-scribe-deck-action="load"');
         });
@@ -2421,6 +2422,41 @@ describe('White Cell DOM contract', () => {
         expect(markup).toContain('Strategic Orientation');
     });
 
+    it.each([
+        ['shared_facilitator_v1', 'shared', ['green_shared_facilitator']],
+        [null, 'europe', ['green_europe_facilitator']],
+        [null, 'asian_pacific', ['green_asian_pacific_facilitator']],
+        [null, 'both', ['green_asian_pacific_facilitator', 'green_europe_facilitator']],
+        [null, '', []],
+        ['shared_facilitator_v1', 'europe', []]
+    ])('GC09 sends %s deck scope %s only to its explicit recipients', async (model, scope, roles) => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { database } = await import('../services/database.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const { communicationsStore } = await import('../stores/communications.js');
+        const { timelineStore } = await import('../stores/timeline.js');
+        global.document = createFakeDocument(['scribeDeckPath-green', 'scribeDeckLabel-green', 'scribeDeckScope-green']);
+        global.document.elements['scribeDeckPath-green'].value = 'fractured-order-facilitator-deck.html';
+        global.document.elements['scribeDeckScope-green'].value = scope;
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-42');
+        vi.spyOn(sessionStore, 'getSessionData').mockReturnValue({ sessionTopologyVersion: 2, greenSeatModel: model });
+        vi.spyOn(sessionStore, 'getRole').mockReturnValue('whitecell_lead');
+        const create = vi.spyOn(database, 'createCommunication').mockResolvedValue({ id: 'deck-notice' });
+        vi.spyOn(database, 'createTimelineEvent').mockResolvedValue({ id: 'timeline-deck' });
+        vi.spyOn(communicationsStore, 'updateFromServer').mockImplementation(() => {});
+        vi.spyOn(timelineStore, 'updateFromServer').mockImplementation(() => {});
+        const controller = new WhiteCellController();
+        controller.operatorRole = 'lead';
+        controller.validateScribeDeckPath = vi.fn().mockResolvedValue();
+        controller.getCurrentGameState = () => ({ move: 1, phase: 1 });
+        await controller.handleScribeDeckAssignmentSubmit('green');
+        expect(create.mock.calls.map(([record]) => record.to_role)).toEqual(roles);
+        for (const [record] of create.mock.calls) {
+            expect(record.metadata.recipient_scope).toBe('role');
+            expect(record.metadata.recipient_role).toBe(record.to_role);
+        }
+    });
+
     it('GC05 identifies the persisted regional owner in the review title', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         global.document = createFakeDocument();
@@ -2430,6 +2466,25 @@ describe('White Cell DOM contract', () => {
             expect(controller.getStrategicOrientationReviewTitle(action)).toContain(label);
         }
         expect(controller.getStrategicOrientationReviewTitle(buildStrategicOrientationAction('green'))).not.toContain('Europe');
+    });
+
+    it('GC09 keeps the selected regional deck audience on refresh only within the same session', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { sessionStore } = await import('../stores/session.js');
+        const doc = createFakeDocument(['scribeDeckSettingsSummary', 'scribeDeckSettingsList', 'scribeDeckScope-green']);
+        global.document = doc;
+        doc.elements['scribeDeckScope-green'].dataset.sessionId = 'session-42';
+        doc.elements['scribeDeckScope-green'].value = 'europe';
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-42');
+        vi.spyOn(sessionStore, 'getSessionData').mockReturnValue({ sessionTopologyVersion: 2, greenSeatModel: null });
+        const controller = new WhiteCellController();
+        controller.renderScribeDeckSettings();
+        expect(doc.elements.scribeDeckSettingsList.innerHTML).toContain('value="europe" selected');
+        expect(doc.elements.scribeDeckSettingsList.innerHTML).not.toContain('value="both" selected');
+        expect(doc.elements.scribeDeckSettingsList.innerHTML).toContain('Choose regional deck recipients');
+        doc.elements['scribeDeckScope-green'].dataset.sessionId = 'another-session';
+        controller.renderScribeDeckSettings();
+        expect(doc.elements.scribeDeckSettingsList.innerHTML).not.toContain('value="europe" selected');
     });
 
     it('labels new Blue Strategic Orientation records as orientation and forecast in the White Cell card and review dialog', async () => {

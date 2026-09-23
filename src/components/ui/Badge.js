@@ -1,6 +1,7 @@
 import {
     WHITE_CELL_OPERATOR_ROLES,
     getRoleSurfaceDisplayLabel,
+    getRoleDisplayName,
     parseTeamRole,
     ROLE_SURFACES
 } from '../../core/teamContext.js';
@@ -135,6 +136,7 @@ export function createRoleBadge(role) {
     }
 
     config ||= { text: role, variant: 'default' };
+    if (parsedRole.delegationId || parsedRole.sharedFacilitator) config.text = getRoleDisplayName(role);
     return createBadge({ ...config, rounded: true, size: 'sm' });
 }
 

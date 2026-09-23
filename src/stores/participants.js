@@ -67,6 +67,7 @@ class ParticipantsStore {
 
         /** @type {Promise<Participant[]>|null} */
         this.pendingRosterRefresh = null;
+        this.lifecycleGeneration = 0;
     }
 
     /**
@@ -82,12 +83,14 @@ class ParticipantsStore {
         }
 
         this.sessionId = sessionId;
+        const generation = ++this.lifecycleGeneration;
         this.currentParticipantId = participantId || sessionStore.getSessionParticipantId?.() || null;
         logger.info('Initializing participants store for session:', sessionId);
 
         await this.loadParticipants({
             tolerateError: true
         });
+        if (generation !== this.lifecycleGeneration) return [];
 
         this.initialized = true;
 
@@ -95,6 +98,7 @@ class ParticipantsStore {
         if (this.currentParticipantId) {
             await this.startHeartbeat();
         }
+        if (generation !== this.lifecycleGeneration) return [];
 
         // Start inactive participant cleanup
         this.startCleanup();
@@ -117,8 +121,11 @@ class ParticipantsStore {
             return [];
         }
 
+        const sessionId = this.sessionId;
+        const generation = this.lifecycleGeneration;
         try {
-            const data = await database.getSessionParticipants(this.sessionId);
+            const data = await database.getSessionParticipants(sessionId);
+            if (generation !== this.lifecycleGeneration || sessionId !== this.sessionId) return [];
 
             this.participants = data || [];
             this.lastLoadError = null;
@@ -126,6 +133,7 @@ class ParticipantsStore {
             this.notify('loaded', this.participants);
             return this.participants;
         } catch (err) {
+            if (generation !== this.lifecycleGeneration || sessionId !== this.sessionId) return [];
             this.lastLoadError = err;
 
             if (tolerateError) {
@@ -367,6 +375,7 @@ class ParticipantsStore {
         // context; sync.resync restores/validates the seat before loading data.
         const regionalSeat = sessionStore.getConfirmedSeat?.()?.topology === 2;
         if (regionalSeat && globalThis.navigator?.onLine === false) return;
+        const generation = this.lifecycleGeneration;
 
         try {
             const now = new Date().toISOString();
@@ -375,14 +384,17 @@ class ParticipantsStore {
             try {
                 updatedSeat = await database.updateHeartbeat(this.sessionId, this.currentParticipantId);
             } catch (error) {
+                if (generation !== this.lifecycleGeneration) return;
                 const cause = error.originalError || error;
                 // An expired lease can race the reconnect resync. Reclaim only
                 // through the authenticated restore RPC, once, before retrying.
                 if (!regionalSeat || globalThis.navigator?.onLine === false
                     || cause.code !== '42501' || cause.message !== 'GC03_SEAT_REJOIN_REQUIRED') throw error;
                 await restoreConfirmedSeat({ checkRoute: false });
+                if (generation !== this.lifecycleGeneration) return;
                 updatedSeat = await database.updateHeartbeat(this.sessionId, this.currentParticipantId);
             }
+            if (generation !== this.lifecycleGeneration) return;
             const confirmed = sessionStore.getConfirmedSeat?.();
             if (confirmed && (updatedSeat?.id !== confirmed.participantId || updatedSeat?.role !== confirmed.role
                 || (updatedSeat?.delegation_id ?? null) !== confirmed.delegationId || updatedSeat?.revoked_at)) {
@@ -405,6 +417,7 @@ class ParticipantsStore {
 
             logger.debug('Heartbeat sent');
         } catch (err) {
+            if (generation !== this.lifecycleGeneration) return;
             const cause = err.originalError || err;
             if (regionalSeat && globalThis.navigator?.onLine === false
                 && (!cause.code || cause.code === 'NETWORK_ERROR')
@@ -648,6 +661,7 @@ class ParticipantsStore {
      * Reset store state
      */
     reset() {
+        this.lifecycleGeneration += 1;
         this.stopHeartbeat();
 
         if (this.cleanupInterval) {

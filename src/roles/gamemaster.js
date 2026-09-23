@@ -1,4 +1,5 @@
 import { database } from '../services/database.js';
+import { SessionCreation, sessionConfigurationLabel, creationErrorMessage } from '../services/sessionCreation.js';
 import { sessionStore } from '../stores/session.js';
 import { gameStateStore } from '../stores/gameState.js';
 import { actionsStore } from '../stores/actions.js';
@@ -33,7 +34,8 @@ import {
     openResearchPrintWindow
 } from '../features/export/index.js';
 import { navigateToApp } from '../core/navigation.js';
-import { OPERATOR_SURFACES } from '../core/teamContext.js';
+import { OPERATOR_SURFACES, getRoleDisplayName } from '../core/teamContext.js';
+import { regionalView } from '../features/participants/regionalView.js';
 import { getUserMessage } from '../core/errors.js';
 import {
     applyHeaderGameStateDisplay,
@@ -108,6 +110,21 @@ export function getCreateSessionFormHtml() {
                     <label class="form-label" for="newSessionDescription">Description</label>
                     <textarea id="newSessionDescription" class="form-input form-textarea" rows="3" placeholder="Optional description..."></textarea>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="newSessionGreenConfiguration">Green configuration</label>
+                    <select id="newSessionGreenConfiguration" class="form-input" aria-describedby="newSessionSetupSummary">
+                        <option value="unified_v1">Unified Green</option>
+                        <option value="shared_facilitator_v1">Regional Green — one shared Facilitator and two Scribes</option>
+                    </select>
+                </div>
+                <div id="newSessionRosterGroup" class="form-group" hidden>
+                    <label class="form-label" for="newSessionRoster">Approved roster version</label>
+                    <select id="newSessionRoster" class="form-input" aria-describedby="newSessionRosterStatus" disabled></select>
+                    <p id="newSessionRosterStatus" role="status">Loading approved rosters…</p>
+                    <button type="button" id="retrySessionRosters" class="btn btn-secondary">Reload approved rosters</button>
+                </div>
+                <p id="newSessionSetupSummary" role="status">Selected: Unified Green.</p>
+                <p id="newSessionCreationStatus" role="status" aria-live="polite"></p>
             </form>
         `;
 }
@@ -963,6 +980,7 @@ export class GameMasterController {
                             ${selectedBadge}
                         </div>
                         <p class="card-subtitle">Code: <strong>${this.escapeHtml(sessionCode)}</strong></p>
+                        <p class="text-sm">${this.escapeHtml(sessionConfigurationLabel(session))}</p>
                     </div>
                     ${statusBadge.outerHTML}
                 </div>
@@ -990,6 +1008,7 @@ export class GameMasterController {
     }
 
     showCreateSessionModal() {
+        this.sessionCreation ||= new SessionCreation({ database });
         const content = document.createElement('div');
         content.innerHTML = getCreateSessionFormHtml();
 
@@ -1015,13 +1034,75 @@ export class GameMasterController {
                 }
             ]
         });
+        const form = content.querySelector('#createSessionForm');
+        const configuration = content.querySelector('#newSessionGreenConfiguration');
+        const roster = content.querySelector('#newSessionRoster');
+        const update = () => {
+            const pending = this.sessionCreation.pending();
+            const regional = configuration.value === 'shared_facilitator_v1';
+            content.querySelector('#newSessionRosterGroup').hidden = !regional;
+            content.querySelector('#newSessionSetupSummary').textContent = regional
+                ? `Selected: Asia-Pacific Scribe, Europe Scribe and one Shared Green Facilitator. Roster: ${pending?.input.roster_version || roster.value || 'approval required'}. One global move, phase and timer.`
+                : 'Selected: Unified Green. One global move, phase and timer.';
+        };
+        let rosterLoading = false;
+        const loadRosters = async () => {
+            if (rosterLoading) return;
+            rosterLoading = true;
+            roster.disabled = true;
+            const status = content.querySelector('#newSessionRosterStatus');
+            status.textContent = 'Loading approved rosters…';
+            try {
+                const rows = await database.listApprovedGreenRosters();
+                roster.innerHTML = '<option value="">Select approved version</option>' + rows.map((row) =>
+                    `<option value="${this.escapeHtml(row.version)}">${this.escapeHtml(row.version)} — ${this.escapeHtml(row.approved_by)} (${this.escapeHtml(row.approved_at)})</option>`).join('');
+                roster.disabled = rows.length === 0 || Boolean(this.sessionCreation.pending()) || this.creatingSession;
+                status.textContent = rows.length ? 'The server will freeze this exact approved snapshot.'
+                    : 'No approved roster is available. Regional creation is blocked. Unified Green remains available.';
+            } catch (error) {
+                status.textContent = error.originalError?.code === '42501'
+                    ? 'Game Master permission is required to read approved rosters. Restore access and retry.'
+                    : 'Approved rosters could not be loaded. Retry; regional creation is blocked until they load.';
+            } finally {
+                rosterLoading = false;
+            }
+            const pending = this.sessionCreation.pending();
+            if (pending) roster.value = pending.input.roster_version || '';
+            update();
+        };
+        configuration.addEventListener('change', update);
+        roster.addEventListener('change', update);
+        content.querySelector('#retrySessionRosters').addEventListener('click', () => void loadRosters());
+        form.addEventListener('submit', (event) => { event.preventDefault(); void this.handleCreateSession(modalRef.current); });
+        const pending = this.sessionCreation.pending();
+        if (pending) {
+            content.querySelector('#newSessionName').value = pending.input.name;
+            content.querySelector('#newSessionCode').value = pending.input.session_code;
+            content.querySelector('#newSessionDescription').value = pending.input.description || '';
+            configuration.value = pending.input.green_configuration;
+            content.querySelector('#newSessionCreationStatus').textContent = 'Unconfirmed creation saved. Create Session will recover the same request.';
+            form.querySelectorAll('input, textarea, select').forEach((control) => { control.disabled = true; });
+        }
+        update();
+        void loadRosters();
     }
 
     async handleCreateSession(modal) {
+        if (this.creatingSession) return;
+        this.sessionCreation ||= new SessionCreation({ database });
         const modalElement = modal?.element || document;
         const nameInput = modalElement.querySelector('#newSessionName');
         const codeInput = modalElement.querySelector('#newSessionCode');
         const descInput = modalElement.querySelector('#newSessionDescription');
+        const configuration = modalElement.querySelector('#newSessionGreenConfiguration');
+        const roster = modalElement.querySelector('#newSessionRoster');
+        const status = modalElement.querySelector('#newSessionCreationStatus');
+        if (!this.sessionCreation.pending() && configuration?.value === 'shared_facilitator_v1'
+            && (!roster?.value || roster.disabled)) {
+            if (status) status.textContent = 'Regional creation requires an existing approved roster. Reload rosters or choose Unified Green.';
+            roster?.focus();
+            return;
+        }
 
         if (!nameInput?.value?.trim()) {
             showToast('Session name is required', { type: 'error' });
@@ -1036,8 +1117,10 @@ export class GameMasterController {
             return;
         }
 
-        showLoader({ message: 'Creating session...' });
-
+        this.creatingSession = true;
+        if (status) status.textContent = 'Waiting for the server to confirm the requested configuration…';
+        modalElement.querySelectorAll('input, textarea, select').forEach((control) => { control.disabled = true; });
+        let confirmedSession = null;
         try {
             const sessionData = {
                 name: nameInput.value.trim(),
@@ -1045,11 +1128,14 @@ export class GameMasterController {
                 description: descInput?.value?.trim() || null,
                 status: 'active',
                 move: 1,
-                phase: 1
+                phase: 1,
+                green_configuration: configuration?.value || 'unified_v1',
+                roster_version: configuration?.value === 'shared_facilitator_v1' ? roster.value : null
             };
 
-            const createdSession = await database.createSession(sessionData);
-            showToast('Session created successfully', { type: 'success' });
+            const createdSession = await this.sessionCreation.submit(sessionData);
+            confirmedSession = createdSession;
+            showToast(`Server confirmed: ${sessionConfigurationLabel(createdSession)} (${createdSession.status})`, { type: 'success' });
 
             if (modal && typeof modal.close === 'function') {
                 modal.close();
@@ -1059,13 +1145,19 @@ export class GameMasterController {
 
             this.currentSessionId = createdSession.id;
             await this.loadSessions();
+            await this.viewSession(createdSession.id);
         } catch (err) {
-            logger.error('Failed to create session:', err);
-            showToast(getUserMessage(err, {
-                fallback: 'Failed to create session. Check the session name and join code, then try again.'
-            }), { type: 'error' });
+            if (confirmedSession) {
+                showToast('Session setup was confirmed. Refresh Session Management to load its details.', { type: 'warning' });
+                return;
+            }
+            logger.warn('Session creation unconfirmed', { reason: 'setup_or_transport' });
+            if (status) status.textContent = creationErrorMessage(err);
+            showToast(creationErrorMessage(err), { type: 'error' });
         } finally {
-            hideLoader();
+            this.creatingSession = false;
+            const locked = Boolean(this.sessionCreation.pending());
+            modalElement.querySelectorAll('input, textarea, select').forEach((control) => { control.disabled = locked; });
         }
     }
 
@@ -1103,6 +1195,7 @@ export class GameMasterController {
                 </button>
                 <h2 class="section-title" style="margin-top: var(--space-3);">${this.escapeHtml(session.name)}</h2>
                 <p class="text-gray-500">Code: <strong>${this.escapeHtml(sessionCode)}</strong></p>
+                <p class="text-sm" data-session-configuration>${this.escapeHtml(sessionConfigurationLabel(session))}</p>
                 ${isActiveSession ? '' : '<p class="text-sm text-gray-500">Archived session details are read-only.</p>'}
             </div>
 
@@ -1238,8 +1331,8 @@ export class GameMasterController {
                                         >
                                     </td>
                                 ` : ''}
-                                <td>${this.escapeHtml(participant.display_name || 'Unknown')}</td>
-                                <td>${this.escapeHtml(participant.role || 'Unknown')}</td>
+                                <td>${this.escapeHtml(participant.display_name_snapshot || participant.display_name || 'Unknown')}</td>
+                                <td>${this.escapeHtml(getRoleDisplayName(participant.role) || participant.role || 'Unknown')}</td>
                                 <td>${this.escapeHtml(participantSessionLabel)}</td>
                                 <td>${statusBadge.outerHTML}</td>
                                 <td>${participant.heartbeat_at ? formatRelativeTime(participant.heartbeat_at) : 'Never'}</td>
@@ -1281,6 +1374,9 @@ export class GameMasterController {
         }
 
         const sessionCode = getGameMasterSessionCode(sessionBundle.session);
+        const visibleParticipants = regionalView(container, sessionBundle.participants,
+            () => { this.getParticipantSelection(sessionBundle.session.id).clear(); this.renderParticipantsPanel(sessionBundle); },
+            { sessionId: sessionBundle.session.id, regional: sessionBundle.session.session_topology_version === 2 });
         const isActiveSession = sessionBundle.session.status === 'active';
         stateLabel.textContent = isActiveSession
             ? `Showing live participant data for ${getGameMasterSessionLabel(sessionBundle.session)}.`
@@ -1301,7 +1397,7 @@ export class GameMasterController {
                         ? 'Remove clears a participant from the session immediately. They must join again to return.'
                         : 'Archived participant records are retained as session evidence and cannot be changed here.'}
                 </p>
-                ${this.renderParticipantsTable(sessionBundle.participants, {
+                ${this.renderParticipantsTable(visibleParticipants, {
                     includeActions: isActiveSession,
                     session: sessionBundle.session,
                     sessionName: sessionBundle.session.name,

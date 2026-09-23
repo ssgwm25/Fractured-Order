@@ -67,6 +67,61 @@ describe('GC05 orientation RPC contract (mock; SQL evidence required separately)
         expect((await submit(result.data, model)).error.code).toBe('23514');
     });
 
+    it.each(['shared', 'pairs'])('derives orientation timeline scope before checking the Scribe seat in %s sessions', async (model) => {
+        const action = (await handoff('europe', model)).data;
+        const result = await api.from('timeline').insert({ session_id: model, team: 'green', move: 1, phase: 1,
+            type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE', content: 'Synthetic orientation handoff',
+            metadata: { related_id: action.id } }).select('*').single();
+        expect(result.error).toBeNull();
+        expect(result.data).toMatchObject({ owner_team: 'green', delegation_id: 'europe', metadata: { related_id: action.id } });
+        identity(`${model}-asian_pacific`);
+        expect((await api.from('timeline').select('*')).data).toEqual([]);
+        identity(`${model}-europe`);
+        expect((await api.from('timeline').select('*')).data).toEqual([result.data]);
+    });
+
+    it('derives the non-Green orientation timeline owner without adding a delegation', async () => {
+        await claim('blue-author', 'blue_facilitator');
+        const result = await api.from('timeline').insert({ session_id: 'shared', team: 'blue',
+            type: 'ACTION_CREATED', content: 'Synthetic Blue orientation', metadata: { related_id: 'blue' } }).select('*').single();
+        expect(result.error).toBeNull();
+        expect(result.data).toMatchObject({ owner_team: 'blue', delegation_id: null });
+    });
+
+    it('rejects forged scope and invalid evidence links atomically before allocating timeline IDs', async () => {
+        const action = (await handoff('europe')).data;
+        const event = { session_id: 'shared', team: 'green', type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
+            content: 'Synthetic orientation handoff', metadata: { related_id: action.id } };
+        const before = localStorage.getItem(key);
+        for (const changed of [
+            { owner_team: 'blue' }, { delegation_id: 'asian_pacific' }, { session_id: 'pairs' },
+            { metadata: { related_id: 'missing' } }, { metadata: { communication_id: 'missing' } },
+            { metadata: { related_id: action.id, thread_id: 'missing', recipient_team: 'blue' } },
+            { metadata: { related_id: action.id, review_request_id: 'missing' } }, { metadata: {} }
+        ]) {
+            const result = await api.from('timeline').insert([event, { ...event, ...changed }]).select('*');
+            expect(result).toMatchObject({ data: null, error: { code: '23514' } });
+            expect(localStorage.getItem(key)).toBe(before);
+        }
+    });
+
+    it('checks the active seat after deriving timeline ownership, rejecting foreign, shared and revoked authors', async () => {
+        const action = (await handoff('europe')).data;
+        const event = { session_id: 'shared', team: 'green', type: 'STRATEGIC_ORIENTATION_FORWARDED_TO_SCRIBE',
+            content: 'Synthetic orientation handoff', metadata: { related_id: action.id } };
+        for (const actor of ['shared-asian_pacific', 'shared-fac', 'outsider']) {
+            identity(actor);
+            const before = localStorage.getItem(key);
+            expect((await api.from('timeline').insert(event)).error?.code).toBe('42501');
+            expect(localStorage.getItem(key)).toBe(before);
+        }
+        identity('shared-europe');
+        seed((tables) => { tables.session_participants.find((s) => s.session_id === 'shared' && s.role === 'green_europe_scribe').revoked_at = new Date().toISOString(); });
+        const before = localStorage.getItem(key);
+        expect((await api.from('timeline').insert(event)).error?.code).toBe('42501');
+        expect(localStorage.getItem(key)).toBe(before);
+    });
+
     it('identifies Europe, blocks operator jumps and restores completion after originating-Scribe correction', async () => {
         const ap = (await handoff('asian_pacific')).data;
         const eu = (await handoff('europe')).data;

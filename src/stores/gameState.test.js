@@ -67,6 +67,23 @@ function buildGameState(overrides = {}) {
 }
 
 describe('GameStateStore resilience', () => {
+    it('GC08 ignores initialization responses after teardown, including missing-row fallbacks', async () => {
+        const { gameStateStore } = await loadGameStateModule();
+        mockDatabase.getGameState.mockImplementation(async () => {
+            gameStateStore.reset();
+            return buildGameState();
+        });
+        await gameStateStore.initialize('session-live-1');
+        expect(gameStateStore.getState()).toBeNull();
+        expect(gameStateStore.initialized).toBe(false);
+        mockDatabase.getGameState.mockImplementation(async () => {
+            gameStateStore.reset();
+            throw Object.assign(new Error('missing'), { code: 'PGRST116' });
+        });
+        await gameStateStore.initialize('session-live-1');
+        expect(gameStateStore.getState()).toBeNull();
+        expect(mockDatabase.createGameState).not.toHaveBeenCalled();
+    });
     it('GC05 checks each move/phase mutation against fresh completion and fails closed', async () => {
         const { gameStateStore } = await loadGameStateModule();
         gameStateStore.state = buildGameState();

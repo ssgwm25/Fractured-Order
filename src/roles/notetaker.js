@@ -19,6 +19,7 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
+import { adaptGreenGuide } from '../features/onboarding/greenGuidance.js';
 import { showToast } from '../components/ui/Toast.js';
 import { createArtifactLifecycleBadge, createBadge, createPriorityBadge } from '../components/ui/Badge.js';
 import { formatDateTime, formatRelativeTime } from '../utils/formatting.js';
@@ -202,7 +203,8 @@ const AUTO_SAVE_TEXT = {
     idle: 'No unsaved changes',
     saving: 'Saving...',
     saved: 'Saved to your notes',
-    error: 'Save failed'
+    error: 'Save failed',
+    reload: 'Save not confirmed. Keep your text, then reload saved notes before retrying.'
 };
 
 const AUTO_SAVE_ELEMENT_IDS = {
@@ -240,6 +242,8 @@ export class NotetakerController {
         this.newInboxCommunicationIds = new Set();
         this.pendingInboxArrivalIds = new Set();
         this.hasHydratedInbox = false;
+        this.scopedNotes = null;
+        this.destroyed = false;
     }
 
     /**
@@ -248,6 +252,14 @@ export class NotetakerController {
     async init() {
         if (!await ensureSeatStartup()) return;
         bindControllerSeatCleanup(this);
+        this.storeUnsubscribers.push(() => {
+            // The existing seat-cleanup binding invokes these disposers on revocation.
+            if (this.scopedNotes) this.scopedNotes.ready = false;
+            this.scopedNotes = null;
+            this.dynamicsData = { ...DEFAULT_DYNAMICS_DATA };
+            this.allianceData = { ...DEFAULT_ALLIANCE_DATA };
+            this.observationTimeline = [];
+        });
         this.teamContext = resolveTeamContext({ seat: sessionStore.getConfirmedSeat?.() });
         this.teamId = this.teamContext.teamId;
         this.teamLabel = this.teamContext.teamLabel;
@@ -286,13 +298,14 @@ export class NotetakerController {
         this.syncTimelineFromStore();
         this.initialLoadComplete = true;
         await this.loadCurrentMoveData();
-
+        if (this.seatInvalidated || this.destroyed) return;
         this.mountFollowAlongOnboarding();
 
         logger.info('Notetaker interface initialized');
     }
 
     mountFollowAlongOnboarding() {
+        const scoped = this.usesScopedNotes();
         const navTarget = (section) => `.sidebar-link[data-section="${section}"]`;
         const liveTrackerHighlights = ['#header-game-state', '#header-timer'];
         const surfaceStep = (title, section, body, narrative) => ({
@@ -303,7 +316,7 @@ export class NotetakerController {
             highlight: navTarget(section),
             action: { label: `Open ${title}`, selector: navTarget(section) }
         });
-        this.onboarding = mountFollowAlong({
+        this.onboarding = mountFollowAlong(adaptGreenGuide({
             storageKey: seatStorageKey(`followalong:notetaker:${this.teamId}`),
             title: `${this.teamContext.notetakerLabel} guide`,
             roleLabel: this.teamContext.notetakerLabel,
@@ -313,7 +326,9 @@ export class NotetakerController {
                     title: 'Your role in the exercise',
                     body: `As ${this.teamContext.notetakerLabel}, you preserve the decision process without interrupting ${this.teamLabel}'s flow.`,
                     narrative: 'Capture evidence that explains how the room changed: who influenced the choice, where friction emerged, what assumptions shifted, and which moment became decisive.',
-                    details: ['Quick captures append to the shared team record.', 'Dynamics and alliance notes remain scoped to your notetaker seat.', 'Manual saves publish structured snapshots to the timeline.']
+                    details: scoped
+                        ? ['Captures, dynamics and alliances stay in your private move notes.', 'Manual saves do not publish notes to the shared timeline.', 'Keep unsaved text before reloading after a conflict or uncertain save.']
+                        : ['Quick captures append to the shared team record.', 'Dynamics and alliance notes remain scoped to your notetaker seat.', 'Manual saves publish structured snapshots to the timeline.']
                 },
                 {
                     title: 'Follow move, phase, and timer',
@@ -322,12 +337,12 @@ export class NotetakerController {
                     targetLabel: 'Live tracker',
                     highlight: liveTrackerHighlights
                 },
-                surfaceStep('Quick Capture', 'capture', 'Append observations, key moments, and quotes as separate shared entries.', 'Write one observable point per capture. Distinguish a direct quote from your interpretation and leave formal decisions in the Scribe artifact.'),
+                surfaceStep('Quick Capture', 'capture', scoped ? 'Append observations, key moments, and quotes to your private move notes.' : 'Append observations, key moments, and quotes as separate shared entries.', 'Write one observable point per capture. Distinguish a direct quote from your interpretation and leave formal decisions in the Scribe artifact.'),
                 surfaceStep('Team Dynamics', 'dynamics', 'Record leadership, decision style, friction, consensus, and a concise move summary.', 'Save when the pattern changes or the move closes. Your seat-scoped notes do not overwrite another Notetaker’s perspective.'),
                 surfaceStep('Alliance Tracking', 'alliance', 'Record coalition signals, external relationships, commitments, and changes in alignment.', 'Separate an expressed intention from a confirmed agreement, and identify the move in which the relationship changed.'),
                 surfaceStep('Team Actions', 'actions', 'Read the team’s Strategic Orientation, actions, or proposals alongside your process notes.', 'Use the formal artifact to anchor what the team decided; use your notes to explain how and why it reached that outcome.'),
                 surfaceStep('Inbox', 'inbox', 'Read White Cell updates addressed to the Notetaker seat; the badge marks unopened messages.', 'Bring relevant new context into your observation record without treating the inbox itself as a team decision.'),
-                surfaceStep('Timeline', 'timeline', 'Review the chronological session record and the structured snapshots published by manual saves.', 'Use the timeline to check sequence, identify gaps, and avoid duplicating an observation already captured.'),
+                surfaceStep('Timeline', 'timeline', scoped ? 'Review authorized session events alongside your private captures for the current move. Manual saves remain in your notes.' : 'Review the chronological session record and the structured snapshots published by manual saves.', 'Use the timeline to check sequence, identify gaps, and avoid duplicating an observation already captured.'),
                 {
                     title: 'Complete the observation loop',
                     body: 'Before the move closes, verify that decisive moments, dynamics, alliances, and the formal artifact tell a coherent story.',
@@ -337,7 +352,7 @@ export class NotetakerController {
                     highlight: '.sidebar-session'
                 }
             ]
-        });
+        }, this.teamContext, 'notetaker'));
     }
 
     configureTeamLabels() {
@@ -367,7 +382,9 @@ export class NotetakerController {
         }
 
         if (scopeNotice) {
-            scopeNotice.textContent = 'Move notes are saved per notetaker seat. Quick captures append shared entries for the whole team.';
+            scopeNotice.textContent = this.teamContext.delegationId
+                ? `Existing ${this.teamLabel} Notetaker seat: move notes stay seat-scoped; captures belong to your assigned region. The other region retains its own Notetaker and notes.`
+                : 'Move notes are saved per notetaker seat. Quick captures append shared entries for the whole team.';
         }
 
         if (captureScopeHint) {
@@ -380,6 +397,12 @@ export class NotetakerController {
 
         if (allianceScopeHint) {
             allianceScopeHint.textContent = 'Use this space for your seat-specific alliance summary. Save Alliance publishes a structured snapshot without replacing another notetaker\'s notes.';
+        }
+        if (this.usesScopedNotes()) {
+            if (captureDescription) captureDescription.textContent = 'Append observations, moments and quotes to your private move notes.';
+            for (const element of [dynamicsDescription, allianceDescription, dynamicsScopeHint, allianceScopeHint]) {
+                if (element) element.textContent = 'Saved privately to your authenticated Notetaker seat and move. Manual saves do not publish to the shared timeline. If a save is not confirmed, keep your text and reload saved notes before retrying.';
+            }
         }
     }
 
@@ -528,6 +551,14 @@ export class NotetakerController {
         const relevantEvents = timelineStore.getAll()
             .filter((event) => isWhiteCellTimelineEventVisibleToNotetaker(event, this.teamContext));
 
+        if (this.usesScopedNotes()) {
+            // Scoped observations are private notes, not writes to the shared timeline.
+            relevantEvents.push(...this.observationTimeline.map((entry) => ({
+                ...entry, move: this.currentMove, created_at: entry.timestamp
+            })));
+            relevantEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        }
+
         this.captures = relevantEvents
             .filter((event) => isObservationCaptureEvent(event))
             .slice(0, 20);
@@ -650,6 +681,7 @@ export class NotetakerController {
      */
     async handleCaptureSubmit(e) {
         e.preventDefault();
+        if (this.seatInvalidated || this.destroyed) return;
 
         const typeInput = document.querySelector('input[name="captureType"]:checked');
         const contentInput = document.getElementById('captureContent');
@@ -664,6 +696,24 @@ export class NotetakerController {
 
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) return;
+
+        if (this.usesScopedNotes()) {
+            const state = this.scopedNotes;
+            try {
+                const entry = createObservationTimelineEntry({
+                    id: crypto.randomUUID(), type, content, phase: this.currentPhase
+                });
+                await this.writeScopedNotes({ observation: entry });
+                if (!this.isCurrentNotesState(state)) return;
+                this.syncTimelineFromStore();
+                if (contentInput.value.trim() === content) contentInput.value = '';
+                showToast('Observation saved to your private move notes', { type: 'success' });
+            } catch (error) {
+                if (this.seatInvalidated || this.destroyed || (state && !this.isCurrentNotesState(state))) return;
+                showToast('Observation not confirmed. Keep your text and reload saved notes before retrying.', { type: 'error' });
+            }
+            return;
+        }
 
         try {
             const gameState = this.getCurrentGameState();
@@ -778,6 +828,11 @@ export class NotetakerController {
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) return;
 
+        if (this.usesScopedNotes()) {
+            await this.loadScopedNotes();
+            return;
+        }
+
         try {
             const record = await database.getNotetakerData(sessionId, this.currentMove);
             const viewState = buildNotetakerViewState(record, {
@@ -857,6 +912,10 @@ export class NotetakerController {
         showErrorToast = false,
         emitTimelineEvent = false
     } = {}) {
+        if (this.seatInvalidated || this.destroyed) return;
+        if (this.usesScopedNotes()) {
+            return this.saveScopedSection('dynamics', { ...this.dynamicsData }, { showSuccessToast, showErrorToast });
+        }
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) return;
 
@@ -936,6 +995,10 @@ export class NotetakerController {
         showErrorToast = false,
         emitTimelineEvent = false
     } = {}) {
+        if (this.seatInvalidated || this.destroyed) return;
+        if (this.usesScopedNotes()) {
+            return this.saveScopedSection('alliance', { ...this.allianceData }, { showSuccessToast, showErrorToast });
+        }
         const sessionId = sessionStore.getSessionId();
         if (!sessionId) return;
 
@@ -964,6 +1027,117 @@ export class NotetakerController {
             if (showErrorToast) {
                 showToast('Failed to save alliance tracking', { type: 'error' });
             }
+        }
+    }
+
+    usesScopedNotes() {
+        return Boolean(this.scopedNotes || this.teamContext.delegationId
+            || sessionStore.getConfirmedSeat?.()?.topology === 2);
+    }
+
+    isCurrentNotesState(state) {
+        const seat = sessionStore.getConfirmedSeat?.();
+        return Boolean(state && state === this.scopedNotes && !this.seatInvalidated && !this.destroyed
+            && state.move === this.currentMove && seat?.topology === 2
+            && seatStorageKey('', seat) === seatStorageKey('', state.seat)
+            && sessionStore.getSessionId() === state.seat.sessionId);
+    }
+
+    async loadScopedNotes() {
+        const seat = sessionStore.getConfirmedSeat?.();
+        const state = { seat, move: this.currentMove, ready: false, queue: Promise.resolve(), record: null };
+        this.scopedNotes = state;
+        this.dynamicsData = { ...DEFAULT_DYNAMICS_DATA };
+        this.allianceData = { ...DEFAULT_ALLIANCE_DATA };
+        this.observationTimeline = [];
+        this.populateDynamicsForm();
+        this.populateAllianceForm();
+        this.syncTimelineFromStore();
+        const controls = [...(document.querySelectorAll?.('#dynamicsForm input, #dynamicsForm textarea, #dynamicsForm select, #dynamicsForm button, #allianceForm input, #allianceForm textarea, #allianceForm button, #captureForm input, #captureForm textarea, #captureForm button') || [])];
+        controls.forEach((control) => { control.disabled = true; });
+        try {
+            if (!this.isCurrentNotesState(state) || seat.surface !== ROLE_SURFACES.NOTETAKER) {
+                throw new Error('A confirmed Notetaker seat is required.');
+            }
+            const records = await database.fetchScopedNotetakerData(seat.sessionId, state.move);
+            if (!this.isCurrentNotesState(state)) return;
+            // RLS is the authority; reject unexpected envelopes instead of displaying them.
+            if (records.length > 1 || records.some((row) => row.session_id !== seat.sessionId
+                || row.session_participant_id !== seat.participantId || row.move !== state.move
+                || row.team !== seat.teamId || (row.delegation_id ?? null) !== seat.delegationId)) {
+                throw new Error('Saved notes do not match the confirmed seat.');
+            }
+            state.record = records[0] || { revision: 0, dynamics_analysis: {}, external_factors: {}, observation_timeline: [] };
+            if (!Number.isSafeInteger(state.record.revision) || state.record.revision < 0
+                || !Array.isArray(state.record.observation_timeline)) throw new Error('Invalid saved notes revision.');
+            state.ready = true;
+            this.dynamicsData = { ...DEFAULT_DYNAMICS_DATA, ...state.record.dynamics_analysis };
+            this.allianceData = { ...DEFAULT_ALLIANCE_DATA, ...state.record.external_factors };
+            this.observationTimeline = [...state.record.observation_timeline];
+            this.populateDynamicsForm();
+            this.populateAllianceForm();
+            this.syncTimelineFromStore();
+            this.setAutoSaveStatus('dynamics', 'idle');
+            this.setAutoSaveStatus('alliance', 'idle');
+            controls.forEach((control) => { control.disabled = false; });
+        } catch (error) {
+            state.ready = false;
+            if (!this.isCurrentNotesState(state)) return;
+            this.setAutoSaveStatus('dynamics', 'reload');
+            this.setAutoSaveStatus('alliance', 'reload');
+            showToast('Notes could not be loaded. Reload before editing; contact the operator if access is denied.', { type: 'error' });
+        }
+    }
+
+    writeScopedNotes(change) {
+        const state = this.scopedNotes;
+        const phase = this.currentPhase;
+        if (!this.isCurrentNotesState(state) || !state.ready) {
+            return Promise.reject(new Error('Reload saved notes before retrying.'));
+        }
+        const pending = state.queue.then(async () => {
+            if (!this.isCurrentNotesState(state) || !state.ready) throw new Error('Notes context changed.');
+            const previous = state.record;
+            const payload = {
+                session_id: state.seat.sessionId, move: state.move, phase,
+                expected_revision: previous.revision,
+                dynamics_analysis: change.dynamics ?? previous.dynamics_analysis,
+                external_factors: change.alliance ?? previous.external_factors,
+                observation_timeline: change.observation
+                    ? [...previous.observation_timeline, change.observation] : previous.observation_timeline
+            };
+            try {
+                const saved = await database.saveScopedNotetakerData(payload);
+                if (!this.isCurrentNotesState(state)) return;
+                if (!saved || saved.session_id !== state.seat.sessionId
+                    || saved.session_participant_id !== state.seat.participantId || saved.move !== state.move
+                    || saved.team !== state.seat.teamId || (saved.delegation_id ?? null) !== state.seat.delegationId
+                    || Number(saved.revision) !== Number(previous.revision) + 1) {
+                    throw new Error('Save acknowledgement does not match the notes revision.');
+                }
+                state.record = saved;
+                this.observationTimeline = [...saved.observation_timeline];
+            } catch (error) {
+                // Unknown commit, denial or stale revision: never blindly replay a full-row replacement.
+                state.ready = false;
+                throw error;
+            }
+        });
+        state.queue = pending.catch(() => {});
+        return pending;
+    }
+
+    async saveScopedSection(section, data, { showSuccessToast, showErrorToast }) {
+        const state = this.scopedNotes;
+        try {
+            await this.writeScopedNotes({ [section]: data });
+            if (!this.isCurrentNotesState(state)) return;
+            this.setAutoSaveStatus(section, 'saved');
+            if (showSuccessToast) showToast('Saved to your private move notes', { type: 'success' });
+        } catch (error) {
+            if (this.seatInvalidated || this.destroyed || (state && !this.isCurrentNotesState(state))) return;
+            this.setAutoSaveStatus(section, 'reload');
+            if (showErrorToast) showToast('Save not confirmed. Keep your text and reload saved notes before retrying.', { type: 'error' });
         }
     }
 
@@ -1209,8 +1383,14 @@ export class NotetakerController {
      * Cleanup
      */
     destroy() {
-        this.dynamicsAutoSaveDebounce?.flush?.();
-        this.allianceAutoSaveDebounce?.flush?.();
+        if (this.usesScopedNotes()) {
+            this.destroyed = true;
+            this.dynamicsAutoSaveDebounce?.cancel?.();
+            this.allianceAutoSaveDebounce?.cancel?.();
+        } else {
+            this.dynamicsAutoSaveDebounce?.flush?.();
+            this.allianceAutoSaveDebounce?.flush?.();
+        }
         this.storeUnsubscribers.forEach((unsubscribe) => unsubscribe?.());
         this.storeUnsubscribers = [];
     }

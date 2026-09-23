@@ -9,7 +9,7 @@ vi.mock('../services/database.js', () => ({ database }));
 vi.mock('../services/seatBootstrap.js', () => ({ restoreConfirmedSeat }));
 vi.mock('./session.js', () => ({ sessionStore }));
 vi.mock('../utils/logger.js', () => ({ createLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) }));
-vi.mock('../core/config.js', () => ({ CONFIG: {}, getRoleLimit: () => 1, isHeartbeatFresh: () => true }));
+vi.mock('../core/config.js', () => ({ CONFIG: { HEARTBEAT_INTERVAL_MS: 30000 }, getRoleLimit: () => 1, isHeartbeatFresh: () => true }));
 import { participantsStore } from './participants.js';
 
 beforeEach(() => {
@@ -18,7 +18,7 @@ beforeEach(() => {
     participantsStore.sessionId = 'session';
     participantsStore.currentParticipantId = 'seat';
 });
-afterEach(() => { participantsStore.reset(); vi.unstubAllGlobals(); });
+afterEach(() => { participantsStore.reset(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 it('retains the legacy unified White Cell pagehide disconnect', () => {
     vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
@@ -84,5 +84,24 @@ describe.each([['green_europe_scribe', 'europe'], ['green_shared_facilitator', n
         await participantsStore.sendHeartbeat();
         expect(database.updateHeartbeat).toHaveBeenCalledOnce();
         expect(sessionStore.invalidateSeat).toHaveBeenCalledOnce();
+    });
+    it('invalidates on the next scheduled heartbeat when no revocation event is delivered, then stops renewing', async () => {
+        vi.useFakeTimers();
+        database.updateHeartbeat.mockResolvedValueOnce({ id: 'seat', role, delegation_id: delegation })
+            .mockRejectedValue({ originalError: { code: '42501', message: 'GC03_SEAT_REJOIN_REQUIRED' } });
+        restoreConfirmedSeat.mockRejectedValue({ code: '42501', message: 'GC04_INVALID_SESSION_SEAT' });
+        await participantsStore.startHeartbeat();
+        await vi.advanceTimersByTimeAsync(29999);
+        expect(database.updateHeartbeat).toHaveBeenCalledOnce();
+        expect(sessionStore.invalidateSeat).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(database.updateHeartbeat).toHaveBeenCalledTimes(2);
+        expect(restoreConfirmedSeat).toHaveBeenCalledOnce();
+        expect(restoreConfirmedSeat).toHaveBeenCalledWith({ checkRoute: false });
+        expect(sessionStore.invalidateSeat).toHaveBeenCalledOnce();
+        expect(sessionStore.notify).toHaveBeenCalledOnce();
+        expect(participantsStore.heartbeatInterval).toBeNull();
+        await vi.advanceTimersByTimeAsync(60000);
+        expect(database.updateHeartbeat).toHaveBeenCalledTimes(2);
     });
 });

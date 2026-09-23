@@ -21,6 +21,9 @@ const DEFAULT_TIMER_ALLOCATIONS = Object.freeze({
 const DEFAULT_PLUGIN_STATE = Object.freeze({});
 
 const MOCK_TABLES = [
+    'green_roster_approvals',
+    'gc08_session_creations',
+    'gc08_unified_seat_removals',
     'sessions',
     'game_state',
     'live_demo_runtime_config',
@@ -256,9 +259,11 @@ function normalizeMockState(parsedState = null) {
         }));
     normalized.tables.session_participants = normalized.tables.session_participants.map((seat) => ({
         ...seat,
-        display_name_snapshot: seat.display_name_snapshot
-            ?? normalized.tables.participants.find((participant) => participant.id === seat.participant_id)?.name
-            ?? null
+        // An explicit unknown snapshot is historical evidence too. Only old
+        // mock fixtures lacking the field use the compatibility initializer.
+        display_name_snapshot: seat.display_name_snapshot !== undefined
+            ? seat.display_name_snapshot
+            : normalized.tables.participants.find((participant) => participant.id === seat.participant_id)?.name ?? null
     }));
     delete normalized.tables.training_attempts;
     delete normalized.tables.training_progress_events;
@@ -515,6 +520,49 @@ function nextId(state, tableName) {
 
 function getTimestamp() {
     return new Date().toISOString();
+}
+
+function prepareRegionalTimelineInsert(state, row) {
+    // PostgreSQL's capture_green_timeline_scope BEFORE trigger runs before
+    // RLS WITH CHECK. Resolve persisted evidence before checking the seat.
+    const denied = (message) => ({ data: null, error: { code: '23514', message } });
+    const metadata = row.metadata || {};
+    const related = metadata.related_id || null;
+    const source = related && (state.tables.actions.find((entry) => entry.id === related)
+        || state.tables.requests.find((entry) => entry.id === related));
+    if (related && (!source || source.session_id !== row.session_id)) {
+        return denied('GC02_TIMELINE_SOURCE_MISMATCH');
+    }
+    const message = Object.hasOwn(metadata, 'communication_id')
+        && state.tables.communications.find((entry) => entry.id === metadata.communication_id);
+    if (Object.hasOwn(metadata, 'communication_id') && (!message || message.session_id !== row.session_id
+        || related && message.metadata?.source_proposal_id !== related)) {
+        return denied('GC02_TIMELINE_COMMUNICATION_MISMATCH');
+    }
+    if (Object.hasOwn(metadata, 'thread_id') && !state.tables.communications.some((entry) =>
+        entry.type === 'PROPOSAL_FORWARDED' && entry.session_id === row.session_id
+        && entry.metadata?.thread_id === metadata.thread_id && entry.metadata?.source_proposal_id === related
+        && entry.metadata?.recipient_team === metadata.recipient_team
+        && (entry.delegation_id ?? null) === (source?.delegation_id ?? null))) {
+        return denied('GC02_TIMELINE_THREAD_MISMATCH');
+    }
+    if (Object.hasOwn(metadata, 'review_request_id') && !state.tables.communications.some((entry) =>
+        entry.id === metadata.review_request_id && entry.session_id === row.session_id
+        && entry.type === 'PROPOSAL_RESPONSE_REVIEW' && entry.metadata?.source_proposal_id === related
+        && entry.metadata?.thread_id === metadata.thread_id)) {
+        return denied('GC02_TIMELINE_REVIEW_MISMATCH');
+    }
+    const owner = source ? source.team : message ? message.owner_team : row.team;
+    const delegation = (source ? source.delegation_id : message ? message.delegation_id : row.delegation_id) ?? null;
+    if (row.owner_team != null && row.owner_team !== owner
+        || row.delegation_id != null && row.delegation_id !== delegation) {
+        return denied('GC02_TIMELINE_SCOPE_MISMATCH');
+    }
+    if (owner === 'green' && !['asian_pacific', 'europe'].includes(delegation)) {
+        return denied('GC02_GREEN_DELEGATION_REQUIRED');
+    }
+    if (owner !== 'green' && delegation !== null) return denied('GC02_UNEXPECTED_DELEGATION');
+    return { data: { ...row, owner_team: owner, delegation_id: delegation }, error: null };
 }
 
 function normalizeInsertRow(tableName, payload, state) {
@@ -1176,6 +1224,7 @@ function liveDemoCanWriteTeamSession(state, authUserId, sessionId, teamId, allow
 }
 
 function canReadTableRow(state, tableName, row, authUserId) {
+    if (['green_roster_approvals', 'gc08_session_creations', 'gc08_unified_seat_removals'].includes(tableName)) return false;
     if (tableName === 'research_note_revision') {
         const note = state.tables.research_note.find((entry) => entry.note_id === row.note_id);
         return Boolean(note && canReadTableRow(state, 'research_note', note, authUserId));
@@ -1299,6 +1348,7 @@ function canReadTableRow(state, tableName, row, authUserId) {
 }
 
 function canInsertTableRow(state, tableName, row, authUserId) {
+    if (['green_roster_approvals', 'gc08_session_creations', 'gc08_unified_seat_removals'].includes(tableName)) return false;
     if (isRegionalSession(state, row.session_id) && !regionalCanWrite(state, tableName, row, null, authUserId)) return false;
     switch (tableName) {
         case 'actions':
@@ -1367,6 +1417,7 @@ function canInsertTableRow(state, tableName, row, authUserId) {
 }
 
 function canUpdateTableRow(state, tableName, currentRow, nextRow, authUserId) {
+    if (['green_roster_approvals', 'gc08_session_creations', 'gc08_unified_seat_removals'].includes(tableName)) return false;
     if ((isRegionalSession(state, currentRow.session_id) || isRegionalSession(state, nextRow.session_id))
         && !regionalCanWrite(state, tableName, nextRow, currentRow, authUserId)) return false;
     switch (tableName) {
@@ -1630,6 +1681,54 @@ function authorizeDemoOperator(state, {
     };
 }
 
+function usableGreenRoster(row) {
+    const s = row?.snapshot;
+    return Boolean(row?.version && row?.approved_by?.trim() && row?.approved_at
+        && ['asian_pacific', 'europe', 'source_references'].every((key) => Array.isArray(s?.[key]) && s[key].length)
+        && s?.aliases && typeof s.aliases === 'object' && !Array.isArray(s.aliases));
+}
+
+function configureGreenSession(state, sid, rosterVersion, model, topology = 2) {
+    const fail = (message, code = '23514') => ({ data: null, error: { code, message } });
+    if (!liveDemoHasOperatorGrant(state, getCurrentAuthUserId(), 'gamemaster')) return fail('GC08_GM_REQUIRED', '42501');
+    const session = state.tables.sessions.find((row) => row.id === sid);
+    if (!session || session.status !== 'active' || session.is_protected || session.session_classification !== 'live_exercise') return fail('GC02_SESSION_NOT_CONFIGURABLE');
+    if (session.topology_frozen_at || Object.entries(state.tables).some(([table, rows]) =>
+        !['operator_grants', 'game_state'].includes(table) && rows.some((row) => row.session_id === sid))) return fail('GC04A_SEAT_MODEL_FROZEN');
+    const roster = state.tables.green_roster_approvals.find((row) => row.version === rosterVersion);
+    if (model && !roster || rosterVersion && !roster) return fail('GC02_APPROVED_ROSTER_REQUIRED');
+    if (![1, 2].includes(topology) || topology === 1 && rosterVersion) return fail('GC02_UNKNOWN_TOPOLOGY');
+    Object.assign(session, { session_topology_version: topology,
+        green_roster_version: rosterVersion || null,
+        green_roster_snapshot: roster ? cloneValue({ ...roster.snapshot, approved_by: roster.approved_by, approved_at: roster.approved_at }) : null,
+        green_seat_model: model || null });
+    return { data: cloneValue(session), error: null };
+}
+
+function createConfiguredLiveSession(state, params) {
+    const fail = (message, code = '23514') => ({ data: null, error: { code, message } });
+    const uid = getCurrentAuthUserId();
+    if (!liveDemoHasOperatorGrant(state, uid, 'gamemaster')) return fail('GC08_GM_REQUIRED', '42501');
+    const request = { name: String(params.requested_name || '').trim(), code: String(params.requested_session_code || '').trim().toUpperCase(),
+        description: String(params.requested_description || '').trim() || null, model: params.requested_green_configuration, roster: params.requested_roster_version ?? null };
+    if (!params.requested_request_key || !request.name || !/^[A-Z0-9]{3,50}$/.test(request.code)
+        || !['unified_v1', 'shared_facilitator_v1'].includes(request.model)) return fail('GC08_INVALID_SETUP', '22023');
+    const receipt = state.tables.gc08_session_creations.find((r) => r.operator_id === uid && r.request_key === params.requested_request_key);
+    if (receipt) return JSON.stringify(receipt.request) !== JSON.stringify(request)
+        ? fail('GC08_RETRY_CONFLICT', 'PT409') : { data: cloneValue(state.tables.sessions.find((s) => s.id === receipt.session_id)), error: null };
+    const regional = request.model === 'shared_facilitator_v1';
+    if (regional && !state.tables.green_roster_approvals.some((r) => r.version === request.roster && usableGreenRoster(r))) return fail('GC08_APPROVED_ROSTER_REQUIRED');
+    if (!regional && request.roster !== null) return fail('GC08_UNIFIED_ROSTER_CONFLICT', '22023');
+    if (state.tables.sessions.some((s) => s.session_code === request.code)) return fail('Session code already exists', '23505');
+    const created = createLiveDemoSession(state, params);
+    if (created.error) return created;
+    let result = created;
+    if (regional) result = configureGreenSession(state, created.data.id, request.roster, request.model);
+    if (result.error) return result;
+    state.tables.gc08_session_creations.push({ operator_id: uid, request_key: params.requested_request_key, request, session_id: result.data.id });
+    return result;
+}
+
 function createLiveDemoSession(state, {
     requested_name,
     requested_session_code,
@@ -1645,6 +1744,7 @@ function createLiveDemoSession(state, {
         status: 'active',
         session_classification: 'live_exercise',
         is_protected: false,
+        session_topology_version: 1,
         session_code: String(requested_session_code || '').trim().toUpperCase(),
         metadata: {
             session_code: String(requested_session_code || '').trim().toUpperCase(),
@@ -2164,6 +2264,18 @@ function operatorRemoveSessionParticipant(state, {
 
     const participant = state.tables.participants.find((entry) => entry.id === seat.participant_id);
     const removedAt = getTimestamp();
+    if (!regional) {
+        if (state.tables.gc08_unified_seat_removals.some((entry) => entry.seat_id === seat.id)) {
+            return { data: null, error: { code: '23505', message: 'Duplicate immutable removal receipt.' } };
+        }
+        state.tables.gc08_unified_seat_removals.push({
+            seat_id: seat.id, session_id: seat.session_id, participant_id: seat.participant_id,
+            role: seat.role, delegation_id: seat.delegation_id ?? null,
+            session_topology_version: session.session_topology_version ?? null,
+            display_name_snapshot: seat.display_name_snapshot ?? null,
+            joined_at: seat.joined_at ?? null, removed_at: removedAt, removed_by_auth_user_id: authUserId
+        });
+    }
     const removedSeat = {
         ...seat,
         is_active: false,
@@ -3840,7 +3952,12 @@ class MockQueryBuilder {
         let rows = tableRows;
 
         if (this.operation === 'insert') {
-            const deniedInsert = this.payload.some((entry) => !canInsertTableRow(
+            const prepared = this.payload.map((entry) => this.tableName === 'timeline' && isRegionalSession(state, entry.session_id)
+                ? prepareRegionalTimelineInsert(state, entry) : { data: entry, error: null });
+            const invalid = prepared.find((entry) => entry.error);
+            if (invalid) return invalid;
+            const insertPayload = prepared.map((entry) => entry.data);
+            const deniedInsert = insertPayload.some((entry) => !canInsertTableRow(
                 state,
                 this.tableName,
                 entry,
@@ -3856,7 +3973,7 @@ class MockQueryBuilder {
 
             const constraintError = getInsertConstraintError(
                 this.tableName,
-                this.payload,
+                insertPayload,
                 tableRows
             );
             if (constraintError) {
@@ -3866,7 +3983,7 @@ class MockQueryBuilder {
                 };
             }
 
-            const insertedRows = this.payload.map((entry) => normalizeInsertRow(this.tableName, entry, state));
+            const insertedRows = insertPayload.map((entry) => normalizeInsertRow(this.tableName, entry, state));
             state.tables[this.tableName] = [...tableRows, ...insertedRows];
             writeMockState(state);
             rows = insertedRows;
@@ -4144,6 +4261,20 @@ export function createE2EMockSupabaseClient() {
                 return mutateMockState((state) => authorizeDemoOperator(state, params));
             }
 
+            if (functionName === 'list_approved_green_rosters') {
+                const state = readMockState();
+                if (!liveDemoHasOperatorGrant(state, getCurrentAuthUserId(), 'gamemaster')) return { data: null, error: { code: '42501', message: 'GC08_GM_REQUIRED' } };
+                return { data: cloneValue(state.tables.green_roster_approvals.filter(usableGreenRoster)
+                    .sort((a, b) => b.approved_at.localeCompare(a.approved_at) || a.version.localeCompare(b.version))), error: null };
+            }
+            if (functionName === 'create_configured_live_session') {
+                return mutateMockState((state) => createConfiguredLiveSession(state, params));
+            }
+            if (functionName === 'configure_session_green_shared_facilitator' || functionName === 'configure_session_green_topology') {
+                return mutateMockState((state) => functionName === 'configure_session_green_shared_facilitator'
+                    ? configureGreenSession(state, params.sid, params.roster_version, 'shared_facilitator_v1')
+                    : configureGreenSession(state, params.requested_session_id, params.requested_roster_version, null, params.requested_topology_version));
+            }
             if (functionName === 'create_live_demo_session') {
                 return mutateMockState((state) => createLiveDemoSession(state, params));
             }

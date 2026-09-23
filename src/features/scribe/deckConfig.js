@@ -269,17 +269,30 @@ export function expandScribeDeckSections(slides = []) {
             .map((slide) => [slide.n, {
                 ...slide,
                 slideKey: `deck-${slide.n}`,
-                slideType: 'image',
-                sortOrder: slide.n
+                slideType: slide.kind === 'guidance' ? 'guidance' : 'image',
+                sortOrder: slide.kind === 'guidance' ? slide.n - 1000 : slide.n
             }])
     );
 
-    return SCRIBE_DECK_SECTIONS.map((section) => ({
+    const guidanceSlides = [...slideMap.values()].filter((slide) => slide.slideType === 'guidance');
+    return [...(guidanceSlides.length ? [{
+        id: 'green-workflow-guide', label: 'Green workflow and regional sections',
+        description: 'Current text guidance; regional sections are labeled reference material in the shared deck.',
+        slides: guidanceSlides
+    }] : []), ...SCRIBE_DECK_SECTIONS.map((section) => ({
         ...section,
         slides: section.slideNumbers
             .map((slideNumber) => slideMap.get(slideNumber))
-            .filter(Boolean)
-    }));
+            .filter((slide) => slide && slide.slideType !== 'guidance')
+    }))];
+}
+
+export function renderScribeGuidanceSlide(slide) {
+    const escape = (value) => String(value || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+    return `<article class="scribe-action-slide"><h2>${escape(slide.title)}</h2>${
+        (Array.isArray(slide.paragraphs) ? slide.paragraphs : []).map((paragraph) => `<p>${escape(paragraph)}</p>`).join('')
+    }</article>`;
 }
 
 export function flattenScribeDeckSlides(sections = []) {

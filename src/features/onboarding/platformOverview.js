@@ -21,6 +21,7 @@ export function getPlatformOverviewCaptionsUrl(baseUrl = import.meta.env?.BASE_U
 }
 
 export const PLATFORM_OVERVIEW_MEDIA = Object.freeze({
+    notice: 'Historical overview: role narration predates the current Green workflows. Follow the role-specific Start Here text for current handoff, RFI and regional ownership instructions. The transcript below preserves what the video says.',
     videoUrl,
     posterUrl,
     captionsUrl: getPlatformOverviewCaptionsUrl(),

@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seatStorageKey } from '../../src/core/seatContext.js';
+import { adaptGreenGuide } from '../../src/features/onboarding/greenGuidance.js';
 
 import {
     buildFollowAlongNarration,
@@ -14,7 +15,8 @@ import {
     SME_ROLES,
     TEAM_OPTIONS,
     getSmeRoleDisplayLabel,
-    getTeamRoleLabels
+    getTeamRoleLabels,
+    resolveTeamContext
 } from '../../src/core/teamContext.js';
 
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -52,14 +54,14 @@ async function extractNamedFunction(relativePath, functionName, nextFunctionName
 
 function captureConfig(body, context, dependencies = {}) {
     let captured = null;
-    const names = ['mountFollowAlong', 'seatStorageKey', ...Object.keys(dependencies)];
+    const names = ['mountFollowAlong', 'seatStorageKey', 'adaptGreenGuide', ...Object.keys(dependencies)];
     const values = [(config) => {
         captured = config;
         return Object.freeze({ destroy() {} });
     // Export reusable narration profiles without binding them to a live seat.
     // Explicit null preserves the catalog key even if this module is embedded
     // in a process that already has a confirmed participant context.
-    }, (key) => seatStorageKey(key, null), ...Object.values(dependencies)];
+    }, (key) => seatStorageKey(key, null), adaptGreenGuide, ...Object.values(dependencies)];
     const invoke = new Function(...names, `return function buildStartHereProfile() {${body}\n}`)(...values);
     invoke.call(context);
     if (!captured) throw new Error('Start Here builder did not call mountFollowAlong().');
@@ -71,7 +73,7 @@ function profileFromConfig(config) {
         {
             kind: 'role-focus',
             title: `${config.roleLabel} role focus`,
-            text: buildFollowAlongNarration({
+            text: config.textOnly ? `${config.roleLabel}. ${config.summary}` : buildFollowAlongNarration({
                 storageKey: config.storageKey,
                 roleLabel: config.roleLabel,
                 summary: config.summary
@@ -81,13 +83,16 @@ function profileFromConfig(config) {
             kind: 'role-surface',
             stepIndex: index,
             title: step.title,
-            text: buildFollowAlongNarration({ step })
+            text: config.textOnly
+                ? [step.title, step.body, step.narrative, ...(step.details || [])].filter(Boolean).join(' ')
+                : buildFollowAlongNarration({ step })
         }))
     ];
     return {
         storageKey: config.storageKey,
         roleLabel: config.roleLabel,
         title: config.title,
+        textOnly: config.textOnly === true,
         slides
     };
 }
@@ -106,6 +111,7 @@ async function buildProfiles() {
     for (const team of TEAM_OPTIONS) {
         const labels = getTeamRoleLabels(team.id);
         const teamContext = {
+            teamId: team.id,
             facilitatorLabel: labels.facilitator,
             scribeLabel: labels.scribe,
             notetakerLabel: labels.notetaker
@@ -125,6 +131,26 @@ async function buildProfiles() {
         })));
         profiles.push(profileFromConfig(captureConfig(facilitatorBody, common)));
         profiles.push(profileFromConfig(captureConfig(notetakerBody, common)));
+    }
+
+    // Deterministic catalog contexts, never live seats or approval evidence.
+    for (const shared of [true, false]) {
+        const model = shared ? 'shared_facilitator_v1' : 'regional_pairs_v1';
+        const seats = ['asian_pacific', 'europe'].flatMap((region) =>
+            ['scribe', 'notetaker', ...(!shared ? ['facilitator'] : [])].map((role) => ({
+                role: `green_${region}_${role}`, delegationId: region, semanticRole: role, greenSeatModel: model
+            })));
+        if (shared) seats.push({ role: 'green_shared_facilitator', delegationId: null,
+            semanticRole: 'facilitator', greenSeatModel: model });
+        for (const seat of seats) {
+            const teamContext = resolveTeamContext({ seat, documentRef: { body: { dataset: { team: 'green' } } } });
+            const body = seat.semanticRole === 'scribe' ? observerAndScribeBody
+                : seat.semanticRole === 'notetaker' ? notetakerBody : facilitatorBody;
+            const config = captureConfig(body, { teamId: 'green', teamLabel: teamContext.teamLabel, teamContext,
+                onboarding: null, isReadOnly: false, isProposalTeam: () => true, isTeamActionWizardEnabled: () => false });
+            config.storageKey = `followalong:green:${model}:${seat.role}`;
+            profiles.push(profileFromConfig(config));
+        }
     }
 
     for (const mode of ['lead', 'support']) {
@@ -154,7 +180,9 @@ async function buildProfiles() {
 }
 
 export async function buildStartHereAudioScripts() {
-    const profiles = await buildProfiles();
+    const catalog = await buildProfiles();
+    const profiles = catalog.filter((profile) => !profile.textOnly);
+    const textOnlyProfiles = catalog.filter((profile) => profile.textOnly);
     const unique = new Map();
 
     profiles.forEach((profile) => {
@@ -195,6 +223,8 @@ export async function buildStartHereAudioScripts() {
         clipCount: entries.length,
         scriptBundleSha256: sha256(canonical),
         profiles,
+        textOnlyProfileCount: textOnlyProfiles.length,
+        textOnlyProfiles,
         entries
     };
 }

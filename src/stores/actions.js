@@ -11,6 +11,7 @@
  */
 
 import { database } from '../services/database.js';
+import { getConfirmedSeat } from '../core/seatContext.js';
 import { createLogger } from '../utils/logger.js';
 import { ENUMS } from '../core/enums.js';
 
@@ -85,10 +86,12 @@ class ActionsStore {
         }
 
         this.sessionId = sessionId;
+        const generation = this.generation = (this.generation || 0) + 1;
         logger.info('Initializing actions store for session:', sessionId);
 
         try {
             await this.loadActions();
+            if (generation !== this.generation) return [];
             this.initialized = true;
             this.notify('initialized', this.actions);
             return this.actions;
@@ -108,7 +111,9 @@ class ActionsStore {
         }
 
         try {
-            const data = await database.fetchActions(this.sessionId);
+            const sessionId = this.sessionId, seat = getConfirmedSeat(), generation = this.generation;
+            const data = await database.fetchActions(sessionId);
+            if (sessionId !== this.sessionId || seat !== getConfirmedSeat() || generation !== this.generation) return;
 
             this.actions = data || [];
             logger.info(`Loaded ${this.actions.length} actions`);
@@ -121,17 +126,19 @@ class ActionsStore {
 
     async reconcileActions() {
         if (!this.sessionId) return [];
+        const sessionId = this.sessionId, seat = getConfirmedSeat(), generation = this.generation;
 
         const atQueryStart = new Map(this.actions
             .filter((action) => action?.id)
             .map((action) => [action.id, getActionSyncFingerprint(action)]));
         const fetched = await database.fetchActions(this.sessionId) || [];
+        if (sessionId !== this.sessionId || seat !== getConfirmedSeat() || generation !== this.generation) return [];
         const reconciled = new Map(fetched.filter((action) => action?.id).map((action) => [action.id, action]));
 
         this.actions.forEach((action) => {
             if (!action?.id) return;
             const changedDuringQuery = atQueryStart.get(action.id) !== getActionSyncFingerprint(action);
-            if (!reconciled.has(action.id) || changedDuringQuery) reconciled.set(action.id, action);
+            if (changedDuringQuery) reconciled.set(action.id, action);
         });
 
         const discovered = fetched.filter((action) => (
@@ -452,6 +459,7 @@ class ActionsStore {
      * Reset store state
      */
     reset() {
+        this.generation = (this.generation || 0) + 1;
         this.actions = [];
         this.filters = {
             move: null,

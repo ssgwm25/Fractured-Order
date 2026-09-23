@@ -13,6 +13,26 @@ import { database, mergeNotetakerRecord, normalizeArtifactWorkflowRecord } from 
 describe('GC-02 database storage boundary', () => {
     beforeEach(() => vi.clearAllMocks());
 
+    it('GC08 sends only requested configuration and approval ID in one creation RPC', async () => {
+        const session = { id: 'new', session_topology_version: 2, green_seat_model: 'shared_facilitator_v1',
+            green_roster_version: 'green-roster-v1', green_roster_snapshot: { server: true } };
+        supabase.rpc.mockResolvedValue({ data: session, error: null });
+        await expect(database.createConfiguredSession({ name: 'New', session_code: 'GC08', green_configuration: 'shared_facilitator_v1',
+            roster_version: 'green-roster-v1', green_roster_snapshot: { forged: true }, role: 'white' }, 'key')).resolves.toEqual(session);
+        expect(supabase.rpc).toHaveBeenCalledTimes(1);
+        expect(supabase.rpc).toHaveBeenCalledWith('create_configured_live_session', {
+            requested_name: 'New', requested_session_code: 'GC08', requested_description: null,
+            requested_green_configuration: 'shared_facilitator_v1', requested_roster_version: 'green-roster-v1', requested_request_key: 'key'
+        });
+        expect(supabase.from).not.toHaveBeenCalled();
+    });
+
+    it('GC08 refuses a unified fallback response for a regional request', async () => {
+        supabase.rpc.mockResolvedValueOnce({ data: { id: 'wrong', session_topology_version: 1 }, error: null });
+        await expect(database.createConfiguredSession({ green_configuration: 'shared_facilitator_v1', roster_version: 'green-roster-v1' }, 'key')).rejects.toThrow('confirmed');
+        expect(supabase.rpc).toHaveBeenCalledTimes(1);
+    });
+
     it('GC07 sends explicit scope and the captured RFI revision through RPCs without table fallback', async () => {
         const rfi = { id: 'rfi', session_id: 'regional', team: 'green', delegation_id: 'europe', revision_number: 2,
             workflow_state: 'returned_to_team', query: 'Synthetic clarification?', categories: ['Other'] };

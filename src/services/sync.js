@@ -19,6 +19,8 @@ import { participantsStore } from '../stores/participants.js';
 import { communicationsStore } from '../stores/communications.js';
 import { sessionStore } from '../stores/session.js';
 import { restoreConfirmedSeat } from './seatBootstrap.js';
+import { regionalDiagnostic } from './regionalDiagnostics.js';
+import { getConfirmedSeat, onSeatCleanup, seatStorageKey } from '../core/seatContext.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('SyncService');
@@ -39,6 +41,10 @@ export const SYNC_STATUS = {
  */
 class SyncService {
     constructor() {
+        this.generation = 0;
+        onSeatCleanup((seat) => {
+            if (seat.sessionId === this.sessionId) void this.reset();
+        });
         /** @type {string} */
         this.status = SYNC_STATUS.IDLE;
 
@@ -77,20 +83,24 @@ class SyncService {
             return;
         }
 
-        if (this.initialized && this.sessionId === sessionId) {
+        const contextKey = getConfirmedSeat() ? seatStorageKey('') : `operator:${sessionId}`;
+        if (this.initialized && this.sessionId === sessionId && this.contextKey === contextKey) {
             logger.info('Sync service already initialized for this session');
             return;
         }
 
-        if (this.initializationPromise && this.sessionId === sessionId) {
+        if (this.initializationPromise && this.sessionId === sessionId && this.contextKey === contextKey) {
             return this.initializationPromise;
         }
 
-        if ((this.initialized || this.initializationPromise) && this.sessionId && this.sessionId !== sessionId) {
+        if ((this.initialized || this.initializationPromise) && this.sessionId
+            && (this.sessionId !== sessionId || this.contextKey !== contextKey)) {
             await this.reset();
         }
 
         this.sessionId = sessionId;
+        this.contextKey = contextKey;
+        const generation = ++this.generation;
         this.setStatus(SYNC_STATUS.SYNCING);
 
         logger.info('Initializing sync service for session:', sessionId);
@@ -98,9 +108,12 @@ class SyncService {
         this.initializationPromise = (async () => {
             // Initialize all stores
             await this.initializeStores(participantId);
+            if (generation !== this.generation) return;
+            this.contextKey = getConfirmedSeat() ? seatStorageKey('') : `operator:${sessionId}`;
 
             // Initialize real-time service
             await realtimeService.initialize(sessionId);
+            if (generation !== this.generation) return;
 
             // Set up real-time handlers
             this.setupRealtimeHandlers();
@@ -113,6 +126,7 @@ class SyncService {
                 requestsStore.reconcileRequests(),
                 communicationsStore.reconcileCommunications()
             ]);
+            if (generation !== this.generation) return;
 
             // Set up online/offline handlers
             this.setupConnectivityHandlers();
@@ -127,11 +141,12 @@ class SyncService {
 
             logger.info('Sync service initialized');
         })().catch((err) => {
+            if (generation !== this.generation) return;
             logger.error('Failed to initialize sync service:', err);
             this.setStatus(SYNC_STATUS.ERROR);
             throw err;
         }).finally(() => {
-            this.initializationPromise = null;
+            if (generation === this.generation) this.initializationPromise = null;
         });
 
         return this.initializationPromise;
@@ -142,12 +157,14 @@ class SyncService {
      * @private
      */
     async initializeStores(participantId = null) {
+        const generation = this.generation;
         const resolvedParticipantId = participantId || sessionStore.getSessionParticipantId?.() || null;
 
         logger.info('Initializing stores...');
 
         // Restore the participant seat before protected session reads on reload.
         await participantsStore.initialize(this.sessionId, resolvedParticipantId);
+        if (generation !== this.generation) return;
 
         await Promise.all([
             gameStateStore.initialize(this.sessionId),
@@ -276,6 +293,7 @@ class SyncService {
         }
 
         this.syncDebounceTimer = setTimeout(async () => {
+            const generation = this.generation;
             logger.info('Resyncing all data...');
             this.setStatus(SYNC_STATUS.SYNCING);
 
@@ -288,22 +306,26 @@ class SyncService {
                         throw error;
                     }
                 }
+                if (generation !== this.generation) return;
                 await Promise.all([
                     gameStateStore.initialize(this.sessionId),
                     actionsStore.reconcileActions(),
                     requestsStore.reconcileRequests(),
                     timelineStore.loadEvents(),
                     participantsStore.loadParticipants({
-                        tolerateError: true
+                        tolerateError: false
                     }),
                     communicationsStore.reconcileCommunications()
                 ]);
 
+                if (generation !== this.generation) return;
                 this.lastSyncTime = Date.now();
                 this.setStatus(SYNC_STATUS.SYNCED);
                 logger.info('Resync complete');
             } catch (err) {
-                logger.error('Resync failed:', err);
+                if (generation !== this.generation) return;
+                logger.warn('Reconciliation incomplete', { reason: 'authorized_snapshot_unavailable' });
+                regionalDiagnostic('reconciliation_missed');
                 this.setStatus(SYNC_STATUS.ERROR);
             }
         }, 500);
@@ -433,6 +455,8 @@ class SyncService {
      * Reset all stores and service
      */
     async reset() {
+        this.generation += 1;
+        this.initializationPromise = null;
         logger.info('Resetting sync service');
 
         if (this.syncDebounceTimer) {
@@ -450,9 +474,6 @@ class SyncService {
         });
         this.unsubscribers = [];
 
-        // Reset real-time service
-        await realtimeService.reset();
-
         // Reset all stores
         gameStateStore.reset();
         actionsStore.reset();
@@ -466,6 +487,7 @@ class SyncService {
         this.initialized = false;
         this.lastSyncTime = 0;
         this.setStatus(SYNC_STATUS.IDLE);
+        await realtimeService.reset();
 
         logger.info('Sync service reset complete');
     }

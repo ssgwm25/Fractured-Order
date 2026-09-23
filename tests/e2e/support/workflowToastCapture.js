@@ -2,9 +2,10 @@ export const WORKFLOW_TOAST_CAPTURE_KEY = '__esgPlaywrightWorkflowToasts';
 
 export function classifyWorkflowToastEntries(entries, expectedMessage) {
     const normalizedEntries = Array.isArray(entries) ? entries : [];
-    const expected = String(expectedMessage || '').trim();
+    const expected = (Array.isArray(expectedMessage) ? expectedMessage : [expectedMessage])
+        .map((message) => String(message || '').trim()).filter(Boolean);
     const success = normalizedEntries.find((entry) => (
-        expected && String(entry?.text || '').includes(expected)
+        expected.some((message) => String(entry?.text || '').includes(message))
     ));
 
     if (success) {

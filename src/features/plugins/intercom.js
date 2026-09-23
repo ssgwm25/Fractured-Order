@@ -2,6 +2,8 @@ import { createLogger } from '../../utils/logger.js';
 import {
     ROLE_SURFACES,
     TEAM_OPTIONS,
+    GREEN_DELEGATIONS,
+    buildRegionalRole,
     buildTeamRole
 } from '../../core/teamContext.js';
 
@@ -28,7 +30,10 @@ const PREFERRED_MIME_TYPES = Object.freeze([
 ]);
 
 export const INTERCOM_SCRIBE_TARGET_ROLES = Object.freeze(
-    TEAM_OPTIONS.map((team) => buildTeamRole(team.id, ROLE_SURFACES.FACILITATOR))
+    [
+        ...TEAM_OPTIONS.map((team) => buildTeamRole(team.id, ROLE_SURFACES.FACILITATOR)),
+        ...Object.keys(GREEN_DELEGATIONS).map((region) => buildRegionalRole(region, ROLE_SURFACES.FACILITATOR))
+    ]
 );
 
 async function getSupabaseClient() {
@@ -215,6 +220,7 @@ export function isIntercomAnnouncementForScribe(payload, {
     return Boolean(
         normalizedPayload
         && normalizedPayload.session_id === sessionId
+        && INTERCOM_SCRIBE_TARGET_ROLES.includes(role)
         && normalizedPayload.target_roles.includes(role)
     );
 }
@@ -571,7 +577,7 @@ export class WhiteCellIntercomPlugin {
                 <div class="intercom-panel-head">
                     <div>
                         <h4 class="intercom-title" id="intercomPluginTitle">Intercom Announcement</h4>
-                        <p class="intercom-copy">Record a short live voice announcement and send it to Blue, Green, Red, and Industry Scribe views.</p>
+                        <p class="intercom-copy">Record a session-wide announcement for Blue, Red, Industry and Green Scribes, including both Asia-Pacific and Europe in regional sessions. Use addressed Communications for private content.</p>
                     </div>
                     <div class="intercom-meta" aria-label="Intercom targets">
                         <span>Target: all Scribes</span>
@@ -928,6 +934,9 @@ export class ScribeIntercomReceiver {
         this.currentObjectUrl = null;
         this.dismissTimer = null;
         this.retryCreateSignedUrl = false;
+        this.announcementGeneration = 0;
+        this.destroyed = false;
+        this.audioListeners = null;
         this.supabase = null;
         this.handleBroadcast = (event) => this.handleAnnouncement(event?.payload);
         this.handlePlayClick = () => this.playCurrentAudio({ userInitiated: true });
@@ -942,6 +951,7 @@ export class ScribeIntercomReceiver {
         ensureIntercomStyles(this.document);
         this.ensureHost();
         const supabaseClient = await getSupabaseClient();
+        if (this.destroyed) return;
         this.supabase = supabaseClient;
         this.channel = supabaseClient.channel(getIntercomChannelName(this.sessionId), {
             config: {
@@ -1007,12 +1017,15 @@ export class ScribeIntercomReceiver {
             clearTimeout(this.dismissTimer);
         }
 
+        const generation = this.announcementGeneration;
         this.dismissTimer = setTimeout(() => {
-            this.dismissIndicator();
+            if (this.isCurrentAnnouncement(generation)) this.dismissIndicator();
         }, INTERCOM_NOTICE_DISMISS_MS);
     }
 
     dismissIndicator() {
+        this.announcementGeneration += 1;
+        this.cleanupAudio();
         if (this.dismissTimer) {
             clearTimeout(this.dismissTimer);
             this.dismissTimer = null;
@@ -1025,6 +1038,7 @@ export class ScribeIntercomReceiver {
     }
 
     async handleAnnouncement(payload) {
+        if (this.destroyed) return;
         if (!isIntercomAnnouncementForScribe(payload, {
             sessionId: this.sessionId,
             role: this.role
@@ -1034,6 +1048,9 @@ export class ScribeIntercomReceiver {
         }
 
         const announcement = normalizeIntercomAnnouncementPayload(payload);
+        const generation = ++this.announcementGeneration;
+        clearTimeout(this.dismissTimer);
+        this.dismissTimer = null;
         this.cleanupAudio();
         this.retryCreateSignedUrl = false;
         this.renderIndicator({
@@ -1045,8 +1062,10 @@ export class ScribeIntercomReceiver {
 
         try {
             const audioUrl = await this.resolveAudioUrl(announcement);
-            await this.loadAndPlayAudio(audioUrl, announcement);
+            if (!this.isCurrentAnnouncement(generation)) return;
+            await this.loadAndPlayAudio(audioUrl, announcement, generation);
         } catch (error) {
+            if (!this.isCurrentAnnouncement(generation)) return;
             logger.error('Failed to prepare intercom announcement:', error);
             this.renderIndicator({
                 state: 'error',
@@ -1071,8 +1090,9 @@ export class ScribeIntercomReceiver {
         return this.createSignedStorageUrl(announcement);
     }
 
-    async createSignedStorageUrl(announcement) {
+    async createSignedStorageUrl(announcement, generation = this.announcementGeneration) {
         const supabaseClient = this.supabase || await getSupabaseClient();
+        if (!this.isCurrentAnnouncement(generation)) return null;
         this.supabase = supabaseClient;
         const { data, error } = await supabaseClient.storage
             .from(announcement.storage_bucket)
@@ -1085,10 +1105,17 @@ export class ScribeIntercomReceiver {
         return data.signedUrl;
     }
 
-    async loadAndPlayAudio(audioUrl, announcement) {
-        this.audio = new Audio(audioUrl);
-        this.audio.preload = 'auto';
-        this.audio.addEventListener('ended', () => {
+    isCurrentAnnouncement(generation, audio = this.audio) {
+        return !this.destroyed && generation === this.announcementGeneration && audio === this.audio;
+    }
+
+    async loadAndPlayAudio(audioUrl, announcement, generation = this.announcementGeneration) {
+        if (!this.isCurrentAnnouncement(generation)) return;
+        const audio = new Audio(audioUrl);
+        this.audio = audio;
+        audio.preload = 'auto';
+        const ended = () => {
+            if (!this.isCurrentAnnouncement(generation, audio)) return;
             this.renderIndicator({
                 state: 'played',
                 title: 'Announcement played',
@@ -1096,23 +1123,29 @@ export class ScribeIntercomReceiver {
                 showDismiss: true
             });
             this.scheduleDismiss();
-        });
-        this.audio.addEventListener('error', () => {
-            void this.handleAudioError(announcement);
-        });
+        };
+        const error = () => {
+            void this.handleAudioError(announcement, generation, audio);
+        };
+        this.audioListeners = { ended, error };
+        audio.addEventListener('ended', ended);
+        audio.addEventListener('error', error);
 
         await this.playCurrentAudio();
     }
 
     async playCurrentAudio({ userInitiated = false } = {}) {
-        if (!this.audio) {
+        const audio = this.audio;
+        const generation = this.announcementGeneration;
+        if (!audio || this.destroyed) {
             return;
         }
 
         try {
             // Browser autoplay policies may block automatic playback unless the Scribe client
             // has had a prior user interaction; the UI surfaces a click-to-play fallback.
-            await this.audio.play();
+            await audio.play();
+            if (!this.isCurrentAnnouncement(generation, audio)) return;
             this.renderIndicator({
                 state: 'playing',
                 title: 'Incoming announcement',
@@ -1122,6 +1155,7 @@ export class ScribeIntercomReceiver {
                 showDismiss: true
             });
         } catch (error) {
+            if (!this.isCurrentAnnouncement(generation, audio)) return;
             logger.warn('Intercom autoplay blocked or failed:', error);
             this.renderIndicator({
                 state: 'blocked',
@@ -1133,7 +1167,8 @@ export class ScribeIntercomReceiver {
         }
     }
 
-    async handleAudioError(announcement) {
+    async handleAudioError(announcement, generation = this.announcementGeneration, audio = this.audio) {
+        if (!this.isCurrentAnnouncement(generation, audio)) return;
         if (
             announcement.delivery_mode === INTERCOM_STORAGE_DELIVERY
             && announcement.storage_bucket
@@ -1143,10 +1178,12 @@ export class ScribeIntercomReceiver {
             this.retryCreateSignedUrl = true;
             try {
                 const signedUrl = await this.createSignedStorageUrl(announcement);
+                if (!this.isCurrentAnnouncement(generation, audio)) return;
                 this.cleanupAudio();
-                await this.loadAndPlayAudio(signedUrl, announcement);
+                await this.loadAndPlayAudio(signedUrl, announcement, generation);
                 return;
             } catch (error) {
+                if (!this.isCurrentAnnouncement(generation, audio)) return;
                 logger.error('Intercom signed URL refresh failed:', error);
             }
         }
@@ -1161,9 +1198,15 @@ export class ScribeIntercomReceiver {
 
     cleanupAudio() {
         if (this.audio) {
-            this.audio.pause?.();
-            this.audio.src = '';
+            const audio = this.audio;
             this.audio = null;
+            // Detach before clearing src: that operation can itself queue an error.
+            for (const [type, listener] of Object.entries(this.audioListeners || {})) {
+                audio.removeEventListener(type, listener);
+            }
+            this.audioListeners = null;
+            audio.pause?.();
+            audio.src = '';
         }
 
         if (this.currentObjectUrl) {
@@ -1173,6 +1216,8 @@ export class ScribeIntercomReceiver {
     }
 
     destroy() {
+        this.destroyed = true;
+        this.announcementGeneration += 1;
         if (this.dismissTimer) {
             clearTimeout(this.dismissTimer);
             this.dismissTimer = null;

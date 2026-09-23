@@ -13,6 +13,7 @@ import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
 import { createLogger } from '../utils/logger.js';
 import { mountFollowAlong } from '../features/onboarding/followAlong.js';
+import { adaptGreenGuide } from '../features/onboarding/greenGuidance.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
@@ -428,7 +429,7 @@ export class FacilitatorController {
             : this.isTeamActionWizardEnabled()
             ? `Create and revise your team's ${actionNoun} here. Forward completed actions to the Facilitator; the Facilitator projects and submits them to White Cell.`
             : `Create and revise your team's ${actionNoun} here. Once submitted, they become read-only while White Cell reviews them.`;
-        this.onboarding = mountFollowAlong({
+        this.onboarding = mountFollowAlong(adaptGreenGuide({
             storageKey: seatStorageKey(`followalong:facilitator:${this.teamId}`),
             title: `${this.teamContext.facilitatorLabel} guide`,
             roleLabel: this.teamContext.facilitatorLabel,
@@ -472,7 +473,7 @@ export class FacilitatorController {
                     highlight: '.sidebar-session'
                 }
             ]
-        });
+        }, this.teamContext, 'scribe'));
     }
 
     isAllowedRole(role) {

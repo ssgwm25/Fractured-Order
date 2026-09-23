@@ -1,5 +1,14 @@
 # Start Here narration generation and approval
 
+GC09: Green participant guidance is text-only pending matching media review.
+The exporter retains 14 Green transcript profiles (unified, paired and shared,
+including the two existing regional Notetaker roles) under `textOnlyProfiles`.
+They carry text rather than clip IDs and are excluded from audio `entries` and
+the 21 remaining narration profiles. This creates no seats and approves no media.
+Existing approved clips and their original manifests remain unchanged. Re-enabling
+Green narration requires a separate exact-script review and runtime change;
+running the exporter alone does not enable it.
+
 Start Here narration is an onboarding media product. Candidate batches use the
 pinned offline Kokoro model and `af_heart` voice, with independent scripts,
 checksums, review evidence, and approval scope.

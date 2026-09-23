@@ -106,6 +106,24 @@ Apply the authoritative ledger in this exact order:
 55. `data/2026-09-26_gc06_regional_proposals.sql`
 56. `data/2026-09-27_gc06_released_thread_round_order.sql`
 57. `data/2026-09-28_gc07_regional_messaging.sql`
+58. `data/2026-09-29_gc08_session_administration.sql`
+59. `data/2026-09-30_gc08_unified_seat_removal_history.sql`
+
+The September 30 GC08 repair atomically retains immutable, private unified-seat
+removal receipts before legacy live-seat deletion. It does not backfill deleted
+history or change regional tombstones, capacity or claim/restore contracts.
+Follow [unified removal verification](architecture/gc08-unified-seat-removal-repair.md)
+for the narrow tests, rollback-only installed SQL checks and pending fresh hosted
+fixtures. Implementation is supplied; migration and test evidence remain required.
+
+GC-08 adds Game Master-authorized roster discovery and atomic, idempotent session
+creation. The old `create_live_demo_session(TEXT,TEXT,TEXT)` remains unified.
+The new UI requires `list_approved_green_rosters()` and
+`create_configured_live_session(TEXT,TEXT,TEXT,TEXT,TEXT,UUID)`; missing RPCs block
+creation rather than falling back to a different setup. No approvals are seeded.
+Apply only after GC-04A through GC-07, including the September 27 repair. See
+[GC-08 setup, recovery and verification](architecture/gc08-session-administration.md).
+Implementation and tests are supplied; no fresh migration/test evidence is claimed.
 
 GC-07 enables scoped Green Facilitator RFIs and direct messages with explicit
 region/revision RPCs in shared and paired sessions. White Cell audiences resolve
@@ -144,7 +162,7 @@ sessions remain unified or paired regional sessions. Apply once after September
 remain closed at this foundation stage: GC-05 adds orientation-only authority,
 GC-06 adds proposals/approved threads, and GC-07 adds scoped RFIs/direct messages.
 Each later migration must preserve earlier capabilities and remaining denials;
-Game Master atomic creation/UI remains GC-08. See the
+Game Master atomic creation/UI is supplied by GC-08 and requires its migration. See the
 [GC-04A installation and verification runbook](architecture/gc04a-shared-facilitator.md)
 for the self-contained SQL Editor suite and exact local commands. No migration
 or verification was executed by the agent for GC-04A.

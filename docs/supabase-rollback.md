@@ -9,7 +9,27 @@ The sole authoritative forward migration order is the dated ledger in
 rollback means frontend-first containment followed by a forward fix; it does
 not mean replaying historical schemas or dropping additive workflow objects.
 
+## GC08 unified removal receipt containment
+
+After `data/2026-09-30_gc08_unified_seat_removal_history.sql`, preserve
+`gc08_unified_seat_removals` and its immutable triggers. A receipt failure must
+abort removal; do not restore the old destructive `gc03_legacy_remove` to bypass
+it. Contain affected removals and repair forward. Never backfill deleted names
+from mutable participant records, delete retained receipts, or grant browser
+access to the private helper/table. See the
+[repair and verification runbook](architecture/gc08-unified-seat-removal-repair.md).
+
 ## Regional Green Storage Containment
+
+After `data/2026-09-29_gc08_session_administration.sql`, retain the private
+`gc08_session_creations` receipts, approved roster snapshots and all existing
+freeze/seat/RLS guards. Contain new setup in the frontend and fix forward.
+Do not delete retry receipts, convert an occupied session, replace an approved
+snapshot, or retry an unconfirmed regional creation as unified. Existing legacy
+creation signatures remain installed. Restore Game Master access and recover the
+original request in the same tab; if that tab is lost, inspect Session Management
+by the original code before creating anything else. See the
+[GC-08 recovery runbook](architecture/gc08-session-administration.md).
 
 After `data/2026-09-25_gc05_regional_orientations.sql`, retain the handoff revision
 column, orientation RPCs, restrictive write policy, read guards and database
