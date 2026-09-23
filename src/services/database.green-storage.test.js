@@ -130,17 +130,33 @@ describe('GC-02 database storage boundary', () => {
         await expect(database.fetchRegionalStorageEvidence('session')).rejects.toThrow();
     });
 
-    it('blocks regional publication exports until all publication projections preserve scope', async () => {
+    it('loads regional publication exports through the GC-11 scoped context projection', async () => {
+        const exportContext = {
+            session_id: 'session',
+            session_topology_version: 2,
+            green_roster_version: 'green-roster-v1',
+            persisted_green_seat_model: 'regional_pairs_v1',
+            effective_green_seat_model: 'regional_pairs_v1',
+            effective_green_seat_model_is_derived: false,
+            model_status: 'recognized',
+            unified_seat_removals: [{ seat_id: 'removed-seat' }],
+            pli_included: false
+        };
         const spies = [
             vi.spyOn(database, 'fetchSessionBundle').mockResolvedValue({ session: { session_topology_version: 2 } }),
             vi.spyOn(database, 'fetchCommunications').mockResolvedValue([]),
             vi.spyOn(database, 'fetchNotetakerData').mockResolvedValue([]),
             vi.spyOn(database, 'getResearchCaptureMode').mockResolvedValue('research'),
             vi.spyOn(database, 'getResearchBuildHash').mockResolvedValue(null),
+            vi.spyOn(database, 'fetchResearchExportContext').mockResolvedValue(exportContext),
             vi.spyOn(database, 'fetchResearchTable').mockResolvedValue([])
         ];
         try {
-            await expect(database.fetchResearchExportBundle('session')).rejects.toThrow('GC-11');
+            await expect(database.fetchResearchExportBundle('session')).resolves.toMatchObject({
+                session: { session_topology_version: 2 },
+                researchExportContext: exportContext,
+                unifiedSeatRemovals: [{ seat_id: 'removed-seat' }]
+            });
         } finally {
             spies.forEach((spy) => spy.mockRestore());
         }

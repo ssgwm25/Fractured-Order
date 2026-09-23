@@ -86,19 +86,22 @@ describe('admin export helpers', () => {
     it('exports revision-aware RFIs without the removed priority field', () => {
         const requestsCsv = exportSessionRequestsCsv([{
             id: 'rfi-1',
-            team: 'industry',
+            team: 'green',
+            delegation_id: 'europe',
             query: 'Which reporting period applies?',
             workflow_state: 'returned_to_team',
             revision_number: 2,
             review_notes: 'Specify the requested horizon.',
-            status: 'pending'
+            status: 'pending',
+            created_by_role: 'green_europe_facilitator'
         }]);
 
         expect(requestsCsv.split('\n')[0]).toBe(
-            'id,team,move,phase,categories,query,workflow_state,revision_number,review_notes,status,response,responded_by,responded_at,created_at'
+            'id,team,delegation_id,move,phase,categories,query,workflow_state,revision_number,review_notes,status,response,responded_by,created_by_role,responded_at,created_at'
         );
         expect(requestsCsv).not.toContain('priority');
         expect(requestsCsv).toContain('returned_to_team');
+        expect(requestsCsv).toContain('green_europe_facilitator');
     });
 
     it('exports JSON, CSV, and research archive helpers from the feature barrel', () => {
