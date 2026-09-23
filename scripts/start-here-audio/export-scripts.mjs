@@ -54,6 +54,13 @@ async function extractNamedFunction(relativePath, functionName, nextFunctionName
 
 function captureConfig(body, context, dependencies = {}) {
     let captured = null;
+    const invocationContext = {
+        ...context,
+        // The live controller derives this from its confirmed topology-2 seat.
+        // Catalog export has no live seat, so derive the same distinction from
+        // the explicit deterministic regional context supplied below.
+        usesScopedNotes: () => Boolean(context.teamContext?.delegationId)
+    };
     const names = ['mountFollowAlong', 'seatStorageKey', 'adaptGreenGuide', ...Object.keys(dependencies)];
     const values = [(config) => {
         captured = config;
@@ -63,7 +70,7 @@ function captureConfig(body, context, dependencies = {}) {
     // in a process that already has a confirmed participant context.
     }, (key) => seatStorageKey(key, null), adaptGreenGuide, ...Object.values(dependencies)];
     const invoke = new Function(...names, `return function buildStartHereProfile() {${body}\n}`)(...values);
-    invoke.call(context);
+    invoke.call(invocationContext);
     if (!captured) throw new Error('Start Here builder did not call mountFollowAlong().');
     return captured;
 }

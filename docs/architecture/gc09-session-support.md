@@ -104,10 +104,10 @@ payloads remain reference material; Blue-oriented instructions in those images
 are explicitly superseded for Green by current text and live forms.
 
 The separately named `fractured-order-green-facilitator-deck.html` remains a
-standalone HTML briefing, **not** the app default or a parser-compatible uploaded
-`SLIDES` deck. Its membership, handoff, staffing and support copy now match the
-documented decision. Its strategic posture examples are discussion prompts, not
-replacement orientation catalogue entries.
+standalone historical HTML briefing, **not** the app default or a parser-compatible
+uploaded `SLIDES` deck. Its original conflicting membership and workflow copy is
+preserved as source evidence. Current roster and workflow instructions live in
+the actual runtime deck's text guide and the application onboarding surfaces.
 
 Documented D-02 / `green-roster-v1` membership is Asia-Pacific: **South Korea
 (ROK), Japan, ASEAN**; Europe: **UK, France, EU**. Existing sessions keep their
@@ -197,8 +197,8 @@ This inventory excludes pre-existing GC08 working-tree changes.
   `src/features/scribe/deckConfig.js`, new `deckAssignment.js`;
   `src/features/onboarding/followAlong.js`, `platformOverview.js`, new `greenGuidance.js`;
   `src/roles/facilitator.js`, `scribe.js`, `notetaker.js`, `whitecell.js`.
-- Decks: `decks/green/fractured-order-facilitator-deck.html` and
-  `decks/green/fractured-order-green-facilitator-deck.html`.
+- Deck: `decks/green/fractured-order-facilitator-deck.html`. The separately named
+  historical Green briefing remains unchanged as source evidence.
 - Transcript tooling: `scripts/start-here-audio/export-scripts.mjs`,
   `export-scripts.test.js`, `README.md`.
 - New tests/config: `tests/unit/gc09-guidance.test.js`,

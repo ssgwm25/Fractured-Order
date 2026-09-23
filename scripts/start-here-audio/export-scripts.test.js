@@ -19,6 +19,17 @@ describe('Start Here narration export', () => {
         const shared = bundle.textOnlyProfiles.find((profile) => profile.storageKey.endsWith(':green_shared_facilitator'));
         expect(shared.slides.find((slide) => slide.title === 'RFIs').text).toContain('owning region');
         expect(shared.slides[0].text).toContain('submit each separately');
+        const regionalNotetakers = bundle.textOnlyProfiles.filter((profile) =>
+            profile.storageKey.startsWith('followalong:green:')
+            && profile.storageKey.endsWith('_notetaker'));
+        expect(regionalNotetakers).toHaveLength(4);
+        expect(regionalNotetakers.every((profile) =>
+            profile.slides.find((slide) => slide.title === 'Quick Capture')?.text.includes('private move notes'))
+        ).toBe(true);
+        const unifiedNotetaker = bundle.textOnlyProfiles.find((profile) =>
+            profile.storageKey === 'followalong:notetaker:green');
+        expect(unifiedNotetaker.slides.find((slide) => slide.title === 'Quick Capture').text)
+            .toContain('shared entries');
     });
     it('keeps catalog keys and narration independent of a confirmed regional seat', async () => {
         const baseline = await buildStartHereAudioScripts();
