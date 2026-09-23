@@ -11,7 +11,8 @@ import {
     buildResearchExportBundle,
     buildResearchReportHtml,
     createResearchExportArchiveBlob,
-    openResearchPrintWindow
+    openResearchPrintWindow,
+    resolveResearchSessionModel
 } from './researchExport.js';
 
 afterEach(() => {
@@ -114,6 +115,7 @@ function buildBundleFixture() {
                 exposure_type: 'Advanced Manufacturing',
                 targets: ['EU', 'Japan'],
                 goal: 'Blue export coordination',
+                submitted_by_role: 'blue_facilitator',
                 expected_outcomes: 'Tighten partner alignment',
                 ally_contingencies: serializeBlueActionDetails({
                     objective: 'Coordinate export posture',
@@ -152,6 +154,7 @@ function buildBundleFixture() {
                 mechanism: 'Proposal',
                 sector: 'Agriculture',
                 goal: 'Green coalition proposal',
+                submitted_by_role: 'green_facilitator',
                 expected_outcomes: 'Blue backing for a joint line',
                 ally_contingencies: serializeProposalDetails({
                     originators: ['EU'],
@@ -181,6 +184,7 @@ function buildBundleFixture() {
                 phase: 2,
                 mechanism: 'Move Response',
                 goal: 'Red shipping response',
+                submitted_by_role: 'red_facilitator',
                 expected_outcomes: 'Preserve routing options',
                 ally_contingencies: serializeMoveResponseDetails({
                     strategicAssessment: 'Blue is testing route resilience.',
@@ -203,6 +207,7 @@ function buildBundleFixture() {
                 move: 2,
                 phase: 2,
                 query: 'What is the latest White Cell guidance?',
+                created_by_role: 'blue_facilitator',
                 status: 'answered',
                 response: 'Maintain the current line for one more move.',
                 created_at: '2026-06-03T10:07:00.000Z',
@@ -354,7 +359,27 @@ function buildBundleFixture() {
 }
 
 describe('research export builder', () => {
-    it('builds the full research archive dataset with the 1.9.0 workflow-evidence file set', async () => {
+    it('uses the documented Green model compatibility mapping and flags unknown combinations', () => {
+        expect(resolveResearchSessionModel({})).toMatchObject({
+            effective_green_seat_model: 'unified_v1',
+            effective_green_seat_model_is_derived: true,
+            model_status: 'recognized'
+        });
+        expect(resolveResearchSessionModel({ session_topology_version: 2 })).toMatchObject({
+            effective_green_seat_model: 'regional_pairs_v1',
+            effective_green_seat_model_is_derived: true,
+            model_status: 'recognized'
+        });
+        expect(resolveResearchSessionModel({
+            session_topology_version: 1,
+            green_seat_model: 'shared_facilitator_v1'
+        })).toMatchObject({
+            effective_green_seat_model: 'unknown',
+            model_status: 'unknown_combination'
+        });
+    });
+
+    it('builds the GC-11 regional research archive file set', async () => {
         const exportBundle = await buildResearchExportBundle(buildBundleFixture(), {
             generatedAtUtc: '2026-06-03T12:00:00.000Z',
             generatedByPseudonym: 'gm-1234abcd',
@@ -362,15 +387,20 @@ describe('research export builder', () => {
             includeNotesAppendix: true
         });
 
-        expect(RESEARCH_EXPORT_SCHEMA_VERSION).toBe('1.9.0');
-        expect(RESEARCH_EXPORT_FORMAT_REVISION).toBe(10);
+        expect(RESEARCH_EXPORT_SCHEMA_VERSION).toBe('2.0.0');
+        expect(RESEARCH_EXPORT_FORMAT_REVISION).toBe(11);
         expect(exportBundle.manifest).toMatchObject({
             schema_version: RESEARCH_EXPORT_SCHEMA_VERSION,
             export_format_revision: RESEARCH_EXPORT_FORMAT_REVISION,
             export_version: 4,
             generated_by_pseudonym: 'gm-1234abcd',
             capture_mode: 'research',
-            event_log_source: 'reconstructed_from_session_records'
+            event_log_source: 'reconstructed_from_session_records',
+            effective_green_seat_model: 'unified_v1',
+            effective_green_seat_model_is_derived: true,
+            green_seat_model_status: 'recognized',
+            pli_included: false,
+            excluded_data: ['pli']
         });
         expect(exportBundle.manifest.contract_reconciliation.status).toBe('passed');
         expect(exportBundle.manifest.row_counts).toMatchObject({
@@ -392,7 +422,6 @@ describe('research export builder', () => {
             latex_build_readme_ref: 'LATEX_REPORT_README.md',
             pdf_report_target_ref: 'report.pdf',
             pdf_report_included: false,
-            outcome_taxonomy_ref: 'outcome_taxonomy.csv',
             training_rubric_ref: 'training_rubric.csv',
             network_metrics_ref: 'network_metrics.csv',
             turning_points_ref: 'turning_points.csv',
@@ -407,7 +436,6 @@ describe('research export builder', () => {
         });
         expect(exportBundle.manifest.row_counts).toMatchObject({
             decision_lineage: 4,
-            outcome_taxonomy: expect.any(Number),
             training_rubric: 18,
             network_metrics: expect.any(Number),
             turning_points: expect.any(Number)
@@ -417,8 +445,9 @@ describe('research export builder', () => {
             action_type: 'Export Controls, Sanctions',
             instruments: ['Economic', 'Diplomacy', 'Information', 'Military'],
             final_status: 'adjudicated',
-            legacy_adjudication_outcome: 'permitted_with_constraint',
-            legacy_adjudication_notes: 'Proceed with reporting safeguards.',
+            parent_team: 'blue',
+            submitting_role: 'blue_facilitator',
+            submitting_semantic_role: 'scribe',
             full_content: {
                 details: {
                     levers: ['Export Controls', 'Sanctions'],
@@ -437,6 +466,7 @@ describe('research export builder', () => {
             supply_chain_focus_decision: 'Yes',
             supply_chain_action_angles: ['Build resilience for Blue'],
             supply_chain_areas: ['Distribution'],
+            forwarded_utc: '2026-06-03T10:11:30.000Z',
             revision_number: 2,
             revision_history: [expect.objectContaining({
                 revision_number: 1,
@@ -445,7 +475,6 @@ describe('research export builder', () => {
                 reviewer_notes: 'Clarify the timing conditions.',
                 returned_utc: '2026-06-03T10:08:30.000Z'
             })],
-            review_decision: 'forwarded',
             final_recipient_state: 'acknowledged'
         });
         expect(exportBundle.moveResponseContent[0]).toMatchObject({
@@ -510,15 +539,15 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Focus Sectors');
         expect(exportBundle.reportHtml).toContain('Supply Chain Decision');
         expect(exportBundle.reportHtml).toContain('Revision History');
-        expect(exportBundle.reportHtml).toContain('Historical / Legacy Adjudication');
+        expect(exportBundle.reportHtml).not.toContain('Historical / Legacy Adjudication');
         expect(exportBundle.reportHtml).not.toContain('Review Outcome');
         expect(exportBundle.reportHtml).toContain('Clarify the timing conditions.');
         expect(exportBundle.reportHtml).not.toContain('Delivery (historical)');
         expect(exportBundle.reportLatex).toContain('Action angles');
         expect(exportBundle.reportLatex).toContain('Revision history');
-        expect(exportBundle.reportLatex).toContain('Historical / legacy adjudication outcome');
+        expect(exportBundle.reportLatex).not.toContain('Historical / legacy adjudication outcome');
         expect(exportBundle.files.find((file) => file.path === 'action_content.csv').content)
-            .toContain('legacy_adjudication_outcome');
+            .not.toContain('legacy_adjudication_outcome');
         expect(exportBundle.reportHtml).toContain('White Cell clarification changed the pacing.');
         expect(exportBundle.reportHtml).toContain('Notes Appendix');
         expect(exportBundle.dataQualitySummary).toMatchObject({
@@ -527,7 +556,8 @@ describe('research export builder', () => {
             },
             privacy: {
                 notes_appendix_included: true,
-                identity_map_exported: false
+                identity_map_exported: false,
+                pli_included: false
             }
         });
         expect(exportBundle.dataQualitySummary.coverage.table_coverage).toEqual(expect.arrayContaining([
@@ -564,13 +594,7 @@ describe('research export builder', () => {
                 code: 'ALPHA-R'
             }
         });
-        expect(exportBundle.outcomeTaxonomy).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                entity_id: 'action-blue-1',
-                dimension: 'implementation_feasibility',
-                signal: 'mentioned'
-            })
-        ]));
+        expect(exportBundle.outcomeTaxonomy).toBeUndefined();
         expect(exportBundle.trainingRubric).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 participant_pseudonym: 'participant-001',
@@ -616,8 +640,6 @@ describe('research export builder', () => {
             'decision_lineage.csv',
             'decision_lineage.json',
             'scenario_context.json',
-            'outcome_taxonomy.csv',
-            'outcome_taxonomy.json',
             'training_rubric.csv',
             'training_rubric.json',
             'network_metrics.csv',
@@ -638,6 +660,15 @@ describe('research export builder', () => {
             'legacy/session_metadata.json',
             'checksums.sha256'
         ]));
+        expect(exportBundle.files.map((file) => file.path)).not.toEqual(expect.arrayContaining([
+            'adjudication_content.csv',
+            'adjudication_content.json',
+            'outcome_taxonomy.csv',
+            'outcome_taxonomy.json'
+        ]));
+        const serializedArchive = exportBundle.files.map((file) => file.content).join('\n');
+        expect(serializedArchive).not.toContain('Proceed with reporting safeguards.');
+        expect(serializedArchive).not.toContain('Forward after clarity edits.');
         const checksumsFile = exportBundle.files.find((file) => file.path === 'checksums.sha256');
         expect(checksumsFile.content).toContain('  report.html');
         expect(checksumsFile.content).toContain('  report.tex');
@@ -819,7 +850,8 @@ describe('research export builder', () => {
                     matches: true
                 },
                 rfi_revisions: { return_review_count: 1, resubmission_count: 1, answer_count: 1, matches: true },
-                ui_workflow_projection: { matches: true, current_completed_outcome_violations: 0 }
+                ui_workflow_projection: { matches: true },
+                pli_separation: { pli_included: false, matches: true }
             }
         });
         expect(exportBundle.actionContent[0]).toMatchObject({
@@ -827,7 +859,6 @@ describe('research export builder', () => {
             revision_number: 2,
             notification_audiences: ['green', 'industry'],
             notification_note: 'Share the completed action with both informed teams.',
-            legacy_adjudication_outcome: null,
             review_history: [expect.objectContaining({ review_id: 'review-action-complete-1', decision: 'complete' })]
         });
         expect(exportBundle.proposalContent[0]).toMatchObject({
@@ -838,8 +869,7 @@ describe('research export builder', () => {
             thread_history: [
                 expect.objectContaining({ thread_id: 'thread-blue-1', round_number: 0, parent_message_id: null }),
                 expect.objectContaining({ thread_id: 'thread-blue-1', round_number: 1, parent_message_id: 'comm-forwarded-1' })
-            ],
-            review_decision: null
+            ]
         });
         expect(exportBundle.rfiContent[0]).toMatchObject({
             workflow_state: 'completed',
@@ -886,6 +916,7 @@ describe('research export builder', () => {
                 id: 'rfi-current',
                 session_id: bundle.session.id,
                 team: 'industry',
+                created_by_role: 'industry_scribe',
                 query: 'Current Facilitator question',
                 status: 'pending',
                 workflow_state: 'submitted_to_white_cell',
@@ -896,6 +927,7 @@ describe('research export builder', () => {
                 id: 'rfi-legacy',
                 session_id: bundle.session.id,
                 team: 'industry',
+                created_by_role: 'industry_facilitator',
                 query: 'Legacy Scribe question',
                 status: 'answered',
                 created_at: '2026-06-03T10:07:00.000Z'
@@ -1047,7 +1079,7 @@ describe('research export builder', () => {
         ]));
         expect(exportBundle.derivedSessionMetrics[0]).toMatchObject({
             actions_submitted: 1,
-            actions_adjudicated: 1
+            actions_completed: 0
         });
         expect(exportBundle.decisionLineage).toEqual(expect.arrayContaining([
             expect.objectContaining({
@@ -1148,6 +1180,122 @@ describe('research export builder', () => {
         expect(exportBundle.reportLatex).not.toContain('Research & Trade_50% Session');
     });
 
+    it('preserves regional Green ownership, shared-facilitator provenance, removed seats, and the PLI boundary', async () => {
+        const bundle = buildBundleFixture();
+        bundle.session = {
+            ...bundle.session,
+            session_topology_version: 2,
+            green_roster_version: 4,
+            green_seat_model: 'shared_facilitator_v1',
+            green_roster_snapshot: {
+                asian_pacific: ['green_asian_pacific_facilitator'],
+                europe: ['green_europe_facilitator']
+            }
+        };
+        bundle.researchExportContext = {
+            session_topology_version: 2,
+            green_roster_version: 4,
+            green_roster_snapshot: bundle.session.green_roster_snapshot,
+            persisted_green_seat_model: 'shared_facilitator_v1',
+            effective_green_seat_model: 'shared_facilitator_v1',
+            effective_green_seat_model_is_derived: false,
+            model_status: 'recognized',
+            unified_seat_removals: []
+        };
+        const asiaPacificProposal = bundle.actions.find((row) => row.id === 'proposal-green-1');
+        Object.assign(asiaPacificProposal, {
+            delegation_id: 'asian_pacific',
+            submitted_by_role: 'green_shared_facilitator',
+            outcome: 'PLI_SENTINEL_MUST_NOT_EXPORT',
+            adjudication_notes: 'PLI_SENTINEL_MUST_NOT_EXPORT'
+        });
+        bundle.actions.push({
+            ...asiaPacificProposal,
+            id: 'proposal-green-europe-1',
+            delegation_id: 'europe',
+            goal: 'Green Europe coalition proposal',
+            created_at: '2026-06-03T10:06:30.000Z',
+            submitted_at: '2026-06-03T10:09:30.000Z'
+        });
+        bundle.participants.push({
+            id: 'seat-green-europe-facilitator',
+            client_id: 'client-green-europe-facilitator',
+            role: 'green_europe_facilitator',
+            delegation_id: 'europe',
+            joined_at: '2026-06-03T10:01:30.000Z',
+            heartbeat_at: '2026-06-03T10:18:30.000Z',
+            is_active: true
+        });
+        bundle.unifiedSeatRemovals = [{
+            seat_id: 'seat-green-ap-removed',
+            session_id: bundle.session.id,
+            role: 'green_asian_pacific_notetaker',
+            delegation_id: 'asian_pacific',
+            removed_at: '2026-06-03T10:17:00.000Z',
+            display_name_snapshot: 'Removed regional seat'
+        }];
+        bundle.researchAdjudicationContent = [{
+            action_id: 'action-blue-1',
+            pli_score: 99,
+            narrative: 'PLI_SENTINEL_MUST_NOT_EXPORT'
+        }];
+        bundle.researchCodebook = [{
+            table_name: 'pli_adjudications',
+            column_name: 'record',
+            description: 'PLI_SENTINEL_MUST_NOT_EXPORT'
+        }];
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-06-03T12:00:00.000Z'
+        });
+
+        expect(exportBundle.manifest).toMatchObject({
+            session_topology_version: 2,
+            green_roster_version: 4,
+            persisted_green_seat_model: 'shared_facilitator_v1',
+            effective_green_seat_model: 'shared_facilitator_v1',
+            effective_green_seat_model_is_derived: false,
+            green_seat_model_status: 'recognized',
+            pli_included: false,
+            green_ownership_reconciliation: {
+                aggregation_unit: 'distinct_artifact_id',
+                distinct_artifact_count: 2,
+                by_delegation: { asian_pacific: 1, europe: 1 },
+                matches: true
+            }
+        });
+        expect(exportBundle.proposalContent).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                proposal_id: 'proposal-green-1',
+                parent_team: 'green',
+                delegation_id: 'asian_pacific',
+                submitting_role: 'green_shared_facilitator',
+                submitting_semantic_role: 'facilitator',
+                submitting_seat_delegation_id: null
+            }),
+            expect.objectContaining({
+                proposal_id: 'proposal-green-europe-1',
+                parent_team: 'green',
+                delegation_id: 'europe'
+            })
+        ]));
+        expect(exportBundle.participants).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                original_persisted_role: 'green_asian_pacific_notetaker',
+                delegation_id: 'asian_pacific',
+                semantic_role: 'notetaker',
+                seat_status: 'removed',
+                history_source: 'gc08_unified_seat_removal'
+            })
+        ]));
+        expect(exportBundle.reportHtml).toContain('shared_facilitator_v1');
+        expect(exportBundle.reportLatex).toContain('shared\\_facilitator\\_v1');
+        expect(exportBundle.files.find((file) => file.path === 'proposal_content.csv').content)
+            .toContain('submitting_seat_delegation_id');
+        expect(exportBundle.files.map((file) => file.content).join('\n'))
+            .not.toContain('PLI_SENTINEL_MUST_NOT_EXPORT');
+    });
+
     it('renders the report notes appendix as withheld unless the export explicitly enables it', () => {
         const reportHtml = buildResearchReportHtml({
             session: { id: 'session-research-1', name: 'Research Session Alpha' },
@@ -1172,7 +1320,6 @@ describe('research export builder', () => {
             ],
             proposalContent: [],
             actionContent: [],
-            adjudicationContent: [],
             moveResponseContent: [],
             rfiContent: [],
             interactionEdges: [],
@@ -1222,7 +1369,9 @@ describe('research export builder', () => {
         secondFixture.session = {
             ...secondFixture.session,
             id: 'session-research-2',
-            name: 'Research Session Bravo'
+            name: 'Research Session Bravo',
+            session_topology_version: 2,
+            green_roster_version: 3
         };
         const crossSessionBundle = await buildCrossSessionResearchExportBundle([
             firstExport,
@@ -1234,6 +1383,7 @@ describe('research export builder', () => {
 
         expect(crossSessionBundle.manifest).toMatchObject({
             sessions_count: 2,
+            pli_included: false,
             index_ref: 'cross_session_index.csv',
             data_quality_ref: 'cross_session_data_quality.json'
         });
@@ -1241,7 +1391,15 @@ describe('research export builder', () => {
         expect(crossSessionBundle.sessionIndex[0]).toMatchObject({
             session_id: 'session-research-1',
             session_name: 'Research Session Alpha',
+            effective_green_seat_model: 'unified_v1',
             data_quality_readiness: 'limited'
+        });
+        expect(crossSessionBundle.sessionIndex[1]).toMatchObject({
+            session_id: 'session-research-2',
+            session_topology_version: 2,
+            effective_green_seat_model: 'regional_pairs_v1',
+            effective_green_seat_model_is_derived: true,
+            model_status: 'recognized'
         });
         expect(crossSessionBundle.files.map((file) => file.path)).toEqual(expect.arrayContaining([
             'cross_session_manifest.json',
@@ -1254,5 +1412,12 @@ describe('research export builder', () => {
             file.path.includes('/manifest.json')
             && file.path.startsWith('sessions/research_export_session-research-1')
         ))).toBe(true);
+    });
+
+    it('rejects pre-GC-11 session archives at the cross-session boundary', async () => {
+        await expect(buildCrossSessionResearchExportBundle([{
+            manifest: { schema_version: '1.9.0' },
+            files: [{ path: 'adjudication_content.json', content: '[]' }]
+        }])).rejects.toThrow('GC-11 schema 2.0 PLI-free session bundles');
     });
 });

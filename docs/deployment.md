@@ -11,9 +11,9 @@ trackable and are not deployment output.
 ## Migration-First Release Order
 
 Rehearse every release in a dedicated, non-production Supabase project. Apply
-database changes first, in the 41-step dated order documented in
+database changes first, in the 60-step dated order documented in
 `docs/supabase-setup.md`, ending at
-`data/2026-08-17_game_master_session_retirement.sql`. Record the project reference,
+`data/2026-10-01_gc11_research_export_context.sql`. Record the project reference,
 final migration identifier, operator, and UTC completion time. Verify RPCs,
 RLS, append-only review/thread records, RFI history, and research-export
 reconciliation before advancing.
@@ -37,13 +37,13 @@ following from the candidate head:
 - the clean source commit SHA and the deployed frontend commit SHA, which must
   match
 - the verified final migration identifier
-  `2026-08-17_game_master_session_retirement`
+  `2026-10-01_gc11_research_export_context`
 - the dedicated rehearsal deployment URL, unique run ID, UTC start/end times,
   and operator
 - mock and live-Supabase results produced from the same commit and migration
   state
 - Playwright reports and `playthrough-diagnostics.json`, plus the downloaded
-  schema `1.9.0` / format revision `10` research archive and its passed manifest
+  schema `2.0.0` / format revision `11` PLI-free research archive and its passed manifest
   reconciliation
 
 An uncommitted working-tree run is useful development feedback but is not

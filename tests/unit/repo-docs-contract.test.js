@@ -261,7 +261,8 @@ describe('repository operator docs contract', () => {
             'data/2026-09-19_green_regional_authorization.sql',
             'data/2026-09-20_gc03_terminal_revision_conflicts.sql',
             'data/2026-09-21_gc03_recipient_forward_uniqueness.sql',
-            'data/2026-09-22_gc04_session_context.sql'
+            'data/2026-09-22_gc04_session_context.sql',
+            'data/2026-10-01_gc11_research_export_context.sql'
         ];
 
         let priorIndex = -1;
@@ -354,7 +355,7 @@ describe('repository operator docs contract', () => {
         expect(automation).toMatch(/originating Scribe creates the proposal[\s\S]*actual\s+Facilitator[\s\S]*submits it to White Cell/i);
         expect(automation).toMatch(/White Cell approves\s+each intended recipient independently/i);
         expect(automation).toContain('isolated, append-only response thread');
-        expect(automation).toContain('schema `1.9.0` / format revision');
+        expect(automation).toContain('schema `2.0.0` / format revision');
         expect(automation).toContain('passed manifest reconciliation');
         expect(automation).toContain('Full dual-thread verification is part of both the');
 
@@ -393,7 +394,8 @@ describe('repository operator docs contract', () => {
         const rollback = readText('../../docs/supabase-rollback.md');
         const currentGuidance = `${readme}\n${deployment}\n${supabase}\n${runbook}\n${automation}\n${rollback}`;
 
-        expect(readme).toContain('schema `1.9.0` / format revision `10`');
+        expect(readme).toContain('schema `2.0.0` / format revision `11`');
+        expect(readme).toContain('PLI scores, outcomes, notes, narratives, packets');
         expect(deployment).toContain('Migration-First Release Order');
         expect(deployment).toContain('Deploy the matching frontend second from one clean commit');
         expect(deployment).toContain('roll back the frontend first');
@@ -412,6 +414,7 @@ describe('repository operator docs contract', () => {
         expect(automation).toContain('PLAYWRIGHT_MIGRATION_STATE');
         expect(automation).toContain('dirty-worktree mock run remains development');
         expect(currentGuidance).not.toContain('Research export schema `1.6.0`');
+        expect(currentGuidance).not.toContain('Research export schema `1.9.0`');
         expect(currentGuidance).not.toContain('Records a final response');
         expect(currentGuidance).not.toContain('vertical action navigation');
     });

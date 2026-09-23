@@ -1091,7 +1091,7 @@ Commit:
 Changes:
 
 - Split export schema/columns, normalization, reconciliation, derived metrics, HTML rendering, LaTeX rendering, ZIP packaging, and download orchestration into focused modules.
-- Preserve schema `1.9.0`, format revision `10`, file names, ordering, hashes, legacy labeling, and manifest behavior exactly.
+- Preserve schema `2.0.0`, format revision `11`, file names, ordering, hashes, regional provenance, PLI exclusion, and manifest behavior exactly.
 - Add golden fixtures comparing every generated text/binary entry before and after extraction.
 - Keep the public barrel API stable.
 

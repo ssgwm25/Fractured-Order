@@ -120,7 +120,7 @@ export const SHIPPED_NON_PLI_OPERATIONAL_FEATURES = Object.freeze({
     'exports.evidence_bundle': {
         label: 'JSON, all CSVs, research ZIP, print report, recording references, reconciliation, and cross-session ZIP from operator surfaces',
         evidence: [
-            evidence('unit', 'src/features/export/researchExport.test.js', 'builds the full research archive dataset with the 1.9.0 workflow-evidence file set'),
+            evidence('unit', 'src/features/export/researchExport.test.js', 'builds the GC-11 regional research archive file set'),
             evidence('unit', 'src/roles/gamemaster.live.test.js', 'wires each live export button to the matching legacy or research action'),
             evidence('e2e', 'tests/e2e/live-demo-playthrough.e2e.js', 'export and reconcile workflow, revision, recipient-thread, notification, and RFI evidence'),
             evidence('e2e', 'tests/e2e/live-demo-operator-controls.e2e.js', 'exercise every legacy export plus research archive, print, recording references, and cross-session archive')

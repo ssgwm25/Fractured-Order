@@ -47,6 +47,9 @@ must remain outside version control:
   `release-evidence/`; release evidence must be stored in the approved release
   system, not treated as source
 - generated PLI reports under `pli/reports/out/`
+- generated GC-11 research archives; these contain session research evidence
+  only and must never be used as a storage or publication path for PLI scores,
+  outcomes, notes, narratives, or packets
 - downloaded session recordings in `recordings/`, `session-recordings/`, or
   root-level `session-recording-*` audio files
 - neural-media model weights and local onboarding-media generation output,
@@ -87,6 +90,10 @@ The curated contents of `pli/deliverables/` are the explicit exception to the
 generated-output rules above. Updating those files follows the existing PLI
 publishing workflow; this repository policy neither regenerates them nor
 changes their behavior.
+
+Research archives and PLI outputs are separate deliverables. Moving a PLI
+report into a research archive, or copying PLI result fields into a research
+fixture, does not make it an approved research artifact.
 
 Approved onboarding media is a separate authored-product exception, not a broad
 generated-output exception. Only final encoded deliverables and their small

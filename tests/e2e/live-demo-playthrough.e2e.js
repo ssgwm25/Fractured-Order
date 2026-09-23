@@ -55,7 +55,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-08-17_game_master_session_retirement';
+const REQUIRED_MIGRATION_STATE = '2026-10-01_gc11_research_export_context';
 const PLAYTHROUGH_TIMEOUT_MS = 20 * 60 * 1000;
 
 function getSourceRevisionEvidence() {
@@ -1045,15 +1045,17 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             const workflowReviews = parseArchiveJson(archiveEntries, 'artifact_workflow_reviews.json');
 
             expect(manifest.session_config_snapshot.session_name).toBe(sessionName);
-            expect(manifest.schema_version).toBe('1.9.0');
-            expect(manifest.export_format_revision).toBe(10);
+            expect(manifest.schema_version).toBe('2.0.0');
+            expect(manifest.export_format_revision).toBe(11);
+            expect(manifest.pli_included).toBe(false);
+            expect(archiveEntries.has('adjudication_content.json')).toBe(false);
+            expect(archiveEntries.has('outcome_taxonomy.json')).toBe(false);
             expect(manifest.contract_reconciliation.status).toBe('passed');
             expect(manifest.contract_reconciliation.checks.artifact_review_rows.matches).toBe(true);
             expect(manifest.contract_reconciliation.checks.proposal_threads.matches).toBe(true);
             expect(manifest.contract_reconciliation.checks.rfi_revisions.matches).toBe(true);
             expect(manifest.contract_reconciliation.checks.ui_workflow_projection).toMatchObject({
-                matches: true,
-                current_completed_outcome_violations: 0
+                matches: true
             });
             expect(manifest.row_counts.artifact_workflow_reviews).toBe(workflowReviews.length);
 
@@ -1061,15 +1063,13 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             for (const team of ['blue', 'red']) {
                 expect(actionByTitle.get(actionTitles[team])).toMatchObject({
                     workflow_state: 'completed',
-                    revision_number: 1,
-                    legacy_adjudication_outcome: null
+                    revision_number: 1
                 });
 
                 const returnedAction = actionByTitle.get(returnedActionTitles[team]);
                 expect(returnedAction).toMatchObject({
                     workflow_state: 'completed',
-                    revision_number: 2,
-                    legacy_adjudication_outcome: null
+                    revision_number: 2
                 });
                 expect(returnedAction.full_content.expected_outcomes).toBe(correctedActionOutcomes[team]);
                 expect(returnedAction.review_history.map((review) => review.decision)).toEqual([
@@ -1091,8 +1091,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             const completedOrientation = actionByTitle.get(orientationGoals.blue);
             expect(completedOrientation).toMatchObject({
                 workflow_state: 'completed',
-                revision_number: 2,
-                legacy_adjudication_outcome: null
+                revision_number: 2
             });
             expect(completedOrientation.full_content.details.forecastActionDescription).toBe(correctedOrientationRationale);
             expect(completedOrientation.full_content.details.rationale).toBe('');
@@ -1117,8 +1116,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 workflow_state: 'completed',
                 revision_number: 1,
                 thread_count: 2,
-                round_count: 6,
-                review_decision: null
+                round_count: 6
             });
             expect(dualProposal.recipient_approvals.blue.status).toBe('approved_forwarded');
             expect(dualProposal.recipient_approvals.red.status).toBe('approved_forwarded');

@@ -42,10 +42,11 @@ export function arrayToCsv(data, columns) {
     return [header, ...rows].join('\n');
 }
 
-export function exportSessionActionsCsv(actions = []) {
+export function exportSessionActionsCsv(actions = [], { includeAdjudication = true } = {}) {
     const columns = [
         'id',
         'team',
+        'delegation_id',
         'move',
         'phase',
         'mechanism',
@@ -57,11 +58,11 @@ export function exportSessionActionsCsv(actions = []) {
         'ally_contingencies',
         'priority',
         'status',
-        'outcome',
-        'adjudication_notes',
+        ...(includeAdjudication ? ['outcome', 'adjudication_notes', 'adjudicated_at'] : []),
+        'created_by_role',
+        'submitted_by_role',
         'created_at',
         'submitted_at',
-        'adjudicated_at',
         'updated_at'
     ];
 
@@ -72,6 +73,7 @@ export function exportSessionRequestsCsv(requests = []) {
     const columns = [
         'id',
         'team',
+        'delegation_id',
         'move',
         'phase',
         'categories',
@@ -82,6 +84,7 @@ export function exportSessionRequestsCsv(requests = []) {
         'status',
         'response',
         'responded_by',
+        'created_by_role',
         'responded_at',
         'created_at'
     ];
@@ -94,6 +97,7 @@ export function exportSessionTimelineCsv(timeline = []) {
         'id',
         'type',
         'team',
+        'delegation_id',
         'move',
         'phase',
         'category',
@@ -110,6 +114,8 @@ export function exportSessionParticipantsCsv(participants = []) {
     const columns = [
         'id',
         'display_name',
+        'team',
+        'delegation_id',
         'role',
         'is_active',
         'joined_at',

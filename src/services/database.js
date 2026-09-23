@@ -615,7 +615,6 @@ const RESEARCH_TABLE_QUERY_CONFIG = Object.freeze({
     research_state_transition: { orderField: 'transition_utc', ascending: true },
     research_action_content: { orderField: 'submitted_utc', ascending: true },
     research_proposal_content: { orderField: 'submitted_utc', ascending: true },
-    research_adjudication_content: { orderField: 'adjudicated_utc', ascending: true },
     research_move_response_content: { orderField: 'submitted_utc', ascending: true },
     research_rfi_content: { orderField: 'raised_utc', ascending: true },
     research_interaction_edge: { orderField: 'occurred_utc', ascending: true },
@@ -2251,6 +2250,18 @@ export const database = {
         return normalizedValue || null;
     },
 
+    async fetchResearchExportContext(sessionId) {
+        const { data, error } = await supabase.rpc('export_gc11_research_context', {
+            requested_session_id: sessionId
+        });
+        if (error) {
+            logger.warn('GC-11 research export context is unavailable; retaining persisted session fields and flagging removal history as unavailable.', error);
+            return null;
+        }
+
+        return data && typeof data === 'object' ? data : null;
+    },
+
     async fetchResearchTable(tableName, sessionId) {
         const queryConfig = RESEARCH_TABLE_QUERY_CONFIG[tableName];
         if (!queryConfig) {
@@ -2405,6 +2416,7 @@ export const database = {
             notetakerData,
             captureMode,
             softwareBuildHash,
+            researchExportContext,
             researchAuditEventLog,
             researchParticipants,
             researchNotes,
@@ -2413,7 +2425,6 @@ export const database = {
             researchStateTransitions,
             researchActionContent,
             researchProposalContent,
-            researchAdjudicationContent,
             researchMoveResponseContent,
             researchRfiContent,
             researchInteractionEdges,
@@ -2428,6 +2439,7 @@ export const database = {
             this.fetchNotetakerData(sessionId).catch(() => []),
             this.getResearchCaptureMode(),
             this.getResearchBuildHash(),
+            this.fetchResearchExportContext(sessionId),
             this.fetchResearchTable('research_audit_event_log', sessionId),
             this.fetchResearchTable('research_participant', sessionId),
             this.fetchResearchTable('research_note', sessionId),
@@ -2436,7 +2448,6 @@ export const database = {
             this.fetchResearchTable('research_state_transition', sessionId),
             this.fetchResearchTable('research_action_content', sessionId),
             this.fetchResearchTable('research_proposal_content', sessionId),
-            this.fetchResearchTable('research_adjudication_content', sessionId),
             this.fetchResearchTable('research_move_response_content', sessionId),
             this.fetchResearchTable('research_rfi_content', sessionId),
             this.fetchResearchTable('research_interaction_edge', sessionId),
@@ -2446,12 +2457,6 @@ export const database = {
             this.fetchResearchTable('research_export_codebook', null),
             this.fetchResearchTable('artifact_workflow_reviews', sessionId)
         ]);
-        if (sessionBundle.session?.session_topology_version === 2) {
-            throw new DatabaseError(
-                'Regional publication exports require GC-11. Use fetchRegionalStorageEvidence to preserve the raw scoped records.',
-                'fetchResearchExportBundle'
-            );
-        }
         const researchNoteIds = new Set(
             researchNotes
                 .map((note) => note?.note_id)
@@ -2464,6 +2469,10 @@ export const database = {
             notetakerData,
             captureMode,
             softwareBuildHash,
+            researchExportContext,
+            unifiedSeatRemovals: Array.isArray(researchExportContext?.unified_seat_removals)
+                ? researchExportContext.unified_seat_removals
+                : [],
             researchAuditEventLog,
             researchParticipants,
             researchNotes,
@@ -2474,7 +2483,6 @@ export const database = {
             researchStateTransitions,
             researchActionContent,
             researchProposalContent,
-            researchAdjudicationContent,
             researchMoveResponseContent,
             researchRfiContent,
             researchInteractionEdges,

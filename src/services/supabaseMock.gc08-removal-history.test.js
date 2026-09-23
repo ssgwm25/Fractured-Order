@@ -89,6 +89,22 @@ it('does not expose or permit browser mutations of removal receipts, including t
     expect(read().gc08_unified_seat_removals).toEqual(receipt);
 });
 
+it('projects GC-11 context and retained removals only to operators', async () => {
+    await remove();
+    const result = await api.rpc('export_gc11_research_context', { requested_session_id: 'session' });
+    expect(result.error).toBeNull();
+    expect(result.data).toMatchObject({
+        session_topology_version: 1,
+        persisted_green_seat_model: null,
+        effective_green_seat_model: 'unified_v1',
+        pli_included: false,
+        unified_seat_removals: [expect.objectContaining({ seat_id: 'seat', delegation_id: null })]
+    });
+    identity('actor');
+    expect((await api.rpc('export_gc11_research_context', { requested_session_id: 'session' })).error)
+        .toMatchObject({ code: '42501', message: 'GC11_OPERATOR_REQUIRED' });
+});
+
 it.each([['regional_pairs_v1', 'green_europe_scribe', 'europe'], ['shared_facilitator_v1', 'green_shared_facilitator', null]])(
     'preserves %s tombstones without creating unified receipts', async (model, role, delegation) => {
         seed(t => { Object.assign(t.sessions[0], { session_topology_version: 2, green_seat_model: model });

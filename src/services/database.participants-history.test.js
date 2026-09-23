@@ -54,7 +54,8 @@ describe('database session participant history', () => {
                     id: 'seat-1',
                     session_id: 'session-1',
                     participant_id: 'participant-1',
-                    role: 'blue_facilitator',
+                    role: 'green_asian_pacific_facilitator',
+                    delegation_id: 'asian_pacific',
                     display_name_snapshot: 'Morgan',
                     is_active: true,
                     heartbeat_at: '2026-04-08T15:00:00.000Z',
@@ -92,7 +93,8 @@ describe('database session participant history', () => {
         expect(participants).toEqual([
             expect.objectContaining({
                 id: 'seat-1',
-                role: 'blue_facilitator',
+                role: 'green_asian_pacific_facilitator',
+                delegation_id: 'asian_pacific',
                 display_name: 'Morgan',
                 client_id: 'client-history-test',
                 is_active: true

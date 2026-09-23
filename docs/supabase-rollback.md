@@ -9,6 +9,17 @@ The sole authoritative forward migration order is the dated ledger in
 rollback means frontend-first containment followed by a forward fix; it does
 not mean replaying historical schemas or dropping additive workflow objects.
 
+## GC-11 research export containment
+
+After `data/2026-10-01_gc11_research_export_context.sql`, keep the operator-only
+`export_gc11_research_context` function during an application rollback. It is a
+read-only compatibility projection and preserves the raw persisted model beside
+the effective label. Do not backfill `green_seat_model`, infer delegation for
+legacy rows, expose the RPC to anonymous users, or join PLI records into the
+research archive. If schema 2.0 output is faulty, stop new research exports,
+retain source rows and removed-seat receipts, and repair forward. See
+[GC-11 research exports](architecture/gc11-research-exports.md).
+
 ## GC08 unified removal receipt containment
 
 After `data/2026-09-30_gc08_unified_seat_removal_history.sql`, preserve

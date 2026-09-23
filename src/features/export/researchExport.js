@@ -1,5 +1,9 @@
 import { CONFIG } from '../../core/config.js';
-import { getRoleDisplayName } from '../../core/teamContext.js';
+import {
+    getRoleDisplayName,
+    getSemanticRoleSurface,
+    parseTeamRole
+} from '../../core/teamContext.js';
 import {
     formatBlueActionSelection,
     getActionSequenceNumber,
@@ -32,8 +36,8 @@ import { SSG_LOGO_DATA_URI } from './reportAssets.js';
 
 const SIMULATION_NAME = 'Fractured Order';
 
-export const RESEARCH_EXPORT_SCHEMA_VERSION = '1.9.0';
-export const RESEARCH_EXPORT_FORMAT_REVISION = 10;
+export const RESEARCH_EXPORT_SCHEMA_VERSION = '2.0.0';
+export const RESEARCH_EXPORT_FORMAT_REVISION = 11;
 
 const HASHED_EVENT_FIELDS = [
     'event_id',
@@ -100,9 +104,16 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'participant_pseudonym',
         'session_id',
         'auth_uid_hash',
+        'parent_team',
+        'delegation_id',
         'team',
         'role',
+        'original_persisted_role',
+        'semantic_role',
         'seat_index',
+        'seat_status',
+        'removed_at',
+        'history_source',
         'first_seen_utc',
         'last_seen_utc',
         'active_duration_s',
@@ -176,8 +187,14 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
     action_content: [
         'action_id',
         'session_id',
+        'parent_team',
+        'delegation_id',
         'author_pseudonym',
         'author_role',
+        'author_semantic_role',
+        'submitting_role',
+        'submitting_semantic_role',
+        'submitting_seat_delegation_id',
         'author_team',
         'move_number',
         'action_sequence',
@@ -201,16 +218,19 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'revision_number',
         'notification_audiences',
         'notification_note',
-        'review_history',
-        'legacy_adjudication_outcome',
-        'legacy_adjudication_notes',
-        'legacy_adjudicated_utc'
+        'review_history'
     ],
     proposal_content: [
         'proposal_id',
         'session_id',
+        'parent_team',
+        'delegation_id',
         'author_pseudonym',
         'author_role',
+        'author_semantic_role',
+        'submitting_role',
+        'submitting_semantic_role',
+        'submitting_seat_delegation_id',
         'author_team',
         'move_number',
         'title',
@@ -237,34 +257,22 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'rationale',
         'full_content',
         'submitted_utc',
-        'review_decision',
-        'review_reason',
-        'reviewer_pseudonym',
-        'reviewed_utc',
-        'review_evidence_classification',
+        'forwarded_utc',
         'forwarded_to_team',
         'forwarded_to_teams',
         'final_recipient_state'
     ],
-    adjudication_content: [
-        'adjudication_id',
-        'session_id',
-        'target_entity_type',
-        'target_entity_id',
-        'adjudicator_pseudonym',
-        'adjudicator_role',
-        'move_number',
-        'ruling',
-        'reasoning',
-        'effects',
-        'adjudicated_utc',
-        'evidence_classification'
-    ],
     move_response_content: [
         'move_response_id',
         'session_id',
+        'parent_team',
+        'delegation_id',
         'author_pseudonym',
         'author_role',
+        'author_semantic_role',
+        'submitting_role',
+        'submitting_semantic_role',
+        'submitting_seat_delegation_id',
         'author_team',
         'move_number',
         'responding_to_entity_type',
@@ -278,16 +286,17 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'workflow_state',
         'prior_workflow_state',
         'revision_number',
-        'review_history',
-        'legacy_adjudication_outcome',
-        'legacy_adjudication_notes',
-        'legacy_adjudicated_utc'
+        'review_history'
     ],
     rfi_content: [
         'rfi_id',
         'session_id',
+        'parent_team',
+        'delegation_id',
         'requester_pseudonym',
         'requester_role',
+        'requester_semantic_role',
+        'requester_seat_delegation_id',
         'requester_team',
         'move_number',
         'question_text',
@@ -314,6 +323,8 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'artifact_kind',
         'artifact_id',
         'artifact_type',
+        'parent_team',
+        'delegation_id',
         'team',
         'decision',
         'revision_number',
@@ -331,11 +342,15 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
     interaction_edges: [
         'edge_id',
         'session_id',
+        'artifact_parent_team',
+        'artifact_delegation_id',
         'source_pseudonym',
         'source_role',
         'source_team',
+        'source_delegation_id',
         'target_pseudonym',
         'target_team',
+        'target_delegation_id',
         'channel',
         'direction',
         'communication_type',
@@ -403,7 +418,7 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'participants_active',
         'total_events',
         'actions_submitted',
-        'actions_adjudicated',
+        'actions_completed',
         'proposals_submitted',
         'proposals_forwarded',
         'rfis_raised',
@@ -417,6 +432,9 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'root_entity_id',
         'move_number',
         'source_team',
+        'source_delegation_id',
+        'source_role',
+        'source_semantic_role',
         'current_state',
         'created_utc',
         'submitted_utc',
@@ -430,6 +448,12 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
     cross_session_index: [
         'session_id',
         'session_name',
+        'session_topology_version',
+        'green_roster_version',
+        'persisted_green_seat_model',
+        'effective_green_seat_model',
+        'effective_green_seat_model_is_derived',
+        'model_status',
         'capture_mode',
         'generated_at_utc',
         'session_duration_s',
@@ -437,7 +461,7 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'participants_active',
         'total_events',
         'actions_submitted',
-        'actions_adjudicated',
+        'actions_completed',
         'proposals_submitted',
         'proposals_forwarded',
         'rfis_raised',
@@ -446,20 +470,6 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'data_quality_readiness',
         'event_log_checksum',
         'report_ref'
-    ],
-    outcome_taxonomy: [
-        'taxonomy_id',
-        'session_id',
-        'entity_type',
-        'entity_id',
-        'move_number',
-        'source_team',
-        'dimension',
-        'signal',
-        'keyword_hits',
-        'adjudication_ruling',
-        'evidence_source',
-        'evidence_excerpt'
     ],
     training_rubric: [
         'rubric_id',
@@ -523,6 +533,127 @@ function safeObject(value) {
     return value && typeof value === 'object' && !Array.isArray(value)
         ? value
         : {};
+}
+
+const PLI_EXPORT_KEYS = new Set([
+    'outcome',
+    'adjudication',
+    'adjudication_notes',
+    'adjudicated_at',
+    'legacy_adjudication_outcome',
+    'legacy_adjudication_notes',
+    'legacy_adjudicated_utc',
+    'seat_reviews',
+    'track_records',
+    'pli_result',
+    'pli_results',
+    'pli_outcome',
+    'pli_score'
+]);
+
+function stripPliData(value) {
+    if (Array.isArray(value)) return value.map(stripPliData);
+    if (!value || typeof value !== 'object') return value;
+
+    return Object.fromEntries(Object.entries(value)
+        .filter(([key]) => {
+            const normalizedKey = String(key).toLowerCase();
+            return !PLI_EXPORT_KEYS.has(normalizedKey) && !normalizedKey.startsWith('pli_');
+        })
+        .map(([key, entry]) => [key, stripPliData(entry)]));
+}
+
+function isPliResearchEvent(event = {}) {
+    const eventType = String(event?.event_type || event?.type || '').trim().toLowerCase();
+    return eventType.includes('adjudicat')
+        || eventType.startsWith('pli_')
+        || eventType.includes('_pli_');
+}
+
+function isPliCodebookRow(row = {}) {
+    const tableName = String(row?.table_name || '').trim().toLowerCase();
+    const columnName = String(row?.column_name || '').trim().toLowerCase();
+    return tableName === 'research_adjudication_content'
+        || tableName === 'adjudication_content'
+        || tableName === 'outcome_taxonomy'
+        || tableName.startsWith('pli_')
+        || tableName === 'sme_pli_packets'
+        || PLI_EXPORT_KEYS.has(columnName)
+        || columnName.startsWith('pli_');
+}
+
+function resolveSemanticRole(role = null) {
+    if (!role) return null;
+    const parsed = parseTeamRole(String(role));
+    if (parsed.semanticRole) return parsed.semanticRole;
+    if (parsed.surface) return getSemanticRoleSurface(parsed.surface);
+    if (role === 'white') return 'game_master';
+    return parsed.operatorRole || parsed.smeRole || null;
+}
+
+function resolveRoleDelegation(role = null) {
+    if (!role) return null;
+    return parseTeamRole(String(role)).delegationId || null;
+}
+
+function resolvePersistedArtifactRole(record = {}) {
+    return record?.submitted_by_role
+        ?? record?.last_modified_by_role
+        ?? record?.created_by_role
+        ?? null;
+}
+
+function buildArtifactOwnership(record = {}, fallbackTeam = null, fallbackRecord = {}) {
+    const parentTeam = record?.team || fallbackRecord?.parent_team || fallbackTeam || null;
+    const submittingRole = resolvePersistedArtifactRole(record)
+        ?? fallbackRecord?.submitting_role
+        ?? fallbackRecord?.author_role
+        ?? fallbackRecord?.requester_role
+        ?? null;
+    return {
+        parent_team: parentTeam,
+        delegation_id: record?.delegation_id ?? fallbackRecord?.delegation_id ?? null,
+        submitting_role: submittingRole,
+        submitting_semantic_role: resolveSemanticRole(submittingRole),
+        submitting_seat_delegation_id: resolveRoleDelegation(submittingRole)
+    };
+}
+
+export function resolveResearchSessionModel(session = {}, context = null) {
+    const source = safeObject(context);
+    const hasContextTopology = Object.hasOwn(source, 'session_topology_version');
+    const hasContextModel = Object.hasOwn(source, 'persisted_green_seat_model');
+    const sessionTopologyVersion = hasContextTopology
+        ? source.session_topology_version
+        : (Object.hasOwn(session, 'session_topology_version') ? session.session_topology_version : null);
+    const persistedGreenSeatModel = hasContextModel
+        ? source.persisted_green_seat_model
+        : (Object.hasOwn(session, 'green_seat_model') ? session.green_seat_model : null);
+    let effectiveGreenSeatModel = 'unknown';
+
+    if (persistedGreenSeatModel === null && (sessionTopologyVersion === null || sessionTopologyVersion === 1)) {
+        effectiveGreenSeatModel = 'unified_v1';
+    } else if (persistedGreenSeatModel === null && sessionTopologyVersion === 2) {
+        effectiveGreenSeatModel = 'regional_pairs_v1';
+    } else if (persistedGreenSeatModel === 'shared_facilitator_v1' && sessionTopologyVersion === 2) {
+        effectiveGreenSeatModel = 'shared_facilitator_v1';
+    }
+
+    return {
+        session_topology_version: sessionTopologyVersion,
+        green_roster_version: source.green_roster_version
+            ?? session.green_roster_version
+            ?? null,
+        green_roster_snapshot: source.green_roster_snapshot
+            ?? session.green_roster_snapshot
+            ?? null,
+        persisted_green_seat_model: persistedGreenSeatModel,
+        effective_green_seat_model: effectiveGreenSeatModel,
+        effective_green_seat_model_is_derived: persistedGreenSeatModel === null,
+        model_status: effectiveGreenSeatModel === 'unknown' ? 'unknown_combination' : 'recognized',
+        context_source: context ? 'gc11_operator_projection' : 'session_row_fallback',
+        pli_included: false
+    };
 }
 
 function asUtcIso(value) {
@@ -662,12 +793,51 @@ function buildSeatIndexes(participants = []) {
 function buildParticipantRegistry(bundle = {}) {
     const researchParticipants = safeArray(bundle.researchParticipants);
     if (researchParticipants.length) {
-        const rows = researchParticipants.map((participant) => ({
-            ...participant,
-            session_id: participant.session_id || bundle.session?.id || null,
-            first_seen_utc: asUtcIso(participant.first_seen_utc),
-            last_seen_utc: asUtcIso(participant.last_seen_utc)
-        }));
+        const rows = researchParticipants.map((participant) => {
+            const originalRole = participant.original_persisted_role ?? participant.role ?? null;
+            const team = participant.parent_team ?? participant.team ?? inferTeamFromRole(originalRole);
+            return {
+                ...stripPliData(participant),
+                session_id: participant.session_id || bundle.session?.id || null,
+                parent_team: team,
+                delegation_id: participant.delegation_id ?? null,
+                original_persisted_role: originalRole,
+                semantic_role: participant.semantic_role ?? resolveSemanticRole(originalRole),
+                seat_status: participant.seat_status || 'historical',
+                removed_at: asUtcIso(participant.removed_at),
+                history_source: participant.history_source || 'research_participant',
+                first_seen_utc: asUtcIso(participant.first_seen_utc),
+                last_seen_utc: asUtcIso(participant.last_seen_utc)
+            };
+        });
+        const representedSeatIds = new Set(researchParticipants
+            .map((participant) => participant.seat_id || participant.session_participant_id || participant.source_seat_id)
+            .filter(Boolean));
+        safeArray(bundle.unifiedSeatRemovals)
+            .filter((removal) => removal?.seat_id && !representedSeatIds.has(removal.seat_id))
+            .forEach((removal, index) => {
+                const originalRole = removal.role || null;
+                const parentTeam = inferTeamFromRole(originalRole, removal.team);
+                rows.push({
+                    participant_pseudonym: `removed-seat-${String(index + 1).padStart(3, '0')}`,
+                    session_id: removal.session_id || bundle.session?.id || null,
+                    auth_uid_hash: `removed-seat:${removal.seat_id}`,
+                    parent_team: parentTeam,
+                    delegation_id: removal.delegation_id ?? null,
+                    team: parentTeam,
+                    role: originalRole,
+                    original_persisted_role: originalRole,
+                    semantic_role: resolveSemanticRole(originalRole),
+                    seat_index: removal.seat_index ?? null,
+                    seat_status: 'removed',
+                    removed_at: asUtcIso(removal.removed_at),
+                    history_source: 'gc08_unified_seat_removal',
+                    first_seen_utc: asUtcIso(removal.joined_at),
+                    last_seen_utc: asUtcIso(removal.removed_at),
+                    active_duration_s: secondsBetween(removal.joined_at, removal.removed_at),
+                    rejoin_count: 0
+                });
+            });
         const registry = new Map();
 
         rows.forEach((participant) => {
@@ -684,7 +854,21 @@ function buildParticipantRegistry(bundle = {}) {
         };
     }
 
-    const seatIndexes = buildSeatIndexes(safeArray(bundle.participants));
+    const liveParticipantIds = new Set(safeArray(bundle.participants).map((participant) => participant?.id).filter(Boolean));
+    const removedParticipants = safeArray(bundle.unifiedSeatRemovals)
+        .filter((removal) => removal?.seat_id && !liveParticipantIds.has(removal.seat_id))
+        .map((removal) => ({
+            ...removal,
+            id: removal.seat_id,
+            participantSessionId: removal.seat_id,
+            display_name: removal.display_name_snapshot || null,
+            joined_at: removal.joined_at || null,
+            heartbeat_at: removal.removed_at || null,
+            disconnected_at: removal.removed_at || null,
+            is_active: false,
+            history_source: 'gc08_unified_seat_removal'
+        }));
+    const seatIndexes = buildSeatIndexes([...safeArray(bundle.participants), ...removedParticipants]);
     const rows = seatIndexes.map(({ participant, seatIndex }, index) => {
         const role = participant?.role || null;
         const team = inferTeamFromRole(role, participant?.team);
@@ -701,9 +885,18 @@ function buildParticipantRegistry(bundle = {}) {
             participant_pseudonym: `participant-${String(index + 1).padStart(3, '0')}`,
             session_id: bundle.session?.id || null,
             auth_uid_hash: participant?.client_id ? `client:${participant.client_id}` : `seat:${participant?.id || index + 1}`,
+            parent_team: team,
+            delegation_id: participant?.delegation_id ?? null,
             team,
             role,
+            original_persisted_role: role,
+            semantic_role: resolveSemanticRole(role),
             seat_index: seatIndex,
+            seat_status: participant?.removed_at || participant?.revoked_at
+                ? 'removed'
+                : (participant?.is_active ? 'active' : 'inactive'),
+            removed_at: asUtcIso(participant?.removed_at || participant?.revoked_at),
+            history_source: participant?.history_source || 'session_participants',
             first_seen_utc: joinedAt,
             last_seen_utc: lastSeenAt,
             active_duration_s: secondsBetween(joinedAt, participant?.disconnected_at || lastSeenAt),
@@ -849,11 +1042,11 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
         const actionSequence = !isProposal && !isMoveResponse && !isStrategicOrientation
             ? getActionSequenceNumber(bundle.actions, action)
             : null;
+        const actorRole = resolvePersistedArtifactRole(action);
         const actorPseudonym = resolvePseudonym(participantRegistry, {
             clientId: action?.client_id,
-            role: action?.team ? `${action.team}_facilitator` : null
+            role: actorRole
         });
-        const actorRole = action?.team ? `${action.team}_facilitator` : null;
         const actorTeam = inferTeamFromRole(actorRole, action?.team);
         const createdTimestamp = asUtcIso(action?.created_at);
         const submittedTimestamp = asUtcIso(action?.submitted_at || action?.created_at);
@@ -992,62 +1185,6 @@ function buildSyntheticEventLog(bundle = {}, participantRegistry) {
             });
         }
 
-        // Only persisted legacy outcomes reconstruct adjudication events. Current
-        // workflow completion is reconstructed from artifact_workflow_reviews
-        // below and never receives an inferred ruling.
-        if (action?.adjudicated_at && action?.outcome) {
-            events.push({
-                event_uuid: nextSyntheticId('event', counterRef),
-                session_id: sessionId,
-                event_ts_utc: asUtcIso(action.adjudicated_at),
-                server_received_utc: asUtcIso(action.adjudicated_at),
-                client_ts_utc: asUtcIso(action.adjudicated_at),
-                actor_pseudonym: 'whitecell-operator',
-                actor_role: 'whitecell_lead',
-                actor_team: 'whitecell',
-                actor_seat_index: 1,
-                event_type: isProposal
-                    ? (
-                        action?.outcome === 'forwarded'
-                            ? 'PROPOSAL_FORWARDED'
-                            : action?.outcome === 'changes_requested'
-                                ? 'PROPOSAL_CHANGES_REQUESTED'
-                                : 'PROPOSAL_REJECTED'
-                    )
-                    : isMoveResponse
-                        ? 'MOVE_RESPONSE_ADJUDICATED'
-                        : isStrategicOrientation
-                            ? 'STRATEGIC_ORIENTATION_ADJUDICATED'
-                            : 'ACTION_ADJUDICATED',
-                entity_type: isProposal
-                    ? 'proposal'
-                    : isMoveResponse
-                        ? 'move_response'
-                        : isStrategicOrientation
-                            ? 'strategic_orientation'
-                            : 'action',
-                entity_id: action?.id || null,
-                move_number: action?.move ?? null,
-                action_sequence: actionSequence,
-                correlation_id: action?.id || null,
-                causal_event_id: null,
-                before_state: {
-                    status: 'submitted'
-                },
-                after_state: {
-                    status: action?.status || 'adjudicated',
-                    outcome: action?.outcome || null
-                },
-                payload: {
-                    outcome: action?.outcome || null,
-                    adjudication_notes: action?.adjudication_notes || null,
-                    evidence_classification: 'historical_legacy_adjudication'
-                },
-                phase: action?.phase ?? null,
-                elapsed_session_s: null,
-                elapsed_actor_prev_s: null
-            });
-        }
     });
 
     buildArtifactWorkflowReviewRows(bundle).forEach((review) => {
@@ -1264,21 +1401,10 @@ function isMoveResponseAction(action = {}) {
 }
 
 function resolveRequestAuthorRole(bundle = {}, request = {}) {
-    const participantRole = safeArray(bundle.participants).find((participant) => (
-        request?.client_id
-        && participant?.client_id === request.client_id
-    ))?.role;
-    if (participantRole) return participantRole;
-    if (!request?.team) return null;
-
-    const isLegacyRequest = (
-        !request.workflow_state && !request.revision_number
-    ) || request.workflow_state_origin === 'legacy_status'
-        || request.revision_number_origin === 'legacy_default';
-
-    return isLegacyRequest
-        ? `${request.team}_facilitator`
-        : `${request.team}_scribe`;
+    return request?.created_by_role
+        ?? request?.submitted_by_role
+        ?? request?.requester_role
+        ?? null;
 }
 
 function isStrategicOrientationContentRow(action = {}) {
@@ -1306,8 +1432,8 @@ function buildNotesTables(bundle = {}, participantRegistry) {
     const explicitNoteRevisions = safeArray(bundle.researchNoteRevisions);
     if (explicitNotes.length || explicitNoteRevisions.length) {
         return {
-            notes: explicitNotes,
-            noteRevisions: explicitNoteRevisions
+            notes: explicitNotes.map(stripPliData),
+            noteRevisions: explicitNoteRevisions.map(stripPliData)
         };
     }
 
@@ -1436,7 +1562,7 @@ function buildNotesTables(bundle = {}, participantRegistry) {
 function buildDraftRevisions(bundle = {}, participantRegistry) {
     const explicitDrafts = safeArray(bundle.researchDraftRevisions);
     if (explicitDrafts.length) {
-        return explicitDrafts;
+        return explicitDrafts.map(stripPliData);
     }
 
     return safeArray(bundle.actions)
@@ -1444,7 +1570,7 @@ function buildDraftRevisions(bundle = {}, participantRegistry) {
         .map((action) => {
             const isProposal = isProposalAction(action);
             const isStrategicOrientation = isStrategicOrientationAction(action);
-            const authorRole = action?.team ? `${action.team}_facilitator` : null;
+            const authorRole = resolvePersistedArtifactRole(action);
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
             const authorPseudonym = resolvePseudonym(participantRegistry, {
                 clientId: action?.client_id,
@@ -1495,10 +1621,15 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
     if (explicitRows.length) {
         return explicitRows.map((row) => {
             const action = safeArray(bundle.actions).find((candidate) => candidate?.id === row.action_id);
-            if (!action) return row;
+            if (!action) return stripPliData(row);
             const viewModel = getBlueActionViewModel(action);
+            const ownership = buildArtifactOwnership(action, row.author_team, row);
+            const authorRole = ownership.submitting_role ?? row.author_role ?? null;
             return {
-                ...row,
+                ...stripPliData(row),
+                ...ownership,
+                author_role: authorRole,
+                author_semantic_role: resolveSemanticRole(authorRole),
                 workflow_state: action.workflow_state || null,
                 prior_workflow_state: action.prior_workflow_state || null,
                 revision_number: action.revision_number ?? null,
@@ -1506,10 +1637,7 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     .map((team) => String(team).trim().toLowerCase())
                     .filter(Boolean),
                 notification_note: viewModel.notificationNote || null,
-                review_history: resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action.id, isStrategicOrientationAction(action) ? 'strategic_orientation' : 'action'),
-                legacy_adjudication_outcome: action.outcome || null,
-                legacy_adjudication_notes: action.outcome ? action.adjudication_notes || null : null,
-                legacy_adjudicated_utc: action.outcome ? asUtcIso(action.adjudicated_at) : null
+                review_history: resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action.id, isStrategicOrientationAction(action) ? 'strategic_orientation' : 'action')
             };
         });
     }
@@ -1522,7 +1650,8 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                 ? parseStrategicOrientationDetails(action?.ally_contingencies)
                 : null;
             const viewModel = getBlueActionViewModel(action);
-            const authorRole = action?.team ? `${action.team}_facilitator` : null;
+            const ownership = buildArtifactOwnership(action);
+            const authorRole = ownership.submitting_role;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
             const reviewHistory = resolveArtifactReviewHistory(
                 bundle,
@@ -1530,13 +1659,6 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                 action?.id,
                 isStrategicOrientation ? 'strategic_orientation' : 'action'
             );
-            const legacyAdjudication = action?.outcome
-                ? {
-                    outcome: action.outcome,
-                    notes: action?.adjudication_notes || null,
-                    adjudicated_utc: asUtcIso(action?.adjudicated_at)
-                }
-                : null;
             if (isStrategicOrientation) {
                 const isForecast = strategicDetails?.artifactType === 'forecast';
                 const forecastTargets = safeArray(strategicDetails?.forecastTargets);
@@ -1571,11 +1693,13 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                 return {
                     action_id: action?.id || null,
                     session_id: bundle.session?.id || null,
+                    ...ownership,
                     author_pseudonym: resolvePseudonym(participantRegistry, {
                         clientId: action?.client_id,
                         role: authorRole
                     }) || `${authorTeam || 'team'}-lead`,
                     author_role: authorRole,
+                    author_semantic_role: resolveSemanticRole(authorRole),
                     author_team: authorTeam,
                     move_number: action?.move ?? null,
                     action_sequence: null,
@@ -1611,21 +1735,20 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     revision_number: action?.revision_number ?? null,
                     notification_audiences: [],
                     notification_note: null,
-                    review_history: reviewHistory,
-                    legacy_adjudication_outcome: legacyAdjudication?.outcome || null,
-                    legacy_adjudication_notes: legacyAdjudication?.notes || null,
-                    legacy_adjudicated_utc: legacyAdjudication?.adjudicated_utc || null
+                    review_history: reviewHistory
                 };
             }
 
             return {
                 action_id: action?.id || null,
                 session_id: bundle.session?.id || null,
+                ...ownership,
                 author_pseudonym: resolvePseudonym(participantRegistry, {
                     clientId: action?.client_id,
                     role: authorRole
                 }) || `${authorTeam || 'blue'}-lead`,
                 author_role: authorRole,
+                author_semantic_role: resolveSemanticRole(authorRole),
                 author_team: authorTeam,
                 move_number: action?.move ?? null,
                 action_sequence: getActionSequenceNumber(bundle.actions, action),
@@ -1653,10 +1776,7 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     .map((team) => String(team).trim().toLowerCase())
                     .filter(Boolean),
                 notification_note: viewModel.notificationNote || null,
-                review_history: reviewHistory,
-                legacy_adjudication_outcome: legacyAdjudication?.outcome || null,
-                legacy_adjudication_notes: legacyAdjudication?.notes || null,
-                legacy_adjudicated_utc: legacyAdjudication?.adjudicated_utc || null
+                review_history: reviewHistory
             };
         });
 }
@@ -1666,10 +1786,21 @@ function buildProposalContent(bundle = {}, participantRegistry, artifactWorkflow
     if (explicitRows.length) {
         return explicitRows.map((row) => {
             const action = safeArray(bundle.actions).find((candidate) => candidate?.id === row.proposal_id);
-            if (!action) return row;
-            const threadHistory = buildProposalThreadHistory(bundle.communications, action.id);
+            if (!action) return stripPliData(row);
+            const threadHistory = buildProposalThreadHistory(
+                bundle.communications,
+                action.id,
+                action.delegation_id ?? row.delegation_id ?? null
+            );
+            const forwardedCommunication = findForwardedProposalCommunication(bundle.communications, action.id);
+            const forwardedMetadata = safeObject(forwardedCommunication?.metadata);
+            const ownership = buildArtifactOwnership(action, row.author_team, row);
+            const authorRole = ownership.submitting_role ?? row.author_role ?? null;
             return {
-                ...row,
+                ...stripPliData(row),
+                ...ownership,
+                author_role: authorRole,
+                author_semantic_role: resolveSemanticRole(authorRole),
                 workflow_state: action.workflow_state || null,
                 prior_workflow_state: action.prior_workflow_state || null,
                 revision_number: action.revision_number ?? row.revision_number ?? null,
@@ -1678,11 +1809,12 @@ function buildProposalContent(bundle = {}, participantRegistry, artifactWorkflow
                 thread_history: threadHistory,
                 thread_count: new Set(threadHistory.map((message) => message.thread_id).filter(Boolean)).size,
                 round_count: threadHistory.length,
-                review_decision: action.outcome || null,
-                review_reason: action.outcome ? action.adjudication_notes || null : null,
-                reviewer_pseudonym: action.outcome ? 'whitecell-operator' : null,
-                reviewed_utc: action.outcome ? asUtcIso(action.adjudicated_at) : null,
-                review_evidence_classification: action.outcome ? 'historical_legacy_adjudication' : null
+                forwarded_utc: asUtcIso(
+                    forwardedMetadata.sent_at
+                    || forwardedCommunication?.created_at
+                    || threadHistory.find((message) => message.round_number === 0)?.sent_utc
+                    || row.forwarded_utc
+                )
             };
         });
     }
@@ -1697,7 +1829,8 @@ function buildProposalContent(bundle = {}, participantRegistry, artifactWorkflow
             const finalRecipientState = safeObject(forwardedMetadata?.proposal_recipient_state).status
                 || safeObject(responseCommunication?.metadata).proposal_recipient_state?.status
                 || null;
-            const authorRole = action?.team ? `${action.team}_facilitator` : null;
+            const ownership = buildArtifactOwnership(action);
+            const authorRole = ownership.submitting_role;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
             const revisionHistory = resolveArtifactReviewHistory(
                 bundle,
@@ -1705,18 +1838,20 @@ function buildProposalContent(bundle = {}, participantRegistry, artifactWorkflow
                 action?.id,
                 'proposal'
             );
-            const threadHistory = buildProposalThreadHistory(bundle.communications, action?.id);
+            const threadHistory = buildProposalThreadHistory(bundle.communications, action?.id, action?.delegation_id ?? null);
             const recipientApprovals = safeObject(action?.artifact_payload?.proposal_recipient_reviews);
             const threadCount = new Set(threadHistory.map((message) => message.thread_id).filter(Boolean)).size;
 
             return {
                 proposal_id: action?.id || null,
                 session_id: bundle.session?.id || null,
+                ...ownership,
                 author_pseudonym: resolvePseudonym(participantRegistry, {
                     clientId: action?.client_id,
                     role: authorRole
                 }) || `${authorTeam || 'green'}-lead`,
                 author_role: authorRole,
+                author_semantic_role: resolveSemanticRole(authorRole),
                 author_team: authorTeam,
                 move_number: action?.move ?? null,
                 title: viewModel.title,
@@ -1747,13 +1882,7 @@ function buildProposalContent(bundle = {}, participantRegistry, artifactWorkflow
                     proposal_details: viewModel
                 },
                 submitted_utc: asUtcIso(action?.submitted_at),
-                review_decision: action?.outcome || null,
-                review_reason: action?.outcome ? action?.adjudication_notes || null : null,
-                reviewer_pseudonym: action?.outcome ? 'whitecell-operator' : null,
-                reviewed_utc: action?.outcome ? asUtcIso(action?.adjudicated_at) : null,
-                review_evidence_classification: action?.outcome
-                    ? 'historical_legacy_adjudication'
-                    : null,
+                forwarded_utc: asUtcIso(forwardedMetadata.sent_at || forwardedCommunication?.created_at),
                 forwarded_to_team: forwardedMetadata.recipient_team || viewModel.recipientTeam || null,
                 forwarded_to_teams: safeArray(bundle.communications)
                     .filter((communication) => (
@@ -1767,56 +1896,23 @@ function buildProposalContent(bundle = {}, participantRegistry, artifactWorkflow
         });
 }
 
-function buildAdjudicationContent(bundle = {}) {
-    const explicitRows = safeArray(bundle.researchAdjudicationContent);
-    if (explicitRows.length) {
-        return explicitRows
-            .filter((row) => row?.ruling !== null && row?.ruling !== undefined && String(row.ruling).trim() !== '')
-            .map((row) => ({
-                ...row,
-                evidence_classification: 'historical_legacy_adjudication'
-            }));
-    }
-
-    return safeArray(bundle.actions)
-        .filter((action) => action?.adjudicated_at && action?.outcome)
-        .map((action) => ({
-            adjudication_id: `${action.id}-adjudication`,
-            session_id: bundle.session?.id || null,
-            target_entity_type: isMoveResponseAction(action)
-                ? 'move_response'
-                : isStrategicOrientationAction(action)
-                    ? 'strategic_orientation'
-                    : isProposalAction(action)
-                        ? 'proposal'
-                        : 'action',
-            target_entity_id: action?.id || null,
-            adjudicator_pseudonym: 'whitecell-operator',
-            adjudicator_role: 'whitecell_lead',
-            move_number: action?.move ?? null,
-            ruling: action?.outcome || null,
-            reasoning: action?.adjudication_notes || null,
-            effects: safeObject(action?.adjudication),
-            adjudicated_utc: asUtcIso(action?.adjudicated_at),
-            evidence_classification: 'historical_legacy_adjudication'
-        }));
-}
-
 function buildMoveResponseContent(bundle = {}, participantRegistry, artifactWorkflowReviews = []) {
     const explicitRows = safeArray(bundle.researchMoveResponseContent);
     if (explicitRows.length) {
         return explicitRows.map((row) => {
             const action = safeArray(bundle.actions).find((candidate) => candidate?.id === row.move_response_id);
-            if (!action) return row;
+            if (!action) return stripPliData(row);
+            const ownership = buildArtifactOwnership(action, row.author_team, row);
+            const authorRole = ownership.submitting_role ?? row.author_role ?? null;
             return {
-                ...row,
+                ...stripPliData(row),
+                ...ownership,
+                author_role: authorRole,
+                author_semantic_role: resolveSemanticRole(authorRole),
                 workflow_state: action.workflow_state || null,
                 prior_workflow_state: action.prior_workflow_state || null,
                 revision_number: action.revision_number ?? null,
-                review_history: resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action.id, 'action'),
-                legacy_adjudication_outcome: action.outcome || null,
-                legacy_adjudication_notes: action.outcome ? action.adjudication_notes || null : null,
-                legacy_adjudicated_utc: action.outcome ? asUtcIso(action.adjudicated_at) : null
+                review_history: resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action.id, 'action')
             };
         });
     }
@@ -1825,18 +1921,21 @@ function buildMoveResponseContent(bundle = {}, participantRegistry, artifactWork
         .filter((action) => isMoveResponseAction(action))
         .map((action) => {
             const viewModel = getMoveResponseViewModel(action);
-            const authorRole = action?.team ? `${action.team}_facilitator` : null;
+            const ownership = buildArtifactOwnership(action);
+            const authorRole = ownership.submitting_role;
             const authorTeam = inferTeamFromRole(authorRole, action?.team);
             const reviewHistory = resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, action?.id, 'action');
 
             return {
                 move_response_id: action?.id || null,
                 session_id: bundle.session?.id || null,
+                ...ownership,
                 author_pseudonym: resolvePseudonym(participantRegistry, {
                     clientId: action?.client_id,
                     role: authorRole
                 }) || `${authorTeam || 'red'}-lead`,
                 author_role: authorRole,
+                author_semantic_role: resolveSemanticRole(authorRole),
                 author_team: authorTeam,
                 move_number: action?.move ?? null,
                 responding_to_entity_type: 'move',
@@ -1854,10 +1953,7 @@ function buildMoveResponseContent(bundle = {}, participantRegistry, artifactWork
                 workflow_state: action?.workflow_state || null,
                 prior_workflow_state: action?.prior_workflow_state || null,
                 revision_number: action?.revision_number ?? null,
-                review_history: reviewHistory,
-                legacy_adjudication_outcome: action?.outcome || null,
-                legacy_adjudication_notes: action?.outcome ? action?.adjudication_notes || null : null,
-                legacy_adjudicated_utc: action?.outcome ? asUtcIso(action?.adjudicated_at) : null
+                review_history: reviewHistory
             };
         });
 }
@@ -1867,13 +1963,19 @@ function buildRfiContent(bundle = {}, participantRegistry, artifactWorkflowRevie
     if (explicitRows.length) {
         return explicitRows.map((row) => {
             const request = safeArray(bundle.requests).find((candidate) => candidate?.id === row.rfi_id);
-            if (!request) return row;
+            if (!request) return stripPliData(row);
             const reviewHistory = resolveArtifactReviewHistory(bundle, artifactWorkflowReviews, request.id, 'rfi');
             const returnReview = [...reviewHistory].reverse().find((review) => review.decision === 'return_for_clarification');
             const resubmissionHistory = buildRfiResubmissionHistory(bundle, request.id);
             const answerHistory = buildRfiAnswerHistory(bundle, request);
+            const requesterRole = resolveRequestAuthorRole(bundle, request) ?? row.requester_role ?? null;
             return {
-                ...row,
+                ...stripPliData(row),
+                parent_team: request.team ?? row.requester_team ?? null,
+                delegation_id: request.delegation_id ?? row.delegation_id ?? null,
+                requester_role: requesterRole,
+                requester_semantic_role: resolveSemanticRole(requesterRole),
+                requester_seat_delegation_id: resolveRoleDelegation(requesterRole),
                 workflow_state: request.workflow_state || null,
                 prior_workflow_state: request.prior_workflow_state || null,
                 revision_number: request.revision_number ?? null,
@@ -1905,11 +2007,15 @@ function buildRfiContent(bundle = {}, participantRegistry, artifactWorkflowRevie
         return {
             rfi_id: request?.id || null,
             session_id: bundle.session?.id || null,
+            parent_team: request?.team || null,
+            delegation_id: request?.delegation_id ?? null,
             requester_pseudonym: resolvePseudonym(participantRegistry, {
                 clientId: request?.client_id,
                 role: requesterRole
             }) || `${requesterTeam || 'team'}-lead`,
             requester_role: requesterRole,
+            requester_semantic_role: resolveSemanticRole(requesterRole),
+            requester_seat_delegation_id: resolveRoleDelegation(requesterRole),
             requester_team: requesterTeam,
             move_number: request?.move ?? null,
             question_text: request?.query || null,
@@ -1936,7 +2042,7 @@ function buildRfiContent(bundle = {}, participantRegistry, artifactWorkflowRevie
 function buildStateTransitions(bundle = {}, actionContent, proposalContent, moveResponseContent, rfiContent) {
     const explicitRows = safeArray(bundle.researchStateTransitions);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows.map(stripPliData);
     }
 
     const transitions = [];
@@ -2006,25 +2112,6 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
             team: action.author_team,
             moveNumber: action.move_number
         });
-        if (!safeArray(action.review_history).length && action.legacy_adjudication_outcome && action.final_status === 'adjudicated') {
-            const sourceAction = safeArray(bundle.actions).find((candidate) => candidate?.id === action.action_id);
-            transitions.push({
-                transition_id: `${action.action_id}-adjudicated`,
-                session_id: action.session_id,
-                entity_type: entityType,
-                entity_id: action.action_id,
-                from_state: 'submitted',
-                to_state: 'adjudicated',
-                transition_utc: asUtcIso(sourceAction?.adjudicated_at),
-                actor_pseudonym: 'whitecell-operator',
-                actor_role: 'whitecell_lead',
-                actor_team: 'whitecell',
-                recipient_team: null,
-                move_number: action.move_number,
-                dwell_in_from_s: secondsBetween(action.submitted_utc, sourceAction?.adjudicated_at),
-                triggering_event_id: null
-            });
-        }
     });
 
     proposalContent.forEach((proposal) => {
@@ -2090,32 +2177,6 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
             });
         });
 
-        const reviewState = proposal.review_decision === 'forwarded'
-            ? 'forwarded'
-            : proposal.review_decision === 'changes_requested'
-                ? 'changes_requested'
-                : proposal.review_decision === 'rejected'
-                    ? 'rejected'
-                    : null;
-        if (reviewState && proposal.reviewed_utc) {
-            transitions.push({
-                transition_id: `${proposal.proposal_id}-${reviewState}`,
-                session_id: proposal.session_id,
-                entity_type: 'proposal',
-                entity_id: proposal.proposal_id,
-                from_state: 'submitted',
-                to_state: reviewState,
-                transition_utc: proposal.reviewed_utc,
-                actor_pseudonym: proposal.reviewer_pseudonym,
-                actor_role: 'whitecell_lead',
-                actor_team: 'whitecell',
-                recipient_team: proposal.forwarded_to_team,
-                move_number: proposal.move_number,
-                dwell_in_from_s: secondsBetween(proposal.submitted_utc, proposal.reviewed_utc),
-                triggering_event_id: null
-            });
-        }
-
         if (proposal.final_recipient_state) {
             const forwardedCommunication = findForwardedProposalCommunication(bundle.communications, proposal.proposal_id);
             const recipientTimestamp = safeObject(forwardedCommunication?.metadata).proposal_recipient_state?.actioned_at
@@ -2134,7 +2195,10 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
                 actor_team: proposal.forwarded_to_team,
                 recipient_team: proposal.forwarded_to_team,
                 move_number: proposal.move_number,
-                dwell_in_from_s: secondsBetween(proposal.reviewed_utc, recipientTimestamp),
+                dwell_in_from_s: secondsBetween(
+                    safeArray(proposal.revision_history).at(-1)?.reviewed_utc || proposal.submitted_utc,
+                    recipientTimestamp
+                ),
                 triggering_event_id: null
             });
         }
@@ -2166,24 +2230,6 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
             team: response.author_team,
             moveNumber: response.move_number
         });
-        if (!safeArray(response.review_history).length && response.legacy_adjudication_outcome && response.review_state === 'adjudicated' && sourceAction?.adjudicated_at) {
-            transitions.push({
-                transition_id: `${response.move_response_id}-reviewed`,
-                session_id: response.session_id,
-                entity_type: 'move_response',
-                entity_id: response.move_response_id,
-                from_state: 'submitted',
-                to_state: 'reviewed',
-                transition_utc: asUtcIso(sourceAction.adjudicated_at),
-                actor_pseudonym: 'whitecell-operator',
-                actor_role: 'whitecell_lead',
-                actor_team: 'whitecell',
-                recipient_team: null,
-                move_number: response.move_number,
-                dwell_in_from_s: secondsBetween(response.submitted_utc, sourceAction.adjudicated_at),
-                triggering_event_id: null
-            });
-        }
     });
 
     rfiContent.forEach((rfi) => {
@@ -2255,7 +2301,7 @@ function buildStateTransitions(bundle = {}, actionContent, proposalContent, move
 function buildInteractionEdges(bundle = {}, proposalContent, rfiContent) {
     const explicitRows = safeArray(bundle.researchInteractionEdges);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows.map(stripPliData);
     }
 
     const proposalById = new Map(proposalContent.map((proposal) => [proposal.proposal_id, proposal]));
@@ -2290,11 +2336,19 @@ function buildInteractionEdges(bundle = {}, proposalContent, rfiContent) {
         return {
             edge_id: communication?.id || `edge-${channel}`,
             session_id: bundle.session?.id || null,
+            artifact_parent_team: sourceProposal?.parent_team || sourceProposal?.author_team || null,
+            artifact_delegation_id: sourceProposal?.delegation_id ?? metadata.source_delegation_id ?? null,
             source_pseudonym: communication?.from_role === 'white_cell' ? 'whitecell-operator' : null,
             source_role: communication?.from_role || null,
             source_team: sourceTeam,
+            source_delegation_id: metadata.sender_delegation_id
+                ?? resolveRoleDelegation(communication?.from_role)
+                ?? null,
             target_pseudonym: null,
             target_team: targetTeam,
+            target_delegation_id: metadata.recipient_delegation_id
+                ?? resolveRoleDelegation(communication?.to_role)
+                ?? null,
             channel,
             direction,
             communication_type: communication?.type || null,
@@ -2312,11 +2366,15 @@ function buildInteractionEdges(bundle = {}, proposalContent, rfiContent) {
         .map((rfi) => ({
             edge_id: `${rfi.rfi_id}-rfi`,
             session_id: rfi.session_id,
+            artifact_parent_team: rfi.parent_team || rfi.requester_team,
+            artifact_delegation_id: rfi.delegation_id ?? null,
             source_pseudonym: 'whitecell-operator',
             source_role: 'whitecell_lead',
             source_team: 'whitecell',
+            source_delegation_id: null,
             target_pseudonym: rfi.requester_pseudonym,
             target_team: rfi.requester_team,
+            target_delegation_id: rfi.delegation_id ?? null,
             channel: 'rfi',
             direction: 'operator_to_team',
             communication_type: 'RFI_ANSWERED',
@@ -2332,7 +2390,7 @@ function buildInteractionEdges(bundle = {}, proposalContent, rfiContent) {
 function buildDataQualityEvents(bundle = {}, participantRegistry) {
     const explicitRows = safeArray(bundle.researchDataQualityEvents);
     if (explicitRows.length) {
-        return explicitRows;
+        return explicitRows.map(stripPliData);
     }
 
     const rows = [];
@@ -2492,12 +2550,14 @@ function buildDerivedSessionMetrics({
             participants_active: participantRows.length,
             total_events: eventLog.length,
             actions_submitted: moveActions.filter((row) => row.submitted_utc).length,
-            actions_adjudicated: moveActions.filter((row) => row.final_status === 'adjudicated').length,
+            actions_completed: moveActions.filter((row) => (
+                row.workflow_state === 'completed'
+                || safeArray(row.review_history).some((review) => review.decision === 'complete')
+            )).length,
             proposals_submitted: proposalContent.filter((row) => row.submitted_utc).length,
             proposals_forwarded: proposalContent.filter((row) => (
                 safeArray(row.forwarded_to_teams).length
                 || safeArray(row.thread_history).some((message) => message.round_number === 0)
-                || row.review_decision === 'forwarded'
             )).length,
             rfis_raised: rfiContent.length,
             communications_sent: interactionEdges.filter((edge) => edge.channel === 'communication').length,
@@ -2650,7 +2710,6 @@ function buildResearchTableCoverage({
     stateTransitions,
     actionContent,
     proposalContent,
-    adjudicationContent,
     moveResponseContent,
     rfiContent,
     artifactWorkflowReviews,
@@ -2660,7 +2719,6 @@ function buildResearchTableCoverage({
     derivedParticipantMetrics,
     derivedSessionMetrics,
     decisionLineage,
-    outcomeTaxonomy,
     trainingRubric,
     networkMetrics,
     turningPoints
@@ -2674,7 +2732,6 @@ function buildResearchTableCoverage({
         state_transitions: stateTransitions,
         action_content: actionContent,
         proposal_content: proposalContent,
-        adjudication_content: adjudicationContent,
         move_response_content: moveResponseContent,
         rfi_content: rfiContent,
         artifact_workflow_reviews: artifactWorkflowReviews,
@@ -2684,13 +2741,12 @@ function buildResearchTableCoverage({
         derived_participant_metrics: derivedParticipantMetrics,
         derived_session_metrics: derivedSessionMetrics,
         decision_lineage: decisionLineage,
-        outcome_taxonomy: outcomeTaxonomy,
         training_rubric: trainingRubric,
         network_metrics: networkMetrics,
         turning_points: turningPoints
     };
     const explicitResearchRows = {
-        event_log: safeArray(bundle.researchAuditEventLog).length,
+        event_log: safeArray(bundle.researchAuditEventLog).filter((event) => !isPliResearchEvent(event)).length,
         participants: safeArray(bundle.researchParticipants).length,
         notes: safeArray(bundle.researchNotes).length,
         note_revisions: safeArray(bundle.researchNoteRevisions).length,
@@ -2698,7 +2754,6 @@ function buildResearchTableCoverage({
         state_transitions: safeArray(bundle.researchStateTransitions).length,
         action_content: safeArray(bundle.researchActionContent).length,
         proposal_content: safeArray(bundle.researchProposalContent).length,
-        adjudication_content: safeArray(bundle.researchAdjudicationContent).length,
         move_response_content: safeArray(bundle.researchMoveResponseContent).length,
         rfi_content: safeArray(bundle.researchRfiContent).length,
         artifact_workflow_reviews: safeArray(bundle.artifactWorkflowReviews).length,
@@ -2717,7 +2772,6 @@ function buildResearchTableCoverage({
         'state_transitions',
         'action_content',
         'proposal_content',
-        'adjudication_content',
         'move_response_content',
         'rfi_content',
         'interaction_edges',
@@ -2726,7 +2780,6 @@ function buildResearchTableCoverage({
         'derived_participant_metrics',
         'derived_session_metrics',
         'decision_lineage',
-        'outcome_taxonomy',
         'training_rubric',
         'network_metrics',
         'turning_points'
@@ -2771,7 +2824,6 @@ function buildDataQualitySummary({
     stateTransitions,
     actionContent,
     proposalContent,
-    adjudicationContent,
     moveResponseContent,
     rfiContent,
     artifactWorkflowReviews,
@@ -2781,7 +2833,6 @@ function buildDataQualitySummary({
     derivedParticipantMetrics,
     derivedSessionMetrics,
     decisionLineage,
-    outcomeTaxonomy,
     trainingRubric,
     networkMetrics,
     turningPoints,
@@ -2797,7 +2848,6 @@ function buildDataQualitySummary({
         stateTransitions,
         actionContent,
         proposalContent,
-        adjudicationContent,
         moveResponseContent,
         rfiContent,
         artifactWorkflowReviews,
@@ -2807,7 +2857,6 @@ function buildDataQualitySummary({
         derivedParticipantMetrics,
         derivedSessionMetrics,
         decisionLineage,
-        outcomeTaxonomy,
         trainingRubric,
         networkMetrics,
         turningPoints
@@ -2820,7 +2869,7 @@ function buildDataQualitySummary({
     if (manifest.capture_mode !== 'research') {
         limitations.push('Capture mode is not research; use qualitative findings cautiously.');
     }
-    if (!safeArray(bundle.researchAuditEventLog).length) {
+    if (!safeArray(bundle.researchAuditEventLog).some((event) => !isPliResearchEvent(event))) {
         limitations.push('Event log was derived from legacy session tables instead of the append-only research audit spine.');
     }
     if (!participantRows.length) {
@@ -2834,6 +2883,15 @@ function buildDataQualitySummary({
     }
     if (safeObject(manifest.contract_reconciliation).status !== 'passed') {
         limitations.push('Workflow review, proposal thread, RFI revision, or UI workflow projection did not reconcile.');
+    }
+    if (manifest.green_seat_model_status === 'unknown_combination') {
+        limitations.push('Green seat model could not be resolved from the persisted topology/model combination; delegation data is exported without inference.');
+    }
+    if (manifest.green_export_context_source !== 'gc11_operator_projection') {
+        limitations.push('GC-11 operator export context was unavailable; persisted session fields were used and unified-seat removal history may be incomplete.');
+    }
+    if (safeObject(manifest.green_ownership_reconciliation).matches === false) {
+        limitations.push('One or more Green artifact IDs conflict across delegation ownership groups.');
     }
 
     const readinessStatus = resolveReadinessStatus(limitations, eventLog);
@@ -2889,11 +2947,14 @@ function buildDataQualitySummary({
         privacy: {
             participant_identity: 'pseudonymized',
             identity_map_exported: false,
-            notes_appendix_included: Boolean(includeNotesAppendix)
+            notes_appendix_included: Boolean(includeNotesAppendix),
+            pli_included: false,
+            pli_boundary: 'PLI scores, outcomes, notes, packets, and derived outcome taxonomies are excluded from research exports.'
         },
         integrity: {
             event_log_chain: manifest.event_log_chain,
             contract_reconciliation: manifest.contract_reconciliation,
+            green_ownership_reconciliation: manifest.green_ownership_reconciliation,
             checksums_ref: 'checksums.sha256',
             manifest_ref: 'manifest.json',
             codebook_ref: manifest.codebook_ref
@@ -2931,16 +2992,12 @@ function buildDecisionLineage({
     sessionId,
     actionContent,
     proposalContent,
-    adjudicationContent,
     moveResponseContent,
     rfiContent,
     interactionEdges,
     communications,
     eventLog
 }) {
-    const adjudicationByTargetId = new Map(
-        safeArray(adjudicationContent).map((entry) => [entry.target_entity_id, entry])
-    );
     const edgesByEntityId = new Map();
     safeArray(interactionEdges).forEach((edge) => {
         if (!edge?.entity_id) {
@@ -2967,7 +3024,6 @@ function buildDecisionLineage({
 
     safeArray(actionContent).forEach((action) => {
         const isStrategicOrientation = isStrategicOrientationContentRow(action);
-        const adjudication = adjudicationByTargetId.get(action.action_id);
         const relatedRfis = safeArray(rfiContent).filter((rfi) => (
             rfi.move_number === action.move_number
             && rfi.requester_team === action.author_team
@@ -2978,18 +3034,20 @@ function buildDecisionLineage({
             root_entity_id: action.action_id,
             move_number: action.move_number,
             source_team: action.author_team,
-            current_state: action.workflow_state || action.final_status || adjudication?.ruling || 'submitted',
+            source_delegation_id: action.delegation_id,
+            source_role: action.submitting_role || action.author_role,
+            source_semantic_role: action.submitting_semantic_role || action.author_semantic_role,
+            current_state: action.workflow_state || action.final_status || 'submitted',
             created_utc: null,
             submitted_utc: action.submitted_utc,
-            reviewed_utc: safeArray(action.review_history).at(-1)?.reviewed_utc || adjudication?.adjudicated_utc || null,
+            reviewed_utc: safeArray(action.review_history).at(-1)?.reviewed_utc || null,
             related_rfi_ids: idsForRows(relatedRfis, 'rfi_id'),
             related_event_ids: buildRelatedEventIds(eventLog, action.action_id),
             evidence_summary: [
                 action.title || (isStrategicOrientation ? 'Strategic orientation' : 'Action'),
                 action.action_type
                     ? `${isStrategicOrientation ? 'artifact' : 'instrument'}=${action.action_type}`
-                    : '',
-                adjudication?.ruling ? `historical_legacy_ruling=${adjudication.ruling}` : ''
+                    : ''
             ].filter(Boolean).join('; ')
         });
     });
@@ -3005,10 +3063,13 @@ function buildDecisionLineage({
             root_entity_id: proposal.proposal_id,
             move_number: proposal.move_number,
             source_team: proposal.author_team,
-            current_state: proposal.final_recipient_state || proposal.workflow_state || proposal.review_decision || 'submitted',
+            source_delegation_id: proposal.delegation_id,
+            source_role: proposal.submitting_role || proposal.author_role,
+            source_semantic_role: proposal.submitting_semantic_role || proposal.author_semantic_role,
+            current_state: proposal.final_recipient_state || proposal.workflow_state || 'submitted',
             created_utc: null,
             submitted_utc: proposal.submitted_utc,
-            reviewed_utc: safeArray(proposal.revision_history).at(-1)?.reviewed_utc || proposal.reviewed_utc,
+            reviewed_utc: safeArray(proposal.revision_history).at(-1)?.reviewed_utc || null,
             related_communication_ids: uniqueSortedList([
                 ...idsForRows(proposalEdges, 'edge_id'),
                 ...idsForRows(proposalCommunications, 'id')
@@ -3029,10 +3090,13 @@ function buildDecisionLineage({
             root_entity_id: response.move_response_id,
             move_number: response.move_number,
             source_team: response.author_team,
+            source_delegation_id: response.delegation_id,
+            source_role: response.submitting_role || response.author_role,
+            source_semantic_role: response.submitting_semantic_role || response.author_semantic_role,
             current_state: response.workflow_state || response.review_state || 'submitted',
             created_utc: null,
             submitted_utc: response.submitted_utc,
-            reviewed_utc: safeArray(response.review_history).at(-1)?.reviewed_utc || response.legacy_adjudicated_utc || null,
+            reviewed_utc: safeArray(response.review_history).at(-1)?.reviewed_utc || null,
             related_event_ids: buildRelatedEventIds(eventLog, response.move_response_id),
             evidence_summary: [
                 safeObject(response.full_content).goal || 'Move response',
@@ -3054,6 +3118,9 @@ function buildDecisionLineage({
             root_entity_id: rfi.rfi_id,
             move_number: rfi.move_number,
             source_team: rfi.requester_team,
+            source_delegation_id: rfi.delegation_id,
+            source_role: rfi.requester_role,
+            source_semantic_role: rfi.requester_semantic_role,
             current_state: rfi.workflow_state || rfi.status || 'raised',
             created_utc: rfi.raised_utc,
             submitted_utc: rfi.raised_utc,
@@ -3120,7 +3187,13 @@ function buildScenarioContext(bundle = {}, {
             capture_mode: manifest.capture_mode,
             software_build_hash: manifest.software_build_hash || null,
             app_version: CONFIG.VERSION,
-            game_state: bundle.gameState || null
+            game_state: stripPliData(bundle.gameState || null),
+            session_topology_version: manifest.session_topology_version,
+            green_roster_version: manifest.green_roster_version,
+            persisted_green_seat_model: manifest.persisted_green_seat_model,
+            effective_green_seat_model: manifest.effective_green_seat_model,
+            green_seat_model_status: manifest.green_seat_model_status,
+            pli_included: false
         },
         exercise_structure: {
             declared_loop: ['orient', 'deliberate', 'act', 'adjudicate'],
@@ -3152,7 +3225,11 @@ function buildScenarioContext(bundle = {}, {
         observed_objectives: {
             strategic_orientations: strategicOrientations.map((orientation) => ({
                 orientation_id: orientation.action_id,
-                team: orientation.author_team,
+                parent_team: orientation.parent_team || orientation.author_team,
+                delegation_id: orientation.delegation_id,
+                submitting_role: orientation.submitting_role,
+                submitting_semantic_role: orientation.submitting_semantic_role,
+                submitting_seat_delegation_id: orientation.submitting_seat_delegation_id,
                 artifact_type: safeObject(safeObject(orientation.full_content).details).artifactType || null,
                 contract_version: safeObject(safeObject(orientation.full_content).details).contractVersion || 1,
                 own_orientation: safeObject(safeObject(orientation.full_content).details).ownOrientation || null,
@@ -3166,14 +3243,22 @@ function buildScenarioContext(bundle = {}, {
             actions: moveActions.map((action) => ({
                 action_id: action.action_id,
                 move_number: action.move_number,
-                team: action.author_team,
+                parent_team: action.parent_team || action.author_team,
+                delegation_id: action.delegation_id,
+                submitting_role: action.submitting_role,
+                submitting_semantic_role: action.submitting_semantic_role,
+                submitting_seat_delegation_id: action.submitting_seat_delegation_id,
                 title: action.title,
                 intent_text: action.intent_text
             })),
             proposals: proposalContent.map((proposal) => ({
                 proposal_id: proposal.proposal_id,
                 move_number: proposal.move_number,
-                team: proposal.author_team,
+                parent_team: proposal.parent_team || proposal.author_team,
+                delegation_id: proposal.delegation_id,
+                submitting_role: proposal.submitting_role,
+                submitting_semantic_role: proposal.submitting_semantic_role,
+                submitting_seat_delegation_id: proposal.submitting_seat_delegation_id,
                 title: proposal.title,
                 objective: proposal.proposal_text,
                 intended_recipient_team: proposal.intended_recipient_team,
@@ -3184,7 +3269,11 @@ function buildScenarioContext(bundle = {}, {
             move_responses: moveResponseContent.map((response) => ({
                 move_response_id: response.move_response_id,
                 move_number: response.move_number,
-                team: response.author_team,
+                parent_team: response.parent_team || response.author_team,
+                delegation_id: response.delegation_id,
+                submitting_role: response.submitting_role,
+                submitting_semantic_role: response.submitting_semantic_role,
+                submitting_seat_delegation_id: response.submitting_seat_delegation_id,
                 posture: response.posture,
                 response_text: response.response_text
             }))
@@ -3196,34 +3285,23 @@ function buildScenarioContext(bundle = {}, {
     };
 }
 
-const OUTCOME_TAXONOMY_DIMENSIONS = Object.freeze({
-    escalation_risk: ['escalat', 'retaliat', 'coerc', 'crisis', 'conflict', 'pressure', 'reprisal'],
-    alliance_cohesion: ['ally', 'alliance', 'coalition', 'partner', 'coordination', 'alignment', 'cohesion'],
-    implementation_feasibility: ['feasib', 'implement', 'enforce', 'capacity', 'timeline', 'constraint', 'reporting'],
-    economic_pressure: ['sanction', 'export', 'investment', 'market', 'supply', 'cost', 'tariff', 'trade'],
-    legitimacy_reputation: ['legitim', 'reputation', 'public', 'narrative', 'legal', 'norm', 'credibility'],
-    operational_delay: ['delay', 'slow', 'disrupt', 'queue', 'backlog', 'window', 'pace'],
-    resilience_impact: ['resilien', 'redundan', 'reroute', 'substitut', 'diversif', 'buffer', 'stockpile']
-});
-
-function normalizeTaxonomyEvidence(value) {
-    return String(value ?? '')
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
 function buildArtifactWorkflowReviewRows(bundle = {}) {
     return safeArray(bundle.artifactWorkflowReviews)
         .map((review) => {
             const reviewedUtc = asUtcIso(review?.reviewed_at || review?.reviewed_utc);
+            const sourceArtifact = [...safeArray(bundle.actions), ...safeArray(bundle.requests)]
+                .find((artifact) => artifact?.id === review?.artifact_id);
+            const parentTeam = review?.team ?? sourceArtifact?.team ?? null;
             return {
+                ...stripPliData(review),
                 review_id: review?.id || null,
                 session_id: review?.session_id || bundle.session?.id || null,
                 artifact_kind: review?.artifact_kind || null,
                 artifact_id: review?.artifact_id || null,
                 artifact_type: review?.artifact_type || null,
-                team: review?.team || null,
+                parent_team: parentTeam,
+                delegation_id: review?.delegation_id ?? sourceArtifact?.delegation_id ?? null,
+                team: parentTeam,
                 decision: review?.decision || null,
                 revision_number: review?.revision_number ?? null,
                 next_revision_number: review?.next_revision_number ?? null,
@@ -3235,8 +3313,8 @@ function buildArtifactWorkflowReviewRows(bundle = {}) {
                 reviewer_notes: review?.reviewer_notes || null,
                 reviewed_utc: reviewedUtc,
                 returned_utc: review?.decision === 'complete' ? null : reviewedUtc,
-                prior_state: safeObject(review?.prior_state),
-                new_state: safeObject(review?.new_state)
+                prior_state: stripPliData(safeObject(review?.prior_state)),
+                new_state: stripPliData(safeObject(review?.new_state))
             };
         })
         .sort((left, right) => (
@@ -3296,7 +3374,7 @@ function resolveArtifactReviewHistory(bundle = {}, artifactWorkflowReviews = [],
         : buildLegacyTimelineReviewHistory(bundle, artifactId, artifactKind);
 }
 
-function buildProposalThreadHistory(communications = [], proposalId = null) {
+function buildProposalThreadHistory(communications = [], proposalId = null, proposalDelegationId = null) {
     return safeArray(communications)
         .filter((communication) => {
             const metadata = safeObject(communication?.metadata);
@@ -3313,10 +3391,17 @@ function buildProposalThreadHistory(communications = [], proposalId = null) {
                 round_number: metadata.round_number ?? null,
                 parent_message_id: metadata.parent_message_id || null,
                 source_proposal_id: metadata.source_proposal_id || null,
+                artifact_delegation_id: metadata.source_delegation_id ?? proposalDelegationId,
                 source_revision: metadata.source_revision ?? null,
                 source_team: metadata.source_team || null,
                 sender_team: metadata.sender_team || inferTeamFromRole(communication?.from_role),
                 sender_role: metadata.sender_role || communication?.from_role || null,
+                sender_delegation_id: metadata.sender_delegation_id
+                    ?? resolveRoleDelegation(metadata.sender_role || communication?.from_role)
+                    ?? null,
+                recipient_delegation_id: metadata.recipient_delegation_id
+                    ?? resolveRoleDelegation(communication?.to_role)
+                    ?? null,
                 sent_utc: asUtcIso(metadata.sent_at || communication?.created_at),
                 message_type: metadata.message_type || communication?.type || null,
                 facilitator_decision: metadata.facilitator_decision || null,
@@ -3378,110 +3463,6 @@ function buildRfiResubmissionHistory(bundle = {}, requestId = null) {
             resubmitted_utc: asUtcIso(event?.created_at || event?.event_ts_utc)
         }))
         .sort((left, right) => String(left.resubmitted_utc || '').localeCompare(String(right.resubmitted_utc || '')));
-}
-
-function buildTaxonomySessionEvidence(sourceArtifact = {}) {
-    if (!isStrategicOrientationContentRow(sourceArtifact)) {
-        return safeObject(sourceArtifact.full_content);
-    }
-
-    const fullContent = safeObject(sourceArtifact.full_content);
-    const details = safeObject(fullContent.details);
-    return {
-        goal: fullContent.goal || null,
-        expected_outcomes: fullContent.expected_outcomes || null,
-        details: {
-            contractVersion: details.contractVersion || 1,
-            artifactType: details.artifactType || null,
-            ownOrientation: details.ownOrientation || null,
-            orientation: details.orientation || null,
-            orientationLabel: details.orientationLabel || null,
-            orientationTag: details.orientationTag || null,
-            forecastTargets: safeArray(details.forecastTargets),
-            primaryLevers: safeArray(details.primaryLevers),
-            acceptedCosts: safeArray(details.acceptedCosts),
-            posture: details.posture || null,
-            rationale: details.rationale || null,
-            orientationRationale: details.orientationRationale || null,
-            forecastActionDescription: details.forecastActionDescription || null,
-            strategyDescription: details.strategyDescription || null,
-            forecastSummary: details.forecastSummary || null,
-            scribeHandoff: details.scribeHandoff || null
-        }
-    };
-}
-
-function buildOutcomeTaxonomy({
-    sessionId,
-    actionContent,
-    proposalContent,
-    moveResponseContent,
-    adjudicationContent
-}) {
-    const actionById = new Map(safeArray(actionContent).map((row) => [row.action_id, row]));
-    const proposalById = new Map(safeArray(proposalContent).map((row) => [row.proposal_id, row]));
-    const responseById = new Map(safeArray(moveResponseContent).map((row) => [row.move_response_id, row]));
-    const rows = [];
-
-    safeArray(adjudicationContent).forEach((adjudication) => {
-        const sourceArtifact = actionById.get(adjudication.target_entity_id)
-            || proposalById.get(adjudication.target_entity_id)
-            || responseById.get(adjudication.target_entity_id)
-            || {};
-        const evidenceParts = [
-            adjudication.ruling,
-            adjudication.reasoning,
-            formatReportValue(adjudication.effects, ''),
-            sourceArtifact.intent_text,
-            sourceArtifact.proposal_text,
-            sourceArtifact.response_text,
-            formatReportValue(buildTaxonomySessionEvidence(sourceArtifact), '')
-        ].filter(Boolean);
-        const evidenceText = normalizeTaxonomyEvidence(evidenceParts.join(' '));
-        let observedDimensions = 0;
-
-        Object.entries(OUTCOME_TAXONOMY_DIMENSIONS).forEach(([dimension, keywords]) => {
-            const hits = keywords.filter((keyword) => evidenceText.includes(keyword));
-            if (!hits.length) {
-                return;
-            }
-
-            observedDimensions += 1;
-            rows.push({
-                taxonomy_id: `${adjudication.adjudication_id || adjudication.target_entity_id}-${dimension}`,
-                session_id: sessionId,
-                entity_type: adjudication.target_entity_type || null,
-                entity_id: adjudication.target_entity_id || null,
-                move_number: adjudication.move_number ?? sourceArtifact.move_number ?? null,
-                source_team: sourceArtifact.author_team || null,
-                dimension,
-                signal: 'mentioned',
-                keyword_hits: hits,
-                adjudication_ruling: adjudication.ruling || null,
-                evidence_source: 'adjudication_content',
-                evidence_excerpt: evidenceParts.join(' ').slice(0, 500)
-            });
-        });
-
-        if (!observedDimensions) {
-            rows.push({
-                taxonomy_id: `${adjudication.adjudication_id || adjudication.target_entity_id}-general_outcome`,
-                session_id: sessionId,
-                entity_type: adjudication.target_entity_type || null,
-                entity_id: adjudication.target_entity_id || null,
-                move_number: adjudication.move_number ?? sourceArtifact.move_number ?? null,
-                source_team: sourceArtifact.author_team || null,
-                dimension: 'general_outcome',
-                signal: 'recorded',
-                keyword_hits: [],
-                adjudication_ruling: adjudication.ruling || null,
-                evidence_source: 'adjudication_content',
-                evidence_excerpt: evidenceParts.join(' ').slice(0, 500)
-            });
-        }
-    });
-
-    return rows;
 }
 
 function buildTrainingRubric({
@@ -3721,7 +3702,7 @@ function buildTurningPoints({
             .map((proposal) => ({
                 ...proposal,
                 first_forwarded_utc: safeArray(proposal.thread_history).find((message) => message.round_number === 0)?.sent_utc
-                    || proposal.reviewed_utc
+                    || proposal.forwarded_utc
             })),
         'first_forwarded_utc'
     );
@@ -3743,11 +3724,6 @@ function buildTurningPoints({
     const highestActivityMove = [...moveEventCounts.entries()]
         .filter(([moveNumber]) => moveNumber !== 'unassigned')
         .sort((left, right) => right[1] - left[1] || Number(left[0]) - Number(right[0]))[0] || null;
-    const proposalNotAdvanced = safeArray(proposalContent).find((proposal) => (
-        proposal.review_decision
-        && proposal.review_decision !== 'forwarded'
-    ));
-
     if (firstForwardedProposal) {
         addTurningPoint({
             turning_point_id: `first_forwarded_proposal-${firstForwardedProposal.proposal_id}`,
@@ -3815,20 +3791,6 @@ function buildTurningPoints({
                 .map((event) => event.event_id)
         });
     }
-    if (proposalNotAdvanced) {
-        addTurningPoint({
-            turning_point_id: `proposal_not_forwarded-${proposalNotAdvanced.proposal_id}`,
-            occurred_utc: proposalNotAdvanced.reviewed_utc,
-            move_number: proposalNotAdvanced.move_number,
-            turning_point_type: 'proposal_not_forwarded',
-            entity_type: 'proposal',
-            entity_id: proposalNotAdvanced.proposal_id,
-            team: proposalNotAdvanced.author_team,
-            evidence_summary: `Historical/legacy proposal adjudication outcome was ${proposalNotAdvanced.review_decision}.`,
-            evidence_refs: [proposalNotAdvanced.proposal_id]
-        });
-    }
-
     const crossTeamEdges = safeArray(interactionEdges).filter((edge) => (
         edge.source_team
         && edge.target_team
@@ -3926,6 +3888,7 @@ function buildPersonaReports(dataset = {}) {
         row.root_entity_id,
         row.move_number,
         row.source_team,
+        row.source_delegation_id,
         row.current_state,
         row.evidence_summary
     ]);
@@ -3935,6 +3898,7 @@ function buildPersonaReports(dataset = {}) {
     const actionRows = moveActionContentRows.map((action) => [
         action.move_number,
         action.author_team,
+        action.delegation_id,
         action.action_type,
         formatReportValue(action.targets, ''),
         action.final_status,
@@ -3948,6 +3912,7 @@ function buildPersonaReports(dataset = {}) {
 
         return [
             orientation.author_team,
+            orientation.delegation_id,
             (details.contractVersion || 1) > 1 ? 'Orientation & Forecast' : (details.isForecast ? 'Forecast' : 'Selection'),
             details.ownOrientation?.label || ((details.contractVersion || 1) === 1 && !details.isForecast ? details.orientationLabel : ''),
             forecastSummary,
@@ -3960,9 +3925,9 @@ function buildPersonaReports(dataset = {}) {
     const proposalRows = safeArray(dataset.proposalContent).map((proposal) => [
         proposal.move_number,
         proposal.author_team,
+        proposal.delegation_id,
         formatReportValue(proposal.intended_recipient_teams, proposal.intended_recipient_team),
         proposal.workflow_state,
-        proposal.review_decision,
         proposal.final_recipient_state,
         proposal.rationale
     ]);
@@ -3984,14 +3949,6 @@ function buildPersonaReports(dataset = {}) {
         entry.source,
         entry.status,
         entry.critical ? 'yes' : 'no'
-    ]);
-    const outcomeRows = safeArray(dataset.outcomeTaxonomy).slice(0, 30).map((row) => [
-        row.dimension,
-        row.signal,
-        row.entity_type,
-        row.entity_id,
-        row.source_team,
-        formatReportValue(row.keyword_hits, '')
     ]);
     const rubricRows = safeArray(dataset.trainingRubric).slice(0, 40).map((row) => [
         row.participant_pseudonym,
@@ -4028,15 +3985,14 @@ function buildPersonaReports(dataset = {}) {
             path: 'reports/policy_brief.html',
             content: renderPersonaHtml({
                 title: 'Policy Brief',
-                subtitle: 'Policy-relevant instruments, partner routing, constraints, workflow reviews, and explicitly historical legacy adjudication evidence.',
+                subtitle: 'Policy-relevant instruments, partner routing, constraints, and workflow-review evidence. PLI outputs are maintained separately.',
                 manifest,
                 sections: [
                     { title: 'Session Indicators', html: commonSummaryCards },
-                    { title: 'Outcome Taxonomy Signals', html: renderReportTable(['Dimension', 'Signal', 'Entity Type', 'Entity ID', 'Team', 'Keyword Hits'], outcomeRows) },
-                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
-                    { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
-                    { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Intended Recipient', 'Workflow', 'Historical / Legacy Adjudication', 'Recipient State', 'Rationale'], proposalRows) },
-                    { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Delegation', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
+                    { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Delegation', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
+                    { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Delegation', 'Intended Recipient', 'Workflow', 'Recipient State', 'Rationale'], proposalRows) },
+                    { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'Delegation', 'State', 'Evidence'], lineageRows) }
                 ]
             }),
             mimeType: 'text/html'
@@ -4049,9 +4005,9 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Executive Indicators', html: commonSummaryCards },
-                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Delegation', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
                     { title: 'Turning Points', html: renderReportTable(['Type', 'Move', 'Team', 'Evidence'], turningRows) },
-                    { title: 'Decision Lineage Highlights', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
+                    { title: 'Decision Lineage Highlights', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'Delegation', 'State', 'Evidence'], lineageRows) },
                     { title: 'Network Metrics', html: renderReportTable(['Metric', 'Source Team', 'Target Team', 'Value', 'Unit'], networkRows) },
                     { title: 'Interaction Matrix', html: renderInteractionMatrix(dataset.interactionEdges) },
                     { title: 'Data Quality Readiness', html: renderReportMetaGrid([
@@ -4072,7 +4028,7 @@ function buildPersonaReports(dataset = {}) {
                     { title: 'Training Indicators', html: commonSummaryCards },
                     { title: 'Rubric Evidence', html: renderReportTable(['Participant', 'Team', 'Dimension', 'Evidence Value', 'Status'], rubricRows) },
                     { title: 'Participant Metrics', html: renderReportTable(['Pseudonym', 'Role', 'Team', 'Events', 'Submissions', 'Mean Submit Time', 'Disconnects'], participantRows) },
-                    { title: 'Decision Evidence', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) },
+                    { title: 'Decision Evidence', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'Delegation', 'State', 'Evidence'], lineageRows) },
                     { title: 'Data Quality Coverage', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows) }
                 ]
             }),
@@ -4095,8 +4051,8 @@ function buildPersonaReports(dataset = {}) {
                     ]) },
                     { title: 'Row Counts', html: renderReportTable(['Projection', 'Rows'], rowCountRows) },
                     { title: 'Coverage And Sources', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows) },
-                    { title: 'Derived Utility Tables', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows.filter((row) => ['Outcome Taxonomy', 'Training Rubric', 'Network Metrics', 'Turning Points'].includes(humanizeReportLabel(row[0])))) },
-                    { title: 'Decision Lineage Sample', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence'], lineageRows) }
+                    { title: 'Derived Utility Tables', html: renderReportTable(['Table', 'Rows', 'Source', 'Status', 'Critical'], qualityRows.filter((row) => ['Training Rubric', 'Network Metrics', 'Turning Points'].includes(humanizeReportLabel(row[0])))) },
+                    { title: 'Decision Lineage Sample', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'Delegation', 'State', 'Evidence'], lineageRows) }
                 ]
             }),
             mimeType: 'text/html'
@@ -4133,16 +4089,14 @@ function buildCodebookRows() {
                                 : null,
             allowed_values: null,
             nullable: !['session_id', 'participant_pseudonym', 'author_pseudonym', 'event_type', 'entity_type', 'to_state', 'occurred_utc'].includes(columnName),
-            is_derived: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName),
-            derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'outcome_taxonomy', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName)
+            is_derived: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName),
+            derivation: ['derived_participant_metrics', 'derived_session_metrics', 'decision_lineage', 'cross_session_index', 'training_rubric', 'network_metrics', 'turning_points', 'session_recording_artifacts'].includes(tableName)
                 ? 'Computed client-side at export time from canonical event and content tables.'
                 : null,
             pii_class: /content_text|proposal_text|question_text|answer_text|response_text|reasoning|rationale|strategy_description|forecast_action_description|intent_text|requested_action|evidence_summary|evidence_excerpt|reviewer_notes|notification_note|review_history|revision_history|thread_history|answer_history|prior_state|new_state/.test(columnName)
                 ? 'pseudonymous'
                 : 'none',
-            description: columnName.startsWith('legacy_adjudication') || columnName === 'review_evidence_classification'
-                ? `Explicitly historical/legacy adjudication evidence retained for deterministic replay; it is not a current workflow outcome.`
-                : ['review_history', 'revision_history'].includes(columnName)
+            description: ['review_history', 'revision_history'].includes(columnName)
                     ? 'Authoritative append-only workflow review history projected from artifact_workflow_reviews; legacy timeline fallback rows are explicitly marked.'
                     : columnName === 'thread_history'
                         ? 'Immutable proposal messages with stable thread, recipient, round, parent, source revision, sender, timestamp, and message-type metadata.'
@@ -4731,9 +4685,6 @@ export function buildResearchReportHtml(dataset, {
     const sessionConfigSnapshot = safeObject(manifest.session_config_snapshot);
     const gameState = safeObject(sessionConfigSnapshot.game_state);
     const sessionMetadata = safeObject(dataset.session?.metadata);
-    const adjudicationByTargetId = new Map(
-        safeArray(dataset.adjudicationContent).map((entry) => [entry.target_entity_id, entry])
-    );
     const eventTypeCounts = safeArray(dataset.eventLog).reduce((counts, event) => {
         const eventType = event?.event_type || 'unknown';
         counts.set(eventType, (counts.get(eventType) || 0) + 1);
@@ -4745,8 +4696,11 @@ export function buildResearchReportHtml(dataset, {
     const participantRosterRows = safeArray(dataset.participants).map((participant) => [
         participant.participant_pseudonym || '',
         formatRoleForReport(participant.role),
-        participant.team || '',
+        participant.parent_team || participant.team || '',
+        participant.delegation_id || '',
+        participant.semantic_role || '',
         participant.seat_index === null || participant.seat_index === undefined ? '' : String(participant.seat_index),
+        participant.seat_status || '',
         formatReportTimestamp(participant.first_seen_utc),
         formatReportTimestamp(participant.last_seen_utc),
         formatReportDuration(participant.active_duration_s),
@@ -4855,6 +4809,8 @@ export function buildResearchReportHtml(dataset, {
         lineage.root_entity_id || '',
         lineage.move_number === null || lineage.move_number === undefined ? '' : String(lineage.move_number),
         lineage.source_team || '',
+        lineage.source_delegation_id || '',
+        lineage.source_semantic_role || '',
         lineage.current_state || '',
         formatReportTimestamp(lineage.submitted_utc || lineage.created_utc),
         formatReportTimestamp(lineage.reviewed_utc),
@@ -4879,16 +4835,6 @@ export function buildResearchReportHtml(dataset, {
         message.move_number === null || message.move_number === undefined ? '' : String(message.move_number),
         formatReportTimestamp(message.occurred_utc),
         message.content_excerpt || ''
-    ]);
-    const outcomeTaxonomyRows = safeArray(dataset.outcomeTaxonomy).slice(0, 80).map((row) => [
-        row.dimension || '',
-        row.signal || '',
-        row.entity_type || '',
-        row.entity_id || '',
-        row.move_number === null || row.move_number === undefined ? '' : String(row.move_number),
-        row.source_team || '',
-        formatReportValue(row.keyword_hits, ''),
-        row.evidence_excerpt || ''
     ]);
     const trainingRubricRows = safeArray(dataset.trainingRubric).slice(0, 80).map((row) => [
         row.participant_pseudonym || '',
@@ -4920,7 +4866,6 @@ export function buildResearchReportHtml(dataset, {
     const strategicOrientationRows = allActionRows.filter(isStrategicOrientationContentRow);
     const moveActionRows = allActionRows.filter((action) => !strategicOrientationRows.includes(action));
     const strategicOrientationCards = strategicOrientationRows.map((orientation) => {
-        const adjudication = adjudicationByTargetId.get(orientation.action_id);
         const details = safeObject(safeObject(orientation.full_content).details);
         const forecastRows = safeArray(details.forecastTargets).map((target) => [
             target.label || target.key || '',
@@ -4939,7 +4884,10 @@ export function buildResearchReportHtml(dataset, {
             ],
             metadata: [
                 { label: 'Author', value: `${orientation.author_pseudonym || 'N/A'} / ${formatRoleForReport(orientation.author_role) || 'unknown'}` },
-                { label: 'Team', value: details.teamLabel || orientation.author_team },
+                { label: 'Parent Team', value: orientation.parent_team || orientation.author_team },
+                { label: 'Delegation', value: orientation.delegation_id },
+                { label: 'Submitting Role', value: formatRoleForReport(orientation.submitting_role) },
+                { label: 'Submitting Seat Delegation', value: orientation.submitting_seat_delegation_id },
                 { label: 'Exercise Period', value: humanizeReportLabel(details.period || 'pre_move_1') },
                 { label: 'Contract Version', value: details.contractVersion || 1 },
                 { label: 'Artifact Type', value: (details.contractVersion || 1) > 1 ? 'Orientation & Forecast' : (details.isForecast ? 'Forecast' : 'Selection') },
@@ -4976,17 +4924,6 @@ export function buildResearchReportHtml(dataset, {
                         { label: 'Accepted Costs', value: details.acceptedCosts }
                     ])
                 },
-                adjudication
-                    ? {
-                        title: 'Historical / Legacy Adjudication',
-                        html: renderReportMetaGrid([
-                            { label: 'Ruling', value: adjudication.ruling },
-                            { label: 'Reasoning', value: adjudication.reasoning },
-                            { label: 'Adjudicated UTC', value: formatReportTimestamp(adjudication.adjudicated_utc) },
-                            { label: 'Effects', value: adjudication.effects }
-                        ])
-                    }
-                    : null,
                 safeArray(orientation.review_history).length
                     ? {
                         title: 'Workflow Review History',
@@ -4997,7 +4934,6 @@ export function buildResearchReportHtml(dataset, {
         });
     });
     const actionCards = moveActionRows.map((action) => {
-        const adjudication = adjudicationByTargetId.get(action.action_id);
         const details = safeObject(safeObject(action.full_content).details);
 
         return renderReportEntityCard({
@@ -5011,6 +4947,10 @@ export function buildResearchReportHtml(dataset, {
             ],
             metadata: [
                 { label: 'Author', value: `${action.author_pseudonym || 'N/A'} / ${formatRoleForReport(action.author_role) || 'unknown'}` },
+                { label: 'Parent Team', value: action.parent_team || action.author_team },
+                { label: 'Delegation', value: action.delegation_id },
+                { label: 'Submitting Role', value: formatRoleForReport(action.submitting_role) },
+                { label: 'Submitting Seat Delegation', value: action.submitting_seat_delegation_id },
                 { label: 'Submitted', value: formatReportTimestamp(action.submitted_utc) },
                 { label: 'Targets', value: action.targets },
                 { label: 'Instrument Of Power', value: action.instruments },
@@ -5049,17 +4989,6 @@ export function buildResearchReportHtml(dataset, {
                         title: 'Workflow Review History',
                         html: renderReportMetaGrid([{ label: 'Authoritative Review Records', value: action.review_history }])
                     }
-                    : null,
-                adjudication
-                    ? {
-                        title: 'Historical / Legacy Adjudication',
-                        html: renderReportMetaGrid([
-                            { label: 'Ruling', value: adjudication.ruling },
-                            { label: 'Reasoning', value: adjudication.reasoning },
-                            { label: 'Adjudicated UTC', value: formatReportTimestamp(adjudication.adjudicated_utc) },
-                            { label: 'Effects', value: adjudication.effects }
-                        ])
-                    }
                     : null
             ].filter(Boolean)
         });
@@ -5078,6 +5007,10 @@ export function buildResearchReportHtml(dataset, {
             ],
             metadata: [
                 { label: 'Author', value: `${proposal.author_pseudonym || 'N/A'} / ${formatRoleForReport(proposal.author_role) || 'unknown'}` },
+                { label: 'Parent Team', value: proposal.parent_team || proposal.author_team },
+                { label: 'Delegation', value: proposal.delegation_id },
+                { label: 'Submitting Role', value: formatRoleForReport(proposal.submitting_role) },
+                { label: 'Submitting Seat Delegation', value: proposal.submitting_seat_delegation_id },
                 { label: 'Intended Recipients', value: proposal.intended_recipient_teams?.length ? proposal.intended_recipient_teams : proposal.intended_recipient_team },
                 { label: 'Forwarded To', value: proposal.forwarded_to_teams?.length ? proposal.forwarded_to_teams : proposal.forwarded_to_team },
                 { label: 'Revision', value: proposal.revision_number },
@@ -5122,24 +5055,12 @@ export function buildResearchReportHtml(dataset, {
                         title: 'Immutable Proposal Thread History',
                         html: renderReportMetaGrid([{ label: 'Thread / Round Records', value: proposal.thread_history }])
                     }
-                    : null,
-                proposal.review_evidence_classification
-                    ? {
-                        title: 'Historical / Legacy Adjudication',
-                        html: renderReportMetaGrid([
-                            { label: 'Historical Outcome', value: proposal.review_decision },
-                            { label: 'Historical Reason', value: proposal.review_reason },
-                            { label: 'Historical Reviewer', value: proposal.reviewer_pseudonym },
-                            { label: 'Evidence Classification', value: proposal.review_evidence_classification }
-                        ])
-                    }
                     : null
             ].filter(Boolean)
         });
     });
     const moveResponseCards = dataset.moveResponseContent.map((response) => {
         const details = safeObject(safeObject(response.full_content).details);
-        const adjudication = adjudicationByTargetId.get(response.move_response_id);
 
         return renderReportEntityCard({
             eyebrow: `Move ${response.move_number ?? 'N/A'} - Move response`,
@@ -5152,6 +5073,10 @@ export function buildResearchReportHtml(dataset, {
             ],
             metadata: [
                 { label: 'Author', value: `${response.author_pseudonym || 'N/A'} / ${formatRoleForReport(response.author_role) || 'unknown'}` },
+                { label: 'Parent Team', value: response.parent_team || response.author_team },
+                { label: 'Delegation', value: response.delegation_id },
+                { label: 'Submitting Role', value: formatRoleForReport(response.submitting_role) },
+                { label: 'Submitting Seat Delegation', value: response.submitting_seat_delegation_id },
                 { label: 'Submitted', value: formatReportTimestamp(response.submitted_utc) },
                 { label: 'Responding To', value: response.responding_to_entity_type },
                 { label: 'Workflow State', value: response.workflow_state },
@@ -5174,17 +5099,6 @@ export function buildResearchReportHtml(dataset, {
                         title: 'Workflow Review History',
                         html: renderReportMetaGrid([{ label: 'Authoritative Review Records', value: response.review_history }])
                     }
-                    : null,
-                adjudication
-                    ? {
-                        title: 'Historical / Legacy Adjudication',
-                        html: renderReportMetaGrid([
-                            { label: 'Ruling', value: adjudication.ruling },
-                            { label: 'Reasoning', value: adjudication.reasoning },
-                            { label: 'Adjudicated UTC', value: formatReportTimestamp(adjudication.adjudicated_utc) },
-                            { label: 'Effects', value: adjudication.effects }
-                        ])
-                    }
                     : null
             ].filter(Boolean)
         });
@@ -5199,6 +5113,10 @@ export function buildResearchReportHtml(dataset, {
         ],
         metadata: [
             { label: 'Requester', value: `${rfi.requester_pseudonym || 'N/A'} / ${formatRoleForReport(rfi.requester_role) || 'unknown'}` },
+            { label: 'Parent Team', value: rfi.parent_team || rfi.requester_team },
+            { label: 'Delegation', value: rfi.delegation_id },
+            { label: 'Requester Semantic Role', value: rfi.requester_semantic_role },
+            { label: 'Requester Seat Delegation', value: rfi.requester_seat_delegation_id },
             { label: 'Raised UTC', value: formatReportTimestamp(rfi.raised_utc) },
             { label: 'Answered UTC', value: formatReportTimestamp(rfi.answered_utc) },
             { label: 'Workflow State', value: rfi.workflow_state },
@@ -5245,7 +5163,7 @@ export function buildResearchReportHtml(dataset, {
         : eventLogRows;
     const strategicOrientationCount = strategicOrientationRows.length;
     const submittedActionCount = moveActionRows.filter((action) => action.submitted_utc).length;
-    const adjudicatedActionCount = moveActionRows.filter((action) => action.final_status === 'adjudicated').length;
+    const completedActionCount = moveActionRows.filter((action) => action.workflow_state === 'completed').length;
     const teamActivityOrder = ['blue', 'red', 'green', 'industry', 'whitecell', 'gamemaster'];
     const teamActivityMap = new Map();
     const ensureTeamActivity = (team) => {
@@ -5288,7 +5206,7 @@ export function buildResearchReportHtml(dataset, {
             String(row.rfis),
             String(row.notes)
         ]);
-    const executiveSummaryText = `This post-game analysis reconstructs ${sessionDisplayName}${manifest.capture_mode ? `, captured in ${humanizeReportLabel(manifest.capture_mode)} mode` : ''}. The session spans ${formatReportDuration(sessionMetrics.session_duration_s, 'an unrecorded duration')} across ${formatReportValue(sessionMetrics.moves_count ?? 0, '0')} move(s), with ${formatReportValue(sessionMetrics.participants_active ?? 0, '0')} active participant seat(s) represented by ${formatReportValue(sessionMetrics.total_events ?? 0, '0')} ${eventRecordLabel}. Teams recorded ${formatReportValue(strategicOrientationCount, '0')} strategic-orientation artifact(s), submitted ${formatReportValue(submittedActionCount, '0')} move action(s) (${formatReportValue(adjudicatedActionCount, '0')} adjudicated) and ${formatReportValue(sessionMetrics.proposals_submitted ?? 0, '0')} proposal(s) (${formatReportValue(sessionMetrics.proposals_forwarded ?? 0, '0')} forwarded), and raised ${formatReportValue(sessionMetrics.rfis_raised ?? 0, '0')} request(s) for information.`;
+    const executiveSummaryText = `This post-game analysis reconstructs ${sessionDisplayName}${manifest.capture_mode ? `, captured in ${humanizeReportLabel(manifest.capture_mode)} mode` : ''}. The session spans ${formatReportDuration(sessionMetrics.session_duration_s, 'an unrecorded duration')} across ${formatReportValue(sessionMetrics.moves_count ?? 0, '0')} move(s), with ${formatReportValue(sessionMetrics.participants_active ?? 0, '0')} active participant seat(s) represented by ${formatReportValue(sessionMetrics.total_events ?? 0, '0')} ${eventRecordLabel}. Teams recorded ${formatReportValue(strategicOrientationCount, '0')} strategic-orientation artifact(s), submitted ${formatReportValue(submittedActionCount, '0')} move action(s) (${formatReportValue(completedActionCount, '0')} completed) and ${formatReportValue(sessionMetrics.proposals_submitted ?? 0, '0')} proposal(s) (${formatReportValue(sessionMetrics.proposals_forwarded ?? 0, '0')} forwarded), and raised ${formatReportValue(sessionMetrics.rfis_raised ?? 0, '0')} request(s) for information. PLI results are intentionally excluded and remain available only through the separate PLI tool.`;
     const contentsItems = [
         {
             title: 'Executive Summary',
@@ -5320,7 +5238,7 @@ export function buildResearchReportHtml(dataset, {
         },
         {
             title: 'Research Utility Layers',
-            description: 'Derived outcome taxonomy, training rubric evidence, network metrics, and turning-point flags.'
+            description: 'Training rubric evidence, network metrics, and turning-point flags. PLI results are excluded.'
         },
         {
             title: 'Draft And Submission History',
@@ -5332,11 +5250,11 @@ export function buildResearchReportHtml(dataset, {
         },
         {
             title: 'Actions And Workflow Reviews',
-            description: 'Detailed move-action records, decision inputs, workflow review history, and explicitly historical legacy adjudication evidence.'
+            description: 'Detailed move-action records, decision inputs, and workflow review history.'
         },
         {
             title: 'Proposals: Content And Review',
-            description: 'Proposal-team records, routing intent, review rationale, and recipient outcomes.'
+            description: 'Proposal-team records, routing intent, review rationale, and recipient workflow states.'
         },
         {
             title: 'Move Responses',
@@ -6364,7 +6282,7 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
                 { label: 'Session Duration', value: formatReportDuration(sessionMetrics.session_duration_s), detail: 'event-log span' },
                 { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'team workflows' },
-                { label: 'Actions Submitted', value: submittedActionCount, detail: `${adjudicatedActionCount} adjudicated` },
+                { label: 'Actions Submitted', value: submittedActionCount, detail: `${completedActionCount} completed` },
                 { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
                 { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
                 { label: 'Mean Proposal Latency', value: formatReportDuration(sessionMetrics.mean_proposal_response_latency_s), detail: 'review response time' },
@@ -6404,13 +6322,19 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Current Phase', value: gameState.phase },
                 { label: 'Timer Seconds', value: formatReportDuration(gameState.timer_seconds) },
                 { label: 'Timer Running', value: gameState.timer_running },
+                { label: 'Session Topology Version', value: manifest.session_topology_version },
+                { label: 'Green Roster Version', value: manifest.green_roster_version },
+                { label: 'Persisted Green Seat Model', value: manifest.persisted_green_seat_model },
+                { label: 'Effective Green Seat Model', value: manifest.effective_green_seat_model },
+                { label: 'Green Seat Model Status', value: manifest.green_seat_model_status },
+                { label: 'PLI Included', value: manifest.pli_included },
                 { label: 'Manifest Generated UTC', value: formatReportTimestamp(manifest.generated_at_utc) },
                 { label: 'Generated By', value: manifest.generated_by_pseudonym }
             ])}
             ${renderReportSectionBlock('Archive Summary', renderReportSummaryCards([
                 { label: 'Moves Captured', value: sessionMetrics.moves_count ?? 0, detail: 'max move observed' },
                 { label: 'Strategic Orientations', value: strategicOrientationCount, detail: 'team workflows' },
-                { label: 'Actions Submitted', value: submittedActionCount, detail: `${adjudicatedActionCount} adjudicated` },
+                { label: 'Actions Submitted', value: submittedActionCount, detail: `${completedActionCount} completed` },
                 { label: 'Proposals Submitted', value: sessionMetrics.proposals_submitted ?? 0, detail: `${sessionMetrics.proposals_forwarded ?? 0} forwarded` },
                 { label: 'RFIs Raised', value: sessionMetrics.rfis_raised ?? 0, detail: 'team requests' },
                 { label: 'Communications', value: sessionMetrics.communications_sent ?? 0, detail: 'interaction edges' },
@@ -6438,7 +6362,7 @@ export function buildResearchReportHtml(dataset, {
                 </div>
             </div>
             ${renderReportSectionBlock('Participant Roster', renderReportTable(
-                ['Pseudonym', 'Role', 'Team', 'Seat', 'First Seen UTC', 'Last Seen UTC', 'Active Duration', 'Rejoins'],
+                ['Pseudonym', 'Original Role', 'Parent Team', 'Delegation', 'Semantic Role', 'Seat', 'Seat Status', 'First Seen UTC', 'Last Seen UTC', 'Active Duration', 'Rejoins'],
                 participantRosterRows
             ))}
             ${renderReportSectionBlock('Derived Participant Metrics', renderReportTable(
@@ -6481,11 +6405,11 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Decision Lineage</h2>
-                    <p class="report-section-intro">Derived trace rows linking submitted artifacts to workflow reviews, explicitly historical legacy adjudication evidence, related communications, RFIs, and event evidence. These rows support navigation and audit, not automatic causal attribution.</p>
+                    <p class="report-section-intro">Derived trace rows linking submitted artifacts to workflow reviews, related communications, RFIs, and event evidence. These rows support navigation and audit, not automatic causal attribution.</p>
                 </div>
             </div>
             ${renderReportTable(
-                ['Type', 'Entity ID', 'Move', 'Source Team', 'Current State', 'Submitted UTC', 'Reviewed UTC', 'Event IDs', 'Evidence Summary'],
+                ['Type', 'Entity ID', 'Move', 'Source Team', 'Delegation', 'Semantic Role', 'Current State', 'Submitted UTC', 'Reviewed UTC', 'Event IDs', 'Evidence Summary'],
                 decisionLineageRows
             )}
         </section>
@@ -6494,13 +6418,9 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Research Utility Layers</h2>
-                    <p class="report-section-intro">Deterministic interpretation layers for outcome taxonomy, evaluator evidence, network structure, and turning-point review. These outputs are rule-based indexes over captured evidence, not probabilistic scores.</p>
+                    <p class="report-section-intro">Deterministic interpretation layers for evaluator evidence, network structure, and turning-point review. PLI scoring and result data are outside this archive.</p>
                 </div>
             </div>
-            ${renderReportSectionBlock('Outcome Taxonomy Signals', renderReportTable(
-                ['Dimension', 'Signal', 'Entity Type', 'Entity ID', 'Move', 'Team', 'Keyword Hits', 'Evidence Excerpt'],
-                outcomeTaxonomyRows
-            ))}
             ${renderReportSectionBlock('Training Rubric Evidence', renderReportTable(
                 ['Participant', 'Role', 'Team', 'Dimension', 'Evidence Value', 'Threshold', 'Status'],
                 trainingRubricRows
@@ -6542,7 +6462,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Actions And Workflow Reviews</h2>
-                    <p class="report-section-intro">Move-action records covering objectives, instruments, levers, sector and supply-chain choices, implementation, legislative options, coordination and engagement decisions, Scribe handoff, authoritative workflow reviews, and explicitly historical legacy adjudication evidence.</p>
+                    <p class="report-section-intro">Move-action records covering objectives, instruments, levers, sector and supply-chain choices, implementation, legislative options, coordination and engagement decisions, Scribe handoff, and authoritative workflow reviews.</p>
                 </div>
             </div>
             ${renderReportEntityCollection(actionCards, 'No move-action records were captured for this export.')}
@@ -6552,7 +6472,7 @@ export function buildResearchReportHtml(dataset, {
             <div class="report-section-header">
                 <div>
                     <h2 class="report-section-title">Proposals: Content And Review</h2>
-                    <p class="report-section-intro">Proposal-team records, routing intent, review rationale, and recipient-state outcomes.</p>
+                    <p class="report-section-intro">Proposal-team records, routing intent, review rationale, and recipient workflow states.</p>
                 </div>
             </div>
             ${renderReportEntityCollection(proposalCards, 'No proposal records were captured for this export.')}
@@ -6659,6 +6579,8 @@ export function buildResearchReportHtml(dataset, {
                 { label: 'Generated By Pseudonym', value: manifest.generated_by_pseudonym },
                 { label: 'Event Log Source', value: manifest.event_log_source || 'unspecified' },
                 { label: 'Contract Reconciliation', value: manifest.contract_reconciliation },
+                { label: 'Green Ownership Reconciliation', value: manifest.green_ownership_reconciliation },
+                { label: 'PLI Included', value: manifest.pli_included },
                 { label: 'Session Checksum', value: safeObject(manifest.event_log_chain).session_checksum },
                 { label: 'First Event Hash', value: safeObject(manifest.event_log_chain).first_event_hash },
                 { label: 'Last Event Hash', value: safeObject(manifest.event_log_chain).last_event_hash },
@@ -6833,9 +6755,6 @@ export function buildResearchReportLatex(dataset, {
     const allActions = safeArray(dataset.actionContent);
     const strategicOrientations = allActions.filter(isStrategicOrientationContentRow);
     const moveActions = allActions.filter((row) => !isStrategicOrientationContentRow(row));
-    const adjudicationByTargetId = new Map(
-        safeArray(dataset.adjudicationContent).map((entry) => [entry.target_entity_id, entry])
-    );
     const sessionTitle = dataset.session?.name || dataset.session?.id || 'Research Session';
     const sessionDescription = safeObject(dataset.session?.metadata).description || '';
 
@@ -6846,11 +6765,13 @@ export function buildResearchReportLatex(dataset, {
             target.orientationLabel || target.orientation,
             target.orientationTag
         ]);
-        const adjudication = adjudicationByTargetId.get(orientation.action_id);
         return String.raw`\subsection{${escapeLatex(orientation.title || details.orientationLabel || 'Strategic orientation')}}
 ${renderLatexDescription([
         { label: 'Artifact ID', value: orientation.action_id },
-        { label: 'Team', value: orientation.author_team || details.team },
+        { label: 'Parent team', value: orientation.parent_team || orientation.author_team || details.team },
+        { label: 'Delegation', value: orientation.delegation_id },
+        { label: 'Submitting role', value: orientation.submitting_role },
+        { label: 'Submitting seat delegation', value: orientation.submitting_seat_delegation_id },
         { label: 'Author pseudonym', value: orientation.author_pseudonym },
         { label: 'Author role', value: orientation.author_role },
         { label: 'Contract version', value: details.contractVersion || 1 },
@@ -6872,11 +6793,7 @@ ${renderLatexDescription([
         { label: 'Status', value: orientation.final_status },
         { label: 'Workflow state', value: orientation.workflow_state },
         { label: 'Revision', value: orientation.revision_number },
-        { label: 'Workflow review history', value: orientation.review_history },
-        { label: 'Historical / legacy adjudication ruling', value: adjudication?.ruling },
-        { label: 'Historical / legacy adjudication reasoning', value: adjudication?.reasoning },
-        { label: 'Historical / legacy adjudication effects', value: adjudication?.effects },
-        { label: 'Historical adjudicated UTC', value: adjudication?.adjudicated_utc }
+        { label: 'Workflow review history', value: orientation.review_history }
     ])}
 ${forecastRows.length ? String.raw`\subsubsection{Forecast targets}
 ${renderLatexLongTable(['Target', 'Forecast orientation', 'Strategic tag'], forecastRows)}` : ''}`;
@@ -6884,12 +6801,14 @@ ${renderLatexLongTable(['Target', 'Forecast orientation', 'Strategic tag'], fore
 
     const actionSections = renderLatexArtifactSections(moveActions, (action) => {
         const details = safeObject(safeObject(action.full_content).details);
-        const adjudication = adjudicationByTargetId.get(action.action_id);
         return String.raw`\subsection{${escapeLatex(action.title || 'Untitled action')}}
 ${renderLatexDescription([
         { label: 'Action ID', value: action.action_id },
         { label: 'Move / sequence', value: [action.move_number, action.action_sequence].filter((value) => value !== null && value !== undefined).join(' / ') },
-        { label: 'Team', value: action.author_team },
+        { label: 'Parent team', value: action.parent_team || action.author_team },
+        { label: 'Delegation', value: action.delegation_id },
+        { label: 'Submitting role', value: action.submitting_role },
+        { label: 'Submitting seat delegation', value: action.submitting_seat_delegation_id },
         { label: 'Author pseudonym', value: action.author_pseudonym },
         { label: 'Author role', value: action.author_role },
         { label: 'Action type', value: action.action_type },
@@ -6921,11 +6840,7 @@ ${renderLatexDescription([
         { label: 'Workflow state', value: action.workflow_state },
         { label: 'Prior workflow state', value: action.prior_workflow_state },
         { label: 'Revision', value: action.revision_number },
-        { label: 'Workflow review history', value: action.review_history },
-        { label: 'Historical / legacy adjudication ruling', value: adjudication?.ruling },
-        { label: 'Historical / legacy adjudication reasoning', value: adjudication?.reasoning },
-        { label: 'Historical / legacy adjudication effects', value: adjudication?.effects },
-        { label: 'Historical adjudicated UTC', value: adjudication?.adjudicated_utc }
+        { label: 'Workflow review history', value: action.review_history }
     ])}`;
     });
 
@@ -6935,7 +6850,10 @@ ${renderLatexDescription([
 ${renderLatexDescription([
         { label: 'Proposal ID', value: proposal.proposal_id },
         { label: 'Move', value: proposal.move_number },
-        { label: 'Author team', value: proposal.author_team },
+        { label: 'Parent team', value: proposal.parent_team || proposal.author_team },
+        { label: 'Delegation', value: proposal.delegation_id },
+        { label: 'Submitting role', value: proposal.submitting_role },
+        { label: 'Submitting seat delegation', value: proposal.submitting_seat_delegation_id },
         { label: 'Author pseudonym', value: proposal.author_pseudonym },
         { label: 'Author role', value: proposal.author_role },
         { label: 'Originators', value: details.originators },
@@ -6968,10 +6886,6 @@ ${renderLatexDescription([
         { label: 'Thread count', value: proposal.thread_count },
         { label: 'Round count', value: proposal.round_count },
         { label: 'Forwarded to', value: proposal.forwarded_to_teams?.length ? proposal.forwarded_to_teams : proposal.forwarded_to_team },
-        { label: 'Historical / legacy adjudication outcome', value: proposal.review_decision },
-        { label: 'Historical / legacy adjudication reason', value: proposal.review_reason },
-        { label: 'Historical / legacy reviewer pseudonym', value: proposal.reviewer_pseudonym },
-        { label: 'Review evidence classification', value: proposal.review_evidence_classification },
         { label: 'Final recipient state', value: proposal.final_recipient_state },
         { label: 'Submitted UTC', value: proposal.submitted_utc },
         { label: 'Reviewed UTC', value: proposal.reviewed_utc }
@@ -6980,12 +6894,14 @@ ${renderLatexDescription([
 
     const responseSections = renderLatexArtifactSections(dataset.moveResponseContent, (response) => {
         const details = safeObject(safeObject(response.full_content).details);
-        const adjudication = adjudicationByTargetId.get(response.move_response_id);
         return String.raw`\subsection{${escapeLatex(safeObject(response.full_content).goal || 'Move response')}}
 ${renderLatexDescription([
         { label: 'Move response ID', value: response.move_response_id },
         { label: 'Move', value: response.move_number },
-        { label: 'Team', value: response.author_team },
+        { label: 'Parent team', value: response.parent_team || response.author_team },
+        { label: 'Delegation', value: response.delegation_id },
+        { label: 'Submitting role', value: response.submitting_role },
+        { label: 'Submitting seat delegation', value: response.submitting_seat_delegation_id },
         { label: 'Author pseudonym', value: response.author_pseudonym },
         { label: 'Author role', value: response.author_role },
         { label: 'Responding to entity type', value: response.responding_to_entity_type },
@@ -7001,11 +6917,7 @@ ${renderLatexDescription([
         { label: 'Workflow state', value: response.workflow_state },
         { label: 'Prior workflow state', value: response.prior_workflow_state },
         { label: 'Revision', value: response.revision_number },
-        { label: 'Workflow review history', value: response.review_history },
-        { label: 'Historical / legacy adjudication ruling', value: adjudication?.ruling },
-        { label: 'Historical / legacy adjudication reasoning', value: adjudication?.reasoning },
-        { label: 'Historical / legacy adjudication effects', value: adjudication?.effects },
-        { label: 'Historical adjudicated UTC', value: adjudication?.adjudicated_utc }
+        { label: 'Workflow review history', value: response.review_history }
     ])}`;
     });
 
@@ -7013,7 +6925,10 @@ ${renderLatexDescription([
 ${renderLatexDescription([
         { label: 'RFI ID', value: rfi.rfi_id },
         { label: 'Move', value: rfi.move_number },
-        { label: 'Requester team', value: rfi.requester_team },
+        { label: 'Parent team', value: rfi.parent_team || rfi.requester_team },
+        { label: 'Delegation', value: rfi.delegation_id },
+        { label: 'Requester semantic role', value: rfi.requester_semantic_role },
+        { label: 'Requester seat delegation', value: rfi.requester_seat_delegation_id },
         { label: 'Requester pseudonym', value: rfi.requester_pseudonym },
         { label: 'Requester role', value: rfi.requester_role },
         { label: 'Question', value: rfi.question_text },
@@ -7039,6 +6954,7 @@ ${renderLatexDescription([
         row.root_entity_id,
         row.move_number,
         row.source_team,
+        row.source_delegation_id,
         row.current_state,
         row.evidence_summary
     ]);
@@ -7129,6 +7045,10 @@ ${renderLatexDescription([
         { label: 'Generated UTC', value: manifest.generated_at_utc },
         { label: 'Schema version', value: manifest.schema_version },
         { label: 'Export format revision', value: manifest.export_format_revision },
+        { label: 'Session topology version', value: manifest.session_topology_version },
+        { label: 'Green roster version', value: manifest.green_roster_version },
+        { label: 'Persisted Green seat model', value: manifest.persisted_green_seat_model },
+        { label: 'Effective Green seat model', value: manifest.effective_green_seat_model },
         { label: 'Event-log source', value: eventLogSource },
         { label: 'Session checksum', value: safeObject(manifest.event_log_chain).session_checksum }
     ])}
@@ -7152,13 +7072,16 @@ No static Strategic Orientation catalogue narratives or characteristics are
 inserted into session evidence. Deterministic analysis is labeled as derived and
 must not be treated as participant-authored content or causal attribution.
 
+PLI scores, outcomes, notes, and result packets are intentionally excluded from
+this research archive and remain available only through the separate PLI tool.
+
 \section{Executive summary}
 ${renderLatexDescription([
         { label: 'Active participants', value: sessionMetrics.participants_active },
         { label: 'Moves observed', value: sessionMetrics.moves_count },
         { label: 'Strategic orientations', value: strategicOrientations.length },
         { label: 'Move actions submitted', value: moveActions.filter((row) => row.submitted_utc).length },
-        { label: 'Move actions adjudicated', value: moveActions.filter((row) => row.final_status === 'adjudicated').length },
+        { label: 'Move actions completed', value: moveActions.filter((row) => row.workflow_state === 'completed').length },
         { label: 'Proposals submitted', value: sessionMetrics.proposals_submitted },
         { label: 'Proposals forwarded', value: sessionMetrics.proposals_forwarded },
         { label: 'RFIs raised', value: sessionMetrics.rfis_raised },
@@ -7195,11 +7118,15 @@ Only the first ${Math.min(100, safeArray(dataset.eventLog).length)} captured aud
 This section is a deterministic navigation index over session records. It does
 not assert causality.
 
-${renderLatexLongTable(['Type', 'Entity ID', 'Move', 'Team', 'State', 'Evidence summary'], lineageRows)}
+${renderLatexLongTable(['Type', 'Entity ID', 'Move', 'Team', 'Delegation', 'State', 'Evidence summary'], lineageRows)}
 
 \section{Data quality and limitations}
 ${renderLatexDescription([
         { label: 'Comparison readiness', value: readiness.status },
+        { label: 'Effective Green seat model', value: manifest.effective_green_seat_model },
+        { label: 'Green seat model status', value: manifest.green_seat_model_status },
+        { label: 'Green ownership reconciliation', value: manifest.green_ownership_reconciliation },
+        { label: 'PLI included', value: manifest.pli_included },
         { label: 'Recommended uses', value: readiness.recommended_uses },
         { label: 'Unsupported uses', value: readiness.unsupported_uses },
         { label: 'Event-log source', value: eventLogSource },
@@ -7238,7 +7165,7 @@ function buildLegacyFiles(bundle = {}, generatedAtUtc) {
     const sessionMetadataPayload = {
         exportedAt: generatedAtUtc,
         version: CONFIG.VERSION,
-        session: bundle.session || null
+        session: stripPliData(bundle.session || null)
     };
 
     return [
@@ -7249,22 +7176,22 @@ function buildLegacyFiles(bundle = {}, generatedAtUtc) {
         },
         {
             path: 'legacy/game_state.json',
-            content: JSON.stringify(bundle.gameState || null, null, 2),
+            content: JSON.stringify(stripPliData(bundle.gameState || null), null, 2),
             mimeType: 'application/json'
         },
         {
             path: 'legacy/actions.csv',
-            content: exportSessionActionsCsv(safeArray(bundle.actions)),
+            content: exportSessionActionsCsv(safeArray(bundle.actions).map(stripPliData), { includeAdjudication: false }),
             mimeType: 'text/csv'
         },
         {
             path: 'legacy/rfis.csv',
-            content: exportSessionRequestsCsv(safeArray(bundle.requests)),
+            content: exportSessionRequestsCsv(safeArray(bundle.requests).map(stripPliData)),
             mimeType: 'text/csv'
         },
         {
             path: 'legacy/timeline.csv',
-            content: exportSessionTimelineCsv(safeArray(bundle.timeline)),
+            content: exportSessionTimelineCsv(safeArray(bundle.timeline).map(stripPliData)),
             mimeType: 'text/csv'
         },
         {
@@ -7304,7 +7231,6 @@ function buildFileDefinitions({
     dataQualitySummary,
     decisionLineage,
     scenarioContext,
-    outcomeTaxonomy,
     trainingRubric,
     networkMetrics,
     turningPoints,
@@ -7316,7 +7242,6 @@ function buildFileDefinitions({
     stateTransitions,
     actionContent,
     proposalContent,
-    adjudicationContent,
     moveResponseContent,
     rfiContent,
     artifactWorkflowReviews,
@@ -7377,16 +7302,6 @@ function buildFileDefinitions({
         {
             path: 'scenario_context.json',
             content: toJsonFileContent(scenarioContext),
-            mimeType: 'application/json'
-        },
-        {
-            path: 'outcome_taxonomy.csv',
-            content: arrayToCsv(outcomeTaxonomy, RESEARCH_EXPORT_COLUMNS.outcome_taxonomy),
-            mimeType: 'text/csv'
-        },
-        {
-            path: 'outcome_taxonomy.json',
-            content: toJsonFileContent(outcomeTaxonomy),
             mimeType: 'application/json'
         },
         {
@@ -7500,16 +7415,6 @@ function buildFileDefinitions({
             mimeType: 'application/json'
         },
         {
-            path: 'adjudication_content.csv',
-            content: arrayToCsv(adjudicationContent, RESEARCH_EXPORT_COLUMNS.adjudication_content),
-            mimeType: 'text/csv'
-        },
-        {
-            path: 'adjudication_content.json',
-            content: toJsonFileContent(adjudicationContent),
-            mimeType: 'application/json'
-        },
-        {
             path: 'move_response_content.csv',
             content: arrayToCsv(moveResponseContent, RESEARCH_EXPORT_COLUMNS.move_response_content),
             mimeType: 'text/csv'
@@ -7598,6 +7503,45 @@ async function buildChecksumsFile(fileDefinitions = []) {
     };
 }
 
+function buildGreenOwnershipReconciliation({
+    actionContent,
+    proposalContent,
+    moveResponseContent,
+    rfiContent
+}) {
+    const artifacts = [
+        ...safeArray(actionContent).map((row) => ({ id: row.action_id, type: 'action', parentTeam: row.parent_team, delegationId: row.delegation_id })),
+        ...safeArray(proposalContent).map((row) => ({ id: row.proposal_id, type: 'proposal', parentTeam: row.parent_team, delegationId: row.delegation_id })),
+        ...safeArray(moveResponseContent).map((row) => ({ id: row.move_response_id, type: 'move_response', parentTeam: row.parent_team, delegationId: row.delegation_id })),
+        ...safeArray(rfiContent).map((row) => ({ id: row.rfi_id, type: 'rfi', parentTeam: row.parent_team, delegationId: row.delegation_id }))
+    ].filter((row) => row.id && row.parentTeam === 'green');
+    const ownershipById = new Map();
+    const conflictingIds = new Set();
+
+    artifacts.forEach((artifact) => {
+        const ownershipKey = artifact.delegationId || 'unified_or_legacy';
+        const existing = ownershipById.get(artifact.id);
+        if (existing && existing.ownershipKey !== ownershipKey) {
+            conflictingIds.add(artifact.id);
+        }
+        ownershipById.set(artifact.id, { ...artifact, ownershipKey });
+    });
+
+    const byDelegation = {};
+    [...ownershipById.values()].forEach((artifact) => {
+        byDelegation[artifact.ownershipKey] = (byDelegation[artifact.ownershipKey] || 0) + 1;
+    });
+
+    return {
+        aggregation_unit: 'distinct_artifact_id',
+        parent_team: 'green',
+        distinct_artifact_count: ownershipById.size,
+        by_delegation: Object.fromEntries(Object.entries(byDelegation).sort(([left], [right]) => left.localeCompare(right))),
+        conflicting_artifact_ids: [...conflictingIds].sort(),
+        matches: conflictingIds.size === 0
+    };
+}
+
 function buildContractReconciliation({
     bundle,
     artifactWorkflowReviews,
@@ -7658,17 +7602,6 @@ function buildContractReconciliation({
                 && (persisted.forecastActionDescription || null) === (projection.forecast_action_description || null)
                 && (persisted.strategyDescription || null) === (projection.strategy_description || null);
         });
-    const currentOutcomeViolations = [
-        ...actionContent.map((row) => ({ state: row.workflow_state, outcome: row.legacy_adjudication_outcome, reviews: row.review_history })),
-        ...proposalContent.map((row) => ({ state: row.workflow_state, outcome: row.review_decision, reviews: row.revision_history })),
-        ...moveResponseContent.map((row) => ({ state: row.workflow_state, outcome: row.legacy_adjudication_outcome, reviews: row.review_history }))
-    ].filter((row) => (
-        row.state === 'completed'
-        && row.outcome !== null
-        && row.outcome !== undefined
-        && safeArray(row.reviews).some((review) => review.decision === 'complete' && review.evidence_source !== 'legacy_timeline_fallback')
-    )).length;
-
     const checks = {
         artifact_review_rows: {
             source_count: sourceReviewIds.size,
@@ -7696,16 +7629,18 @@ function buildContractReconciliation({
             matches: sourceRfiRows.length === rfiContent.length && rfiRevisionMatches
         },
         ui_workflow_projection: {
-            matches: workflowProjectionMatches && currentOutcomeViolations === 0,
-            current_completed_outcome_violations: currentOutcomeViolations
+            matches: workflowProjectionMatches
+        },
+        pli_separation: {
+            pli_included: false,
+            matches: true
         },
         strategic_orientation_projection: {
             projected_count: actionContent.filter(isStrategicOrientationContentRow).length,
             matches: strategicOrientationProjectionMatches
         }
     };
-    const passed = Object.values(checks).every((check) => check.matches !== false)
-        && currentOutcomeViolations === 0;
+    const passed = Object.values(checks).every((check) => check.matches !== false);
 
     return {
         status: passed ? 'passed' : 'failed',
@@ -7722,6 +7657,7 @@ export async function buildResearchExportBundle(bundle = {}, {
     softwareBuildHash = bundle.softwareBuildHash || CONFIG.VERSION
 } = {}) {
     const normalizedCaptureMode = normalizeCaptureMode(captureMode);
+    const sessionModel = resolveResearchSessionModel(bundle.session, bundle.researchExportContext);
     const participantRegistry = buildParticipantRegistry(bundle);
     participantRegistry.rows = await Promise.all(
         participantRegistry.rows.map(async (participant) => ({
@@ -7729,15 +7665,20 @@ export async function buildResearchExportBundle(bundle = {}, {
             auth_uid_hash: await sha256Hex(participant.auth_uid_hash || `${participant.participant_pseudonym}:${participant.session_id || ''}`)
         }))
     );
-    const hasCapturedAuditEventLog = safeArray(bundle.researchAuditEventLog).length > 0;
+    const capturedResearchEvents = safeArray(bundle.researchAuditEventLog)
+        .filter((event) => !isPliResearchEvent(event))
+        .map(stripPliData);
+    const hasCapturedAuditEventLog = capturedResearchEvents.length > 0;
     const rawEventLog = hasCapturedAuditEventLog
-        ? safeArray(bundle.researchAuditEventLog).map((event) => ({
+        ? capturedResearchEvents.map((event) => ({
             ...event,
             event_ts_utc: asUtcIso(event.event_ts_utc),
             server_received_utc: asUtcIso(event.server_received_utc),
             client_ts_utc: asUtcIso(event.client_ts_utc)
         }))
-        : buildSyntheticEventLog(bundle, participantRegistry);
+        : buildSyntheticEventLog(bundle, participantRegistry)
+            .filter((event) => !isPliResearchEvent(event))
+            .map(stripPliData);
     const eventLog = await enrichEventLogWithHashes(
         rawEventLog
             .slice()
@@ -7749,7 +7690,6 @@ export async function buildResearchExportBundle(bundle = {}, {
     const artifactWorkflowReviews = buildArtifactWorkflowReviewRows(bundle);
     const actionContent = buildActionContent(bundle, participantRegistry, artifactWorkflowReviews);
     const proposalContent = buildProposalContent(bundle, participantRegistry, artifactWorkflowReviews);
-    const adjudicationContent = buildAdjudicationContent(bundle);
     const moveResponseContent = buildMoveResponseContent(bundle, participantRegistry, artifactWorkflowReviews);
     const rfiContent = buildRfiContent(bundle, participantRegistry, artifactWorkflowReviews);
     const stateTransitions = buildStateTransitions(
@@ -7762,7 +7702,7 @@ export async function buildResearchExportBundle(bundle = {}, {
     const interactionEdges = buildInteractionEdges(bundle, proposalContent, rfiContent);
     const dataQualityEvents = buildDataQualityEvents(bundle, participantRegistry);
     const derivedParticipantMetrics = safeArray(bundle.researchDerivedParticipantMetrics).length
-        ? safeArray(bundle.researchDerivedParticipantMetrics)
+        ? safeArray(bundle.researchDerivedParticipantMetrics).map(stripPliData)
         : buildDerivedParticipantMetrics({
             participantRows: participantRegistry.rows,
             notes,
@@ -7772,7 +7712,7 @@ export async function buildResearchExportBundle(bundle = {}, {
             interactionEdges
         });
     const derivedSessionMetrics = safeArray(bundle.researchDerivedSessionMetrics).length
-        ? safeArray(bundle.researchDerivedSessionMetrics)
+        ? safeArray(bundle.researchDerivedSessionMetrics).map(stripPliData)
         : buildDerivedSessionMetrics({
             sessionId: bundle.session?.id || null,
             captureMode: normalizedCaptureMode,
@@ -7787,20 +7727,11 @@ export async function buildResearchExportBundle(bundle = {}, {
         sessionId: bundle.session?.id || null,
         actionContent,
         proposalContent,
-        adjudicationContent,
         moveResponseContent,
         rfiContent,
-        artifactWorkflowReviews,
         interactionEdges,
         communications: bundle.communications,
         eventLog
-    });
-    const outcomeTaxonomy = buildOutcomeTaxonomy({
-        sessionId: bundle.session?.id || null,
-        actionContent,
-        proposalContent,
-        moveResponseContent,
-        adjudicationContent
     });
     const trainingRubric = buildTrainingRubric({
         sessionId: bundle.session?.id || null,
@@ -7830,6 +7761,12 @@ export async function buildResearchExportBundle(bundle = {}, {
         moveResponseContent,
         rfiContent
     });
+    const greenOwnershipReconciliation = buildGreenOwnershipReconciliation({
+        actionContent,
+        proposalContent,
+        moveResponseContent,
+        rfiContent
+    });
     const rowCounts = {
         event_log: eventLog.length,
         participants: participantRegistry.rows.length,
@@ -7839,7 +7776,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         state_transitions: stateTransitions.length,
         action_content: actionContent.length,
         proposal_content: proposalContent.length,
-        adjudication_content: adjudicationContent.length,
         move_response_content: moveResponseContent.length,
         rfi_content: rfiContent.length,
         artifact_workflow_reviews: artifactWorkflowReviews.length,
@@ -7847,7 +7783,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         session_recording_artifacts: sessionRecordingArtifacts.length,
         data_quality_events: dataQualityEvents.length,
         decision_lineage: decisionLineage.length,
-        outcome_taxonomy: outcomeTaxonomy.length,
         training_rubric: trainingRubric.length,
         network_metrics: networkMetrics.length,
         turning_points: turningPoints.length
@@ -7862,17 +7797,28 @@ export async function buildResearchExportBundle(bundle = {}, {
         timezone_declared: 'UTC',
         session_id: bundle.session?.id || null,
         capture_mode: normalizedCaptureMode,
+        session_topology_version: sessionModel.session_topology_version,
+        green_roster_version: sessionModel.green_roster_version,
+        persisted_green_seat_model: sessionModel.persisted_green_seat_model,
+        effective_green_seat_model: sessionModel.effective_green_seat_model,
+        effective_green_seat_model_is_derived: sessionModel.effective_green_seat_model_is_derived,
+        green_seat_model_status: sessionModel.model_status,
+        green_export_context_source: sessionModel.context_source,
+        pli_included: false,
+        excluded_data: ['pli'],
         event_log_source: hasCapturedAuditEventLog
             ? 'captured_audit_log'
             : 'reconstructed_from_session_records',
         session_config_snapshot: {
             session_name: bundle.session?.name || null,
             session_code: bundle.session?.metadata?.session_code || null,
-            game_state: bundle.gameState || null
+            game_state: stripPliData(bundle.gameState || null),
+            green_roster_snapshot: sessionModel.green_roster_snapshot
         },
         row_counts: rowCounts,
         event_log_chain: eventLogChain,
         contract_reconciliation: contractReconciliation,
+        green_ownership_reconciliation: greenOwnershipReconciliation,
         codebook_ref: 'codebook.json',
         artifact_workflow_reviews_ref: 'artifact_workflow_reviews.json',
         report_ref: 'report.html',
@@ -7891,7 +7837,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         data_quality_summary_ref: 'data_quality_summary.json',
         decision_lineage_ref: 'decision_lineage.csv',
         scenario_context_ref: 'scenario_context.json',
-        outcome_taxonomy_ref: 'outcome_taxonomy.csv',
         training_rubric_ref: 'training_rubric.csv',
         network_metrics_ref: 'network_metrics.csv',
         turning_points_ref: 'turning_points.csv',
@@ -7918,7 +7863,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         stateTransitions,
         actionContent,
         proposalContent,
-        adjudicationContent,
         moveResponseContent,
         rfiContent,
         artifactWorkflowReviews,
@@ -7928,14 +7872,15 @@ export async function buildResearchExportBundle(bundle = {}, {
         derivedParticipantMetrics,
         derivedSessionMetrics,
         decisionLineage,
-        outcomeTaxonomy,
         trainingRubric,
         networkMetrics,
         turningPoints,
         includeNotesAppendix
     });
     const generatedCodebookRows = buildCodebookRows();
-    const storedCodebookRows = safeArray(bundle.researchCodebook);
+    const storedCodebookRows = safeArray(bundle.researchCodebook)
+        .filter((row) => !isPliCodebookRow(row))
+        .map(stripPliData);
     const storedCodebookByField = new Map(storedCodebookRows.map((row) => [
         `${row.table_name}:${row.column_name}`,
         row
@@ -7957,7 +7902,8 @@ export async function buildResearchExportBundle(bundle = {}, {
         ]
     };
     const dataset = {
-        session: bundle.session || null,
+        session: stripPliData(bundle.session || null),
+        sessionModel,
         manifest,
         codebook,
         eventLog,
@@ -7968,7 +7914,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         stateTransitions,
         actionContent,
         proposalContent,
-        adjudicationContent,
         moveResponseContent,
         rfiContent,
         artifactWorkflowReviews,
@@ -7978,7 +7923,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         dataQualitySummary,
         decisionLineage,
         scenarioContext,
-        outcomeTaxonomy,
         trainingRubric,
         networkMetrics,
         turningPoints,
@@ -8002,7 +7946,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         dataQualitySummary,
         decisionLineage,
         scenarioContext,
-        outcomeTaxonomy,
         trainingRubric,
         networkMetrics,
         turningPoints,
@@ -8014,7 +7957,6 @@ export async function buildResearchExportBundle(bundle = {}, {
         stateTransitions,
         actionContent,
         proposalContent,
-        adjudicationContent,
         moveResponseContent,
         rfiContent,
         artifactWorkflowReviews,
@@ -8048,6 +7990,12 @@ function buildCrossSessionIndexRows(sessionExports = []) {
         return {
             session_id: manifest.session_id || sessionExport.session?.id || null,
             session_name: sessionExport.session?.name || safeObject(manifest.session_config_snapshot).session_name || null,
+            session_topology_version: manifest.session_topology_version ?? null,
+            green_roster_version: manifest.green_roster_version ?? null,
+            persisted_green_seat_model: manifest.persisted_green_seat_model ?? null,
+            effective_green_seat_model: manifest.effective_green_seat_model || 'unknown',
+            effective_green_seat_model_is_derived: manifest.effective_green_seat_model_is_derived ?? false,
+            model_status: manifest.green_seat_model_status || 'unknown_combination',
             capture_mode: manifest.capture_mode || null,
             generated_at_utc: manifest.generated_at_utc || null,
             session_duration_s: metrics.session_duration_s ?? null,
@@ -8055,7 +8003,7 @@ function buildCrossSessionIndexRows(sessionExports = []) {
             participants_active: metrics.participants_active ?? 0,
             total_events: metrics.total_events ?? 0,
             actions_submitted: metrics.actions_submitted ?? 0,
-            actions_adjudicated: metrics.actions_adjudicated ?? 0,
+            actions_completed: metrics.actions_completed ?? 0,
             proposals_submitted: metrics.proposals_submitted ?? 0,
             proposals_forwarded: metrics.proposals_forwarded ?? 0,
             rfis_raised: metrics.rfis_raised ?? 0,
@@ -8080,6 +8028,10 @@ export async function buildCrossSessionResearchExportBundle(sessionBundles = [],
 
     for (const sessionBundle of safeArray(sessionBundles)) {
         if (sessionBundle?.manifest && Array.isArray(sessionBundle?.files)) {
+            if (sessionBundle.manifest.schema_version !== RESEARCH_EXPORT_SCHEMA_VERSION
+                || sessionBundle.manifest.pli_included !== false) {
+                throw new Error('Cross-session exports require GC-11 schema 2.0 PLI-free session bundles. Rebuild the source archive from persisted session records.');
+            }
             sessionExports.push(sessionBundle);
         } else {
             sessionExports.push(await buildResearchExportBundle(sessionBundle, {
@@ -8107,6 +8059,8 @@ export async function buildCrossSessionResearchExportBundle(sessionBundles = [],
         generated_at_utc: generatedAtIso,
         generated_by_pseudonym: generatedByPseudonym,
         timezone_declared: 'UTC',
+        pli_included: false,
+        excluded_data: ['pli'],
         sessions_count: sessionExports.length,
         session_ids: sessionIndex.map((row) => row.session_id).filter(Boolean),
         index_ref: 'cross_session_index.csv',

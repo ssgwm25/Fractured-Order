@@ -108,6 +108,14 @@ Apply the authoritative ledger in this exact order:
 57. `data/2026-09-28_gc07_regional_messaging.sql`
 58. `data/2026-09-29_gc08_session_administration.sql`
 59. `data/2026-09-30_gc08_unified_seat_removal_history.sql`
+60. `data/2026-10-01_gc11_research_export_context.sql`
+
+GC-11 adds the operator-only `export_gc11_research_context` projection used by
+research archive schema 2.0. It preserves raw topology, roster, persisted Green
+seat model, and immutable unified-seat removal evidence, and returns the
+effective compatibility label separately. The function does not query or expose
+PLI tables. Apply it only after both GC-08 migrations, then follow
+[GC-11 research export verification](architecture/gc11-research-exports.md).
 
 The September 30 GC08 repair atomically retains immutable, private unified-seat
 removal receipts before legacy live-seat deletion. It does not backfill deleted

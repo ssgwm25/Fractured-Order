@@ -66,6 +66,30 @@ describe('database research export helpers', () => {
         expect(order).toHaveBeenCalledWith('event_id', { ascending: true });
     });
 
+    it('loads the operator-owned GC-11 export context without querying PLI tables', async () => {
+        const { database } = await import('./database.js');
+        mockSupabase.rpc.mockResolvedValueOnce({
+            data: {
+                session_id: 'session-1',
+                session_topology_version: 2,
+                persisted_green_seat_model: 'shared_facilitator_v1',
+                effective_green_seat_model: 'shared_facilitator_v1',
+                unified_seat_removals: [],
+                pli_included: false
+            },
+            error: null
+        });
+
+        await expect(database.fetchResearchExportContext('session-1')).resolves.toMatchObject({
+            effective_green_seat_model: 'shared_facilitator_v1',
+            pli_included: false
+        });
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('export_gc11_research_context', {
+            requested_session_id: 'session-1'
+        });
+        expect(mockSupabase.from).not.toHaveBeenCalledWith('pli_adjudications');
+    });
+
     it('assembles the research export bundle from the legacy session bundle plus research tables', async () => {
         const { database } = await import('./database.js');
         vi.spyOn(database, 'fetchSessionBundle').mockResolvedValue({
@@ -80,6 +104,17 @@ describe('database research export helpers', () => {
         vi.spyOn(database, 'fetchNotetakerData').mockResolvedValue([{ id: 'note-1' }]);
         vi.spyOn(database, 'getResearchCaptureMode').mockResolvedValue('research');
         vi.spyOn(database, 'getResearchBuildHash').mockResolvedValue('build-hash-1');
+        vi.spyOn(database, 'fetchResearchExportContext').mockResolvedValue({
+            session_id: 'session-1',
+            session_topology_version: 2,
+            green_roster_version: 'green-roster-v1',
+            persisted_green_seat_model: 'shared_facilitator_v1',
+            effective_green_seat_model: 'shared_facilitator_v1',
+            effective_green_seat_model_is_derived: false,
+            model_status: 'recognized',
+            unified_seat_removals: [{ seat_id: 'removed-seat-1' }],
+            pli_included: false
+        });
         vi.spyOn(database, 'fetchResearchTable').mockImplementation(async (tableName) => {
             if (tableName === 'research_audit_event_log') return [{ event_id: 1 }];
             if (tableName === 'research_participant') return [{ participant_pseudonym: 'participant-001' }];
@@ -97,6 +132,11 @@ describe('database research export helpers', () => {
             session: { id: 'session-1', name: 'Alpha' },
             captureMode: 'research',
             softwareBuildHash: 'build-hash-1',
+            researchExportContext: expect.objectContaining({
+                effective_green_seat_model: 'shared_facilitator_v1',
+                pli_included: false
+            }),
+            unifiedSeatRemovals: [{ seat_id: 'removed-seat-1' }],
             communications: [{ id: 'comm-1' }],
             notetakerData: [{ id: 'note-1' }],
             researchAuditEventLog: [{ event_id: 1 }],
@@ -107,5 +147,6 @@ describe('database research export helpers', () => {
             artifactWorkflowReviews: [{ id: 'review-1', artifact_id: 'action-1' }]
         });
         expect(database.fetchResearchTable).toHaveBeenCalledWith('artifact_workflow_reviews', 'session-1');
+        expect(database.fetchResearchTable).not.toHaveBeenCalledWith('research_adjudication_content', 'session-1');
     });
 });

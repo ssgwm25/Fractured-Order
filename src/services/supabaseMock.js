@@ -4404,6 +4404,45 @@ export function createE2EMockSupabaseClient() {
                 return mutateMockState((state) => operatorSendCommunication(state, params));
             }
 
+            if (functionName === 'export_gc11_research_context') {
+                const state = readMockState();
+                const authUserId = getCurrentAuthUserId();
+                if (!liveDemoHasOperatorGrant(state, authUserId, 'gamemaster')
+                    && !liveDemoHasOperatorGrant(state, authUserId, 'whitecell')) {
+                    return { data: null, error: { code: '42501', message: 'GC11_OPERATOR_REQUIRED' } };
+                }
+                const session = state.tables.sessions.find((entry) => entry.id === params.requested_session_id);
+                if (!session) {
+                    return { data: null, error: { code: 'P0002', message: 'GC11_SESSION_NOT_FOUND' } };
+                }
+                const topology = session.session_topology_version ?? null;
+                const persistedModel = session.green_seat_model ?? null;
+                const effectiveModel = persistedModel === null && (topology === null || topology === 1)
+                    ? 'unified_v1'
+                    : persistedModel === null && topology === 2
+                        ? 'regional_pairs_v1'
+                        : persistedModel === 'shared_facilitator_v1' && topology === 2
+                            ? 'shared_facilitator_v1'
+                            : 'unknown';
+                return {
+                    data: {
+                        session_id: session.id,
+                        session_topology_version: topology,
+                        green_roster_version: session.green_roster_version ?? null,
+                        green_roster_snapshot: session.green_roster_snapshot ?? null,
+                        persisted_green_seat_model: persistedModel,
+                        effective_green_seat_model: effectiveModel,
+                        effective_green_seat_model_is_derived: persistedModel === null,
+                        model_status: effectiveModel === 'unknown' ? 'unknown_combination' : 'recognized',
+                        unified_seat_removals: cloneValue(state.tables.gc08_unified_seat_removals || [])
+                            .filter((entry) => entry.session_id === session.id)
+                            .sort((left, right) => String(left.removed_at || '').localeCompare(String(right.removed_at || ''))),
+                        pli_included: false
+                    },
+                    error: null
+                };
+            }
+
             if (functionName === 'live_demo_research_capture_mode') {
                 const state = readMockState();
                 const captureMode = state.tables.live_demo_runtime_config.find((entry) => (

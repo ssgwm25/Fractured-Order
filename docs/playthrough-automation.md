@@ -271,9 +271,10 @@ Pass:
 - eighteen browser actors remain active for the test
 - the selected session contains exactly seventeen active role seats
 - every test step completes without retries or skipped tests
-- the schema `1.9.0` / format revision `10` research archive reconciles every
+- the schema `2.0.0` / format revision `11` research archive reconciles every
   workflow/revision review, both proposal threads and rounds, notification
-  metadata, and returned/answered RFI history across JSON, CSV, HTML, and LaTeX
+  metadata, returned/answered RFI history, and regional Green attribution
+  across JSON, CSV, HTML, and LaTeX, with PLI output absent
 - no current action, Strategic Orientation, or proposal surface exposes a
   `SUCCESS`, `PARTIAL_SUCCESS`, `FAIL`, or `BACKFIRE` badge
 - dismissed notifications stay dismissed, and startup/reconnect recovery adds
@@ -290,7 +291,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=(git rev-parse HEAD).Trim()
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-17_game_master_session_retirement"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-10-01_gc11_research_export_context"
 npm run test:e2e:playthrough
 ```
 
@@ -390,7 +391,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=$candidateCommit
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-08-17_game_master_session_retirement"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-10-01_gc11_research_export_context"
 npm run test:e2e:rehearsal
 ```
 
@@ -421,10 +422,11 @@ and forwards the first response as round 1. The proposing Facilitator may
 submit round 2 through the same gate, and later forwarded replies continue in order without updating or deleting
 prior messages. The professional playthrough pins sequential approval of a
 dual-recipient proposal, then exercises independent Blue and Red responses and
-separate proposing-Facilitator follow-ups. The resulting schema `1.9.0` / format
-revision `10` archive must report a passed manifest reconciliation and expose
+separate proposing-Facilitator follow-ups. The resulting schema `2.0.0` / format
+revision `11` archive must report passed manifest reconciliation for workflow and
+distinct-artifact ownership and expose
 the same review, recipient, thread/round, notification, and RFI history in
-JSON, CSV, HTML, and LaTeX. Full dual-thread verification is part of both the
+JSON, CSV, HTML, and LaTeX without PLI outcomes. Full dual-thread verification is part of both the
 deterministic and live staged rehearsal gates.
 
 ## Session-Code Reuse Regression
