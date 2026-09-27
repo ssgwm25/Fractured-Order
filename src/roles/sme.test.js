@@ -60,6 +60,10 @@ async function loadSmeControllerWithMocks({
     vi.doMock('../features/pli/DiplomacyInfoReview.js', () => ({ createDiplomacyInfoReview }));
     vi.doMock('../features/pli/SmeHandoffQueue.js', () => ({ createSmeHandoffQueue }));
     vi.doMock('../features/pli/SmePliPacketQueue.js', () => ({ createSmePliPacketQueue }));
+    const unsubscribePliSmeChanges = vi.fn();
+    const subscribePliSmeChanges = factories.subscribePliSmeChanges
+        || vi.fn(() => unsubscribePliSmeChanges);
+    vi.doMock('../features/pli/pliRealtime.js', () => ({ subscribePliSmeChanges }));
 
     const host = { innerHTML: '' };
     const packetHost = { innerHTML: '' };
@@ -94,7 +98,9 @@ async function loadSmeControllerWithMocks({
         createSmeHandoffQueue,
         createSmePliPacketQueue,
         packetHost,
-        mountFollowAlong
+        mountFollowAlong,
+        subscribePliSmeChanges,
+        unsubscribePliSmeChanges
     };
 }
 
@@ -174,6 +180,50 @@ describe('SME console access state', () => {
         expect(loopSpy).toHaveBeenCalledTimes(1);
         expect(typeof controller.mountRolePanel).toBe('undefined');
         controller.destroy();
+    });
+
+    it('subscribes to PLI realtime for the session, refreshes on change, and unsubscribes on destroy', async () => {
+        const loaded = await loadSmeControllerWithMocks({ role: 'sme_econ' });
+        const controller = new loaded.SmeController();
+        vi.spyOn(controller, 'startRefreshLoop').mockImplementation(() => {});
+
+        await controller.init();
+
+        expect(loaded.subscribePliSmeChanges).toHaveBeenCalledTimes(1);
+        const options = loaded.subscribePliSmeChanges.mock.calls[0][0];
+        expect(options.sessionId).toBe('session-1');
+        expect(typeof options.onChange).toBe('function');
+
+        const refreshSpy = vi.spyOn(controller, 'refreshQueue').mockImplementation(() => {});
+        options.onChange({ tables: ['pli_adjudications'], events: 3 });
+        expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+        controller.destroy();
+        expect(loaded.unsubscribePliSmeChanges).toHaveBeenCalledTimes(1);
+        controller.destroy();
+        expect(loaded.unsubscribePliSmeChanges).toHaveBeenCalledTimes(1);
+    });
+
+    it('polls the queue every 20 seconds as the realtime fallback', async () => {
+        vi.useFakeTimers();
+        try {
+            const loaded = await loadSmeControllerWithMocks({ role: 'sme_econ' });
+            expect(loaded.SME_QUEUE_POLL_MS).toBe(20000);
+            const controller = new loaded.SmeController();
+            const refreshSpy = vi.spyOn(controller, 'refreshQueue').mockImplementation(() => {});
+
+            controller.startRefreshLoop();
+            vi.advanceTimersByTime(19999);
+            expect(refreshSpy).not.toHaveBeenCalled();
+            vi.advanceTimersByTime(1);
+            expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+            controller.destroy();
+            vi.advanceTimersByTime(60000);
+            expect(refreshSpy).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it.each([

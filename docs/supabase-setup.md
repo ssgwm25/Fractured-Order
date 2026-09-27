@@ -109,6 +109,17 @@ Apply the authoritative ledger in this exact order:
 58. `data/2026-09-29_gc08_session_administration.sql`
 59. `data/2026-09-30_gc08_unified_seat_removal_history.sql`
 60. `data/2026-10-01_gc11_research_export_context.sql`
+61. `data/2026-10-02_pli_regional_dispatch_and_realtime.sql`
+
+The October 2 PLI repair removes the topology-v1 requirement from
+`green_authorize_derived_operation` so White Cell action-complete can dispatch
+the PLI Adjudication workflow for regional sessions; the caller must still be
+authenticated and hold a Game Master or matching White Cell grant on an active,
+unprotected live exercise. It also adds `pli_adjudications`, `sme_handoffs` and
+`sme_pli_packets` to the `supabase_realtime` publication so SME consoles refresh
+on change. Existing RLS still filters every realtime event. Pass: a White Cell
+completion in a topology-2 session returns `200 dispatched` from
+`trigger-pli-adjudication`, and `pg_publication_tables` lists the three tables.
 
 GC-11 adds the operator-only `export_gc11_research_context` projection used by
 research archive schema 2.0. It preserves raw topology, roster, persisted Green

@@ -1,7 +1,10 @@
 name: PLI Adjudication
 
 # Petrihos Lever Index pipeline for Fractured Order on Plenum.
-# Unit tests always run. Live adjudication runs when secrets are configured.
+# Unit tests run on push / pull_request. Live adjudication (schedule or
+# workflow_dispatch from the WC-complete edge trigger) runs immediately when
+# secrets are configured; it does not wait on the test job, which pushes already
+# gate. Every minute here is lag between an accepted action and the SME queue.
 
 on:
   push:
@@ -24,9 +27,11 @@ on:
         required: false
         type: boolean
         default: false
-  # Backup while live playtests rely on WC-complete edge trigger (*/5 during play window).
+  # Backup for the WC-complete edge trigger. Sessions run outside US weekday
+  # hours (tutorials, evening playtests), so sweep every 10 minutes, every day.
+  # run_pli scopes itself to active live exercises, so idle ticks exit quickly.
   schedule:
-    - cron: '*/5 13-22 * * 1-5'
+    - cron: '*/10 * * * *'
 
 permissions:
   contents: read
@@ -37,6 +42,7 @@ concurrency:
 
 jobs:
   test:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -55,7 +61,6 @@ jobs:
         run: python -m pytest test_engine.py test_tracks.py test_run_pli_seats.py test_l10_cross_check.py test_i305_reciprocal_fdi.py test_i804_gold_sales.py -q
 
   adjudicate:
-    needs: test
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30

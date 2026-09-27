@@ -234,7 +234,37 @@ def is_pli_candidate(action: dict[str, Any]) -> bool:
     return normalize_instrument_of_power(mechanism) is not None
 
 
+def fetch_eligible_session_ids(db: SupabaseRest, session_id: str | None) -> list[str]:
+    """Sessions the GC-02 lifecycle guard will accept PLI writes for.
+
+    ``pli_adjudications`` writes into closed, protected or non-exercise sessions
+    raise ``GC02_SESSION_CLOSED`` (42501). Scoping the run to active live
+    exercises keeps one stale session from aborting the whole batch and stops
+    the cron from re-scoring deleted test sessions on every tick.
+    """
+    params = {
+        "select": "id",
+        "status": "eq.active",
+        "session_classification": "eq.live_exercise",
+        "is_protected": "eq.false",
+    }
+    if session_id:
+        params["id"] = f"eq.{session_id}"
+    return [str(row["id"]) for row in db.select("sessions", params) if row.get("id")]
+
+
+def _session_in_filter(session_ids: list[str]) -> str:
+    return "in.(" + ",".join(session_ids) + ")"
+
+
 def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict[str, Any]]:
+    session_ids = fetch_eligible_session_ids(db, session_id)
+    if not session_ids:
+        scope = f"session {session_id}" if session_id else "any session"
+        print(f"No active, unprotected live_exercise session for {scope}; nothing to adjudicate")
+        return []
+    print(f"Scoping PLI to {len(session_ids)} eligible session(s)")
+
     # Include both submitted and White-Cell-deliberated actions. Operators often
     # record deliberation before PLI runs; those rows leave status='submitted'
     # and would otherwise never enter the macro SME queue.
@@ -244,16 +274,21 @@ def fetch_pending_actions(db: SupabaseRest, session_id: str | None) -> list[dict
         "is_deleted": "eq.false",
         "mechanism": f"neq.{STRATEGIC_ORIENTATION_MECHANISM}",
         "order": "created_at.asc",
+        "session_id": _session_in_filter(session_ids),
     }
-    if session_id:
-        params["session_id"] = f"eq.{session_id}"
     actions = db.select("actions", params)
     actions_by_id = {action["id"]: action for action in actions}
 
     # Skip finished rows. Re-score only stubbed needs_human rows (missing
     # worksheets / missing orientation) so agent-flagged SME work does not
     # burn another full multi-agent run on every schedule tick.
-    existing = db.select("pli_adjudications", {"select": "action_id,status,record"})
+    existing = db.select(
+        "pli_adjudications",
+        {
+            "select": "action_id,status,record",
+            "session_id": _session_in_filter(session_ids),
+        },
+    )
     orientation_cache: dict[tuple[str, str], str | None] = {}
     skip_ids: set[str] = set()
     for row in existing:
@@ -901,14 +936,37 @@ def main() -> int:
             if isinstance(row.get("record"), dict):
                 row["record"]["session_stack"] = stack_payload
 
-    for row in rows:
-        if dry_run:
-            print(json.dumps(row["record"], indent=2)[:2000])
-        else:
-            db.upsert("pli_adjudications", row, on_conflict="action_id")
+    written = write_adjudication_rows(db, rows, dry_run=dry_run)
+    failures += len(rows) - written
 
     print(f"Done. {len(actions) - failures} adjudicated, {failures} failed.")
     return 1 if failures else 0
+
+
+def write_adjudication_rows(
+    db: SupabaseRest, rows: list[dict[str, Any]], *, dry_run: bool
+) -> int:
+    """Upsert each row independently; one rejected write must not drop the rest.
+
+    Returns the number of rows written (or printed in dry-run mode).
+    """
+    written = 0
+    for row in rows:
+        if dry_run:
+            print(json.dumps(row["record"], indent=2)[:2000])
+            written += 1
+            continue
+        try:
+            db.upsert("pli_adjudications", row, on_conflict="action_id")
+        except Exception as err:  # e.g. GC02_SESSION_CLOSED on a session closed mid-run
+            print(
+                f"  WARN: write failed for action {row.get('action_id')} "
+                f"(session {row.get('session_id')}): {err}",
+                file=sys.stderr,
+            )
+            continue
+        written += 1
+    return written
 
 
 if __name__ == "__main__":

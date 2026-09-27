@@ -125,6 +125,10 @@ const SME_PLI_PACKETS_PATH = new URL(
     '../../data/2026-08-25_sme_pli_packets.sql',
     import.meta.url
 );
+const PLI_REGIONAL_DISPATCH_PATH = new URL(
+    '../../data/2026-10-02_pli_regional_dispatch_and_realtime.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -914,6 +918,27 @@ describe('database migration contracts', () => {
         expect(sql).toContain('CONSTRAINT sme_pli_packets_adjudication_seat_unique');
         expect(sql).toContain('UNIQUE (adjudication_id, pli_seat, handoff_seat)');
         expect(sql).toContain("ARRAY['whitecell', 'gamemaster', 'sme']::TEXT[]");
+    });
+
+    it('opens PLI dispatch to regional sessions without dropping operator or lifecycle gates', () => {
+        const sql = readFileSync(PLI_REGIONAL_DISPATCH_PATH, 'utf8');
+        const functionMatch = sql.match(
+            /CREATE OR REPLACE FUNCTION public\.green_authorize_derived_operation[\s\S]*?AS \$\$([\s\S]*?)\$\$;/
+        );
+
+        expect(functionMatch, 'Expected green_authorize_derived_operation redefinition.').not.toBeNull();
+        const body = functionMatch[1];
+        expect(body).not.toContain('green_storage_is_unified');
+        expect(body).toContain('auth.uid() IS NOT NULL');
+        expect(body).toContain("session_classification='live_exercise' AND NOT is_protected");
+        expect(body).toContain("requested_operation='adjudicate' AND status='active'");
+        expect(body).toContain("public.live_demo_has_operator_grant('gamemaster')");
+        expect(body).toContain("public.live_demo_has_operator_grant('whitecell',requested_session_id)");
+        expect(sql).toContain('REVOKE ALL ON FUNCTION public.green_authorize_derived_operation(UUID,TEXT) FROM PUBLIC,anon;');
+        expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.green_authorize_derived_operation(UUID,TEXT) TO authenticated;');
+        expect(sql).toContain("ARRAY['pli_adjudications', 'sme_handoffs', 'sme_pli_packets']");
+        expect(sql).toContain("ALTER PUBLICATION supabase_realtime ADD TABLE public.%I");
+        expect(sql).toContain("pubname = 'supabase_realtime'");
     });
 
     it('supersedes the one-shot proposal response lock with recipient-isolated append-only threads', () => {

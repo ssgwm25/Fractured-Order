@@ -21,6 +21,7 @@ import { createNiEscalationReview } from '../features/pli/NiEscalationReview.js'
 import { createDiplomacyInfoReview } from '../features/pli/DiplomacyInfoReview.js';
 import { createSmeHandoffQueue } from '../features/pli/SmeHandoffQueue.js';
 import { createSmePliPacketQueue } from '../features/pli/SmePliPacketQueue.js';
+import { subscribePliSmeChanges } from '../features/pli/pliRealtime.js';
 import {
     SEATS as PLI_SEATS,
     seatNeedsReview,
@@ -29,6 +30,9 @@ import {
 } from '../features/pli/pliShared.js';
 
 const logger = createLogger('SmeConsole');
+
+/** Polling fallback interval; realtime push (pliRealtime.js) is the primary path. */
+export const SME_QUEUE_POLL_MS = 20000;
 
 /** Queue kinds mounted by the SME console — one entry per SME_ROLES value. */
 export const SME_QUEUE_KINDS = Object.freeze({
@@ -127,6 +131,7 @@ export class SmeController {
         this.packetPanel = null;
         this.onboarding = null;
         this.refreshTimer = null;
+        this.unsubscribeRealtime = null;
     }
 
     async init() {
@@ -169,6 +174,7 @@ export class SmeController {
             this.bindChrome();
             this.mountRoleQueue();
             this.mountFollowAlongOnboarding();
+            this.startRealtime(accessState.sessionId);
             this.startRefreshLoop();
 
             const sessionId = accessState.sessionId;
@@ -437,13 +443,45 @@ export class SmeController {
         badge.hidden = count <= 0;
     }
 
+    /**
+     * Realtime push for PLI rows; the polling loop below stays as the fallback.
+     */
+    startRealtime(sessionId) {
+        this.stopRealtime();
+        const resolvedSessionId = sessionId
+            || sessionStore.getSessionId?.()
+            || sessionStore.getSessionData?.()?.id
+            || null;
+        if (!resolvedSessionId) return;
+        this.unsubscribeRealtime = subscribePliSmeChanges({
+            sessionId: resolvedSessionId,
+            onChange: (detail) => {
+                logger.info('PLI realtime change', detail);
+                this.refreshQueue();
+            }
+        });
+    }
+
+    stopRealtime() {
+        if (typeof this.unsubscribeRealtime === 'function') {
+            try {
+                this.unsubscribeRealtime();
+            } catch (error) {
+                logger.warn('PLI realtime unsubscribe failed', error);
+            }
+        }
+        this.unsubscribeRealtime = null;
+    }
+
     startRefreshLoop() {
         if (this.refreshTimer) clearInterval(this.refreshTimer);
-        this.refreshTimer = setInterval(() => this.refreshQueue(), 45000);
+        this.refreshTimer = setInterval(() => this.refreshQueue(), SME_QUEUE_POLL_MS);
     }
 
     destroy() {
         if (this.refreshTimer) clearInterval(this.refreshTimer);
+        this.refreshTimer = null;
+        this.stopRealtime();
         this.panel?.destroy?.();
         this.packetPanel?.destroy?.();
         this.onboarding?.destroy?.();

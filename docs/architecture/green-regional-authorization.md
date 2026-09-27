@@ -82,8 +82,9 @@ dispatch. Both now forward the caller JWT and the project's public anon key to
 `green_authorize_derived_operation` through PostgREST. Invalid auth, missing RPC,
 network failure or any response other than boolean `true` rejects the request
 before GitHub/Cursor is contacted. Unified sessions require a matching White Cell
-grant or Game Master grant; regional calls remain closed pending scoped PLI
-inputs. The shared helper uses the Supabase-provided `SUPABASE_URL` and
+grant or Game Master grant; regional calls were closed pending scoped PLI
+inputs until `data/2026-10-02_pli_regional_dispatch_and_realtime.sql`, which
+opens the same grant-gated dispatch to topology-2 sessions. The shared helper uses the Supabase-provided `SUPABASE_URL` and
 `SUPABASE_ANON_KEY` environment values; no new browser configuration or reusable
 secret is introduced. Both Edge Function deployments are required to close this
 external-dispatch path; migration installation alone does not deploy their code.
