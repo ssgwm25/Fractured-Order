@@ -110,6 +110,16 @@ Apply the authoritative ledger in this exact order:
 59. `data/2026-09-30_gc08_unified_seat_removal_history.sql`
 60. `data/2026-10-01_gc11_research_export_context.sql`
 61. `data/2026-10-02_pli_regional_dispatch_and_realtime.sql`
+62. `data/2026-10-03_sme_instant_action_delivery.sql`
+
+The October 3 SME delivery repair opens TSJ/Verba handoffs and a
+queue-visible `pli_adjudications` stub in the same transaction as White Cell
+accept (every completed non-orientation action, not only Blue). Industry
+proposals still skip the PLI stub. Scoring replaces the stub later; a failed
+handoff or stub write warns and does not roll back the accept. Pass: accepting
+an action in an active live session immediately inserts two `sme_handoffs`
+rows and one `queue_stub` adjudication, and SME consoles refresh on the
+existing realtime publication.
 
 The October 2 PLI repair removes the topology-v1 requirement from
 `green_authorize_derived_operation` so White Cell action-complete can dispatch

@@ -8,6 +8,7 @@ import {
     seatIsFinalized,
     isDownstreamSeatUnlocked,
     isPliRowVisible,
+    isPliQueueStub,
     leadSeatStatusBadge,
     getMacroBlock,
     getActionTitle,
@@ -29,6 +30,8 @@ describe('pliShared', () => {
         expect(seatNeedsReview(getSeatReview(row, SEATS.MACRO))).toBe(true);
         expect(seatNeedsReview({ status: 'approved' })).toBe(false);
         expect(seatNeedsReview({ status: 'skipped' })).toBe(false);
+        expect(isPliQueueStub({ codebook_version: 'queued', record: { queue_stub: true } })).toBe(true);
+        expect(isPliQueueStub({ codebook_version: '1.0', record: { tracks: {} } })).toBe(false);
         expect(seatIsFinalized({ status: 'approved' })).toBe(true);
         expect(seatIsFinalized({ status: 'pending' })).toBe(false);
     });

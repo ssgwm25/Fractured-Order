@@ -6,6 +6,7 @@ from run_pli import (
     SEAT_DIP_INFO,
     SEAT_MACRO,
     SEAT_NI_ESC,
+    _should_skip_existing_adjudication,
     build_record,
     build_seat_reviews,
     fetch_eligible_session_ids,
@@ -230,3 +231,33 @@ def test_green_proposal_routes_dip_info_macro_skipped():
     assert stub["seat_reviews"][SEAT_MACRO]["status"] == "skipped"
     assert stub["seat_reviews"][SEAT_DIP_INFO]["status"] == "needs_human"
     assert stub["seat_reviews"][SEAT_NI_ESC]["status"] == "needs_human"
+
+
+def test_queue_stub_is_rescored_and_scored_pending_is_skipped():
+    assert _should_skip_existing_adjudication({
+        "status": "pending",
+        "codebook_version": "queued",
+        "record": {"queue_stub": True},
+    }) is False
+    assert _should_skip_existing_adjudication({
+        "status": "pending",
+        "record": {"tracks": {"macro": {}}},
+    }) is True
+
+
+def test_pending_actions_include_queue_stub_rows():
+    action = _dime_action("a-stub", "s-live")
+    db = _FakeDb(
+        {
+            "sessions": [{"id": "s-live"}],
+            "actions": [action],
+            "pli_adjudications": [{
+                "action_id": "a-stub",
+                "status": "pending",
+                "codebook_version": "queued",
+                "record": {"queue_stub": True},
+            }],
+        }
+    )
+    pending = fetch_pending_actions(db, None)
+    assert [row["id"] for row in pending] == ["a-stub"]

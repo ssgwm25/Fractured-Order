@@ -129,6 +129,10 @@ const PLI_REGIONAL_DISPATCH_PATH = new URL(
     '../../data/2026-10-02_pli_regional_dispatch_and_realtime.sql',
     import.meta.url
 );
+const SME_INSTANT_DELIVERY_PATH = new URL(
+    '../../data/2026-10-03_sme_instant_action_delivery.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -939,6 +943,21 @@ describe('database migration contracts', () => {
         expect(sql).toContain("ARRAY['pli_adjudications', 'sme_handoffs', 'sme_pli_packets']");
         expect(sql).toContain("ALTER PUBLICATION supabase_realtime ADD TABLE public.%I");
         expect(sql).toContain("pubname = 'supabase_realtime'");
+    });
+
+    it('opens SME handoffs and a PLI queue stub on White Cell accept', () => {
+        const sql = readFileSync(SME_INSTANT_DELIVERY_PATH, 'utf8');
+        expect(sql).toContain('CREATE OR REPLACE FUNCTION public.open_sme_action_delivery');
+        expect(sql).toContain("INSERT INTO public.sme_handoffs");
+        expect(sql).toContain("'queue_stub', true");
+        expect(sql).toContain("codebook_version");
+        expect(sql).toContain("'queued'");
+        expect(sql).toContain('ON CONFLICT (action_id, seat) DO NOTHING');
+        expect(sql).toContain('ON CONFLICT (action_id) DO NOTHING');
+        expect(sql).toContain('zzzz_open_sme_action_delivery');
+        expect(sql).toContain("WHEN (NEW.status = 'adjudicated' AND OLD.status IS DISTINCT FROM 'adjudicated')");
+        expect(sql).toContain("AND lower(btrim(COALESCE(action_row.team, ''))) = 'industry'");
+        expect(sql).toContain('EXCEPTION WHEN OTHERS THEN');
     });
 
     it('supersedes the one-shot proposal response lock with recipient-isolated append-only threads', () => {

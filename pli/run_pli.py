@@ -118,6 +118,14 @@ def _rescore_markers_present(reasons: list[str]) -> list[str]:
     ]
 
 
+def _is_queue_stub(row: dict[str, Any]) -> bool:
+    """True when White Cell accept opened a queue-visible row before scoring."""
+    record = row.get("record") if isinstance(row.get("record"), dict) else {}
+    if record.get("queue_stub") is True:
+        return True
+    return str(row.get("codebook_version") or "").strip().lower() == "queued"
+
+
 def _is_missing_so_only_stub(row: dict[str, Any]) -> bool:
     """True when the only rescore reason is a missing Strategic Orientation stub."""
     markers = _rescore_markers_present(_collect_needs_human_reasons(row))
@@ -143,6 +151,9 @@ def _should_skip_existing_adjudication(
     schedule does not burn agents forever on sessions without SO.
     """
     status = row.get("status")
+    if _is_queue_stub(row):
+        # Browser/DB opened the SME queue immediately; this run fills scores.
+        return False
     if status not in (None, "needs_human"):
         return True
     if status != "needs_human":

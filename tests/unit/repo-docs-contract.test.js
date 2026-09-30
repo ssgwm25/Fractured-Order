@@ -263,7 +263,8 @@ describe('repository operator docs contract', () => {
             'data/2026-09-21_gc03_recipient_forward_uniqueness.sql',
             'data/2026-09-22_gc04_session_context.sql',
             'data/2026-10-01_gc11_research_export_context.sql',
-            'data/2026-10-02_pli_regional_dispatch_and_realtime.sql'
+            'data/2026-10-02_pli_regional_dispatch_and_realtime.sql',
+            'data/2026-10-03_sme_instant_action_delivery.sql'
         ];
 
         let priorIndex = -1;

@@ -54,7 +54,7 @@ export function createSmeHandoffQueue(options = {}) {
             </div>
         </div>
         <p class="text-sm text-gray-600 pli-sme-desc">
-            Read-only action queue opened when White Cell marks a Blue action complete.
+            Read-only action queue opened when White Cell accepts an action.
             Copy the narrative into the external tool, then mark done.
         </p>
         <div class="pli-sme-list" data-handoff-list aria-live="polite"></div>

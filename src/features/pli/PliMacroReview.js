@@ -18,6 +18,8 @@ import {
     seatNeedsReview,
     seatIsFinalized,
     isPliRowVisible,
+    isPliQueueStub,
+    renderQueueStubNotice,
     leadSeatStatusBadge,
     renderSeatSmeNotes,
     getActionTitle,
@@ -118,8 +120,8 @@ export function createPliMacroReview(options = {}) {
                     ? 'No Macro drafts or finalized outputs yet'
                     : (showReviewed ? 'No PLI macro adjudications' : 'No PLI macro adjudications awaiting review'),
                 isLeadReadonly
-                    ? 'Draft Macro cards appear after the PLI pipeline runs. Finalized cards appear after Econ approves or overrides.'
-                    : 'The PLI pipeline writes multi-track records after each run. Trigger Actions → PLI Adjudication or wait for the schedule.'
+                    ? 'Cards appear as soon as White Cell accepts an action. Scoring fills the Macro trace shortly after.'
+                    : 'Cards appear as soon as White Cell accepts an action. Review unlocks after PLI scoring lands.'
             );
             return;
         }
@@ -138,9 +140,15 @@ export function createPliMacroReview(options = {}) {
             ? { ...record, tracks: resolveOutputTracks(row) }
             : record;
         const { worksheet, adjudication } = getMacroBlock(displayRecord);
+        const queued = isPliQueueStub(row);
+        const reviewable = seatNeedsReview(seat) && canReview() && !queued;
         const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
-        const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
-        const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
+        const badgeClass = queued
+            ? 'badge-warning'
+            : (leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary');
+        const badgeLabel = queued
+            ? STATUS_LABELS.queued
+            : (leadBadge?.label || STATUS_LABELS[status] || status);
         const classification = worksheet?.classification || adjudication?.classification || {};
         const precedent = worksheet?.precedent || adjudication?.precedent || {};
         const implementation = adjudication?.implementation || {};
@@ -160,17 +168,18 @@ export function createPliMacroReview(options = {}) {
             <header class="pli-sme-card-header">
                 <div>
                     <h3 class="pli-sme-card-title">${escapeHtml(getActionTitle(action, row))}</h3>
-                    <p class="text-sm text-gray-600">PLI Adjudication — SME Review · Codebook ${escapeHtml(row.codebook_version || '')}</p>
+                    <p class="text-sm text-gray-600">PLI Adjudication — SME Review · Codebook ${escapeHtml(queued ? 'queued' : (row.codebook_version || ''))}</p>
                 </div>
                 <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
             </header>
+            ${renderQueueStubNotice(row)}
             <div class="pli-sme-columns">
                 ${sourceActionColumn(action, row, record)}
                 <section class="pli-col pli-col-chain">
                     <h3 class="pli-col-title">2. Adjudication chain (PLI trace)</h3>
                     <div class="pli-block">
                         <div class="pli-label">2.1 Classification</div>
-                        ${seatNeedsReview(seat) && canReview() ? `
+                        ${reviewable ? `
                             <div class="pli-field-grid">
                                 <div class="form-group pli-edit-field">
                                     <label class="form-label" for="pli-macro-lever-${escapeHtml(row.id)}">Primary lever</label>
@@ -195,7 +204,7 @@ export function createPliMacroReview(options = {}) {
                             ${implementation.tier_midpoint != null ? ` · Midpoint ${escapeHtml(String(implementation.tier_midpoint))}` : ''}</p>
                         <p class="pli-cite text-sm">${escapeHtml(implementationNarrative || 'No implementation narrative on worksheet.')}</p>
                         <div class="pli-modifiers">${renderModifiers(modifiers, implementation)}</div>
-                        ${seatNeedsReview(seat) && canReview() ? `
+                        ${reviewable ? `
                             <div class="form-group pli-edit-field">
                                 <label class="form-label" for="pli-macro-impl-${escapeHtml(row.id)}">Implementation score (1-10)</label>
                                 <input id="pli-macro-impl-${escapeHtml(row.id)}" type="number" class="form-input" min="1" max="10" data-pli-macro-impl
@@ -231,7 +240,7 @@ export function createPliMacroReview(options = {}) {
                         </details>` : ''}
                 </section>
             </div>
-            ${seatNeedsReview(seat) && canReview() ? `
+            ${reviewable ? `
                 <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
                     <strong>Override</strong> — change lever, instrument, or implementation, then save with a rationale.
                     <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="1000"

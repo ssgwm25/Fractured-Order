@@ -30,8 +30,24 @@ export const STATUS_LABELS = {
     approved: 'Approved',
     overridden: 'Overridden',
     needs_human: 'Needs human adjudication',
-    skipped: 'Skipped (not routed)'
+    skipped: 'Skipped (not routed)',
+    queued: 'Queued — scoring in progress'
 };
+
+export function isPliQueueStub(row = {}) {
+    const record = row?.record && typeof row.record === 'object' ? row.record : {};
+    return record.queue_stub === true
+        || String(row?.codebook_version || '').trim().toLowerCase() === 'queued';
+}
+
+export function renderQueueStubNotice(row) {
+    if (!isPliQueueStub(row)) return '';
+    return `
+        <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
+            <strong>Action received.</strong>
+            White Cell accepted this action. PLI scoring is running — review controls unlock when the trace lands.
+        </div>`;
+}
 
 export const STATUS_BADGE = {
     pending: 'badge-warning',

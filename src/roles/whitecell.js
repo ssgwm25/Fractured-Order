@@ -869,6 +869,11 @@ export function canShareActionToRedTeam(action = {}) {
     return action?.team === 'blue' && !isStrategicOrientationAction(action);
 }
 
+/** TSJ / Verba copy queues open for every completed team action, not only Blue. */
+export function canOpenSmeActionHandoffs(action = {}) {
+    return !isStrategicOrientationAction(action);
+}
+
 export function normalizeActionNotificationTeams(teams = []) {
     return [...new Set((Array.isArray(teams) ? teams : [])
         .map((team) => String(team || '').trim().toLowerCase())
@@ -4664,6 +4669,18 @@ export class WhiteCellController {
             }
 
             actionsStore.updateFromServer('UPDATE', updatedAction);
+            if (isComplete) {
+                const sessionIdForPli = sessionStore.getSessionId();
+                if (sessionIdForPli) {
+                    database.triggerPliAdjudication(sessionIdForPli).catch((triggerError) => {
+                        logger.warn('Failed to trigger PLI adjudication workflow', triggerError);
+                        showToast({
+                            message: `${teamLabel} ${artifactLabel} was accepted as complete, but the PLI auto-trigger failed — cron or Actions dispatch is backup.`,
+                            type: 'warning'
+                        });
+                    });
+                }
+            }
             this.retainWorkflowReview(reviewResult.review);
             (Array.isArray(reviewResult.communications) ? reviewResult.communications : [])
                 .forEach((communication) => {
@@ -4705,24 +4722,11 @@ export class WhiteCellController {
             });
             timelineStore.updateFromServer('INSERT', timelineEvent);
 
-            if (isComplete && canShareActionToRedTeam(updatedAction)) {
+            if (isComplete && canOpenSmeActionHandoffs(updatedAction)) {
                 try {
                     await database.ensureSmeHandoffs(sessionStore.getSessionId(), action.id);
                 } catch (handoffError) {
                     logger.warn('Failed to open SME TSJ/Verba handoffs (migration may be pending)', handoffError);
-                }
-            }
-
-            if (isComplete) {
-                const sessionIdForPli = sessionStore.getSessionId();
-                if (sessionIdForPli) {
-                    database.triggerPliAdjudication(sessionIdForPli).catch((triggerError) => {
-                        logger.warn('Failed to trigger PLI adjudication workflow', triggerError);
-                        showToast({
-                            message: `${teamLabel} ${artifactLabel} was accepted as complete, but the PLI auto-trigger failed — cron or Actions dispatch is backup.`,
-                            type: 'warning'
-                        });
-                    });
                 }
             }
 

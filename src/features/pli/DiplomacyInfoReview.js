@@ -17,6 +17,8 @@ import {
     seatNeedsReview,
     seatIsFinalized,
     isPliRowVisible,
+    isPliQueueStub,
+    renderQueueStubNotice,
     leadSeatStatusBadge,
     renderSeatSmeNotes,
     isDownstreamSeatUnlocked,
@@ -235,10 +237,10 @@ export function createDiplomacyInfoReview(options = {}) {
                         ? 'Awaiting Macro finalize'
                         : (showReviewed ? 'No Diplomacy / Information adjudications' : 'No Diplomacy / Information items awaiting review')),
                 isLeadReadonly
-                    ? 'Draft Dip / Info cards appear after the PLI pipeline runs. Finalized cards appear after Dip & Info approves or overrides.'
+                    ? 'Cards appear as soon as White Cell accepts an action. Scoring fills the Dip / Info trace shortly after.'
                     : (locked > 0
                         ? `${locked} item(s) waiting for Econ Macro finalize (or Macro skip on non-economic actions).`
-                        : 'Diplomatic and Informational actions, plus Green proposals, appear here after the PLI multi-track run.')
+                        : 'Cards appear as soon as White Cell accepts an action. Review unlocks after scoring and Macro finalize.')
             );
             return;
         }
@@ -256,9 +258,15 @@ export function createDiplomacyInfoReview(options = {}) {
         const tracks = seatIsFinalized(seat) ? resolveOutputTracks(row) : (record.tracks || {});
         const diplomacy = tracks.diplomacy || null;
         const information = tracks.information || null;
+        const queued = isPliQueueStub(row);
+        const reviewable = seatNeedsReview(seat) && canReview() && !queued;
         const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
-        const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
-        const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
+        const badgeClass = queued
+            ? 'badge-warning'
+            : (leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary');
+        const badgeLabel = queued
+            ? STATUS_LABELS.queued
+            : (leadBadge?.label || STATUS_LABELS[status] || status);
         const routing = tracks.routing?.tracks || {};
         const actingTeam = resolveActingTeam(action, row);
         const proposalBadge = isProposalActionRow(action)
@@ -277,19 +285,20 @@ export function createDiplomacyInfoReview(options = {}) {
                 </div>
                 <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
             </header>
+            ${renderQueueStubNotice(row)}
             <div class="pli-sme-columns pli-sme-columns-3">
                 ${sourceActionColumn(action, row, record)}
                 <section class="pli-col pli-col-chain">
                     <h3 class="pli-col-title">SME review</h3>
                     <div class="pli-block">
                         <div class="pli-label">A. Diplomacy ${routing.diplomacy ? '' : '(not routed)'}</div>
-                        ${renderDiplomacy(diplomacy, routing.diplomacy, { editable: seatNeedsReview(seat) && canReview() })}
+                        ${renderDiplomacy(diplomacy, routing.diplomacy, { editable: reviewable })}
                     </div>
                     <div class="pli-block">
                         <div class="pli-label">B. Information ${routing.information ? '' : '(not routed)'}</div>
-                        ${renderInformation(information, routing.information, { editable: seatNeedsReview(seat) && canReview() })}
+                        ${renderInformation(information, routing.information, { editable: reviewable })}
                     </div>
-                    ${seatNeedsReview(seat) && canReview() ? `
+                    ${reviewable ? `
                         <div class="pli-notice pli-notice-gold">
                             <strong>Override</strong> — edit Diplomacy fields or the Information brief, then save with a rationale.
                             <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="3000"
@@ -314,7 +323,7 @@ export function createDiplomacyInfoReview(options = {}) {
                         </details>` : ''}
                 </section>
             </div>
-            ${seatNeedsReview(seat) && canReview() ? footerActions({
+            ${reviewable ? footerActions({
                 approveLabel: 'Approve Diplomacy & Information',
                 canApprove: status === 'pending' || status === 'needs_human',
                 canOverride: true

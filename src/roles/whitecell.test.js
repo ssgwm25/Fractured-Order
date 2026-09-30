@@ -919,6 +919,29 @@ describe('White Cell DOM contract', () => {
         })).toBe(true);
     });
 
+    it('opens SME action handoffs for every completed team action except Strategic Orientation', async () => {
+        const { canOpenSmeActionHandoffs } = await loadWhiteCellModule();
+
+        expect(canOpenSmeActionHandoffs({
+            team: 'green',
+            mechanism: 'Proposal',
+            artifact_type: 'proposal'
+        })).toBe(true);
+        expect(canOpenSmeActionHandoffs({
+            team: 'red',
+            mechanism: 'Economic'
+        })).toBe(true);
+        expect(canOpenSmeActionHandoffs({
+            team: 'blue',
+            mechanism: 'Strategic Orientation',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                artifactType: 'selection',
+                team: 'blue',
+                orientation: 'pressure'
+            })
+        })).toBe(false);
+    });
+
     it('blocks access without a matching operator grant and enforces team/session scope', async () => {
         const { getWhiteCellAccessState } = await loadWhiteCellModule();
         const teamContext = {

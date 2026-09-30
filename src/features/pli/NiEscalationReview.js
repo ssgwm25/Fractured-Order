@@ -18,6 +18,8 @@ import {
     seatNeedsReview,
     seatIsFinalized,
     isPliRowVisible,
+    isPliQueueStub,
+    renderQueueStubNotice,
     leadSeatStatusBadge,
     renderSeatSmeNotes,
     isDownstreamSeatUnlocked,
@@ -253,10 +255,10 @@ export function createNiEscalationReview(options = {}) {
                         ? 'Awaiting Macro finalize'
                         : (showReviewed ? 'No NI & Escalation adjudications' : 'No NI & Escalation items awaiting review')),
                 isLeadReadonly
-                    ? 'Draft NI / Escalation cards appear after the PLI pipeline runs. Finalized cards appear after SME approval.'
+                    ? 'Cards appear as soon as White Cell accepts an action. Scoring fills the NI / Glasl trace shortly after.'
                     : (locked > 0
                         ? `${locked} item(s) waiting for Econ Macro finalize (or Macro skip on non-economic actions).`
-                        : 'Every submitted action receives NI + Glasl tracks. Review pending rows after the PLI pipeline runs.')
+                        : 'Cards appear as soon as White Cell accepts an action. Review unlocks after scoring and Macro finalize.')
             );
             return;
         }
@@ -274,9 +276,15 @@ export function createNiEscalationReview(options = {}) {
         const tracks = seatIsFinalized(seat) ? resolveOutputTracks(row) : (record.tracks || {});
         const ni = tracks.national_interest || {};
         const glasl = tracks.glasl || {};
+        const queued = isPliQueueStub(row);
+        const reviewable = seatNeedsReview(seat) && canReview() && !queued;
         const leadBadge = isLeadReadonly ? leadSeatStatusBadge(seat) : null;
-        const badgeClass = leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary';
-        const badgeLabel = leadBadge?.label || STATUS_LABELS[status] || status;
+        const badgeClass = queued
+            ? 'badge-warning'
+            : (leadBadge?.badgeClass || STATUS_BADGE[status] || 'badge-secondary');
+        const badgeLabel = queued
+            ? STATUS_LABELS.queued
+            : (leadBadge?.label || STATUS_LABELS[status] || status);
         const domains = ni.domain_deltas || ni.domains || {};
 
         card.innerHTML = `
@@ -287,21 +295,22 @@ export function createNiEscalationReview(options = {}) {
                 </div>
                 <span class="badge ${badgeClass}">${escapeHtml(badgeLabel)}</span>
             </header>
+            ${renderQueueStubNotice(row)}
             <div class="pli-sme-columns pli-sme-columns-3">
                 ${sourceActionColumn(action, row, record)}
                 <section class="pli-col pli-col-chain">
                     <h3 class="pli-col-title">Panel A — National Interest</h3>
                     ${renderOrientationBanner(ni)}
                     <div class="pli-ni-grid">
-                        ${renderNiDomains(domains, ni, { editable: seatNeedsReview(seat) && canReview() })}
+                        ${renderNiDomains(domains, ni, { editable: reviewable })}
                     </div>
                     ${ni.needs_human || ni.status === 'needs_human' ? `
                         <div class="pli-notice pli-notice-danger">${escapeHtml(ni.needs_human_reason || 'NI worksheet needs human adjudication.')}</div>` : ''}
 
                     <h3 class="pli-col-title" style="margin-top: var(--space-4);">Panel B — Escalation (Glasl)</h3>
-                    ${renderGlasl(glasl, { editable: seatNeedsReview(seat) && canReview() })}
+                    ${renderGlasl(glasl, { editable: reviewable })}
 
-                    ${seatNeedsReview(seat) && canReview() ? `
+                    ${reviewable ? `
                         <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
                             <strong>Override</strong> — edit domain deltas or Glasl stage, then save with a rationale.
                             <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="1000"
@@ -337,7 +346,7 @@ export function createNiEscalationReview(options = {}) {
                         </details>` : ''}
                 </section>
             </div>
-            ${seatNeedsReview(seat) && canReview() ? footerActions({
+            ${reviewable ? footerActions({
                 approveLabel: 'Approve NI & Escalation',
                 canApprove: status === 'pending' || status === 'needs_human',
                 canOverride: true
