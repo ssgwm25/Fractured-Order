@@ -133,6 +133,10 @@ const SME_INSTANT_DELIVERY_PATH = new URL(
     '../../data/2026-10-03_sme_instant_action_delivery.sql',
     import.meta.url
 );
+const SME_PLI_REGIONAL_READ_PATH = new URL(
+    '../../data/2026-10-04_sme_pli_regional_read.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -958,6 +962,13 @@ describe('database migration contracts', () => {
         expect(sql).toContain("WHEN (NEW.status = 'adjudicated' AND OLD.status IS DISTINCT FROM 'adjudicated')");
         expect(sql).toContain("AND lower(btrim(COALESCE(action_row.team, ''))) = 'industry'");
         expect(sql).toContain('EXCEPTION WHEN OTHERS THEN');
+    });
+
+    it('lets SME grants read PLI queue tables on regional sessions', () => {
+        const sql = readFileSync(SME_PLI_REGIONAL_READ_PATH, 'utf8');
+        expect(sql).toContain("table_name IN ('pli_adjudications', 'sme_handoffs', 'sme_pli_packets')");
+        expect(sql).toContain("public.live_demo_has_operator_grant('sme', sid)");
+        expect(sql).toContain('SME_PLI_READ_DRIFT');
     });
 
     it('supersedes the one-shot proposal response lock with recipient-isolated append-only threads', () => {

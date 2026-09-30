@@ -111,6 +111,14 @@ Apply the authoritative ledger in this exact order:
 60. `data/2026-10-01_gc11_research_export_context.sql`
 61. `data/2026-10-02_pli_regional_dispatch_and_realtime.sql`
 62. `data/2026-10-03_sme_instant_action_delivery.sql`
+63. `data/2026-10-04_sme_pli_regional_read.sql`
+
+The October 4 SME read repair lets a matching SME operator grant pass the
+restrictive `green_storage_boundary` on `pli_adjudications`, `sme_handoffs`
+and `sme_pli_packets` in topology-2 sessions. White Cell already passed as
+`green_storage_operator`; SMEs did not, so Econ/NI/Dip/TSJ/Verba queues were
+empty while Lead still saw pending review. Pass: `green_can_read_record` for
+those tables returns true for an SME grant holder on a regional session.
 
 The October 3 SME delivery repair opens TSJ/Verba handoffs and a
 queue-visible `pli_adjudications` stub in the same transaction as White Cell
