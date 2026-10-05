@@ -2905,6 +2905,56 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(proposalsBadge.hidden).toBe(false);
     });
 
+    it('renders Proposed Activity only for nonempty Industry strings and keeps Green objective visible', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        const communication = {
+            id: 'proposal-render-1',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-10-05T12:00:00.000Z',
+            metadata: {
+                source_team: 'green',
+                proposal: {
+                    title: 'Green corridor proposal',
+                    objective: 'Coordinate the shared logistics corridor.',
+                    proposedActivity: 'Revision Metadata: {"revisionNumber":1}'
+                }
+            }
+        };
+
+        const legacyGreenHtml = controller.renderReceivedProposalCard(communication);
+        const industryHtml = controller.renderReceivedProposalCard({
+            ...communication,
+            id: 'proposal-render-2',
+            metadata: {
+                source_team: 'industry',
+                proposal: {
+                    title: 'Industry capacity proposal',
+                    proposedActivity: 'Stand up a shared fabrication facility.'
+                }
+            }
+        });
+        const structuredValueHtml = controller.renderReceivedProposalCard({
+            ...communication,
+            id: 'proposal-render-3',
+            metadata: {
+                source_team: 'industry',
+                proposal: {
+                    title: 'Malformed Industry proposal',
+                    proposedActivity: { text: 'Do not stringify this object.' }
+                }
+            }
+        });
+
+        expect(legacyGreenHtml).toContain('Coordinate the shared logistics corridor.');
+        expect(legacyGreenHtml).not.toContain('Proposed Activity');
+        expect(legacyGreenHtml).not.toContain('Revision Metadata');
+        expect(industryHtml).toContain('Proposed Activity');
+        expect(industryHtml).toContain('Stand up a shared fabrication facility.');
+        expect(structuredValueHtml).not.toContain('Proposed Activity');
+        expect(structuredValueHtml).not.toContain('[object Object]');
+    });
+
     it('renders White Cell response categories as tabs for single-category scanning', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { communicationsStore } = await import('../stores/communications.js');

@@ -137,6 +137,10 @@ const SME_PLI_REGIONAL_READ_PATH = new URL(
     '../../data/2026-10-04_sme_pli_regional_read.sql',
     import.meta.url
 );
+const GREEN_PROPOSAL_ACTIVITY_PROJECTION_PATH = new URL(
+    '../../data/2026-10-05_green_proposal_activity_projection.sql',
+    import.meta.url
+);
 const CURRENT_BUILD_SUPABASE_PATCH_PATH = new URL(
     '../../data/CURRENT_BUILD_SUPABASE_PATCH.sql',
     import.meta.url
@@ -969,6 +973,31 @@ describe('database migration contracts', () => {
         expect(sql).toContain("table_name IN ('pli_adjudications', 'sme_handoffs', 'sme_pli_packets')");
         expect(sql).toContain("public.live_demo_has_operator_grant('sme', sid)");
         expect(sql).toContain('SME_PLI_READ_DRIFT');
+    });
+
+    it('projects Proposed Activity only for Industry without rewriting action or PLI inputs', () => {
+        const sql = normalizeLineEndings(
+            readFileSync(GREEN_PROPOSAL_ACTIVITY_PROJECTION_PATH, 'utf8')
+        );
+        const projectionBody = extractFunctionBody(sql, 'prepare_proposal_communication');
+        const structuredValue = "NULLIF(BTRIM(payload ->> 'proposedActivity'), '')";
+        const legacyFallback = "public.action_legacy_detail(action_row.ally_contingencies, 'Proposed Activity')";
+
+        expect(sql).toContain('CREATE OR REPLACE FUNCTION public.prepare_proposal_communication()');
+        expect(projectionBody).toContain("'proposedActivity', CASE");
+        expect(projectionBody).toContain("WHEN LOWER(action_row.team) = 'industry' THEN COALESCE(");
+        expect(projectionBody).toContain("jsonb_typeof(payload -> 'proposedActivity') = 'string'");
+        expect(projectionBody).toContain('ELSE NULL');
+        expect(projectionBody).toContain('jsonb_strip_nulls(jsonb_build_object(');
+        expect(projectionBody.indexOf(structuredValue)).toBeGreaterThan(-1);
+        expect(projectionBody.indexOf(legacyFallback)).toBeGreaterThan(
+            projectionBody.indexOf(structuredValue)
+        );
+        expect(sql).not.toMatch(/\b(?:UPDATE|INSERT INTO|DELETE FROM)\s+public\.actions\b/i);
+        expect(sql).not.toMatch(
+            /\b(?:UPDATE|INSERT INTO|DELETE FROM)\s+public\.(?:pli_adjudications|sme_handoffs|sme_pli_packets)\b/i
+        );
+        expect(sql).not.toMatch(/\bUPDATE\b[\s\S]*\bally_contingencies\s*=/i);
     });
 
     it('supersedes the one-shot proposal response lock with recipient-isolated append-only threads', () => {

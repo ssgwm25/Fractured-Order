@@ -3124,8 +3124,16 @@ function operatorReviewProposalThreaded(state, params) {
         recipientTeam: _recipientTeam,
         intendedPartners: _intendedPartners,
         recipientApprovalStates: _recipientApprovalStates,
+        proposedActivity: _proposedActivity,
         ...safePayloadProposal
     } = cloneValue(payloadProposal);
+    const structuredProposedActivity = typeof payloadProposal.proposedActivity === 'string'
+        ? payloadProposal.proposedActivity.trim()
+        : '';
+    const industryProposedActivity = normalizeTeamId(action.team) === 'industry'
+        ? structuredProposedActivity
+            || readLegacyActionDetail(action.ally_contingencies, 'Proposed Activity')
+        : null;
     const proposalSnapshot = {
         ...safePayloadProposal,
         title: action.goal || null,
@@ -3142,7 +3150,8 @@ function operatorReviewProposalThreaded(state, params) {
             : readLegacyActionList(action.ally_contingencies, 'Focus Sectors'),
         timingAndConditions: safePayloadProposal.timingAndConditions
             || readLegacyActionDetail(action.ally_contingencies, 'Timing And Conditions'),
-        expectedOutcomes: action.expected_outcomes || safePayloadProposal.expectedOutcomes || null
+        expectedOutcomes: action.expected_outcomes || safePayloadProposal.expectedOutcomes || null,
+        ...(industryProposedActivity ? { proposedActivity: industryProposedActivity } : {})
     };
     const communication = normalizeInsertRow('communications', {
         session_id: action.session_id,

@@ -1,8 +1,11 @@
 """Unit tests for multi-track agent prompt / extract helpers (no live Cursor)."""
 from __future__ import annotations
 
+import json
+
 import adjudicate
 import track_prompts
+from tracks.router import build_routing_record
 
 
 def test_track_prompts_build():
@@ -20,6 +23,44 @@ def test_track_prompts_build():
     )
     assert "DIPLOMACY CODEBOOK" in track_prompts.build_diplomacy_prompt(action, "reframing")
     assert "INFORMATION BRIEF" in track_prompts.build_info_prompt(action, "reframing")
+
+
+def test_green_proposal_prompts_preserve_canonical_action_input_and_routing():
+    details = (
+        "Proposal Details\n"
+        "Objective: Coordinate the shared logistics corridor.\n"
+        "Proposed Activity: \n"
+        'Revision Metadata: {"revisionNumber":1}'
+    )
+    action = {
+        "id": "green-proposal-1",
+        "team": "green",
+        "move": 1,
+        "goal": "Green corridor proposal",
+        "mechanism": "Proposal",
+        "artifact_type": "proposal",
+        "expected_outcomes": "Preserve joint access.",
+        "ally_contingencies": details,
+    }
+    original = dict(action)
+    prompts = [
+        adjudicate.build_prompt(action, "reframing", submission_month="2026-10"),
+        track_prompts.build_ni_prompt(action, "reframing", glasl_stage=4),
+        track_prompts.build_glasl_prompt(action, "reframing", stage_before=4),
+        track_prompts.build_diplomacy_prompt(action, "reframing"),
+        track_prompts.build_info_prompt(action, "reframing"),
+    ]
+
+    for prompt in prompts:
+        assert f'"title": {json.dumps(action["goal"])}' in prompt
+        assert f'"expected_outcomes": {json.dumps(action["expected_outcomes"])}' in prompt
+        assert f'"details": {json.dumps(details)}' in prompt
+
+    routing = build_routing_record(action)
+    assert routing["tracks"]["diplomacy"] is True
+    assert routing["tracks"]["information"] is True
+    assert routing["tracks"]["macro"] is False
+    assert action == original
 
 
 def test_extract_ni_worksheet():

@@ -893,6 +893,110 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(crossSession.error?.message).toBe('Proposal thread access is restricted to its two teams.');
     });
 
+    it('keeps Green canonical proposal details intact while projecting Proposed Activity only for Industry', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        const greenDetails = [
+            'Proposal Details',
+            'Originators: ["EU"]',
+            'Objective: Coordinate the shared logistics corridor.',
+            'Recipient Teams: ["blue"]',
+            'Focus Sectors: ["Logistics"]',
+            'Proposed Activity: ',
+            'Revision Metadata: {"revisionNumber":1}'
+        ].join('\n');
+        const industryDetails = [
+            'Proposal Details',
+            'Recipient Teams: ["blue"]',
+            'Focus Sectors: ["Advanced Manufacturing"]',
+            'Proposed Activity: Legacy fallback activity.'
+        ].join('\n');
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [{ id: 'session-1', status: 'active' }],
+                actions: [
+                    {
+                        id: 'green-proposal',
+                        session_id: 'session-1',
+                        team: 'green',
+                        artifact_type: 'proposal',
+                        artifact_payload: {
+                            proposal: {
+                                recipientTeams: ['blue'],
+                                objective: 'Coordinate the shared logistics corridor.'
+                            }
+                        },
+                        status: 'submitted',
+                        workflow_state: 'submitted_to_white_cell',
+                        revision_number: 1,
+                        goal: 'Green corridor proposal',
+                        expected_outcomes: 'Preserve joint access.',
+                        ally_contingencies: greenDetails,
+                        is_deleted: false
+                    },
+                    {
+                        id: 'industry-proposal',
+                        session_id: 'session-1',
+                        team: 'industry',
+                        artifact_type: 'proposal',
+                        artifact_payload: {
+                            proposal: {
+                                recipientTeams: ['blue'],
+                                proposedActivity: 'Structured industry activity.'
+                            }
+                        },
+                        status: 'submitted',
+                        workflow_state: 'submitted_to_white_cell',
+                        revision_number: 1,
+                        goal: 'Industry capacity proposal',
+                        expected_outcomes: 'Increase production capacity.',
+                        ally_contingencies: industryDetails,
+                        is_deleted: false
+                    }
+                ]
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_lead'
+        });
+
+        const greenApproval = await mockClient.rpc('operator_review_proposal', {
+            requested_action_id: 'green-proposal',
+            requested_review_decision: 'forward_to_recipient',
+            requested_recipient_team: 'blue',
+            requested_expected_revision: 1
+        });
+        const industryApproval = await mockClient.rpc('operator_review_proposal', {
+            requested_action_id: 'industry-proposal',
+            requested_review_decision: 'forward_to_recipient',
+            requested_recipient_team: 'blue',
+            requested_expected_revision: 1
+        });
+
+        expect(greenApproval.error).toBeNull();
+        expect(greenApproval.data.communication.metadata.proposal).toMatchObject({
+            objective: 'Coordinate the shared logistics corridor.'
+        });
+        expect(greenApproval.data.communication.metadata.proposal).not.toHaveProperty('proposedActivity');
+        expect(greenApproval.data.action.ally_contingencies).toBe(greenDetails);
+        expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.actions
+            .find((action) => action.id === 'green-proposal').ally_contingencies).toBe(greenDetails);
+
+        expect(industryApproval.error).toBeNull();
+        expect(industryApproval.data.communication.metadata.proposal.proposedActivity)
+            .toBe('Structured industry activity.');
+    });
+
     it('mirrors Facilitator-owned RFI writes and team-isolated request reads', async () => {
         const { localStorage } = installBrowserRuntime({
             hostname: '127.0.0.1',

@@ -112,6 +112,18 @@ Apply the authoritative ledger in this exact order:
 61. `data/2026-10-02_pli_regional_dispatch_and_realtime.sql`
 62. `data/2026-10-03_sme_instant_action_delivery.sql`
 63. `data/2026-10-04_sme_pli_regional_read.sql`
+64. `data/2026-10-05_green_proposal_activity_projection.sql`
+
+The October 5 proposal projection repair recreates
+`prepare_proposal_communication()` so Green recipient snapshots use `objective`
+and omit the Industry-only `proposedActivity` field. Industry snapshots prefer a
+nonempty structured `artifact_payload.proposal.proposedActivity` and retain the
+legacy text fallback. The migration changes only the derived communication
+projection: it does not update historical actions, `ally_contingencies`, PLI
+tables, or existing communications. The Facilitator UI defensively suppresses
+`proposedActivity` on existing Green snapshots; do not rewrite historical action
+or PLI records to repair their display. PLI continues reading the canonical
+`actions` row, including `goal`, `expected_outcomes`, and `ally_contingencies`.
 
 The October 4 SME read repair lets a matching SME operator grant pass the
 restrictive `green_storage_boundary` on `pli_adjudications`, `sme_handoffs`
