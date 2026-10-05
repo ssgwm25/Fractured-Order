@@ -6,6 +6,7 @@
 import { sessionStore } from '../stores/session.js';
 import { database } from '../services/database.js';
 import { syncService } from '../services/sync.js';
+import { ensureSeatStartup } from '../services/seatBootstrap.js';
 import { createLogger } from '../utils/logger.js';
 import { showToast } from '../components/ui/Toast.js';
 import { navigateToApp } from '../core/navigation.js';
@@ -136,6 +137,9 @@ export class SmeController {
 
     async init() {
         logger.info('Initializing SME console');
+        // main.js and this controller start independently; both must await the
+        // same server restore before any heartbeat or protected workspace read.
+        if (!await ensureSeatStartup()) return;
 
         const accessState = getSmeAccessState(sessionStore);
         if (!accessState.allowed) {

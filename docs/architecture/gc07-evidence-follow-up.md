@@ -385,11 +385,31 @@ This is a necessary GC-07 White Cell lifecycle dependency in `src/roles/landing.
 role, roster member, scoring change, approval bypass or GC-08 creation surface.
 Verification for this repair has not been executed by the agent.
 
+### SME operator-seat lifecycle parity
+
+The SME console used the same claimed-seat heartbeat contract but did not share
+the repaired White Cell startup lifecycle. It started sync on the landing page
+without confirming the SME claim, so the landing-page `pagehide` handler could
+disconnect the seat during navigation. `sme.html` then skipped
+`restore_session_seat_context`; its first heartbeat correctly failed with
+`403 / GC03_SEAT_REJOIN_REQUIRED` and could not enter the regional reclaim path.
+
+The parity repair validates and confirms the SME claim before navigation, defers
+sync to the destination workspace, and makes both application and SME-controller
+startup await the existing fail-closed seat restoration gate. No RPC, RLS,
+operator-grant, role-capacity, or rejoin semantics are relaxed. A missing or
+RLS-hidden `game_state` row continues to use local read-only defaults. Restore
+the seat first; only a row that remains absent after successful validation is an
+independent backend backfill blocker under the documented migration ledger.
+Verification for this repair has not been executed by the agent.
+
 Run the narrow regressions first:
 
 ```powershell
 npm test -- src/roles/landing.join.test.js src/roles/whitecell.test.js src/services/seatBootstrap.test.js src/services/seatBootstrap.deck-cleanup.test.js src/stores/participants.gc04-context.test.js src/stores/participants.test.js
 if ($LASTEXITCODE -ne 0) { throw 'White Cell seat lifecycle regression failed.' }
+npm test -- src/roles/landing.join.test.js src/roles/sme.test.js src/services/seatBootstrap.test.js src/services/database.game-state.test.js src/stores/gameState.test.js src/stores/participants.gc04-context.test.js
+if ($LASTEXITCODE -ne 0) { throw 'SME seat lifecycle regression failed.' }
 npm run verify:repo-artifacts
 if ($LASTEXITCODE -ne 0) { throw 'Repository artifact verification failed.' }
 ```

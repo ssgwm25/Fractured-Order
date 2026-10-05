@@ -129,7 +129,7 @@ class GameStateStore {
             if (generation !== this.lifecycleGeneration) return null;
             if (isMissingGameStateError(err)) {
                 logger.warn(
-                    'Game state row is missing for this session. Using local defaults until the backend is backfilled.'
+                    'Game state is unavailable for this session. Using local defaults; validate the seat first, then backfill if the row is absent.'
                 );
                 this.initialized = true;
                 this.applyServerState(buildFallbackGameState(sessionId), 'initialized');

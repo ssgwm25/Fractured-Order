@@ -1002,14 +1002,12 @@ export const database = {
             .from('game_state')
             .select('*')
             .eq('session_id', sessionId)
-            .single();
+            .maybeSingle();
 
         if (error) {
-            if (error.code === 'PGRST116') {
-                throw new NotFoundError('GameState', sessionId);
-            }
             throw fromSupabaseError(error, 'getGameState');
         }
+        if (!data) throw new NotFoundError('GameState', sessionId);
 
         return data;
     },

@@ -837,7 +837,9 @@ describe('landing secure join flow', () => {
             id: 'session-1',
             name: 'Alpha Session',
             session_code: 'ALPHA2026',
-            status: 'active'
+            status: 'active',
+            session_topology_version: 2,
+            green_seat_model: 'regional_pairs_v1'
         });
         mockDatabase.authorizeOperatorAccess.mockResolvedValue({
             id: 'grant-sme-1',
@@ -849,6 +851,11 @@ describe('landing secure join flow', () => {
         });
         mockDatabase.claimParticipantSeat.mockResolvedValue({
             id: 'session-participant-sme-1',
+            session_id: 'session-1',
+            role: 'sme_econ',
+            delegation_id: null,
+            is_active: true,
+            display_name_snapshot: 'Econ SME',
             claim_status: 'claimed'
         });
         mockDatabase.getGameState.mockResolvedValue({
@@ -881,6 +888,40 @@ describe('landing secure join flow', () => {
             'sme_econ',
             'Econ SME'
         );
+        expect(mockSyncService.initialize).not.toHaveBeenCalled();
+        expect(mockSessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({
+            sessionId: 'session-1',
+            participantId: 'session-participant-sme-1',
+            role: 'sme_econ',
+            topology: 2,
+            teamId: 'sme'
+        }));
+        expect(mockSessionStore.confirmSeat.mock.invocationCallOrder[0])
+            .toBeLessThan(controller.redirectToRole.mock.invocationCallOrder[0]);
         expect(controller.redirectToRole).toHaveBeenCalledWith('sme_econ');
+    });
+
+    it('rejects a mismatched SME claim before caching or navigation', async () => {
+        global.document = { getElementById: () => null };
+        mockDatabase.lookupJoinableSessionByCode.mockResolvedValue({
+            id: 'session-1', status: 'active', session_topology_version: 2,
+            green_seat_model: 'regional_pairs_v1'
+        });
+        mockDatabase.authorizeOperatorAccess.mockResolvedValue({ role: 'sme_econ' });
+        mockDatabase.claimParticipantSeat.mockResolvedValue({
+            id: 'seat-1', session_id: 'session-1', role: 'sme_tsj', is_active: true
+        });
+        const { LandingController } = await loadLandingModule();
+        const controller = new LandingController();
+        controller.resolveStaffSessionCode = () => 'ALPHA2026';
+        controller.resolveStaffDisplayName = () => 'Econ SME';
+        controller.redirectToRole = vi.fn();
+
+        await expect(controller.authorizeSme('econ', 'admin2025')).rejects.toThrow(/seat/i);
+
+        expect(mockSessionStore.confirmSeat).not.toHaveBeenCalled();
+        expect(mockSessionStore.setSessionData).not.toHaveBeenCalled();
+        expect(mockSyncService.initialize).not.toHaveBeenCalled();
+        expect(controller.redirectToRole).not.toHaveBeenCalled();
     });
 });

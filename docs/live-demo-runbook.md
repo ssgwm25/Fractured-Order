@@ -83,8 +83,25 @@ Operator seats:
 
 - one White Cell Lead
 - one Game Master
+- five independently authorized SME seats: Econ, NI/Escalation, Diplomacy & Information, TSJ, and Verba AI
 
 The retired White Cell Support role may remain on historical records, but it is not claimable from the landing page.
+
+SME seat startup is fail-closed. After SME authorization, the landing page must
+confirm the claimed seat before navigation, and `sme.html` must restore that seat
+from `restore_session_seat_context` before starting sync or protected reads. An
+immediate `403 / GC03_SEAT_REJOIN_REQUIRED` heartbeat after navigation indicates
+that the matching frontend lifecycle repair is not deployed; do not weaken the
+heartbeat RPC or reactivate the row manually. A simultaneous zero-row/`406`
+`game_state` read can be the same invalid seat being hidden by RLS; restore the
+seat first. If `game_state` remains unavailable with a valid restored seat,
+verify the forward-only ledger includes
+`data/2026-06-25_participant_role_resolver_normalization.sql` and every later
+migration, applying only migrations absent from the environment's verified
+record, then confirm the session has exactly one `game_state` row.
+Pass: each SME role joins, reaches only `sme.html`, reloads without a heartbeat
+403, and retains its role-scoped queue; a removed or replaced seat remains behind
+the retry/return-to-join gate.
 
 ## Core Flow Checks
 

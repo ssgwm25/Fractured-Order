@@ -14,7 +14,7 @@ afterEach(() => {
     vi.resetModules();
 });
 
-describe.each(['/', '/Fractured-Order/'])('GC07 White Cell startup under %s', (basePath) => {
+describe.each(['/', '/Fractured-Order/'])('GC07 operator-seat startup under %s', (basePath) => {
     let ensureSeatStartup, shell, panel;
     beforeEach(async () => {
         vi.clearAllMocks();
@@ -77,6 +77,22 @@ describe.each(['/', '/Fractured-Order/'])('GC07 White Cell startup under %s', (b
         await expect(ensureSeatStartup()).resolves.toBe(false);
         expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
         expect(shell.hidden).toBe(true);
+    });
+
+    it('restores an SME seat before revealing the SME workspace', async () => {
+        window.location = new URL(`https://example.test${basePath}sme.html`);
+        database.restoreSessionSeatContext.mockResolvedValue({
+            session: { id: 'session', status: 'active', session_topology_version: 2 },
+            seat: { id: 'seat', session_id: 'session', role: 'sme_econ', is_active: true }
+        });
+
+        await expect(ensureSeatStartup()).resolves.toBe(true);
+
+        expect(database.restoreSessionSeatContext).toHaveBeenCalledWith('session', 'seat');
+        expect(sessionStore.confirmSeat).toHaveBeenCalledWith(expect.objectContaining({
+            role: 'sme_econ', teamId: 'sme', topology: 2
+        }));
+        expect(shell).toEqual({ hidden: false, inert: false });
     });
 });
 

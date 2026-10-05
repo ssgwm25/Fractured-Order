@@ -961,6 +961,10 @@ export class LandingController {
             operatorName
         });
         const participant = await database.claimParticipantSeat(session.id, smeOperatorRole, operatorName);
+        const confirmedSeat = validateSeatEnvelope({ seat: participant, session }, {
+            sessionId: session.id, participantId: participant.id
+        });
+        if (confirmedSeat.role !== smeOperatorRole) throw new Error('Confirmed seat does not match the requested role.');
 
         sessionStore.clear();
         sessionStore.setSessionId(session.id);
@@ -980,6 +984,7 @@ export class LandingController {
             operatorMode: true,
             seatClaimStatus: participant.claim_status || 'claimed'
         });
+        sessionStore.confirmSeat(confirmedSeat);
         sessionStore.setOperatorAuth({
             ...grant,
             sessionId: grant?.sessionId || session.id,
@@ -998,10 +1003,8 @@ export class LandingController {
             logger.warn('Failed to preload SME game state:', error);
         }
 
-        await syncService.initialize(session.id, {
-            participantId: participant.id
-        });
-
+        // The SME workspace starts sync after server-confirmed startup. Starting
+        // it here installs a pagehide disconnect that can race this navigation.
         await confirmation.confirm();
         this.redirectToRole(smeOperatorRole);
     }

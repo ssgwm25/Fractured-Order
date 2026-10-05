@@ -29,7 +29,7 @@ it('retains the legacy unified White Cell pagehide disconnect', () => {
 });
 
 describe.each([['green_europe_scribe', 'europe'], ['green_shared_facilitator', null],
-    ['whitecell_lead', null], ['whitecell_support', null]])('GC04/04A/07 heartbeat: %s', (role, delegation) => {
+    ['whitecell_lead', null], ['whitecell_support', null], ['sme_econ', null]])('GC04/04A/07 heartbeat: %s', (role, delegation) => {
     beforeEach(() => {
         sessionStore.getConfirmedSeat.mockReturnValue({ participantId: 'seat', role, delegationId: delegation, topology: 2 });
     });

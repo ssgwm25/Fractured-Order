@@ -47,6 +47,9 @@ async function loadSmeControllerWithMocks({
             initialize: vi.fn()
         }
     }));
+    const ensureSeatStartup = factories.ensureSeatStartup
+        || vi.fn().mockResolvedValue(true);
+    vi.doMock('../services/seatBootstrap.js', () => ({ ensureSeatStartup }));
     vi.doMock('../components/ui/Toast.js', () => ({
         showToast: vi.fn()
     }));
@@ -98,6 +101,7 @@ async function loadSmeControllerWithMocks({
         createSmeHandoffQueue,
         createSmePliPacketQueue,
         packetHost,
+        ensureSeatStartup,
         mountFollowAlong,
         subscribePliSmeChanges,
         unsubscribePliSmeChanges
@@ -180,6 +184,28 @@ describe('SME console access state', () => {
         expect(loopSpy).toHaveBeenCalledTimes(1);
         expect(typeof controller.mountRolePanel).toBe('undefined');
         controller.destroy();
+    });
+
+    it('waits for seat validation before SME grant checks or queue rendering', async () => {
+        let finishValidation;
+        const ensureSeatStartup = vi.fn(() => new Promise((resolve) => { finishValidation = resolve; }));
+        const loaded = await loadSmeControllerWithMocks({
+            role: 'sme_econ',
+            factories: { ensureSeatStartup }
+        });
+        const { database } = await import('../services/database.js');
+        const controller = new loaded.SmeController();
+        const mountSpy = vi.spyOn(controller, 'mountRoleQueue').mockImplementation(() => {});
+
+        const startup = controller.init();
+        expect(database.requireOperatorGrant).not.toHaveBeenCalled();
+        expect(mountSpy).not.toHaveBeenCalled();
+
+        finishValidation(false);
+        await startup;
+
+        expect(database.requireOperatorGrant).not.toHaveBeenCalled();
+        expect(mountSpy).not.toHaveBeenCalled();
     });
 
     it('subscribes to PLI realtime for the session, refreshes on change, and unsubscribes on destroy', async () => {
