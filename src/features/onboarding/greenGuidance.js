@@ -15,7 +15,7 @@ export function adaptGreenGuide(guide, context = {}, semanticRole) {
         : 'This is a unified Green session. Keep its existing team ownership and handoff; do not relabel historical Green records as regional.';
     const ownership = semanticRole === 'facilitator'
         ? regional
-            ? 'Review each region’s Scribe-forwarded orientation and proposal, then submit each separately to White Cell. You can edit forwarded and returned proposal drafts; White Cell submission waits for the originating Scribe to hand off the current revision. Private drafts and notes remain inaccessible.'
+            ? 'Review each region’s Scribe-forwarded orientation and proposal, then submit each separately to White Cell. You can edit forwarded and returned proposal drafts; White Cell submission waits for the originating Scribe to hand off the current revision; private drafts and notes remain inaccessible.'
             : 'Review the Green Scribe’s handoff and submit the team record to White Cell. Preserve the existing unified workflow and its revisions.'
         : semanticRole === 'notetaker'
             ? regional
