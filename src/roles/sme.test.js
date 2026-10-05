@@ -271,12 +271,13 @@ describe('SME console access state', () => {
         controller.destroy();
     });
 
-    it('ships Action handoffs and Approved PLI hosts in sme.html', () => {
+    it('ships queue hosts and the shared logout control in sme.html', () => {
         const html = readFileSync(new URL('../../sme.html', import.meta.url), 'utf8');
         expect(html).toContain('id="smeQueuePanel"');
         expect(html).toContain('id="smePliPacketsPanel"');
         expect(html).toContain('id="smePliPacketsNavItem"');
         expect(html).toContain('Approved PLI');
+        expect(html).toContain('<button type="button" class="btn btn-ghost btn-sm" id="logoutBtn">Logout</button>');
     });
 
     it('surfaces a controlled error when the Approved PLI host is missing for TSJ', async () => {

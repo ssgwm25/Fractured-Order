@@ -98,6 +98,7 @@ async function expectRoleSurface(page, roleCase) {
         await expect(page.locator('#smeQueueSectionTitle')).toHaveText(roleCase.queueTitle);
         await expect(page.locator('#smeQueuePanel')).toBeVisible();
         await expect(page.locator('#smeQueuePanel .pli-sme-panel')).toBeVisible();
+        await expect(page.locator('#logoutBtn')).toBeVisible();
         if (roleCase.hasApprovedPli) {
             await expect(page.locator('#smePliPacketsNavItem')).toBeVisible();
             await expect(page.locator('#smePliPacketsSectionTitle')).toHaveText('Approved PLI');
@@ -128,7 +129,9 @@ async function expectRoleSurface(page, roleCase) {
         await expect(page.locator('#rfiViewBtn')).toBeVisible();
         await expect(page.locator('#communicationsViewBtn')).toBeVisible();
         await expect(page.locator('#scribeSectionList')).toContainText('Support deck');
-        await expect(page.locator('#deckSlideImage')).toBeVisible();
+        await expect(page.locator(
+            '#deckImageFrame:not([hidden]), #deckActionFrame:not([hidden])'
+        )).toBeVisible();
         await expect(page.locator('#newActionBtn')).toHaveCount(0);
         return;
     }

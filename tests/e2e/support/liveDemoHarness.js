@@ -1427,7 +1427,14 @@ export async function respondToForwardedProposal(page, {
 
     const proposalFrame = page.locator('#deckActionFrame');
     await expect(proposalFrame).toContainText(title);
-    await proposalFrame.locator(`[data-facilitator-proposal-decision="${decision}"]`).click();
+    const decisionButton = proposalFrame.locator(
+        `[data-facilitator-proposal-decision="${decision}"]`
+    );
+    // Durable workflow notices retain their own pointer targets until opened or
+    // dismissed. Exercise the underlying decision's supported keyboard path
+    // without discarding an unread notice or forcing a pointer click through it.
+    await decisionButton.focus();
+    await decisionButton.press('Enter');
 
     if (decision === 'negotiate') {
         const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)').filter({

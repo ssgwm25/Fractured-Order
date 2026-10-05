@@ -986,6 +986,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 }), { concurrent: false });
             }
 
+            await Promise.all(observations.map(({ page }) => (
+                expect(page.locator('#syncStatusBanner')).toBeHidden({ timeout: 45000 })
+            )));
+
             for (const team of TEAMS) {
                 const teamObservations = observations.filter((entry) => entry.team === team);
                 for (const notetaker of actors.teams[team].notetakers) {

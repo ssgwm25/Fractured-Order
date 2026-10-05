@@ -25,6 +25,15 @@ shared primary workspace is titled `Action handoffs`; both also expose the
 separate `Approved PLI` queue. The browser matrix asserts both levels so a
 shared workflow label cannot erase role identity.
 
+Every SME console header also exposes `Logout`. The shared confirmation flow
+warns about unsaved form edits, preserves saved session data, releases the SME
+seat, clears local session state, and returns the operator to the join screen.
+
+The Facilitator support-deck readiness check accepts either an assigned image
+slide or an approved inline guidance slide. The unified Green deck intentionally
+opens with its current text guide, so a hidden image element is not a deck-load
+failure when the guidance frame is visible.
+
 ## Capability IDs and evidence boundary
 
 The executable source is `tests/contracts/roleCapabilityMatrix.js`. These IDs are stable audit keys; changing a capability or test name requires changing the contract and this document together.
