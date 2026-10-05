@@ -319,8 +319,15 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Green - Europe'); expect(html).toContain('Revision 2');
         expect(html).toContain('Synthetic objective'); expect(html).toContain('data-scribe-action-edit'); expect(html).toContain('data-scribe-action-submit');
         const returned = { ...action,workflow_state:'returned_to_team',proposal_handoff_revision:null };
-        expect(controller.renderPresentationToolbar(returned)).toContain('corrected proposal handoff');
-        expect(controller.renderPresentationToolbar(returned)).not.toContain('data-scribe-action-submit');
+        const returnedToolbar = controller.renderPresentationToolbar(returned);
+        expect(returnedToolbar).toContain('data-scribe-action-edit');
+        expect(returnedToolbar).toContain('Editing remains available for revision 2.');
+        expect(returnedToolbar).toMatch(/data-scribe-action-submit[\s\S]*?disabled[\s\S]*?>Resubmit to White Cell<\/button>/);
+        const forwardedWithoutCurrentHandoff = { ...action, proposal_handoff_revision: null };
+        const forwardedToolbar = controller.renderPresentationToolbar(forwardedWithoutCurrentHandoff);
+        expect(forwardedToolbar).toContain('data-scribe-action-edit');
+        expect(forwardedToolbar).toContain('Submission waits for the originating Scribe');
+        expect(forwardedToolbar).toMatch(/data-scribe-action-submit[\s\S]*?disabled[\s\S]*?>Forward to White Cell<\/button>/);
         mockWriteRegionalProposal.mockResolvedValue({ ...action,status:'submitted' });
         await controller.submitScribeProposal(action);
         expect(mockWriteRegionalProposal).toHaveBeenCalledWith({ sessionId:'shared',delegationId:'europe',action,operation:'submit' });
@@ -3358,6 +3365,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Clarify the accountable owner.');
         expect(html).toContain('<strong>Revision:</strong> 2');
         expect(html).toContain('<strong>Proposal ID:</strong> proposal-stable-1');
+        expect(html).toContain('data-scribe-action-edit');
         expect(html).toContain('Resubmit to White Cell');
     });
 

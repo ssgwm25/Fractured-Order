@@ -3282,11 +3282,6 @@ export class ScribeController {
     }
 
     renderPresentationToolbar(action = {}, actionViewModel = getBlueActionViewModel(action)) {
-        if (action.delegation_id && isProposalAction(action) && isDraftAction(action)
-            && action.proposal_handoff_revision !== action.revision_number
-            && !(!this.teamContext.sharedFacilitator && action.proposal_handoff_revision == null && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator')) {
-            return '<p role="status">Awaiting the originating Scribe’s corrected proposal handoff before submission.</p>';
-        }
         if ((this.teamContext.sharedFacilitator || action.delegation_id) && isStrategicOrientationAction(action)) {
             const legacyPair = !this.teamContext.sharedFacilitator && action.orientation_handoff_revision == null
                 && action.revision_number === 1 && action.workflow_state === 'forwarded_to_facilitator';
@@ -3304,6 +3299,14 @@ export class ScribeController {
         const isEditableDraft = isDraftAction(action);
         const lifecycle = getArtifactLifecycleViewModel(getActionSlideLifecycleArtifact(action));
         const isReturned = lifecycle.isReturned;
+        const legacyPairedProposalHandoff = !this.teamContext.sharedFacilitator
+            && action.proposal_handoff_revision == null
+            && action.revision_number === 1
+            && action.workflow_state === 'forwarded_to_facilitator';
+        const proposalHandoffReady = !action.delegation_id
+            || !isProposal
+            || action.proposal_handoff_revision === action.revision_number
+            || legacyPairedProposalHandoff;
         const actionControlsDisabled = isOrientation || isProposal || !isEditableDraft;
         const showsCollaborationGroups = this.teamId === 'blue';
         const coordinatedDecision = normalizeScribeDecision(actionViewModel.coordinatedDecision);
@@ -3332,6 +3335,8 @@ export class ScribeController {
         const statusId = buildScribeControlId(actionId, 'presentation-toolbar', 'status');
         const toolbarStatus = !isEditableDraft
             ? `${lifecycle.label}.`
+            : isProposal && !proposalHandoffReady
+            ? `Editing remains available for revision ${action.revision_number || 1}. Submission waits for the originating Scribe to hand off this revision.`
             : isReturned
             ? `Returned by White Cell. Correct revision ${action.revision_number || 1} and resubmit it once.`
             : (isProposal
@@ -3414,7 +3419,7 @@ export class ScribeController {
                         data-scribe-action-submit
                         data-action-id="${escapeHtml(actionId)}"
                         aria-describedby="${escapeHtml(statusId)}"
-                        ${isEditableDraft && isComplete ? '' : 'disabled'}
+                        ${isEditableDraft && isComplete && proposalHandoffReady ? '' : 'disabled'}
                     >${isReturned ? 'Resubmit to White Cell' : 'Forward to White Cell'}</button>
                 </div>
             </footer>

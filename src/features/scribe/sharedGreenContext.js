@@ -1,7 +1,7 @@
 import { getConfirmedSeat, onSeatCleanup, seatStorageKey } from '../../core/seatContext.js';
 import { GREEN_DELEGATIONS, SHARED_GREEN_FACILITATOR, SHARED_GREEN_MODEL } from '../../core/teamContext.js';
 
-export const SHARED_GREEN_WORKFLOW_NOTICE = 'Review and submit each delegation’s Scribe-forwarded orientations and proposals separately. Edit proposals in their permitted draft states; returned revisions need the originating Scribe’s new handoff. Approved recipient threads remain separate by delegation, recipient and revision. Create RFIs and message White Cell for the selected region; answers retain that region. Private drafts and notes remain inaccessible.';
+export const SHARED_GREEN_WORKFLOW_NOTICE = 'Review and submit each delegation’s Scribe-forwarded orientations and proposals separately. Facilitator editing remains available for forwarded and returned proposal drafts; White Cell submission waits for the originating Scribe to hand off the current revision. Approved recipient threads remain separate by delegation, recipient and revision. Create RFIs and message White Cell for the selected region; answers retain that region. Private drafts and notes remain inaccessible.';
 
 function resolveViewStorage() {
     try { return globalThis.sessionStorage; } catch { return null; }
