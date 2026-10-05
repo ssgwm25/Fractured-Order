@@ -1681,11 +1681,15 @@ export class FacilitatorController {
                 : {};
             const title = snapshot.title || 'Untitled proposal';
             const sourceTeam = metadata.source_team || 'green';
-            const proposedActivity = String(sourceTeam).trim().toLowerCase() === 'industry'
-                && typeof snapshot.proposedActivity === 'string'
-                && snapshot.proposedActivity.trim()
-                ? snapshot.proposedActivity.trim()
+            const isIndustrySource = String(sourceTeam).trim().toLowerCase() === 'industry';
+            const industryOnlyValue = (value) => isIndustrySource
+                && typeof value === 'string'
+                && value.trim()
+                ? value.trim()
                 : '';
+            const industryFocus = industryOnlyValue(snapshot.industryFocus);
+            const countryFocus = industryOnlyValue(snapshot.countryFocus);
+            const proposedActivity = industryOnlyValue(snapshot.proposedActivity);
             const sourceLabel = this.formatProposalRecipientTeamLabel(sourceTeam);
             const receivedAt = communication.created_at;
             const status = getProposalRecipientStatus(communication);
@@ -1770,8 +1774,8 @@ export class FacilitatorController {
                         ...(snapshot.supplyChainFocusDecision ? [{ label: 'Supply Chain Decision', value: snapshot.supplyChainFocusDecision }] : []),
                         ...(snapshot.supplyChainActionAngles?.length ? [{ label: 'Action Angles', value: formatList(snapshot.supplyChainActionAngles) }] : []),
                         ...(snapshot.supplyChainAreas?.length ? [{ label: 'Supply Chain Areas', value: formatList(snapshot.supplyChainAreas) }] : []),
-                        ...(snapshot.industryFocus ? [{ label: 'Industry of Focus', value: snapshot.industryFocus }] : []),
-                        ...(snapshot.countryFocus ? [{ label: 'Country of Focus', value: snapshot.countryFocus }] : []),
+                        ...(industryFocus ? [{ label: 'Industry of Focus', value: industryFocus }] : []),
+                        ...(countryFocus ? [{ label: 'Country of Focus', value: countryFocus }] : []),
                         ...(proposedActivity ? [{ label: 'Proposed Activity', value: proposedActivity, wide: true }] : []),
                         ...(snapshot.delivery ? [{ label: 'Delivery (historical)', value: snapshot.delivery }] : []),
                         ...(snapshot.timingAndConditions ? [{ label: 'Timing & Conditions', value: snapshot.timingAndConditions, wide: true }] : []),

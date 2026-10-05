@@ -1860,6 +1860,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
                     category: 'Supply chain',
                     intendedPartners: 'Blue Team',
                     focusSector: 'Critical minerals',
+                    industryFocus: 'Battery manufacturing',
+                    countryFocus: 'United States',
+                    proposedActivity: 'Stand up a shared processing facility.',
                     delivery: 'Joint statement',
                     timingAndConditions: 'Before Move 3',
                     expectedOutcomes: 'Lower exposure to disruption.'
@@ -1879,6 +1882,12 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Critical Minerals Compact');
         expect(html).toContain('Coordinate a shared stockpile.');
         expect(html).toContain('Instrument of Power');
+        expect(html).toContain('Industry of focus');
+        expect(html).toContain('Battery manufacturing');
+        expect(html).toContain('Country of focus');
+        expect(html).toContain('United States');
+        expect(html).toContain('Proposed activity');
+        expect(html).toContain('Stand up a shared processing facility.');
         expect(html).not.toContain('>Category<');
         expect(html).not.toContain('Intended partners');
         expect(html).not.toContain('Blue Team and Red Team');
@@ -1927,6 +1936,47 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(negotiationHtml).toContain('Recorded response: Negotiation requested');
         expect(negotiationHtml).toContain('<strong>Negotiation terms:</strong> Add a six-month review clause.');
         expect(negotiationHtml).not.toContain('Recorded response: Responded');
+    });
+
+    it('suppresses Industry-only detail rows for Green recipient snapshots', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamLabel = 'Blue Team';
+        const communication = {
+            id: 'green-proposal-projection-1',
+            type: 'PROPOSAL_FORWARDED',
+            from_role: 'white_cell',
+            to_role: 'blue',
+            delegation_id: 'rok',
+            metadata: {
+                source_team: 'green',
+                proposal: {
+                    title: 'Green Team Proposal submission check',
+                    objective: 'Making things better.',
+                    industryFocus: 'Country Focus:',
+                    countryFocus: 'Proposed Activity:',
+                    proposedActivity: 'Revision Metadata: {"revisionNumber":1}'
+                },
+                proposal_recipient_state: { status: 'unread' }
+            }
+        };
+
+        const html = controller.renderProposalSlide({
+            slideKey: 'green-proposal-projection-1',
+            slideType: 'proposal',
+            communication,
+            title: 'Green Team Proposal submission check'
+        });
+
+        expect(html).toContain('Making things better.');
+        expect(html).not.toContain('Industry of focus');
+        expect(html).not.toContain('Country of focus');
+        expect(html).not.toContain('Proposed activity');
+        expect(html).not.toContain('Country Focus:');
+        expect(html).not.toContain('Proposed Activity:');
+        expect(html).not.toContain('Revision Metadata');
+        expect(html).not.toContain('[object Object]');
     });
 
     it('maps Accept, Not Interested, and Negotiate onto the established recipient-state contract', async () => {

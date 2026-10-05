@@ -120,9 +120,10 @@ and omit the Industry-only `proposedActivity` field. Industry snapshots prefer a
 nonempty structured `artifact_payload.proposal.proposedActivity` and retain the
 legacy text fallback. The migration changes only the derived communication
 projection: it does not update historical actions, `ally_contingencies`, PLI
-tables, or existing communications. The Facilitator UI defensively suppresses
-`proposedActivity` on existing Green snapshots; do not rewrite historical action
-or PLI records to repair their display. PLI continues reading the canonical
+tables, or existing communications. Recipient and Facilitator views defensively
+suppress all Industry-only detail rows on existing Green snapshots, including
+shifted legacy labels and `proposedActivity`; do not rewrite historical action or
+PLI records to repair their display. PLI continues reading the canonical
 `actions` row, including `goal`, `expected_outcomes`, and `ally_contingencies`.
 
 The October 4 SME read repair lets a matching SME operator grant pass the

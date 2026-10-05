@@ -2905,7 +2905,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(proposalsBadge.hidden).toBe(false);
     });
 
-    it('renders Proposed Activity only for nonempty Industry strings and keeps Green objective visible', async () => {
+    it('renders Industry-only details only for nonempty Industry strings and keeps Green objective visible', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();
         const communication = {
@@ -2917,6 +2917,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 proposal: {
                     title: 'Green corridor proposal',
                     objective: 'Coordinate the shared logistics corridor.',
+                    industryFocus: 'Country Focus:',
+                    countryFocus: 'Proposed Activity:',
                     proposedActivity: 'Revision Metadata: {"revisionNumber":1}'
                 }
             }
@@ -2930,6 +2932,8 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 source_team: 'industry',
                 proposal: {
                     title: 'Industry capacity proposal',
+                    industryFocus: 'Semiconductor manufacturing',
+                    countryFocus: 'United States',
                     proposedActivity: 'Stand up a shared fabrication facility.'
                 }
             }
@@ -2947,8 +2951,14 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
 
         expect(legacyGreenHtml).toContain('Coordinate the shared logistics corridor.');
+        expect(legacyGreenHtml).not.toContain('Industry of Focus');
+        expect(legacyGreenHtml).not.toContain('Country of Focus');
         expect(legacyGreenHtml).not.toContain('Proposed Activity');
         expect(legacyGreenHtml).not.toContain('Revision Metadata');
+        expect(industryHtml).toContain('Industry of Focus');
+        expect(industryHtml).toContain('Semiconductor manufacturing');
+        expect(industryHtml).toContain('Country of Focus');
+        expect(industryHtml).toContain('United States');
         expect(industryHtml).toContain('Proposed Activity');
         expect(industryHtml).toContain('Stand up a shared fabrication facility.');
         expect(structuredValueHtml).not.toContain('Proposed Activity');

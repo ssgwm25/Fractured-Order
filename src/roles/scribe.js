@@ -4549,6 +4549,15 @@ export class ScribeController {
         const formatList = (value) => Array.isArray(value) && value.length
             ? value.join(', ')
             : (value || 'Not specified');
+        const isIndustrySource = String(sourceTeam).trim().toLowerCase() === 'industry';
+        const industryOnlyValue = (value) => isIndustrySource
+            && typeof value === 'string'
+            && value.trim()
+            ? value.trim()
+            : '';
+        const industryFocus = industryOnlyValue(proposal.industryFocus);
+        const countryFocus = industryOnlyValue(proposal.countryFocus);
+        const proposedActivity = industryOnlyValue(proposal.proposedActivity);
 
         return `
             <article class="scribe-action-slide scribe-proposal-slide" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}">
@@ -4587,9 +4596,9 @@ export class ScribeController {
                             ${proposal.supplyChainFocusDecision ? renderActionSlideGlanceCard({ label: 'Supply chain focus', value: proposal.supplyChainFocusDecision }) : ''}
                             ${proposal.supplyChainActionAngles?.length ? renderActionSlideGlanceCard({ label: 'Action angles', value: formatList(proposal.supplyChainActionAngles) }) : ''}
                             ${proposal.supplyChainAreas?.length ? renderActionSlideGlanceCard({ label: 'Supply chain areas', value: formatList(proposal.supplyChainAreas) }) : ''}
-                            ${proposal.industryFocus ? renderActionSlideGlanceCard({ label: 'Industry of focus', value: proposal.industryFocus }) : ''}
-                            ${proposal.countryFocus ? renderActionSlideGlanceCard({ label: 'Country of focus', value: proposal.countryFocus }) : ''}
-                            ${proposal.proposedActivity ? renderActionSlideGlanceCard({ label: 'Proposed activity', value: proposal.proposedActivity }) : ''}
+                            ${industryFocus ? renderActionSlideGlanceCard({ label: 'Industry of focus', value: industryFocus }) : ''}
+                            ${countryFocus ? renderActionSlideGlanceCard({ label: 'Country of focus', value: countryFocus }) : ''}
+                            ${proposedActivity ? renderActionSlideGlanceCard({ label: 'Proposed activity', value: proposedActivity }) : ''}
                             ${proposal.delivery ? renderActionSlideGlanceCard({ label: 'Delivery (historical)', value: proposal.delivery }) : ''}
                             ${renderActionSlideGlanceCard({ label: 'Timing and conditions', value: proposal.timingAndConditions || 'Not specified' })}
                         </div>
