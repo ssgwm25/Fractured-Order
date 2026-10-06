@@ -3369,6 +3369,40 @@ describe('White Cell DOM contract', () => {
         expect(markup).not.toContain('>Category<');
     });
 
+    it('renders the structured Industry proposal and both intended recipients for review', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { createBlankIndustryTurnSheet } = await import('../features/actions/industryTurnSheet.js');
+        global.document = createFakeDocument();
+        const controller = new WhiteCellController();
+        const industryTurnSheet = {
+            ...createBlankIndustryTurnSheet({ move: 1, strategicPlanId: 'plan-1' }),
+            industry: 'agriculture',
+            recipientTeams: ['blue', 'red'],
+            decision: {
+                ...createBlankIndustryTurnSheet().decision,
+                status: 'new',
+                primaryMove: 'stockpile',
+                visibility: 'public'
+            }
+        };
+
+        const markup = controller.renderProposalDetails({
+            team: 'industry',
+            move: 1,
+            ally_contingencies: serializeProposalDetails({
+                recipientTeams: ['blue', 'red'],
+                industryTurnSheet
+            })
+        });
+
+        expect(markup).toContain('Industry proposal details');
+        expect(markup).toContain('Intended recipients');
+        expect(markup).toContain('Blue, Red');
+        expect(markup).toContain('Visibility:');
+        expect(markup).not.toContain('Turn Sheet');
+    });
+
     it('shows proposal-specific review options in the White Cell modal', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');

@@ -1,4 +1,4 @@
-# PLENUM INTERFACE CLARITY, COPY, LABELING, AND VISUAL-SEMANTICS AUDIT
+# PLENUM INTERFACE CLARITY, COPY, LABELING, VISUAL-SEMANTICS, RESPONSIVE-LAYOUT, AND MOTION AUDIT
 
 ## Role
 
@@ -14,6 +14,9 @@ The objective is to make PLENUM:
 - semantically consistent;
 - correctly labeled;
 - visually coherent;
+- readable and usable across viewport widths, constrained panels, and browser zoom levels;
+- free of cramped columns, accidental overflow, clipping, and overlapping controls;
+- consistent in motion, transitions, and reduced-motion behavior;
 - role-appropriate;
 - free of backend/internal implementation copy;
 - free of unnecessary repeated instructions and labels.
@@ -79,7 +82,7 @@ In particular, apply the following principles rigorously:
 
 The current PLENUM interface contains several related classes of UX debt.
 
-Your job is to identify them comprehensively.
+Your job is to identify them comprehensively, including layout failures that make otherwise correct copy or controls unreadable or unusable.
 
 ## A. Backend/internal copy is visible to users
 
@@ -730,6 +733,8 @@ What can I do?
 
 Everything else should justify its space.
 
+Also inspect the card's usable width, text wrapping, metadata grid, and action row under section 21. A card is not acceptable merely because its content fits at one desktop width.
+
 ---
 
 # 14. MODAL AUDIT
@@ -783,6 +788,8 @@ ONLY if those words correctly represent the actual workflow.
 Do not blindly use this example.
 
 Determine appropriate terminology from the real product.
+
+Also apply section 21 to modal width, form columns, viewport height, scroll ownership, and reachable actions. Copy cleanup alone does not resolve a constrained modal layout.
 
 ---
 
@@ -1277,7 +1284,290 @@ The audit must identify:
 
 ---
 
-# 22. INFORMATION DENSITY
+# 21. LAYOUT, SPACING, RESPONSIVENESS, AND OVERFLOW AUDIT
+
+Treat layout as a functional requirement, not merely visual polish.
+
+Explicitly investigate components squeezed into columns that are too narrow, content spilling outside its container, and interfaces that work only at a single viewport size.
+
+## A. Scope and usable workspace
+
+Audit every screen, modal, panel, drawer, card, table, form, toolbar, tab strip, queue, split pane, and presentation view across the applicable roles.
+
+Inspect the complete composition as well as each component. Measure the space left for primary content after navigation, sidebars, review panes, padding, and gutters. A wide browser window can still contain an unusably narrow component.
+
+For each recurring layout pattern, document:
+
+```text
+purpose and primary task
+current column structure and usable content width
+minimum usable component widths, with a reason based on content and controls
+when columns wrap, stack, collapse, or become a drawer
+which region owns scrolling
+how long content and dynamic states affect geometry
+```
+
+Do not prescribe one universal minimum width or force every screen into the same grid. Recommend rules appropriate to the real task and existing design standards.
+
+## B. Viewport, height, and zoom coverage
+
+Use these representative browser viewport dimensions in CSS pixels at 100% zoom:
+
+| Viewport | Purpose |
+|---|---|
+| 360 × 800 | Narrow mobile layout and navigation |
+| 768 × 1024 | Tablet and intermediate column behavior |
+| 1024 × 768 | Constrained desktop workspace |
+| 1280 × 720 | Laptop width and limited vertical space |
+| 1440 × 900 | Typical desktop baseline |
+| 1920 × 1080 | Wide desktop and presentation layout |
+
+Inspect each distinct screen/modal/panel at its normal desktop size, at a constrained width, and at 200% browser zoom. Test shared patterns across the remaining representative sizes; exercise any distinct role-specific composition separately. Add landscape/short-height checks for tall dialogs and dense workspaces.
+
+Test real browser zoom at 200% from a 1280 × 720 or 1440 × 900 baseline. Test reflow at an effective width of 320 CSS pixels, for example by using 400% browser zoom from a 1280-pixel-wide baseline. Record the actual resulting viewport dimensions: browser zoom, device pixel ratio, and CSS transforms are not interchangeable.
+
+For every affected layout, also test immediately below, at, and above its actual CSS breakpoint or observed failure width. Include narrow containers inside otherwise wide viewports, with sidebars/review panes both open and closed, and split-pane resizing where supported.
+
+Do not silently exclude narrow layouts because PLENUM is desktop-oriented. Record any declared support boundary and distinguish unsupported tasks from failures within supported use. At 320 CSS pixels, require ordinary content to reflow without page-level horizontal scrolling; document any essential two-dimensional exception such as a comparison table or map and contain its scrolling locally.
+
+Use browser rendering and computed geometry to verify behavior where access is available. If only source code or screenshots are available, label findings as observed, source-inferred, or unverified. State untested roles, states, widths, and browsers explicitly; do not claim a complete responsive audit without runtime evidence.
+
+## C. Content and state stress cases
+
+Exercise representative, realistic data rather than only short demo values:
+
+```text
+long team, industry, participant, and artifact names
+multi-line titles, statuses, and metadata
+long rationale, review notes, and RFI responses
+long URLs or unbroken identifiers
+empty, loading, saving, error, disabled, and returned-for-revision states
+inline validation and error summaries
+large queues and tables with many rows or columns
+multiple badges and fully populated action toolbars
+stacked notifications, banners, and expanded details
+```
+
+Verify geometry again when data arrives, validation appears, tabs change, details expand, or notifications stack. Static screenshots of an empty screen do not establish that populated states fit.
+
+## D. Layout acceptance checks
+
+Verify that:
+
+- text, fields, cards, and controls do not clip, overlap, collide, or spill outside their intended containers;
+- important controls remain fully visible, legible, and usable, with spacing and target sizes consistent with the design standards;
+- labels, values, helper text, and errors wrap intentionally and remain associated with the correct field;
+- cards and form fields do not become unnaturally narrow merely to preserve a desktop column count;
+- multi-column layouts collapse when the available container width cannot support the content;
+- grids use appropriate minimum track widths and handle long intrinsic content;
+- flex rows wrap or reorganize before important controls are compressed;
+- button labels remain complete and action groups preserve a clear primary action when wrapping or stacking;
+- navigation, tabs, filters, and toolbars have deliberate narrow-width behavior;
+- sidebars and secondary panes leave enough usable workspace or have a deliberate collapse/drawer behavior;
+- padding, margins, gutters, and gaps use consistent spacing rules and preserve grouping at every tested width;
+- text-heavy fields receive space appropriate to their content rather than being forced into equal narrow columns;
+- dense information remains readable without excessive nested containers or decorative empty space;
+- ordinary content does not introduce accidental horizontal page scrolling;
+- focus outlines and focused controls are not clipped or obscured by fixed/sticky elements;
+- visual reordering does not create a contradictory reading or keyboard focus order;
+- long content remains available wherever shortening would remove information needed for a decision;
+- the layout remains functional at 200% browser zoom and passes the reflow checks described above.
+
+## E. Tables, modals, scroll regions, and overlays
+
+For tables, choose a deliberate treatment appropriate to the task: local horizontal scrolling, prioritized columns with accessible details, or a stacked representation that preserves relationships. Retain information needed for comparison and action. Verify header alignment, readable cells, and keyboard access to scroll regions and row actions.
+
+For modals and drawers, verify width and height against the available viewport, including short-height windows and zoom. Keep the title, close control, validation, and primary action reachable. Where internal scrolling is needed, assign it to a clear content region and ensure fixed/sticky headers or footers do not obscure that region or focused fields. Avoid nested scroll traps.
+
+For fixed/sticky bars, menus, tooltips, popovers, banners, and notifications, verify positioning, wrapping, stacking, and obstruction in the full interface. An otherwise valid component can still fail when an overlay covers its controls.
+
+## F. Investigate CSS and component causes
+
+Trace each runtime symptom to the responsible component and layout rules. Inspect:
+
+```text
+grid-template-columns / grid-template-rows
+minmax() / auto-fit / auto-fill / implicit tracks
+intrinsic sizing / min-content / max-content
+width / min-width / max-width
+height / min-height / max-height
+flex-basis / flex-grow / flex-shrink / flex-wrap
+overflow / overflow-x / overflow-y
+white-space / word-break / overflow-wrap / text-overflow
+box-sizing / fixed widths / percentage widths
+gap / padding / margin / inherited spacing tokens
+container widths / sidebar widths / split-pane limits
+media queries / container queries / responsive breakpoints
+position / inset / z-index / sticky and fixed behavior
+modal max-height / viewport units / scroll ownership
+```
+
+Check both a symptom and its cause. For example, a card overflowing may result from an intrinsic minimum size, while a squeezed control may result from excessive flex shrinking. `min-width: 0` can resolve an intrinsic overflow problem but does not establish a usable control width; `minmax(0, 1fr)` does not guarantee that columns are wide enough for their contents.
+
+Recommend bounded corrections: collapse columns, give text-heavy content a full row, wrap action groups, revise track minimums, constrain secondary panes, or move an essential wide table into a deliberate scroll region. Prefer established components and spacing tokens.
+
+Do not mask failures by globally applying `overflow: hidden`, shrinking typography, removing required content, arbitrarily truncating decision-critical text, or adding page-level horizontal scrolling. If truncation is appropriate for secondary content, provide an accessible way to obtain the full value.
+
+## G. Evidence and required layout findings
+
+Add a dedicated layout findings table to `PLENUM_INTERFACE_AUDIT.md`:
+
+| Finding ID | Screen / component / role / state | Viewport / zoom / container width | Layout problem | Cause and file / selector | User impact | Recommended correction | Severity | Evidence / verification status |
+|---|---|---|---|---|---|---|---|---|
+
+Use concrete observations, not generic advice such as "improve spacing." Include reproduction steps, the failing dimensions, and screenshots or measured geometry where available. Distinguish verified causes from suspected causes.
+
+Also include a coverage matrix:
+
+| Screen / pattern / role | Data and interaction state | Viewport / zoom | Sidebar / pane state | Result | Evidence or limitation |
+|---|---|---|---|---|---|
+
+Allowed results: pass, fail, not tested, or documented essential two-dimensional exception. A planned check is not a pass.
+
+## H. Severity and remediation verification
+
+Classify by user impact. Cramped columns, clipped content, overlapping controls, inaccessible modal actions, and accidental overflow that impair reading or task completion are **P1 — Confusing / obstructive**, not P3 spacing polish. A layout that misrepresents a value, status, or control relationship can be P0 under the correctness definition. Reserve P3 for cosmetic alignment or spacing differences that do not affect meaning, reading, navigation, or use.
+
+For each implementation group, define acceptance criteria from the failing cases. Retest the original viewport, state, container width, zoom, and breakpoint neighbors, plus other consumers of a changed shared component. Verify the relevant task end-to-end with keyboard navigation and primary actions still reachable.
+
+Do not mark a layout finding resolved based only on a CSS edit or one improved screenshot. Report the runtime retest result and any remaining limitations.
+
+---
+
+# 22. MOTION AND TRANSITION CONSISTENCY AUDIT
+
+Treat motion as part of the interface system. It should communicate state, spatial relationships, feedback, or continuity and remain consistent across equivalent interactions.
+
+This is an audit of existing behavior and a bounded correction specification. Do not add animation everywhere or introduce a new visual style merely to make the interface feel more elaborate.
+
+## A. Inventory motion across the platform
+
+Inspect every applicable role and surface, including:
+
+```text
+page and route changes
+landing, login, and About transitions
+modal and dialog entry/exit
+drawer, sidebar, and review-pane opening/closing
+tab and panel changes
+accordion and expandable-detail behavior
+card, list, queue, and realtime updates
+form validation, saving, loading, success, and failure feedback
+button hover, focus, pressed, selected, and disabled feedback
+toasts, alerts, banners, and notification stacks
+tooltips, menus, popovers, and backdrops
+presentation-mode entry/exit and screen changes
+scrolling, anchor navigation, and automatic focus movement
+```
+
+Inventory CSS transitions, keyframes, JavaScript animations, animation-library settings, and shared component defaults. Distinguish intentionally immediate changes from animated changes. Absence of animation is not automatically a defect.
+
+## B. Define consistent motion semantics
+
+For each interaction family, compare:
+
+```text
+purpose and trigger
+animated properties
+duration and delay
+easing
+direction, distance, scale, and origin
+entry and exit behavior
+sequence and overlap with related elements
+interruption, cancellation, and reversal behavior
+reduced-motion alternative
+```
+
+Equivalent interactions should follow the same pattern unless task context justifies a difference. Entry and exit need not have identical timing, but the distinction must be intentional and reusable.
+
+Flag arbitrary per-component durations, competing easing curves, inconsistent drawer directions, unrelated scale effects, excessive travel, delayed controls, and decorative motion that competes with a decision or timer.
+
+Recommend shared motion tokens or presets for recurring interaction families, using the existing component architecture. Define their meaning, consumers, duration, easing, and reduced-motion treatment from actual findings. Do not impose one universal duration on every interaction or invent a new animation dependency without a concrete need.
+
+Notification display duration is separate from its entry/exit animation duration. Keep the notification persistence requirements in section 20 intact.
+
+## C. Continuity, layout stability, and state accuracy
+
+Test complete transitions, not only their endpoints. Look for:
+
+- abrupt jumps, jerky movement, flicker, flashes of unstyled content, or a frame with the wrong background/theme;
+- mismatched modal backdrops, opacity, corners, positioning, or page geometry during related transitions;
+- sudden resizing, scrollbars appearing/disappearing, or layout shifts that move text and controls unexpectedly;
+- content briefly overlapping, clipping, or spilling during animated expansion or collapse;
+- page scroll or selection resetting unexpectedly during navigation or live updates;
+- loading and completion sequences that flash too briefly, linger unnecessarily, or imply success before the actual operation succeeds;
+- focus outlines or focused controls disappearing during transitions;
+- hidden or exiting layers still intercepting clicks, pointer events, or keyboard navigation;
+- animated transforms or stacking contexts causing misplaced/clipped menus, tooltips, or overlays.
+
+Coordinate motion with the real application state. Do not delay access to a usable control solely to finish decorative animation, and do not show successful completion before confirmation from the relevant operation. Retain correct pending, error, and retry behavior.
+
+A smooth animation must also end in a valid layout. Apply section 21 to both intermediate frames and settled states where movement changes geometry.
+
+## D. Rapid interaction and interruption tests
+
+Exercise:
+
+```text
+open → close before entry finishes
+close → reopen before exit finishes
+rapid tab or route switching
+repeated expansion/collapse and sidebar toggling
+navigation while saving/loading
+realtime updates during an active transition
+multiple notifications arriving and being dismissed
+viewport resizing or zoom changes during motion
+```
+
+Verify that the interface settles into the latest valid state without stale overlays, duplicate elements, queued animation buildup, lost focus, stranded scroll locks, stale completion callbacks, or accidental duplicate submissions.
+
+Specify whether each pattern cancels, reverses, or completes when interrupted. Do not change legitimate workflow restrictions merely to make an animation interruptible.
+
+## E. Accessibility and reduced motion
+
+Test the platform with `prefers-reduced-motion: reduce`, including a setting change during use where the implementation supports reacting to it.
+
+Suppress or simplify nonessential movement, large translations, scale/zoom effects, parallax, and smooth scrolling. A brief opacity change may be appropriate where it remains comfortable and useful; immediate updates may be preferable. Reduced motion must preserve information, workflow state, and feedback.
+
+Verify that disabling or shortening animation does not leave content hidden, prevent unmounting, strand a backdrop, or break logic that depends on a duration, timer, or `transitionend`/`animationend` event.
+
+Keyboard focus must move at the appropriate point, remain visible, stay within an active modal as required, and return to a valid trigger or destination when it closes. Hidden and exiting content must not create duplicate accessible controls or conflicting announcements. State changes must remain understandable without perceiving the animation.
+
+Identify distracting continuous motion, flashing, and nonessential repeating indicators, with pause/stop or reduced-motion treatment where appropriate. Do not use motion as the only signal of status or successful action.
+
+## F. Performance and evidence
+
+Inspect motion on representative supported browsers and available constrained devices or throttled environments. Record the actual environment and limitations rather than assuming equivalent performance everywhere.
+
+Use browser performance tools where available to investigate dropped frames, long tasks, expensive layout/paint work, and repeated measurement/write cycles. Prefer transform/opacity animation where it fits the intended behavior, but do not treat those properties as a guarantee of smoothness or valid layout. Avoid blanket `will-change`, `transition: all`, and arbitrary delays as fixes.
+
+Capture short recordings, screenshots of intermediate states, computed animation settings, or performance traces where available. Identify the responsible file, selector, component, or shared preset. Label observed behavior, source-inferred causes, and untested conditions separately.
+
+## G. Required motion findings and canonical patterns
+
+Add a motion findings table to `PLENUM_INTERFACE_AUDIT.md`:
+
+| Finding ID | Surface / role / trigger | Current motion / timing | Problem and user impact | Cause and file / selector | Recommended correction | Severity | Evidence / verification status |
+|---|---|---|---|---|---|---|---|
+
+Add a canonical motion map:
+
+| Interaction family | Purpose | Properties / direction | Duration / delay / easing | Interruption behavior | Reduced-motion treatment | Shared token / preset and consumers |
+|---|---|---|---|---|---|---|
+
+Record actual values and concrete inconsistencies; "make transitions smoother" is not an adequate finding. Mark proposed values as recommendations rather than existing standards.
+
+Include motion test coverage for normal/reduced motion, keyboard use, rapid interaction, async success/failure, viewport/zoom changes, and tested browsers/devices. Record pass, fail, or not tested and link evidence where available.
+
+## H. Severity and acceptance criteria
+
+Use P0 when motion or sequencing communicates a factually incorrect state, such as indicating successful submission before it has succeeded. Use P1 when motion blocks actions, obscures content, loses focus, traps the user, or materially impairs interaction. Use P2 for unnecessary or distracting motion that adds noise. Reserve P3 for timing/easing inconsistencies or minor visual discontinuities that do not impair meaning or use.
+
+For each fix, retest the full entry/exit sequence, rapid interruption, normal and reduced-motion settings, keyboard focus, relevant async states, and section 21 geometry checks. Verify other consumers of any changed shared preset. Record the observed result; a code change or a still screenshot alone does not prove transition quality.
+
+---
+
+# 23. INFORMATION DENSITY
 
 Do not solve clutter by turning everything into giant cards or hiding everything behind modals.
 
@@ -1293,6 +1583,8 @@ lists
 compact metadata
 progressive disclosure
 consistent spacing
+usable column widths
+responsive stacking based on available space
 ```
 
 over:
@@ -1304,11 +1596,13 @@ large decorative headers
 repeated descriptions
 multiple badges
 large empty spaces
+forced narrow columns
+clipping or shrinking content to preserve a grid
 ```
 
 ---
 
-# 22. COMPONENT CONSISTENCY
+# 24. COMPONENT CONSISTENCY
 
 Inventory recurring components.
 
@@ -1343,7 +1637,7 @@ Consolidate when their user-facing function is the same.
 
 ---
 
-# 23. SCREEN-BY-SCREEN FIVE-SECOND TEST
+# 25. SCREEN-BY-SCREEN FIVE-SECOND TEST
 
 For every major screen answer:
 
@@ -1360,7 +1654,7 @@ Do not rely on onboarding instructions to compensate for bad hierarchy.
 
 ---
 
-# 24. INTERACTION-PATH AUDIT
+# 26. INTERACTION-PATH AUDIT
 
 For common tasks, count user interactions.
 
@@ -1392,7 +1686,7 @@ Do not change workflows during this audit unless the interface itself is creatin
 
 ---
 
-# 25. FIRST PASS MUST BE AN AUDIT, NOT A MASS REWRITE
+# 27. FIRST PASS MUST BE AN AUDIT, NOT A MASS REWRITE
 
 Before changing code, produce:
 
@@ -1418,6 +1712,8 @@ color-semantic inconsistency
 role-inappropriate information
 weak hierarchy
 component inconsistency
+layout, spacing, responsiveness, and overflow failures
+motion and transition inconsistency
 notification/toast inconsistency
 accessibility issues
 ```
@@ -1441,7 +1737,9 @@ incorrect workflow description
 
 ### P1 — Confusing
 
-Likely to cause user error or misunderstanding.
+Likely to cause user error, misunderstanding, or difficulty completing a task.
+
+Includes cramped columns, unreadable or clipped content, overlapping controls, accidental overflow, broken reflow, and modal actions that cannot be reached. Layout findings that communicate an incorrect value or relationship belong in P0 when they meet its definition.
 
 ### P2 — Noisy
 
@@ -1449,7 +1747,7 @@ Redundant copy, unnecessary labels, excessive badges, repeated instructions.
 
 ### P3 — Polish
 
-Minor wording, alignment, spacing, or consistency improvements.
+Minor wording, alignment, spacing, or consistency improvements that do not impair meaning, readability, navigation, or task completion. Do not downgrade a functional layout failure to P3 merely because its cause is CSS.
 
 ## C. Screen inventory
 
@@ -1536,7 +1834,19 @@ hidden
 
 Identify duplicated or near-duplicated interface components.
 
-## L. Priority remediation plan
+## L. Layout and responsive behavior findings
+
+Include the section 21 findings table with concrete dimensions, user impact, file/selector references, root causes or suspected causes, and corrections. Explicitly identify forced narrow columns, overflow, wrapping, modal height, sidebar constraints, and zoom/reflow failures where found.
+
+## M. Layout verification coverage
+
+Include the section 21 coverage matrix, runtime evidence, untested conditions, and acceptance criteria for each proposed layout correction. State which conclusions are source-inferred.
+
+## N. Motion findings, canonical patterns, and verification coverage
+
+Include the section 22 motion findings table, canonical motion map, and test coverage. Identify timing/easing drift, jerky transitions, interruption bugs, focus problems, performance issues, and reduced-motion failures with concrete evidence and acceptance criteria.
+
+## O. Priority remediation plan
 
 Organize fixes into:
 
@@ -1547,9 +1857,11 @@ Phase 3 — consistency
 Phase 4 — polish
 ```
 
+Place functional layout failures in correctness or clarity according to their impact. Reserve spacing polish for non-obstructive cosmetic adjustments.
+
 ---
 
-# 26. AFTER THE AUDIT
+# 28. AFTER THE AUDIT
 
 Do NOT immediately perform an uncontrolled platform-wide rewrite.
 
@@ -1581,13 +1893,21 @@ Notifications, toasts, alerts, and live-region feedback
 
 Batch 8
 Error/empty/loading states
+
+Batch 9
+Layout, spacing, responsiveness, overflow, and zoom/reflow behavior
+
+Batch 10
+Motion patterns, transition consistency, interruption, and reduced-motion behavior
 ```
 
 Each batch should be independently testable.
 
+The batch numbers are examples, not a mandatory execution order. Prioritize obstructive layout failures alongside other P0/P1 findings, and verify shared layout changes across their consumers using the section 21 acceptance criteria.
+
 ---
 
-# 27. WHEN IMPLEMENTING FIXES
+# 29. WHEN IMPLEMENTING FIXES
 
 Prefer presentation-layer corrections.
 
@@ -1621,7 +1941,7 @@ manually replace twenty labels with slightly different strings
 
 ---
 
-# 28. CREATE A CENTRAL PRESENTATION VOCABULARY
+# 30. CREATE A CENTRAL PRESENTATION VOCABULARY
 
 If the current architecture lacks one, recommend an appropriate bounded mechanism for canonical labels.
 
@@ -1655,7 +1975,7 @@ The important architectural rule is:
 
 ---
 
-# 29. PROTECT BACKEND STABILITY
+# 31. PROTECT BACKEND STABILITY
 
 This task is not permission to rename technical contracts.
 
@@ -1677,9 +1997,11 @@ A UX cleanup should not destabilize PLENUM's backend.
 
 Use adapters, labels, selectors, mappings, and display models instead.
 
+Use bounded CSS and component-layout corrections for responsive failures. Preserve field meaning, workflow behavior, permissions, and auditability while changing geometry.
+
 ---
 
-# 30. DO NOT OVER-MINIMALIZE
+# 32. DO NOT OVER-MINIMALIZE
 
 Do not remove:
 
@@ -1698,7 +2020,7 @@ The target is:
 
 ---
 
-# 31. DO NOT SUBSTITUTE ICONS FOR CLEAR WORDS
+# 33. DO NOT SUBSTITUTE ICONS FOR CLEAR WORDS
 
 Icons may support recognition.
 
@@ -1708,7 +2030,7 @@ A short correct label is better than an unexplained symbol.
 
 ---
 
-# 32. CORRECT COLOR CODING
+# 34. CORRECT COLOR CODING
 
 Pay particular attention to PLENUM's actor colors.
 
@@ -1746,7 +2068,7 @@ Use labels, symbols, border/pattern treatments, or other semantic channels.
 
 ---
 
-# 33. EXPECTED OUTCOME
+# 35. EXPECTED OUTCOME
 
 After corrections, a user should be able to open any PLENUM screen and quickly understand:
 
@@ -1775,9 +2097,11 @@ compatibility mechanisms
 technical IDs
 ```
 
+They must also be able to read the content and reach the required controls across the tested viewport, container, height, and zoom conditions without cramped columns, clipping, accidental overflow, or overlap. Transitions must preserve continuity, correct state, and focus, including under rapid interaction and reduced-motion settings.
+
 ---
 
-# 34. FINAL DELIVERABLES
+# 36. FINAL DELIVERABLES
 
 Your first response after completing the review should contain:
 
@@ -1821,11 +2145,23 @@ Include duplicate notifications, backend copy, severity errors, color conflicts,
 
 Duplicate UI patterns that should converge.
 
-## 11. Recommended remediation sequence
+## 11. Layout, spacing, responsiveness, and overflow findings
+
+Include failing viewport/zoom/container dimensions, concrete symptoms, CSS or component causes, recommended corrections, severity, and evidence. Use the dedicated findings table from section 21.
+
+## 12. Layout verification coverage and acceptance criteria
+
+Include the coverage matrix, populated and dynamic states, breakpoint checks, zoom/reflow results, and unverified conditions. Specify runtime retests required before closing each layout finding.
+
+## 13. Motion and transition findings
+
+Include the section 22 findings table, canonical motion patterns, normal/reduced-motion coverage, interruption and keyboard checks, performance evidence, and required retests.
+
+## 14. Recommended remediation sequence
 
 Prioritized to minimize regression risk.
 
-## 12. Files likely to change
+## 15. Files likely to change
 
 Classify each as:
 
@@ -1835,7 +2171,7 @@ EXTEND
 DO NOT TOUCH
 ```
 
-## 13. Risk assessment
+## 16. Risk assessment
 
 Identify which suggested changes are:
 
@@ -1846,13 +2182,13 @@ workflow-sensitive
 backend-sensitive
 ```
 
-## 14. `PLENUM_INTERFACE_AUDIT.md`
+## 17. `PLENUM_INTERFACE_AUDIT.md`
 
 Create this file in the repository containing the full findings.
 
 ---
 
-# 35. IMPORTANT OPERATING RULE
+# 37. IMPORTANT OPERATING RULE
 
 Do not judge the interface by whether the code is technically correct.
 
@@ -1866,8 +2202,12 @@ A sentence can be individually clear and still be harmful because the same point
 
 A visually attractive color can still be wrong because it conflicts with an established semantic role.
 
+A component can contain the right words and controls and still fail because its column is too narrow, its content overflows, or its actions become unreachable at browser zoom.
+
+A transition can have attractive endpoints and still fail because its motion is inconsistent, it flickers, it loses focus, or an interrupted animation leaves the interface in the wrong state.
+
 The objective is not cosmetic simplification.
 
 The objective is:
 
-> a coherent interface in which every visible word, label, color, component, and state helps the user understand the simulation and take the correct next action.
+> a coherent, responsive interface in which every visible word, label, color, component, state, layout, and transition helps the user understand the simulation and take the correct next action.

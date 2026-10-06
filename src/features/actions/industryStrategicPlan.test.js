@@ -126,5 +126,12 @@ describe('Industry Strategic Plan domain contract', () => {
         expect(blank.sectorPlans.Agriculture.risks).toHaveLength(3);
         expect(blank.sectorPlans.Telecommunications.strategicPriorities).toHaveLength(3);
         expect(blank.sectorPlans.Biotechnology.strategicStance).toBeNull();
+        expect(blank.sectorPlans.Agriculture.risks.map(({ id }) => id)).toEqual([
+            'agriculture-baseline-risk-1',
+            'agriculture-baseline-risk-2',
+            'agriculture-baseline-risk-3'
+        ]);
+        expect(blank.sectorPlans.Telecommunications.strategicPriorities[0].id)
+            .toBe('telecommunications-priority-1');
     });
 });

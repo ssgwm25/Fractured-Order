@@ -176,6 +176,29 @@ describe('database action write contracts', () => {
         }));
     });
 
+    it('passes a caller-generated action id through the atomic create boundary', async () => {
+        const { database } = await import('./database.js');
+        const { insert } = mockInsertChain();
+
+        await database.createAction({
+            id: 'proposal-client-id',
+            session_id: 'session-1',
+            client_id: 'client-action-write-test',
+            move: 1,
+            phase: 1,
+            team: 'industry',
+            mechanism: 'Proposal',
+            sector: 'Agriculture',
+            goal: 'Agriculture Proposal',
+            expected_outcomes: '',
+            ally_contingencies: 'Proposal Details\nRecipient Teams: ["blue"]',
+            priority: 'NORMAL',
+            status: 'draft'
+        });
+
+        expect(insert).toHaveBeenCalledWith(expect.objectContaining({ id: 'proposal-client-id' }));
+    });
+
     it('derives the Strategic Orientation mechanism before inserting a pre-Move 1 artifact', async () => {
         const { database } = await import('./database.js');
         const { serializeStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
@@ -280,6 +303,7 @@ describe('database action write contracts', () => {
     it('stores the Industry Strategic Plan inside the existing forecast artifact contract', async () => {
         const { database } = await import('./database.js');
         const { serializeStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        const { normalizeIndustryStrategicPlan } = await import('../features/actions/industryStrategicPlan.js');
         const { insert } = mockInsertChain();
         const sectorPlan = {
             businessOverview: 'We operate secure networks and depend on advanced chips.',
@@ -343,7 +367,7 @@ describe('database action write contracts', () => {
                     team: 'industry',
                     ownOrientation: null,
                     industryStrategicPlanVersion: 2,
-                    industryStrategicPlan
+                    industryStrategicPlan: normalizeIndustryStrategicPlan(industryStrategicPlan)
                 })
             },
             forecast_targets: [expect.objectContaining({

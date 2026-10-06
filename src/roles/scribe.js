@@ -75,6 +75,7 @@ import {
     isProposalAction,
     isProposalForwardedToScribe
 } from '../features/actions/proposalDetails.js';
+import { buildIndustryTurnSheetDisplayModel } from '../features/actions/industryTurnSheet.js';
 import {
     buildDefaultScribeDeckPath,
     DEFAULT_SCRIBE_DECK_LABEL,
@@ -4572,6 +4573,11 @@ export class ScribeController {
         const industryFocus = industryOnlyValue(proposal.industryFocus);
         const countryFocus = industryOnlyValue(proposal.countryFocus);
         const proposedActivity = industryOnlyValue(proposal.proposedActivity);
+        const structuredIndustryProposal = isIndustrySource
+            && proposal.industryProposal
+            && typeof proposal.industryProposal === 'object'
+            ? buildIndustryTurnSheetDisplayModel(proposal.industryProposal)
+            : null;
 
         return `
             <article class="scribe-action-slide scribe-proposal-slide" data-proposal-communication-id="${escapeHtml(String(communication.id || ''))}">
@@ -4594,6 +4600,13 @@ export class ScribeController {
                             <h3 class="scribe-action-slide-section-title">Proposal details</h3>
                         </div>
                         <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
+                            ${structuredIndustryProposal ? structuredIndustryProposal.sections.flatMap((section) => section.rows
+                                .filter(([label]) => !['Intended recipients', 'Strategic Plan', 'Strategic priorities'].includes(label)
+                                    && section.title !== 'Facilitator note')
+                                .map(([label, value]) => renderActionSlideGlanceCard({
+                                    label: `${section.title}: ${label}`,
+                                    value
+                                }))).join('') : ''}
                             ${renderActionSlideGlanceCard({ label: 'Originators', value: formatList(proposal.originators) })}
                             ${(proposal.instruments?.length || proposal.category) ? renderActionSlideGlanceCard({
                                 label: sourceTeam === 'industry' || proposal.instruments?.length

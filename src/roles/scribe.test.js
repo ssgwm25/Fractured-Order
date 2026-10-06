@@ -3369,6 +3369,48 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).toContain('Resubmit to White Cell');
     });
 
+    it('projects a structured Industry proposal with its intended recipients', async () => {
+        const { ScribeController } = await loadScribeModule();
+        const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');
+        const { createBlankIndustryTurnSheet } = await import('../features/actions/industryTurnSheet.js');
+        global.document = createFakeDocument();
+        const controller = new ScribeController();
+        controller.teamId = 'industry';
+        controller.teamLabel = 'Industry Team';
+        const industryTurnSheet = {
+            ...createBlankIndustryTurnSheet({ move: 1, strategicPlanId: 'plan-1' }),
+            industry: 'biotechnology',
+            recipientTeams: ['blue', 'red'],
+            decision: {
+                ...createBlankIndustryTurnSheet().decision,
+                status: 'new',
+                primaryMove: 'protect_enforce_ip',
+                visibility: 'confidential_blue'
+            }
+        };
+        const action = {
+            id: 'industry-proposal-1',
+            team: 'industry',
+            move: 1,
+            status: 'draft',
+            workflow_state: 'forwarded_to_facilitator',
+            goal: 'Biotechnology Proposal',
+            ally_contingencies: serializeProposalDetails({
+                recipientTeams: ['blue', 'red'],
+                industryTurnSheet,
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const html = controller.renderOwnProposalSlide({ action });
+
+        expect(html).toContain('Intended recipient: Blue Team, Red Team');
+        expect(html).toContain('Decision: Intended recipients');
+        expect(html).toContain('Blue, Red');
+        expect(html).toContain('Decision: Visibility');
+        expect(html).not.toContain('Turn Sheet');
+    });
+
     it('resubmits a returned proposal by updating its existing logical identity', async () => {
         const { ScribeController } = await loadScribeModule();
         const { serializeProposalDetails } = await import('../features/actions/proposalDetails.js');

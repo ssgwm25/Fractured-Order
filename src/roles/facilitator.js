@@ -88,6 +88,23 @@ import {
     validateIndustryStrategicPlan as validateIndustryStrategicPlanDomain
 } from '../features/actions/industryStrategicPlan.js';
 import {
+    INDUSTRY_TURN_SHEET_SECTORS,
+    buildIndustryTurnSheetDisplayModel,
+    createBlankIndustryTurnSheet,
+    deriveIndustryProposalContext,
+    getIndustryEngagementOptions,
+    getIndustryExpectedEffectsSummary,
+    getIndustrySectorConfig,
+    getIndustryTurnSheetTitle,
+    normalizeIndustryTurnSheet,
+    validateIndustryTurnSheet
+} from '../features/actions/industryTurnSheet.js';
+import {
+    collectIndustryTurnSheetFormData,
+    createIndustryTurnSheetFormContent,
+    renderIndustryTurnSheetReview
+} from '../features/actions/industryTurnSheetForm.js';
+import {
     PROPOSAL_RECIPIENT_STATUSES,
     countUnreadProposals,
     getProposalRecipientEntry,
@@ -572,7 +589,7 @@ export class FacilitatorController {
                 }
             } else if (isGreenProposalFlow) {
                 actionsDescription.textContent = this.teamId === 'industry'
-                    ? 'Draft US Industry proposals with an industry, country, proposed activity, intended partners, and focus sectors, then send them to the Facilitator.'
+                    ? 'After White Cell completes the Industry Strategic Plan, draft a three-page Industry Proposal for Agriculture, Biotechnology, or Telecommunications, choose Blue, Red, or both as intended recipients, then forward it to the Facilitator.'
                     : 'Draft Green proposals with independent Blue/Red intended partners, focus sectors, and conditional supply-chain details, then send them to the Facilitator.';
             } else if (this.teamId === 'red') {
                 actionsDescription.textContent = 'Draft actions, submit them to White Cell, and track deliberation after facilitator review.';
@@ -1701,6 +1718,11 @@ export class FacilitatorController {
             const industryFocus = industryOnlyValue(snapshot.industryFocus);
             const countryFocus = industryOnlyValue(snapshot.countryFocus);
             const proposedActivity = industryOnlyValue(snapshot.proposedActivity);
+            const structuredIndustryProposal = isIndustrySource
+                && snapshot.industryProposal
+                && typeof snapshot.industryProposal === 'object'
+                ? buildIndustryTurnSheetDisplayModel(snapshot.industryProposal)
+                : null;
             const sourceLabel = this.formatProposalRecipientTeamLabel(sourceTeam);
             const receivedAt = communication.created_at;
             const status = getProposalRecipientStatus(communication);
@@ -1772,6 +1794,12 @@ export class FacilitatorController {
                         </div>
                     </div>
                     ${snapshot.objective ? `<p class="card-summary">${escape(snapshot.objective)}</p>` : ''}
+                    ${structuredIndustryProposal ? this.renderDetailGrid(
+                        structuredIndustryProposal.sections.flatMap((section) => section.rows
+                            .filter(([label]) => !['Intended recipients', 'Strategic Plan', 'Strategic priorities'].includes(label)
+                                && section.title !== 'Facilitator note')
+                            .map(([label, value]) => ({ label: `${section.title}: ${label}`, value })))
+                    ) : ''}
                     ${this.renderDetailGrid([
                         { label: 'Originators', value: formatList(snapshot.originators) },
                         ...(snapshot.instruments?.length ? [{ label: 'Instrument of Power', value: formatList(snapshot.instruments) }] : []),
@@ -4063,8 +4091,16 @@ export class FacilitatorController {
         }
         const isEdit = Boolean(action?.id);
         const isIndustryProposal = this.teamId === 'industry';
+        const industrySetup = isIndustryProposal ? this.getIndustryProposalSetup(action) : null;
+        if (isIndustryProposal && !industrySetup.strategicPlanAction) {
+            showToast({
+                message: 'White Cell must complete the Industry Strategic Plan before Industry proposals can be created.',
+                type: 'warning'
+            });
+            return;
+        }
         const content = isIndustryProposal
-            ? this.createIndustryProposalContent(action || {}, { isEdit })
+            ? this.createIndustryProposalContent(action || {}, { isEdit, setup: industrySetup })
             : this.createGreenProposalContent(action || {}, { isEdit });
         const modalRef = { current: null };
 
@@ -4078,7 +4114,8 @@ export class FacilitatorController {
 
         this.bindGreenProposalModal(content, modalRef.current, {
             actionId: action?.id || null,
-            isEdit
+            isEdit,
+            industrySetup
         });
     }
 
@@ -4086,8 +4123,64 @@ export class FacilitatorController {
         return this.createProposalContent(action, { isEdit, proposalKind: 'green' });
     }
 
-    createIndustryProposalContent(action = {}, { isEdit = false } = {}) {
-        return this.createProposalContent(action, { isEdit, proposalKind: 'industry' });
+    getIndustryProposalSetup(action = null) {
+        const actions = this.getActionStoreSnapshot();
+        const move = Number(action?.move || this.getCurrentGameState().move || 1);
+        const strategicPlanAction = actions.find((candidate) => {
+            if (candidate?.team !== 'industry' || !isStrategicOrientationAction(candidate)) return false;
+            const viewModel = getStrategicOrientationViewModel(candidate);
+            return getArtifactLifecycleViewModel(candidate).isCompleted
+                && viewModel.hasIndustryStrategicPlan
+                && viewModel.industryStrategicPlanParseStatus === 'valid';
+        }) || null;
+        const strategicPlan = strategicPlanAction
+            ? normalizeIndustryStrategicPlan(getStrategicOrientationViewModel(strategicPlanAction).industryStrategicPlan)
+            : null;
+        const contexts = Object.fromEntries(INDUSTRY_TURN_SHEET_SECTORS.map(({ value }) => [
+            value,
+            deriveIndustryProposalContext(actions, { industry: value, move, excludeId: action?.id || null })
+        ]));
+        return {
+            move,
+            strategicPlanAction,
+            strategicPlan,
+            contexts,
+            engagements: getIndustryEngagementOptions(communicationsStore.getAll(), { move })
+        };
+    }
+
+    createIndustryProposalContent(action = {}, { setup = null } = {}) {
+        const content = document.createElement('div');
+        const resolvedSetup = setup || this.getIndustryProposalSetup(action);
+        const viewModel = getProposalViewModel(action);
+        const existingSheet = viewModel.industryTurnSheet;
+        const sheet = existingSheet || createBlankIndustryTurnSheet({
+            move: resolvedSetup.move,
+            strategicPlanId: resolvedSetup.strategicPlanAction?.id || null
+        });
+        const canEditFacilitatorNote = Boolean(
+            this.teamContext?.sharedFacilitator
+            || (this.role && this.role === this.teamContext?.scribeRole)
+        );
+        content.innerHTML = createIndustryTurnSheetFormContent({
+            action,
+            sheet,
+            contexts: resolvedSetup.contexts,
+            strategicPlanAction: resolvedSetup.strategicPlanAction || {},
+            strategicPlan: resolvedSetup.strategicPlan || {},
+            engagements: resolvedSetup.engagements,
+            canEditFacilitatorNote,
+            escapeHtml: (value) => this.escapeHtml(String(value ?? ''))
+        });
+        const form = content.querySelector('#industryProposalForm');
+        if (form) {
+            form.proposalSnapshot = action.id ? { ...action } : null;
+            form.proposalClientKey = globalThis.crypto.randomUUID();
+            form.industryTurnSheetSeed = sheet;
+            form.industryProposalSetup = resolvedSetup;
+            form.canEditFacilitatorNote = canEditFacilitatorNote;
+        }
+        return content;
     }
 
     getProposalRevisionHistory(action = {}) {
@@ -4320,8 +4413,18 @@ export class FacilitatorController {
 
     bindGreenProposalModal(content, modal, {
         actionId = null,
-        isEdit = false
+        isEdit = false,
+        industrySetup = null
     } = {}) {
+        const industryForm = content.querySelector('#industryProposalForm');
+        if (industryForm) {
+            this.bindIndustryProposalModal(content, modal, {
+                actionId,
+                isEdit,
+                setup: industrySetup || industryForm.industryProposalSetup
+            });
+            return;
+        }
         const form = content.querySelector(`#${this.teamId}ProposalForm`);
         if (!form) return;
 
@@ -4384,6 +4487,401 @@ export class FacilitatorController {
         });
 
         form.querySelector('#proposalTitle')?.focus?.();
+    }
+
+    bindIndustryProposalModal(content, modal, {
+        actionId = null,
+        isEdit = false,
+        setup = null
+    } = {}) {
+        const form = content.querySelector('#industryProposalForm');
+        if (!form) return;
+        const resolvedSetup = setup || form.industryProposalSetup || this.getIndustryProposalSetup(form.proposalSnapshot);
+        let activePage = 1;
+        let reviewing = false;
+
+        const collect = () => collectIndustryTurnSheetFormData(
+            form,
+            form.industryTurnSheetSeed || {},
+            {
+                contexts: resolvedSetup.contexts,
+                engagements: resolvedSetup.engagements,
+                move: resolvedSetup.move,
+                strategicPlanId: resolvedSetup.strategicPlanAction?.id,
+                canEditFacilitatorNote: form.canEditFacilitatorNote
+            }
+        );
+        const fieldGroup = (field) => [...form.querySelectorAll('[data-ts-field]')]
+            .find((node) => node.dataset.tsField === field) || null;
+        const clearErrors = () => {
+            form.querySelector('[data-ts-error-summary]').hidden = true;
+            form.querySelector('[data-ts-error-summary]').replaceChildren();
+            form.querySelectorAll('[aria-describedby]').forEach((control) => {
+                const retained = (control.getAttribute('aria-describedby') || '')
+                    .split(/\s+/)
+                    .filter((id) => id && !id.startsWith('industry-proposal-error-'));
+                if (retained.length) control.setAttribute('aria-describedby', retained.join(' '));
+                else control.removeAttribute('aria-describedby');
+            });
+            form.querySelectorAll('.industry-turn-sheet-field-error').forEach((node) => node.remove());
+            form.querySelectorAll('[aria-invalid="true"]').forEach((node) => node.removeAttribute('aria-invalid'));
+        };
+        const showErrors = (errors) => {
+            clearErrors();
+            const summary = form.querySelector('[data-ts-error-summary]');
+            summary.innerHTML = `<h3>Complete the required proposal fields</h3><ul>${errors.map(({ message }) => `<li>${this.escapeHtml(message)}</li>`).join('')}</ul>`;
+            summary.hidden = false;
+            errors.forEach(({ field, message }, index) => {
+                const group = fieldGroup(field);
+                if (!group) return;
+                const errorId = `industry-proposal-error-${index}`;
+                const errorNode = document.createElement('p');
+                errorNode.id = errorId;
+                errorNode.className = 'form-error industry-turn-sheet-field-error';
+                errorNode.textContent = message;
+                group.appendChild(errorNode);
+                group.querySelectorAll('input, select, textarea').forEach((control) => {
+                    control.setAttribute('aria-invalid', 'true');
+                    const describedBy = new Set((control.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+                    describedBy.add(errorId);
+                    control.setAttribute('aria-describedby', [...describedBy].join(' '));
+                });
+            });
+            const firstGroup = fieldGroup(errors[0]?.field);
+            (firstGroup?.querySelector('input, select, textarea, button') || summary).focus?.();
+        };
+        const updateConditionalFields = () => {
+            const toggle = (path, visible) => {
+                const group = fieldGroup(path);
+                if (group) group.hidden = !visible;
+            };
+            const coordinated = form.querySelector('[name="ts-coordinated"]:checked')?.value === 'true';
+            const status = form.querySelector('[name="decision.status"]')?.value || '';
+            const primaryMove = form.querySelector('[name="decision.primaryMove"]')?.value || '';
+            const ask = getCheckedValues(form, '[name="ts-ask"]');
+            const offer = getCheckedValues(form, '[name="ts-offer"]');
+            toggle('decision.coordinatedSectors', coordinated);
+            toggle('decision.priorDecisionId', Boolean(status && status !== 'new'));
+            toggle('decision.otherPrimaryMove', primaryMove === 'other');
+            toggle('decision.askOtherDescription', ask.includes('other'));
+            toggle('decision.offerOtherDescription', offer.includes('other'));
+            ['outbound', 'inbound'].forEach((direction) => {
+                const engaged = form.querySelector(`[name="ts-${direction}-engaged"]:checked`)?.value === 'true';
+                toggle(`engagement.${direction}.linkedRecordId`, engaged);
+                toggle(`engagement.${direction}.outcome`, engaged);
+            });
+            const spillover = form.querySelector('[name="ts-spillover"]:checked')?.value === 'true';
+            const spilloverRows = form.querySelector('[data-ts-spillover-entries]');
+            if (spilloverRows) spilloverRows.hidden = !spillover;
+        };
+        const updateIndustryContext = () => {
+            const industry = form.querySelector('[name="industry"]')?.value || '';
+            const context = resolvedSetup.contexts[industry];
+            form.querySelectorAll('[data-ts-plan-context]').forEach((node) => {
+                node.hidden = node.dataset.tsPlanContext !== industry;
+            });
+            const ordinal = form.querySelector('[data-ts-ordinal]');
+            if (ordinal) ordinal.textContent = String(
+                form.industryTurnSheetSeed?.proposalOrdinalForIndustryMove
+                || context?.proposalOrdinalForIndustryMove
+                || '—'
+            );
+            form.querySelectorAll('[name="ts-coordinated-sectors"]').forEach((checkbox) => {
+                checkbox.disabled = checkbox.value === industry;
+                if (checkbox.disabled) checkbox.checked = false;
+            });
+            form.querySelectorAll('[name="ts-priorities"]').forEach((checkbox) => {
+                const available = checkbox.dataset.tsIndustry === industry;
+                checkbox.disabled = !available;
+                checkbox.closest('label').hidden = !available;
+                if (!available) checkbox.checked = false;
+            });
+            form.querySelectorAll('[name="decision.priorDecisionId"] option[data-ts-industry]').forEach((option) => {
+                option.disabled = option.dataset.tsIndustry !== industry;
+                option.hidden = option.disabled;
+            });
+            const prior = form.querySelector('[name="decision.priorDecisionId"]');
+            if (prior?.selectedOptions?.[0]?.disabled) prior.value = '';
+            const baselineEdit = form.querySelector('[data-ts-baseline-edit]');
+            const baselineReference = form.querySelector('[data-ts-baseline-reference]');
+            const isFirst = form.proposalSnapshot
+                ? Boolean(form.industryTurnSheetSeed?.isFirstProposalForIndustryMove)
+                : Boolean(context?.isFirstProposalForIndustryMove);
+            if (baselineEdit) baselineEdit.hidden = !industry || !isFirst;
+            if (baselineReference) {
+                baselineReference.hidden = !industry || isFirst;
+                if (industry && !isFirst) {
+                    const label = getIndustrySectorConfig(industry)?.label || 'Industry';
+                    const baseline = context?.baselineTurnSheet;
+                    baselineReference.innerHTML = `<div class="industry-turn-sheet-context-banner" role="status">
+                        <h3>Environment and Supply Chain</h3>
+                        <p>Using the ${this.escapeHtml(label)} Move ${resolvedSetup.move} baseline from Proposal ${this.escapeHtml(String(baseline?.proposalOrdinalForIndustryMove || 1))}.</p>
+                        <details><summary>View baseline details</summary>
+                            <p><strong>Biggest surprise:</strong> ${this.escapeHtml(baseline?.environment?.biggestSurprise || 'Not recorded')}</p>
+                            <p><strong>Weakest link:</strong> ${this.escapeHtml(baseline?.supplyChain?.weakestLink || 'Not recorded')}</p>
+                            <p><strong>Change since last move:</strong> ${this.escapeHtml(baseline?.supplyChain?.changeSinceLastMove || 'Not recorded')}</p>
+                        </details>
+                    </div>`;
+                }
+            }
+            const blocked = Boolean(industry && !isEdit && context && !context.canCreateProposal);
+            const summary = form.querySelector('[data-ts-error-summary]');
+            if (blocked) {
+                summary.innerHTML = '<h3>Proposal 1 must be completed first</h3><p>White Cell must complete this industry’s first proposal before another proposal can be created.</p>';
+                summary.hidden = false;
+            } else if (!summary.querySelector('ul')) {
+                summary.hidden = true;
+            }
+            updateConditionalFields();
+        };
+        const updateView = ({ focusHeading = false } = {}) => {
+            form.querySelectorAll('[data-ts-page]').forEach((page) => {
+                page.hidden = reviewing || Number(page.dataset.tsPage) !== activePage;
+            });
+            form.querySelector('[data-ts-review]').hidden = !reviewing;
+            form.querySelectorAll('[data-ts-page-button]').forEach((button) => {
+                const selected = !reviewing && Number(button.dataset.tsPageButton) === activePage;
+                button.setAttribute('aria-current', selected ? 'step' : 'false');
+                button.disabled = reviewing;
+            });
+            const progress = form.querySelector('[data-ts-progress]');
+            if (progress) progress.textContent = reviewing ? 'Review Proposal' : `Page ${activePage} of 3`;
+            form.querySelector('[data-ts-nav="previous"]').hidden = reviewing || activePage === 1;
+            form.querySelector('[data-ts-nav="next"]').hidden = reviewing || activePage === 3;
+            form.querySelector('[data-ts-nav="review"]').hidden = reviewing || activePage !== 3;
+            form.querySelector('[data-ts-nav="edit"]').hidden = !reviewing;
+            form.querySelector('[data-ts-nav="forward"]').hidden = false;
+            form.querySelector('[data-ts-nav="save"]').hidden = reviewing;
+            if (focusHeading) {
+                (reviewing ? form.querySelector('#ts-review-heading') : form.querySelector(`#ts-page-${activePage}-heading`))?.focus?.();
+            }
+        };
+        const validatePage = (page) => {
+            const errors = validateIndustryTurnSheet(collect()).filter((entry) => entry.page === page);
+            if (errors.length) showErrors(errors);
+            return errors.length === 0;
+        };
+        const enforceExclusiveSelection = (name, exclusiveValue) => {
+            form.querySelectorAll(`[name="${name}"]`).forEach((checkbox) => checkbox.addEventListener('change', () => {
+                if (checkbox.checked && checkbox.value === exclusiveValue) {
+                    form.querySelectorAll(`[name="${name}"]`).forEach((candidate) => {
+                        if (candidate !== checkbox) candidate.checked = false;
+                    });
+                } else if (checkbox.checked) {
+                    const exclusive = [...form.querySelectorAll(`[name="${name}"]`)].find((candidate) => candidate.value === exclusiveValue);
+                    if (exclusive) exclusive.checked = false;
+                }
+            }));
+        };
+
+        form.querySelector('[name="industry"]')?.addEventListener('change', updateIndustryContext);
+        form.querySelectorAll('input, select, textarea').forEach((control) => {
+            const clear = () => {
+                const group = control.closest('[data-ts-field]');
+                const removedIds = [...(group?.querySelectorAll('.industry-turn-sheet-field-error') || [])]
+                    .map((node) => node.id)
+                    .filter(Boolean);
+                group?.querySelectorAll('.industry-turn-sheet-field-error').forEach((node) => node.remove());
+                if (removedIds.length) {
+                    const retained = (control.getAttribute('aria-describedby') || '')
+                        .split(/\s+/)
+                        .filter((id) => id && !removedIds.includes(id));
+                    if (retained.length) control.setAttribute('aria-describedby', retained.join(' '));
+                    else control.removeAttribute('aria-describedby');
+                }
+                control.removeAttribute('aria-invalid');
+                updateConditionalFields();
+            };
+            control.addEventListener('input', clear);
+            control.addEventListener('change', clear);
+        });
+        ['blue', 'red_china', 'green_asia_pacific', 'green_europe'].forEach((actor) => {
+            enforceExclusiveSelection(`ts-env-${actor}-codes`, 'M');
+            enforceExclusiveSelection(`ts-forecast-${actor}-codes`, 'M');
+        });
+        enforceExclusiveSelection('ts-escalation', 'none');
+        form.querySelectorAll('[name$=".direction"]').forEach((select) => select.addEventListener('change', () => {
+            if (!['unknown', 'not_applicable'].includes(select.value)) return;
+            const prefix = select.name.replace(/\.direction$/, '');
+            ['magnitude', 'timing', 'pattern'].forEach((field) => {
+                const control = form.querySelector(`[name="${prefix}.${field}"]`);
+                if (control) control.value = select.value;
+            });
+        }));
+        form.querySelectorAll('[data-ts-page-button]').forEach((button) => button.addEventListener('click', () => {
+            const requested = Number(button.dataset.tsPageButton);
+            if (requested > activePage && !validatePage(activePage)) return;
+            activePage = requested;
+            updateView({ focusHeading: true });
+        }));
+        form.querySelector('[data-ts-nav="previous"]')?.addEventListener('click', () => {
+            activePage = Math.max(1, activePage - 1);
+            updateView({ focusHeading: true });
+        });
+        form.querySelector('[data-ts-nav="next"]')?.addEventListener('click', () => {
+            if (!validatePage(activePage)) return;
+            activePage = Math.min(3, activePage + 1);
+            updateView({ focusHeading: true });
+        });
+        form.querySelector('[data-ts-nav="review"]')?.addEventListener('click', () => {
+            const sheet = collect();
+            const errors = validateIndustryTurnSheet(sheet);
+            if (errors.length) {
+                activePage = errors[0].page || 1;
+                reviewing = false;
+                updateView();
+                showErrors(errors);
+                return;
+            }
+            const config = getIndustrySectorConfig(sheet.industry);
+            const priorities = resolvedSetup.strategicPlan?.sectorPlans?.[config?.strategicPlanKey]?.strategicPriorities || [];
+            form.querySelector('[data-ts-review-content]').innerHTML = renderIndustryTurnSheetReview(sheet, priorities, (value) => this.escapeHtml(String(value ?? '')));
+            reviewing = true;
+            updateView({ focusHeading: true });
+        });
+        form.querySelector('[data-ts-nav="edit"]')?.addEventListener('click', () => {
+            reviewing = false;
+            updateView({ focusHeading: true });
+        });
+        form.querySelector('[data-ts-nav="cancel"]')?.addEventListener('click', () => modal?.close());
+        form.querySelector('[data-ts-nav="save"]')?.addEventListener('click', () => {
+            this.persistIndustryProposal(modal, form, { actionId, isEdit, forward: false }).catch((error) => logger.error('Failed to save Industry proposal:', error));
+        });
+        form.querySelector('[data-ts-nav="forward"]')?.addEventListener('click', () => {
+            this.persistIndustryProposal(modal, form, { actionId, isEdit, forward: true }).catch((error) => logger.error('Failed to forward Industry proposal:', error));
+        });
+        form.showIndustryProposalErrors = (errors = []) => {
+            activePage = errors[0]?.page || 1;
+            reviewing = false;
+            updateView();
+            showErrors(errors);
+        };
+        updateIndustryContext();
+        updateView();
+        form.querySelector('[name="industry"]')?.focus?.();
+    }
+
+    buildIndustryProposalPayload(sheet, { scribeHandoff = PROPOSAL_SCRIBE_HANDOFF.DRAFT } = {}) {
+        const normalized = normalizeIndustryTurnSheet(sheet);
+        const config = getIndustrySectorConfig(normalized.industry);
+        return {
+            goal: getIndustryTurnSheetTitle(normalized),
+            mechanism: PROPOSAL_ACTION_MECHANISM,
+            sector: config?.label || '',
+            exposure_type: null,
+            priority: 'NORMAL',
+            targets: [],
+            expected_outcomes: getIndustryExpectedEffectsSummary(normalized),
+            ally_contingencies: serializeProposalDetails({
+                originators: ['US Industry'],
+                objective: normalized.decision.intendedEffect,
+                intendedPartners: formatProposalRecipientTeams(normalized.recipientTeams, ''),
+                recipientTeams: normalized.recipientTeams,
+                focusSectors: [config?.label].filter(Boolean),
+                industryFocus: config?.label || '',
+                proposedActivity: normalized.decision.implementation,
+                timingAndConditions: normalized.positionChangeTrigger,
+                industryTurnSheet: normalized,
+                scribeHandoff
+            })
+        };
+    }
+
+    async persistIndustryProposal(modal, form, {
+        actionId = null,
+        isEdit = false,
+        forward = false
+    } = {}) {
+        if (!this.requireWriteAccess() || form.dataset.saving === 'true') return;
+        const setup = form.industryProposalSetup || this.getIndustryProposalSetup(form.proposalSnapshot);
+        let sheet = collectIndustryTurnSheetFormData(form, form.industryTurnSheetSeed || {}, {
+            contexts: setup.contexts,
+            engagements: setup.engagements,
+            move: setup.move,
+            strategicPlanId: setup.strategicPlanAction?.id,
+            canEditFacilitatorNote: form.canEditFacilitatorNote
+        });
+        const context = setup.contexts[sheet.industry];
+        if (!isEdit && context && !context.canCreateProposal) {
+            showToast({ message: 'White Cell must complete Proposal 1 before another proposal can be created for this industry.', type: 'warning' });
+            return;
+        }
+        const errors = validateIndustryTurnSheet(sheet, { full: forward });
+        if (errors.length) {
+            form.showIndustryProposalErrors?.(errors);
+            return;
+        }
+        const sessionId = sessionStore.getSessionId();
+        if (!sessionId) {
+            showToast({ message: 'No session found', type: 'error' });
+            return;
+        }
+        const proposalId = actionId || sheet.proposalId || globalThis.crypto.randomUUID();
+        sheet = normalizeIndustryTurnSheet({
+            ...sheet,
+            proposalId,
+            sessionId,
+            environmentBaselineProposalId: sheet.isFirstProposalForIndustryMove ? proposalId : sheet.environmentBaselineProposalId,
+            supplyChainBaselineProposalId: sheet.isFirstProposalForIndustryMove ? proposalId : sheet.supplyChainBaselineProposalId
+        });
+        const existing = actionId ? (actionsStore.getById(actionId) || form.proposalSnapshot) : null;
+        const existingHandoff = getProposalViewModel(existing || {}).scribeHandoff;
+        const handoff = forward || existingHandoff === PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            ? PROPOSAL_SCRIBE_HANDOFF.FORWARDED
+            : PROPOSAL_SCRIBE_HANDOFF.DRAFT;
+        const payload = this.buildIndustryProposalPayload(sheet, { scribeHandoff: handoff });
+        const buttons = [...form.querySelectorAll('[data-ts-nav]')];
+        buttons.forEach((button) => { button.disabled = true; });
+        form.dataset.saving = 'true';
+        const loader = showLoader({ message: forward ? 'Forwarding Industry proposal...' : 'Saving Industry proposal draft...' });
+        try {
+            let saved;
+            if (isEdit && actionId) {
+                saved = await database.updateDraftAction(actionId, payload);
+                actionsStore.updateFromServer('UPDATE', saved);
+            } else {
+                const gameState = this.getCurrentGameState();
+                saved = await database.createAction({
+                    id: proposalId,
+                    ...payload,
+                    session_id: sessionId,
+                    client_id: sessionStore.getClientId(),
+                    team: 'industry',
+                    status: ENUMS.ACTION_STATUS.DRAFT,
+                    move: setup.move,
+                    phase: gameState.phase ?? 1
+                });
+                actionsStore.updateFromServer('INSERT', saved);
+            }
+            const event = await database.createTimelineEvent({
+                session_id: sessionId,
+                type: forward ? 'PROPOSAL_FORWARDED_TO_SCRIBE' : 'ACTION_CREATED',
+                content: forward ? `Industry proposal forwarded to Facilitator: ${saved.goal}` : `Industry proposal draft saved: ${saved.goal}`,
+                metadata: {
+                    related_id: saved.id,
+                    role: this.role || this.getCurrentLeadRole(),
+                    proposal: true,
+                    industry_proposal: true,
+                    recipient_team: sheet.recipientTeams[0] || null,
+                    recipient_teams: sheet.recipientTeams,
+                    visibility: sheet.decision.visibility,
+                    next_step: forward ? 'facilitator_submit_to_white_cell' : 'continue_authoring'
+                },
+                team: 'industry',
+                move: saved.move ?? setup.move,
+                phase: saved.phase ?? gameStateStore.getCurrentPhase?.() ?? 1
+            });
+            timelineStore.updateFromServer('INSERT', event);
+            showToast({ message: forward ? 'Proposal forwarded to Facilitator' : 'Proposal draft saved', type: 'success' });
+            modal?.close();
+        } catch (error) {
+            logger.error('Failed to persist Industry proposal:', error);
+            showToast({ message: getUserMessage(error, { fallback: 'The Industry proposal could not be saved. Refresh and try again.' }), type: 'error' });
+        } finally {
+            hideLoader(loader);
+            form.dataset.saving = 'false';
+            buttons.forEach((button) => { button.disabled = false; });
+        }
     }
 
     getGreenProposalData(form) {

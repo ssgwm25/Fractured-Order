@@ -88,16 +88,20 @@ playthrough. It covers:
   from an earlier proposal or an asynchronous workspace switch is not
   completion evidence
 - distinct proposal entry contracts: Green requires Proposal Title, Originator,
-  and Objective, while Industry requires Proposal Title, Industry of Focus,
-  Country of Focus, and Proposed Activity
-- both proposal forms require one or both Intended Partners, one or more Focus
-  Sectors, a Yes/No supply-chain-focus decision, conditional Supply Chain Areas
-  only when Yes is selected, Timing & Conditions, and Expected Outcome(s) &
-  Duration Assessment; neither form uses Proposal Category, Delivery, Action
-  Angle, or an Industry Instrument of Power control
-- proposal persistence and review preserve every selected partner and sector,
-  the supply-chain decision and conditional areas, the distinct Industry
-  fields, and revision identity/history across return, edit, and resubmission
+  Objective, one or both Intended Partners, one or more Focus Sectors, a Yes/No
+  supply-chain-focus decision, conditional Supply Chain Areas only when Yes is
+  selected, Timing & Conditions, and Expected Outcome(s) & Duration Assessment
+- Industry proposal entry remains unavailable until White Cell completes the
+  version 2 Industry Strategic Plan; the three-page proposal then requires one
+  Industry sector and Intended recipients of Blue, Red, or both, followed by
+  Environment & Supply Chain, Decision & Expected Effects, and Engagement,
+  Risks & Outlook
+- Industry proposal persistence and review preserve the same proposal ID and
+  current revision across return, edit, and resubmission, together with the
+  selected recipients, sector, environment, supply-chain baseline, decision,
+  expected effects, engagements, risks, spillovers, forecasts, and visibility
+- neither current proposal form uses Proposal Category or Delivery; those
+  labels remain historical parser and export compatibility only
 - the originating Scribe creates each proposal and hands it to the actual
   Facilitator, who submits it to White Cell
 - historical export/parser fixtures remain compatibility-only: `Category`,

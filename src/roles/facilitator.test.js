@@ -687,6 +687,7 @@ describe('legacy facilitator route and corrected Scribe access', () => {
     it('builds the Industry plan inside the existing Strategic Orientation artifact', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const { parseStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        const { normalizeIndustryStrategicPlan } = await import('../features/actions/industryStrategicPlan.js');
         const controller = new FacilitatorController();
         controller.teamId = 'industry';
         controller.teamLabel = 'Industry Team';
@@ -708,8 +709,10 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             team: 'industry',
             ownOrientation: null,
             industryStrategicPlanVersion: 2,
-            industryStrategicPlan: data.industryStrategicPlan
+            industryStrategicPlan: normalizeIndustryStrategicPlan(data.industryStrategicPlan)
         });
+        expect(details.industryStrategicPlan.sectorPlans.Agriculture.risks[0].id)
+            .toBe('agriculture-baseline-risk-1');
         expect(details.forecastTargets).toEqual(expect.arrayContaining([
             expect.objectContaining({ key: 'blue', orientation: 'stabilization' })
         ]));
@@ -1434,19 +1437,29 @@ describe('legacy facilitator route and corrected Scribe access', () => {
 
         expect(content.innerHTML).toContain('id="industryProposalForm"');
         expect(content.innerHTML).not.toContain('id="greenProposalForm"');
-        expect(content.innerHTML).toContain('id="proposalIndustryFocus"');
-        expect(content.innerHTML).toContain('Industry of Focus *');
-        expect(content.innerHTML).toContain('id="proposalCountryFocus"');
-        expect(content.innerHTML).toContain('Country of Focus *');
-        expect(content.innerHTML).toContain('id="proposalProposedActivity"');
-        expect(content.innerHTML).toContain('Proposed Activity *');
-        expect(content.innerHTML).not.toContain('id="proposalObjective"');
-        expect(content.innerHTML).not.toContain('data-proposal-originator="true"');
-        expect(content.innerHTML).not.toContain('Proposal Category');
-        expect(content.innerHTML).not.toContain('id="proposalCategory"');
-        expect(content.innerHTML).not.toContain('id="proposalDelivery"');
-        expect(content.innerHTML).not.toContain('data-proposal-action-angle="true"');
-        expect(content.innerHTML).toContain('data-proposal-supply-chain-area="true"');
+        expect(content.innerHTML).toContain('Industry Proposal');
+        expect(content.innerHTML).toContain('Environment &amp; Supply Chain');
+        expect(content.innerHTML).toContain('Decision &amp; Expected Effects');
+        expect(content.innerHTML).toContain('Engagement, Risks &amp; Outlook');
+        expect(content.innerHTML).toContain('Intended recipients');
+        expect(content.innerHTML).toContain('name="ts-recipients" value="blue"');
+        expect(content.innerHTML).toContain('name="ts-recipients" value="red"');
+        expect(content.innerHTML).toContain('Forward to Facilitator');
+        expect(content.innerHTML).toContain('data-ts-nav="forward">Forward to Facilitator');
+        expect(content.innerHTML).not.toContain('Turn Sheet');
+    });
+
+    it('shows the Facilitator note only on the actual Facilitator surface', async () => {
+        global.document = createFakeDocument();
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+
+        controller.role = controller.teamContext.facilitatorRole;
+        expect(controller.createIndustryProposalContent().innerHTML).not.toContain('Facilitator note');
+
+        controller.role = controller.teamContext.scribeRole;
+        expect(controller.createIndustryProposalContent().innerHTML).toContain('Facilitator note');
     });
 
     it('GC06 renders only the approved regional originators and retains all required fields', async () => {
@@ -3154,6 +3167,37 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(industryHtml).toContain('Stand up a shared fabrication facility.');
         expect(structuredValueHtml).not.toContain('Proposed Activity');
         expect(structuredValueHtml).not.toContain('[object Object]');
+    });
+
+    it('renders a recipient-safe structured Industry proposal without recipient routing or Facilitator notes', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { createBlankIndustryTurnSheet } = await import('../features/actions/industryTurnSheet.js');
+        const controller = new FacilitatorController();
+        const industryProposal = {
+            ...createBlankIndustryTurnSheet({ move: 1 }),
+            industry: 'agriculture',
+            recipientTeams: [],
+            facilitatorNote: '',
+            environment: {
+                ...createBlankIndustryTurnSheet().environment,
+                biggestSurprise: 'A sudden input restriction.'
+            }
+        };
+
+        const html = controller.renderReceivedProposalCard({
+            id: 'industry-structured-recipient',
+            type: 'PROPOSAL_FORWARDED',
+            created_at: '2026-10-06T12:00:00.000Z',
+            metadata: {
+                source_team: 'industry',
+                proposal: { title: 'Agriculture Proposal', industryProposal }
+            }
+        });
+
+        expect(html).toContain('Environment read: Biggest surprise');
+        expect(html).toContain('A sudden input restriction.');
+        expect(html).not.toContain('Intended recipients');
+        expect(html).not.toContain('Facilitator note');
     });
 
     it('renders White Cell response categories as tabs for single-category scanning', async () => {

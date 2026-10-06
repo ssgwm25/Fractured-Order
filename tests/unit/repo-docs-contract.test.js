@@ -302,12 +302,15 @@ describe('repository operator docs contract', () => {
 
         expect(runbook).toContain('current Green new-entry form fields:');
         expect(runbook).toContain('Proposal Title, at least one Originator, Objective, Intended Partners, Focus Sectors');
-        expect(runbook).toContain('current Industry new-entry form fields:');
-        expect(runbook).toContain('Proposal Title, Industry of Focus, Country of Focus, and Proposed Activity');
+        expect(runbook).toContain('current Industry new-entry flow:');
+        expect(runbook).toContain('White Cell complete the version 2 Industry Strategic Plan');
+        expect(runbook).toContain('three-page Industry Proposal for Agriculture, Biotechnology, or Telecommunications');
+        expect(runbook).toContain('required **Intended recipients** choice of Blue, Red, or both');
+        expect(runbook).toContain('Environment & Supply Chain, Decision & Expected Effects, and Engagement, Risks & Outlook');
         expect(combined).toContain('conditional Supply Chain Areas');
         expect(combined).toContain('Timing & Conditions');
         expect(combined).toContain('Expected Outcome(s) & Duration Assessment');
-        expect(combined).toContain('revision identity/history across return, edit, and resubmission');
+        expect(combined).toContain('same proposal ID and current revision');
 
         [
             /Green proposal creation through the Category selector/i,

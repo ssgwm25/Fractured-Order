@@ -113,6 +113,17 @@ Apply the authoritative ledger in this exact order:
 62. `data/2026-10-03_sme_instant_action_delivery.sql`
 63. `data/2026-10-04_sme_pli_regional_read.sql`
 64. `data/2026-10-05_green_proposal_activity_projection.sql`
+65. `data/2026-10-06_industry_proposals.sql`
+
+The October 6 Industry proposal migration validates the completed Industry
+Strategic Plan reference and required Blue/Red recipients, assigns proposal
+numbers and baseline references under an advisory transaction lock, prevents a
+second sector proposal until Proposal 1 is completed, and blocks move advance
+until all three Industry sectors have a completed proposal. Its restrictive
+policies apply proposal visibility to the action and related review, audit,
+timeline, and communication rows. See
+[Industry proposals](architecture/industry-proposals.md) for the workflow and
+rehearsal checks. No historical action is rewritten.
 
 The October 5 proposal projection repair recreates
 `prepare_proposal_communication()` so Green recipient snapshots use `objective`

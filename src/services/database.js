@@ -1459,6 +1459,7 @@ export const database = {
         const { data, error } = await supabase
             .from('actions')
             .insert({
+                ...(resolvedActionData.id ? { id: resolvedActionData.id } : {}),
                 session_id: resolvedActionData.session_id,
                 client_id: resolvedActionData.client_id,
                 move: resolvedActionData.move,

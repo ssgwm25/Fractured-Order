@@ -7,8 +7,46 @@ import {
     parseProposalDetails,
     serializeProposalDetails
 } from './proposalDetails.js';
+import { createBlankIndustryTurnSheet } from './industryTurnSheet.js';
 
 describe('proposalDetails scribe handoff', () => {
+    it('round-trips the structured Industry proposal and its intended recipients', () => {
+        const industryTurnSheet = {
+            ...createBlankIndustryTurnSheet({ move: 2, strategicPlanId: 'plan-1' }),
+            proposalId: 'proposal-1',
+            sessionId: 'session-1',
+            industry: 'agriculture',
+            proposalOrdinalForIndustryMove: 1,
+            isFirstProposalForIndustryMove: true,
+            recipientTeams: ['blue', 'red']
+        };
+        const serialized = serializeProposalDetails({
+            recipientTeams: ['blue', 'red'],
+            industryTurnSheet
+        });
+        const parsed = parseProposalDetails(serialized);
+        const viewModel = getProposalViewModel({
+            id: 'proposal-1',
+            session_id: 'session-1',
+            team: 'industry',
+            move: 2,
+            ally_contingencies: serialized
+        });
+
+        expect(serialized).toContain('Industry Proposal:');
+        expect(serialized).not.toContain('Industry Turn Sheet:');
+        expect(parsed.industryTurnSheet.recipientTeams).toEqual(['blue', 'red']);
+        expect(viewModel).toMatchObject({
+            hasIndustryTurnSheet: true,
+            recipientTeams: ['blue', 'red'],
+            industryTurnSheet: { industry: 'agriculture', recipientTeams: ['blue', 'red'] }
+        });
+        expect(viewModel.artifactDetails).toContainEqual({
+            label: 'Decision: Intended recipients',
+            value: 'Blue, Red'
+        });
+    });
+
     it('uses persisted regional approvals and ignores narrative approval claims', () => {
         const action = { delegation_id:'europe', revision_number:2, ally_contingencies:serializeProposalDetails({
             recipientTeams:['blue','red'], recipientApprovalStates:{blue:'approved_forwarded',red:'approved_forwarded'}

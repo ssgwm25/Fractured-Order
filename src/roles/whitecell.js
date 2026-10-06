@@ -53,6 +53,10 @@ import {
     isProposalAction
 } from '../features/actions/proposalDetails.js';
 import {
+    buildIndustryTurnSheetDisplayModel,
+    getIndustryMoveCoverage
+} from '../features/actions/industryTurnSheet.js';
+import {
     PROPOSAL_RECIPIENT_STATUSES,
     PROPOSAL_THREAD_MESSAGE_TYPES,
     getLatestProposalThreadMessage,
@@ -2794,6 +2798,16 @@ export class WhiteCellController {
             return;
         }
 
+        const industryCoverage = getIndustryMoveCoverage(actionsStore.getAll(), currentMove);
+        if (!industryCoverage.complete) {
+            const missingIndustries = industryCoverage.missing.map(({ label }) => label).join(', ');
+            showToast({
+                message: `Complete at least one Industry proposal for ${missingIndustries} before advancing the move.`,
+                type: 'warning'
+            });
+            return;
+        }
+
         const confirmed = await confirmModal({
             title: 'Advance Move',
             message: `Advance from Move ${currentMove} to Move ${currentMove + 1}? This resets the phase to 1.`,
@@ -3186,6 +3200,21 @@ export class WhiteCellController {
 
     renderProposalDetails(action = {}) {
         const proposalViewModel = getProposalViewModel(action);
+        if (proposalViewModel.hasIndustryTurnSheet) {
+            const display = buildIndustryTurnSheetDisplayModel(proposalViewModel.industryTurnSheet);
+            return `
+                <section class="industry-proposal-summary" aria-label="Industry proposal details" style="margin-top: var(--space-3);">
+                    <div class="card card-bordered" style="padding: var(--space-3); margin-bottom: var(--space-3);">
+                        <p class="text-xs text-gray-500" style="margin: 0 0 var(--space-1);">${this.escapeHtml(display.eyebrow)}</p>
+                        <h3 class="font-semibold" style="margin: 0;">${this.escapeHtml(display.title)}</h3>
+                        <p class="text-sm" style="margin: var(--space-2) 0 0;"><strong>Visibility:</strong> ${this.escapeHtml(display.visibility)}</p>
+                    </div>
+                    <div class="section-grid section-grid-2" style="gap: var(--space-3);">
+                        ${display.sections.map((section) => this.renderSummaryCard(section.title, section.rows.map(([label, value]) => ({ label, value })))).join('')}
+                    </div>
+                </section>
+            `;
+        }
         const routingLabels = new Set([
             'Originators',
             'Intended Partners',

@@ -9,6 +9,10 @@
  */
 
 import { GREEN_DELEGATIONS } from '../../core/teamContext.js';
+import {
+    buildIndustryTurnSheetDisplayModel,
+    normalizeIndustryTurnSheet
+} from './industryTurnSheet.js';
 
 export const PROPOSAL_DETAILS_PREFIX = 'Proposal Details';
 export const PROPOSAL_ACTION_MECHANISM = 'Proposal';
@@ -144,6 +148,18 @@ function parseRevisionMetadata(value = '') {
     }
 }
 
+function parseIndustryTurnSheet(value = '') {
+    if (!normalizeString(value)) return null;
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object'
+            ? normalizeIndustryTurnSheet(parsed)
+            : null;
+    } catch (_error) {
+        return null;
+    }
+}
+
 function mergeRevisionMetadata(action = {}, embedded = {}) {
     return normalizeRevisionMetadata({
         revisionNumber: action.revision_number ?? embedded.revisionNumber,
@@ -188,6 +204,13 @@ export function formatProposalRecipientTeams(values = [], fallback = 'Not specif
 }
 
 function buildProposalArtifactDetails(viewModel = {}) {
+    if (viewModel.hasIndustryTurnSheet) {
+        return buildIndustryTurnSheetDisplayModel(viewModel.industryTurnSheet).sections
+            .flatMap((section) => section.rows.map(([label, value]) => ({
+                label: `${section.title}: ${label}`,
+                value
+            })));
+    }
     const revision = viewModel.revisionMetadata || {};
     const isIndustryProposal = viewModel.team === 'industry';
     const instrumentOfPower = formatDetailSelection(
@@ -264,6 +287,9 @@ export function serializeProposalDetails(details = {}) {
     );
     const scribeHandoff = normalizeScribeHandoff(details.scribeHandoff)
         || PROPOSAL_SCRIBE_HANDOFF.DRAFT;
+    const industryTurnSheet = details.industryTurnSheet
+        ? normalizeIndustryTurnSheet(details.industryTurnSheet)
+        : null;
     return [
         PROPOSAL_DETAILS_PREFIX,
         `Originators: ${serializeStringList(originators)}`,
@@ -283,6 +309,7 @@ export function serializeProposalDetails(details = {}) {
         `Country Focus: ${normalizeString(details.countryFocus)}`,
         `Proposed Activity: ${normalizeString(details.proposedActivity)}`,
         `Revision Metadata: ${JSON.stringify(revisionMetadata)}`,
+        ...(industryTurnSheet ? [`Industry Proposal: ${JSON.stringify(industryTurnSheet)}`] : []),
         `Scribe Handoff: ${scribeHandoff}`
     ].join('\n');
 }
@@ -322,6 +349,9 @@ export function parseProposalDetails(value = '') {
             || (parsedSupplyChainActionAngles.length || parsedSupplyChainAreas.length ? 'Yes' : '');
         const supplyChainActionAngles = supplyChainFocusDecision === 'No' ? [] : parsedSupplyChainActionAngles;
         const supplyChainAreas = supplyChainFocusDecision === 'No' ? [] : parsedSupplyChainAreas;
+        const industryTurnSheet = parseIndustryTurnSheet(
+            parsed['Industry Proposal'] || parsed['Industry Turn Sheet']
+        );
 
         return {
             originators,
@@ -346,6 +376,7 @@ export function parseProposalDetails(value = '') {
             countryFocus: normalizeString(parsed['Country Focus']),
             proposedActivity: normalizeString(parsed['Proposed Activity']),
             revisionMetadata: parseRevisionMetadata(parsed['Revision Metadata']),
+            ...(industryTurnSheet ? { industryTurnSheet } : {}),
             scribeHandoff: normalizeScribeHandoff(parsed['Scribe Handoff'])
         };
     } catch (_error) {
@@ -360,7 +391,7 @@ export function isProposalAction(action = {}) {
 
 export function getProposalViewModel(action = {}) {
     const details = parseProposalDetails(action.ally_contingencies);
-    const recipientTeams = details?.recipientTeams?.length
+    const envelopeRecipientTeams = details?.recipientTeams?.length
         ? details.recipientTeams
         : normalizeStringList(details?.recipientTeam ? [details.recipientTeam] : []);
     const focusSectors = details?.focusSectors?.length
@@ -369,6 +400,20 @@ export function getProposalViewModel(action = {}) {
             ? [details.focusSector]
             : (action.sector ? [action.sector] : []));
     const revisionMetadata = mergeRevisionMetadata(action, details?.revisionMetadata);
+    const embeddedIndustryTurnSheet = action?.artifact_payload?.proposal?.industryTurnSheet
+        || action?.artifact_payload?.proposal?.industry_turn_sheet
+        || details?.industryTurnSheet
+        || null;
+    const industryTurnSheet = embeddedIndustryTurnSheet
+        ? normalizeIndustryTurnSheet(embeddedIndustryTurnSheet, {
+            proposalId: action.id,
+            sessionId: action.session_id,
+            move: action.move
+        })
+        : null;
+    const recipientTeams = industryTurnSheet?.recipientTeams?.length
+        ? industryTurnSheet.recipientTeams
+        : envelopeRecipientTeams;
     const persistedRecipientReviews = action?.artifact_payload?.proposal_recipient_reviews
         && typeof action.artifact_payload.proposal_recipient_reviews === 'object'
         ? action.artifact_payload.proposal_recipient_reviews
@@ -382,6 +427,8 @@ export function getProposalViewModel(action = {}) {
 
     const viewModel = {
         hasProposalDetails: Boolean(details),
+        hasIndustryTurnSheet: Boolean(industryTurnSheet),
+        industryTurnSheet,
         team: normalizeString(action.team).toLowerCase(),
         delegationLabel: GREEN_DELEGATIONS[action.delegation_id] || '',
         title: action.goal || action.title || 'Untitled proposal',

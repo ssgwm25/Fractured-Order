@@ -10,6 +10,7 @@ import {
     parseStrategicOrientationDetails,
     serializeStrategicOrientationDetails
 } from './strategicOrientationDetails.js';
+import { normalizeIndustryStrategicPlan } from './industryStrategicPlan.js';
 
 const INDUSTRY_SECTOR_PLAN = {
     businessOverview: 'Builds critical communications infrastructure.',
@@ -218,7 +219,11 @@ describe('strategic orientation details helpers', () => {
         expect(serialized).toContain('Contract Version: 2');
         expect(serialized).toContain('Own Orientation: None selected');
         expect(serialized).toContain('Industry Strategic Plan Version: 2');
-        expect(parsed.industryStrategicPlan).toEqual(INDUSTRY_PLAN);
+        expect(parsed.industryStrategicPlan).toEqual(normalizeIndustryStrategicPlan(INDUSTRY_PLAN));
+        expect(parsed.industryStrategicPlan.sectorPlans.Agriculture.risks[0].id)
+            .toBe('agriculture-baseline-risk-1');
+        expect(parsed.industryStrategicPlan.sectorPlans.Biotechnology.strategicPriorities[2].id)
+            .toBe('biotechnology-priority-3');
         expect(parsed.forecastTargets).toEqual(expect.arrayContaining([
             expect.objectContaining({ key: 'blue', orientation: 'stabilization' })
         ]));

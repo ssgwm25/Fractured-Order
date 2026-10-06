@@ -532,3 +532,150 @@ select.move-selector {
     color: var(--color-text);
     line-height: var(--leading-snug);
 }
+
+/* Industry proposal authoring */
+.industry-turn-sheet {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.industry-turn-sheet-header,
+.industry-turn-sheet-actions,
+.industry-turn-sheet-tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.industry-turn-sheet-header {
+    justify-content: space-between;
+}
+
+.industry-turn-sheet-kicker,
+.industry-turn-sheet-progress {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+}
+
+.industry-turn-sheet-tabs {
+    padding-block: var(--space-2);
+    border-block: 1px solid var(--color-border);
+}
+
+.industry-turn-sheet-tabs [aria-current="step"] {
+    background: var(--color-surface-alt);
+    color: var(--color-navy);
+}
+
+.industry-turn-sheet-grid,
+.industry-turn-sheet-check-grid,
+.industry-turn-sheet-radio-grid,
+.industry-turn-sheet-review-grid {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.industry-turn-sheet-grid--two,
+.industry-turn-sheet-review-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.industry-turn-sheet-grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.industry-turn-sheet-grid--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.industry-turn-sheet-check-grid,
+.industry-turn-sheet-radio-grid {
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.industry-turn-sheet-card,
+.industry-turn-sheet-plan-context,
+.industry-turn-sheet-context-banner,
+.industry-turn-sheet-baseline-reference {
+    min-width: 0;
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.industry-turn-sheet-card > legend {
+    padding-inline: var(--space-1);
+    font-weight: var(--font-semibold);
+}
+
+.industry-turn-sheet-errors {
+    padding: var(--space-3);
+    border: 1px solid var(--color-error);
+    border-radius: var(--radius-md);
+    color: var(--color-error);
+    background: var(--color-surface);
+}
+
+.industry-turn-sheet-errors:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
+.industry-turn-sheet-readonly {
+    min-height: 2.75rem;
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-alt);
+}
+
+.industry-turn-sheet-context-list,
+.industry-turn-sheet-review-grid dl {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+}
+
+.industry-turn-sheet-context-list dd,
+.industry-turn-sheet-review-grid dd {
+    margin: var(--space-1) 0 0;
+}
+
+.industry-turn-sheet-actions {
+    position: sticky;
+    bottom: 0;
+    justify-content: flex-end;
+    padding-block: var(--space-3);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 800px) {
+    .industry-turn-sheet-grid--two,
+    .industry-turn-sheet-grid--three,
+    .industry-turn-sheet-grid--four,
+    .industry-turn-sheet-review-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .industry-turn-sheet-actions .btn {
+        flex: 1 1 10rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .industry-turn-sheet *,
+    .industry-turn-sheet *::before,
+    .industry-turn-sheet *::after {
+        scroll-behavior: auto;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}

@@ -48,26 +48,31 @@ function normalizeSector(value) {
     return SECTOR_ALIASES[text.toLowerCase()] || text;
 }
 
-function blankRisk() {
-    return { type: '', otherText: '', likelihood: '', impact: '', tiedCell: '' };
+function stableSectorId(sector, kind, index) {
+    const sectorSlug = normalizeSector(sector || 'industry').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return `${sectorSlug}-${kind}-${index + 1}`;
+}
+
+function blankRisk(sector = '', index = 0) {
+    return { id: stableSectorId(sector, 'baseline-risk', index), type: '', otherText: '', likelihood: '', impact: '', tiedCell: '' };
 }
 
 function blankPartner() {
     return { partner: '', whyTheyMatter: '', likelyWant: '' };
 }
 
-function blankPriority() {
-    return { priority: '', successLooksLike: '' };
+function blankPriority(sector = '', index = 0) {
+    return { id: stableSectorId(sector, 'priority', index), priority: '', successLooksLike: '' };
 }
 
-export function createBlankIndustrySectorPlan() {
+export function createBlankIndustrySectorPlan(sector = '') {
     return {
         businessOverview: '',
-        risks: [blankRisk(), blankRisk(), blankRisk()],
+        risks: [0, 1, 2].map((index) => blankRisk(sector, index)),
         redPriorities: '',
         partners: [blankPartner(), blankPartner(), blankPartner()],
         firstAmbassadorTarget: { cell: '', reason: '' },
-        strategicPriorities: [blankPriority(), blankPriority(), blankPriority()],
+        strategicPriorities: [0, 1, 2].map((index) => blankPriority(sector, index)),
         strategicStance: null,
         redLine: ''
     };
@@ -78,14 +83,14 @@ export function createBlankIndustryStrategicPlan() {
         version: INDUSTRY_STRATEGIC_PLAN_VERSION,
         sectorPlans: Object.fromEntries(INDUSTRY_SECTORS.map(({ value }) => [
             value,
-            createBlankIndustrySectorPlan()
+            createBlankIndustrySectorPlan(value)
         ]))
     };
 }
 
-function normalizeSectorPlan(input = {}) {
+function normalizeSectorPlan(input = {}, sector = '') {
     const source = input && typeof input === 'object' ? input : {};
-    const blank = createBlankIndustrySectorPlan();
+    const blank = createBlankIndustrySectorPlan(sector);
     const inputRisks = Array.isArray(source.risks) ? source.risks : blank.risks;
     const inputPartners = Array.isArray(source.partners) ? source.partners : [];
     const inputPriorities = Array.isArray(source.strategicPriorities)
@@ -97,9 +102,10 @@ function normalizeSectorPlan(input = {}) {
 
     return {
         businessOverview: normalizeText(source.businessOverview),
-        risks: inputRisks.map((risk = {}) => {
+        risks: inputRisks.map((risk = {}, index) => {
             const type = normalizeText(risk.type);
             return {
+                id: normalizeText(risk.id) || stableSectorId(sector, 'baseline-risk', index),
                 type,
                 otherText: type === 'other' ? normalizeText(risk.otherText) : '',
                 likelihood: normalizeText(risk.likelihood),
@@ -117,7 +123,8 @@ function normalizeSectorPlan(input = {}) {
             cell: normalizeText(source.firstAmbassadorTarget?.cell),
             reason: normalizeText(source.firstAmbassadorTarget?.reason)
         },
-        strategicPriorities: inputPriorities.map((priority = {}) => ({
+        strategicPriorities: inputPriorities.map((priority = {}, index) => ({
+            id: normalizeText(priority.id) || stableSectorId(sector, 'priority', index),
             priority: normalizeText(priority.priority),
             successLooksLike: normalizeText(priority.successLooksLike)
         })),
@@ -131,7 +138,7 @@ function normalizeLegacyIndustryStrategicPlan(input = {}) {
     return {
         version: INDUSTRY_STRATEGIC_PLAN_LEGACY_VERSION,
         sector: normalizeSector(source.sector),
-        ...normalizeSectorPlan(source)
+        ...normalizeSectorPlan(source, normalizeSector(source.sector))
     };
 }
 
@@ -154,13 +161,13 @@ export function normalizeIndustryStrategicPlan(input = {}) {
         version: INDUSTRY_STRATEGIC_PLAN_VERSION,
         sectorPlans: Object.fromEntries(INDUSTRY_SECTORS.map(({ value }) => [
             value,
-            normalizeSectorPlan(sourcePlans[value])
+            normalizeSectorPlan(sourcePlans[value], value)
         ]))
     };
 }
 
 function validateSectorPlan(input, { prefix = '', sectorRequired = false, sector = '' } = {}) {
-    const plan = normalizeSectorPlan(input);
+    const plan = normalizeSectorPlan(input, sector);
     const errors = [];
     const path = (field) => prefix ? `${prefix}.${field}` : field;
     const riskTypes = new Set(INDUSTRY_RISK_TYPES.map(({ value }) => value));
@@ -234,18 +241,18 @@ export function validateIndustryStrategicPlan(input = {}) {
         : [{ field: `sectorPlans.${value}`, message: `${value} plan is required.` }]);
 }
 
-function hasSectorPlanContent(input = {}) {
-    const plan = normalizeSectorPlan(input);
+function hasSectorPlanContent(input = {}, sector = '') {
+    const plan = normalizeSectorPlan(input, sector);
     return Boolean(plan.businessOverview
-        || plan.risks.some((risk) => Object.values(risk).some(Boolean))
+        || plan.risks.some(({ id: _id, ...risk }) => Object.values(risk).some(Boolean))
         || plan.redPriorities || plan.partners.length
         || plan.firstAmbassadorTarget.cell || plan.firstAmbassadorTarget.reason
-        || plan.strategicPriorities.some((priority) => Object.values(priority).some(Boolean))
+        || plan.strategicPriorities.some(({ id: _id, ...priority }) => Object.values(priority).some(Boolean))
         || plan.strategicStance || plan.redLine);
 }
 
 export function getIndustrySectorPlanStatus(input = {}, sector = '') {
-    if (!hasSectorPlanContent(input)) return 'not_started';
+    if (!hasSectorPlanContent(input, sector)) return 'not_started';
     return validateIndustrySectorPlan(input, sector).length ? 'incomplete' : 'complete';
 }
 
@@ -254,7 +261,7 @@ function labelFor(options, value) {
 }
 
 function getSectorDisplayModel(input, sector) {
-    const plan = normalizeSectorPlan(input);
+    const plan = normalizeSectorPlan(input, sector);
     return {
         sector,
         businessOverview: plan.businessOverview || 'Not specified',
