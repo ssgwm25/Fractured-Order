@@ -10,7 +10,44 @@ import {
     resolveGameStateTimerMark,
     secondsToWholeMinutes
 } from './timerAllocations.js';
+import { INDUSTRY_SECTORS } from '../features/actions/industryStrategicPlan.js';
 import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
+
+function buildCompleteIndustryStrategicPlan() {
+    const sectorPlan = {
+        businessOverview: 'Builds critical capacity and protects resilient supply.',
+        risks: [
+            { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+            { type: 'secondary_sanctions_exposure', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+            { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+        ],
+        redPriorities: 'Preserve market access and acquire strategic technology.',
+        partners: [{
+            partner: 'Kenya',
+            whyTheyMatter: 'Regional capacity and market access.',
+            likelyWant: 'Long-term investment and technology access.'
+        }],
+        firstAmbassadorTarget: {
+            cell: 'blue',
+            reason: 'Coordinate resilient supply before escalation.'
+        },
+        strategicPriorities: [
+            { priority: 'Protect supply', successLooksLike: 'Critical inputs remain available.' },
+            { priority: 'Preserve access', successLooksLike: 'Priority markets remain open.' },
+            { priority: 'Build capacity', successLooksLike: 'A funded partner program launches.' }
+        ],
+        strategicStance: 3,
+        redLine: 'Do not transfer protected technology.'
+    };
+
+    return {
+        version: 2,
+        sectorPlans: Object.fromEntries(INDUSTRY_SECTORS.map(({ value }) => [
+            value,
+            structuredClone(sectorPlan)
+        ]))
+    };
+}
 
 function buildStrategicOrientationAction(team, {
     status = 'submitted',
@@ -22,9 +59,13 @@ function buildStrategicOrientationAction(team, {
         status,
         mechanism: 'Strategic Orientation',
         ally_contingencies: serializeStrategicOrientationDetails({
-            artifactType,
             team,
-            orientation: 'pressure'
+            ...(team === 'industry'
+                ? {
+                    forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
+                    industryStrategicPlan: buildCompleteIndustryStrategicPlan()
+                }
+                : { artifactType, orientation: 'pressure' })
         })
     };
 }
