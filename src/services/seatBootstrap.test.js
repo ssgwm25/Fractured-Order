@@ -56,6 +56,16 @@ describe.each(['/', '/Fractured-Order/'])('GC07 operator-seat startup under %s',
         expect(shell).toEqual({ hidden: false, inert: false });
     });
 
+    it('redirects a direct White Cell deep link with no cached seat to Operator Access', async () => {
+        sessionStore.getSessionId.mockReturnValueOnce(null);
+
+        await expect(ensureSeatStartup()).resolves.toBe(false);
+
+        expect(window.location.href).toBe(`https://example.test${basePath}index.html#operatorAccessSection`);
+        expect(database.restoreSessionSeatContext).not.toHaveBeenCalled();
+        expect(sessionStore.confirmSeat).not.toHaveBeenCalled();
+    });
+
     it('keeps a denied White Cell seat behind the accessible retry gate', async () => {
         database.restoreSessionSeatContext.mockRejectedValue(Object.assign(new Error('GC04_INVALID_SESSION_SEAT'), { code: '42501' }));
         await expect(ensureSeatStartup()).resolves.toBe(false);

@@ -210,6 +210,8 @@ const RESEARCH_EXPORT_COLUMNS = Object.freeze({
         'orientation_rationale',
         'forecast_action_description',
         'strategy_description',
+        'industry_strategic_plan_version',
+        'industry_strategic_plan',
         'full_content',
         'submitted_utc',
         'final_status',
@@ -1687,6 +1689,10 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     forecastActionDescription: strategicDetails?.forecastActionDescription || '',
                     strategyDescription: strategicDetails?.strategyDescription || '',
                     forecastSummary: strategicDetails?.forecastSummary || '',
+                    industryStrategicPlanVersion: strategicDetails?.industryStrategicPlanVersion || null,
+                    industryStrategicPlan: strategicDetails?.industryStrategicPlan || null,
+                    industryStrategicPlanParseStatus: strategicDetails?.industryStrategicPlanParseStatus || 'absent',
+                    hasIndustryStrategicPlan: Boolean(strategicDetails?.industryStrategicPlan),
                     scribeHandoff: strategicDetails?.scribeHandoff || ''
                 };
 
@@ -1722,6 +1728,8 @@ function buildActionContent(bundle = {}, participantRegistry, artifactWorkflowRe
                     orientation_rationale: sessionDetails.orientationRationale || null,
                     forecast_action_description: sessionDetails.forecastActionDescription || null,
                     strategy_description: sessionDetails.strategyDescription || null,
+                    industry_strategic_plan_version: sessionDetails.industryStrategicPlanVersion || null,
+                    industry_strategic_plan: sessionDetails.industryStrategicPlan || null,
                     full_content: {
                         artifact_kind: 'strategic_orientation',
                         goal: action?.goal || null,
@@ -3238,6 +3246,8 @@ function buildScenarioContext(bundle = {}, {
                 orientation_rationale: safeObject(safeObject(orientation.full_content).details).orientationRationale || null,
                 forecast_action_description: safeObject(safeObject(orientation.full_content).details).forecastActionDescription || null,
                 strategy_description: safeObject(safeObject(orientation.full_content).details).strategyDescription || null,
+                industry_strategic_plan_version: safeObject(safeObject(orientation.full_content).details).industryStrategicPlanVersion || null,
+                industry_strategic_plan: safeObject(safeObject(orientation.full_content).details).industryStrategicPlan || null,
                 forecast_targets: safeArray(safeObject(safeObject(orientation.full_content).details).forecastTargets)
             })),
             actions: moveActions.map((action) => ({
@@ -3919,6 +3929,7 @@ function buildPersonaReports(dataset = {}) {
             details.orientationRationale || details.rationale,
             details.strategyDescription,
             details.forecastActionDescription,
+            details.industryStrategicPlan ? JSON.stringify(details.industryStrategicPlan) : '',
             orientation.final_status
         ];
     });
@@ -3989,7 +4000,7 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Session Indicators', html: commonSummaryCards },
-                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Delegation', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Delegation', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Industry Strategic Plan', 'Status'], strategicOrientationRows) },
                     { title: 'Policy Instruments And Targets', html: renderReportTable(['Move', 'Team', 'Delegation', 'Instrument', 'Targets', 'Status', 'Intent'], actionRows) },
                     { title: 'Partner Alignment Proposals', html: renderReportTable(['Move', 'Source', 'Delegation', 'Intended Recipient', 'Workflow', 'Recipient State', 'Rationale'], proposalRows) },
                     { title: 'Evidence Trace', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'Delegation', 'State', 'Evidence'], lineageRows) }
@@ -4005,7 +4016,7 @@ function buildPersonaReports(dataset = {}) {
                 manifest,
                 sections: [
                     { title: 'Executive Indicators', html: commonSummaryCards },
-                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Delegation', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Status'], strategicOrientationRows) },
+                    { title: 'Strategic Orientation Portfolio', html: renderReportTable(['Team', 'Delegation', 'Type', 'Own Orientation', 'Forecasts', 'Orientation Rationale', 'Strategy Description', 'Expected Target Actions', 'Industry Strategic Plan', 'Status'], strategicOrientationRows) },
                     { title: 'Turning Points', html: renderReportTable(['Type', 'Move', 'Team', 'Evidence'], turningRows) },
                     { title: 'Decision Lineage Highlights', html: renderReportTable(['Type', 'Entity ID', 'Move', 'Team', 'Delegation', 'State', 'Evidence'], lineageRows) },
                     { title: 'Network Metrics', html: renderReportTable(['Metric', 'Source Team', 'Target Team', 'Value', 'Unit'], networkRows) },
@@ -4867,6 +4878,7 @@ export function buildResearchReportHtml(dataset, {
     const moveActionRows = allActionRows.filter((action) => !strategicOrientationRows.includes(action));
     const strategicOrientationCards = strategicOrientationRows.map((orientation) => {
         const details = safeObject(safeObject(orientation.full_content).details);
+        const industryPlan = safeObject(details.industryStrategicPlan);
         const forecastRows = safeArray(details.forecastTargets).map((target) => [
             target.label || target.key || '',
             target.orientationLabel || target.orientation || '',
@@ -4910,6 +4922,44 @@ export function buildResearchReportHtml(dataset, {
                     ? {
                         title: 'Forecast Targets',
                         html: renderReportTable(['Target', 'Forecast Orientation', 'Strategic Tag'], forecastRows)
+                    }
+                    : null,
+                details.hasIndustryStrategicPlan
+                    ? {
+                        title: 'Industry Strategic Plan Overview',
+                        html: renderReportMetaGrid([
+                            { label: 'Plan Version', value: details.industryStrategicPlanVersion },
+                            { label: 'Sector', value: industryPlan.sector },
+                            { label: 'Business Overview', value: industryPlan.businessOverview },
+                            { label: 'Expected Red Priorities', value: industryPlan.redPriorities },
+                            { label: 'First Ambassador Target', value: industryPlan.firstAmbassadorTarget },
+                            { label: 'Strategic Stance', value: industryPlan.strategicStance },
+                            { label: 'Red Line', value: industryPlan.redLine }
+                        ])
+                    }
+                    : null,
+                details.hasIndustryStrategicPlan && safeArray(industryPlan.risks).length
+                    ? {
+                        title: 'Top Three Risks',
+                        html: renderReportTable(['Risk', 'Other Risk', 'Likelihood', 'Impact', 'Cell'], safeArray(industryPlan.risks).map((risk) => [
+                            risk.type, risk.otherText, risk.likelihood, risk.impact, risk.tiedCell
+                        ]))
+                    }
+                    : null,
+                details.hasIndustryStrategicPlan && safeArray(industryPlan.partners).length
+                    ? {
+                        title: 'Partner Map',
+                        html: renderReportTable(['Partner', 'Why They Matter', 'Likely Want'], safeArray(industryPlan.partners).map((partner) => [
+                            partner.partner, partner.whyTheyMatter, partner.likelyWant
+                        ]))
+                    }
+                    : null,
+                details.hasIndustryStrategicPlan && safeArray(industryPlan.strategicPriorities).length
+                    ? {
+                        title: 'Strategic Priorities',
+                        html: renderReportTable(['Priority', 'Success Looks Like'], safeArray(industryPlan.strategicPriorities).map((priority) => [
+                            priority.priority, priority.successLooksLike
+                        ]))
                     }
                     : null,
                 {
@@ -6760,6 +6810,7 @@ export function buildResearchReportLatex(dataset, {
 
     const orientationSections = renderLatexArtifactSections(strategicOrientations, (orientation) => {
         const details = safeObject(safeObject(orientation.full_content).details);
+        const industryPlan = safeObject(details.industryStrategicPlan);
         const forecastRows = safeArray(details.forecastTargets).map((target) => [
             target.label || target.key,
             target.orientationLabel || target.orientation,
@@ -6788,6 +6839,13 @@ ${renderLatexDescription([
         { label: 'Accepted costs', value: details.acceptedCosts },
         { label: 'Forecast summary', value: details.forecastSummary },
         { label: 'Expected outcomes', value: safeObject(orientation.full_content).expected_outcomes },
+        { label: 'Industry Strategic Plan version', value: details.industryStrategicPlanVersion },
+        { label: 'Industry sector', value: industryPlan.sector },
+        { label: 'Business overview', value: industryPlan.businessOverview },
+        { label: 'Expected Red priorities', value: industryPlan.redPriorities },
+        { label: 'First ambassador target', value: industryPlan.firstAmbassadorTarget },
+        { label: 'Strategic stance', value: industryPlan.strategicStance },
+        { label: 'Red line', value: industryPlan.redLine },
         { label: 'Scribe handoff', value: details.scribeHandoff },
         { label: 'Submitted UTC', value: orientation.submitted_utc },
         { label: 'Status', value: orientation.final_status },
@@ -6796,7 +6854,13 @@ ${renderLatexDescription([
         { label: 'Workflow review history', value: orientation.review_history }
     ])}
 ${forecastRows.length ? String.raw`\subsubsection{Forecast targets}
-${renderLatexLongTable(['Target', 'Forecast orientation', 'Strategic tag'], forecastRows)}` : ''}`;
+${renderLatexLongTable(['Target', 'Forecast orientation', 'Strategic tag'], forecastRows)}` : ''}
+${details.hasIndustryStrategicPlan && safeArray(industryPlan.risks).length ? String.raw`\subsubsection{Top three risks}
+${renderLatexLongTable(['Risk', 'Other risk', 'Likelihood', 'Impact', 'Cell'], safeArray(industryPlan.risks).map((risk) => [risk.type, risk.otherText, risk.likelihood, risk.impact, risk.tiedCell]))}` : ''}
+${details.hasIndustryStrategicPlan && safeArray(industryPlan.partners).length ? String.raw`\subsubsection{Partner map}
+${renderLatexLongTable(['Partner', 'Why they matter', 'Likely want'], safeArray(industryPlan.partners).map((partner) => [partner.partner, partner.whyTheyMatter, partner.likelyWant]))}` : ''}
+${details.hasIndustryStrategicPlan && safeArray(industryPlan.strategicPriorities).length ? String.raw`\subsubsection{Strategic priorities}
+${renderLatexLongTable(['Priority', 'Success looks like'], safeArray(industryPlan.strategicPriorities).map((priority) => [priority.priority, priority.successLooksLike]))}` : ''}`;
     });
 
     const actionSections = renderLatexArtifactSections(moveActions, (action) => {
@@ -7600,7 +7664,9 @@ function buildContractReconciliation({
                 && JSON.stringify(safeArray(persisted.forecastTargets)) === JSON.stringify(safeArray(projection.forecast_targets))
                 && (persisted.orientationRationale || null) === (projection.orientation_rationale || null)
                 && (persisted.forecastActionDescription || null) === (projection.forecast_action_description || null)
-                && (persisted.strategyDescription || null) === (projection.strategy_description || null);
+                && (persisted.strategyDescription || null) === (projection.strategy_description || null)
+                && (persisted.industryStrategicPlanVersion || null) === (projection.industry_strategic_plan_version || null)
+                && JSON.stringify(persisted.industryStrategicPlan || null) === JSON.stringify(projection.industry_strategic_plan || null);
         });
     const checks = {
         artifact_review_rows: {

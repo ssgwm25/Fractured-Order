@@ -11,6 +11,27 @@ import {
     serializeStrategicOrientationDetails
 } from './strategicOrientationDetails.js';
 
+const INDUSTRY_PLAN = {
+    version: 1,
+    sector: 'Telecommunications',
+    businessOverview: 'Builds critical communications infrastructure.',
+    risks: [
+        { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+        { type: 'secondary_sanctions_exposure', otherText: '', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+        { type: 'reputational', otherText: '', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+    ],
+    redPriorities: 'Protect market access and acquire technology.',
+    partners: [{ partner: 'Allied supplier', whyTheyMatter: 'Critical inputs', likelyWant: 'Long-term demand' }],
+    firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate resilient supply.' },
+    strategicPriorities: [
+        { priority: 'Protect capacity', successLooksLike: 'No outage.' },
+        { priority: 'Diversify supply', successLooksLike: 'Second source qualified.' },
+        { priority: 'Preserve access', successLooksLike: 'Markets stay open.' }
+    ],
+    strategicStance: 3,
+    redLine: 'No protected technology transfer.'
+};
+
 const TEAM_FIXTURES = {
     blue: {
         ownOrientation: 'pressure',
@@ -80,8 +101,9 @@ describe('strategic orientation details helpers', () => {
         expect(STRATEGIC_ORIENTATION_TEAM_PROFILES.green.sections.map(({ key }) => key)).toEqual([
             'forecast:blue', 'ownOrientation', 'strategyDescription'
         ]);
-        expect(STRATEGIC_ORIENTATION_TEAM_PROFILES.industry.sections.map(({ key }) => key)).toEqual([
-            'forecast:blue', 'ownOrientation', 'strategyDescription'
+        expect(STRATEGIC_ORIENTATION_TEAM_PROFILES.industry.sections).toEqual([]);
+        expect(STRATEGIC_ORIENTATION_TEAM_PROFILES.industry.requiredFields).toEqual([
+            'forecastTargets.blue', 'industryStrategicPlan'
         ]);
     });
 
@@ -156,13 +178,73 @@ describe('strategic orientation details helpers', () => {
         const actions = Object.entries(TEAM_FIXTURES).map(([team, fixture]) => ({
             team,
             status: 'submitted',
-            ally_contingencies: serializeStrategicOrientationDetails({ team, ...fixture })
+            ally_contingencies: serializeStrategicOrientationDetails(team === 'industry'
+                ? {
+                    team,
+                    forecastTargets: fixture.forecastTargets,
+                    industryStrategicPlan: INDUSTRY_PLAN
+                }
+                : { team, ...fixture })
         }));
 
         expect(getStrategicOrientationCompletion(actions)).toMatchObject({ complete: true, missingTeams: [] });
         expect(getStrategicOrientationCompletion(actions.slice(0, 3))).toMatchObject({
             complete: false,
             missingTeams: ['industry']
+        });
+    });
+
+    it('round-trips the Industry Strategic Plan without requiring an own orientation', () => {
+        const serialized = serializeStrategicOrientationDetails({
+            team: 'industry',
+            forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+            industryStrategicPlan: INDUSTRY_PLAN,
+            scribeHandoff: 'Forwarded'
+        });
+        const parsed = parseStrategicOrientationDetails(serialized);
+        const viewModel = getStrategicOrientationViewModel({
+            team: 'industry',
+            goal: 'Industry Strategic Plan — Telecommunications',
+            ally_contingencies: serialized
+        });
+
+        expect(serialized).toContain('Contract Version: 2');
+        expect(serialized).toContain('Own Orientation: None selected');
+        expect(serialized).toContain('Industry Strategic Plan Version: 1');
+        expect(parsed.industryStrategicPlan).toEqual(INDUSTRY_PLAN);
+        expect(parsed.forecastTargets).toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: 'blue', orientation: 'stabilization' })
+        ]));
+        expect(viewModel).toMatchObject({
+            title: 'Industry Strategic Plan — Telecommunications',
+            hasOwnOrientation: false,
+            hasIndustryStrategicPlan: true,
+            hasIndustryStrategicPlanParseError: false,
+            industryStrategicPlanVersion: 1
+        });
+    });
+
+    it('keeps an otherwise valid historical artifact readable when optional plan JSON is malformed', () => {
+        const malformed = serializeStrategicOrientationDetails({
+            team: 'industry',
+            ownOrientation: 'reframe',
+            forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
+            strategyDescription: 'Historical Industry strategy.'
+        }).replace('Scribe Handoff:', 'Industry Strategic Plan Version: 1\nIndustry Strategic Plan: {bad json}\nScribe Handoff:');
+        const parsed = parseStrategicOrientationDetails(malformed);
+        const viewModel = getStrategicOrientationViewModel({ team: 'industry', ally_contingencies: malformed });
+
+        expect(parsed).toMatchObject({
+            team: 'industry',
+            ownOrientation: { id: 'reframe' },
+            strategyDescription: 'Historical Industry strategy.',
+            industryStrategicPlan: null,
+            industryStrategicPlanParseStatus: 'invalid'
+        });
+        expect(viewModel).toMatchObject({
+            hasStrategicOrientationDetails: true,
+            hasIndustryStrategicPlan: false,
+            hasIndustryStrategicPlanParseError: true
         });
     });
 });

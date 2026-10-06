@@ -2141,6 +2141,12 @@ function heartbeatSessionRoleSeat(state, {
         };
     }
 
+    // A revocation marker is terminal for every topology. Legacy unified seats
+    // may otherwise enter the stale-seat recovery branch and be reactivated.
+    if (seat.revoked_at) {
+        return { data: null, error: { code: '42501', message: 'GC03_SEAT_REJOIN_REQUIRED' } };
+    }
+
     if (seat.is_active !== true) {
         const roleLimit = getSessionRoleSeatLimit(seat.role) || 1;
         const activeClaimCount = state.tables.session_participants.filter((entry) => (

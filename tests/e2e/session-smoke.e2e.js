@@ -36,7 +36,7 @@ test('@smoke session creation, Scribe handoff, Facilitator action submit, and Wh
         { team: 'blue', ownOrientation: 'pressure', forecasts: { red: 'stabilization' }, forecastActionDescription: 'Red will preserve market access while limiting escalation.' },
         { team: 'green', ownOrientation: 'stabilization', forecasts: { blue: 'pressure' }, strategyDescription: 'Green will protect regional stability under Blue pressure.' },
         { team: 'red', ownOrientation: 'reframe', forecasts: { blue: 'pressure', green_asian_pacific: 'reframe', green_europe: 'stabilization' }, orientationRationale: 'Red will reframe its partnerships for long-term leverage.' },
-        { team: 'industry', ownOrientation: 'pressure', forecasts: { blue: 'stabilization' }, strategyDescription: 'Industry will protect critical capacity under Blue stabilization.' }
+        { team: 'industry', forecasts: { blue: 'stabilization' } }
     ];
 
     await test.step('create a session from the control panel', async () => {

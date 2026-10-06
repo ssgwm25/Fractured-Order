@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { database, sessionStore, restoreConfirmedSeat } = vi.hoisted(() => ({
+const { database, sessionStore, restoreConfirmedSeat, participantLogger } = vi.hoisted(() => ({
     database: { updateHeartbeat: vi.fn(), disconnectParticipantKeepalive: vi.fn() },
     sessionStore: { getConfirmedSeat: vi.fn(), invalidateSeat: vi.fn(), notify: vi.fn() },
-    restoreConfirmedSeat: vi.fn()
+    restoreConfirmedSeat: vi.fn(),
+    participantLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 vi.mock('../services/database.js', () => ({ database }));
 vi.mock('../services/seatBootstrap.js', () => ({ restoreConfirmedSeat }));
 vi.mock('./session.js', () => ({ sessionStore }));
-vi.mock('../utils/logger.js', () => ({ createLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) }));
+vi.mock('../utils/logger.js', () => ({ createLogger: () => participantLogger }));
 vi.mock('../core/config.js', () => ({ CONFIG: { HEARTBEAT_INTERVAL_MS: 30000 }, getRoleLimit: () => 1, isHeartbeatFresh: () => true }));
 import { participantsStore } from './participants.js';
 
@@ -26,6 +27,22 @@ it('retains the legacy unified White Cell pagehide disconnect', () => {
     participantsStore.bindPagehideKeepalive();
     participantsStore.pagehideHandler();
     expect(database.disconnectParticipantKeepalive).toHaveBeenCalledWith('session', 'seat');
+});
+
+it('treats a closed-session heartbeat as a normal terminal transition', async () => {
+    sessionStore.getConfirmedSeat.mockReturnValue({ participantId: 'seat', role: 'blue_scribe', topology: 1 });
+    database.updateHeartbeat.mockRejectedValue({
+        originalError: { code: '42501', message: 'This session is not currently joinable.' }
+    });
+
+    await participantsStore.sendHeartbeat();
+
+    expect(participantLogger.warn).toHaveBeenCalledWith(
+        'Heartbeat stopped because the session is no longer joinable.'
+    );
+    expect(participantLogger.error).not.toHaveBeenCalled();
+    expect(sessionStore.invalidateSeat).toHaveBeenCalledOnce();
+    expect(sessionStore.notify).toHaveBeenCalledOnce();
 });
 
 describe.each([['green_europe_scribe', 'europe'], ['green_shared_facilitator', null],

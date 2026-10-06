@@ -1,3 +1,9 @@
+> Historical implementation checklist: the Industry orientation steps below
+> describe the superseded form. Current Industry behavior is the Move 1
+> Industry Strategic Plan documented in
+> `docs/architecture/industry-strategic-plan.md`; Blue, Red, and Green retain
+> the workflow described here.
+
 Plan
 Implement team-specific Strategic Orientation modals that capture each team’s catalogue selections, forecasts, and required free-text strategy. Persist the expanded data compatibly and expose it through Facilitator, White Cell, projection, and export workflows.
 Scope

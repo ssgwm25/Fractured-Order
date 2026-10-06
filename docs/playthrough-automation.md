@@ -19,7 +19,9 @@ playthrough. It covers:
   hosted real backend
 - shared UI tokens, duplicate DOM IDs, document overflow, and raw-JSON leakage
 - Strategic Orientation from Scribe to Facilitator to White Cell for all teams,
-  including a Blue return, edit, resubmission, and outcome-free completion
+  with Industry using the complete Move 1 Strategic Plan in the same artifact
+  workflow, including a Blue return, edit, resubmission, and outcome-free
+  completion
 - orientation gating of White Cell move controls
 - timer synchronization through White Cell Lead controls
 - the existing normal Blue and Red completions plus integrated Blue and Red
@@ -42,6 +44,14 @@ playthrough. It covers:
   attached, stopping before the forwarding write is activated;
   RFI response and return controls use the same reconciled-control path so a
   live queue rerender cannot detach the button during Playwright actionability;
+  RFI submission, response, return, and resubmission writes also capture their
+  durable success or error notifications before requiring the modal to close,
+  using the workflow-write timeout rather than the default UI assertion timeout;
+  the live-updating RFI history tab is activated through a reconciled dispatch
+  and must report itself selected before history assertions begin;
+  action tab, disclosure, and forwarding controls follow the reconciled-control
+  path, while the confirmed forwarding write captures durable success or error
+  notification evidence and requires its modal to close;
   recipient approval checkboxes are selected atomically on the current visible,
   enabled input with normal `input` and `change` events, and re-resolved until
   the current instance is verified checked before submission;
@@ -152,6 +162,12 @@ smoke path declares one browser actor and one created session. These are suite
 totals for the workflow summary, while the professional playthrough itself
 continues to require eighteen simultaneous actors and seventeen selected-session
 role seats.
+
+In the local shared-browser-context playthrough, the White Cell page reloads
+after committed proposal responses and proposer follow-ups so its page-local
+store reads the new mock-backend record before review. Hosted rehearsals keep
+independent browser contexts and must receive those records through the real
+realtime path without this local synchronization.
 
 The local deterministic playthrough fulfills the Google Fonts stylesheet with
 an empty response so the gate does not depend on external font-host availability;
@@ -403,8 +419,10 @@ verification and cannot be promoted into that bundle.
 An `@import rule was ignored` browser warning means the hosted CSS is stale.
 Current app pages load the shared Google Fonts stylesheet explicitly from the
 document head, before local component CSS; the shared variables stylesheet
-contains no external `@import`. Rebuild and redeploy before accepting a hosted
-playthrough gate if that warning is still present.
+contains no external `@import`. This contract includes `sme.html` and is pinned
+by `tests/font-loading.test.js`. Rebuild and redeploy before accepting a hosted
+playthrough gate if that warning is still present; clearing browser cache alone
+is not current-head deployment evidence.
 
 ## Workflow Contract Boundary
 

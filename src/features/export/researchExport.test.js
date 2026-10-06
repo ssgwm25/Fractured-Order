@@ -985,18 +985,36 @@ describe('research export builder', () => {
                 move: 0,
                 phase: 0,
                 mechanism: 'Strategic Orientation',
-                goal: 'Industry Strategic Orientation: Stabilization',
+                goal: 'Industry Strategic Plan — Telecommunications',
                 ally_contingencies: serializeStrategicOrientationDetails({
                     team: 'industry',
-                    ownOrientation: 'stabilization',
+                    ownOrientation: null,
                     forecastTargets: [
                         { key: 'blue', orientation: 'pressure' }
                     ],
-                    primaryLevers: ['Technology export controls'],
-                    acceptedCosts: ['Market volatility'],
-                    posture: 'Prepare for divergent partner choices.',
-                    strategyDescription: 'Industry will preserve optionality while Blue applies pressure.',
                     forecastSummary: 'Blue pressures while Green pathways diverge.',
+                    industryStrategicPlan: {
+                        version: 1,
+                        sector: 'Telecommunications',
+                        businessOverview: 'We operate secure networks and depend on advanced chips.',
+                        risks: [
+                            { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                            { type: 'secondary_sanctions_exposure', otherText: '', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                            { type: 'other', otherText: 'Supply Risk', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+                        ],
+                        redPriorities: 'Preserve market access and acquire strategic technology.',
+                        partners: [
+                            { partner: 'Kenya', whyTheyMatter: 'Regional connectivity', likelyWant: 'Long-term investment' }
+                        ],
+                        firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate resilient network investment.' },
+                        strategicPriorities: [
+                            { priority: 'Secure chip supply', successLooksLike: 'Two qualified suppliers' },
+                            { priority: 'Protect market access', successLooksLike: 'No forced exit' },
+                            { priority: 'Build partner capacity', successLooksLike: 'A funded joint program' }
+                        ],
+                        strategicStance: 3,
+                        redLine: 'We will not transfer protected customer data.'
+                    },
                     scribeHandoff: 'Forwarded'
                 }),
                 status: 'adjudicated',
@@ -1039,8 +1057,18 @@ describe('research export builder', () => {
             expect.objectContaining({ label: 'Blue', orientationLabel: 'Pressure' })
         ]);
         expect(orientationRows[1]).toMatchObject({
-            strategy_description: 'Industry will preserve optionality while Blue applies pressure.'
+            industry_strategic_plan_version: 1,
+            industry_strategic_plan: expect.objectContaining({
+                sector: 'Telecommunications',
+                strategicStance: 3,
+                redLine: 'We will not transfer protected customer data.'
+            })
         });
+        expect(orientationRows[1].own_orientation).toBeNull();
+        expect(orientationRows[1].full_content.details.hasIndustryStrategicPlan).toBe(true);
+        expect(orientationRows[1].full_content.details.industryStrategicPlan.partners).toEqual([
+            { partner: 'Kenya', whyTheyMatter: 'Regional connectivity', likelyWant: 'Long-term investment' }
+        ]);
         expect(exportBundle.draftRevisions).toEqual(expect.arrayContaining([
             expect.objectContaining({
                 artifact_id: 'orientation-blue-1',
@@ -1051,7 +1079,11 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Forecast Targets');
         expect(exportBundle.reportHtml).toContain('Expected Target Actions');
         expect(exportBundle.reportHtml).toContain('Red will impose costs through visible pressure.');
-        expect(exportBundle.reportHtml).toContain('Industry will preserve optionality while Blue applies pressure.');
+        expect(exportBundle.reportHtml).toContain('Industry Strategic Plan Overview');
+        expect(exportBundle.reportHtml).toContain('We operate secure networks and depend on advanced chips.');
+        expect(exportBundle.reportHtml).toContain('Supply Risk');
+        expect(exportBundle.reportHtml).toContain('Coordinate resilient network investment.');
+        expect(exportBundle.reportHtml).toContain('We will not transfer protected customer data.');
         expect(exportBundle.reportHtml).toContain('Transitional inefficiencies');
         expect(exportBundle.reportHtml).toContain('Supply Chain Focus Decision');
         expect(exportBundle.reportHtml).toContain('Build resilience for Blue');
@@ -1061,7 +1093,10 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).not.toContain('The United States systematically reallocates economic exposure away from China');
         expect(exportBundle.reportLatex).toContain(String.raw`\section{Strategic Orientation: team workflows}`);
         expect(exportBundle.reportLatex).toContain('Red will impose costs through visible pressure.');
-        expect(exportBundle.reportLatex).toContain('Industry will preserve optionality while Blue applies pressure.');
+        expect(exportBundle.reportLatex).toContain('Industry Strategic Plan version');
+        expect(exportBundle.reportLatex).toContain('We operate secure networks and depend on advanced chips.');
+        expect(exportBundle.reportLatex).toContain('Supply Risk');
+        expect(exportBundle.reportLatex).toContain('We will not transfer protected customer data.');
         expect(exportBundle.reportLatex).toContain('Build resilience for Blue');
         expect(exportBundle.reportLatex).not.toContain('The United States systematically reallocates economic exposure away from China');
         expect(exportBundle.eventLog).toEqual(expect.arrayContaining([
@@ -1098,7 +1133,9 @@ describe('research export builder', () => {
         ));
         expect(strategicLeaderBrief.content).toContain('Strategic Orientation Portfolio');
         expect(strategicLeaderBrief.content).toContain('Blue: Pressure');
-        expect(strategicLeaderBrief.content).toContain('Industry will preserve optionality while Blue applies pressure.');
+        expect(strategicLeaderBrief.content).toContain('Industry Strategic Plan');
+        expect(strategicLeaderBrief.content).toContain('We operate secure networks and depend on advanced chips.');
+        expect(strategicLeaderBrief.content).toContain('We will not transfer protected customer data.');
         expect(exportBundle.personaReports.map((file) => file.content).join('\n')).not.toContain(
             'The United States systematically reallocates economic exposure away from China'
         );

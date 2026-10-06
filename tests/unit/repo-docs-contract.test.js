@@ -134,7 +134,7 @@ describe('repository operator docs contract', () => {
         expect(deployment).toContain('[repository artifact policy](repository-artifact-policy.md)');
     });
 
-    it('documents the four team-specific Strategic Orientation workflows', () => {
+    it('documents the three catalogue workflows and the Industry Strategic Plan replacement', () => {
         const readme = readText('../../README.md');
         const runbook = readText('../../docs/live-demo-runbook.md');
         const automation = readText('../../docs/playthrough-automation.md');
@@ -143,11 +143,15 @@ describe('repository operator docs contract', () => {
         expect(readme).toContain("Choose Blue's orientation; forecast Red's orientation");
         expect(readme).toContain("Choose and explain Red's orientation; forecast Blue, Green (Asian Pacific), and Green (Europe)");
         expect(readme).toContain("Forecast Blue; choose Green's orientation");
-        expect(readme).toContain("Forecast Blue; choose Industry's orientation");
+        expect(readme).toContain('Complete the Move 1 Industry Strategic Plan');
+        expect(readme).toContain('Industry does not choose an own orientation');
+        expect(readme).not.toContain("Forecast Blue; choose Industry's orientation");
         expect(runbook).toContain('new records use `Orientation & Forecast`');
+        expect(runbook).toContain('Industry opens `Industry Strategic Plan`');
         expect(runbook).toContain('no database migration');
         expect(automation).toContain('`forecastActionDescription`');
         expect(walkthrough).toContain('Orientation &amp; Forecast');
+        expect(walkthrough).toContain('Industry Strategic Plan');
     });
 
     it('documents the root Vite app instead of the obsolete nested setup path', () => {

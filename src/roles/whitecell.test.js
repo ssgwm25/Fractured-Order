@@ -2540,6 +2540,85 @@ describe('White Cell DOM contract', () => {
         expect(modalConfig?.content?.innerHTML).not.toMatch(/Outcome \*/);
     });
 
+    it('reviews and preserves the complete Industry Strategic Plan through the existing orientation workflow', async () => {
+        const { WhiteCellController } = await loadWhiteCellModule();
+        global.document = createFakeDocument();
+        const controller = new WhiteCellController();
+        const action = {
+            id: 'industry-plan-white-cell',
+            team: 'industry',
+            status: 'submitted',
+            workflow_state: 'submitted_to_white_cell',
+            revision_number: 2,
+            mechanism: 'Strategic Orientation',
+            goal: 'Industry Strategic Plan — Telecommunications',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team: 'industry',
+                ownOrientation: null,
+                forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+                industryStrategicPlan: {
+                    version: 1,
+                    sector: 'Telecommunications',
+                    businessOverview: 'We operate secure networks and depend on advanced chips.',
+                    risks: [
+                        { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                        { type: 'secondary_sanctions_exposure', otherText: '', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                        { type: 'other', otherText: 'Supply Risk', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+                    ],
+                    redPriorities: 'Preserve market access and acquire strategic technology.',
+                    partners: [
+                        { partner: 'Kenya', whyTheyMatter: 'Regional connectivity', likelyWant: 'Long-term investment' }
+                    ],
+                    firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate resilient network investment.' },
+                    strategicPriorities: [
+                        { priority: 'Secure chip supply', successLooksLike: 'Two qualified suppliers' },
+                        { priority: 'Protect market access', successLooksLike: 'No forced exit' },
+                        { priority: 'Build partner capacity', successLooksLike: 'A funded joint program' }
+                    ],
+                    strategicStance: 3,
+                    redLine: 'We will not transfer protected customer data.'
+                },
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const cardMarkup = controller.renderActionCard(action);
+        controller.showStrategicOrientationReviewModal(action);
+        const modalConfig = showModal.mock.calls.at(-1)?.[0];
+        const modalMarkup = modalConfig?.content?.innerHTML || '';
+        const historyMarkup = controller.renderReturnedRevisionHistoryCard({
+            id: 'industry-plan-return-history',
+            artifact_kind: 'strategic_orientation',
+            artifact_id: action.id,
+            team: 'industry',
+            revision_number: 2,
+            reviewer_role: 'whitecell_lead',
+            reviewer_notes: 'Clarify partner sequencing.',
+            prior_state: action
+        });
+
+        [cardMarkup, modalMarkup, historyMarkup].forEach((markup) => {
+            expect(markup).toContain('Review Industry Strategic Plan');
+            expect(markup).toContain('A. Business Overview');
+            expect(markup).toContain('B. Top Three Risks');
+            expect(markup).toContain('C. Opening Read');
+            expect(markup).toContain('D. Partner Map');
+            expect(markup).toContain('E. Strategic Priorities');
+            expect(markup).toContain('Stabilization');
+            expect(markup).toContain('Supply Risk');
+            expect(markup).toContain('Kenya');
+            expect(markup).toContain('We will not transfer protected customer data.');
+            expect(markup).not.toContain('Own Orientation');
+        });
+        expect(modalConfig?.title).toBe('Review Industry Strategic Plan');
+        expect(modalConfig?.buttons?.map((button) => button.label)).toEqual([
+            'Cancel',
+            'Send Back for Improvement',
+            'Accept as Complete'
+        ]);
+        expect(historyMarkup).toContain('Clarify partner sequencing.');
+    });
+
     it('uses a distinct token-backed source badge for every submission team', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         global.document = createFakeDocument();

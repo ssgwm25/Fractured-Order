@@ -1,3 +1,10 @@
+import {
+    INDUSTRY_STRATEGIC_PLAN_VERSION,
+    getIndustryStrategicPlanDisplayModel,
+    normalizeIndustryStrategicPlan,
+    validateIndustryStrategicPlan
+} from './industryStrategicPlan.js';
+
 /**
  * Strategic Orientation Details
  *
@@ -92,15 +99,11 @@ export const STRATEGIC_ORIENTATION_TEAM_PROFILES = Object.freeze({
     }),
     industry: Object.freeze({
         teamId: 'industry',
-        title: 'Strategic Orientation',
-        submitCopy: 'Record Strategic Orientation',
+        title: 'Industry Strategic Plan',
+        submitCopy: 'Record Strategic Plan',
         forecastTargets: Object.freeze(['blue']),
-        requiredFields: Object.freeze(['forecastTargets.blue', 'ownOrientation', 'strategyDescription']),
-        sections: Object.freeze([
-            forecastSection('blue', "Forecast Blue's orientation", 'Select the catalogue orientation you expect Blue to pursue.'),
-            ownOrientationSection("Choose Industry's orientation", 'Select the catalogue orientation Industry will pursue.'),
-            narrativeSection('strategyDescription', 'Describe your strategy given this forecast', "Describe Industry's strategy, in its own terms, given the Blue forecast.")
-        ])
+        requiredFields: Object.freeze(['forecastTargets.blue', 'industryStrategicPlan']),
+        sections: Object.freeze([])
     })
 });
 
@@ -474,6 +477,9 @@ export function serializeStrategicOrientationDetails(details = {}) {
     const option = getStrategicOrientationOption(orientationKey || primaryForecast?.orientation);
     const scribeHandoff = normalizeScribeHandoff(details.scribeHandoff)
         || STRATEGIC_ORIENTATION_SCRIBE_HANDOFF.DRAFT;
+    const industryStrategicPlan = details.industryStrategicPlan
+        ? normalizeIndustryStrategicPlan(details.industryStrategicPlan)
+        : null;
 
     return [
         STRATEGIC_ORIENTATION_DETAILS_PREFIX,
@@ -499,6 +505,10 @@ export function serializeStrategicOrientationDetails(details = {}) {
         `Forecast Action Description: ${normalizeString(details.forecastActionDescription)}`,
         `Strategy Description: ${normalizeString(details.strategyDescription)}`,
         `Forecast Summary: ${normalizeString(details.forecastSummary)}`,
+        ...(industryStrategicPlan ? [
+            `Industry Strategic Plan Version: ${INDUSTRY_STRATEGIC_PLAN_VERSION}`,
+            `Industry Strategic Plan: ${JSON.stringify(industryStrategicPlan)}`
+        ] : []),
         `Scribe Handoff: ${scribeHandoff}`
     ].join('\n');
 }
@@ -548,6 +558,27 @@ export function parseStrategicOrientationDetails(value = '') {
             ? parsedForecastTargets
             : parsedForecastTargets.map(({ selection: _selection, ...target }) => target);
         const primaryForecast = forecastTargets[0] || null;
+        const planJson = parsed['Industry Strategic Plan'];
+        const declaredPlanVersion = Number.parseInt(parsed['Industry Strategic Plan Version'], 10) || null;
+        let industryStrategicPlan = null;
+        let industryStrategicPlanVersion = declaredPlanVersion;
+        let industryStrategicPlanParseStatus = planJson ? 'invalid' : 'absent';
+        let industryStrategicPlanValidationErrors = [];
+        if (planJson) {
+            try {
+                const rawPlan = JSON.parse(planJson);
+                industryStrategicPlanVersion = declaredPlanVersion || Number(rawPlan?.version) || null;
+                if (industryStrategicPlanVersion !== INDUSTRY_STRATEGIC_PLAN_VERSION) {
+                    industryStrategicPlanParseStatus = 'unsupported_version';
+                } else {
+                    industryStrategicPlan = normalizeIndustryStrategicPlan(rawPlan);
+                    industryStrategicPlanValidationErrors = validateIndustryStrategicPlan(industryStrategicPlan);
+                    industryStrategicPlanParseStatus = industryStrategicPlanValidationErrors.length ? 'invalid' : 'valid';
+                }
+            } catch (_error) {
+                industryStrategicPlanParseStatus = 'invalid';
+            }
+        }
 
         return {
             contractVersion,
@@ -567,6 +598,10 @@ export function parseStrategicOrientationDetails(value = '') {
             forecastActionDescription: normalizeString(parsed['Forecast Action Description']),
             strategyDescription: normalizeString(parsed['Strategy Description']),
             forecastSummary: normalizeString(parsed['Forecast Summary']),
+            industryStrategicPlanVersion,
+            industryStrategicPlan,
+            industryStrategicPlanParseStatus,
+            industryStrategicPlanValidationErrors,
             scribeHandoff: normalizeScribeHandoff(parsed['Scribe Handoff'])
         };
     } catch (_error) {
@@ -584,7 +619,44 @@ export function getStrategicOrientationArtifactLabel(viewModel = {}) {
 }
 
 export function getStrategicOrientationDisplayFields(viewModel = {}) {
+    if (viewModel.hasIndustryStrategicPlan) {
+        const display = viewModel.industryStrategicPlanDisplayModel;
+        return [
+            ...display.overviewFields,
+            ...display.risks.map((risk, index) => ({
+                label: `B. Top Three Risks — Risk ${index + 1}`,
+                value: `${risk.risk} | Likelihood: ${risk.likelihood} | Impact: ${risk.impact} | Cell: ${risk.cell}`,
+                wide: true
+            })),
+            { label: 'C. Opening Read — Blue Expected Orientation', value: display.environment.blueForecast || 'Not specified', wide: true },
+            { label: 'C. Opening Read — Red Priorities', value: display.environment.redPriorities, wide: true },
+            ...display.partners.map((partner, index) => ({
+                label: `D. Partner Map — Partner ${index + 1}`,
+                value: `${partner.partner} | Why they matter: ${partner.whyTheyMatter} | Likely want: ${partner.likelyWant}`,
+                wide: true
+            })),
+            {
+                label: 'D. First Ambassador Target',
+                value: `${display.firstAmbassadorTarget.cell}: ${display.firstAmbassadorTarget.reason}`,
+                wide: true
+            },
+            ...display.priorities.map((priority, index) => ({
+                label: `E. Strategic Priorities — Priority ${index + 1}`,
+                value: `${priority.priority} | Success looks like: ${priority.successLooksLike}`,
+                wide: true
+            })),
+            { label: 'Strategic Stance', value: `${display.stance} — ${display.stance === 1 ? 'Profit First' : display.stance === 5 ? 'National Interest First' : display.stance === 3 ? 'Balanced' : 'Between the stated endpoints'}` },
+            { label: 'Red Line', value: display.redLine, wide: true }
+        ];
+    }
     return [
+        ...(viewModel.hasIndustryStrategicPlanParseError ? [{
+            label: 'Industry Strategic Plan Status',
+            value: viewModel.industryStrategicPlanParseStatus === 'unsupported_version'
+                ? 'Saved plan uses an unsupported version. Historical Strategic Orientation fields remain readable.'
+                : 'Saved plan data could not be parsed. Historical Strategic Orientation fields remain readable.',
+            wide: true
+        }] : []),
         ...(viewModel.hasOwnOrientation ? [{
             label: 'Own Orientation',
             value: `${viewModel.ownOrientation.label}: ${viewModel.ownOrientation.tag}`,
@@ -633,7 +705,17 @@ export function getStrategicOrientationViewModel(action = {}) {
     const orientationLabel = ownOrientation?.label || primaryForecast?.orientationLabel || details?.orientationLabel || option?.name || 'Strategic Orientation';
     const orientationTag = ownOrientation?.tag || primaryForecast?.orientationTag || details?.orientationTag || option?.tag || '';
     const hasMultipleForecastTargets = isForecast && forecastTargets.length > 1;
-    const title = ownOrientation
+    const hasIndustryStrategicPlan = Boolean(details?.industryStrategicPlan);
+    const hasIndustryStrategicPlanParseError = details?.industryStrategicPlanParseStatus === 'invalid'
+        || details?.industryStrategicPlanParseStatus === 'unsupported_version';
+    const industryStrategicPlanDisplayModel = hasIndustryStrategicPlan
+        ? getIndustryStrategicPlanDisplayModel(details.industryStrategicPlan, {
+            blueForecast: forecastTargets.find(({ key }) => key === 'blue')?.orientationLabel || null
+        })
+        : null;
+    const title = hasIndustryStrategicPlan
+        ? 'Industry Strategic Plan'
+        : ownOrientation
         ? `${teamLabel} Strategic Orientation: ${ownOrientation.label}`
         : isForecast
         ? (hasMultipleForecastTargets
@@ -657,6 +739,13 @@ export function getStrategicOrientationViewModel(action = {}) {
         hasOrientationRationale: Boolean(details?.orientationRationale),
         hasForecastActionDescription: Boolean(details?.forecastActionDescription),
         hasStrategyDescription: Boolean(details?.strategyDescription),
+        industryStrategicPlanVersion: details?.industryStrategicPlanVersion || null,
+        industryStrategicPlan: details?.industryStrategicPlan || null,
+        industryStrategicPlanParseStatus: details?.industryStrategicPlanParseStatus || 'absent',
+        industryStrategicPlanValidationErrors: details?.industryStrategicPlanValidationErrors || [],
+        hasIndustryStrategicPlan,
+        hasIndustryStrategicPlanParseError,
+        industryStrategicPlanDisplayModel,
         orientation: ownOrientation?.id || details?.orientation || '',
         orientationLabel,
         orientationTag,

@@ -3615,6 +3615,8 @@ export class ScribeController {
 
         const actionId = String(action.id || '');
         const lifecycle = getArtifactLifecycleViewModel(getActionSlideLifecycleArtifact(action));
+        const isIndustryPlan = viewModel.hasIndustryStrategicPlan;
+        const artifactLabel = isIndustryPlan ? 'Industry Strategic Plan' : 'Strategic Orientation';
 
         return `
             <section
@@ -3626,18 +3628,18 @@ export class ScribeController {
                 <div class="scribe-action-slide-submit-head">
                     <div>
                         <p class="scribe-action-slide-section-label">Facilitator-to-White Cell handoff</p>
-                        <h3 class="scribe-action-slide-submit-title">${lifecycle.isReturned ? 'Correct and resubmit orientation' : 'Project orientation, then send to White Cell'}</h3>
+                        <h3 class="scribe-action-slide-submit-title">${lifecycle.isReturned ? `Correct and resubmit ${isIndustryPlan ? 'plan' : 'orientation'}` : `Project ${isIndustryPlan ? 'plan' : 'orientation'}, then send to White Cell`}</h3>
                     </div>
                     <button
                         type="button"
                         class="btn btn-secondary btn-sm"
                         data-scribe-action-project
                         data-action-id="${escapeHtml(actionId)}"
-                    >Project Strategic Orientation</button>
+                    >Project ${artifactLabel}</button>
                 </div>
 
                 <p class="scribe-action-slide-lead-note">
-                    Project this orientation and its forecasts for ${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || this.teamLabel)}, verify the team sees their completed work, then submit it to White Cell.
+                    Project this ${isIndustryPlan ? 'plan' : 'orientation and its forecasts'} for ${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || this.teamLabel)}, verify the team sees their completed work, then submit it to White Cell.
                 </p>
 
                 <div class="scribe-action-slide-submit-actions">
@@ -4141,6 +4143,11 @@ export class ScribeController {
                         orientation_rationale: viewModel.orientationRationale,
                         forecast_action_description: viewModel.forecastActionDescription,
                         strategy_description: viewModel.strategyDescription,
+                        ...(viewModel.hasIndustryStrategicPlan ? {
+                            industry_strategic_plan_version: viewModel.industryStrategicPlanVersion,
+                            sector: viewModel.industryStrategicPlan.sector,
+                            strategic_stance: viewModel.industryStrategicPlan.strategicStance
+                        } : {}),
                         revision_number: submittedAction.revision_number || action.revision_number || 1,
                         workflow_state: submittedAction.workflow_state || null
                     },
@@ -4435,13 +4442,16 @@ export class ScribeController {
             ? this.renderScribeStrategicOrientationSubmissionControls(action, viewModel)
             : '';
         const displayFields = getStrategicOrientationDisplayFields(viewModel);
+        const isIndustryPlan = viewModel.hasIndustryStrategicPlan;
+        const artifactTitle = isIndustryPlan ? 'Industry Strategic Plan' : 'Strategic Orientation';
+        const sectionTitle = isIndustryPlan ? 'Move 1 — Strategic Plan' : 'Orientation and forecasts';
 
         return `
             <article class="scribe-action-slide scribe-orientation-slide" data-action-id="${escapeHtml(String(action.id || ''))}">
                 <header class="scribe-action-slide-header">
                     <div>
                         <p class="scribe-action-slide-eyebrow">${escapeHtml(GREEN_DELEGATIONS[action.delegation_id] || viewModel.teamLabel)}</p>
-                        <h2 class="scribe-action-slide-title">Strategic Orientation</h2>
+                        <h2 class="scribe-action-slide-title">${artifactTitle}</h2>
                     </div>
                     <div class="scribe-action-slide-status">
                         ${createArtifactLifecycleBadge(lifecycleArtifact, { size: 'sm' }).outerHTML}
@@ -4452,9 +4462,9 @@ export class ScribeController {
                 </header>
 
                 <section class="scribe-action-slide-panel">
-                    <section class="scribe-action-slide-glance" aria-label="Strategic Orientation">
+                    <section class="scribe-action-slide-glance" aria-label="${artifactTitle}">
                         <div class="scribe-action-slide-section-header">
-                            <h3 class="scribe-action-slide-section-title">Orientation and forecasts</h3>
+                            <h3 class="scribe-action-slide-section-title">${sectionTitle}</h3>
                         </div>
                         <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
                             ${displayFields.map((field) => renderActionSlideGlanceCard({

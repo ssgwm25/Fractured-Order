@@ -197,7 +197,7 @@ test('unified Green Facilitator removal deletes only its browser-local uploaded 
     await page.locator('[data-role-surface="scribe"]').click();
     await expect(page.locator('#seatSelectionSummary')).toContainText('Green Team Facilitator');
     await page.locator('#joinForm button[type="submit"]').click();
-    await expect(page.locator('#sessionRoleLabel')).toHaveText('Green Team Facilitator');
+    await expect(page.locator('#sessionRoleLabel')).toHaveText('Facilitator');
 
     const deckKey = await page.evaluate(() => {
         const seat = JSON.parse(sessionStorage.getItem('esg_session_data'));

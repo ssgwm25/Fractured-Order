@@ -386,7 +386,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 blue: { ownOrientation: 'pressure', forecasts: { red: 'stabilization' }, forecastActionDescription: 'Red will preserve market access while limiting escalation.' },
                 green: { ownOrientation: 'stabilization', forecasts: { blue: 'pressure' }, strategyDescription: 'Green will protect regional stability under the Blue forecast.' },
                 red: { ownOrientation: 'reframe', forecasts: { blue: 'pressure', green_asian_pacific: 'reframe', green_europe: 'stabilization' }, orientationRationale: 'Red will reframe its partnerships for long-term leverage.' },
-                industry: { ownOrientation: 'pressure', forecasts: { blue: 'stabilization' }, strategyDescription: 'Industry will protect capacity under the Blue forecast.' }
+                industry: { forecasts: { blue: 'stabilization' } }
             };
             const recordedGoals = await runActorOperations(TEAMS.map((team) => () => (
                 recordStrategicOrientationFromScribe(actors.teams[team].scribe, {
@@ -443,8 +443,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             const orientationSurface = actors.whiteCellLead.locator('#strategicOrientationList');
             await expect(orientationSurface).toContainText('Completed');
             await expect(orientationSurface).toContainText('Green will protect regional stability under the Blue forecast.');
+            await expect(orientationSurface).toContainText('Review Industry Strategic Plan');
+            await expect(orientationSurface).toContainText('Telecommunications');
+            await expect(orientationSurface).toContainText('We will not transfer protected customer data.');
             await expect(orientationSurface).toContainText('Red will reframe its partnerships for long-term leverage.');
-            await expect(orientationSurface).toContainText('Industry will protect capacity under the Blue forecast.');
             await expect(orientationSurface).toContainText(correctedOrientationRationale);
             for (const outcome of CURRENT_OUTCOME_LABELS) {
                 await expect(orientationSurface.getByText(outcome, { exact: true })).toHaveCount(0);
@@ -748,6 +750,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 recipientTeam: 'blue',
                 message: blueFollowUp
             });
+            if (!actorPool.useIndependentContexts) {
+                await actors.whiteCellLead.reload();
+                await expect(actors.whiteCellLead.locator('#sessionName')).toContainText(sessionName);
+            }
             await reviewProposalResponse(actors.whiteCellLead, {
                 title: dualProposalTitle,
                 senderTeam: 'green'
@@ -757,6 +763,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 recipientTeam: 'red',
                 message: redFollowUp
             });
+            if (!actorPool.useIndependentContexts) {
+                await actors.whiteCellLead.reload();
+                await expect(actors.whiteCellLead.locator('#sessionName')).toContainText(sessionName);
+            }
             await reviewProposalResponse(actors.whiteCellLead, {
                 title: dualProposalTitle,
                 senderTeam: 'green'
@@ -838,7 +848,12 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
 
             await expect(actors.teams.blue.facilitator.locator('#deckActionFrame')).toContainText(returnedRfiAnswer);
             await openSidebarSection(actors.whiteCellLead, 'requests');
-            await actors.whiteCellLead.locator('#rfiHistoryTab').click();
+            const rfiHistoryTab = actors.whiteCellLead.locator('#rfiHistoryTab');
+            await expect(rfiHistoryTab).toBeVisible();
+            if (await rfiHistoryTab.getAttribute('aria-selected') !== 'true') {
+                await rfiHistoryTab.dispatchEvent('click');
+            }
+            await expect(rfiHistoryTab).toHaveAttribute('aria-selected', 'true');
             await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(rfiQuestions.blue);
             await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(revisedRfiQuestion);
             await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(returnedRfiAnswer);

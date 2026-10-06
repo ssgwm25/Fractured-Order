@@ -417,16 +417,6 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 strategyDescription: 'Green describes its strategy given the Blue forecast.'
             },
             expectedForecastKeys: ['blue']
-        },
-        {
-            team: 'industry',
-            label: 'Industry Team',
-            data: {
-                ownOrientation: 'reframe',
-                forecasts: { blue: 'stabilization' },
-                strategyDescription: 'Industry describes its strategy given the Blue forecast.'
-            },
-            expectedForecastKeys: ['blue']
         }
     ])('builds and validates the complete $team Strategic Orientation contract', async ({
         team,
@@ -605,20 +595,173 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(html).toContain('data-orientation-narrative="orientationRationale"');
     });
 
-    it.each([
-        ['green', 'Forecast Blue&#39;s orientation', 'Choose Green&#39;s orientation', 'Describe your strategy given this forecast'],
-        ['industry', 'Forecast Blue&#39;s orientation', 'Choose Industry&#39;s orientation', 'Describe your strategy given this forecast']
-    ])('renders the %s workflow in forecast, own-orientation, strategy order', async (teamId, forecastLabel, ownLabel, strategyLabel) => {
+    it('keeps the Green workflow in forecast, own-orientation, strategy order', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         global.document = createFakeDocument();
         const controller = new FacilitatorController();
-        controller.teamId = teamId;
+        controller.teamId = 'green';
 
         const html = controller.createStrategicOrientationContent({}).innerHTML;
 
-        expect(html.indexOf(forecastLabel)).toBeLessThan(html.indexOf(ownLabel));
-        expect(html.indexOf(ownLabel)).toBeLessThan(html.indexOf(strategyLabel));
+        expect(html.indexOf('Forecast Blue&#39;s orientation')).toBeLessThan(html.indexOf('Choose Green&#39;s orientation'));
+        expect(html.indexOf('Choose Green&#39;s orientation')).toBeLessThan(html.indexOf('Describe your strategy given this forecast'));
         expect(html).toContain('data-orientation-narrative="strategyDescription"');
+    });
+
+    it('replaces only the Industry modal with the complete Move 1 Strategic Plan', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        global.document = createFakeDocument();
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+
+        const html = controller.createStrategicOrientationContent({}).innerHTML;
+
+        expect(controller.getStrategicOrientationModalCopy()).toEqual({
+            title: 'Industry Strategic Plan',
+            submitButton: 'Record Strategic Plan'
+        });
+        [
+            'Move 1 — Strategic Plan',
+            'A. Business Overview',
+            'B. Top Three Risk Factors',
+            'C. Opening Read of the Environment',
+            'D. Partner Map',
+            'E. Strategic Priorities for the Game',
+            'Strategic Stance',
+            'Red Line',
+            'Pressure',
+            'Stabilization',
+            'Reframe'
+        ].forEach((copy) => expect(html).toContain(copy));
+        expect(html).not.toContain('Choose Industry&#39;s orientation');
+        expect(html).not.toContain('Describe your strategy given this forecast');
+        expect(html).toContain('Telecommunications');
+        expect(html).toContain('Biotechnology');
+        expect(html).toContain('Record Strategic Plan');
+        expect(html).not.toContain('maxlength=');
+        [
+            'ACTION CODES',
+            'Primary Move',
+            'Capital Commitment',
+            'Stakeholder Tradeoff',
+            'Facilitator Hand-Off Summary'
+        ].forEach((turnSheetField) => expect(html).not.toContain(turnSheetField));
+    });
+
+    it('builds the Industry plan inside the existing Strategic Orientation artifact', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { parseStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+        controller.teamLabel = 'Industry Team';
+        const data = {
+            forecasts: { blue: 'stabilization' },
+            industryStrategicPlan: {
+                version: 1,
+                sector: 'Telecommunications',
+                businessOverview: 'Builds resilient communications infrastructure.',
+                risks: [
+                    { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                    { type: 'secondary_sanctions_exposure', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                    { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+                ],
+                redPriorities: 'Red will prioritize market access.',
+                partners: [{ partner: 'Allied supplier', whyTheyMatter: 'Critical inputs', likelyWant: 'Long-term demand' }],
+                firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate supply.' },
+                strategicPriorities: [
+                    { priority: 'Protect capacity', successLooksLike: 'No outage.' },
+                    { priority: 'Diversify', successLooksLike: 'Second source.' },
+                    { priority: 'Preserve access', successLooksLike: 'Markets remain open.' }
+                ],
+                strategicStance: 3,
+                redLine: 'No protected technology transfer.'
+            }
+        };
+
+        expect(controller.validateStrategicOrientationData(data)).toEqual([]);
+        const payload = controller.buildStrategicOrientationPayload(data);
+        const details = parseStrategicOrientationDetails(payload.ally_contingencies);
+        expect(payload).toMatchObject({
+            goal: 'Industry Strategic Plan — Telecommunications',
+            mechanism: 'Strategic Orientation',
+            sector: 'Telecommunications',
+            exposure_type: 'pre_move_1'
+        });
+        expect(details).toMatchObject({
+            team: 'industry',
+            ownOrientation: null,
+            industryStrategicPlanVersion: 1,
+            industryStrategicPlan: data.industryStrategicPlan
+        });
+        expect(details.forecastTargets).toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: 'blue', orientation: 'stabilization' })
+        ]));
+    });
+
+    it('rehydrates a returned Industry plan and keeps old Industry answers as context only', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        global.document = createFakeDocument();
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+
+        const returnedPlan = controller.createStrategicOrientationContent({
+            id: 'industry-plan-returned',
+            team: 'industry',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team: 'industry',
+                forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+                industryStrategicPlan: {
+                    version: 1,
+                    sector: 'Telecommunications',
+                    businessOverview: 'Saved business overview.',
+                    risks: [
+                        { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                        { type: 'secondary_sanctions_exposure', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                        { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+                    ],
+                    redPriorities: 'Saved Red priorities.',
+                    partners: [{ partner: 'Kenya', whyTheyMatter: 'Connectivity', likelyWant: 'Investment' }],
+                    firstAmbassadorTarget: { cell: 'green', reason: 'Saved ambassador reason.' },
+                    strategicPriorities: [
+                        { priority: 'Priority one', successLooksLike: 'Outcome one' },
+                        { priority: 'Priority two', successLooksLike: 'Outcome two' },
+                        { priority: 'Priority three', successLooksLike: 'Outcome three' }
+                    ],
+                    strategicStance: 4,
+                    redLine: 'Saved red line.'
+                }
+            })
+        }).innerHTML;
+        expect(returnedPlan).toMatch(/value="Telecommunications"[^>]*checked/);
+        expect(returnedPlan).toContain('Saved business overview.');
+        expect(returnedPlan).toContain('Kenya');
+        expect(returnedPlan).toContain('Priority three');
+        expect(returnedPlan).toContain('value="4"');
+        expect(returnedPlan).toContain('Saved red line.');
+
+        const legacy = controller.createStrategicOrientationContent({
+            id: 'industry-orientation-legacy',
+            team: 'industry',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team: 'industry',
+                ownOrientation: 'pressure',
+                forecastTargets: [{ key: 'blue', orientation: 'reframe' }],
+                strategyDescription: 'Historical strategy only.'
+            })
+        }).innerHTML;
+        expect(legacy).toContain('Legacy Industry orientation');
+        expect(legacy).toContain('Previous own orientation:');
+        expect(legacy).toContain('Previous Blue forecast:');
+        expect(legacy).toContain('Reframe');
+        expect(legacy).toContain('Historical strategy only.');
+        expect(legacy).not.toContain('Saved business overview.');
+        expect(legacy).not.toMatch(/value="Telecommunications"[^>]*checked/);
+        expect(legacy).not.toMatch(/name="industryBlueForecast"[^>]*checked/);
     });
 
     it('requires every team-specific choice and rejects whitespace-only narratives', async () => {

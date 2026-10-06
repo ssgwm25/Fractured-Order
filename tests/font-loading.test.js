@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 const APP_HTML_FILES = [
     'index.html',
     'master.html',
+    'sme.html',
     'whitecell.html',
     ...['blue', 'green', 'industry', 'red'].flatMap((team) => [
         `teams/${team}/facilitator.html`,

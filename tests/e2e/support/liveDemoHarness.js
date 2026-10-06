@@ -817,21 +817,30 @@ export async function forwardActionToScribe(page, goal) {
 
         const markTab = page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`);
         await expect(markTab).toBeVisible({ timeout: 20000 });
-        await markTab.click();
+        await activateReconciledControl(markTab);
     }
 
     await expect(actionCard).toBeVisible();
 
     const detailsToggle = actionCard.locator('.toggle-action-card-btn');
     if (await detailsToggle.getAttribute('aria-expanded') !== 'true') {
-        await detailsToggle.click();
+        await activateReconciledControl(detailsToggle);
     }
 
     const forwardButton = actionCard.getByRole('button', { name: 'Forward to Facilitator' });
     await expect(forwardButton).toBeVisible();
-    await forwardButton.click();
-    await page.locator('.modal-overlay').getByRole('button', { name: 'Forward' }).click();
-    await expect(page.locator('#toast-container')).toContainText('Action forwarded to Facilitator');
+    await activateReconciledControl(forwardButton);
+
+    const modal = page.locator('.modal-overlay').filter({
+        has: page.getByRole('button', { name: 'Forward', exact: true })
+    });
+    await expect(modal).toBeVisible();
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: 'Forward', exact: true }),
+        'Action forwarded to Facilitator'
+    );
+    await expect(modal).toBeHidden();
 }
 
 export async function recordStrategicOrientationFromScribe(page, {
@@ -842,6 +851,7 @@ export async function recordStrategicOrientationFromScribe(page, {
     orientationRationale = '',
     forecastActionDescription = '',
     strategyDescription = '',
+    industryStrategicPlan = null,
     rationale = 'Topology rehearsal orientation recorded before the normal move gate.'
 } = {}) {
     await page.bringToFront();
@@ -865,6 +875,66 @@ export async function recordStrategicOrientationFromScribe(page, {
         has: page.locator('[data-strategic-orientation-modal]')
     });
     await expect(modal).toBeVisible();
+
+    if (normalizedTeam === 'industry') {
+        const plan = industryStrategicPlan || {
+            sector: 'Telecommunications',
+            businessOverview: 'We operate secure networks and depend on advanced chips.',
+            risks: [
+                { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                { type: 'secondary_sanctions_exposure', otherText: '', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                { type: 'reputational', otherText: '', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+            ],
+            redPriorities: 'Preserve market access and acquire strategic technology.',
+            partners: [
+                { partner: 'Kenya', whyTheyMatter: 'Regional connectivity', likelyWant: 'Long-term investment' }
+            ],
+            firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate resilient network investment.' },
+            strategicPriorities: [
+                { priority: 'Secure chip supply', successLooksLike: 'Two qualified suppliers' },
+                { priority: 'Protect market access', successLooksLike: 'No forced exit' },
+                { priority: 'Build partner capacity', successLooksLike: 'A funded joint program' }
+            ],
+            strategicStance: 3,
+            redLine: 'We will not transfer protected customer data.'
+        };
+        const blueForecast = resolvedForecasts.blue || 'pressure';
+
+        await expect(modal).toContainText('Industry Strategic Plan');
+        await modal.locator(`#industrySector-${plan.sector}`).check();
+        await modal.locator('#industryBusinessOverview').fill(plan.businessOverview);
+        for (const [index, risk] of plan.risks.entries()) {
+            const number = index + 1;
+            await modal.locator(`#industryRiskType${number}`).selectOption(risk.type);
+            if (risk.type === 'other') await modal.locator(`#industryRiskOther${number}`).fill(risk.otherText);
+            await modal.locator(`#industryRisk${number}likelihood-${risk.likelihood}`).check();
+            await modal.locator(`#industryRisk${number}impact-${risk.impact}`).check();
+            await modal.locator(`#industryRisk${number}tiedCell-${risk.tiedCell}`).check();
+        }
+        await modal.locator(`#industryBlueForecast-${blueForecast}`).check();
+        await modal.locator('#industryRedPriorities').fill(plan.redPriorities);
+        for (const [index, partner] of plan.partners.entries()) {
+            const number = index + 1;
+            await modal.locator(`#industryPartner${number}partner`).fill(partner.partner);
+            await modal.locator(`#industryPartner${number}whyTheyMatter`).fill(partner.whyTheyMatter);
+            await modal.locator(`#industryPartner${number}likelyWant`).fill(partner.likelyWant);
+        }
+        await modal.locator('#industryAmbassadorCell').selectOption(plan.firstAmbassadorTarget.cell);
+        await modal.locator('#industryAmbassadorReason').fill(plan.firstAmbassadorTarget.reason);
+        for (const [index, priority] of plan.strategicPriorities.entries()) {
+            const number = index + 1;
+            await modal.locator(`#industryPriority${number}priority`).fill(priority.priority);
+            await modal.locator(`#industryPriority${number}successLooksLike`).fill(priority.successLooksLike);
+        }
+        await modal.locator(`#industryStrategicStance-${plan.strategicStance}`).check();
+        await modal.locator('#industryRedLine').fill(plan.redLine);
+        await modal.locator('[data-orientation-nav="confirm"]').click();
+
+        await expect(page.locator('#toast-container')).toContainText('Strategic Orientation forwarded to Facilitator');
+        const planCard = page.locator('#actionsList .entity-card').filter({ hasText: 'Industry Strategic Plan' }).first();
+        await expect(planCard).toBeVisible();
+        return (await planCard.locator('.entity-card__title').innerText()).trim();
+    }
 
     const confirmButton = modal.locator('[data-orientation-nav="confirm"]');
     await expect(confirmButton).toBeDisabled();
@@ -1008,7 +1078,9 @@ export async function submitStrategicOrientationFromScribe(page, goal) {
     await expect(orientationSlide).toBeVisible();
     const actionId = await orientationSlide.getAttribute('data-action-id');
     expect(actionId).toBeTruthy();
-    await expect(orientationSlide.locator('.scribe-action-slide-title')).toContainText('Strategic Orientation');
+    await expect(orientationSlide.locator('.scribe-action-slide-title')).toContainText(
+        /Strategic Orientation|Industry Strategic Plan/
+    );
     await expect(panel).toBeVisible();
     const submitButton = panel.getByRole('button', { name: /^(?:Submit|Resubmit) to White Cell$/ });
     const isResubmission = (await submitButton.innerText()).trim().startsWith('Resubmit');
@@ -1261,7 +1333,9 @@ export async function reviseReturnedStrategicOrientation(page, {
 }
 
 export function getWhiteCellStrategicOrientationTitle(goal, team = '') {
-    void team;
+    if (String(team).trim().toLowerCase() === 'industry') {
+        return 'Review Industry Strategic Plan';
+    }
     return String(goal || '').trim();
 }
 
@@ -1584,8 +1658,11 @@ export async function submitRfi(page, {
     await expect(modal).toBeVisible();
     await modal.locator('#rfiQuestion').fill(question);
     await modal.locator('[data-rfi-checkbox="category"]').first().check();
-    await modal.getByRole('button', { name: 'Submit RFI' }).click();
-    await expect(page.locator('#toast-container')).toContainText('RFI submitted');
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: 'Submit RFI' }),
+        'RFI submitted'
+    );
     await expect(modal).toBeHidden();
     await expect(page.locator('#deckActionFrame')).toContainText(question);
 }
@@ -1606,8 +1683,11 @@ export async function answerRfi(page, {
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiResponseForm') });
     await expect(modal).toBeVisible();
     await modal.locator('#rfiResponse').fill(response);
-    await modal.getByRole('button', { name: 'Send Response' }).click();
-    await expect(page.locator('#toast-container')).toContainText('Response sent');
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: 'Send Response' }),
+        'Response sent'
+    );
     await expect(modal).toBeHidden();
 }
 
@@ -1627,9 +1707,12 @@ export async function returnRfi(page, {
     const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiReturnForm') });
     await expect(modal).toBeVisible();
     await modal.locator('#rfiReturnNotes').fill(notes);
-    await modal.getByRole('button', { name: 'Return for Clarification' }).click();
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: 'Return for Clarification' }),
+        'RFI returned for clarification'
+    );
     await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('RFI returned for clarification');
 }
 
 export async function reviseAndResubmitRfi(page, {
@@ -1659,9 +1742,12 @@ export async function reviseAndResubmitRfi(page, {
     await expect(modal).toContainText(returnNotes);
     await expect(modal).toContainText('editing revision 2');
     await modal.locator('#rfiQuestion').fill(revisedQuestion);
-    await modal.getByRole('button', { name: 'Resubmit RFI' }).click();
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: 'Resubmit RFI' }),
+        'RFI resubmitted successfully'
+    );
     await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText('RFI resubmitted successfully');
     await expect(frame).toContainText(revisedQuestion);
     await expect(frame).toContainText('Resubmitted');
     return revisedQuestion;

@@ -3492,6 +3492,78 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
         expect(html).not.toContain('Jul 15, 2026');
     });
 
+    it('presents the full Industry Strategic Plan and keeps the existing White Cell handoff controls', async () => {
+        const { ScribeController } = await loadScribeModule();
+        global.document = createFakeDocument();
+        global.document.body.dataset.team = 'industry';
+        const controller = new ScribeController();
+        controller.teamLabel = 'Industry Team';
+        const action = {
+            id: 'industry-strategic-plan-preview',
+            team: 'industry',
+            move: 1,
+            phase: 1,
+            goal: 'Industry Strategic Plan — Telecommunications',
+            mechanism: 'Strategic Orientation',
+            exposure_type: 'pre_move_1',
+            priority: 'HIGH',
+            status: 'draft',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team: 'industry',
+                ownOrientation: null,
+                forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+                industryStrategicPlan: {
+                    version: 1,
+                    sector: 'Telecommunications',
+                    businessOverview: 'We operate secure networks and depend on advanced chips.',
+                    risks: [
+                        { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                        { type: 'secondary_sanctions_exposure', otherText: '', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                        { type: 'other', otherText: 'Supply Risk', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+                    ],
+                    redPriorities: 'Preserve market access and acquire strategic technology.',
+                    partners: [
+                        { partner: 'Kenya', whyTheyMatter: 'Regional connectivity', likelyWant: 'Long-term investment' }
+                    ],
+                    firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate resilient network investment.' },
+                    strategicPriorities: [
+                        { priority: 'Secure chip supply', successLooksLike: 'Two qualified suppliers' },
+                        { priority: 'Protect market access', successLooksLike: 'No forced exit' },
+                        { priority: 'Build partner capacity', successLooksLike: 'A funded joint program' }
+                    ],
+                    strategicStance: 3,
+                    redLine: 'We will not transfer protected customer data.'
+                },
+                scribeHandoff: 'Forwarded'
+            })
+        };
+
+        const html = controller.renderActionSlide({
+            slideKey: 'action-industry-strategic-plan-preview',
+            slideType: 'strategic-orientation',
+            sidebarOrdinal: 'SO',
+            sidebarKicker: 'Forwarded to Facilitator | Pre-Move 1 | Orientation & Forecast',
+            action
+        });
+
+        expect(html).toContain('Industry Strategic Plan');
+        expect(html).toContain('Move 1 — Strategic Plan');
+        expect(html).toContain('A. Business Overview');
+        expect(html).toContain('B. Top Three Risks');
+        expect(html).toContain('C. Opening Read');
+        expect(html).toContain('D. Partner Map');
+        expect(html).toContain('E. Strategic Priorities');
+        expect(html).toContain('Stabilization');
+        expect(html).toContain('Supply Risk');
+        expect(html).toContain('Kenya');
+        expect(html).toContain('Secure chip supply');
+        expect(html).toContain('We will not transfer protected customer data.');
+        expect(html).toContain('Project Industry Strategic Plan');
+        expect(html).toContain('Submit to White Cell');
+        expect(html).not.toContain('Orientation and forecasts');
+        expect(html).not.toContain('Own Orientation');
+    });
+
     it('renders Red multi-target Strategic Orientation forecasts with Blue and Green forecast rows', async () => {
         const { ScribeController } = await loadScribeModule();
         global.document = createFakeDocument();

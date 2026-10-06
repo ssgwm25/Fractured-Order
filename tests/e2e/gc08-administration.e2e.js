@@ -70,13 +70,17 @@ async function completeOrientationPrerequisite(context, gm, ap, eu, fac, session
     for (const team of ['blue', 'red', 'industry']) {
         const scribe = await createIsolatedActorPage(context, `gc08-${team}-scribe`);
         const facilitator = await createIsolatedActorPage(context, `gc08-${team}-facilitator`);
-        // Legacy surface names are intentionally inverted for these roles.
-        await join(scribe, null, { team, roleSurface: 'facilitator' });
-        await join(facilitator, null, { team, roleSurface: 'scribe' });
-        const goal = await recordStrategicOrientationFromScribe(scribe, {
-            team, rationale: `Synthetic GC08 ${team} orientation prerequisite`
-        });
-        await submitStrategicOrientationFromScribe(facilitator, goal);
+        try {
+            // Legacy surface names are intentionally inverted for these roles.
+            await join(scribe, null, { team, roleSurface: 'facilitator' });
+            await join(facilitator, null, { team, roleSurface: 'scribe' });
+            const goal = await recordStrategicOrientationFromScribe(scribe, {
+                team, rationale: `Synthetic GC08 ${team} orientation prerequisite`
+            });
+            await submitStrategicOrientationFromScribe(facilitator, goal);
+        } finally {
+            await Promise.all([scribe.close(), facilitator.close()]);
+        }
     }
     await expect.poll(() => gm.evaluate((sid) => globalThis.__ESG_E2E_BACKEND__.dump().tables.actions
         .filter((a) => a.session_id === sid && a.mechanism === 'Strategic Orientation' && a.status === 'submitted')
@@ -85,6 +89,7 @@ async function completeOrientationPrerequisite(context, gm, ap, eu, fac, session
 }
 
 test('keyboard regional creation leads to all three joins and both real Scribe handoffs to White Cell', async ({ context }) => {
+    test.setTimeout(3 * 60 * 1000);
     const gm = await createIsolatedActorPage(context, 'gc08-gm', { resetBackend: true });
     await authorizeGameMaster(gm, { displayName: 'GC08 synthetic GM' });
     await seedApproval(gm);

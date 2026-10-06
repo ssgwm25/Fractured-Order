@@ -65,6 +65,11 @@ export function renderSeatGate(message, { retry = false, busy = false } = {}) {
 export function ensureSeatStartup() {
     const route = getCurrentAppRelativePath();
     if (!/^teams\//.test(route) && !['whitecell.html', 'sme.html'].includes(route)) return Promise.resolve(true);
+    if (route === 'whitecell.html'
+        && (!sessionStore.getSessionId() || !sessionStore.getSessionParticipantId())) {
+        navigateToApp('index.html#operatorAccessSection', { replace: true });
+        return Promise.resolve(false);
+    }
     // Preserve the historical observer entry contract, which has no role seat.
     if (/^teams\//.test(route) && sessionStore.getRole() === 'viewer' && !sessionStore.getSessionParticipantId()
         && !new URLSearchParams(window.location.search).has('delegation')) {

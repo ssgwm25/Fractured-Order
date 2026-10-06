@@ -17,6 +17,11 @@ import { CONFIG, getRoleLimit, isHeartbeatFresh } from '../core/config.js';
 
 const logger = createLogger('ParticipantsStore');
 
+function isClosedSessionHeartbeat(cause) {
+    return cause?.code === '42501'
+        && cause?.message === 'This session is not currently joinable.';
+}
+
 /**
  * @typedef {Object} Participant
  * @property {string} id - Session participant record ID
@@ -425,7 +430,11 @@ class ParticipantsStore {
                 logger.debug('Regional heartbeat paused offline; server validation required on reconnect');
                 return;
             }
-            logger.error('Failed to send heartbeat:', err);
+            if (isClosedSessionHeartbeat(cause)) {
+                logger.warn('Heartbeat stopped because the session is no longer joinable.');
+            } else {
+                logger.error('Failed to send heartbeat:', err);
+            }
             if (sessionStore.getConfirmedSeat?.()) {
                 sessionStore.invalidateSeat();
                 sessionStore.notify();

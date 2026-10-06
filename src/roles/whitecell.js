@@ -3428,6 +3428,9 @@ export class WhiteCellController {
     }
 
     getStrategicOrientationReviewTitle(action = {}, viewModel = getStrategicOrientationViewModel(action)) {
+        if (viewModel.hasIndustryStrategicPlan) {
+            return 'Review Industry Strategic Plan';
+        }
         if (action.team === 'green' && GREEN_DELEGATIONS[action.delegation_id]) {
             return `${GREEN_DELEGATIONS[action.delegation_id]}: ${viewModel.title}`;
         }
@@ -4332,7 +4335,7 @@ export class WhiteCellController {
 
         const modalRef = { current: null };
         modalRef.current = showModal({
-            title: 'Review Strategic Orientation',
+            title: reviewTitle,
             content,
             size: 'md',
             buttons: [

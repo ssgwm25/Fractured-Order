@@ -59,3 +59,28 @@ it.each([
     ]);
     channel.unsubscribe();
 });
+
+it('denies heartbeat and restore for a revoked unified seat without reactivating it', async () => {
+    const revokedAt = new Date().toISOString();
+    localStorage.setItem(stateKey, JSON.stringify({ counters: {}, tables: {
+        sessions: [{ id: 'session', status: 'active', session_classification: 'live_exercise', is_protected: false,
+            session_topology_version: 1, green_seat_model: 'unified_v1' }],
+        participants: [{ id: 'participant', auth_user_id: 'actor', client_id: 'client' }],
+        session_participants: [{ id: 'seat', session_id: 'session', participant_id: 'participant', role: 'green_scribe',
+            delegation_id: null, is_active: false, revoked_at: revokedAt, heartbeat_at: new Date().toISOString(),
+            display_name_snapshot: 'Retained unified fixture' }]
+    } }));
+    const args = {
+        requested_session_id: 'session',
+        requested_session_participant_id: 'seat',
+        requested_client_id: 'client'
+    };
+
+    expect((await api.rpc('heartbeat_session_role_seat', args)).error)
+        .toMatchObject({ code: '42501', message: 'GC03_SEAT_REJOIN_REQUIRED' });
+    expect((await api.rpc('restore_session_seat_context', args)).error)
+        .toMatchObject({ code: '42501', message: 'GC04_INVALID_SESSION_SEAT' });
+    expect(JSON.parse(localStorage.getItem(stateKey)).tables.session_participants).toEqual([
+        expect.objectContaining({ id: 'seat', is_active: false, revoked_at: revokedAt })
+    ]);
+});

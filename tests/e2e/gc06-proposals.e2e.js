@@ -68,7 +68,9 @@ test('returned proposal exposes notes and waits for its Scribe before corrected 
     await openSharedWorkspace(context, page, true);
     await openRegion(page, 'europe');
     await expect(page.locator('.scribe-own-proposal-slide')).toContainText('Synthetic correction requested');
-    await expect(page.locator('.scribe-own-proposal-slide')).toContainText('corrected proposal handoff');
+    await expect(page.locator('.scribe-own-proposal-slide')).toContainText(
+        'Submission waits for the originating Scribe to hand off this revision.'
+    );
     await expect(page.locator('[data-scribe-action-submit][data-action-id="gc06-europe"]:enabled')).toHaveCount(0);
     // Simulate delivery of the separately tested Scribe handoff revision.
     await page.evaluate(() => {

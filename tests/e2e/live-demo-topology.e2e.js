@@ -47,7 +47,7 @@ test('@live-demo one-team topology covers operator session creation, onboarding,
 
     await test.step('block direct White Cell access without operator auth', async () => {
         await intruder.goto(buildAppUrl('whitecell.html'));
-        await expect(intruder).toHaveURL(/operatorAccessSection/);
+        await expect(intruder).toHaveURL(/\/index\.html#operatorAccessSection$/);
         await expect(intruder.locator('#operatorAccessSection')).toBeVisible();
     });
 

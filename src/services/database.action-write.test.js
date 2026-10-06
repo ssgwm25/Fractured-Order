@@ -277,6 +277,75 @@ describe('database action write contracts', () => {
         }
     );
 
+    it('stores the Industry Strategic Plan inside the existing forecast artifact contract', async () => {
+        const { database } = await import('./database.js');
+        const { serializeStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        const { insert } = mockInsertChain();
+        const industryStrategicPlan = {
+            version: 1,
+            sector: 'Telecommunications',
+            businessOverview: 'We operate secure networks and depend on advanced chips.',
+            risks: [
+                { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                { type: 'secondary_sanctions_exposure', otherText: '', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                { type: 'reputational', otherText: '', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+            ],
+            redPriorities: 'Preserve market access and acquire strategic technology.',
+            partners: [
+                { partner: 'Kenya', whyTheyMatter: 'Regional connectivity', likelyWant: 'Long-term investment' }
+            ],
+            firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate resilient network investment.' },
+            strategicPriorities: [
+                { priority: 'Secure chip supply', successLooksLike: 'Two qualified suppliers' },
+                { priority: 'Protect market access', successLooksLike: 'No forced exit' },
+                { priority: 'Build partner capacity', successLooksLike: 'A funded joint program' }
+            ],
+            strategicStance: 3,
+            redLine: 'We will not transfer protected customer data.'
+        };
+
+        await database.createAction({
+            session_id: 'session-1',
+            client_id: 'client-action-write-test',
+            move: 1,
+            phase: 1,
+            team: 'industry',
+            mechanism: 'Strategic Orientation',
+            sector: 'Telecommunications',
+            exposure_type: 'pre_move_1',
+            targets: [],
+            goal: 'Industry Strategic Plan — Telecommunications',
+            expected_outcomes: 'Blue: Stabilization',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team: 'industry',
+                ownOrientation: null,
+                forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+                industryStrategicPlan,
+                scribeHandoff: 'Forwarded'
+            }),
+            priority: 'HIGH',
+            status: 'draft'
+        });
+
+        expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+            team: 'industry',
+            artifact_type: 'strategic_orientation_forecast',
+            artifact_payload: {
+                strategic_orientation: expect.objectContaining({
+                    contractVersion: 2,
+                    team: 'industry',
+                    ownOrientation: null,
+                    industryStrategicPlanVersion: 1,
+                    industryStrategicPlan
+                })
+            },
+            forecast_targets: [expect.objectContaining({
+                key: 'blue',
+                orientation: 'stabilization'
+            })]
+        }));
+    });
+
     it('rejects a Strategic Orientation envelope that names a different team', async () => {
         const { database } = await import('./database.js');
         const {
