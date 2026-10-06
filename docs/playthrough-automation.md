@@ -19,9 +19,9 @@ playthrough. It covers:
   hosted real backend
 - shared UI tokens, duplicate DOM IDs, document overflow, and raw-JSON leakage
 - Strategic Orientation from Scribe to Facilitator to White Cell for all teams,
-  with Industry using the complete Move 1 Strategic Plan in the same artifact
-  workflow, including a Blue return, edit, resubmission, and outcome-free
-  completion
+  with Industry using one consolidated Move 1 Strategic Plan containing all
+  three mandatory sector plans in the same artifact workflow, including a Blue
+  return, edit, resubmission, and outcome-free completion
 - orientation gating of White Cell move controls
 - timer synchronization through White Cell Lead controls
 - the existing normal Blue and Red completions plus integrated Blue and Red
@@ -41,7 +41,8 @@ playthrough. It covers:
   preserving the product's non-disruptive live-update tab behavior, and proposal
   response review uses the stable queue-level event path across rerenders and
   re-resolves the non-mutating review control until its expected modal is
-  attached, stopping before the forwarding write is activated;
+  attached within the proposal workflow's 60-second reconciliation window,
+  stopping before the forwarding write is activated;
   RFI response and return controls use the same reconciled-control path so a
   live queue rerender cannot detach the button during Playwright actionability;
   RFI submission, response, return, and resubmission writes also capture their
@@ -55,6 +56,13 @@ playthrough. It covers:
   recipient approval checkboxes are selected atomically on the current visible,
   enabled input with normal `input` and `change` events, and re-resolved until
   the current instance is verified checked before submission;
+  White Cell communication recipient and message-type selects use the same
+  current-element reconciliation and verify the requested option remains
+  selected before the message is submitted; both White Cell outbound messages
+  and Facilitator direct messages arm toast-mutation capture before submission
+  and retain the success or error result across concurrent live-update
+  rendering, then require the cleared form or closed modal and the persisted
+  message within the 60-second workflow-write window;
   proposal persistence, review, and recipient-thread follow-up commands dispatch
   directly and arm toast-mutation capture before activation, retaining the
   resulting evidence even after the timed notification leaves the DOM; an error

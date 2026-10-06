@@ -4145,8 +4145,7 @@ export class ScribeController {
                         strategy_description: viewModel.strategyDescription,
                         ...(viewModel.hasIndustryStrategicPlan ? {
                             industry_strategic_plan_version: viewModel.industryStrategicPlanVersion,
-                            sector: viewModel.industryStrategicPlan.sector,
-                            strategic_stance: viewModel.industryStrategicPlan.strategicStance
+                            sectors: Object.keys(viewModel.industryStrategicPlan.sectorPlans || {})
                         } : {}),
                         revision_number: submittedAction.revision_number || action.revision_number || 1,
                         workflow_state: submittedAction.workflow_state || null

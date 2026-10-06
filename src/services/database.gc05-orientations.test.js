@@ -7,6 +7,35 @@ const identity = (id) => localStorage.setItem('esg_e2e_auth_session', JSON.strin
 const seed = (change) => { const state = JSON.parse(localStorage.getItem(key)); change(state.tables); localStorage.setItem(key, JSON.stringify(state)); };
 const details = (strategyDescription = 'Synthetic strategy') => serializeStrategicOrientationDetails({ team: 'green', ownOrientation: 'pressure',
     forecastTargets: [{ key: 'blue', orientation: 'stabilization' }], strategyDescription, scribeHandoff: 'Forwarded' });
+const industryDetails = () => {
+    const sectorPlan = {
+        businessOverview: 'Complete overview',
+        risks: [
+            { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+            { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' },
+            { type: 'regulatory_legal', likelihood: 'low', impact: 'medium', tiedCell: 'blue' }
+        ],
+        redPriorities: 'Preserve access',
+        partners: [{ partner: 'Kenya', whyTheyMatter: 'Supply', likelyWant: 'Investment' }],
+        firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate supply' },
+        strategicPriorities: [
+            { priority: 'One', successLooksLike: 'One complete' },
+            { priority: 'Two', successLooksLike: 'Two complete' },
+            { priority: 'Three', successLooksLike: 'Three complete' }
+        ],
+        strategicStance: 3,
+        redLine: 'No protected transfer'
+    };
+    return serializeStrategicOrientationDetails({
+        team: 'industry',
+        forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+        industryStrategicPlan: {
+            version: 2,
+            sectorPlans: Object.fromEntries(['Agriculture', 'Telecommunications', 'Biotechnology']
+                .map((sector) => [sector, structuredClone(sectorPlan)]))
+        }
+    });
+};
 const params = (action) => ({ requested_session_id: action.session_id, requested_delegation_id: action.delegation_id,
     requested_action_id: action.id, requested_expected_revision: action.revision_number, requested_expected_row_version: action.row_version });
 let api;
@@ -49,7 +78,7 @@ describe('GC05 orientation RPC contract (mock; SQL evidence required separately)
         seed((tables) => {
             tables.operator_grants.push({ auth_user_id: 'wc', session_id: 'shared', surface: 'whitecell', role: 'whitecell_lead' });
             tables.actions.push(...['blue', 'red', 'industry'].map((team) => ({ id: team, session_id: 'shared', team, status: 'submitted',
-                ally_contingencies: `Strategic Orientation Details\nTeam: ${team}` })));
+                ally_contingencies: team === 'industry' ? industryDetails() : `Strategic Orientation Details\nTeam: ${team}` })));
         });
         await claim('wc', 'whitecell_lead');
     });
@@ -216,8 +245,38 @@ describe('GC05 orientation RPC contract (mock; SQL evidence required separately)
 });
 
 describe('GC05 completion ownership and compatibility', () => {
-    const row = (team, delegation_id = null) => ({ session_id: 's', team, delegation_id, status: 'submitted',
-        ally_contingencies: `Strategic Orientation Details\nTeam: ${team}` });
+    const industrySectorPlan = {
+        businessOverview: 'Complete overview',
+        risks: [
+            { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+            { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' },
+            { type: 'regulatory_legal', likelihood: 'low', impact: 'medium', tiedCell: 'blue' }
+        ],
+        redPriorities: 'Preserve access',
+        partners: [{ partner: 'Kenya', whyTheyMatter: 'Supply', likelyWant: 'Investment' }],
+        firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate supply' },
+        strategicPriorities: [
+            { priority: 'One', successLooksLike: 'One complete' },
+            { priority: 'Two', successLooksLike: 'Two complete' },
+            { priority: 'Three', successLooksLike: 'Three complete' }
+        ],
+        strategicStance: 3,
+        redLine: 'No protected transfer'
+    };
+    const row = (team, delegation_id = null) => ({
+        session_id: 's', team, delegation_id, status: 'submitted',
+        ally_contingencies: team === 'industry'
+            ? serializeStrategicOrientationDetails({
+                team: 'industry',
+                forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+                industryStrategicPlan: {
+                    version: 2,
+                    sectorPlans: Object.fromEntries(['Agriculture', 'Telecommunications', 'Biotechnology']
+                        .map((sector) => [sector, structuredClone(industrySectorPlan)]))
+                }
+            })
+            : `Strategic Orientation Details\nTeam: ${team}`
+    });
     it('retains four-team unified and historical NULL topology completion', () => {
         for (const topology of [1, null]) expect(getStrategicOrientationCompletion(['blue','green','red','industry'].map((t) => row(t)),
             { id: 's', session_topology_version: topology }).complete).toBe(true);

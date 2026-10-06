@@ -215,7 +215,31 @@ function buildStrategicOrientationAction(team, {
         },
         industry: {
             forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
-            strategyDescription: 'Industry will reframe investment given the Blue forecast.'
+            industryStrategicPlan: (() => {
+                const sectorPlan = {
+                    businessOverview: 'Complete Industry overview.',
+                    risks: [
+                        { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                        { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' },
+                        { type: 'regulatory_legal', likelihood: 'low', impact: 'medium', tiedCell: 'blue' }
+                    ],
+                    redPriorities: 'Preserve market access.',
+                    partners: [{ partner: 'Kenya', whyTheyMatter: 'Supply', likelyWant: 'Investment' }],
+                    firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate supply.' },
+                    strategicPriorities: [
+                        { priority: 'One', successLooksLike: 'One complete.' },
+                        { priority: 'Two', successLooksLike: 'Two complete.' },
+                        { priority: 'Three', successLooksLike: 'Three complete.' }
+                    ],
+                    strategicStance: 3,
+                    redLine: 'No protected transfer.'
+                };
+                return {
+                    version: 2,
+                    sectorPlans: Object.fromEntries(['Agriculture', 'Telecommunications', 'Biotechnology']
+                        .map((sector) => [sector, structuredClone(sectorPlan)]))
+                };
+            })()
         }
     }[team];
     return {
@@ -225,7 +249,7 @@ function buildStrategicOrientationAction(team, {
         mechanism: 'Strategic Orientation',
         ally_contingencies: serializeStrategicOrientationDetails({
             team,
-            ownOrientation: orientation,
+            ownOrientation: team === 'industry' ? null : orientation,
             ...profileDetails
         })
     };
@@ -422,15 +446,7 @@ describe('White Cell DOM contract', () => {
                     orientation: 'reframe'
                 })
             },
-            {
-                team: 'industry',
-                status: 'submitted',
-                ally_contingencies: serializeStrategicOrientationDetails({
-                    artifactType: 'forecast',
-                    team: 'industry',
-                    orientation: 'stabilization'
-                })
-            }
+            buildStrategicOrientationAction('industry', { orientation: 'stabilization' })
         ]);
         const fakeDocument = createFakeDocument(WHITE_CELL_DOM_IDS);
         global.document = fakeDocument;
@@ -810,15 +826,7 @@ describe('White Cell DOM contract', () => {
                     orientation: 'reframe'
                 })
             },
-            {
-                team: 'industry',
-                status: 'submitted',
-                ally_contingencies: serializeStrategicOrientationDetails({
-                    artifactType: 'forecast',
-                    team: 'industry',
-                    orientation: 'stabilization'
-                })
-            }
+            buildStrategicOrientationAction('industry', { orientation: 'stabilization' })
         ]);
 
         expect(controller.shouldGateStrategicOrientation()).toBe(false);
@@ -2551,14 +2559,13 @@ describe('White Cell DOM contract', () => {
             workflow_state: 'submitted_to_white_cell',
             revision_number: 2,
             mechanism: 'Strategic Orientation',
-            goal: 'Industry Strategic Plan — Telecommunications',
+            goal: 'Industry Strategic Plan',
             ally_contingencies: serializeStrategicOrientationDetails({
                 team: 'industry',
                 ownOrientation: null,
                 forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
-                industryStrategicPlan: {
-                    version: 1,
-                    sector: 'Telecommunications',
+                industryStrategicPlan: (() => {
+                    const sectorPlan = {
                     businessOverview: 'We operate secure networks and depend on advanced chips.',
                     risks: [
                         { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
@@ -2577,7 +2584,13 @@ describe('White Cell DOM contract', () => {
                     ],
                     strategicStance: 3,
                     redLine: 'We will not transfer protected customer data.'
-                },
+                    };
+                    return {
+                        version: 2,
+                        sectorPlans: Object.fromEntries(['Agriculture', 'Telecommunications', 'Biotechnology']
+                            .map((sector) => [sector, structuredClone(sectorPlan)]))
+                    };
+                })(),
                 scribeHandoff: 'Forwarded'
             })
         };
@@ -2599,11 +2612,9 @@ describe('White Cell DOM contract', () => {
 
         [cardMarkup, modalMarkup, historyMarkup].forEach((markup) => {
             expect(markup).toContain('Review Industry Strategic Plan');
-            expect(markup).toContain('A. Business Overview');
-            expect(markup).toContain('B. Top Three Risks');
-            expect(markup).toContain('C. Opening Read');
-            expect(markup).toContain('D. Partner Map');
-            expect(markup).toContain('E. Strategic Priorities');
+            expect(markup).toContain('Agriculture — Business Overview');
+            expect(markup).toContain('Telecommunications — Risk 1');
+            expect(markup).toContain('Biotechnology — Strategic Priority 1');
             expect(markup).toContain('Stabilization');
             expect(markup).toContain('Supply Risk');
             expect(markup).toContain('Kenya');

@@ -26,7 +26,7 @@ Scribe action controls prioritize Strategic Orientation first: the Strategic Ori
 | Blue | Choose Blue's orientation; forecast Red's orientation; describe what Red is expected to do. |
 | Red | Choose and explain Red's orientation; forecast Blue, Green (Asian Pacific), and Green (Europe). |
 | Green | Forecast Blue; choose Green's orientation; describe Green's strategy given that forecast. |
-| Industry | Complete the Move 1 Industry Strategic Plan: sector, business overview, three risks, Blue forecast, Red priorities, partner map and first ambassador target, three strategic priorities, numeric stance, and red line. Industry does not choose an own orientation. |
+| Industry | Complete one Move 1 Industry Strategic Plan package containing mandatory Agriculture, Telecommunications, and Biotechnology plans. Each sector has a business overview, three risks, Red priorities, partner map and first ambassador target, three strategic priorities, numeric stance, and red line. One shared Blue forecast remains in the existing forecast contract; Industry does not choose an own orientation. |
 
 Every catalogue choice persists its stable ID, label, and tag. Required narratives are stored independently and values are never inferred. The Industry plan is a versioned nested sub-contract within the same version 2 Strategic Orientation envelope; its Blue forecast remains in the canonical forecast-target representation. Version 1 selection-only and forecast-only artifacts, existing version 2 records, and old-style Industry records remain readable. The expanded fields stay inside the existing additive Strategic Orientation envelope in the `actions` table, so no database migration is required.
 

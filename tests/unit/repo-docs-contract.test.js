@@ -143,15 +143,17 @@ describe('repository operator docs contract', () => {
         expect(readme).toContain("Choose Blue's orientation; forecast Red's orientation");
         expect(readme).toContain("Choose and explain Red's orientation; forecast Blue, Green (Asian Pacific), and Green (Europe)");
         expect(readme).toContain("Forecast Blue; choose Green's orientation");
-        expect(readme).toContain('Complete the Move 1 Industry Strategic Plan');
+        expect(readme).toContain('Complete one Move 1 Industry Strategic Plan package');
         expect(readme).toContain('Industry does not choose an own orientation');
         expect(readme).not.toContain("Forecast Blue; choose Industry's orientation");
-        expect(runbook).toContain('new records use `Orientation & Forecast`');
         expect(runbook).toContain('Industry opens `Industry Strategic Plan`');
+        expect(runbook).toContain('Agriculture, Telecommunications, and Biotechnology');
+        expect(runbook).toContain('one artifact');
         expect(runbook).toContain('no database migration');
         expect(automation).toContain('`forecastActionDescription`');
         expect(walkthrough).toContain('Orientation &amp; Forecast');
         expect(walkthrough).toContain('Industry Strategic Plan');
+        expect(walkthrough).toContain('Agriculture, Telecommunications, and Biotechnology');
     });
 
     it('documents the root Vite app instead of the obsolete nested setup path', () => {

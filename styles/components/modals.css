@@ -754,6 +754,81 @@ body.loader-active {
     text-transform: uppercase;
 }
 
+.industry-strategic-plan-modal .industry-plan-sector-tabs,
+.industry-strategic-plan-modal .industry-plan-page-nav {
+    display: grid;
+    gap: var(--space-2);
+    margin: var(--space-4) var(--space-6) 0;
+}
+
+.industry-strategic-plan-modal .industry-plan-sector-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.industry-strategic-plan-modal .industry-plan-page-nav {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.industry-strategic-plan-modal .industry-plan-sector-tab,
+.industry-strategic-plan-modal .industry-plan-page-nav .btn {
+    min-height: calc(var(--space-10) + var(--space-2));
+    white-space: normal;
+}
+
+.industry-strategic-plan-modal .industry-plan-sector-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+}
+
+.industry-strategic-plan-modal .industry-plan-sector-tab[aria-selected="true"],
+.industry-strategic-plan-modal .industry-plan-page-nav .btn[aria-current="step"] {
+    border-color: var(--color-navy);
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    font-weight: var(--font-semibold);
+}
+
+.industry-strategic-plan-modal [data-industry-sector-status] {
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs);
+}
+
+.industry-strategic-plan-modal .industry-plan-page-nav .btn span {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+}
+
+.industry-strategic-plan-modal .industry-plan-progress {
+    margin: var(--space-4) var(--space-6) 0;
+    color: var(--color-text-secondary);
+    font-weight: var(--font-semibold);
+}
+
+.industry-strategic-plan-modal [data-industry-shared-blue],
+.industry-strategic-plan-modal .industry-plan-review {
+    margin: var(--space-5) var(--space-6) 0;
+}
+
+.industry-strategic-plan-modal .industry-plan-sector-name {
+    margin-top: 0;
+}
+
+.industry-strategic-plan-modal .industry-plan-review-sector {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-alt);
+}
+
+.industry-strategic-plan-modal .industry-plan-review-sector h4,
+.industry-strategic-plan-modal .industry-plan-review-sector p:last-child {
+    margin-bottom: 0;
+}
+
 .industry-strategic-plan-modal .industry-plan-legacy,
 .industry-strategic-plan-modal .industry-plan-warning {
     margin: var(--space-4) var(--space-6) 0;
@@ -876,9 +951,18 @@ body.loader-active {
         grid-template-columns: 1fr;
     }
 
+    .industry-strategic-plan-modal .industry-plan-sector-tabs,
+    .industry-strategic-plan-modal .industry-plan-page-nav {
+        grid-template-columns: 1fr;
+        margin-right: var(--space-4);
+        margin-left: var(--space-4);
+    }
+
     .industry-strategic-plan-modal .industry-plan-context,
     .industry-strategic-plan-modal .industry-plan-legacy,
-    .industry-strategic-plan-modal .industry-plan-warning {
+    .industry-strategic-plan-modal .industry-plan-warning,
+    .industry-strategic-plan-modal [data-industry-shared-blue],
+    .industry-strategic-plan-modal .industry-plan-review {
         margin-right: var(--space-4);
         margin-left: var(--space-4);
     }

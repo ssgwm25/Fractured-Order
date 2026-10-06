@@ -3503,7 +3503,7 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
             team: 'industry',
             move: 1,
             phase: 1,
-            goal: 'Industry Strategic Plan — Telecommunications',
+            goal: 'Industry Strategic Plan',
             mechanism: 'Strategic Orientation',
             exposure_type: 'pre_move_1',
             priority: 'HIGH',
@@ -3512,9 +3512,8 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
                 team: 'industry',
                 ownOrientation: null,
                 forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
-                industryStrategicPlan: {
-                    version: 1,
-                    sector: 'Telecommunications',
+                industryStrategicPlan: (() => {
+                    const sectorPlan = {
                     businessOverview: 'We operate secure networks and depend on advanced chips.',
                     risks: [
                         { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
@@ -3533,7 +3532,13 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
                     ],
                     strategicStance: 3,
                     redLine: 'We will not transfer protected customer data.'
-                },
+                    };
+                    return {
+                        version: 2,
+                        sectorPlans: Object.fromEntries(['Agriculture', 'Telecommunications', 'Biotechnology']
+                            .map((sector) => [sector, structuredClone(sectorPlan)]))
+                    };
+                })(),
                 scribeHandoff: 'Forwarded'
             })
         };
@@ -3548,11 +3553,9 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         expect(html).toContain('Industry Strategic Plan');
         expect(html).toContain('Move 1 — Strategic Plan');
-        expect(html).toContain('A. Business Overview');
-        expect(html).toContain('B. Top Three Risks');
-        expect(html).toContain('C. Opening Read');
-        expect(html).toContain('D. Partner Map');
-        expect(html).toContain('E. Strategic Priorities');
+        expect(html).toContain('Agriculture — Business Overview');
+        expect(html).toContain('Telecommunications — Risk 1');
+        expect(html).toContain('Biotechnology — Strategic Priority 1');
         expect(html).toContain('Stabilization');
         expect(html).toContain('Supply Risk');
         expect(html).toContain('Kenya');

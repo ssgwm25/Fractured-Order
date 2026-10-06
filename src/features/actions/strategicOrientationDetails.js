@@ -1,4 +1,5 @@
 import {
+    INDUSTRY_STRATEGIC_PLAN_LEGACY_VERSION,
     INDUSTRY_STRATEGIC_PLAN_VERSION,
     getIndustryStrategicPlanDisplayModel,
     normalizeIndustryStrategicPlan,
@@ -506,7 +507,7 @@ export function serializeStrategicOrientationDetails(details = {}) {
         `Strategy Description: ${normalizeString(details.strategyDescription)}`,
         `Forecast Summary: ${normalizeString(details.forecastSummary)}`,
         ...(industryStrategicPlan ? [
-            `Industry Strategic Plan Version: ${INDUSTRY_STRATEGIC_PLAN_VERSION}`,
+            `Industry Strategic Plan Version: ${industryStrategicPlan.version || INDUSTRY_STRATEGIC_PLAN_VERSION}`,
             `Industry Strategic Plan: ${JSON.stringify(industryStrategicPlan)}`
         ] : []),
         `Scribe Handoff: ${scribeHandoff}`
@@ -567,13 +568,25 @@ export function parseStrategicOrientationDetails(value = '') {
         if (planJson) {
             try {
                 const rawPlan = JSON.parse(planJson);
-                industryStrategicPlanVersion = declaredPlanVersion || Number(rawPlan?.version) || null;
-                if (industryStrategicPlanVersion !== INDUSTRY_STRATEGIC_PLAN_VERSION) {
+                const rawPlanVersion = Number(rawPlan?.version) || null;
+                industryStrategicPlanVersion = declaredPlanVersion || rawPlanVersion;
+                if (declaredPlanVersion && rawPlanVersion && declaredPlanVersion !== rawPlanVersion) {
+                    industryStrategicPlan = normalizeIndustryStrategicPlan(rawPlan);
+                    industryStrategicPlanValidationErrors = [{
+                        field: 'version',
+                        message: 'The declared Industry Strategic Plan version does not match its stored data.'
+                    }];
+                    industryStrategicPlanParseStatus = 'invalid';
+                } else if (![INDUSTRY_STRATEGIC_PLAN_LEGACY_VERSION, INDUSTRY_STRATEGIC_PLAN_VERSION].includes(industryStrategicPlanVersion)) {
                     industryStrategicPlanParseStatus = 'unsupported_version';
                 } else {
                     industryStrategicPlan = normalizeIndustryStrategicPlan(rawPlan);
                     industryStrategicPlanValidationErrors = validateIndustryStrategicPlan(industryStrategicPlan);
-                    industryStrategicPlanParseStatus = industryStrategicPlanValidationErrors.length ? 'invalid' : 'valid';
+                    industryStrategicPlanParseStatus = industryStrategicPlanValidationErrors.length
+                        ? 'invalid'
+                        : industryStrategicPlanVersion === INDUSTRY_STRATEGIC_PLAN_LEGACY_VERSION
+                            ? 'legacy'
+                            : 'valid';
                 }
             } catch (_error) {
                 industryStrategicPlanParseStatus = 'invalid';
@@ -622,31 +635,38 @@ export function getStrategicOrientationDisplayFields(viewModel = {}) {
     if (viewModel.hasIndustryStrategicPlan) {
         const display = viewModel.industryStrategicPlanDisplayModel;
         return [
-            ...display.overviewFields,
-            ...display.risks.map((risk, index) => ({
-                label: `B. Top Three Risks — Risk ${index + 1}`,
-                value: `${risk.risk} | Likelihood: ${risk.likelihood} | Impact: ${risk.impact} | Cell: ${risk.cell}`,
+            ...(display.isLegacy ? [{
+                label: 'Industry Strategic Plan Status',
+                value: 'Legacy one-sector plan. Complete all three sector plans before resubmitting.',
                 wide: true
-            })),
-            { label: 'C. Opening Read — Blue Expected Orientation', value: display.environment.blueForecast || 'Not specified', wide: true },
-            { label: 'C. Opening Read — Red Priorities', value: display.environment.redPriorities, wide: true },
-            ...display.partners.map((partner, index) => ({
-                label: `D. Partner Map — Partner ${index + 1}`,
-                value: `${partner.partner} | Why they matter: ${partner.whyTheyMatter} | Likely want: ${partner.likelyWant}`,
-                wide: true
-            })),
-            {
-                label: 'D. First Ambassador Target',
-                value: `${display.firstAmbassadorTarget.cell}: ${display.firstAmbassadorTarget.reason}`,
-                wide: true
-            },
-            ...display.priorities.map((priority, index) => ({
-                label: `E. Strategic Priorities — Priority ${index + 1}`,
-                value: `${priority.priority} | Success looks like: ${priority.successLooksLike}`,
-                wide: true
-            })),
-            { label: 'Strategic Stance', value: `${display.stance} — ${display.stance === 1 ? 'Profit First' : display.stance === 5 ? 'National Interest First' : display.stance === 3 ? 'Balanced' : 'Between the stated endpoints'}` },
-            { label: 'Red Line', value: display.redLine, wide: true }
+            }] : []),
+            { label: 'Opening Read — Blue Expected Orientation', value: display.blueForecast || 'Not specified', wide: true },
+            ...display.sectors.flatMap((sectorPlan) => [
+                { label: `${sectorPlan.sector} — Business Overview`, value: sectorPlan.businessOverview, wide: true },
+                ...sectorPlan.risks.map((risk, index) => ({
+                    label: `${sectorPlan.sector} — Risk ${index + 1}`,
+                    value: `${risk.risk} | Likelihood: ${risk.likelihood} | Impact: ${risk.impact} | Cell: ${risk.cell}`,
+                    wide: true
+                })),
+                { label: `${sectorPlan.sector} — Expected Red Priorities`, value: sectorPlan.redPriorities, wide: true },
+                ...sectorPlan.partners.map((partner, index) => ({
+                    label: `${sectorPlan.sector} — Partner ${index + 1}`,
+                    value: `${partner.partner} | Why they matter: ${partner.whyTheyMatter} | Likely want: ${partner.likelyWant}`,
+                    wide: true
+                })),
+                {
+                    label: `${sectorPlan.sector} — First Ambassador Target`,
+                    value: `${sectorPlan.firstAmbassadorTarget.cell}: ${sectorPlan.firstAmbassadorTarget.reason}`,
+                    wide: true
+                },
+                ...sectorPlan.priorities.map((priority, index) => ({
+                    label: `${sectorPlan.sector} — Strategic Priority ${index + 1}`,
+                    value: `${priority.priority} | Success looks like: ${priority.successLooksLike}`,
+                    wide: true
+                })),
+                { label: `${sectorPlan.sector} — Strategic Stance`, value: `${sectorPlan.stance} — ${sectorPlan.stance === 1 ? 'Profit First' : sectorPlan.stance === 5 ? 'National Interest First' : sectorPlan.stance === 3 ? 'Balanced' : 'Between the stated endpoints'}` },
+                { label: `${sectorPlan.sector} — Red Line`, value: sectorPlan.redLine, wide: true }
+            ])
         ];
     }
     return [
@@ -743,6 +763,7 @@ export function getStrategicOrientationViewModel(action = {}) {
         industryStrategicPlan: details?.industryStrategicPlan || null,
         industryStrategicPlanParseStatus: details?.industryStrategicPlanParseStatus || 'absent',
         industryStrategicPlanValidationErrors: details?.industryStrategicPlanValidationErrors || [],
+        isLegacyIndustryStrategicPlan: details?.industryStrategicPlanParseStatus === 'legacy',
         hasIndustryStrategicPlan,
         hasIndustryStrategicPlanParseError,
         industryStrategicPlanDisplayModel,
@@ -804,6 +825,13 @@ export function getStrategicOrientationCompletion(actions = [], session = {}) {
         // Ownership is the persisted row, never the participant-written envelope.
         const teamId = regional && action.team === 'green'
             ? `green:${action.delegation_id}` : action.team;
+        if (teamId === 'industry') {
+            const viewModel = getStrategicOrientationViewModel(action);
+            if (viewModel.industryStrategicPlanVersion !== INDUSTRY_STRATEGIC_PLAN_VERSION
+                || viewModel.industryStrategicPlanParseStatus !== 'valid') {
+                return;
+            }
+        }
         if (requiredTeams.includes(teamId)) {
             submittedTeams.add(teamId);
         }

@@ -444,7 +444,9 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await expect(orientationSurface).toContainText('Completed');
             await expect(orientationSurface).toContainText('Green will protect regional stability under the Blue forecast.');
             await expect(orientationSurface).toContainText('Review Industry Strategic Plan');
+            await expect(orientationSurface).toContainText('Agriculture');
             await expect(orientationSurface).toContainText('Telecommunications');
+            await expect(orientationSurface).toContainText('Biotechnology');
             await expect(orientationSurface).toContainText('We will not transfer protected customer data.');
             await expect(orientationSurface).toContainText('Red will reframe its partnerships for long-term leverage.');
             await expect(orientationSurface).toContainText(correctedOrientationRationale);

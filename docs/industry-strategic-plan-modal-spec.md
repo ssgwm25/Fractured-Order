@@ -1,5 +1,17 @@
 # Industry Strategic Plan — Decision Modal Specification
 
+> **Consolidated version 2 amendment:** The shipped modal now records one
+> package containing mandatory `Agriculture`, `Telecommunications`, and
+> `Biotechnology` plans. The field definitions below apply independently to
+> each sector, except the Blue forecast, which is shared by the package. The
+> modal uses six pages per sector plus a final review, removes “for the Game”
+> from the Strategic Priorities heading, and stores the plans under
+> `industryStrategicPlan.sectorPlans`. See
+> [Industry Strategic Plan architecture](architecture/industry-strategic-plan.md)
+> for the authoritative version 2 persistence and compatibility contract. The
+> original single-sector wording below is retained as the version 1 field
+> history.
+
 ## Purpose
 
 This document defines **what the Industry Strategic Plan modal must capture** for **Move 1 — Strategic Plan** in Fractured Order.

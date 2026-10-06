@@ -1,5 +1,12 @@
 # TASK: Replace the Industry Strategic Orientation form with the Move 1 Industry Strategic Plan — without destabilizing Fractured Order
 
+> **Historical implementation prompt:** This prompt describes the original
+> one-sector Industry plan (nested contract version 1). The current shipped
+> contract is the consolidated three-sector version 2 package documented in
+> [Industry Strategic Plan architecture](architecture/industry-strategic-plan.md).
+> Use that architecture document for current runtime, storage, compatibility,
+> and completion-gate behavior.
+
 Repository: `ssgwm25/Fractured-Order`
 
 ## Objective

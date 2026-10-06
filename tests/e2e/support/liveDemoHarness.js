@@ -166,24 +166,67 @@ async function activateAndCaptureWorkflowToast(page, control, expectedMessage, {
 
 async function openModalFromReconciledControl(control, modal) {
     await expect.poll(async () => {
-        if (await modal.count() > 0) return true;
+        if (await modal.isVisible().catch(() => false)) return true;
 
-        const isAvailable = await control.isVisible().catch(() => false)
-            && await control.isEnabled().catch(() => false);
-        if (!isAvailable) return false;
+        const activated = await control.evaluateAll((elements) => {
+            const element = elements.find((candidate) => {
+                if (!(candidate instanceof HTMLButtonElement) || candidate.disabled || !candidate.isConnected) {
+                    return false;
+                }
+                const style = window.getComputedStyle(candidate);
+                return style.display !== 'none'
+                    && style.visibility !== 'hidden'
+                    && candidate.getClientRects().length > 0;
+            });
+            if (!element) return false;
 
-        await control.evaluate((element) => {
-            if (!element.isConnected) return;
-            element.click();
-        }).catch(() => {});
-        return await modal.count() > 0;
+            element.dispatchEvent(new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            }));
+            return true;
+        }).catch(() => false);
+        if (!activated) return false;
+
+        await control.page().waitForTimeout(50);
+        return await modal.isVisible().catch(() => false);
     }, {
-        timeout: ACTOR_ACTION_TIMEOUT_MS,
+        timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS,
         intervals: [100, 250, 500, 1000],
         message: 'Expected the live review control to open its modal.'
     }).toBe(true);
 
-    await expect(modal).toBeVisible({ timeout: ACTOR_ACTION_TIMEOUT_MS });
+    await expect(modal).toBeVisible({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
+}
+
+async function selectReconciledOption(select, value, fieldLabel) {
+    await expect.poll(async () => select.evaluateAll((elements, requestedValue) => {
+        const element = elements.find((candidate) => {
+            if (!(candidate instanceof HTMLSelectElement) || candidate.disabled || !candidate.isConnected) {
+                return false;
+            }
+            const style = window.getComputedStyle(candidate);
+            return style.display !== 'none'
+                && style.visibility !== 'hidden'
+                && candidate.getClientRects().length > 0;
+        });
+        if (!element) return 'unavailable';
+        if (!Array.from(element.options).some((option) => option.value === requestedValue)) {
+            return 'missing-option';
+        }
+
+        if (element.value !== requestedValue) {
+            element.value = requestedValue;
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return element.value;
+    }, value).catch(() => 'unavailable'), {
+        timeout: ACTOR_ACTION_TIMEOUT_MS,
+        intervals: [100, 250, 500, 1000],
+        message: `Expected the live ${fieldLabel} select to retain option "${value}".`
+    }).toBe(value);
 }
 
 async function checkReconciledCheckbox(checkbox) {
@@ -877,8 +920,7 @@ export async function recordStrategicOrientationFromScribe(page, {
     await expect(modal).toBeVisible();
 
     if (normalizedTeam === 'industry') {
-        const plan = industryStrategicPlan || {
-            sector: 'Telecommunications',
+        const defaultSectorPlan = {
             businessOverview: 'We operate secure networks and depend on advanced chips.',
             risks: [
                 { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
@@ -898,36 +940,54 @@ export async function recordStrategicOrientationFromScribe(page, {
             strategicStance: 3,
             redLine: 'We will not transfer protected customer data.'
         };
+        const plan = industryStrategicPlan || {
+            version: 2,
+            sectorPlans: Object.fromEntries(['Agriculture', 'Telecommunications', 'Biotechnology']
+                .map((sector) => [sector, structuredClone(defaultSectorPlan)]))
+        };
         const blueForecast = resolvedForecasts.blue || 'pressure';
 
         await expect(modal).toContainText('Industry Strategic Plan');
-        await modal.locator(`#industrySector-${plan.sector}`).check();
-        await modal.locator('#industryBusinessOverview').fill(plan.businessOverview);
-        for (const [index, risk] of plan.risks.entries()) {
-            const number = index + 1;
-            await modal.locator(`#industryRiskType${number}`).selectOption(risk.type);
-            if (risk.type === 'other') await modal.locator(`#industryRiskOther${number}`).fill(risk.otherText);
-            await modal.locator(`#industryRisk${number}likelihood-${risk.likelihood}`).check();
-            await modal.locator(`#industryRisk${number}impact-${risk.impact}`).check();
-            await modal.locator(`#industryRisk${number}tiedCell-${risk.tiedCell}`).check();
+        for (const sector of ['Agriculture', 'Telecommunications', 'Biotechnology']) {
+            const sectorPlan = plan.sectorPlans[sector];
+            const slug = sector.toLowerCase();
+            await modal.locator(`[data-industry-sector-tab="${sector}"]`).click();
+            await modal.locator('[data-industry-page-button="1"]').click();
+            await modal.locator(`#industry-${slug}-overview`).fill(sectorPlan.businessOverview);
+            await modal.locator('[data-industry-page-button="2"]').click();
+            for (const [index, risk] of sectorPlan.risks.entries()) {
+                const number = index + 1;
+                await modal.locator(`#industry-${slug}-risk-type-${number}`).selectOption(risk.type);
+                if (risk.type === 'other') await modal.locator(`#industry-${slug}-risk-other-${number}`).fill(risk.otherText);
+                await modal.locator(`#industry-${slug}-risk-${number}-likelihood-${risk.likelihood}`).check();
+                await modal.locator(`#industry-${slug}-risk-${number}-impact-${risk.impact}`).check();
+                await modal.locator(`#industry-${slug}-risk-${number}-tiedCell-${risk.tiedCell}`).check();
+            }
+            await modal.locator('[data-industry-page-button="3"]').click();
+            if (sector === 'Agriculture') await modal.locator(`#industry-blue-forecast-${blueForecast}`).check();
+            await modal.locator(`#industry-${slug}-red-priorities`).fill(sectorPlan.redPriorities);
+            await modal.locator('[data-industry-page-button="4"]').click();
+            for (const [index, partner] of sectorPlan.partners.entries()) {
+                const number = index + 1;
+                await modal.locator(`#industry-${slug}-partner-${number}-partner`).fill(partner.partner);
+                await modal.locator(`#industry-${slug}-partner-${number}-whyTheyMatter`).fill(partner.whyTheyMatter);
+                await modal.locator(`#industry-${slug}-partner-${number}-likelyWant`).fill(partner.likelyWant);
+            }
+            await modal.locator(`#industry-${slug}-ambassador-cell`).selectOption(sectorPlan.firstAmbassadorTarget.cell);
+            await modal.locator(`#industry-${slug}-ambassador-reason`).fill(sectorPlan.firstAmbassadorTarget.reason);
+            await modal.locator('[data-industry-page-button="5"]').click();
+            for (const [index, priority] of sectorPlan.strategicPriorities.entries()) {
+                const number = index + 1;
+                await modal.locator(`#industry-${slug}-priority-${number}-priority`).fill(priority.priority);
+                await modal.locator(`#industry-${slug}-priority-${number}-successLooksLike`).fill(priority.successLooksLike);
+            }
+            await modal.locator('[data-industry-page-button="6"]').click();
+            await modal.locator(`#industry-${slug}-strategic-stance-${sectorPlan.strategicStance}`).check();
+            await modal.locator(`#industry-${slug}-red-line`).fill(sectorPlan.redLine);
+            await expect(modal.locator(`[data-industry-sector-status="${sector}"]`)).toHaveText('Complete');
         }
-        await modal.locator(`#industryBlueForecast-${blueForecast}`).check();
-        await modal.locator('#industryRedPriorities').fill(plan.redPriorities);
-        for (const [index, partner] of plan.partners.entries()) {
-            const number = index + 1;
-            await modal.locator(`#industryPartner${number}partner`).fill(partner.partner);
-            await modal.locator(`#industryPartner${number}whyTheyMatter`).fill(partner.whyTheyMatter);
-            await modal.locator(`#industryPartner${number}likelyWant`).fill(partner.likelyWant);
-        }
-        await modal.locator('#industryAmbassadorCell').selectOption(plan.firstAmbassadorTarget.cell);
-        await modal.locator('#industryAmbassadorReason').fill(plan.firstAmbassadorTarget.reason);
-        for (const [index, priority] of plan.strategicPriorities.entries()) {
-            const number = index + 1;
-            await modal.locator(`#industryPriority${number}priority`).fill(priority.priority);
-            await modal.locator(`#industryPriority${number}successLooksLike`).fill(priority.successLooksLike);
-        }
-        await modal.locator(`#industryStrategicStance-${plan.strategicStance}`).check();
-        await modal.locator('#industryRedLine').fill(plan.redLine);
+        await modal.locator('[data-industry-nav="review"]').click();
+        await expect(modal).toContainText('Review the complete Industry Strategic Plan');
         await modal.locator('[data-orientation-nav="confirm"]').click();
 
         await expect(page.locator('#toast-container')).toContainText('Strategic Orientation forwarded to Facilitator');
@@ -1663,7 +1723,7 @@ export async function submitRfi(page, {
         modal.getByRole('button', { name: 'Submit RFI' }),
         'RFI submitted'
     );
-    await expect(modal).toBeHidden();
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
     await expect(page.locator('#deckActionFrame')).toContainText(question);
 }
 
@@ -1688,7 +1748,7 @@ export async function answerRfi(page, {
         modal.getByRole('button', { name: 'Send Response' }),
         'Response sent'
     );
-    await expect(modal).toBeHidden();
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function returnRfi(page, {
@@ -1712,7 +1772,7 @@ export async function returnRfi(page, {
         modal.getByRole('button', { name: 'Return for Clarification' }),
         'RFI returned for clarification'
     );
-    await expect(modal).toBeHidden();
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function reviseAndResubmitRfi(page, {
@@ -1747,7 +1807,7 @@ export async function reviseAndResubmitRfi(page, {
         modal.getByRole('button', { name: 'Resubmit RFI' }),
         'RFI resubmitted successfully'
     );
-    await expect(modal).toBeHidden();
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
     await expect(frame).toContainText(revisedQuestion);
     await expect(frame).toContainText('Resubmitted');
     return revisedQuestion;
@@ -1763,13 +1823,20 @@ export async function sendWhiteCellCommunication(page, {
     }
 
     await openSidebarSection(page, 'communications');
-    await page.locator('#commRecipient').selectOption(recipient);
-    await page.locator('#commType').selectOption(type);
+    await selectReconciledOption(page.locator('#commRecipient'), recipient, 'communication recipient');
+    await selectReconciledOption(page.locator('#commType'), type, 'communication type');
     await page.locator('#commContent').fill(content);
-    await page.locator('#commForm').getByRole('button', { name: 'Send Communication' }).click();
-    await expect(page.locator('#commContent')).toHaveValue('');
-    await expect(page.locator('#toast-container')).toContainText('Communication sent');
-    await expect(page.locator('#commHistory')).toContainText(content);
+    await activateAndCaptureWorkflowToast(
+        page,
+        page.locator('#commForm').getByRole('button', { name: 'Send Communication' }),
+        'Communication sent'
+    );
+    await expect(page.locator('#commContent')).toHaveValue('', {
+        timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS
+    });
+    await expect(page.locator('#commHistory')).toContainText(content, {
+        timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS
+    });
 }
 
 export async function sendFacilitatorCommunication(page, { content } = {}) {
@@ -1798,10 +1865,15 @@ export async function sendFacilitatorCommunication(page, { content } = {}) {
     });
     await expect(modal).toBeVisible();
     await modal.locator('#facilitatorCommunicationMessage').fill(content);
-    await modal.getByRole('button', { name: 'Send Message' }).click({ timeout: 20000 });
-    await expect(page.locator('#toast-container')).toContainText('Message sent to White Cell');
-    await expect(modal).toBeHidden();
-    await expect(communicationFrame).toContainText(content);
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', { name: 'Send Message' }),
+        'Message sent to White Cell'
+    );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
+    await expect(communicationFrame).toContainText(content, {
+        timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS
+    });
 }
 
 export async function appendNotetakerObservation(page, content) {

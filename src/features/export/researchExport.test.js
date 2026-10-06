@@ -985,7 +985,7 @@ describe('research export builder', () => {
                 move: 0,
                 phase: 0,
                 mechanism: 'Strategic Orientation',
-                goal: 'Industry Strategic Plan — Telecommunications',
+                goal: 'Industry Strategic Plan',
                 ally_contingencies: serializeStrategicOrientationDetails({
                     team: 'industry',
                     ownOrientation: null,
@@ -993,9 +993,8 @@ describe('research export builder', () => {
                         { key: 'blue', orientation: 'pressure' }
                     ],
                     forecastSummary: 'Blue pressures while Green pathways diverge.',
-                    industryStrategicPlan: {
-                        version: 1,
-                        sector: 'Telecommunications',
+                    industryStrategicPlan: (() => {
+                        const sectorPlan = {
                         businessOverview: 'We operate secure networks and depend on advanced chips.',
                         risks: [
                             { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
@@ -1014,7 +1013,13 @@ describe('research export builder', () => {
                         ],
                         strategicStance: 3,
                         redLine: 'We will not transfer protected customer data.'
-                    },
+                        };
+                        return {
+                            version: 2,
+                            sectorPlans: Object.fromEntries(['Agriculture', 'Telecommunications', 'Biotechnology']
+                                .map((sector) => [sector, structuredClone(sectorPlan)]))
+                        };
+                    })(),
                     scribeHandoff: 'Forwarded'
                 }),
                 status: 'adjudicated',
@@ -1057,16 +1062,19 @@ describe('research export builder', () => {
             expect.objectContaining({ label: 'Blue', orientationLabel: 'Pressure' })
         ]);
         expect(orientationRows[1]).toMatchObject({
-            industry_strategic_plan_version: 1,
+            industry_strategic_plan_version: 2,
             industry_strategic_plan: expect.objectContaining({
-                sector: 'Telecommunications',
-                strategicStance: 3,
-                redLine: 'We will not transfer protected customer data.'
+                sectorPlans: expect.objectContaining({
+                    Telecommunications: expect.objectContaining({
+                        strategicStance: 3,
+                        redLine: 'We will not transfer protected customer data.'
+                    })
+                })
             })
         });
         expect(orientationRows[1].own_orientation).toBeNull();
         expect(orientationRows[1].full_content.details.hasIndustryStrategicPlan).toBe(true);
-        expect(orientationRows[1].full_content.details.industryStrategicPlan.partners).toEqual([
+        expect(orientationRows[1].full_content.details.industryStrategicPlan.sectorPlans.Telecommunications.partners).toEqual([
             { partner: 'Kenya', whyTheyMatter: 'Regional connectivity', likelyWant: 'Long-term investment' }
         ]);
         expect(exportBundle.draftRevisions).toEqual(expect.arrayContaining([
@@ -1080,6 +1088,9 @@ describe('research export builder', () => {
         expect(exportBundle.reportHtml).toContain('Expected Target Actions');
         expect(exportBundle.reportHtml).toContain('Red will impose costs through visible pressure.');
         expect(exportBundle.reportHtml).toContain('Industry Strategic Plan Overview');
+        expect(exportBundle.reportHtml).toContain('Agriculture Plan');
+        expect(exportBundle.reportHtml).toContain('Telecommunications Plan');
+        expect(exportBundle.reportHtml).toContain('Biotechnology Plan');
         expect(exportBundle.reportHtml).toContain('We operate secure networks and depend on advanced chips.');
         expect(exportBundle.reportHtml).toContain('Supply Risk');
         expect(exportBundle.reportHtml).toContain('Coordinate resilient network investment.');
@@ -1094,6 +1105,9 @@ describe('research export builder', () => {
         expect(exportBundle.reportLatex).toContain(String.raw`\section{Strategic Orientation: team workflows}`);
         expect(exportBundle.reportLatex).toContain('Red will impose costs through visible pressure.');
         expect(exportBundle.reportLatex).toContain('Industry Strategic Plan version');
+        expect(exportBundle.reportLatex).toContain('Agriculture Industry plan');
+        expect(exportBundle.reportLatex).toContain('Telecommunications Industry plan');
+        expect(exportBundle.reportLatex).toContain('Biotechnology Industry plan');
         expect(exportBundle.reportLatex).toContain('We operate secure networks and depend on advanced chips.');
         expect(exportBundle.reportLatex).toContain('Supply Risk');
         expect(exportBundle.reportLatex).toContain('We will not transfer protected customer data.');

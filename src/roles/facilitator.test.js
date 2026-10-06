@@ -65,6 +65,40 @@ function createFakeDocument() {
     };
 }
 
+function createIndustrySectorPlan(overrides = {}) {
+    return {
+        businessOverview: 'Builds resilient communications infrastructure.',
+        risks: [
+            { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+            { type: 'secondary_sanctions_exposure', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+            { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+        ],
+        redPriorities: 'Red will prioritize market access.',
+        partners: [{ partner: 'Allied supplier', whyTheyMatter: 'Critical inputs', likelyWant: 'Long-term demand' }],
+        firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate supply.' },
+        strategicPriorities: [
+            { priority: 'Protect capacity', successLooksLike: 'No outage.' },
+            { priority: 'Diversify', successLooksLike: 'Second source.' },
+            { priority: 'Preserve access', successLooksLike: 'Markets remain open.' }
+        ],
+        strategicStance: 3,
+        redLine: 'No protected technology transfer.',
+        ...overrides
+    };
+}
+
+function createIndustryPlan(overrides = {}) {
+    return {
+        version: 2,
+        sectorPlans: {
+            Agriculture: createIndustrySectorPlan(),
+            Telecommunications: createIndustrySectorPlan(),
+            Biotechnology: createIndustrySectorPlan()
+        },
+        ...overrides
+    };
+}
+
 function flattenHighlights(steps) {
     return steps.flatMap((step) => (
         Array.isArray(step.highlight)
@@ -622,19 +656,21 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         });
         [
             'Move 1 — Strategic Plan',
-            'A. Business Overview',
-            'B. Top Three Risk Factors',
-            'C. Opening Read of the Environment',
-            'D. Partner Map',
-            'E. Strategic Priorities for the Game',
-            'Strategic Stance',
-            'Red Line',
+            'Page 1 — Sector and Business Overview',
+            'Page 2 — Top Three Risk Factors',
+            'Page 3 — Opening Read of the Environment',
+            'Page 4 — Partner Map',
+            'Page 5 — Strategic Priorities',
+            'Page 6 — Strategic Stance and Red Line',
+            'Not started',
+            'Review Strategic Plan',
             'Pressure',
             'Stabilization',
             'Reframe'
         ].forEach((copy) => expect(html).toContain(copy));
         expect(html).not.toContain('Choose Industry&#39;s orientation');
         expect(html).not.toContain('Describe your strategy given this forecast');
+        expect(html).not.toContain('Strategic Priorities for the Game');
         expect(html).toContain('Telecommunications');
         expect(html).toContain('Biotechnology');
         expect(html).toContain('Record Strategic Plan');
@@ -656,41 +692,22 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         controller.teamLabel = 'Industry Team';
         const data = {
             forecasts: { blue: 'stabilization' },
-            industryStrategicPlan: {
-                version: 1,
-                sector: 'Telecommunications',
-                businessOverview: 'Builds resilient communications infrastructure.',
-                risks: [
-                    { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
-                    { type: 'secondary_sanctions_exposure', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
-                    { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
-                ],
-                redPriorities: 'Red will prioritize market access.',
-                partners: [{ partner: 'Allied supplier', whyTheyMatter: 'Critical inputs', likelyWant: 'Long-term demand' }],
-                firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate supply.' },
-                strategicPriorities: [
-                    { priority: 'Protect capacity', successLooksLike: 'No outage.' },
-                    { priority: 'Diversify', successLooksLike: 'Second source.' },
-                    { priority: 'Preserve access', successLooksLike: 'Markets remain open.' }
-                ],
-                strategicStance: 3,
-                redLine: 'No protected technology transfer.'
-            }
+            industryStrategicPlan: createIndustryPlan()
         };
 
         expect(controller.validateStrategicOrientationData(data)).toEqual([]);
         const payload = controller.buildStrategicOrientationPayload(data);
         const details = parseStrategicOrientationDetails(payload.ally_contingencies);
         expect(payload).toMatchObject({
-            goal: 'Industry Strategic Plan — Telecommunications',
+            goal: 'Industry Strategic Plan',
             mechanism: 'Strategic Orientation',
-            sector: 'Telecommunications',
+            sector: '',
             exposure_type: 'pre_move_1'
         });
         expect(details).toMatchObject({
             team: 'industry',
             ownOrientation: null,
-            industryStrategicPlanVersion: 1,
+            industryStrategicPlanVersion: 2,
             industryStrategicPlan: data.industryStrategicPlan
         });
         expect(details.forecastTargets).toEqual(expect.arrayContaining([
@@ -713,34 +730,51 @@ describe('legacy facilitator route and corrected Scribe access', () => {
             ally_contingencies: serializeStrategicOrientationDetails({
                 team: 'industry',
                 forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
-                industryStrategicPlan: {
-                    version: 1,
-                    sector: 'Telecommunications',
-                    businessOverview: 'Saved business overview.',
-                    risks: [
-                        { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
-                        { type: 'secondary_sanctions_exposure', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
-                        { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
-                    ],
-                    redPriorities: 'Saved Red priorities.',
-                    partners: [{ partner: 'Kenya', whyTheyMatter: 'Connectivity', likelyWant: 'Investment' }],
-                    firstAmbassadorTarget: { cell: 'green', reason: 'Saved ambassador reason.' },
-                    strategicPriorities: [
-                        { priority: 'Priority one', successLooksLike: 'Outcome one' },
-                        { priority: 'Priority two', successLooksLike: 'Outcome two' },
-                        { priority: 'Priority three', successLooksLike: 'Outcome three' }
-                    ],
-                    strategicStance: 4,
-                    redLine: 'Saved red line.'
-                }
+                industryStrategicPlan: createIndustryPlan({
+                    sectorPlans: {
+                        Agriculture: createIndustrySectorPlan(),
+                        Telecommunications: createIndustrySectorPlan({
+                            businessOverview: 'Saved business overview.',
+                            partners: [{ partner: 'Kenya', whyTheyMatter: 'Connectivity', likelyWant: 'Investment' }],
+                            strategicPriorities: [
+                                { priority: 'Priority one', successLooksLike: 'Outcome one' },
+                                { priority: 'Priority two', successLooksLike: 'Outcome two' },
+                                { priority: 'Priority three', successLooksLike: 'Outcome three' }
+                            ],
+                            strategicStance: 4,
+                            redLine: 'Saved red line.'
+                        }),
+                        Biotechnology: createIndustrySectorPlan()
+                    }
+                })
             })
         }).innerHTML;
-        expect(returnedPlan).toMatch(/value="Telecommunications"[^>]*checked/);
+        expect(returnedPlan).toContain('data-industry-sector-panel="Telecommunications"');
         expect(returnedPlan).toContain('Saved business overview.');
         expect(returnedPlan).toContain('Kenya');
         expect(returnedPlan).toContain('Priority three');
-        expect(returnedPlan).toContain('value="4"');
+        expect(returnedPlan).toMatch(/name="industry-telecommunications-strategic-stance" value="4"[^>]*checked/);
         expect(returnedPlan).toContain('Saved red line.');
+
+        const legacyPlan = controller.createStrategicOrientationContent({
+            id: 'industry-plan-v1-returned',
+            team: 'industry',
+            status: 'draft',
+            workflow_state: 'returned_to_team',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team: 'industry',
+                forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+                industryStrategicPlan: {
+                    version: 1,
+                    sector: 'Telecommunications',
+                    ...createIndustrySectorPlan({ businessOverview: 'Historical one-sector overview.' })
+                }
+            })
+        }).innerHTML;
+        expect(legacyPlan).toContain('Historical Industry submission');
+        expect(legacyPlan).toContain('Historical one-sector overview.');
+        expect(legacyPlan).toMatch(/id="industry-telecommunications-overview"[^>]*><\/textarea>/);
+        expect(legacyPlan).not.toMatch(/name="industry-blue-forecast"[^>]*checked/);
 
         const legacy = controller.createStrategicOrientationContent({
             id: 'industry-orientation-legacy',
@@ -754,14 +788,28 @@ describe('legacy facilitator route and corrected Scribe access', () => {
                 strategyDescription: 'Historical strategy only.'
             })
         }).innerHTML;
-        expect(legacy).toContain('Legacy Industry orientation');
+        expect(legacy).toContain('Historical Industry submission');
         expect(legacy).toContain('Previous own orientation:');
         expect(legacy).toContain('Previous Blue forecast:');
         expect(legacy).toContain('Reframe');
         expect(legacy).toContain('Historical strategy only.');
         expect(legacy).not.toContain('Saved business overview.');
-        expect(legacy).not.toMatch(/value="Telecommunications"[^>]*checked/);
-        expect(legacy).not.toMatch(/name="industryBlueForecast"[^>]*checked/);
+        expect(legacy).not.toContain('Saved business overview.');
+        expect(legacy).not.toMatch(/name="industry-blue-forecast"[^>]*checked/);
+
+        const malformedEnvelope = serializeStrategicOrientationDetails({
+            team: 'industry',
+            forecastTargets: [{ key: 'blue', orientation: 'pressure' }],
+            strategyDescription: 'Readable outer history.'
+        }).replace('Scribe Handoff:', 'Industry Strategic Plan Version: 2\nIndustry Strategic Plan: {bad json}\nScribe Handoff:');
+        const malformed = controller.createStrategicOrientationContent({
+            id: 'industry-plan-malformed',
+            team: 'industry',
+            ally_contingencies: malformedEnvelope
+        }).innerHTML;
+        expect(malformed).toContain('Saved Strategic Plan data could not be read.');
+        expect(malformed).toContain('Previous Blue forecast:');
+        expect(malformed).toContain('Readable outer history.');
     });
 
     it('requires every team-specific choice and rejects whitespace-only narratives', async () => {

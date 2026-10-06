@@ -11,9 +11,7 @@ import {
     serializeStrategicOrientationDetails
 } from './strategicOrientationDetails.js';
 
-const INDUSTRY_PLAN = {
-    version: 1,
-    sector: 'Telecommunications',
+const INDUSTRY_SECTOR_PLAN = {
     businessOverview: 'Builds critical communications infrastructure.',
     risks: [
         { type: 'supply_disruption', otherText: '', likelihood: 'high', impact: 'high', tiedCell: 'red' },
@@ -30,6 +28,15 @@ const INDUSTRY_PLAN = {
     ],
     strategicStance: 3,
     redLine: 'No protected technology transfer.'
+};
+
+const INDUSTRY_PLAN = {
+    version: 2,
+    sectorPlans: {
+        Agriculture: structuredClone(INDUSTRY_SECTOR_PLAN),
+        Telecommunications: structuredClone(INDUSTRY_SECTOR_PLAN),
+        Biotechnology: structuredClone(INDUSTRY_SECTOR_PLAN)
+    }
 };
 
 const TEAM_FIXTURES = {
@@ -210,7 +217,7 @@ describe('strategic orientation details helpers', () => {
 
         expect(serialized).toContain('Contract Version: 2');
         expect(serialized).toContain('Own Orientation: None selected');
-        expect(serialized).toContain('Industry Strategic Plan Version: 1');
+        expect(serialized).toContain('Industry Strategic Plan Version: 2');
         expect(parsed.industryStrategicPlan).toEqual(INDUSTRY_PLAN);
         expect(parsed.forecastTargets).toEqual(expect.arrayContaining([
             expect.objectContaining({ key: 'blue', orientation: 'stabilization' })
@@ -220,7 +227,44 @@ describe('strategic orientation details helpers', () => {
             hasOwnOrientation: false,
             hasIndustryStrategicPlan: true,
             hasIndustryStrategicPlanParseError: false,
-            industryStrategicPlanVersion: 1
+            industryStrategicPlanVersion: 2,
+            industryStrategicPlanParseStatus: 'valid'
+        });
+    });
+
+    it('keeps a valid version 1 one-sector plan readable but excludes it from completion', () => {
+        const serialized = serializeStrategicOrientationDetails({
+            team: 'industry',
+            forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+            industryStrategicPlan: { version: 1, sector: 'Telecommunications', ...INDUSTRY_SECTOR_PLAN },
+            scribeHandoff: 'Forwarded'
+        });
+        const action = { team: 'industry', status: 'submitted', ally_contingencies: serialized };
+        const viewModel = getStrategicOrientationViewModel(action);
+
+        expect(viewModel).toMatchObject({
+            hasIndustryStrategicPlan: true,
+            isLegacyIndustryStrategicPlan: true,
+            industryStrategicPlanVersion: 1,
+            industryStrategicPlanParseStatus: 'legacy'
+        });
+        expect(getStrategicOrientationCompletion([action])).toMatchObject({
+            complete: false,
+            missingTeams: expect.arrayContaining(['industry'])
+        });
+    });
+
+    it('fails closed when the declared plan version and nested version disagree', () => {
+        const mismatched = serializeStrategicOrientationDetails({
+            team: 'industry',
+            forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+            industryStrategicPlan: INDUSTRY_PLAN
+        }).replace('Industry Strategic Plan Version: 2', 'Industry Strategic Plan Version: 1');
+
+        expect(parseStrategicOrientationDetails(mismatched)).toMatchObject({
+            industryStrategicPlanVersion: 1,
+            industryStrategicPlanParseStatus: 'invalid',
+            industryStrategicPlanValidationErrors: [expect.objectContaining({ field: 'version' })]
         });
     });
 

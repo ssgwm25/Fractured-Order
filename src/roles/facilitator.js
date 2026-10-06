@@ -83,6 +83,7 @@ import {
     INDUSTRY_SECTORS,
     INDUSTRY_STRATEGIC_PLAN_VERSION,
     createBlankIndustryStrategicPlan,
+    getIndustrySectorPlanStatus,
     normalizeIndustryStrategicPlan,
     validateIndustryStrategicPlan as validateIndustryStrategicPlanDomain
 } from '../features/actions/industryStrategicPlan.js';
@@ -2900,17 +2901,13 @@ export class FacilitatorController {
         const content = document.createElement('div');
         const viewModel = getStrategicOrientationViewModel(action);
         const blank = createBlankIndustryStrategicPlan();
-        const storedPlan = viewModel.industryStrategicPlan || blank;
-        const plan = {
-            ...blank,
-            ...storedPlan,
-            risks: blank.risks.map((row, index) => ({ ...row, ...(storedPlan.risks?.[index] || {}) })),
-            partners: blank.partners.map((row, index) => ({ ...row, ...(storedPlan.partners?.[index] || {}) })),
-            strategicPriorities: blank.strategicPriorities.map((row, index) => ({ ...row, ...(storedPlan.strategicPriorities?.[index] || {}) })),
-            firstAmbassadorTarget: { ...blank.firstAmbassadorTarget, ...(storedPlan.firstAmbassadorTarget || {}) }
-        };
+        const plan = viewModel.industryStrategicPlanVersion === INDUSTRY_STRATEGIC_PLAN_VERSION
+            ? normalizeIndustryStrategicPlan(viewModel.industryStrategicPlan)
+            : blank;
         const savedBlueForecast = viewModel.forecastTargets.find(({ key }) => key === 'blue') || null;
-        const blueForecast = viewModel.hasIndustryStrategicPlan ? (savedBlueForecast?.orientation || '') : '';
+        const blueForecast = viewModel.industryStrategicPlanVersion === INDUSTRY_STRATEGIC_PLAN_VERSION
+            ? (savedBlueForecast?.orientation || '')
+            : '';
         const optionMarkup = (options, selected = '') => options.map(({ value, label }) => `
             <option value="${this.escapeHtml(value)}" ${selected === value ? 'selected' : ''}>${this.escapeHtml(label)}</option>
         `).join('');
@@ -2925,38 +2922,49 @@ export class FacilitatorController {
             `;
         }).join('');
         const catalogueOptions = Object.values(STRATEGIC_ORIENTATION_OPTIONS).map((option) => ({ value: option.id, label: option.name }));
-        const legacyContext = viewModel.hasStrategicOrientationDetails && !viewModel.hasIndustryStrategicPlan
+        const legacyFields = viewModel.hasIndustryStrategicPlan
+            ? getStrategicOrientationDisplayFields(viewModel)
+            : [];
+        const legacyContext = viewModel.hasStrategicOrientationDetails
+            && (viewModel.industryStrategicPlanVersion !== INDUSTRY_STRATEGIC_PLAN_VERSION
+                || (viewModel.hasIndustryStrategicPlanParseError && !viewModel.hasIndustryStrategicPlan))
             ? `
                 <aside class="industry-plan-legacy" aria-labelledby="industryPlanLegacyHeading">
-                    <h3 id="industryPlanLegacyHeading">Legacy Industry orientation</h3>
-                    <p>These historical answers are preserved for context. They do not complete any new Strategic Plan field.</p>
+                    <h3 id="industryPlanLegacyHeading">Historical Industry submission</h3>
+                    <p>These answers remain visible for context. They do not complete any field in the new three-sector plan.</p>
+                    ${legacyFields.map((field) => `<p><strong>${this.escapeHtml(field.label)}:</strong> ${this.escapeHtml(field.value)}</p>`).join('')}
                     ${viewModel.hasOwnOrientation ? `<p><strong>Previous own orientation:</strong> ${this.escapeHtml(viewModel.ownOrientation.label)} — ${this.escapeHtml(viewModel.ownOrientation.tag)}</p>` : ''}
-                    ${savedBlueForecast ? `<p><strong>Previous Blue forecast:</strong> ${this.escapeHtml(savedBlueForecast.orientationLabel)} — ${this.escapeHtml(savedBlueForecast.orientationTag)}</p>` : ''}
+                    ${savedBlueForecast && !viewModel.hasIndustryStrategicPlan ? `<p><strong>Previous Blue forecast:</strong> ${this.escapeHtml(savedBlueForecast.orientationLabel)} — ${this.escapeHtml(savedBlueForecast.orientationTag)}</p>` : ''}
                     ${viewModel.strategyDescription ? `<p><strong>Previous strategy description:</strong> ${this.escapeHtml(viewModel.strategyDescription)}</p>` : ''}
                 </aside>
             ` : '';
         const parseWarning = viewModel.hasIndustryStrategicPlanParseError
             ? '<div class="industry-plan-warning" role="alert"><strong>Saved Strategic Plan data could not be read.</strong> The historical Strategic Orientation remains available. Complete and save the plan again to repair this revision.</div>'
             : '';
-
-        const renderRisk = (risk, index) => {
+        const withBlankRows = (sectorPlan) => ({
+            ...sectorPlan,
+            risks: [0, 1, 2].map((index) => ({ ...(blank.sectorPlans.Agriculture.risks[index]), ...(sectorPlan.risks?.[index] || {}) })),
+            partners: [0, 1, 2].map((index) => ({ ...(blank.sectorPlans.Agriculture.partners[index]), ...(sectorPlan.partners?.[index] || {}) })),
+            strategicPriorities: [0, 1, 2].map((index) => ({ ...(blank.sectorPlans.Agriculture.strategicPriorities[index]), ...(sectorPlan.strategicPriorities?.[index] || {}) }))
+        });
+        const renderRisk = (sector, slug, risk, index) => {
             const number = index + 1;
-            const prefix = `risks.${index}`;
+            const prefix = `sectorPlans.${sector}.risks.${index}`;
             return `
-                <fieldset class="industry-plan-row" aria-labelledby="industryRisk${number}Legend">
-                    <legend id="industryRisk${number}Legend">Risk ${number}</legend>
+                <fieldset class="industry-plan-row" aria-labelledby="industry-${slug}-risk-${number}-legend">
+                    <legend id="industry-${slug}-risk-${number}-legend">Risk ${number}</legend>
                     <div class="industry-plan-grid industry-plan-grid--risk">
                         <div class="form-group" data-orientation-field="${prefix}.type">
-                            <label class="form-label" for="industryRiskType${number}">Risk Type <span class="required-indicator">*</span></label>
-                            <select class="form-input" id="industryRiskType${number}" data-industry-risk-type="${index}" data-industry-control="${prefix}.type" aria-describedby="industryRiskType${number}Error">
+                            <label class="form-label" for="industry-${slug}-risk-type-${number}">Risk Type <span class="required-indicator">*</span></label>
+                            <select class="form-input" id="industry-${slug}-risk-type-${number}" data-industry-risk-type="${index}" data-industry-sector="${sector}" data-industry-control="${prefix}.type" aria-describedby="industry-${slug}-risk-type-${number}-error">
                                 <option value="">Select risk type</option>${optionMarkup(INDUSTRY_RISK_TYPES, risk.type)}
                             </select>
-                            <p class="form-error" id="industryRiskType${number}Error" data-orientation-error="${prefix}.type" hidden></p>
+                            <p class="form-error" id="industry-${slug}-risk-type-${number}-error" data-orientation-error="${prefix}.type" hidden></p>
                         </div>
-                        <div class="form-group" data-industry-other-group="${index}" data-orientation-field="${prefix}.otherText" ${risk.type === 'other' ? '' : 'hidden'}>
-                            <label class="form-label" for="industryRiskOther${number}">Describe other risk <span class="required-indicator">*</span></label>
-                            <input class="form-input" id="industryRiskOther${number}" data-industry-risk-other="${index}" data-industry-control="${prefix}.otherText" value="${this.escapeHtml(risk.otherText)}" aria-describedby="industryRiskOther${number}Error">
-                            <p class="form-error" id="industryRiskOther${number}Error" data-orientation-error="${prefix}.otherText" hidden></p>
+                        <div class="form-group" data-industry-other-group="${sector}:${index}" data-orientation-field="${prefix}.otherText" ${risk.type === 'other' ? '' : 'hidden'}>
+                            <label class="form-label" for="industry-${slug}-risk-other-${number}">Describe other risk <span class="required-indicator">*</span></label>
+                            <input class="form-input" id="industry-${slug}-risk-other-${number}" data-industry-risk-other="${index}" data-industry-control="${prefix}.otherText" value="${this.escapeHtml(risk.otherText)}" aria-describedby="industry-${slug}-risk-other-${number}-error">
+                            <p class="form-error" id="industry-${slug}-risk-other-${number}-error" data-orientation-error="${prefix}.otherText" hidden></p>
                         </div>
                     </div>
                     <div class="industry-plan-grid industry-plan-grid--three">
@@ -2967,17 +2975,17 @@ export class FacilitatorController {
                         ].map(([key, label, selected, options]) => `
                             <fieldset class="form-group industry-plan-radio-group" data-orientation-field="${prefix}.${key}">
                                 <legend class="form-label">${label} <span class="required-indicator">*</span></legend>
-                                <div class="industry-plan-segments">${radioMarkup(`industryRisk${number}${key}`, options, selected, `${prefix}.${key}`, `industryRisk${number}${key}Error`)}</div>
-                                <p class="form-error" id="industryRisk${number}${key}Error" data-orientation-error="${prefix}.${key}" hidden></p>
+                                <div class="industry-plan-segments">${radioMarkup(`industry-${slug}-risk-${number}-${key}`, options, selected, `${prefix}.${key}`, `industry-${slug}-risk-${number}-${key}-error`)}</div>
+                                <p class="form-error" id="industry-${slug}-risk-${number}-${key}-error" data-orientation-error="${prefix}.${key}" hidden></p>
                             </fieldset>
                         `).join('')}
                     </div>
                 </fieldset>
             `;
         };
-        const renderPartner = (partner, index) => {
+        const renderPartner = (sector, slug, partner, index) => {
             const number = index + 1;
-            const prefix = `partners.${index}`;
+            const prefix = `sectorPlans.${sector}.partners.${index}`;
             return `
                 <fieldset class="industry-plan-row">
                     <legend>Partner ${number}</legend>
@@ -2988,18 +2996,18 @@ export class FacilitatorController {
                             ['likelyWant', 'What They Likely Want From You', partner.likelyWant]
                         ].map(([key, label, value]) => `
                             <div class="form-group" data-orientation-field="${prefix}.${key}">
-                                <label class="form-label" for="industryPartner${number}${key}">${label}</label>
-                                <textarea class="form-input form-textarea industry-plan-compact-textarea" id="industryPartner${number}${key}" data-industry-partner="${index}" data-industry-partner-key="${key}" data-industry-control="${prefix}.${key}" aria-describedby="industryPartner${number}${key}Error">${this.escapeHtml(value)}</textarea>
-                                <p class="form-error" id="industryPartner${number}${key}Error" data-orientation-error="${prefix}.${key}" hidden></p>
+                                <label class="form-label" for="industry-${slug}-partner-${number}-${key}">${label}</label>
+                                <textarea class="form-input form-textarea industry-plan-compact-textarea" id="industry-${slug}-partner-${number}-${key}" data-industry-partner="${index}" data-industry-partner-key="${key}" data-industry-control="${prefix}.${key}" aria-describedby="industry-${slug}-partner-${number}-${key}-error">${this.escapeHtml(value)}</textarea>
+                                <p class="form-error" id="industry-${slug}-partner-${number}-${key}-error" data-orientation-error="${prefix}.${key}" hidden></p>
                             </div>
                         `).join('')}
                     </div>
                 </fieldset>
             `;
         };
-        const renderPriority = (priority, index) => {
+        const renderPriority = (sector, slug, priority, index) => {
             const number = index + 1;
-            const prefix = `strategicPriorities.${index}`;
+            const prefix = `sectorPlans.${sector}.strategicPriorities.${index}`;
             return `
                 <fieldset class="industry-plan-row">
                     <legend>Priority ${number}</legend>
@@ -3009,13 +3017,90 @@ export class FacilitatorController {
                             ['successLooksLike', 'Success Looks Like...', priority.successLooksLike]
                         ].map(([key, label, value]) => `
                             <div class="form-group" data-orientation-field="${prefix}.${key}">
-                                <label class="form-label" for="industryPriority${number}${key}">${label} <span class="required-indicator">*</span></label>
-                                <textarea class="form-input form-textarea industry-plan-compact-textarea" id="industryPriority${number}${key}" data-industry-priority="${index}" data-industry-priority-key="${key}" data-industry-control="${prefix}.${key}" aria-describedby="industryPriority${number}${key}Error">${this.escapeHtml(value)}</textarea>
-                                <p class="form-error" id="industryPriority${number}${key}Error" data-orientation-error="${prefix}.${key}" hidden></p>
+                                <label class="form-label" for="industry-${slug}-priority-${number}-${key}">${label} <span class="required-indicator">*</span></label>
+                                <textarea class="form-input form-textarea industry-plan-compact-textarea" id="industry-${slug}-priority-${number}-${key}" data-industry-priority="${index}" data-industry-priority-key="${key}" data-industry-control="${prefix}.${key}" aria-describedby="industry-${slug}-priority-${number}-${key}-error">${this.escapeHtml(value)}</textarea>
+                                <p class="form-error" id="industry-${slug}-priority-${number}-${key}-error" data-orientation-error="${prefix}.${key}" hidden></p>
                             </div>
                         `).join('')}
                     </div>
                 </fieldset>
+            `;
+        };
+        const renderSectorPlan = ({ value: sector }) => {
+            const slug = sector.toLowerCase();
+            const sectorPlan = withBlankRows(plan.sectorPlans[sector]);
+            const prefix = `sectorPlans.${sector}`;
+            return `
+                <div class="industry-sector-workspace" id="industry-sector-panel-${slug}" data-industry-sector-panel="${sector}" role="tabpanel" aria-labelledby="industry-sector-tab-${slug}" hidden>
+                    <section class="strategic-orientation-section" data-industry-page="1" aria-labelledby="industry-${slug}-page-1-heading">
+                        <h3 id="industry-${slug}-page-1-heading" tabindex="-1">Page 1 — Sector and Business Overview</h3>
+                        <p class="industry-plan-sector-name"><strong>Sector:</strong> ${this.escapeHtml(sector)}</p>
+                        <div class="form-group" data-orientation-field="${prefix}.businessOverview">
+                            <label class="form-label" for="industry-${slug}-overview">Business Overview <span class="required-indicator">*</span></label>
+                            <textarea class="form-input form-textarea" id="industry-${slug}-overview" data-industry-control="${prefix}.businessOverview" aria-describedby="industry-${slug}-overview-help industry-${slug}-overview-error">${this.escapeHtml(sectorPlan.businessOverview)}</textarea>
+                            <p class="form-hint" id="industry-${slug}-overview-help">Describe what the company does, what matters most right now, and the strengths or exposures shaping its position.</p>
+                            <p class="form-error" id="industry-${slug}-overview-error" data-orientation-error="${prefix}.businessOverview" hidden></p>
+                        </div>
+                    </section>
+                    <section class="strategic-orientation-section" data-industry-page="2" aria-labelledby="industry-${slug}-page-2-heading" hidden>
+                        <h3 id="industry-${slug}-page-2-heading" tabindex="-1">Page 2 — Top Three Risk Factors</h3>
+                        <p class="form-hint">Record exactly three complete and distinct risk factors.</p>
+                        <p class="form-error" data-orientation-error="${prefix}.risks" hidden></p>
+                        ${sectorPlan.risks.map((risk, index) => renderRisk(sector, slug, risk, index)).join('')}
+                    </section>
+                    <section class="strategic-orientation-section" data-industry-page="3" aria-labelledby="industry-${slug}-page-3-heading" hidden>
+                        <h3 id="industry-${slug}-page-3-heading" tabindex="-1">Page 3 — Opening Read of the Environment</h3>
+                        <div class="form-group" data-orientation-field="${prefix}.redPriorities">
+                            <label class="form-label" for="industry-${slug}-red-priorities">What do you expect Red (China / Russia) to prioritize for ${this.escapeHtml(sector)}? <span class="required-indicator">*</span></label>
+                            <textarea class="form-input form-textarea" id="industry-${slug}-red-priorities" data-industry-control="${prefix}.redPriorities" aria-describedby="industry-${slug}-red-priorities-error">${this.escapeHtml(sectorPlan.redPriorities)}</textarea>
+                            <p class="form-error" id="industry-${slug}-red-priorities-error" data-orientation-error="${prefix}.redPriorities" hidden></p>
+                        </div>
+                    </section>
+                    <section class="strategic-orientation-section" data-industry-page="4" aria-labelledby="industry-${slug}-page-4-heading" hidden>
+                        <h3 id="industry-${slug}-page-4-heading" tabindex="-1">Page 4 — Partner Map</h3>
+                        <p class="form-hint">Complete at least one row; leave unused rows fully blank.</p>
+                        <p class="form-error" data-orientation-error="${prefix}.partners" hidden></p>
+                        ${sectorPlan.partners.map((partner, index) => renderPartner(sector, slug, partner, index)).join('')}
+                        <fieldset class="industry-plan-row"><legend>First Ambassador Target</legend>
+                            <div class="industry-plan-grid industry-plan-grid--two">
+                                <div class="form-group" data-orientation-field="${prefix}.firstAmbassadorTarget.cell">
+                                    <label class="form-label" for="industry-${slug}-ambassador-cell">Cell <span class="required-indicator">*</span></label>
+                                    <select class="form-input" id="industry-${slug}-ambassador-cell" data-industry-control="${prefix}.firstAmbassadorTarget.cell" aria-describedby="industry-${slug}-ambassador-cell-error">
+                                        <option value="">Select cell</option>${optionMarkup(INDUSTRY_EXPOSURE_CELLS, sectorPlan.firstAmbassadorTarget.cell)}
+                                    </select>
+                                    <p class="form-error" id="industry-${slug}-ambassador-cell-error" data-orientation-error="${prefix}.firstAmbassadorTarget.cell" hidden></p>
+                                </div>
+                                <div class="form-group" data-orientation-field="${prefix}.firstAmbassadorTarget.reason">
+                                    <label class="form-label" for="industry-${slug}-ambassador-reason">Reason <span class="required-indicator">*</span></label>
+                                    <textarea class="form-input form-textarea industry-plan-compact-textarea" id="industry-${slug}-ambassador-reason" data-industry-control="${prefix}.firstAmbassadorTarget.reason" aria-describedby="industry-${slug}-ambassador-reason-error">${this.escapeHtml(sectorPlan.firstAmbassadorTarget.reason)}</textarea>
+                                    <p class="form-error" id="industry-${slug}-ambassador-reason-error" data-orientation-error="${prefix}.firstAmbassadorTarget.reason" hidden></p>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </section>
+                    <section class="strategic-orientation-section" data-industry-page="5" aria-labelledby="industry-${slug}-page-5-heading" hidden>
+                        <h3 id="industry-${slug}-page-5-heading" tabindex="-1">Page 5 — Strategic Priorities</h3>
+                        <p class="form-hint">Record exactly three baseline objectives.</p>
+                        <p class="form-error" data-orientation-error="${prefix}.strategicPriorities" hidden></p>
+                        ${sectorPlan.strategicPriorities.map((priority, index) => renderPriority(sector, slug, priority, index)).join('')}
+                    </section>
+                    <section class="strategic-orientation-section" data-industry-page="6" aria-labelledby="industry-${slug}-page-6-heading" hidden>
+                        <h3 id="industry-${slug}-page-6-heading" tabindex="-1">Page 6 — Strategic Stance and Red Line</h3>
+                        <fieldset class="form-group industry-plan-radio-group" data-orientation-field="${prefix}.strategicStance">
+                            <legend class="form-label">Strategic Stance <span class="required-indicator">*</span></legend>
+                            <div class="industry-plan-stance-labels"><span>Profit First</span><span>National Interest First</span></div>
+                            <div class="industry-plan-segments">${radioMarkup(`industry-${slug}-strategic-stance`, [1, 2, 3, 4, 5].map((value) => ({ value, label: String(value) })), sectorPlan.strategicStance, `${prefix}.strategicStance`, `industry-${slug}-stance-help industry-${slug}-stance-error`)}</div>
+                            <p class="form-hint" id="industry-${slug}-stance-help">1 = maximize the business even against Blue's wishes · 3 = balanced · 5 = align with Blue even at real cost</p>
+                            <p class="form-error" id="industry-${slug}-stance-error" data-orientation-error="${prefix}.strategicStance" hidden></p>
+                        </fieldset>
+                        <div class="form-group" data-orientation-field="${prefix}.redLine">
+                            <label class="form-label" for="industry-${slug}-red-line">What would you never do, even under pressure? <span class="required-indicator">*</span></label>
+                            <textarea class="form-input form-textarea" id="industry-${slug}-red-line" data-industry-control="${prefix}.redLine" aria-describedby="industry-${slug}-red-line-help industry-${slug}-red-line-error">${this.escapeHtml(sectorPlan.redLine)}</textarea>
+                            <p class="form-hint" id="industry-${slug}-red-line-help">Your Red Line</p>
+                            <p class="form-error" id="industry-${slug}-red-line-error" data-orientation-error="${prefix}.redLine" hidden></p>
+                        </div>
+                    </section>
+                </div>
             `;
         };
 
@@ -3027,162 +3112,227 @@ export class FacilitatorController {
                     <div class="form-error-summary" data-orientation-error-summary role="alert" tabindex="-1" hidden>
                         <h3>Complete the required Industry Strategic Plan fields</h3><ul></ul>
                     </div>
-                    <div class="strategic-orientation-sections">
-                        <section class="strategic-orientation-section" aria-labelledby="industrySectorHeading">
-                            <h3 id="industrySectorHeading">Sector</h3>
-                            <fieldset class="form-group industry-plan-radio-group" data-orientation-field="sector">
-                                <legend class="sr-only">Sector (required)</legend>
-                                <div class="industry-plan-segments">${radioMarkup('industrySector', INDUSTRY_SECTORS, plan.sector, 'sector', 'industrySectorError')}</div>
-                                <p class="form-error" id="industrySectorError" data-orientation-error="sector" hidden></p>
-                            </fieldset>
-                        </section>
-                        <section class="strategic-orientation-section" aria-labelledby="industryOverviewHeading">
-                            <h3 id="industryOverviewHeading">A. Business Overview</h3>
-                            <div class="form-group" data-orientation-field="businessOverview">
-                                <label class="form-label" for="industryBusinessOverview">Business Overview <span class="required-indicator">*</span></label>
-                                <textarea class="form-input form-textarea" id="industryBusinessOverview" data-industry-control="businessOverview" aria-describedby="industryBusinessOverviewHelp industryBusinessOverviewError">${this.escapeHtml(plan.businessOverview)}</textarea>
-                                <p class="form-hint" id="industryBusinessOverviewHelp">Describe what the company does, what matters most to it right now, and the strengths or exposures that shape its position.</p>
-                                <p class="form-error" id="industryBusinessOverviewError" data-orientation-error="businessOverview" hidden></p>
-                            </div>
-                        </section>
-                        <section class="strategic-orientation-section" aria-labelledby="industryRisksHeading">
-                            <h3 id="industryRisksHeading">B. Top Three Risk Factors</h3>
-                            <p class="form-hint">Record exactly three complete and distinct risk factors.</p>
-                            <p class="form-error" data-orientation-error="risks" hidden></p>
-                            ${plan.risks.map(renderRisk).join('')}
-                        </section>
-                        <section class="strategic-orientation-section" aria-labelledby="industryEnvironmentHeading">
-                            <h3 id="industryEnvironmentHeading">C. Opening Read of the Environment</h3>
-                            <fieldset class="form-group industry-plan-radio-group" data-orientation-field="forecast:blue">
-                                <legend class="form-label">What do you expect Blue's overall strategic orientation to be? <span class="required-indicator">*</span></legend>
-                                <div class="industry-plan-segments">${radioMarkup('industryBlueForecast', catalogueOptions, blueForecast, 'forecast:blue', 'industryBlueForecastError')}</div>
-                                <p class="form-error" id="industryBlueForecastError" data-orientation-error="forecast:blue" hidden></p>
-                            </fieldset>
-                            <div class="form-group" data-orientation-field="redPriorities">
-                                <label class="form-label" for="industryRedPriorities">What do you expect Red (China / Russia) to prioritize? <span class="required-indicator">*</span></label>
-                                <textarea class="form-input form-textarea" id="industryRedPriorities" data-industry-control="redPriorities" aria-describedby="industryRedPrioritiesError">${this.escapeHtml(plan.redPriorities)}</textarea>
-                                <p class="form-error" id="industryRedPrioritiesError" data-orientation-error="redPriorities" hidden></p>
-                            </div>
-                        </section>
-                        <section class="strategic-orientation-section" aria-labelledby="industryPartnersHeading" data-orientation-field="partners">
-                            <h3 id="industryPartnersHeading">D. Partner Map</h3>
-                            <p class="form-hint">No one wins this alone. Complete at least one row; leave unused rows fully blank.</p>
-                            <p class="form-error" data-orientation-error="partners" hidden></p>
-                            ${plan.partners.map(renderPartner).join('')}
-                            <fieldset class="industry-plan-row">
-                                <legend>First Ambassador Target</legend>
-                                <div class="industry-plan-grid industry-plan-grid--two">
-                                    <div class="form-group" data-orientation-field="firstAmbassadorTarget.cell">
-                                        <label class="form-label" for="industryAmbassadorCell">Cell <span class="required-indicator">*</span></label>
-                                        <select class="form-input" id="industryAmbassadorCell" data-industry-control="firstAmbassadorTarget.cell" aria-describedby="industryAmbassadorCellError">
-                                            <option value="">Select cell</option>${optionMarkup(INDUSTRY_EXPOSURE_CELLS, plan.firstAmbassadorTarget.cell)}
-                                        </select>
-                                        <p class="form-error" id="industryAmbassadorCellError" data-orientation-error="firstAmbassadorTarget.cell" hidden></p>
-                                    </div>
-                                    <div class="form-group" data-orientation-field="firstAmbassadorTarget.reason">
-                                        <label class="form-label" for="industryAmbassadorReason">Reason <span class="required-indicator">*</span></label>
-                                        <textarea class="form-input form-textarea industry-plan-compact-textarea" id="industryAmbassadorReason" data-industry-control="firstAmbassadorTarget.reason" aria-describedby="industryAmbassadorReasonError">${this.escapeHtml(plan.firstAmbassadorTarget.reason)}</textarea>
-                                        <p class="form-error" id="industryAmbassadorReasonError" data-orientation-error="firstAmbassadorTarget.reason" hidden></p>
-                                    </div>
-                                </div>
-                            </fieldset>
-                        </section>
-                        <section class="strategic-orientation-section" aria-labelledby="industryPrioritiesHeading">
-                            <h3 id="industryPrioritiesHeading">E. Strategic Priorities for the Game</h3>
-                            <p class="form-hint">Like an MD&amp;A outlook. Record exactly three baseline objectives.</p>
-                            <p class="form-error" data-orientation-error="strategicPriorities" hidden></p>
-                            ${plan.strategicPriorities.map(renderPriority).join('')}
-                        </section>
-                        <section class="strategic-orientation-section" aria-labelledby="industryStanceHeading">
-                            <h3 id="industryStanceHeading">Strategic Stance</h3>
-                            <fieldset class="form-group industry-plan-radio-group" data-orientation-field="strategicStance">
-                                <legend class="sr-only">Strategic Stance from Profit First to National Interest First</legend>
-                                <div class="industry-plan-stance-labels"><span>Profit First</span><span>National Interest First</span></div>
-                                <div class="industry-plan-segments">${radioMarkup('industryStrategicStance', [1, 2, 3, 4, 5].map((value) => ({ value, label: String(value) })), plan.strategicStance, 'strategicStance', 'industryStrategicStanceHelp industryStrategicStanceError')}</div>
-                                <p class="form-hint" id="industryStrategicStanceHelp">1 = maximize the business even against Blue's wishes · 3 = balanced · 5 = align with Blue even at real cost</p>
-                                <p class="form-error" id="industryStrategicStanceError" data-orientation-error="strategicStance" hidden></p>
-                            </fieldset>
-                        </section>
-                        <section class="strategic-orientation-section" aria-labelledby="industryRedLineHeading">
-                            <h3 id="industryRedLineHeading">Red Line</h3>
-                            <div class="form-group" data-orientation-field="redLine">
-                                <label class="form-label" for="industryRedLine">What would you never do, even under pressure? <span class="required-indicator">*</span></label>
-                                <p class="form-hint" id="industryRedLineHelp">Your Red Line</p>
-                                <textarea class="form-input form-textarea" id="industryRedLine" data-industry-control="redLine" aria-describedby="industryRedLineHelp industryRedLineError">${this.escapeHtml(plan.redLine)}</textarea>
-                                <p class="form-error" id="industryRedLineError" data-orientation-error="redLine" hidden></p>
-                            </div>
-                        </section>
+                    <div class="industry-plan-sector-tabs" role="tablist" aria-label="Industry sector plans">
+                        ${INDUSTRY_SECTORS.map(({ value }, index) => `<button class="btn btn-ghost industry-plan-sector-tab" type="button" role="tab" id="industry-sector-tab-${value.toLowerCase()}" data-industry-sector-tab="${value}" aria-controls="industry-sector-panel-${value.toLowerCase()}" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}">${value}<span data-industry-sector-status="${value}" aria-live="polite">Not started</span></button>`).join('')}
                     </div>
+                    <nav class="industry-plan-page-nav" aria-label="Strategic Plan pages">
+                        ${['Sector and Business Overview', 'Top Three Risk Factors', 'Opening Read of the Environment', 'Partner Map', 'Strategic Priorities', 'Strategic Stance and Red Line'].map((label, index) => `<button class="btn btn-ghost" type="button" data-industry-page-button="${index + 1}" aria-current="${index === 0 ? 'step' : 'false'}"><span>Page ${index + 1}</span>${label}</button>`).join('')}
+                    </nav>
+                    <p class="industry-plan-progress" data-industry-progress aria-live="polite">Agriculture — Page 1 of 6</p>
+                    <section class="strategic-orientation-section" data-industry-shared-blue hidden aria-labelledby="industry-blue-forecast-heading">
+                        <h3 id="industry-blue-forecast-heading">Shared Blue Forecast</h3>
+                        <p class="form-hint">This single forecast applies to the complete Industry package.</p>
+                        <fieldset class="form-group industry-plan-radio-group" data-orientation-field="forecast:blue">
+                            <legend class="form-label">What do you expect Blue's overall strategic orientation to be? <span class="required-indicator">*</span></legend>
+                            <div class="industry-plan-segments">${radioMarkup('industry-blue-forecast', catalogueOptions, blueForecast, 'forecast:blue', 'industry-blue-forecast-error')}</div>
+                            <p class="form-error" id="industry-blue-forecast-error" data-orientation-error="forecast:blue" hidden></p>
+                        </fieldset>
+                    </section>
+                    <div class="strategic-orientation-sections" data-industry-editor>
+                        ${INDUSTRY_SECTORS.map(renderSectorPlan).join('')}
+                    </div>
+                    <section class="strategic-orientation-section industry-plan-review" data-industry-review hidden aria-labelledby="industry-review-heading">
+                        <h3 id="industry-review-heading" tabindex="-1">Review the complete Industry Strategic Plan</h3>
+                        <p>Confirm all three sector plans and the shared Blue forecast before recording the package.</p>
+                        <div data-industry-review-content></div>
+                    </section>
                     <div class="form-actions strategic-orientation-actions">
                         <button class="btn btn-ghost" type="button" data-orientation-nav="cancel">Cancel</button>
-                        <button class="btn btn-primary" id="confirmBtn" type="submit" data-orientation-nav="confirm">Record Strategic Plan</button>
+                        <button class="btn btn-secondary" type="button" data-industry-nav="previous" hidden>Previous</button>
+                        <button class="btn btn-secondary" type="button" data-industry-nav="next">Next</button>
+                        <button class="btn btn-primary" type="button" data-industry-nav="review" hidden>Review Strategic Plan</button>
+                        <button class="btn btn-secondary" type="button" data-industry-nav="edit" hidden>Back to editing</button>
+                        <button class="btn btn-primary" id="confirmBtn" type="submit" data-orientation-nav="confirm" hidden>Record Strategic Plan</button>
                     </div>
                 </div>
             </form>
         `;
         content.__strategicOrientationExpectedAction = action.id ? { ...action } : null;
-        content.__industryLegacyContext = {
-            ownOrientation: viewModel.hasIndustryStrategicPlan ? '' : (viewModel.ownOrientation?.id || ''),
-            strategyDescription: viewModel.hasIndustryStrategicPlan ? '' : (viewModel.strategyDescription || '')
-        };
         return content;
     }
 
     collectIndustryStrategicPlanData(content) {
         const checked = (name) => content.querySelector(`[name="${name}"]:checked`)?.value || '';
         const value = (selector) => content.querySelector(selector)?.value || '';
-        const plan = {
-            version: INDUSTRY_STRATEGIC_PLAN_VERSION,
-            sector: checked('industrySector'),
-            businessOverview: value('#industryBusinessOverview'),
-            risks: [0, 1, 2].map((index) => ({
-                type: value(`[data-industry-risk-type="${index}"]`),
-                otherText: value(`[data-industry-risk-other="${index}"]`),
-                likelihood: checked(`industryRisk${index + 1}likelihood`),
-                impact: checked(`industryRisk${index + 1}impact`),
-                tiedCell: checked(`industryRisk${index + 1}tiedCell`)
-            })),
-            redPriorities: value('#industryRedPriorities'),
-            partners: [0, 1, 2].map((index) => ({
-                partner: value(`[data-industry-partner="${index}"][data-industry-partner-key="partner"]`),
-                whyTheyMatter: value(`[data-industry-partner="${index}"][data-industry-partner-key="whyTheyMatter"]`),
-                likelyWant: value(`[data-industry-partner="${index}"][data-industry-partner-key="likelyWant"]`)
-            })),
-            firstAmbassadorTarget: {
-                cell: value('#industryAmbassadorCell'),
-                reason: value('#industryAmbassadorReason')
-            },
-            strategicPriorities: [0, 1, 2].map((index) => ({
-                priority: value(`[data-industry-priority="${index}"][data-industry-priority-key="priority"]`),
-                successLooksLike: value(`[data-industry-priority="${index}"][data-industry-priority-key="successLooksLike"]`)
-            })),
-            strategicStance: checked('industryStrategicStance'),
-            redLine: value('#industryRedLine')
-        };
+        const sectorPlans = Object.fromEntries(INDUSTRY_SECTORS.map(({ value: sector }) => {
+            const slug = sector.toLowerCase();
+            const panel = content.querySelector(`[data-industry-sector-panel="${sector}"]`);
+            const panelValue = (selector) => panel?.querySelector(selector)?.value || '';
+            return [sector, {
+                businessOverview: panelValue(`#industry-${slug}-overview`),
+                risks: [0, 1, 2].map((index) => ({
+                    type: panelValue(`[data-industry-risk-type="${index}"]`),
+                    otherText: panelValue(`[data-industry-risk-other="${index}"]`),
+                    likelihood: checked(`industry-${slug}-risk-${index + 1}-likelihood`),
+                    impact: checked(`industry-${slug}-risk-${index + 1}-impact`),
+                    tiedCell: checked(`industry-${slug}-risk-${index + 1}-tiedCell`)
+                })),
+                redPriorities: panelValue(`#industry-${slug}-red-priorities`),
+                partners: [0, 1, 2].map((index) => ({
+                    partner: panelValue(`[data-industry-partner="${index}"][data-industry-partner-key="partner"]`),
+                    whyTheyMatter: panelValue(`[data-industry-partner="${index}"][data-industry-partner-key="whyTheyMatter"]`),
+                    likelyWant: panelValue(`[data-industry-partner="${index}"][data-industry-partner-key="likelyWant"]`)
+                })),
+                firstAmbassadorTarget: {
+                    cell: panelValue(`#industry-${slug}-ambassador-cell`),
+                    reason: panelValue(`#industry-${slug}-ambassador-reason`)
+                },
+                strategicPriorities: [0, 1, 2].map((index) => ({
+                    priority: panelValue(`[data-industry-priority="${index}"][data-industry-priority-key="priority"]`),
+                    successLooksLike: panelValue(`[data-industry-priority="${index}"][data-industry-priority-key="successLooksLike"]`)
+                })),
+                strategicStance: checked(`industry-${slug}-strategic-stance`),
+                redLine: panelValue(`#industry-${slug}-red-line`)
+            }];
+        }));
         return {
-            forecasts: { blue: checked('industryBlueForecast') },
-            industryStrategicPlan: normalizeIndustryStrategicPlan(plan),
-            legacyOwnOrientation: content.__industryLegacyContext?.ownOrientation || '',
-            legacyStrategyDescription: content.__industryLegacyContext?.strategyDescription || ''
+            forecasts: { blue: checked('industry-blue-forecast') },
+            industryStrategicPlan: { version: INDUSTRY_STRATEGIC_PLAN_VERSION, sectorPlans }
         };
     }
 
     bindIndustryStrategicPlan(content, modal, { actionId = null, isEdit = false } = {}) {
         const form = content.querySelector('[data-industry-strategic-plan]');
         if (!form) return;
+        let activeSector = INDUSTRY_SECTORS[0].value;
+        let activePage = 1;
+        let reviewing = false;
+        const fieldPage = (field = '') => field === 'forecast:blue' || field.includes('.redPriorities') ? 3
+            : field.includes('.risks') ? 2
+                : field.includes('.partners') || field.includes('.firstAmbassadorTarget') ? 4
+                    : field.includes('.strategicPriorities') ? 5
+                        : field.includes('.strategicStance') || field.includes('.redLine') ? 6 : 1;
+        const updateSectorStatuses = () => {
+            const data = this.collectIndustryStrategicPlanData(content);
+            INDUSTRY_SECTORS.forEach(({ value: sector }) => {
+                const status = getIndustrySectorPlanStatus(data.industryStrategicPlan.sectorPlans[sector], sector);
+                const statusNode = form.querySelector(`[data-industry-sector-status="${sector}"]`);
+                const statusLabel = status === 'not_started' ? 'Not started' : status === 'complete' ? 'Complete' : 'Incomplete';
+                if (statusNode && statusNode.textContent !== statusLabel) statusNode.textContent = statusLabel;
+            });
+        };
+        const updateView = ({ focusHeading = false } = {}) => {
+            form.querySelector('[data-industry-editor]').hidden = reviewing;
+            form.querySelector('[data-industry-review]').hidden = !reviewing;
+            form.querySelector('[data-industry-shared-blue]').hidden = reviewing || activePage !== 3;
+            form.querySelectorAll('[data-industry-sector-tab]').forEach((tab) => {
+                const selected = tab.dataset.industrySectorTab === activeSector;
+                tab.setAttribute('aria-selected', String(selected));
+                tab.tabIndex = selected ? 0 : -1;
+                tab.disabled = reviewing;
+            });
+            form.querySelectorAll('[data-industry-sector-panel]').forEach((panel) => {
+                panel.hidden = reviewing || panel.dataset.industrySectorPanel !== activeSector;
+                panel.querySelectorAll('[data-industry-page]').forEach((page) => {
+                    page.hidden = reviewing || Number(page.dataset.industryPage) !== activePage;
+                });
+            });
+            form.querySelectorAll('[data-industry-page-button]').forEach((button) => {
+                button.setAttribute('aria-current', Number(button.dataset.industryPageButton) === activePage ? 'step' : 'false');
+                button.disabled = reviewing;
+            });
+            const progress = form.querySelector('[data-industry-progress]');
+            if (progress) progress.textContent = reviewing ? 'Final review' : `${activeSector} — Page ${activePage} of 6`;
+            form.querySelector('[data-industry-nav="previous"]').hidden = reviewing || activePage === 1;
+            form.querySelector('[data-industry-nav="next"]').hidden = reviewing || activePage === 6;
+            form.querySelector('[data-industry-nav="review"]').hidden = reviewing || activePage !== 6;
+            form.querySelector('[data-industry-nav="edit"]').hidden = !reviewing;
+            form.querySelector('[data-orientation-nav="confirm"]').hidden = !reviewing;
+            updateSectorStatuses();
+            if (focusHeading) {
+                const heading = reviewing
+                    ? form.querySelector('#industry-review-heading')
+                    : form.querySelector(`[data-industry-sector-panel="${activeSector}"] [data-industry-page="${activePage}"] h3`);
+                heading?.focus();
+            }
+        };
+        const showFirstError = (errors) => {
+            const first = errors[0];
+            const sectorMatch = first?.field?.match(/^sectorPlans\.([^.]+)\./);
+            if (sectorMatch) activeSector = sectorMatch[1];
+            activePage = fieldPage(first?.field);
+            reviewing = false;
+            updateView();
+            this.renderStrategicOrientationErrors(content, errors);
+            form.querySelector(`[data-industry-control="${first?.field}"]`)?.focus();
+        };
+        const renderReview = (data) => {
+            const blue = STRATEGIC_ORIENTATION_OPTIONS[data.forecasts.blue]?.name || 'Not specified';
+            const normalizedPlan = normalizeIndustryStrategicPlan(data.industryStrategicPlan);
+            const optionLabel = (options, value) => options.find((option) => option.value === value)?.label || value;
+            const review = form.querySelector('[data-industry-review-content]');
+            review.innerHTML = `<p><strong>Shared Blue forecast:</strong> ${this.escapeHtml(blue)}</p>${INDUSTRY_SECTORS.map(({ value: sector }) => {
+                const sectorPlan = normalizedPlan.sectorPlans[sector];
+                return `<article class="industry-plan-review-sector"><h4>${this.escapeHtml(sector)}</h4>
+                    <p><strong>Business overview:</strong> ${this.escapeHtml(sectorPlan.businessOverview)}</p>
+                    <p><strong>Risks:</strong> ${sectorPlan.risks.map((risk) => this.escapeHtml(risk.type === 'other' ? risk.otherText : optionLabel(INDUSTRY_RISK_TYPES, risk.type))).join(', ')}</p>
+                    <p><strong>Expected Red priorities:</strong> ${this.escapeHtml(sectorPlan.redPriorities)}</p>
+                    <p><strong>Partners:</strong> ${sectorPlan.partners.map((partner) => this.escapeHtml(partner.partner)).join(', ')}</p>
+                    <p><strong>First ambassador target:</strong> ${this.escapeHtml(optionLabel(INDUSTRY_EXPOSURE_CELLS, sectorPlan.firstAmbassadorTarget.cell))} — ${this.escapeHtml(sectorPlan.firstAmbassadorTarget.reason)}</p>
+                    <p><strong>Strategic priorities:</strong> ${sectorPlan.strategicPriorities.map((priority) => this.escapeHtml(priority.priority)).join('; ')}</p>
+                    <p><strong>Strategic stance:</strong> ${sectorPlan.strategicStance}</p>
+                    <p><strong>Red line:</strong> ${this.escapeHtml(sectorPlan.redLine)}</p></article>`;
+            }).join('')}`;
+        };
         form.querySelectorAll('[data-industry-control]').forEach((control) => {
-            const clear = () => this.clearStrategicOrientationFieldError(content, control.dataset.industryControl);
+            const clear = () => {
+                this.clearStrategicOrientationFieldError(content, control.dataset.industryControl);
+                updateSectorStatuses();
+            };
             control.addEventListener('input', clear);
             control.addEventListener('change', clear);
         });
         form.querySelectorAll('[data-industry-risk-type]').forEach((select) => {
             const updateOther = () => {
                 const index = select.dataset.industryRiskType;
-                const group = form.querySelector(`[data-industry-other-group="${index}"]`);
+                const group = form.querySelector(`[data-industry-other-group="${select.dataset.industrySector}:${index}"]`);
                 if (group) group.hidden = select.value !== 'other';
             };
             select.addEventListener('change', updateOther);
             updateOther();
+        });
+        const sectorTabs = [...form.querySelectorAll('[data-industry-sector-tab]')];
+        sectorTabs.forEach((tab, index) => {
+            tab.addEventListener('click', () => {
+                activeSector = tab.dataset.industrySectorTab;
+                updateView({ focusHeading: true });
+            });
+            tab.addEventListener('keydown', (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const nextIndex = event.key === 'Home' ? 0
+                    : event.key === 'End' ? sectorTabs.length - 1
+                        : (index + (event.key === 'ArrowRight' ? 1 : -1) + sectorTabs.length) % sectorTabs.length;
+                sectorTabs[nextIndex].click();
+                sectorTabs[nextIndex].focus();
+            });
+        });
+        form.querySelectorAll('[data-industry-page-button]').forEach((button) => button.addEventListener('click', () => {
+            activePage = Number(button.dataset.industryPageButton);
+            updateView({ focusHeading: true });
+        }));
+        form.querySelector('[data-industry-nav="previous"]')?.addEventListener('click', () => {
+            activePage = Math.max(1, activePage - 1);
+            updateView({ focusHeading: true });
+        });
+        form.querySelector('[data-industry-nav="next"]')?.addEventListener('click', () => {
+            activePage = Math.min(6, activePage + 1);
+            updateView({ focusHeading: true });
+        });
+        form.querySelector('[data-industry-nav="edit"]')?.addEventListener('click', () => {
+            reviewing = false;
+            updateView({ focusHeading: true });
+        });
+        form.querySelector('[data-industry-nav="review"]')?.addEventListener('click', () => {
+            const data = this.collectIndustryStrategicPlanData(content);
+            const errors = this.validateIndustryStrategicPlanData(data);
+            if (errors.length) {
+                showFirstError(errors);
+                return;
+            }
+            renderReview(data);
+            reviewing = true;
+            updateView({ focusHeading: true });
         });
         form.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => modal?.close());
         form.addEventListener('submit', (event) => {
@@ -3190,13 +3340,20 @@ export class FacilitatorController {
             const data = this.collectIndustryStrategicPlanData(content);
             const errors = this.validateIndustryStrategicPlanData(data);
             if (errors.length) {
-                this.renderStrategicOrientationErrors(content, errors);
+                showFirstError(errors);
+                return;
+            }
+            if (!reviewing) {
+                renderReview(data);
+                reviewing = true;
+                updateView({ focusHeading: true });
                 return;
             }
             this.submitStrategicOrientation(modal, data, {
                 actionId, isEdit, expectedAction: content.__strategicOrientationExpectedAction
             }).catch((error) => logger.error('Failed to forward Industry Strategic Plan:', error));
         });
+        updateView();
     }
 
     validateIndustryStrategicPlanData(data = {}) {
@@ -3219,9 +3376,9 @@ export class FacilitatorController {
         }];
         const forecastSummary = buildStrategicOrientationForecastSummary(forecastTargets);
         return {
-            goal: `Industry Strategic Plan — ${plan.sector}`,
+            goal: 'Industry Strategic Plan',
             mechanism: STRATEGIC_ORIENTATION_ACTION_MECHANISM,
-            sector: plan.sector,
+            sector: '',
             exposure_type: STRATEGIC_ORIENTATION_PERIOD,
             priority: 'HIGH',
             targets: [],
@@ -3229,8 +3386,8 @@ export class FacilitatorController {
             ally_contingencies: serializeStrategicOrientationDetails({
                 artifactType: this.getStrategicOrientationArtifactType(),
                 team: this.teamId,
-                ownOrientation: data.legacyOwnOrientation || null,
-                strategyDescription: data.legacyStrategyDescription || '',
+                ownOrientation: null,
+                strategyDescription: '',
                 forecastSummary,
                 forecastTargets,
                 industryStrategicPlan: plan,
@@ -3621,8 +3778,7 @@ export class FacilitatorController {
                     strategy_description: payloadViewModel.strategyDescription,
                     ...(payloadViewModel.hasIndustryStrategicPlan ? {
                         industry_strategic_plan_version: payloadViewModel.industryStrategicPlanVersion,
-                        sector: payloadViewModel.industryStrategicPlan.sector,
-                        strategic_stance: payloadViewModel.industryStrategicPlan.strategicStance
+                        sectors: Object.keys(payloadViewModel.industryStrategicPlan.sectorPlans || {})
                     } : {}),
                     next_step: 'scribe_project_then_submit_to_white_cell',
                     semantic_next_step: 'facilitator_project_then_submit_to_white_cell'

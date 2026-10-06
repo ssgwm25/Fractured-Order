@@ -4879,6 +4879,9 @@ export function buildResearchReportHtml(dataset, {
     const strategicOrientationCards = strategicOrientationRows.map((orientation) => {
         const details = safeObject(safeObject(orientation.full_content).details);
         const industryPlan = safeObject(details.industryStrategicPlan);
+        const industrySectorPlans = Object.keys(safeObject(industryPlan.sectorPlans)).length
+            ? Object.entries(safeObject(industryPlan.sectorPlans)).map(([sector, sectorPlan]) => ({ sector, ...safeObject(sectorPlan) }))
+            : (details.hasIndustryStrategicPlan ? [{ sector: industryPlan.sector || 'Legacy sector', ...industryPlan }] : []);
         const forecastRows = safeArray(details.forecastTargets).map((target) => [
             target.label || target.key || '',
             target.orientationLabel || target.orientation || '',
@@ -4929,39 +4932,41 @@ export function buildResearchReportHtml(dataset, {
                         title: 'Industry Strategic Plan Overview',
                         html: renderReportMetaGrid([
                             { label: 'Plan Version', value: details.industryStrategicPlanVersion },
-                            { label: 'Sector', value: industryPlan.sector },
-                            { label: 'Business Overview', value: industryPlan.businessOverview },
-                            { label: 'Expected Red Priorities', value: industryPlan.redPriorities },
-                            { label: 'First Ambassador Target', value: industryPlan.firstAmbassadorTarget },
-                            { label: 'Strategic Stance', value: industryPlan.strategicStance },
-                            { label: 'Red Line', value: industryPlan.redLine }
+                            { label: 'Sectors', value: industrySectorPlans.map(({ sector }) => sector) },
+                            { label: 'Blue Forecast', value: details.forecastTargets?.find(({ key }) => key === 'blue')?.orientationLabel }
                         ])
                     }
                     : null,
-                details.hasIndustryStrategicPlan && safeArray(industryPlan.risks).length
-                    ? {
-                        title: 'Top Three Risks',
-                        html: renderReportTable(['Risk', 'Other Risk', 'Likelihood', 'Impact', 'Cell'], safeArray(industryPlan.risks).map((risk) => [
+                ...industrySectorPlans.flatMap((sectorPlan) => [
+                    {
+                        title: `${sectorPlan.sector} Plan`,
+                        html: renderReportMetaGrid([
+                            { label: 'Business Overview', value: sectorPlan.businessOverview },
+                            { label: 'Expected Red Priorities', value: sectorPlan.redPriorities },
+                            { label: 'First Ambassador Target', value: sectorPlan.firstAmbassadorTarget },
+                            { label: 'Strategic Stance', value: sectorPlan.strategicStance },
+                            { label: 'Red Line', value: sectorPlan.redLine }
+                        ])
+                    },
+                    safeArray(sectorPlan.risks).length ? {
+                        title: `${sectorPlan.sector} — Top Three Risks`,
+                        html: renderReportTable(['Risk', 'Other Risk', 'Likelihood', 'Impact', 'Cell'], safeArray(sectorPlan.risks).map((risk) => [
                             risk.type, risk.otherText, risk.likelihood, risk.impact, risk.tiedCell
                         ]))
-                    }
-                    : null,
-                details.hasIndustryStrategicPlan && safeArray(industryPlan.partners).length
-                    ? {
-                        title: 'Partner Map',
-                        html: renderReportTable(['Partner', 'Why They Matter', 'Likely Want'], safeArray(industryPlan.partners).map((partner) => [
+                    } : null,
+                    safeArray(sectorPlan.partners).length ? {
+                        title: `${sectorPlan.sector} — Partner Map`,
+                        html: renderReportTable(['Partner', 'Why They Matter', 'Likely Want'], safeArray(sectorPlan.partners).map((partner) => [
                             partner.partner, partner.whyTheyMatter, partner.likelyWant
                         ]))
-                    }
-                    : null,
-                details.hasIndustryStrategicPlan && safeArray(industryPlan.strategicPriorities).length
-                    ? {
-                        title: 'Strategic Priorities',
-                        html: renderReportTable(['Priority', 'Success Looks Like'], safeArray(industryPlan.strategicPriorities).map((priority) => [
+                    } : null,
+                    safeArray(sectorPlan.strategicPriorities).length ? {
+                        title: `${sectorPlan.sector} — Strategic Priorities`,
+                        html: renderReportTable(['Priority', 'Success Looks Like'], safeArray(sectorPlan.strategicPriorities).map((priority) => [
                             priority.priority, priority.successLooksLike
                         ]))
-                    }
-                    : null,
+                    } : null
+                ]),
                 {
                     title: 'Strategic Narrative',
                     html: renderReportMetaGrid([
@@ -6811,11 +6816,25 @@ export function buildResearchReportLatex(dataset, {
     const orientationSections = renderLatexArtifactSections(strategicOrientations, (orientation) => {
         const details = safeObject(safeObject(orientation.full_content).details);
         const industryPlan = safeObject(details.industryStrategicPlan);
+        const industrySectorPlans = Object.keys(safeObject(industryPlan.sectorPlans)).length
+            ? Object.entries(safeObject(industryPlan.sectorPlans)).map(([sector, sectorPlan]) => ({ sector, ...safeObject(sectorPlan) }))
+            : (details.hasIndustryStrategicPlan ? [{ sector: industryPlan.sector || 'Legacy sector', ...industryPlan }] : []);
         const forecastRows = safeArray(details.forecastTargets).map((target) => [
             target.label || target.key,
             target.orientationLabel || target.orientation,
             target.orientationTag
         ]);
+        const industryPlanLatex = industrySectorPlans.map((sectorPlan) => String.raw`\subsubsection{${escapeLatex(`${sectorPlan.sector} Industry plan`)}}
+${renderLatexDescription([
+        { label: 'Business overview', value: sectorPlan.businessOverview },
+        { label: 'Expected Red priorities', value: sectorPlan.redPriorities },
+        { label: 'First ambassador target', value: sectorPlan.firstAmbassadorTarget },
+        { label: 'Strategic stance', value: sectorPlan.strategicStance },
+        { label: 'Red line', value: sectorPlan.redLine }
+    ])}
+${safeArray(sectorPlan.risks).length ? renderLatexLongTable(['Risk', 'Other risk', 'Likelihood', 'Impact', 'Cell'], safeArray(sectorPlan.risks).map((risk) => [risk.type, risk.otherText, risk.likelihood, risk.impact, risk.tiedCell])) : ''}
+${safeArray(sectorPlan.partners).length ? renderLatexLongTable(['Partner', 'Why they matter', 'Likely want'], safeArray(sectorPlan.partners).map((partner) => [partner.partner, partner.whyTheyMatter, partner.likelyWant])) : ''}
+${safeArray(sectorPlan.strategicPriorities).length ? renderLatexLongTable(['Priority', 'Success looks like'], safeArray(sectorPlan.strategicPriorities).map((priority) => [priority.priority, priority.successLooksLike])) : ''}`).join('\n');
         return String.raw`\subsection{${escapeLatex(orientation.title || details.orientationLabel || 'Strategic orientation')}}
 ${renderLatexDescription([
         { label: 'Artifact ID', value: orientation.action_id },
@@ -6840,12 +6859,7 @@ ${renderLatexDescription([
         { label: 'Forecast summary', value: details.forecastSummary },
         { label: 'Expected outcomes', value: safeObject(orientation.full_content).expected_outcomes },
         { label: 'Industry Strategic Plan version', value: details.industryStrategicPlanVersion },
-        { label: 'Industry sector', value: industryPlan.sector },
-        { label: 'Business overview', value: industryPlan.businessOverview },
-        { label: 'Expected Red priorities', value: industryPlan.redPriorities },
-        { label: 'First ambassador target', value: industryPlan.firstAmbassadorTarget },
-        { label: 'Strategic stance', value: industryPlan.strategicStance },
-        { label: 'Red line', value: industryPlan.redLine },
+        { label: 'Industry sectors', value: industrySectorPlans.map(({ sector }) => sector) },
         { label: 'Scribe handoff', value: details.scribeHandoff },
         { label: 'Submitted UTC', value: orientation.submitted_utc },
         { label: 'Status', value: orientation.final_status },
@@ -6855,12 +6869,7 @@ ${renderLatexDescription([
     ])}
 ${forecastRows.length ? String.raw`\subsubsection{Forecast targets}
 ${renderLatexLongTable(['Target', 'Forecast orientation', 'Strategic tag'], forecastRows)}` : ''}
-${details.hasIndustryStrategicPlan && safeArray(industryPlan.risks).length ? String.raw`\subsubsection{Top three risks}
-${renderLatexLongTable(['Risk', 'Other risk', 'Likelihood', 'Impact', 'Cell'], safeArray(industryPlan.risks).map((risk) => [risk.type, risk.otherText, risk.likelihood, risk.impact, risk.tiedCell]))}` : ''}
-${details.hasIndustryStrategicPlan && safeArray(industryPlan.partners).length ? String.raw`\subsubsection{Partner map}
-${renderLatexLongTable(['Partner', 'Why they matter', 'Likely want'], safeArray(industryPlan.partners).map((partner) => [partner.partner, partner.whyTheyMatter, partner.likelyWant]))}` : ''}
-${details.hasIndustryStrategicPlan && safeArray(industryPlan.strategicPriorities).length ? String.raw`\subsubsection{Strategic priorities}
-${renderLatexLongTable(['Priority', 'Success looks like'], safeArray(industryPlan.strategicPriorities).map((priority) => [priority.priority, priority.successLooksLike]))}` : ''}`;
+${industryPlanLatex}`;
     });
 
     const actionSections = renderLatexArtifactSections(moveActions, (action) => {
