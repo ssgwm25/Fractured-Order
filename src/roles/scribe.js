@@ -53,6 +53,7 @@ import {
     isStrategicOrientationAction,
     isStrategicOrientationForwardedToScribe
 } from '../features/actions/strategicOrientationDetails.js';
+import { renderIndustryStrategicPlanPositionView } from '../features/actions/industryStrategicPlanPresentation.js';
 import {
     PROPOSAL_RECIPIENT_STATUSES,
     PROPOSAL_THREAD_MESSAGE_TYPES,
@@ -4466,7 +4467,13 @@ export class ScribeController {
                         <div class="scribe-action-slide-section-header">
                             <h3 class="scribe-action-slide-section-title">${sectionTitle}</h3>
                         </div>
-                        <div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
+                        ${isIndustryPlan
+                            ? renderIndustryStrategicPlanPositionView(viewModel, {
+                                escapeHtml,
+                                headingLevel: 4,
+                                idPrefix: `facilitator-industry-slide-${action.id || 'draft'}`
+                            })
+                            : `<div class="scribe-action-slide-glance-grid scribe-action-slide-glance-grid--components">
                             ${displayFields.map((field) => renderActionSlideGlanceCard({
                     label: field.label,
                     value: field.value
@@ -4489,7 +4496,7 @@ export class ScribeController {
                     value: viewModel.posture
                 })
                 : ''}
-                        </div>
+                        </div>`}
                     </section>
 
                     ${viewModel.isLegacy && viewModel.rationale ? `

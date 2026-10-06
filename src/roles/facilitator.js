@@ -76,6 +76,7 @@ import {
     isStrategicOrientationAction,
     serializeStrategicOrientationDetails
 } from '../features/actions/strategicOrientationDetails.js';
+import { renderIndustryStrategicPlanPositionView } from '../features/actions/industryStrategicPlanPresentation.js';
 import {
     INDUSTRY_EXPOSURE_CELLS,
     INDUSTRY_RISK_LEVELS,
@@ -2459,7 +2460,13 @@ export class FacilitatorController {
                 { label: 'Sector', value: action.sector || 'Not specified' },
                 { label: 'Exposure', value: action.exposure_type || 'Not specified' }
             ];
-        const detailsMarkup = this.renderDetailGrid(detailFields);
+        const detailsMarkup = isStrategicOrientationFlow && strategicOrientation.hasIndustryStrategicPlan
+            ? renderIndustryStrategicPlanPositionView(strategicOrientation, {
+                escapeHtml: (value) => this.escapeHtml(value),
+                headingLevel: 4,
+                idPrefix: `facilitator-industry-position-${action.id || 'draft'}`
+            })
+            : this.renderDetailGrid(detailFields);
         const statusGroupKey = this.getActionStatusGroupKey(action);
         const statusAccent = statusGroupKey === 'reviewed' ? 'deliberated' : statusGroupKey;
         const isCollapsibleCard = this.isCollapsibleStrategicActionCard({

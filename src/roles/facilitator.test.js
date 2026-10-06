@@ -1022,6 +1022,36 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(markup).not.toContain('Forward to Facilitator');
     });
 
+    it('presents the Industry Strategic Plan as three comparable sector positions', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { serializeStrategicOrientationDetails } = await import('../features/actions/strategicOrientationDetails.js');
+        global.document = createFakeDocument();
+
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+        controller.teamLabel = 'Industry Team';
+        const markup = controller.renderActionCard(await createStrategicOrientationAction({
+            id: 'industry-plan-facilitator-card',
+            team: 'industry',
+            goal: 'Industry Strategic Plan',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team: 'industry',
+                forecastTargets: [{ key: 'blue', orientation: 'stabilization' }],
+                industryStrategicPlan: createIndustryPlan(),
+                scribeHandoff: 'Forwarded'
+            })
+        }));
+
+        expect(markup).toContain('Sector position comparison');
+        expect(markup.match(/data-industry-position-sector=/g)).toHaveLength(3);
+        expect(markup).toContain('Shared Blue forecast');
+        expect(markup).toContain('What this sector will protect');
+        expect(markup).toContain('Red line');
+        expect(markup).toContain('First engagement');
+        expect(markup).toContain('Supporting assumptions and risks');
+        expect(markup).not.toContain('Own Orientation');
+    });
+
     it('mounts a Blue Scribe guide that covers every Scribe workspace surface', async () => {
         const { FacilitatorController } = await loadFacilitatorModule();
         const controller = new FacilitatorController();

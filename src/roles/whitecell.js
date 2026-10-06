@@ -47,6 +47,7 @@ import {
     getStrategicOrientationViewModel,
     isStrategicOrientationAction
 } from '../features/actions/strategicOrientationDetails.js';
+import { renderIndustryStrategicPlanPositionView } from '../features/actions/industryStrategicPlanPresentation.js';
 import {
     PROPOSAL_RECIPIENT_APPROVAL_STATUS,
     getProposalViewModel,
@@ -4023,7 +4024,13 @@ export class WhiteCellController {
             ? 'deliberated'
             : (canAdjudicateAction(action) ? 'submitted' : '');
         const detailsMarkup = isStrategicOrientationFlow
-            ? this.renderDetailGrid(strategicOrientationDetails)
+            ? (strategicOrientation.hasIndustryStrategicPlan
+                ? renderIndustryStrategicPlanPositionView(strategicOrientation, {
+                    escapeHtml: (value) => this.escapeHtml(value),
+                    headingLevel: 4,
+                    idPrefix: `whitecell-industry-position-${action.id || 'card'}`
+                })
+                : this.renderDetailGrid(strategicOrientationDetails))
             : proposalViewModel.hasProposalDetails
             ? this.renderProposalDetails(action)
             : this.renderDetailGrid(
@@ -4334,7 +4341,13 @@ export class WhiteCellController {
                         <strong>Submitted:</strong> ${this.escapeHtml(formatDateTime(action.submitted_at))}
                     </p>
                 ` : ''}
-                ${this.renderDetailGrid([
+                ${viewModel.hasIndustryStrategicPlan
+                    ? renderIndustryStrategicPlanPositionView(viewModel, {
+                        escapeHtml: (value) => this.escapeHtml(value),
+                        headingLevel: 5,
+                        idPrefix: `whitecell-industry-review-${action.id || 'modal'}`
+                    })
+                    : this.renderDetailGrid([
         ...getStrategicOrientationDisplayFields(viewModel),
         ...(viewModel.primaryLevers.length
             ? [{ label: 'Primary Levers', value: formatStrategicOrientationSelection(viewModel.primaryLevers) }]
@@ -4366,7 +4379,7 @@ export class WhiteCellController {
         modalRef.current = showModal({
             title: reviewTitle,
             content,
-            size: 'md',
+            size: viewModel.hasIndustryStrategicPlan ? 'lg' : 'md',
             buttons: [
                 {
                     label: 'Cancel',

@@ -2610,8 +2610,14 @@ describe('White Cell DOM contract', () => {
             prior_state: action
         });
 
-        [cardMarkup, modalMarkup, historyMarkup].forEach((markup) => {
+        [cardMarkup, modalMarkup].forEach((markup) => {
             expect(markup).toContain('Review Industry Strategic Plan');
+            expect(markup).toContain('Sector position comparison');
+            expect(markup.match(/data-industry-position-sector=/g)).toHaveLength(3);
+            expect(markup).toContain('What this sector will protect');
+            expect(markup).toContain('Red line');
+            expect(markup).toContain('First engagement');
+            expect(markup).toContain('Supporting assumptions and risks');
             expect(markup).toContain('Agriculture — Business Overview');
             expect(markup).toContain('Telecommunications — Risk 1');
             expect(markup).toContain('Biotechnology — Strategic Priority 1');
@@ -2621,7 +2627,17 @@ describe('White Cell DOM contract', () => {
             expect(markup).toContain('We will not transfer protected customer data.');
             expect(markup).not.toContain('Own Orientation');
         });
+        expect(historyMarkup).toContain('Review Industry Strategic Plan');
+        expect(historyMarkup).toContain('Agriculture — Business Overview');
+        expect(historyMarkup).toContain('Telecommunications — Risk 1');
+        expect(historyMarkup).toContain('Biotechnology — Strategic Priority 1');
+        expect(historyMarkup).toContain('Stabilization');
+        expect(historyMarkup).toContain('Supply Risk');
+        expect(historyMarkup).toContain('Kenya');
+        expect(historyMarkup).toContain('We will not transfer protected customer data.');
+        expect(historyMarkup).not.toContain('Own Orientation');
         expect(modalConfig?.title).toBe('Review Industry Strategic Plan');
+        expect(modalConfig?.size).toBe('lg');
         expect(modalConfig?.buttons?.map((button) => button.label)).toEqual([
             'Cancel',
             'Send Back for Improvement',

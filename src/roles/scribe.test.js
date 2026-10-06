@@ -3595,6 +3595,12 @@ describe('legacy scribe route and corrected Facilitator support surface', () => 
 
         expect(html).toContain('Industry Strategic Plan');
         expect(html).toContain('Move 1 — Strategic Plan');
+        expect(html).toContain('Sector position comparison');
+        expect(html.match(/data-industry-position-sector=/g)).toHaveLength(3);
+        expect(html).toContain('What this sector will protect');
+        expect(html).toContain('Red line');
+        expect(html).toContain('First engagement');
+        expect(html).toContain('Supporting assumptions and risks');
         expect(html).toContain('Agriculture — Business Overview');
         expect(html).toContain('Telecommunications — Risk 1');
         expect(html).toContain('Biotechnology — Strategic Priority 1');
