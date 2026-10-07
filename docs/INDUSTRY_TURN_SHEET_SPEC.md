@@ -227,6 +227,19 @@ Examples:
 
 The submit/forward action must remain disabled until all applicable required fields pass validation.
 
+## 8.1 Draft minimum
+
+A persisted draft requires all of the following:
+
+- one Industry sector;
+- the completed Industry Strategic Plan reference;
+- at least one intended recipient: Blue, Red, or both.
+
+The remaining applicable fields may be incomplete in a draft, but they are all
+required before forwarding. Client validation and the database trigger enforce
+the same draft minimum. A rejected save remains in the editor and must not be
+shown as saved or forwarded.
+
 ---
 
 # 9. Page 1 — Step 1: Environment Read
@@ -2159,6 +2172,13 @@ Using the {Industry} Move {N} supply-chain assessment from Proposal {reference}
 ```
 
 Do not duplicate the editable controls.
+
+The `View details` disclosure is the complete bounded baseline view. It must
+show all four Environment actor rows, including codes, narrative, firm-interest
+impact, confidence, and forecast match; Biggest Surprise; all five Supply Chain
+stages, including Where / Who, Red dependency, planned actions, and notes; plus
+Weakest Link and Change Since Last Move. The disclosure is read-only and names
+the referenced move and proposal number.
 
 Do not allow the second proposal to silently alter the baseline established by the first proposal.
 

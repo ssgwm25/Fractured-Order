@@ -504,7 +504,7 @@ export function createNiEscalationReview(options = {}) {
             content,
             size: 'md',
             buttons: [
-                { text: 'Cancel', variant: 'secondary', onClick: (m) => m.close() },
+                { text: 'Cancel', variant: 'secondary', onClick: (m) => m.requestClose?.('cancel') ?? m.close() },
                 {
                     text: 'Send Back',
                     variant: 'primary',

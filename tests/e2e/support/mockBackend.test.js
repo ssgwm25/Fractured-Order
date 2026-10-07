@@ -8,7 +8,8 @@ const config = {
     configKey: '__esg_e2e_mock_config',
     mockConfig: { operatorAccessCode: 'test-code' },
     mockStateKey: 'esg_e2e_backend_state',
-    mockAuthKey: 'esg_e2e_auth_session'
+    mockAuthKey: 'esg_e2e_auth_session',
+    mockRealtimeChangesKey: 'esg_e2e_realtime_changes'
 };
 
 function createStorage() {
@@ -62,6 +63,7 @@ describe('deterministic E2E mock initialization', () => {
             'esg_e2e_mock',
             'esg_e2e_backend_state',
             'esg_e2e_auth_session',
+            'esg_e2e_realtime_changes',
             'esg_session_id',
             'esg_role'
         ]);

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { closeModal } from './Modal.js';
+import { closeModal, requestCloseModal } from './Modal.js';
 
 const originalDocument = globalThis.document;
 
@@ -9,6 +9,58 @@ afterEach(() => {
 });
 
 describe('modal lifecycle', () => {
+    it.each(['cancel', 'escape', 'close', 'backdrop'])(
+        'retains a dirty modal when the user declines the %s discard prompt',
+        (reason) => {
+            const overlay = {
+                _closing: false,
+                dataset: {},
+                _unsavedChangesTracker: {
+                    requestDiscard: vi.fn(() => false)
+                }
+            };
+            const confirmRef = vi.fn();
+
+            expect(requestCloseModal(overlay, reason, confirmRef)).toBe(false);
+            expect(overlay.dataset.dismissReason).toBe(reason);
+            expect(overlay._unsavedChangesTracker.requestDiscard).toHaveBeenCalledWith({ confirmRef });
+            expect(overlay._closing).toBe(false);
+        }
+    );
+
+    it('closes a dirty modal after discard is confirmed', () => {
+        const tracker = {
+            requestDiscard: vi.fn(() => true),
+            markClean: vi.fn(),
+            dispose: vi.fn()
+        };
+        const overlay = {
+            _closing: false,
+            dataset: {},
+            _unsavedChangesTracker: tracker,
+            _backgroundElements: [],
+            classList: {
+                add: vi.fn(),
+                remove: vi.fn()
+            },
+            parentNode: null
+        };
+        globalThis.document = {
+            removeEventListener: vi.fn(),
+            querySelector: vi.fn(() => null),
+            body: {
+                classList: {
+                    remove: vi.fn()
+                }
+            }
+        };
+
+        expect(requestCloseModal(overlay, 'escape', vi.fn(() => true))).toBe(true);
+        expect(overlay._closing).toBe(true);
+        expect(tracker.markClean).toHaveBeenCalledOnce();
+        expect(tracker.dispose).toHaveBeenCalledOnce();
+    });
+
     it('removes a closing modal immediately and only once', () => {
         const onClose = vi.fn();
         const removeBodyClass = vi.fn();

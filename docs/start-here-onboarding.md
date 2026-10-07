@@ -44,6 +44,9 @@ state, or infer completion from visibility.
   controls with accessible names. Narration is opt-in and never autoplays.
 - Spoken copy is derived from the complete visible slide text. Content-addressed
   filenames prevent changed copy from silently reusing stale audio.
+- Deadline wording from the superseded approved batch is no longer allowlisted.
+  Current slides describe explicit handoff only; replacement narration remains
+  unavailable until its new content-addressed clips pass owner listen-through.
 - Narration does not simply recite the card. Role-focus clips explain ownership,
   workflow sequence, and authority boundaries. Each surface clip explains what
   to inspect, how the component is used during play, what to verify, and how to

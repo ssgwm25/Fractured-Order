@@ -9,7 +9,9 @@ older generic Industry proposal form; it is not a new artifact type.
 1. White Cell completes the consolidated Industry Strategic Plan.
 2. Industry selects Agriculture, Biotechnology, or Telecommunications and
    records the three-page proposal.
-3. The author selects Blue, Red, or both under **Intended recipients**.
+3. The author selects Blue, Red, or both under **Intended recipients**. This is
+   required for the first draft save as well as forwarding; the client and
+   database reject recipient-empty drafts.
 4. Industry forwards the draft to the Facilitator. The Facilitator may edit the
    proposal and its separate Facilitator note, then submits it to White Cell.
 5. White Cell reviews each intended recipient independently. Existing isolated
@@ -30,6 +32,9 @@ data and existing proposal projections.
   after a deletion.
 - A second proposal for the same sector and move cannot be created until White
   Cell completes Proposal 1.
+- A second or later proposal renders the complete Proposal 1 Environment Read
+  and all five Supply Chain stages as a read-only reference. It persists the
+  baseline IDs and cannot edit the shared baseline through the later proposal.
 - Deleting Proposal 1 removes it as the active baseline. The replacement gets
   the next unused number and becomes the active baseline.
 - A move cannot advance until White Cell has completed at least one proposal
@@ -54,7 +59,8 @@ thread snapshot.
 Apply `data/2026-10-06_industry_proposals.sql` after
 `data/2026-10-05_green_proposal_activity_projection.sql`. It does not rewrite
 historical actions. It validates the completed Strategic Plan reference and
-recipients, assigns immutable proposal/baseline fields, adds the move gate, and
+recipients for every persisted state including drafts, assigns immutable
+proposal/baseline fields, adds the move gate, and
 installs restrictive visibility policies.
 
 ## Application record

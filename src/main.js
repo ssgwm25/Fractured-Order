@@ -21,6 +21,12 @@ import { ConfigurationError, getUserMessage } from './core/errors.js';
 import { isLandingPage, navigateToApp } from './core/navigation.js';
 import { isPublicRoleSurface, parseTeamRole } from './core/teamContext.js';
 import {
+    installUnsavedChangesGuard,
+    requestDiscardUnsavedChanges,
+    UNSAVED_EXIT_REASONS
+} from './core/unsavedChanges.js';
+import { publishDeploymentIdentity } from './core/releaseEvidence.js';
+import {
     applyHeaderGameStateDisplay,
     getHeaderGameStateDisplay
 } from './utils/gameStateDisplay.js';
@@ -83,6 +89,8 @@ export async function enforceReloadReauthentication({
  */
 async function initApp() {
     logger.info('Initializing ESG Simulation Platform v2.0');
+    publishDeploymentIdentity();
+    installUnsavedChangesGuard();
 
     // Theme toggle is pure UI — wire it before any backend gate so it works
     // even when configuration is missing.
@@ -470,6 +478,7 @@ function setupLogoutHandler() {
 function setupPageRefreshHandler() {
     document.querySelectorAll('[data-page-refresh]').forEach((btn) => {
         btn.addEventListener('click', () => {
+            if (!requestDiscardUnsavedChanges()) return;
             window.location.reload();
         });
     });
@@ -488,7 +497,7 @@ export function getLogoutConfirmationOptions({
 
     return {
         title: isDisconnectAction ? 'Disconnect from this session?' : 'Log out of this session?',
-        message: 'You will not lose saved session data. Logging out only releases this seat. Save any unsaved edits in the current form before you continue.',
+        message: 'Saved session data remains available. Logging out releases only this seat.',
         confirmLabel: normalizedActionLabel,
         cancelLabel: 'Stay Here',
         variant: 'warning'
@@ -517,10 +526,17 @@ export async function performLogout({
 export async function requestLogout({
     actionLabel = 'Log Out',
     confirmDialog = confirmModal,
-    performLogoutRef = performLogout
+    performLogoutRef = performLogout,
+    requestDiscardRef = requestDiscardUnsavedChanges
 } = {}) {
     const confirmed = await confirmDialog(getLogoutConfirmationOptions({ actionLabel }));
     if (!confirmed) {
+        return false;
+    }
+
+    // Ask to discard only after logout itself is confirmed. If the user stays,
+    // the tracker remains dirty and every later exit path is still protected.
+    if (!requestDiscardRef({ reason: UNSAVED_EXIT_REASONS.ROLE_SESSION_SWITCH })) {
         return false;
     }
 
@@ -710,6 +726,7 @@ function setupSidebarNavigation() {
         }
     };
 
+    let currentSectionId = null;
     const activateSection = (sectionId, {
         link = getLinkForSection(sectionId),
         focusSection = false,
@@ -730,6 +747,7 @@ function setupSidebarNavigation() {
         }
 
         closeCompactSidebar();
+        currentSectionId = sectionId;
         return activeSection;
     };
 
@@ -744,6 +762,9 @@ function setupSidebarNavigation() {
 
         link.addEventListener('click', (e) => {
             e.preventDefault();
+            if (!requestDiscardUnsavedChanges({ reason: UNSAVED_EXIT_REASONS.IN_APP_NAVIGATION })) {
+                return;
+            }
             activateSection(getSidebarSectionIdFromLink(link), {
                 link,
                 focusSection: true,
@@ -766,6 +787,15 @@ function setupSidebarNavigation() {
     const handleHistorySectionChange = () => {
         const sectionId = getSidebarSectionIdFromHash();
         if (!sectionId) return;
+        if (
+            sectionId !== currentSectionId
+            && !requestDiscardUnsavedChanges({ reason: UNSAVED_EXIT_REASONS.BROWSER_NAVIGATION })
+        ) {
+            if (currentSectionId) {
+                window.history.replaceState(null, '', `#${encodeURIComponent(currentSectionId)}`);
+            }
+            return;
+        }
         activateSection(sectionId, {
             focusSection: false,
             updateHash: false

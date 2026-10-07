@@ -10,6 +10,7 @@ describe('Industry proposal database contract', () => {
     it('enforces completed Strategic Plan, recipients, atomic numbering, and Proposal 1 completion', () => {
         expect(MIGRATION).toContain('INDUSTRY_STRATEGIC_PLAN_COMPLETION_REQUIRED');
         expect(MIGRATION).toContain("'{strategic_orientation,industryStrategicPlanParseStatus}'");
+        expect(MIGRATION).toContain('Draft, forwarded, and submitted proposals share the same persisted');
         expect(MIGRATION).toContain('INDUSTRY_PROPOSAL_RECIPIENT_REQUIRED');
         expect(MIGRATION).toContain('pg_advisory_xact_lock');
         expect(MIGRATION).toContain('INDUSTRY_PROPOSAL_ONE_COMPLETION_REQUIRED');

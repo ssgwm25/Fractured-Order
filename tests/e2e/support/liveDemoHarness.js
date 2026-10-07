@@ -16,13 +16,15 @@ import {
     WORKFLOW_TOAST_CAPTURE_KEY
 } from './workflowToastCapture.js';
 
+const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
+const E2E_MOCK_REALTIME_CHANGES_KEY = 'esg_e2e_realtime_changes';
 const SHARED_LOCAL_STORAGE_KEYS = Object.freeze([
-    'esg_e2e_backend_state',
+    E2E_MOCK_STATE_KEY,
+    E2E_MOCK_REALTIME_CHANGES_KEY,
     '__esg_e2e_backend_reset__'
 ]);
 
 const BACKEND_RESET_KEY = '__esg_e2e_backend_reset__';
-const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const HOSTED_OPERATOR_ACCESS_CODE = getHostedOperatorAccessCode();
@@ -81,6 +83,19 @@ async function activateReconciledControl(control) {
     await expect(control).toBeVisible();
     await expect(control).toBeEnabled();
     await control.dispatchEvent('click');
+}
+
+async function activateReconciledControlSynchronously(control) {
+    await expect(control).toBeVisible();
+    await expect(control).toBeEnabled();
+    await control.evaluate((element) => element.click());
+}
+
+async function fillRfiReviewField(field, value) {
+    await expect(field).toBeVisible();
+    await expect(field).toBeEditable();
+    await field.fill(value);
+    await expect(field).toHaveValue(value);
 }
 
 async function activateAndCaptureWorkflowToast(page, control, expectedMessage, {
@@ -320,6 +335,8 @@ export async function createIsolatedActorPage(context, actorName, { resetBackend
         resetBackend: shouldResetBackend,
         sharedKeys,
         backendResetKey,
+        backendStateKey,
+        backendRealtimeChangesKey,
         mockEnablementKey,
         mockConfigKey,
         mockConfig
@@ -358,7 +375,8 @@ export async function createIsolatedActorPage(context, actorName, { resetBackend
         originalRemoveItem.call(localStorageRef, 'esg_e2e_mock');
 
         if (shouldResetBackend && !originalGetItem.call(localStorageRef, backendResetKey)) {
-            originalRemoveItem.call(localStorageRef, 'esg_e2e_backend_state');
+            originalRemoveItem.call(localStorageRef, backendStateKey);
+            originalRemoveItem.call(localStorageRef, backendRealtimeChangesKey);
             originalSetItem.call(localStorageRef, backendResetKey, 'true');
         }
 
@@ -401,6 +419,8 @@ export async function createIsolatedActorPage(context, actorName, { resetBackend
         resetBackend,
         sharedKeys: SHARED_LOCAL_STORAGE_KEYS,
         backendResetKey: BACKEND_RESET_KEY,
+        backendStateKey: E2E_MOCK_STATE_KEY,
+        backendRealtimeChangesKey: E2E_MOCK_REALTIME_CHANGES_KEY,
         mockEnablementKey: E2E_MOCK_ENABLEMENT_KEY,
         mockConfigKey: E2E_MOCK_CONFIG_KEY,
         mockConfig: {
@@ -1058,7 +1078,7 @@ export async function openFacilitatorActionSlide(page, goal) {
             expect(markKey).not.toBe('');
             const markTab = actionMarkRail.locator(`[data-scribe-action-mark-tab="${markKey}"]`);
             await expect(markTab).toBeVisible({ timeout: 20000 });
-            await markTab.click();
+            await activateReconciledControl(markTab);
             await expect(markTab).toHaveAttribute('aria-selected', 'true', { timeout: 20000 });
         }
     } else {
@@ -1197,7 +1217,7 @@ export async function adjudicateAction(page, {
             expect(markKey).not.toBe('');
             const markTab = page.locator(`${queueSelector} [data-action-mark-tab="${markKey}"]`);
             await expect(markTab).toBeVisible({ timeout: 20000 });
-            await markTab.click();
+            await activateReconciledControl(markTab);
         }
 
         adjudicationCard = page.locator(
@@ -1213,7 +1233,7 @@ export async function adjudicateAction(page, {
                 card.closest('[data-review-panel]')?.dataset.reviewPanel || ''
             ));
             expect(reviewTab).not.toBe('');
-            await page.locator(`${queueSelector} [data-review-tab="${reviewTab}"]`).click();
+            await selectReviewQueueTab(page, queueSelector, reviewTab);
         }
         adjudicationCard = page.locator(
             `${queueSelector} .tab-panel:not([hidden]) .entity-card`
@@ -1245,11 +1265,12 @@ export async function adjudicateAction(page, {
     const reviewButton = decision === 'return'
         ? modal.getByRole('button', { name: 'Send Back for Improvement' })
         : modal.getByRole('button', { name: 'Accept as Complete' });
-    await reviewButton.click();
-    await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText(
+    await activateAndCaptureWorkflowToast(
+        page,
+        reviewButton,
         decision === 'return' ? 'sent back for improvement' : 'accepted as complete'
     );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function reviewStrategicOrientation(page, {
@@ -1281,13 +1302,14 @@ export async function reviewStrategicOrientation(page, {
     await expect(modal).toBeVisible();
     await expect(modal.locator('[name*="outcome" i]')).toHaveCount(0);
     await modal.locator('#artifactReviewNotes').fill(notes);
-    await modal.getByRole('button', {
-        name: decision === 'return' ? 'Send Back for Improvement' : 'Accept as Complete'
-    }).click();
-    await expect(modal).toBeHidden();
-    await expect(page.locator('#toast-container')).toContainText(
+    await activateAndCaptureWorkflowToast(
+        page,
+        modal.getByRole('button', {
+            name: decision === 'return' ? 'Send Back for Improvement' : 'Accept as Complete'
+        }),
         decision === 'return' ? 'sent back for improvement' : 'accepted as complete'
     );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function reviseReturnedAction(page, {
@@ -1306,7 +1328,9 @@ export async function reviseReturnedAction(page, {
             element.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
         ));
         expect(markKey).not.toBe('');
-        await page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`).click();
+        await activateReconciledControl(
+            page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`)
+        );
     }
     const detailsToggle = card.locator('.toggle-action-card-btn');
     if (await detailsToggle.count() && await detailsToggle.getAttribute('aria-expanded') !== 'true') {
@@ -1352,7 +1376,9 @@ export async function reviseReturnedStrategicOrientation(page, {
             element.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
         ));
         expect(markKey).not.toBe('');
-        await page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`).click();
+        await activateReconciledControl(
+            page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`)
+        );
     }
     const detailsToggle = card.locator('.toggle-action-card-btn');
     if (await detailsToggle.count() && await detailsToggle.getAttribute('aria-expanded') !== 'true') {
@@ -1397,6 +1423,253 @@ export function getWhiteCellStrategicOrientationTitle(goal, team = '') {
         return 'Review Industry Strategic Plan';
     }
     return String(goal || '').trim();
+}
+
+const INDUSTRY_PROPOSAL_LABELS = Object.freeze({
+    agriculture: 'Agriculture',
+    biotechnology: 'Biotechnology',
+    telecommunications: 'Telecommunications'
+});
+
+const INDUSTRY_PRIMARY_MOVE_LABELS = Object.freeze({
+    diversify_friendshore_suppliers: 'Diversify / friend-shore suppliers',
+    lobby_blue: 'Lobby Blue'
+});
+
+function getIndustryProposalTitle(industry, primaryMove) {
+    const industryLabel = INDUSTRY_PROPOSAL_LABELS[industry];
+    const moveLabel = INDUSTRY_PRIMARY_MOVE_LABELS[primaryMove];
+    if (!industryLabel || !moveLabel) {
+        throw new Error(`Unsupported Industry proposal title inputs: ${industry}/${primaryMove}`);
+    }
+    return `${industryLabel} Proposal — ${moveLabel}`;
+}
+
+async function getEditableActionCard(page, title) {
+    await openSidebarSection(page, 'actions');
+    const card = page.locator('#actionsList .entity-card').filter({
+        has: page.getByRole('heading', { name: title, exact: true, includeHidden: true })
+    }).first();
+    await expect(card).toHaveCount(1, { timeout: 20000 });
+    if (!await card.isVisible()) {
+        const markKey = await card.evaluate((element) => (
+            element.closest('[data-action-mark-panel]')?.dataset.actionMarkPanel || ''
+        ));
+        expect(markKey).not.toBe('');
+        await activateReconciledControl(
+            page.locator(`#actionsList [data-action-mark-tab="${markKey}"]`)
+        );
+    }
+    const toggle = card.locator('.toggle-action-card-btn');
+    if (await toggle.count() && await toggle.getAttribute('aria-expanded') !== 'true') {
+        await activateReconciledControl(toggle);
+    }
+    return card;
+}
+
+async function fillIndustrySharedBaselinePage(form, label) {
+    for (const actor of ['blue', 'red_china', 'green_asia_pacific', 'green_europe']) {
+        await form.locator(`[name="ts-env-${actor}-codes"][value="M"]`).check();
+        await form.locator(`[name="environment.actors.${actor}.actionNarrative"]`).fill(`${label} observed a stable ${actor} posture.`);
+        await form.locator(`[name="environment.actors.${actor}.interestImpact"]`).selectOption('1');
+        await form.locator(`[name="environment.actors.${actor}.confidence"]`).selectOption('medium');
+        await form.locator(`[name="environment.actors.${actor}.matchedForecast"]`).selectOption('yes');
+    }
+    await form.locator('[name="environment.biggestSurprise"]').fill(`${label} demand remained resilient.`);
+
+    for (const stage of ['raw_inputs', 'refinement_processing', 'manufacturing_production', 'distribution_logistics', 'end_market_customers']) {
+        await form.locator(`[name="ts-stage-${stage}-where"][value="blue"]`).check();
+        await form.locator(`[name="supplyChain.stages.${stage}.redDependency"]`).selectOption('low');
+        await form.locator(`[name="ts-stage-${stage}-actions"][value="diversify"]`).check();
+        await form.locator(`[name="supplyChain.stages.${stage}.notes"]`).fill(`${label} ${stage} continuity is monitored.`);
+    }
+    await form.locator('[name="supplyChain.weakestLink"]').fill(`${label} logistics remains the weakest link.`);
+    await form.locator('[name="supplyChain.changeSinceLastMove"]').selectOption('same');
+}
+
+async function fillIndustryDecisionPage(form, {
+    label,
+    recipientTeams,
+    primaryMove
+}) {
+    for (const team of recipientTeams) {
+        await form.locator(`[name="ts-recipients"][value="${team}"]`).check();
+    }
+    await form.locator('[name="ts-coordinated"][value="false"]').check();
+    await form.locator('[name="decision.status"]').selectOption('new');
+    await form.locator('[name="decision.primaryMove"]').selectOption(primaryMove);
+    await form.locator('[name="decision.counterparty.type"]').selectOption('blue_agency');
+    await form.locator('[name="decision.counterparty.names"]').fill('Department of Commerce');
+    await form.locator('[name="decision.capitalCommitment"]').selectOption('medium');
+    await form.locator('[name="decision.visibility"]').selectOption('private');
+    await form.locator('[name="ts-ask"][value="market_access"]').check();
+    await form.locator('[name="ts-offer"][value="investment"]').check();
+
+    for (const stakeholder of ['blue', 'counterparty', 'other']) {
+        if (stakeholder === 'other') {
+            await form.locator('[name="decision.stakeholderValue.other.name"]').fill('Allied suppliers');
+        }
+        await form.locator(`[name="decision.stakeholderValue.${stakeholder}.gain"]`).fill(`${label} creates a durable benefit.`);
+        await form.locator(`[name="decision.stakeholderValue.${stakeholder}.giveUpOrRisk"]`).fill(`${label} requires managed implementation risk.`);
+        await form.locator(`[name="decision.stakeholderValue.${stakeholder}.net"]`).selectOption('positive');
+    }
+    await form.locator('[name="decision.intendedEffect"]').fill(`${label} expands resilient capacity.`);
+    await form.locator('[name="decision.rationale"]').fill(`${label} supports the completed strategic plan.`);
+    await form.locator('[name="decision.implementation"]').fill(`${label} begins during the current move.`);
+    await form.locator('[name="ts-priorities"]:not([disabled])').first().check();
+
+    for (const effect of ['firmRevenue', 'operatingCost', 'usJobs', 'capacitySupplySecurity']) {
+        for (const field of ['direction', 'magnitude', 'timing', 'pattern']) {
+            await form.locator(`[name="expectedEffects.${effect}.${field}"]`).selectOption('unknown');
+        }
+    }
+    await form.locator('[name="ts-escalation"][value="none"]').check();
+    await form.locator('[name="escalationRationale"]').fill(`${label} does not add an escalation marker.`);
+}
+
+async function fillIndustryOutlookPage(form, label) {
+    await form.locator('[name="ts-outbound-engaged"][value="false"]').check();
+    await form.locator('[name="ts-inbound-engaged"][value="false"]').check();
+    await form.locator('[name="ts-partner-check"][value="false"]').check();
+    await form.locator('[name="risks.0.type"]').selectOption('supply_disruption');
+    await form.locator('[name="risks.0.likelihood"]').selectOption('medium');
+    await form.locator('[name="risks.0.impact"]').selectOption('high');
+    await form.locator('[name="risks.0.mitigation"]').fill(`${label} qualifies a second source.`);
+    await form.locator('[name="risks.0.movementStatus"]').selectOption('new');
+    await form.locator('[name="ipSecurityEffect"]').selectOption('no_change');
+    await form.locator('[name="ts-spillover"][value="false"]').check();
+    await form.locator('[name="stance"]').selectOption('3');
+    await form.locator('[name="ts-blue-harder"][value="false"]').check();
+    await form.locator('[name="blueTradeoffExplanation"]').fill(`${label} balances business and national interests.`);
+    for (const actor of ['blue', 'red_china', 'green_asia_pacific', 'green_europe']) {
+        await form.locator(`[name="ts-forecast-${actor}-codes"][value="M"]`).check();
+        await form.locator(`[name="nextMoveForecasts.${actor}.explanation"]`).fill(`${label} expects a stable ${actor} posture.`);
+    }
+    await form.locator('[name="positionChangeTrigger"]').fill(`${label} changes if supply continuity deteriorates.`);
+}
+
+export async function createIndustryProposal(page, {
+    industry,
+    recipientTeams = ['blue'],
+    primaryMove = 'diversify_friendshore_suppliers',
+    saveDraftFirst = false,
+    expectBaselineProposal = null
+} = {}) {
+    const label = INDUSTRY_PROPOSAL_LABELS[industry];
+    const title = getIndustryProposalTitle(industry, primaryMove);
+    if (!label) throw new Error(`createIndustryProposal received an unsupported industry: ${industry}`);
+
+    await openSidebarSection(page, 'actions');
+    await expect(page.locator('#newActionBtn')).toBeVisible();
+    await page.locator('#newActionBtn').click();
+
+    let modal = page.locator('.modal-overlay').filter({ has: page.locator('#industryProposalForm') });
+    await expect(modal).toBeVisible();
+    let form = modal.locator('#industryProposalForm');
+    await form.locator('[name="industry"]').selectOption(industry);
+
+    if (expectBaselineProposal == null) {
+        await expect(form.locator('[data-ts-baseline-edit]')).toBeVisible();
+        await fillIndustrySharedBaselinePage(form, label);
+    } else {
+        const baseline = form.locator('[data-ts-baseline-reference]');
+        await expect(baseline).toBeVisible();
+        await expect(baseline).toContainText(`Using the ${label} Move 1 baseline from Proposal ${expectBaselineProposal}.`);
+        await baseline.locator('summary').click();
+        for (const expectedLabel of [
+            'Blue (U.S.)',
+            'Inputs / raw materials',
+            'Refinement / processing',
+            'Manufacturing / production',
+            'Distribution / logistics',
+            'End market / customers'
+        ]) {
+            await expect(baseline).toContainText(expectedLabel);
+        }
+        for (const actor of ['blue', 'red_china', 'green_asia_pacific', 'green_europe']) {
+            await expect(baseline).toContainText(`${label} observed a stable ${actor} posture.`);
+        }
+        await expect(baseline).toContainText(`${label} raw_inputs continuity is monitored.`);
+        await expect(baseline.locator('input, select, textarea')).toHaveCount(0);
+        await expect(form.locator('[data-ts-baseline-edit]')).toBeHidden();
+    }
+
+    await form.locator('[data-ts-nav="next"]').click();
+    await expect(form.locator('[data-ts-page="2"]')).toBeVisible();
+    await fillIndustryDecisionPage(form, { label, recipientTeams, primaryMove });
+    await form.locator('[data-ts-nav="next"]').click();
+    await expect(form.locator('[data-ts-page="3"]')).toBeVisible();
+    await fillIndustryOutlookPage(form, label);
+
+    let draftActionId = null;
+    if (saveDraftFirst) {
+        await activateAndCaptureWorkflowToast(page, form.locator('[data-ts-nav="save"]'), 'Proposal draft saved');
+        await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
+        const draftCard = await getEditableActionCard(page, title);
+        draftActionId = await draftCard.getAttribute('data-action-id');
+        expect(draftActionId).toBeTruthy();
+        await expect(draftCard).toContainText('Draft');
+        await activateReconciledControl(draftCard.locator('.edit-action-btn'));
+
+        modal = page.locator('.modal-overlay').filter({ has: page.locator('#industryProposalForm') });
+        await expect(modal).toBeVisible();
+        form = modal.locator('#industryProposalForm');
+        await expect(form.locator('[name="industry"]')).toHaveValue(industry);
+        await expect(form.locator('[name="decision.intendedEffect"]')).toHaveValue(`${label} expands resilient capacity.`);
+    } else {
+        await form.locator('[data-ts-nav="review"]').click();
+        await expect(form.locator('[data-ts-review]')).toBeVisible();
+        await expect(form.locator('[data-ts-review-content]')).toContainText(title);
+    }
+
+    await activateAndCaptureWorkflowToast(
+        page,
+        form.locator('[data-ts-nav="forward"]'),
+        'Proposal forwarded to Facilitator'
+    );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
+    const forwardedCard = await getEditableActionCard(page, title);
+    const actionId = await forwardedCard.getAttribute('data-action-id');
+    expect(actionId).toBeTruthy();
+    if (draftActionId) expect(actionId).toBe(draftActionId);
+    await expect(forwardedCard).toContainText('Forwarded to Facilitator');
+    return { title, actionId };
+}
+
+export async function reviseReturnedIndustryProposal(page, {
+    title,
+    reviewerNotes,
+    positionChangeTrigger
+} = {}) {
+    if (!title || !reviewerNotes || !positionChangeTrigger) {
+        throw new Error('reviseReturnedIndustryProposal requires title, reviewerNotes, and positionChangeTrigger.');
+    }
+
+    const returnedCard = await getEditableActionCard(page, title);
+    const actionId = await returnedCard.getAttribute('data-action-id');
+    expect(actionId).toBeTruthy();
+    await expect(returnedCard).toContainText('Returned by White Cell');
+    await expect(returnedCard).toContainText(reviewerNotes);
+    await expect(returnedCard).toContainText(/REV 2|Revision:\s*2/);
+    await activateReconciledControl(returnedCard.locator('.edit-action-btn'));
+
+    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#industryProposalForm') });
+    await expect(modal).toBeVisible();
+    const form = modal.locator('#industryProposalForm');
+    await form.locator('[data-ts-page-button="3"]').click();
+    await expect(form.locator('[data-ts-page="3"]')).toBeVisible();
+    await form.locator('[name="positionChangeTrigger"]').fill(positionChangeTrigger);
+    await activateAndCaptureWorkflowToast(
+        page,
+        form.locator('[data-ts-nav="forward"]'),
+        'Proposal forwarded to Facilitator'
+    );
+    await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
+
+    const revisedCard = await getEditableActionCard(page, title);
+    await expect(revisedCard).toHaveAttribute('data-action-id', actionId);
+    await expect(revisedCard).toContainText(/REV 2|Revision:\s*2/);
+    return { title, actionId };
 }
 
 export async function createProposal(page, {
@@ -1478,7 +1751,9 @@ export async function submitForwardedProposalFromFacilitator(page, { title } = {
 
     const actionFrame = page.locator('#deckActionFrame');
     await expect(actionFrame).toContainText(title);
-    await actionFrame.locator('[data-scribe-action-submit]').first().click();
+    const submitButton = actionFrame.locator('[data-scribe-action-submit]').first();
+    const isResubmission = (await submitButton.innerText()).trim().startsWith('Resubmit');
+    await submitButton.click();
 
     const confirmModal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)')
         .filter({ hasText: 'Submit Proposal to White Cell' });
@@ -1486,8 +1761,13 @@ export async function submitForwardedProposalFromFacilitator(page, { title } = {
     await confirmModal.getByRole('button', { name: 'Submit' }).click();
     await expect(confirmModal).toBeHidden();
     const submittedSlideLink = await openFacilitatorActionSlide(page, title);
-    await expect(submittedSlideLink).toContainText('Submitted to White Cell', { timeout: 20000 });
-    await expect(page.locator('#toast-container')).toContainText('Proposal submitted to White Cell');
+    await expect(submittedSlideLink).toContainText(
+        isResubmission ? 'Resubmitted' : 'Submitted to White Cell',
+        { timeout: 20000 }
+    );
+    await expect(page.locator('#toast-container')).toContainText(
+        isResubmission ? 'Proposal revision resubmitted to White Cell' : 'Proposal submitted to White Cell'
+    );
 }
 
 export async function reviewProposal(page, {
@@ -1735,20 +2015,23 @@ export async function answerRfi(page, {
         throw new Error('answerRfi requires both question and response.');
     }
 
+    await page.bringToFront();
     await openSidebarSection(page, 'requests');
     const rfiCard = page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }).first();
     await expect(rfiCard).toBeVisible();
-    await activateReconciledControl(rfiCard.getByRole('button', { name: 'Respond' }));
-
-    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiResponseForm') });
-    await expect(modal).toBeVisible();
-    await modal.locator('#rfiResponse').fill(response);
-    await activateAndCaptureWorkflowToast(
-        page,
-        modal.getByRole('button', { name: 'Send Response' }),
-        'Response sent'
+    await activateReconciledControlSynchronously(
+        rfiCard.getByRole('button', { name: 'Respond' })
     );
+
+    const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)')
+        .filter({ has: page.locator('#rfiResponseForm') });
+    await expect(modal).toBeVisible();
+    const responseField = modal.locator('#rfiResponse');
+    await fillRfiReviewField(responseField, response);
+    await activateReconciledControl(modal.getByRole('button', { name: 'Send Response' }));
     await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
+    await expect(page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }))
+        .toHaveCount(0, { timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function returnRfi(page, {
@@ -1759,20 +2042,23 @@ export async function returnRfi(page, {
         throw new Error('returnRfi requires both question and notes.');
     }
 
+    await page.bringToFront();
     await openSidebarSection(page, 'requests');
     const rfiCard = page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }).first();
     await expect(rfiCard).toBeVisible();
-    await activateReconciledControl(rfiCard.getByRole('button', { name: 'Return for Clarification' }));
-
-    const modal = page.locator('.modal-overlay').filter({ has: page.locator('#rfiReturnForm') });
-    await expect(modal).toBeVisible();
-    await modal.locator('#rfiReturnNotes').fill(notes);
-    await activateAndCaptureWorkflowToast(
-        page,
-        modal.getByRole('button', { name: 'Return for Clarification' }),
-        'RFI returned for clarification'
+    await activateReconciledControlSynchronously(
+        rfiCard.getByRole('button', { name: 'Return for Clarification' })
     );
+
+    const modal = page.locator('.modal-overlay.modal-visible:not(.modal-hiding)')
+        .filter({ has: page.locator('#rfiReturnForm') });
+    await expect(modal).toBeVisible();
+    const notesField = modal.locator('#rfiReturnNotes');
+    await fillRfiReviewField(notesField, notes);
+    await activateReconciledControl(modal.getByRole('button', { name: 'Return for Clarification' }));
     await expect(modal).toBeHidden({ timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
+    await expect(page.locator('#rfiQueue [data-rfi-id]').filter({ hasText: question }))
+        .toHaveCount(0, { timeout: DURABLE_WORKFLOW_WRITE_TIMEOUT_MS });
 }
 
 export async function reviseAndResubmitRfi(page, {

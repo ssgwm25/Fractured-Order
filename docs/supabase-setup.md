@@ -114,6 +114,14 @@ Apply the authoritative ledger in this exact order:
 63. `data/2026-10-04_sme_pli_regional_read.sql`
 64. `data/2026-10-05_green_proposal_activity_projection.sql`
 65. `data/2026-10-06_industry_proposals.sql`
+66. `data/2026-10-07_hosted_release_evidence.sql`
+
+The ledger fingerprint is computed from these 66 filenames in this exact order,
+joined with LF and ending with LF:
+`ae7324d4833872fbc4ed0a8da1850a834adcede56b0ea263475ee5d602b8f895`.
+The final migration fails closed unless critical RLS tables, exact workflow RPC
+signatures, Industry triggers, and restrictive policies are present. It exposes
+only non-secret release identity through `live_demo_release_evidence()`.
 
 The October 6 Industry proposal migration validates the completed Industry
 Strategic Plan reference and required Blue/Red recipients, assigns proposal

@@ -41,6 +41,17 @@ describe('getUserMessage', () => {
         expect(getUserMessage(error)).toContain('previous session seat');
     });
 
+    it('explains the Industry draft recipient constraint without exposing SQL details', () => {
+        const error = fromSupabaseError({
+            message: 'INDUSTRY_PROPOSAL_RECIPIENT_REQUIRED',
+            code: '23514'
+        }, 'createAction');
+
+        expect(getUserMessage(error)).toBe(
+            'Select Blue, Red, or both as an intended recipient, then save again.'
+        );
+    });
+
     it('replaces infrastructure-oriented auth and configuration messages', () => {
         expect(getUserMessage(new AuthError('Unable to establish browser identity.'))).toBe(
             'We couldn\'t verify access to this session. Try again. If the issue continues, tell your exercise facilitator.'

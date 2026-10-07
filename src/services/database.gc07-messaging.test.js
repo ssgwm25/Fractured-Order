@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createE2EMockSupabaseClient } from './supabaseMock.js';
 
 const stateKey = 'esg_e2e_backend_state';
+const realtimeKey = 'esg_e2e_realtime_changes';
 const identity = (id) => localStorage.setItem('esg_e2e_auth_session', JSON.stringify({ user: { id } }));
 const seed = (change) => { const state = JSON.parse(localStorage.getItem(stateKey)); change(state.tables); localStorage.setItem(stateKey, JSON.stringify(state)); };
 let api;
@@ -125,6 +126,7 @@ describe('GC07 scoped messaging (mock; hosted RPC/RLS evidence is separate)', ()
             .subscribe();
         try {
             const oldValue = localStorage.getItem(stateKey);
+            const oldState = JSON.parse(oldValue);
             identity('fac');
             const ap = (await write('asian_pacific')).data;
             await write('europe'); await send('asian_pacific');
@@ -132,7 +134,18 @@ describe('GC07 scoped messaging (mock; hosted RPC/RLS evidence is separate)', ()
             const both = (await wcSend('green')).data;
             await wcSend('green_europe_scribe');
             identity('ap');
-            const deliver = () => listeners.forEach((callback) => callback({ key: stateKey, oldValue, newValue: localStorage.getItem(stateKey) }));
+            const currentState = JSON.parse(localStorage.getItem(stateKey));
+            const changes = ['requests', 'communications'].flatMap((table) => {
+                const previousIds = new Set((oldState.tables[table] || []).map((row) => row.id));
+                return (currentState.tables[table] || [])
+                    .filter((row) => !previousIds.has(row.id))
+                    .map((row) => ({ table, eventType: 'INSERT', old: null, new: row }));
+            });
+            let deliverySequence = 0;
+            const deliver = () => {
+                const newValue = JSON.stringify({ version: 1, sequence: ++deliverySequence, changes });
+                listeners.forEach((callback) => callback({ key: realtimeKey, oldValue: null, newValue }));
+            };
             deliver();
             expect(received.sort()).toEqual([ap.id, both.id].sort());
             received.length = 0;

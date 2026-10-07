@@ -79,6 +79,16 @@ describe('GC05 orientation RPC contract (mock; SQL evidence required separately)
             tables.operator_grants.push({ auth_user_id: 'wc', session_id: 'shared', surface: 'whitecell', role: 'whitecell_lead' });
             tables.actions.push(...['blue', 'red', 'industry'].map((team) => ({ id: team, session_id: 'shared', team, status: 'submitted',
                 ally_contingencies: team === 'industry' ? industryDetails() : `Strategic Orientation Details\nTeam: ${team}` })));
+            tables.actions.push(...['agriculture', 'biotechnology', 'telecommunications'].map((industry) => ({
+                id: `completed-${industry}-proposal`,
+                session_id: 'shared',
+                team: 'industry',
+                artifact_type: 'proposal',
+                move: 1,
+                status: 'adjudicated',
+                workflow_state: 'completed',
+                artifact_payload: { proposal: { industryTurnSheet: { industry, move: 1 } } }
+            })));
         });
         await claim('wc', 'whitecell_lead');
     });

@@ -3,6 +3,11 @@
  * Displays modal dialogs with customizable content
  */
 
+import {
+    createUnsavedChangesTracker,
+    UNSAVED_EXIT_REASONS
+} from '../../core/unsavedChanges.js';
+
 let activeModal = null;
 let previousFocus = null;
 
@@ -28,8 +33,8 @@ export function showModal({
     onClose = null
 } = {}) {
     // Close any existing modal
-    if (activeModal) {
-        closeModal(activeModal);
+    if (activeModal && !requestCloseModal(activeModal, UNSAVED_EXIT_REASONS.CLOSE)) {
+        return null;
     }
 
     // Store current focus
@@ -82,16 +87,22 @@ export function showModal({
     // Add buttons
     if (buttons.length > 0) {
         const footer = modal.querySelector('.modal-footer');
-        buttons.forEach(({ label, onClick, variant = 'secondary', disabled = false }) => {
+        buttons.forEach(({ label, text, onClick, variant = 'secondary', disabled = false, dismiss = null }) => {
+            const buttonLabel = label || text || '';
             const btn = document.createElement('button');
             btn.className = `btn btn-${variant}`;
-            btn.textContent = label;
+            btn.textContent = buttonLabel;
             btn.disabled = disabled;
             btn.addEventListener('click', () => {
-                const result = onClick?.();
+                const result = onClick?.(controller);
                 // Close modal unless onClick returns false
                 if (result !== false) {
-                    closeModal(overlay);
+                    const isDismissAction = dismiss ?? /^(cancel|close)$/i.test(buttonLabel.trim());
+                    if (isDismissAction) {
+                        requestCloseModal(overlay, UNSAVED_EXIT_REASONS.CANCEL);
+                    } else {
+                        closeModal(overlay);
+                    }
                 }
             });
             footer.appendChild(btn);
@@ -103,14 +114,14 @@ export function showModal({
     // Close button handler
     if (closable && title) {
         const closeBtn = modal.querySelector('.modal-close');
-        closeBtn?.addEventListener('click', () => closeModal(overlay));
+        closeBtn?.addEventListener('click', () => requestCloseModal(overlay, UNSAVED_EXIT_REASONS.CLOSE));
     }
 
     // Click outside to close
     if (closable) {
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
-                closeModal(overlay);
+                requestCloseModal(overlay, UNSAVED_EXIT_REASONS.BACKDROP);
             }
         });
     }
@@ -118,7 +129,7 @@ export function showModal({
     // Escape key to close
     const handleEscape = (e) => {
         if (e.key === 'Escape' && closable) {
-            closeModal(overlay);
+            requestCloseModal(overlay, UNSAVED_EXIT_REASONS.ESCAPE);
         }
     };
     document.addEventListener('keydown', handleEscape);
@@ -144,6 +155,13 @@ export function showModal({
             return state;
         });
     document.body.classList.add('modal-open');
+
+    const protectsUnsavedChanges = Boolean(
+        contentContainer.querySelector?.('form, input, select, textarea, [contenteditable="true"]')
+    );
+    overlay._unsavedChangesTracker = protectsUnsavedChanges
+        ? createUnsavedChangesTracker(contentContainer)
+        : null;
 
     // Trigger the entrance on the next frame AFTER the initial (hidden) state has
     // painted. A single rAF often runs before the first paint, so the browser sees
@@ -190,13 +208,40 @@ export function showModal({
         }
     });
 
-    activeModal = overlay;
-
-    return {
+    const controller = {
         close: () => closeModal(overlay),
+        requestClose: (reason = UNSAVED_EXIT_REASONS.CLOSE) => requestCloseModal(overlay, reason),
+        markClean: () => overlay._unsavedChangesTracker?.markClean?.(),
+        isDirty: () => overlay._unsavedChangesTracker?.isDirty?.() === true,
         element: modal,
         overlay
     };
+    overlay._controller = controller;
+    activeModal = overlay;
+
+    return controller;
+}
+
+/**
+ * Ask to discard edits before a user-driven modal exit.
+ * Programmatic close after a successful write continues to use closeModal().
+ * @param {HTMLElement} overlay - Modal overlay element
+ * @param {string} reason - Exit path used for contract tests and diagnostics
+ * @param {Function|null} confirmRef - Optional confirmation implementation
+ * @returns {boolean} Whether the modal closed
+ */
+export function requestCloseModal(
+    overlay = activeModal,
+    reason = UNSAVED_EXIT_REASONS.CLOSE,
+    confirmRef = null
+) {
+    if (!overlay || overlay._closing) return false;
+    overlay.dataset && (overlay.dataset.dismissReason = reason);
+    if (!overlay._unsavedChangesTracker?.requestDiscard?.({ confirmRef })) {
+        return false;
+    }
+    closeModal(overlay);
+    return true;
 }
 
 /**
@@ -209,6 +254,9 @@ export function closeModal(overlay = activeModal) {
 
     overlay.classList.remove('modal-visible');
     overlay.classList.add('modal-hiding');
+    overlay._unsavedChangesTracker?.markClean?.();
+    overlay._unsavedChangesTracker?.dispose?.();
+    overlay._unsavedChangesTracker = null;
 
     // Remove escape handler
     if (overlay._escapeHandler) {
@@ -273,7 +321,7 @@ export function confirm({
     variant = 'primary'
 } = {}) {
     return new Promise((resolve) => {
-        showModal({
+        const modal = showModal({
             title,
             content: `<p>${escapeHtml(message)}</p>`,
             size: 'sm',
@@ -295,6 +343,7 @@ export function confirm({
             ],
             onClose: () => resolve(false)
         });
+        if (!modal) resolve(false);
     });
 }
 
@@ -312,7 +361,7 @@ export function alert({
     buttonLabel = 'OK'
 } = {}) {
     return new Promise((resolve) => {
-        showModal({
+        const modal = showModal({
             title,
             content: `<p>${escapeHtml(message)}</p>`,
             size: 'sm',
@@ -325,6 +374,7 @@ export function alert({
             ],
             onClose: () => resolve()
         });
+        if (!modal) resolve();
     });
 }
 
@@ -373,6 +423,11 @@ export function prompt({
             ],
             onClose: () => resolve(null)
         });
+
+        if (!modal) {
+            resolve(null);
+            return;
+        }
 
         // Focus input
         setTimeout(() => {

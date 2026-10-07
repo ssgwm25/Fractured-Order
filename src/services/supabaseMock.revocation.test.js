@@ -2,20 +2,36 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createE2EMockSupabaseClient } from './supabaseMock.js';
 
 const stateKey = 'esg_e2e_backend_state';
+const realtimeKey = 'esg_e2e_realtime_changes';
 let api, listeners;
+let realtimeSequence;
 function changeSeat(update) {
     const oldValue = localStorage.getItem(stateKey);
     const state = JSON.parse(oldValue);
+    const oldSeat = structuredClone(state.tables.session_participants[0]);
     Object.assign(state.tables.session_participants[0], update);
+    const newSeat = structuredClone(state.tables.session_participants[0]);
     const newValue = JSON.stringify(state);
     localStorage.setItem(stateKey, newValue);
-    listeners.forEach(listener => listener({ key: stateKey, oldValue, newValue }));
+    const realtimeValue = JSON.stringify({
+        version: 1,
+        sequence: ++realtimeSequence,
+        changes: [{
+            table: 'session_participants',
+            eventType: 'UPDATE',
+            old: oldSeat,
+            new: newSeat
+        }]
+    });
+    localStorage.setItem(realtimeKey, realtimeValue);
+    listeners.forEach(listener => listener({ key: realtimeKey, oldValue: null, newValue: realtimeValue }));
 }
 beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-21T12:00:00Z'));
     const storage = new Map();
     listeners = new Set();
+    realtimeSequence = 0;
     vi.stubGlobal('localStorage', { getItem: key => storage.get(key) ?? null,
         setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) });
     vi.stubGlobal('window', {

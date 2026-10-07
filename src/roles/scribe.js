@@ -5275,7 +5275,13 @@ export class ScribeController {
             team: this.teamId,
             delegationId,
             request,
-            onCancel: () => modalRef.current?.close?.(),
+            onCancel: () => {
+                if (modalRef.current?.requestClose) {
+                    modalRef.current.requestClose('cancel');
+                } else {
+                    modalRef.current?.close?.();
+                }
+            },
             onSubmit: async (savedRequest) => {
                 if (savedRequest.delegation_id) {
                     // The regional RPC commits its timeline evidence atomically.

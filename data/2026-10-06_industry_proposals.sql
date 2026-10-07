@@ -74,6 +74,8 @@ BEGIN
     IF requested_move IS DISTINCT FROM NEW.move THEN
         RAISE EXCEPTION 'INDUSTRY_PROPOSAL_MOVE_MISMATCH' USING ERRCODE = '23514';
     END IF;
+    -- Draft, forwarded, and submitted proposals share the same persisted
+    -- routing minimum: at least one valid intended recipient.
     IF jsonb_typeof(requested_recipients) IS DISTINCT FROM 'array'
        OR jsonb_array_length(requested_recipients) = 0
        OR EXISTS (

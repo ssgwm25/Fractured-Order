@@ -11,9 +11,9 @@ trackable and are not deployment output.
 ## Migration-First Release Order
 
 Rehearse every release in a dedicated, non-production Supabase project. Apply
-database changes first, in the 60-step dated order documented in
+database changes first, in the 66-step dated order documented in
 `docs/supabase-setup.md`, ending at
-`data/2026-10-01_gc11_research_export_context.sql`. Record the project reference,
+`data/2026-10-07_hosted_release_evidence.sql`. Record the project reference,
 final migration identifier, operator, and UTC completion time. Verify RPCs,
 RLS, append-only review/thread records, RFI history, and research-export
 reconciliation before advancing.
@@ -23,6 +23,11 @@ SHA and the deployed asset evidence, then run the complete rehearsal matrix
 against the dedicated live project. Run the same matrix against the
 deterministic mock from that same commit and declared migration state; a mock
 pass cannot substitute for the live Supabase pass.
+
+The Pages workflow injects the non-secret `VITE_DEPLOYED_COMMIT` directly from
+`github.sha`. A release build must not accept a manually shortened or mutable
+revision label; the client publishes only a full 40-character commit or the
+fail-closed value `unverified`.
 
 For containment, roll back the frontend first and leave additive schema,
 `artifact_workflow_reviews`, proposal thread rounds, and accepted RFI history
@@ -37,7 +42,8 @@ following from the candidate head:
 - the clean source commit SHA and the deployed frontend commit SHA, which must
   match
 - the verified final migration identifier
-  `2026-10-01_gc11_research_export_context`
+  `2026-10-07_hosted_release_evidence`, migration count `66`, and ledger SHA-256
+  `ae7324d4833872fbc4ed0a8da1850a834adcede56b0ea263475ee5d602b8f895`
 - the dedicated rehearsal deployment URL, unique run ID, UTC start/end times,
   and operator
 - mock and live-Supabase results produced from the same commit and migration
@@ -165,6 +171,7 @@ Local production build:
 $env:VITE_SUPABASE_URL="https://<project-ref>.supabase.co"
 $env:VITE_SUPABASE_ANON_KEY="<anon-key>"
 $env:VITE_PUBLIC_BASE_PATH="/Fractured-Order/"
+$env:VITE_DEPLOYED_COMMIT=(git rev-parse HEAD).Trim()
 npm run build
 ```
 
@@ -175,6 +182,8 @@ Pass:
 - built HTML does not reference `./src/main.js`
 - built HTML does not reference `./src/roles/landing.js`
 - production source maps are not emitted by default
+- `document.documentElement.dataset.deployedCommit` equals the full candidate
+  commit when the built page runs
 
 ## Hosted Source Verification
 

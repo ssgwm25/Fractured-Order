@@ -20,6 +20,7 @@ function proposalAction({
     return {
         id,
         team: 'industry',
+        artifact_type: 'proposal',
         move,
         workflow_state: workflowState,
         is_deleted: isDeleted,
@@ -40,16 +41,19 @@ function proposalAction({
 }
 
 describe('Industry proposal domain contract', () => {
-    it('requires Blue, Red, or both as intended recipients', () => {
+    it('requires Blue, Red, or both as intended recipients for drafts and forwarding', () => {
         const blank = createBlankIndustryTurnSheet({ move: 1, strategicPlanId: 'plan-1' });
-        const withoutRecipients = validateIndustryTurnSheet({ ...blank, industry: 'agriculture' });
+        const draftWithoutRecipients = validateIndustryTurnSheet(
+            { ...blank, industry: 'agriculture' },
+            { full: false }
+        );
         const withRecipients = validateIndustryTurnSheet({
             ...blank,
             industry: 'agriculture',
             recipientTeams: ['blue', 'red', 'green', 'blue']
         });
 
-        expect(withoutRecipients).toContainEqual(expect.objectContaining({
+        expect(draftWithoutRecipients).toContainEqual(expect.objectContaining({
             field: 'recipientTeams',
             page: 2
         }));
@@ -139,6 +143,28 @@ describe('Industry proposal domain contract', () => {
 
         actions.push(proposalAction({ id: 'tel-1', industry: 'telecommunications', workflowState: 'completed' }));
         expect(getIndustryMoveCoverage(actions, 1)).toMatchObject({ complete: true, missing: [] });
+    });
+
+    it('matches the database move gate when generic terminal rows are not completed Industry proposals', () => {
+        const valid = proposalAction({ id: 'ag-1', industry: 'agriculture', workflowState: 'completed' });
+        const withdrawn = proposalAction({ id: 'bio-1', industry: 'biotechnology', workflowState: 'withdrawn' });
+        const wrongTeam = {
+            ...proposalAction({ id: 'tel-1', industry: 'telecommunications', workflowState: 'completed' }),
+            team: 'green'
+        };
+        const wrongArtifact = {
+            ...proposalAction({ id: 'bio-action', industry: 'biotechnology', workflowState: 'completed' }),
+            artifact_type: 'action'
+        };
+
+        expect(getIndustryMoveCoverage([valid, withdrawn, wrongTeam, wrongArtifact], 1)).toMatchObject({
+            complete: false,
+            completed: ['agriculture'],
+            missing: [
+                expect.objectContaining({ value: 'biotechnology' }),
+                expect.objectContaining({ value: 'telecommunications' })
+            ]
+        });
     });
 
     it('does not use a deleted proposal as the active baseline', () => {

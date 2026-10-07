@@ -45,14 +45,18 @@ playthrough. It covers:
   stopping before the forwarding write is activated;
   RFI response and return controls use the same reconciled-control path so a
   live queue rerender cannot detach the button during Playwright actionability;
-  RFI submission, response, return, and resubmission writes also capture their
-  durable success or error notifications before requiring the modal to close,
-  using the workflow-write timeout rather than the default UI assertion timeout;
+  RFI submission and resubmission capture success or error notifications before
+  requiring the modal to close; response and return require modal closure and
+  removal of the exact request from the pending queue within the workflow-write
+  timeout, followed by recipient and history assertions;
   the live-updating RFI history tab is activated through a reconciled dispatch
   and must report itself selected before history assertions begin;
   action tab, disclosure, and forwarding controls follow the reconciled-control
   path, while the confirmed forwarding write captures durable success or error
-  notification evidence and requires its modal to close;
+  notification evidence and requires its modal to close; White Cell action and
+  Strategic Orientation adjudication arm the same capture before activating the
+  review write, then independently require modal closure and persisted lifecycle
+  state so a short-lived success toast cannot expire between those checks;
   recipient approval checkboxes are selected atomically on the current visible,
   enabled input with normal `input` and `change` events, and re-resolved until
   the current instance is verified checked before submission;
@@ -92,14 +96,24 @@ playthrough. It covers:
   supply-chain-focus decision, conditional Supply Chain Areas only when Yes is
   selected, Timing & Conditions, and Expected Outcome(s) & Duration Assessment
 - Industry proposal entry remains unavailable until White Cell completes the
-  version 2 Industry Strategic Plan; the three-page proposal then requires one
-  Industry sector and Intended recipients of Blue, Red, or both, followed by
+  version 2 Industry Strategic Plan; draft save requires one Industry sector,
+  that completed plan reference, and Intended recipients of Blue, Red, or both;
+  forward then requires the remaining three-page proposal fields across
   Environment & Supply Chain, Decision & Expected Effects, and Engagement,
   Risks & Outlook
 - Industry proposal persistence and review preserve the same proposal ID and
   current revision across return, edit, and resubmission, together with the
   selected recipients, sector, environment, supply-chain baseline, decision,
   expected effects, engagements, risks, spillovers, forecasts, and visibility
+- the move gate is exercised with zero, one, and two completed Industry sectors,
+  and advances only after Agriculture, Biotechnology, and Telecommunications
+  each have a completed proposal; the deterministic backend independently
+  rejects the same direct move update and does not rely on the White Cell button
+- a second Agriculture proposal opens only after Proposal 1 is completed, hides
+  duplicate Environment and Supply Chain editors, renders all four actor rows
+  and all five Supply Chain stages from Proposal 1 as an immutable read-only
+  view, and retains Proposal 1 as both persisted baseline references through
+  reload and research export
 - neither current proposal form uses Proposal Category or Delivery; those
   labels remain historical parser and export compatibility only
 - the originating Scribe creates each proposal and hands it to the actual
@@ -116,9 +130,14 @@ playthrough. It covers:
   without overwriting or cross-team disclosure
 - multi-team RFI submission from each Facilitator, White Cell response, and
   team-only routing, plus returned-RFI edit/resubmit and retention of both
-  return and answer history, concurrent on the hosted real backend
+  return and answer history, concurrent on the hosted real backend; this
+  lifecycle runs immediately after role topology and the shared UI contract so
+  browser input is exercised before the longer high-fanout workflows, while
+  final export reconciliation still proves that its history remains durable
 - Facilitator-to-White Cell direct text plus White Cell replies, unread counts,
-  ordering, and team/session isolation
+  ordering, and team/session isolation; these exchanges run beside the early
+  RFI lifecycle so the White Cell page proves delivery before the longer
+  proposal and adjudication fanout accumulates
 - capture from all eight Notetakers with team isolation, concurrent on the
   hosted real backend
 - persistent notification dismissal and representative role reload/reconnect
@@ -142,6 +161,9 @@ The supporting suites remain separate because they test different risks:
   seats per team, can join and survive reload
 - `live-demo-scale.e2e.js`: large pre-existing queues remain bounded and usable
 - `session-smoke.e2e.js`: the narrow release smoke path
+- `rfi-workflow.e2e.js`: a three-actor RFI reproduction covering normal browser
+  text input, answer delivery, return, same-record revision/resubmission, and
+  retained answer/return history after reload
 
 ## Local Deterministic Run
 
@@ -151,14 +173,80 @@ Run the focused playthrough:
 npm run test:e2e:playthrough
 ```
 
-The expanded eighteen-actor scenario has a 20-minute orchestration budget.
+When investigating an RFI input timeout, run the focused reproduction first:
+
+```powershell
+npm run build
+node --preserve-symlinks --preserve-symlinks-main ./node_modules/@playwright/test/cli.js test tests/e2e/rfi-workflow.e2e.js
+```
+
+Pass means the single focused test completes, including the unchanged RFI ID
+after resubmission and answer/return history after reload. A focused pass does
+not replace the eighteen-actor playthrough gate. If it passes, run the full
+playthrough command above to check the accumulated multi-actor state.
+
+The focused RFI reproduction retains a Playwright trace on its first local
+failure. The eighteen-actor playthrough follows the project trace policy
+instead of forcing a trace for all eighteen pages; a forced full-run trace can
+grow large enough to obscure the functional failure and prevent clean
+teardown. The shared RFI helper checks visibility and editability, uses normal
+`fill`, and verifies the entered value.
+
+Verification evidence (human-run, 2026-10-07): the focused three-actor RFI test
+passed in 20.9 seconds (26.8 seconds total), with zero retries, skipped tests,
+console errors, or page errors. Normal browser input, answer delivery,
+same-record return/revision/resubmission, and history after reload passed in
+that run. Subsequent eighteen-actor runs advanced to different late workflow
+stages before a live refresh detached or stalled the active White Cell control;
+the latest reached review of the third independent proposal-response thread in
+16.5 minutes, with no browser console or page errors. The rotating failure
+location exposed a shared infrastructure cause: every local mock write emitted
+the complete and growing backend snapshot, and every realtime channel on the
+other actor pages reparsed, rediffed, and rerendered from that snapshot.
+
+The local mock now keeps the complete snapshot as its authoritative persisted
+state but emits a separate compact row-change envelope for realtime delivery.
+Subscribers discard unrelated tables before reading current state, share at
+most one current-state parse per page and change, retain the same regional
+row-visibility checks, and receive the same INSERT, UPDATE, and DELETE payload
+shape. A unit contract asserts that the envelope contains the changed row rather
+than the full `tables` object. Full-playthrough acceptance remains open pending
+a fresh human-run gate.
+
+The first human verification of the envelope change passed 45 of 46 focused
+tests and exposed a defect in the new diff: unchanged row objects were compared
+by reference and therefore emitted as false UPDATE records. The accompanying
+playthrough reached returned-action adjudication in 10.8 minutes, then timed out
+while a hidden response card was being repeatedly reconciled; diagnostics again
+contained no console or page errors. Row diffing now uses structural equality,
+and the unit contract requires exactly one timeline INSERT in that reproduction,
+so unchanged sessions, game state, runtime config, and operator grants cannot
+re-enter the realtime envelope. Acceptance still requires a fresh passing run.
+
+Follow-up human verification passed all 20 mock-boundary tests, including the
+compact-envelope and three-sector move-gate contracts. The next playthrough
+cleared the earlier live-control failures and reached representative-role reload
+in 7.3 minutes. It stopped because the reload assertion required the Blue
+Facilitator unread badge to disappear even though three later workflow alerts
+were legitimately still unread. The reload contract now captures the exact,
+unique unread notification IDs before reload and requires the same IDs and badge
+count afterward. This proves persistence without replay or loss instead of
+discarding valid unread state. Browser diagnostics contained no console or page
+errors. Fresh human verification then built the production bundle and passed
+the complete eighteen-actor playthrough 1/1 in 7.4 minutes (7.5 minutes total),
+including representative-role reload and final research-export reconciliation.
+This is the current local deterministic acceptance evidence for Batch 1; hosted
+rehearsal evidence remains a separate gate.
+
+The expanded eighteen-actor scenario has a 30-minute orchestration ceiling.
 Each actor page keeps a 30-second default action timeout, so a blocked locator
 fails with its concrete operation instead of consuming the full scenario
 budget. Proposal handoff and atomic proposal-response forwarding have a
 60-second completion window for authentication, the shared-state write lock,
 persistence, and reconciliation; each must still produce its success toast and
-close its workflow modal. The orchestration limit is not a performance pass
-criterion.
+close its workflow modal. The aggregate orchestration ceiling accommodates the
+full journey through exports; it does not relax any per-operation timeout and
+is not a performance pass criterion.
 
 Run the complete rehearsal gate:
 
@@ -205,7 +293,13 @@ persists shared state through browser `localStorage`, actor operations that
 write shared records are deliberately serialized locally. The mock also places
 every state-changing RPC and table write behind an origin-wide browser lock so
 background participant heartbeats cannot overwrite a workflow write between
-the shared-state read and write. It also enforces the production schema's
+the shared-state read and write. Realtime notifications use a compact,
+monotonically sequenced row-change envelope instead of asking every actor page
+to diff the full persisted snapshot; the persisted snapshot and regional
+read-visibility boundary remain unchanged. `operator_update_game_state` mirrors the
+production Industry proposal move trigger: direct advance is rejected with zero,
+one, or two completed sector proposals, leaves the stored move unchanged, and is
+permitted only after all three sectors are complete. It also enforces the production schema's
 `UNIQUE(session_id, move)` notetaker constraint so concurrent creates follow
 the application's deterministic `23505` retry path instead of creating rows
 that later make `.maybeSingle()` fail. The context initializer defers storage
@@ -319,7 +413,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=(git rev-parse HEAD).Trim()
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-10-01_gc11_research_export_context"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-10-07_hosted_release_evidence"
 npm run test:e2e:playthrough
 ```
 
@@ -356,8 +450,31 @@ initialization failure, not as a Realtime result.
 The playthrough fails before creating a session unless
 `PLAYWRIGHT_DEPLOYED_COMMIT` equals the checked-out source commit and
 `PLAYWRIGHT_MIGRATION_STATE` equals the required final migration identifier.
-These declarations must come from deployment and migration records; do not set
-them from an old successful run.
+The deployed page must independently publish the same embedded commit. The
+research archive must independently report migration count `66`, ledger SHA-256
+`ae7324d4833872fbc4ed0a8da1850a834adcede56b0ea263475ee5d602b8f895`,
+and a protected database build hash equal to that commit. Before the hosted run,
+the database owner sets `live_demo_runtime_config.software_build_hash` to the
+deployed 40-character commit using the controlled SQL console; never expose a
+service credential to Playwright or the browser. Declarations must come from
+the current deployment and migration records, not an old successful run.
+
+In the dedicated rehearsal project's controlled SQL console, bind and inspect
+the candidate without copying any credential into browser automation:
+
+```sql
+UPDATE public.live_demo_runtime_config
+SET config_value = LOWER('<40-character-candidate-commit>'),
+    updated_at = NOW()
+WHERE config_key = 'software_build_hash';
+
+SELECT public.live_demo_release_evidence();
+```
+
+Pass: exactly one row is updated, and the function returns migration state
+`2026-10-07_hosted_release_evidence`, migration count `66`, the documented
+ledger SHA-256, and the same lowercase commit. Zero updated rows or any null,
+stale, or mismatched value blocks the hosted run.
 
 Pass:
 
@@ -368,6 +485,8 @@ Pass:
 - concurrent writes create no missing, duplicated, or cross-team records
 - all proposal and RFI responses reach only the intended surfaces
 - the selected-session export reconciles with the UI-created artifacts
+- `playthrough-diagnostics.json` names the scenario, UTC window, deployed
+  commit, migration state/count/fingerprint, and all 18 synthetic actor labels
 - Playwright produces no failure trace, screenshot, or retained failure video
 
 After the command, clear the sensitive operator value from the shell:
@@ -387,8 +506,11 @@ On failure, inspect the standard Playwright trace, screenshot, and retained
 video. The test also attaches `playthrough-diagnostics.json`, containing:
 
 - session name and code
-- actor and selected-session seat counts
+- scenario, rehearsal run ID, UTC start/end, synthetic actor labels, and
+  selected-session seat count
 - whether the run used the local mock or hosted real backend
+- checked-out and observed deployed commits plus migration state, count, and
+  ledger fingerprint
 - uncaught page errors
 - browser console errors
 
@@ -419,7 +541,7 @@ $env:PLAYWRIGHT_BASE_URL="https://<rehearsal-host>/Fractured-Order/"
 $env:PLAYWRIGHT_OPERATOR_ACCESS_CODE="<rehearsal-operator-code>"
 $env:PLAYWRIGHT_REHEARSAL_RUN_ID="<unique-uppercase-run-id>"
 $env:PLAYWRIGHT_DEPLOYED_COMMIT=$candidateCommit
-$env:PLAYWRIGHT_MIGRATION_STATE="2026-10-01_gc11_research_export_context"
+$env:PLAYWRIGHT_MIGRATION_STATE="2026-10-07_hosted_release_evidence"
 npm run test:e2e:rehearsal
 ```
 

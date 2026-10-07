@@ -255,6 +255,22 @@ function buildStrategicOrientationAction(team, {
     };
 }
 
+function buildCompletedIndustryProposal(industry) {
+    return {
+        id: `industry-${industry}-proposal-1`,
+        team: 'industry',
+        artifact_type: 'proposal',
+        move: 1,
+        workflow_state: 'completed',
+        is_deleted: false,
+        artifact_payload: {
+            proposal: {
+                industryTurnSheet: { industry, move: 1 }
+            }
+        }
+    };
+}
+
 async function loadWhiteCellModule() {
     globalThis.__ESG_DISABLE_AUTO_INIT__ = true;
     vi.resetModules();
@@ -869,7 +885,7 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.nextMoveBtn.title).toBe('Strategic Orientation is still open.');
     });
 
-    it('returns Move 1 to the active Move Control mark after Strategic Orientation completes', async () => {
+    it('names every missing Industry sector and enables move advance after coverage completes', async () => {
         const { WhiteCellController } = await loadWhiteCellModule();
         const { actionsStore } = await import('../stores/actions.js');
         const fakeDocument = createFakeDocument([
@@ -883,17 +899,19 @@ describe('White Cell DOM contract', () => {
             'moveProgressMove3',
             'prevMoveBtn',
             'nextMoveBtn',
+            'nextMoveHelp',
             'prevPhaseBtn',
             'nextPhaseBtn'
         ]);
         global.document = fakeDocument;
 
-        vi.spyOn(actionsStore, 'getAll').mockReturnValue([
+        const orientationActions = [
             buildStrategicOrientationAction('blue'),
             buildStrategicOrientationAction('green'),
             buildStrategicOrientationAction('red', { orientation: 'reframe' }),
             buildStrategicOrientationAction('industry', { orientation: 'stabilization' })
-        ]);
+        ];
+        const getAllSpy = vi.spyOn(actionsStore, 'getAll').mockReturnValue(orientationActions);
 
         const controller = new WhiteCellController();
 
@@ -903,8 +921,45 @@ describe('White Cell DOM contract', () => {
         expect(fakeDocument.elements.moveLabel.textContent).toBe('Epoch 1 (2027-2030)');
         expect(fakeDocument.elements.moveProgressStrategicOrientation.dataset.state).toBe('complete');
         expect(fakeDocument.elements.moveProgressMove1.dataset.state).toBe('active');
+        expect(fakeDocument.elements.nextMoveBtn.disabled).toBe(true);
+        expect(fakeDocument.elements.nextMoveBtn.textContent).toBe(
+            'Awaiting Industry: Agriculture, Biotechnology, Telecommunications'
+        );
+        expect(fakeDocument.elements.nextMoveHelp.textContent).toContain(
+            'Agriculture, Biotechnology, Telecommunications'
+        );
+
+        getAllSpy.mockReturnValue([
+            ...orientationActions,
+            buildCompletedIndustryProposal('agriculture')
+        ]);
+        controller.updateGameStateDisplay({ move: 1, phase: 1 });
+        expect(fakeDocument.elements.nextMoveBtn.textContent).toBe(
+            'Awaiting Industry: Biotechnology, Telecommunications'
+        );
+
+        getAllSpy.mockReturnValue([
+            ...orientationActions,
+            buildCompletedIndustryProposal('agriculture'),
+            buildCompletedIndustryProposal('biotechnology')
+        ]);
+        controller.updateGameStateDisplay({ move: 1, phase: 1 });
+        expect(fakeDocument.elements.nextMoveBtn.textContent).toBe(
+            'Awaiting Industry: Telecommunications'
+        );
+
+        getAllSpy.mockReturnValue([
+            ...orientationActions,
+            buildCompletedIndustryProposal('agriculture'),
+            buildCompletedIndustryProposal('biotechnology'),
+            buildCompletedIndustryProposal('telecommunications')
+        ]);
+        controller.updateGameStateDisplay({ move: 1, phase: 1 });
         expect(fakeDocument.elements.nextMoveBtn.disabled).toBe(false);
         expect(fakeDocument.elements.nextMoveBtn.textContent).toBe('Advance to Move 2');
+        expect(fakeDocument.elements.nextMoveHelp.textContent).toBe(
+            'Industry proposal coverage is complete. Move 2 is available.'
+        );
     });
 
     it('does not allow Blue Strategic Orientation selections to be shared to Red as normal actions', async () => {

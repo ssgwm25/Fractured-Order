@@ -60,6 +60,7 @@ import {
     seatIsFinalized
 } from '../features/pli/pliShared.js';
 import { buildPliSmePacket, emptyEditDiff } from '../features/pli/pliSmeEdits.js';
+import { normalizeReleaseEvidence } from '../core/releaseEvidence.js';
 
 const logger = createLogger('Database');
 
@@ -2249,6 +2250,14 @@ export const database = {
         return normalizedValue || null;
     },
 
+    async getReleaseEvidence() {
+        const { data, error } = await supabase.rpc('live_demo_release_evidence');
+        if (error) {
+            throw fromSupabaseError(error, 'getReleaseEvidence');
+        }
+        return normalizeReleaseEvidence(data);
+    },
+
     async fetchResearchExportContext(sessionId) {
         const { data, error } = await supabase.rpc('export_gc11_research_context', {
             requested_session_id: sessionId
@@ -2415,6 +2424,7 @@ export const database = {
             notetakerData,
             captureMode,
             softwareBuildHash,
+            releaseEvidence,
             researchExportContext,
             researchAuditEventLog,
             researchParticipants,
@@ -2438,6 +2448,7 @@ export const database = {
             this.fetchNotetakerData(sessionId).catch(() => []),
             this.getResearchCaptureMode(),
             this.getResearchBuildHash(),
+            this.getReleaseEvidence().catch(() => null),
             this.fetchResearchExportContext(sessionId),
             this.fetchResearchTable('research_audit_event_log', sessionId),
             this.fetchResearchTable('research_participant', sessionId),
@@ -2468,6 +2479,7 @@ export const database = {
             notetakerData,
             captureMode,
             softwareBuildHash,
+            releaseEvidence: normalizeReleaseEvidence(releaseEvidence),
             researchExportContext,
             unifiedSeatRemovals: Array.isArray(researchExportContext?.unified_seat_removals)
                 ? researchExportContext.unified_seat_removals

@@ -17,6 +17,7 @@ import { adaptGreenGuide } from '../features/onboarding/greenGuidance.js';
 import { showToast } from '../components/ui/Toast.js';
 import { showLoader, hideLoader } from '../components/ui/Loader.js';
 import { showModal, confirmModal } from '../components/ui/Modal.js';
+import { createUnsavedChangesTracker } from '../core/unsavedChanges.js';
 import {
     createBadge,
     createArtifactLifecycleBadge,
@@ -103,6 +104,7 @@ import {
 import {
     collectIndustryTurnSheetFormData,
     createIndustryTurnSheetFormContent,
+    renderIndustryBaselineReference,
     renderIndustryTurnSheetReview
 } from '../features/actions/industryTurnSheetForm.js';
 import {
@@ -152,6 +154,14 @@ import {
 } from '../features/plugins/intercom.js';
 
 const logger = createLogger('Facilitator');
+
+function requestModalDismiss(modal, reason = 'cancel') {
+    if (typeof modal?.requestClose === 'function') {
+        return modal.requestClose(reason);
+    }
+    modal?.close?.();
+    return true;
+}
 const PROPOSAL_TEAM_IDS = new Set(['green', 'industry']);
 const STRATEGIC_ORIENTATION_TEAM_IDS = new Set(['blue', 'green', 'red', 'industry']);
 const TRIBE_STREET_JOURNAL_EVENT_TYPES = new Set(['NOTE', 'MOMENT', 'QUOTE']);
@@ -467,7 +477,7 @@ export class FacilitatorController {
                 {
                     title: 'Your role in the exercise',
                     body: `As ${this.teamContext.facilitatorLabel}, you turn deliberation into the durable ${this.teamLabel} record.`,
-                    narrative: `Listen for intent, assumptions, and trade-offs; make them legible in Strategic Orientation and ${actionNoun} before the handoff deadline.`,
+                    narrative: `Listen for intent, assumptions, and trade-offs; make them legible in Strategic Orientation and ${actionNoun}, then use the explicit handoff control when the record is ready.`,
                     details: ['Draft and revise team-owned artifacts.', 'Preserve rationale and required structured fields.', 'Use the explicit handoff control; visibility alone is not submission.']
                 },
                 {
@@ -495,7 +505,7 @@ export class FacilitatorController {
                 surfaceStep('Quick Capture', 'capture', 'Record a concise note, moment, or quote during deliberation.', 'Label the observation accurately and leave formal team decisions in the artifact workflow.'),
                 {
                     title: 'Close the loop',
-                    body: 'Confirm the active move, completeness, rationale, destination, and explicit handoff state before the deadline.',
+                    body: 'Confirm the active move, completeness, rationale, destination, and explicit handoff state before handoff.',
                     narrative: 'The Scribe owns a trustworthy record, not the team’s strategic judgment and not White Cell’s adjudication.',
                     details: ['Verify the destination before handoff.', 'Use responses and timeline to resolve ambiguity.', 'Collapse Start Here when you need space and reopen it at any time.'],
                     targetLabel: 'Session reference',
@@ -2765,11 +2775,22 @@ export class FacilitatorController {
             return null;
         }
 
+        let unsavedChangesTracker = null;
         const closeHost = () => {
+            unsavedChangesTracker?.markClean?.();
+            unsavedChangesTracker?.dispose?.();
             onClose?.();
         };
+        const requestCloseHost = () => {
+            if (!unsavedChangesTracker?.requestDiscard?.()) return false;
+            closeHost();
+            return true;
+        };
         const modalAdapter = {
-            close: closeHost
+            close: closeHost,
+            requestClose: requestCloseHost,
+            markClean: () => unsavedChangesTracker?.markClean?.(),
+            isDirty: () => unsavedChangesTracker?.isDirty?.() === true
         };
 
         host.replaceChildren();
@@ -2788,7 +2809,8 @@ export class FacilitatorController {
         host.appendChild(shell);
 
         const body = shell.querySelector('[data-presentation-edit-body]');
-        shell.querySelector('[data-presentation-edit-close]')?.addEventListener('click', closeHost);
+        unsavedChangesTracker = createUnsavedChangesTracker(body);
+        shell.querySelector('[data-presentation-edit-close]')?.addEventListener('click', requestCloseHost);
 
         if (isStrategicOrientationAction(action)) {
             const content = this.createStrategicOrientationContent(action);
@@ -3369,7 +3391,7 @@ export class FacilitatorController {
             reviewing = true;
             updateView({ focusHeading: true });
         });
-        form.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => modal?.close());
+        form.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => requestModalDismiss(modal));
         form.addEventListener('submit', (event) => {
             event.preventDefault();
             const data = this.collectIndustryStrategicPlanData(content);
@@ -3596,7 +3618,7 @@ export class FacilitatorController {
                 this.clearStrategicOrientationFieldError(content, textarea.dataset.orientationNarrative);
             });
         });
-        content.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => modal?.close());
+        content.querySelector('[data-orientation-nav="cancel"]')?.addEventListener('click', () => requestModalDismiss(modal));
         content.querySelector('[data-orientation-nav="confirm"]')?.addEventListener('click', () => {
             content.querySelectorAll('[data-orientation-narrative]').forEach((textarea) => {
                 state[textarea.dataset.orientationNarrative] = textarea.value;
@@ -3958,7 +3980,7 @@ export class FacilitatorController {
         const forwardButton = content.querySelector('[data-response-nav="submit"]');
 
         content.querySelector('[data-response-nav="cancel"]')?.addEventListener('click', () => {
-            modal?.close();
+            requestModalDismiss(modal);
         });
 
         forwardButton?.addEventListener('click', () => {
@@ -4461,7 +4483,7 @@ export class FacilitatorController {
         });
 
         content.querySelector('[data-proposal-nav="cancel"]')?.addEventListener('click', () => {
-            modal?.close();
+            requestModalDismiss(modal);
         });
 
         content.querySelector('[data-proposal-nav="saveDraft"]')?.addEventListener('click', () => {
@@ -4620,15 +4642,11 @@ export class FacilitatorController {
                 if (industry && !isFirst) {
                     const label = getIndustrySectorConfig(industry)?.label || 'Industry';
                     const baseline = context?.baselineTurnSheet;
-                    baselineReference.innerHTML = `<div class="industry-turn-sheet-context-banner" role="status">
-                        <h3>Environment and Supply Chain</h3>
-                        <p>Using the ${this.escapeHtml(label)} Move ${resolvedSetup.move} baseline from Proposal ${this.escapeHtml(String(baseline?.proposalOrdinalForIndustryMove || 1))}.</p>
-                        <details><summary>View baseline details</summary>
-                            <p><strong>Biggest surprise:</strong> ${this.escapeHtml(baseline?.environment?.biggestSurprise || 'Not recorded')}</p>
-                            <p><strong>Weakest link:</strong> ${this.escapeHtml(baseline?.supplyChain?.weakestLink || 'Not recorded')}</p>
-                            <p><strong>Change since last move:</strong> ${this.escapeHtml(baseline?.supplyChain?.changeSinceLastMove || 'Not recorded')}</p>
-                        </details>
-                    </div>`;
+                    baselineReference.innerHTML = renderIndustryBaselineReference(baseline, {
+                        industryLabel: label,
+                        move: resolvedSetup.move,
+                        escapeHtml: (value) => this.escapeHtml(String(value ?? ''))
+                    });
                 }
             }
             const blocked = Boolean(industry && !isEdit && context && !context.canCreateProposal);
@@ -4750,7 +4768,7 @@ export class FacilitatorController {
             reviewing = false;
             updateView({ focusHeading: true });
         });
-        form.querySelector('[data-ts-nav="cancel"]')?.addEventListener('click', () => modal?.close());
+        form.querySelector('[data-ts-nav="cancel"]')?.addEventListener('click', () => requestModalDismiss(modal));
         form.querySelector('[data-ts-nav="save"]')?.addEventListener('click', () => {
             this.persistIndustryProposal(modal, form, { actionId, isEdit, forward: false }).catch((error) => logger.error('Failed to save Industry proposal:', error));
         });
@@ -5915,7 +5933,7 @@ export class FacilitatorController {
             checkbox.addEventListener('change', updateActionNotificationRequirement);
         });
         content.querySelector('[data-blue-action-nav="cancel"]')?.addEventListener('click', () => {
-            modal?.close();
+            requestModalDismiss(modal);
         });
 
         backButton?.addEventListener('click', () => {

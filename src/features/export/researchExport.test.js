@@ -5,6 +5,11 @@ import { serializeMoveResponseDetails } from '../actions/moveResponseDetails.js'
 import { serializeProposalDetails } from '../actions/proposalDetails.js';
 import { serializeStrategicOrientationDetails } from '../actions/strategicOrientationDetails.js';
 import {
+    REQUIRED_MIGRATION_COUNT,
+    REQUIRED_MIGRATION_LEDGER_SHA256,
+    REQUIRED_MIGRATION_STATE
+} from '../../core/releaseEvidence.js';
+import {
     RESEARCH_EXPORT_FORMAT_REVISION,
     RESEARCH_EXPORT_SCHEMA_VERSION,
     buildCrossSessionResearchExportBundle,
@@ -376,6 +381,29 @@ describe('research export builder', () => {
         })).toMatchObject({
             effective_green_seat_model: 'unknown',
             model_status: 'unknown_combination'
+        });
+    });
+
+    it('embeds protected deployment evidence in the exported manifest', async () => {
+        const bundle = buildBundleFixture();
+        const commit = '0123456789abcdef0123456789abcdef01234567';
+        bundle.softwareBuildHash = commit;
+        bundle.releaseEvidence = {
+            migrationState: REQUIRED_MIGRATION_STATE,
+            migrationCount: REQUIRED_MIGRATION_COUNT,
+            migrationLedgerSha256: REQUIRED_MIGRATION_LEDGER_SHA256,
+            softwareBuildHash: commit
+        };
+
+        const exportBundle = await buildResearchExportBundle(bundle, {
+            generatedAtUtc: '2026-10-07T12:00:00.000Z'
+        });
+
+        expect(exportBundle.manifest.deployment_evidence).toEqual({
+            migration_state: REQUIRED_MIGRATION_STATE,
+            migration_count: REQUIRED_MIGRATION_COUNT,
+            migration_ledger_sha256: REQUIRED_MIGRATION_LEDGER_SHA256,
+            software_build_hash: commit
         });
     });
 

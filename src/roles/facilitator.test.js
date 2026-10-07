@@ -1479,6 +1479,60 @@ describe('legacy facilitator route and corrected Scribe access', () => {
         expect(content.innerHTML).not.toContain('Turn Sheet');
     });
 
+    it('keeps a rejected Industry draft write in the editor without showing saved state', async () => {
+        const { FacilitatorController } = await loadFacilitatorModule();
+        const { createBlankIndustryTurnSheet } = await import('../features/actions/industryTurnSheet.js');
+        const { actionsStore } = await import('../stores/actions.js');
+        const { sessionStore } = await import('../stores/session.js');
+        const updateStore = vi.spyOn(actionsStore, 'updateFromServer');
+        vi.spyOn(sessionStore, 'getSessionId').mockReturnValue('session-industry-draft');
+        createAction.mockRejectedValueOnce(new Error('synthetic rejected write'));
+
+        const navButton = { disabled: false };
+        const form = {
+            dataset: {},
+            industryTurnSheetSeed: createBlankIndustryTurnSheet({ move: 1, strategicPlanId: 'plan-1' }),
+            industryProposalSetup: {
+                move: 1,
+                strategicPlanAction: { id: 'plan-1' },
+                contexts: {
+                    agriculture: {
+                        proposalOrdinalForIndustryMove: 1,
+                        isFirstProposalForIndustryMove: true,
+                        canCreateProposal: true
+                    }
+                },
+                engagements: []
+            },
+            canEditFacilitatorNote: false,
+            querySelector(selector) {
+                return selector === '[name="industry"]' ? { value: 'agriculture' } : null;
+            },
+            querySelectorAll(selector) {
+                if (selector === '[data-ts-nav]') return [navButton];
+                return selector === '[name="ts-recipients"]:checked' ? [{ value: 'blue' }] : [];
+            },
+            showIndustryProposalErrors: vi.fn()
+        };
+        const modal = { close: vi.fn() };
+        const controller = new FacilitatorController();
+        controller.teamId = 'industry';
+        controller.role = 'industry_scribe';
+        controller.requireWriteAccess = () => true;
+        controller.getCurrentGameState = () => ({ move: 1, phase: 1 });
+
+        await controller.persistIndustryProposal(modal, form, { forward: false });
+
+        expect(createAction).toHaveBeenCalledTimes(1);
+        expect(updateStore).not.toHaveBeenCalled();
+        expect(createTimelineEvent).not.toHaveBeenCalled();
+        expect(modal.close).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+        expect(showToast).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }));
+        expect(form.dataset.saving).toBe('false');
+        expect(navButton.disabled).toBe(false);
+    });
+
     it('shows the Facilitator note only on the actual Facilitator surface', async () => {
         global.document = createFakeDocument();
         const { FacilitatorController } = await loadFacilitatorModule();

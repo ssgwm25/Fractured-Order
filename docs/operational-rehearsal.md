@@ -75,7 +75,7 @@ A pass requires all of the following from the same working revision:
 - archival rejects a new join and records one `SESSION_CLOSED` audit event; Game Master deletion then hides the archived session, stores a `deleted` tombstone, and appends one `SESSION_DELETED` event without removing evidence;
 - `tests/unit/operational-feature-manifest.test.js` confirms every in-scope feature still has focused and browser evidence and all PLI exclusions remain explicit.
 
-A local pass is browser/workflow evidence only. For hosted evidence, set `PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_OPERATOR_ACCESS_CODE`, `PLAYWRIGHT_DEPLOYED_COMMIT`, and `PLAYWRIGHT_MIGRATION_STATE`, then run `npm run test:e2e:operational`. Hosted success proves the deployed browser and live backend path for the tested revision; infrastructure, database migration, storage, and device checks in the live-demo runbook remain separate release gates.
+A local pass is browser/workflow evidence only. For hosted evidence, set `PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_OPERATOR_ACCESS_CODE`, `PLAYWRIGHT_DEPLOYED_COMMIT`, and `PLAYWRIGHT_MIGRATION_STATE`, then run `npm run test:e2e:operational`. The deployed page must publish that same commit, and the exported release evidence must report migration state `2026-10-07_hosted_release_evidence`, count `66`, the canonical ledger fingerprint, and the same database build hash. Hosted success proves the deployed browser and live backend path for the tested revision; infrastructure, database migration, storage, and device checks in the live-demo runbook remain separate release gates.
 
 ## Latest local evidence
 

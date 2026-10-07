@@ -334,6 +334,9 @@ function isUserSafeDatabaseMessage(message = '') {
 
 function getDatabaseUserMessage(error, fallback) {
     const message = String(error?.message || '');
+    if (message.includes('INDUSTRY_PROPOSAL_RECIPIENT_REQUIRED')) {
+        return 'Select Blue, Red, or both as an intended recipient, then save again.';
+    }
     if (error?.userSafe === true || isUserSafeDatabaseMessage(message)) {
         return message;
     }

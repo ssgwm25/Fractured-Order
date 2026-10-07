@@ -8,6 +8,7 @@ const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
+const E2E_MOCK_REALTIME_CHANGES_KEY = 'esg_e2e_realtime_changes';
 
 export const E2E_MOCK_OPERATOR_ACCESS_CODE = 'admin2025';
 
@@ -17,7 +18,8 @@ export function initializeE2EMockBackendStorage({
     configKey,
     mockConfig,
     mockStateKey,
-    mockAuthKey
+    mockAuthKey,
+    mockRealtimeChangesKey
 }, target = globalThis) {
     // Context init scripts also run in the initial opaque about:blank document.
     // Storage is unavailable there; the script runs again after app navigation.
@@ -35,6 +37,7 @@ export function initializeE2EMockBackendStorage({
     if (!sessionStorageRef.getItem('__esg_e2e_bootstrapped__')) {
         storage.removeItem(mockStateKey);
         storage.removeItem(mockAuthKey);
+        storage.removeItem(mockRealtimeChangesKey);
         sessionKeys.forEach((key) => {
             storage.removeItem(key);
             sessionStorageRef.removeItem(key);
@@ -54,7 +57,8 @@ export async function enableE2EMockBackend(context) {
             operatorAccessCode: E2E_MOCK_OPERATOR_ACCESS_CODE
         },
         mockStateKey: E2E_MOCK_STATE_KEY,
-        mockAuthKey: E2E_MOCK_AUTH_KEY
+        mockAuthKey: E2E_MOCK_AUTH_KEY,
+        mockRealtimeChangesKey: E2E_MOCK_REALTIME_CHANGES_KEY
     });
 }
 

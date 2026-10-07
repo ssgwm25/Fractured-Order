@@ -25,9 +25,10 @@ shared primary workspace is titled `Action handoffs`; both also expose the
 separate `Approved PLI` queue. The browser matrix asserts both levels so a
 shared workflow label cannot erase role identity.
 
-Every SME console header also exposes `Logout`. The shared confirmation flow
-warns about unsaved form edits, preserves saved session data, releases the SME
-seat, clears local session state, and returns the operator to the join screen.
+Every SME console header also exposes `Logout`. The shared unsaved-change guard
+resolves dirty edits before the confirmation flow preserves saved session data,
+releases the SME seat, clears local session state, and returns the operator to
+the join screen. See `docs/WORKFLOW_INTERACTION_CONTRACT.md`.
 
 The Facilitator support-deck readiness check accepts either an assigned image
 slide or an approved inline guidance slide. The unified Green deck intentionally

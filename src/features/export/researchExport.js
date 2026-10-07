@@ -7867,6 +7867,12 @@ export async function buildResearchExportBundle(bundle = {}, {
         export_format_revision: RESEARCH_EXPORT_FORMAT_REVISION,
         export_version: exportVersion,
         software_build_hash: softwareBuildHash || 'unknown',
+        deployment_evidence: {
+            migration_state: bundle.releaseEvidence?.migrationState || null,
+            migration_count: bundle.releaseEvidence?.migrationCount || 0,
+            migration_ledger_sha256: bundle.releaseEvidence?.migrationLedgerSha256 || null,
+            software_build_hash: bundle.releaseEvidence?.softwareBuildHash || softwareBuildHash || null
+        },
         generated_at_utc: asUtcIso(generatedAtUtc),
         generated_by_pseudonym: generatedByPseudonym,
         timezone_declared: 'UTC',

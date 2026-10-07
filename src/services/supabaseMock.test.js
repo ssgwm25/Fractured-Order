@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { serializeStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
+import {
+    REQUIRED_MIGRATION_COUNT,
+    REQUIRED_MIGRATION_LEDGER_SHA256,
+    REQUIRED_MIGRATION_STATE
+} from '../core/releaseEvidence.js';
 import { createE2EMockSupabaseClient, isE2EMockEnabled } from './supabaseMock.js';
 
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_BROADCAST_KEY = 'esg_e2e_realtime_broadcast';
+const E2E_MOCK_REALTIME_CHANGES_KEY = 'esg_e2e_realtime_changes';
 
 class MemoryStorage {
     constructor() {
@@ -98,6 +105,21 @@ afterEach(() => {
 });
 
 describe('supabase mock bootstrap guardrails', () => {
+    it('reports deterministic non-secret release evidence for local rehearsal', async () => {
+        installBrowserRuntime();
+        const mockClient = createE2EMockSupabaseClient();
+
+        await expect(mockClient.rpc('live_demo_release_evidence')).resolves.toEqual({
+            data: {
+                migrationState: REQUIRED_MIGRATION_STATE,
+                migrationCount: REQUIRED_MIGRATION_COUNT,
+                migrationLedgerSha256: REQUIRED_MIGRATION_LEDGER_SHA256,
+                softwareBuildHash: 'mock-build-hash'
+            },
+            error: null
+        });
+    });
+
     it('delivers session-scoped broadcast payloads through the local realtime contract', async () => {
         const runtime = installBrowserRuntime();
         const mockClient = createE2EMockSupabaseClient();
@@ -362,6 +384,150 @@ describe('supabase mock bootstrap guardrails', () => {
         expect(smeAuthorization.error).toBeNull();
         expect(smeAuthorization.data.surface).toBe('sme');
         expect(smeAuthorization.data.role).toBe('sme_econ');
+    });
+
+    it('rejects move advance until all three Industry sectors have a completed proposal', async () => {
+        const { localStorage } = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        const sectorPlan = {
+            businessOverview: 'Produces critical goods for the exercise.',
+            risks: [
+                { type: 'supply_disruption', likelihood: 'high', impact: 'high', tiedCell: 'red' },
+                { type: 'secondary_sanctions_exposure', likelihood: 'medium', impact: 'high', tiedCell: 'blue' },
+                { type: 'reputational', likelihood: 'medium', impact: 'medium', tiedCell: 'green' }
+            ],
+            redPriorities: 'Protect market access and acquire technology.',
+            partners: [{ partner: 'Allied supplier', whyTheyMatter: 'Critical inputs', likelyWant: 'Long-term demand' }],
+            firstAmbassadorTarget: { cell: 'green', reason: 'Coordinate resilient supply.' },
+            strategicPriorities: [
+                { priority: 'Protect capacity', successLooksLike: 'No outage.' },
+                { priority: 'Diversify supply', successLooksLike: 'Second source qualified.' },
+                { priority: 'Preserve access', successLooksLike: 'Markets stay open.' }
+            ],
+            strategicStance: 3,
+            redLine: 'No protected technology transfer.'
+        };
+        const completedOrientation = (team) => ({
+            id: `${team}-orientation`,
+            session_id: 'session-1',
+            team,
+            move: 1,
+            phase: 1,
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            artifact_type: team === 'industry'
+                ? 'strategic_orientation_forecast'
+                : 'strategic_orientation_selection',
+            mechanism: 'Strategic Orientation',
+            ally_contingencies: serializeStrategicOrientationDetails({
+                team,
+                ownOrientation: team === 'industry' ? null : 'stabilization',
+                forecastTargets: [{ key: team === 'blue' ? 'red' : 'blue', orientation: 'stabilization' }],
+                orientationRationale: team === 'red' ? 'Preserve leverage while stabilizing exposure.' : '',
+                forecastActionDescription: team === 'blue' ? 'Red will preserve access while limiting escalation.' : '',
+                strategyDescription: ['green', 'industry'].includes(team) ? 'Protect stability while diversifying exposure.' : '',
+                industryStrategicPlan: team === 'industry' ? {
+                    version: 2,
+                    sectorPlans: {
+                        Agriculture: structuredClone(sectorPlan),
+                        Biotechnology: structuredClone(sectorPlan),
+                        Telecommunications: structuredClone(sectorPlan)
+                    }
+                } : null,
+                scribeHandoff: 'Forwarded'
+            }),
+            is_deleted: false
+        });
+        const completedIndustryProposal = (industry) => ({
+            id: `${industry}-proposal`,
+            session_id: 'session-1',
+            team: 'industry',
+            move: 1,
+            phase: 1,
+            status: 'adjudicated',
+            workflow_state: 'completed',
+            artifact_type: 'proposal',
+            artifact_payload: {
+                proposal: {
+                    industryTurnSheet: { industry, move: 1 }
+                }
+            },
+            is_deleted: false
+        });
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify({
+            tables: {
+                sessions: [{
+                    id: 'session-1',
+                    status: 'active',
+                    session_classification: 'live_exercise',
+                    is_protected: false
+                }],
+                game_state: [{
+                    id: 'game-state-1',
+                    session_id: 'session-1',
+                    move: 1,
+                    phase: 1
+                }],
+                actions: ['blue', 'red', 'green', 'industry'].map(completedOrientation)
+            }
+        }));
+
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        const authorization = await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'whitecell',
+            requested_operator_code: 'playwright-test-code',
+            requested_session_id: 'session-1',
+            requested_role: 'whitecell_lead'
+        });
+        expect(authorization.error).toBeNull();
+
+        for (const [completed, missing] of [
+            [[], ['agriculture', 'biotechnology', 'telecommunications']],
+            [['agriculture'], ['biotechnology', 'telecommunications']],
+            [['agriculture', 'biotechnology'], ['telecommunications']]
+        ]) {
+            const state = globalThis.__ESG_E2E_BACKEND__.dump();
+            state.tables.actions = [
+                ...state.tables.actions.filter((action) => action.artifact_type !== 'proposal'),
+                ...completed.map(completedIndustryProposal)
+            ];
+            localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify(state));
+
+            const rejected = await mockClient.rpc('operator_update_game_state', {
+                requested_session_id: 'session-1',
+                requested_move: 2,
+                requested_phase: 1
+            });
+            expect(rejected).toMatchObject({
+                data: null,
+                error: {
+                    code: '23514',
+                    message: `INDUSTRY_PROPOSALS_INCOMPLETE: ${missing.join(', ')}`
+                }
+            });
+            expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.game_state[0].move).toBe(1);
+        }
+
+        const completeState = globalThis.__ESG_E2E_BACKEND__.dump();
+        completeState.tables.actions = [
+            ...completeState.tables.actions.filter((action) => action.artifact_type !== 'proposal'),
+            ...['agriculture', 'biotechnology', 'telecommunications'].map(completedIndustryProposal)
+        ];
+        localStorage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify(completeState));
+
+        const advanced = await mockClient.rpc('operator_update_game_state', {
+            requested_session_id: 'session-1',
+            requested_move: 2,
+            requested_phase: 1
+        });
+        expect(advanced.error).toBeNull();
+        expect(advanced.data).toMatchObject({ move: 2, phase: 1 });
+        expect(globalThis.__ESG_E2E_BACKEND__.dump().tables.game_state[0].move).toBe(2);
     });
 
     it('mirrors team-neutral action, orientation, and RFI review transitions', async () => {
@@ -1115,6 +1281,83 @@ describe('supabase mock bootstrap guardrails', () => {
 
         await mockClient.from('timeline').select('*');
         expect(requestedLocks).toHaveLength(3);
+    });
+
+    it('publishes compact row changes for realtime subscribers instead of the full backend snapshot', async () => {
+        const runtime = installBrowserRuntime({
+            hostname: '127.0.0.1',
+            webdriver: true,
+            enableMock: true,
+            operatorAccessCode: 'playwright-test-code'
+        });
+        const mockClient = createE2EMockSupabaseClient();
+        await mockClient.auth.signInAnonymously();
+        await mockClient.rpc('authorize_demo_operator', {
+            requested_surface: 'gamemaster',
+            requested_operator_code: 'playwright-test-code',
+            requested_operator_name: 'Mock GM'
+        });
+        const createdSession = await mockClient.rpc('create_live_demo_session', {
+            requested_name: 'Realtime delta session',
+            requested_session_code: 'DELTA19',
+            requested_description: 'Compact mock realtime contract'
+        });
+        const received = [];
+        mockClient
+            .channel('timeline-delta-test')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'timeline',
+                filter: `session_id=eq.${createdSession.data.id}`
+            }, (payload) => received.push(payload))
+            .subscribe();
+
+        const timelineInsert = await mockClient
+            .from('timeline')
+            .insert({
+                session_id: createdSession.data.id,
+                type: 'TEST_EVENT',
+                content: 'Delivered through a compact row-change envelope.'
+            })
+            .select()
+            .single();
+        expect(timelineInsert.error).toBeNull();
+
+        const rawEnvelope = runtime.localStorage.getItem(E2E_MOCK_REALTIME_CHANGES_KEY);
+        const envelope = JSON.parse(rawEnvelope);
+        expect(envelope.changes).toHaveLength(1);
+        expect(envelope).toMatchObject({
+            version: 1,
+            changes: [expect.objectContaining({
+                table: 'timeline',
+                eventType: 'INSERT',
+                new: expect.objectContaining({
+                    id: timelineInsert.data.id,
+                    session_id: createdSession.data.id
+                })
+            })]
+        });
+        expect(rawEnvelope).not.toContain('"tables"');
+
+        runtime.dispatchStorage({
+            key: E2E_MOCK_STATE_KEY,
+            newValue: runtime.localStorage.getItem(E2E_MOCK_STATE_KEY)
+        });
+        expect(received).toEqual([]);
+
+        runtime.dispatchStorage({
+            key: E2E_MOCK_REALTIME_CHANGES_KEY,
+            newValue: rawEnvelope
+        });
+        expect(received).toEqual([expect.objectContaining({
+            eventType: 'INSERT',
+            old: null,
+            new: expect.objectContaining({
+                id: timelineInsert.data.id,
+                content: 'Delivered through a compact row-change envelope.'
+            })
+        })]);
     });
 
     it('enforces the notetaker session-and-move unique constraint used by concurrent-save retries', async () => {

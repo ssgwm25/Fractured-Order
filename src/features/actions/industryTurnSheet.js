@@ -446,6 +446,7 @@ export function validateIndustryTurnSheet(input = {}, { full = true } = {}) {
     const errors = [];
     if (!sheet.industry) error(errors, 'industry', 'Select an industry.', 1);
     if (!sheet.strategicPlanId) error(errors, 'strategicPlanId', 'A completed Industry Strategic Plan is required.', 1);
+    if (!sheet.recipientTeams.length) error(errors, 'recipientTeams', 'Select Blue, Red, or both before saving.', 2);
     if (!full) return errors;
 
     if (sheet.isFirstProposalForIndustryMove) {
@@ -473,7 +474,6 @@ export function validateIndustryTurnSheet(input = {}, { full = true } = {}) {
     }
 
     const decision = sheet.decision;
-    if (!sheet.recipientTeams.length) error(errors, 'recipientTeams', 'Select Blue, Red, or both as intended recipients.', 2);
     if (decision.coordinatedWithOtherSector == null) error(errors, 'decision.coordinatedWithOtherSector', 'Select whether this was coordinated with another sector.', 2);
     if (decision.coordinatedWithOtherSector && !decision.coordinatedSectors.length) error(errors, 'decision.coordinatedSectors', 'Select at least one other sector.', 2);
     if (!decision.status) error(errors, 'decision.status', 'Select the decision status.', 2);
@@ -636,7 +636,17 @@ export function deriveIndustryProposalContext(actions = [], { industry, move, ex
 
 export function getIndustryMoveCoverage(actions = [], move = 1) {
     const completed = new Set((Array.isArray(actions) ? actions : [])
-        .filter((action) => !action?.is_deleted && getArtifactLifecycleViewModel(action).isCompleted)
+        .filter((action) => (
+            !action?.is_deleted
+            && String(action?.team || '').trim().toLowerCase() === 'industry'
+            && action?.artifact_type === 'proposal'
+            && Number(action?.move) === Number(move)
+            && (
+                ['completed', 'forwarded_to_recipient', 'changes_requested', 'rejected']
+                    .includes(String(action?.workflow_state || '').trim().toLowerCase())
+                || String(action?.status || '').trim().toLowerCase() === 'adjudicated'
+            )
+        ))
         .map(getIndustryTurnSheetFromAction)
         .filter((sheet) => sheet && Number(sheet.move) === Number(move))
         .map((sheet) => sheet.industry));

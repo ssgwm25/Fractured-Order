@@ -41,4 +41,16 @@ describe('Start Here audio activation boundary', () => {
             expect(Object.keys(START_HERE_AUDIO_MANIFEST.clips).length).toBeGreaterThan(0);
         }
     });
+
+    it('does not activate superseded clips that promised an unsupported deadline', () => {
+        [
+            '313c4f362eb9f626',
+            '546d2f6d57417280',
+            '78fe78fa1bb369c7',
+            'a97777a4ada559e1',
+            'c2f3a57767cd9a69'
+        ].forEach((contentId) => {
+            expect(START_HERE_AUDIO_MANIFEST.clips).not.toHaveProperty(contentId);
+        });
+    });
 });

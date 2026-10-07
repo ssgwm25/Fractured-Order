@@ -79,6 +79,91 @@ function selectField({ path, label, options, selected = '', escapeHtml, hint = '
     </div>`;
 }
 
+function optionLabel(options, value) {
+    return options.find((option) => (
+        typeof option === 'string' ? option === value : option.value === value
+    ))?.label || titleCase(value) || 'Not recorded';
+}
+
+export function renderIndustryBaselineReference(input = {}, {
+    industryLabel = 'Industry',
+    move = 1,
+    escapeHtml = (value) => String(value ?? '')
+} = {}) {
+    const baseline = normalizeIndustryTurnSheet(input);
+    const proposalNumber = baseline.proposalOrdinalForIndustryMove || 1;
+    const baselineId = baseline.proposalId || baseline.environmentBaselineProposalId || '';
+    const impactLabels = {
+        '-2': 'Major harm',
+        '-1': 'Harm',
+        0: 'Neutral',
+        1: 'Benefit',
+        2: 'Major benefit'
+    };
+    const environmentRows = baseline.environment.actors.map((actor) => {
+        const actorLabel = optionLabel(INDUSTRY_ENVIRONMENT_ACTORS, actor.actor);
+        const codes = actor.actionCodes.map((code) => optionLabel(INDUSTRY_ACTION_CODES, code));
+        const actionSummary = [
+            codes.join(', ') || 'Not recorded',
+            actor.otherActionDescription || ''
+        ].filter(Boolean).join(' - ');
+        const impact = actor.interestImpact == null
+            ? 'Not recorded'
+            : `${actor.interestImpact > 0 ? '+' : ''}${actor.interestImpact} - ${impactLabels[actor.interestImpact]}`;
+        return `<section class="industry-turn-sheet-card">
+            <h4>${escapeHtml(actorLabel)}</h4>
+            <dl class="industry-turn-sheet-context-list">
+                <div><dt>Action codes</dt><dd>${escapeHtml(actionSummary)}</dd></div>
+                <div><dt>What they did / will do</dt><dd>${escapeHtml(actor.actionNarrative || 'Not recorded')}</dd></div>
+                <div><dt>Impact on firm interests</dt><dd>${escapeHtml(impact)}</dd></div>
+                <div><dt>Confidence</dt><dd>${escapeHtml(titleCase(actor.confidence) || 'Not recorded')}</dd></div>
+                <div><dt>Matched forecast</dt><dd>${escapeHtml(titleCase(actor.matchedForecast) || 'Not recorded')}</dd></div>
+            </dl>
+        </section>`;
+    }).join('');
+    const supplyRows = baseline.supplyChain.stages.map((stage) => {
+        const stageLabel = optionLabel(INDUSTRY_SUPPLY_CHAIN_STAGES, stage.stage);
+        const locations = stage.whereWho.map((value) => optionLabel(INDUSTRY_LOCATION_OPTIONS, value));
+        const locationSummary = [
+            locations.join(', ') || 'Not recorded',
+            stage.otherLocationDescription || ''
+        ].filter(Boolean).join(' - ');
+        return `<section class="industry-turn-sheet-card">
+            <h4>${escapeHtml(stageLabel)}</h4>
+            <dl class="industry-turn-sheet-context-list">
+                <div><dt>Where / who</dt><dd>${escapeHtml(locationSummary)}</dd></div>
+                <div><dt>Red dependency</dt><dd>${escapeHtml(titleCase(stage.redDependency) || 'Not recorded')}</dd></div>
+                <div><dt>Planned actions</dt><dd>${escapeHtml(stage.plannedActions.map(titleCase).join(', ') || 'Not recorded')}</dd></div>
+                <div><dt>Notes</dt><dd>${escapeHtml(stage.notes || 'Not recorded')}</dd></div>
+            </dl>
+        </section>`;
+    }).join('');
+
+    return `<div class="industry-turn-sheet-context-banner" data-ts-baseline-proposal-id="${escapeHtml(baselineId)}">
+        <h3>Environment and Supply Chain baseline</h3>
+        <p>Using the ${escapeHtml(industryLabel)} Move ${escapeHtml(String(move))} baseline from Proposal ${escapeHtml(String(proposalNumber))}.</p>
+        <p class="form-hint"><strong>Read-only:</strong> this proposal references the completed baseline and cannot change it.</p>
+        <details>
+            <summary>View complete baseline details</summary>
+            <section aria-labelledby="ts-baseline-environment-heading">
+                <h4 id="ts-baseline-environment-heading">Environment Read</h4>
+                <div class="industry-turn-sheet-review-grid">${environmentRows}</div>
+                <dl class="industry-turn-sheet-context-list">
+                    <div><dt>Biggest surprise this move</dt><dd>${escapeHtml(baseline.environment.biggestSurprise || 'Not recorded')}</dd></div>
+                </dl>
+            </section>
+            <section aria-labelledby="ts-baseline-supply-heading">
+                <h4 id="ts-baseline-supply-heading">Supply Chain Exposure</h4>
+                <div class="industry-turn-sheet-review-grid">${supplyRows}</div>
+                <dl class="industry-turn-sheet-context-list">
+                    <div><dt>Weakest link right now</dt><dd>${escapeHtml(baseline.supplyChain.weakestLink || 'Not recorded')}</dd></div>
+                    <div><dt>Change since last move</dt><dd>${escapeHtml(titleCase(baseline.supplyChain.changeSinceLastMove) || 'Not recorded')}</dd></div>
+                </dl>
+            </section>
+        </details>
+    </div>`;
+}
+
 function renderEnvironment(sheet, escapeHtml) {
     return `<section aria-labelledby="ts-environment-heading">
         <h3 id="ts-environment-heading">Environment Read</h3>
@@ -156,7 +241,7 @@ function renderDecision(sheet, strategicPlan, contexts, escapeHtml) {
         <h3 id="ts-decision-heading">Decision</h3>
         <fieldset class="form-group"><legend class="form-label">Intended recipients <span class="required-indicator">*</span></legend>
             ${checks({ name: 'ts-recipients', options: [{ value: 'blue', label: 'Blue' }, { value: 'red', label: 'Red' }], selected: sheet.recipientTeams, escapeHtml, field: 'recipientTeams', prefix: 'ts-recipient' })}
-            <p class="form-hint">Select Blue, Red, or both. White Cell reviews each recipient independently.</p>
+            <p class="form-hint">Required to save a draft or forward. Select Blue, Red, or both; White Cell reviews each recipient independently.</p>
         </fieldset>
         <fieldset class="form-group"><legend class="form-label">Coordinated with another Industry sector? <span class="required-indicator">*</span></legend>
             ${radios({ name: 'ts-coordinated', options: [{ value: true, label: 'Yes' }, { value: false, label: 'No' }], selected: sheet.decision.coordinatedWithOtherSector, escapeHtml, field: 'decision.coordinatedWithOtherSector', prefix: 'ts-coordinated' })}

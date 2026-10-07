@@ -292,8 +292,10 @@ export function showSendCommunicationModal(options = {}) {
                     label: 'Cancel',
                     variant: 'secondary',
                     onClick: () => {
-                        modalRef.current?.close?.();
-                        resolve(null);
+                        const closed = modalRef.current?.requestClose
+                            ? modalRef.current.requestClose('cancel')
+                            : (modalRef.current?.close?.(), true);
+                        if (closed) resolve(null);
                         return false;
                     }
                 },

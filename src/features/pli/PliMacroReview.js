@@ -337,7 +337,7 @@ export function createPliMacroReview(options = {}) {
             content,
             size: 'md',
             buttons: [
-                { text: 'Cancel', variant: 'secondary', onClick: (modal) => modal.close() },
+                { text: 'Cancel', variant: 'secondary', onClick: (modal) => modal.requestClose?.('cancel') ?? modal.close() },
                 {
                     text: 'Send Back',
                     variant: 'primary',

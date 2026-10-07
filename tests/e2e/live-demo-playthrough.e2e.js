@@ -5,12 +5,18 @@ import { expect, recordRehearsalMetrics, test } from './support/rehearsalTest.js
 
 import { dumpE2EMockBackend } from './support/mockBackend.js';
 import {
+    REQUIRED_MIGRATION_COUNT,
+    REQUIRED_MIGRATION_LEDGER_SHA256,
+    REQUIRED_MIGRATION_STATE
+} from '../../src/core/releaseEvidence.js';
+import {
     adjudicateAction,
     answerRfi,
     appendNotetakerObservation,
     authorizeGameMaster,
     authorizeWhiteCell,
     createDraftAction,
+    createIndustryProposal,
     createIsolatedActorPage,
     createProposal,
     createSessionFromMaster,
@@ -31,6 +37,7 @@ import {
     reviewStrategicOrientation,
     reviseAndResubmitRfi,
     reviseReturnedAction,
+    reviseReturnedIndustryProposal,
     reviseReturnedStrategicOrientation,
     sendFacilitatorCommunication,
     sendWhiteCellCommunication,
@@ -55,8 +62,7 @@ const CURRENT_OUTCOME_LABELS = Object.freeze([
     'FAIL',
     'BACKFIRE'
 ]);
-const REQUIRED_MIGRATION_STATE = '2026-10-01_gc11_research_export_context';
-const PLAYTHROUGH_TIMEOUT_MS = 20 * 60 * 1000;
+const PLAYTHROUGH_TIMEOUT_MS = 30 * 60 * 1000;
 
 function getSourceRevisionEvidence() {
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -229,6 +235,10 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
     const declaredMigrationState = String(process.env.PLAYWRIGHT_MIGRATION_STATE || '').trim();
     if (actorPool.useIndependentContexts) {
         expect(
+            sourceRevision.dirty,
+            'hosted current-head evidence requires a clean checked-out revision'
+        ).toBe(false);
+        expect(
             declaredDeploymentCommit,
             'hosted current-head evidence requires PLAYWRIGHT_DEPLOYED_COMMIT'
         ).toBe(sourceRevision.commit);
@@ -238,6 +248,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
         ).toBe(REQUIRED_MIGRATION_STATE);
     }
     const diagnostics = { pageErrors: [], consoleErrors: [] };
+    const startedAtUtc = new Date().toISOString();
     const sessionCode = buildSessionCode(testInfo.retry);
     const sessionName = `Professional Playthrough ${sessionCode}`;
     const actors = {
@@ -245,6 +256,8 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
     };
     const allActorPages = [];
     const publicActorPages = [];
+    let observedDeployedCommit = null;
+    let observedReleaseEvidence = null;
 
     const createObservedActor = async (name, options = {}) => {
         const page = await actorPool.create(name, options);
@@ -259,6 +272,15 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await authorizeGameMaster(actors.gameMaster, {
                 displayName: 'Playthrough Game Master'
             });
+            observedDeployedCommit = await actors.gameMaster.evaluate(() => (
+                document.documentElement.dataset.deployedCommit || null
+            ));
+            if (actorPool.useIndependentContexts) {
+                expect(
+                    observedDeployedCommit,
+                    'hosted frontend must publish the commit embedded at build time'
+                ).toBe(declaredDeploymentCommit);
+            }
             await createSessionFromMaster(actors.gameMaster, {
                 sessionName,
                 sessionCode,
@@ -375,6 +397,130 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             }
         });
 
+        const rfiQuestions = Object.fromEntries(TEAMS.map((team) => [
+            team,
+            `${TEAM_LABELS[team]} asks for implementation timing guidance`
+        ]));
+        const blueRfiResponse = 'White Cell confirms that implementation begins after the current review window.';
+        const returnedRfiQuestion = 'Blue asks how to sequence the critical-minerals delivery checkpoint';
+        const returnedRfiNotes = 'Name the intended checkpoint and the decision window that requires clarification.';
+        const revisedRfiQuestion = 'Blue asks whether the allied delivery checkpoint occurs before the six-month review window';
+        const returnedRfiAnswer = 'White Cell confirms the allied delivery checkpoint occurs before the six-month review window.';
+        await test.step('retain the simple RFI answer and add returned-RFI edit, resubmission, and answer history', async () => {
+            await runActorOperations(TEAMS.map((team) => () => submitRfi(actors.teams[team].facilitator, {
+                question: rfiQuestions[team]
+            })), { concurrent: actorPool.useIndependentContexts });
+
+            await answerRfi(actors.whiteCellLead, {
+                question: rfiQuestions.blue,
+                response: blueRfiResponse
+            });
+
+            await expect(actors.teams.blue.facilitator.locator('#deckActionFrame')).toContainText(blueRfiResponse);
+            for (const team of TEAMS.filter((team) => team !== 'blue')) {
+                await expect(actors.teams[team].facilitator.locator('#deckActionFrame')).not.toContainText(blueRfiResponse);
+            }
+
+            await submitRfi(actors.teams.blue.facilitator, { question: returnedRfiQuestion });
+            await returnRfi(actors.whiteCellLead, {
+                question: returnedRfiQuestion,
+                notes: returnedRfiNotes
+            });
+            await reviseAndResubmitRfi(actors.teams.blue.facilitator, {
+                originalQuestion: returnedRfiQuestion,
+                revisedQuestion: revisedRfiQuestion,
+                returnNotes: returnedRfiNotes
+            });
+            await answerRfi(actors.whiteCellLead, {
+                question: revisedRfiQuestion,
+                response: returnedRfiAnswer
+            });
+
+            await expect(actors.teams.blue.facilitator.locator('#deckActionFrame')).toContainText(returnedRfiAnswer);
+            await openSidebarSection(actors.whiteCellLead, 'requests');
+            const rfiHistoryTab = actors.whiteCellLead.locator('#rfiHistoryTab');
+            await expect(rfiHistoryTab).toBeVisible();
+            if (await rfiHistoryTab.getAttribute('aria-selected') !== 'true') {
+                await rfiHistoryTab.dispatchEvent('click');
+            }
+            await expect(rfiHistoryTab).toHaveAttribute('aria-selected', 'true');
+            await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(rfiQuestions.blue);
+            await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(revisedRfiQuestion);
+            await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(returnedRfiAnswer);
+        });
+
+        const communicationMessages = [
+            'Blue Facilitator direct communication one',
+            'Blue Facilitator direct communication two'
+        ];
+        await test.step('persist an Industry Facilitator direct message to White Cell', async () => {
+            const facilitatorMessage = 'Industry Facilitator requests direct White Cell guidance.';
+            await sendFacilitatorCommunication(actors.teams.industry.facilitator, {
+                content: facilitatorMessage
+            });
+            await openSidebarSection(actors.whiteCellLead, 'communications');
+            await expect(actors.whiteCellLead.locator('#commHistory')).toContainText(facilitatorMessage);
+            const inboundMessage = actors.whiteCellLead.locator('#commHistory [data-communication-id]')
+                .filter({ hasText: facilitatorMessage });
+            const openMessageButton = inboundMessage.getByRole('button', { name: 'Open message' });
+            await expect(openMessageButton).toBeEnabled({ timeout: 20000 });
+            await openMessageButton.dispatchEvent('click');
+            await expect(openMessageButton).toBeHidden();
+        });
+
+        await test.step('deliver ordered direct communications with exact unread notification behavior', async () => {
+            const blueAlertsBadge = actors.teams.blue.facilitator.locator('#scribeAlertsBadge');
+            for (let index = 0; index < 30 && await blueAlertsBadge.isVisible(); index += 1) {
+                await actors.teams.blue.facilitator.locator('#scribeAlertsBtn').click();
+                await actors.teams.blue.facilitator.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
+            }
+            await expect(blueAlertsBadge).toBeHidden();
+
+            for (const content of communicationMessages) {
+                await sendWhiteCellCommunication(actors.whiteCellLead, {
+                    recipient: 'blue_scribe',
+                    content
+                });
+            }
+
+            await expect(blueAlertsBadge).toHaveText('2');
+            const durableNotice = await waitForDurableNotification(actors.teams.blue.facilitator, {
+                source: 'White Cell',
+                artifact: communicationMessages[1],
+                requiredAction: 'Open and read the message; reply if action is required.'
+            });
+            await actors.teams.blue.facilitator.waitForTimeout(5500);
+            await expect(durableNotice).toBeVisible();
+            const dismissedNotificationId = await durableNotice.getAttribute('data-notification-id');
+            expect(dismissedNotificationId).toBeTruthy();
+            await durableNotice.getByRole('button', { name: 'Dismiss notification' }).click();
+            await expect(durableNotice).toBeHidden();
+            await expect(blueAlertsBadge).toHaveText('2');
+
+            await actors.teams.blue.facilitator.reload();
+            await expect(actors.teams.blue.facilitator.locator('#sessionName')).toContainText(sessionName);
+            await expect(
+                actors.teams.blue.facilitator.locator(
+                    `#toast-container [data-notification-id="${dismissedNotificationId}"]`
+                )
+            ).toHaveCount(0);
+            await expect(blueAlertsBadge).toHaveText('2');
+
+            await actors.teams.blue.facilitator.locator('#scribeAlertsBtn').click();
+            await expect(actors.teams.blue.facilitator.locator('#scribeAlertsList')).toContainText(communicationMessages[1]);
+            await expect(actors.teams.blue.facilitator.locator('#scribeAlertsList')).toContainText(communicationMessages[0]);
+            await expect(blueAlertsBadge).toHaveText('2');
+            await actors.teams.blue.facilitator.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
+            await expect(blueAlertsBadge).toHaveText('1');
+            await actors.teams.blue.facilitator.locator('#scribeAlertsBtn').click();
+            await actors.teams.blue.facilitator.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
+            await expect(blueAlertsBadge).toBeHidden();
+
+            await expect(actors.teams.red.facilitator.locator('#scribeAlertsList')).not.toContainText(communicationMessages[0]);
+            await expect(actors.teams.green.facilitator.locator('#scribeAlertsList')).not.toContainText(communicationMessages[0]);
+            await expect(actors.teams.industry.facilitator.locator('#scribeAlertsList')).not.toContainText(communicationMessages[0]);
+        });
+
         const orientationGoals = {};
         const orientationReturnNotes = 'Clarify the Blue escalation guardrails before Strategic Orientation completion.';
         const correctedOrientationRationale = 'Blue will stabilize partner relationships while retaining explicit escalation guardrails.';
@@ -405,8 +551,13 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 )
             )), { concurrent: actorPool.useIndependentContexts });
 
-            await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toBeEnabled();
-            await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toHaveText('Advance to Move 2');
+            await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toBeDisabled();
+            await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toHaveText(
+                'Awaiting Industry: Agriculture, Biotechnology, Telecommunications'
+            );
+            await expect(actors.whiteCellLead.locator('#nextMoveHelp')).toHaveText(
+                'Complete at least one Industry proposal for: Agriculture, Biotechnology, Telecommunications.'
+            );
 
             for (const team of TEAMS) {
                 await reviewStrategicOrientation(actors.whiteCellLead, {
@@ -453,6 +604,127 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             for (const outcome of CURRENT_OUTCOME_LABELS) {
                 await expect(orientationSurface.getByText(outcome, { exact: true })).toHaveCount(0);
             }
+        });
+
+        const industryProposalTitles = {};
+        const biotechnologyReturnNotes = 'Clarify the Biotechnology position-change trigger before recipient delivery.';
+        const revisedBiotechnologyTrigger = 'Biotechnology changes position if validated supply continuity falls below the current-move threshold.';
+        await test.step('complete structured Industry proposals and prove the zero, one, two, and three-sector move gate', async () => {
+            const expectMoveGateStatus = async (missingIndustries) => {
+                await openSidebarSection(actors.whiteCellLead, 'controls');
+                const missingIndustryLabels = missingIndustries.join(', ');
+                await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toBeDisabled();
+                await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toHaveText(
+                    `Awaiting Industry: ${missingIndustryLabels}`
+                );
+                await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toHaveAttribute(
+                    'title',
+                    `Complete at least one Industry proposal for: ${missingIndustryLabels}.`
+                );
+                await expect(actors.whiteCellLead.locator('#nextMoveHelp')).toHaveText(
+                    `Complete at least one Industry proposal for: ${missingIndustryLabels}.`
+                );
+                await expect(actors.whiteCellLead.locator('#currentMove')).toHaveText('1');
+                await expect(actors.whiteCellLead.locator('.modal-overlay.modal-visible:not(.modal-hiding)').filter({
+                    hasText: 'Advance Move'
+                })).toHaveCount(0);
+            };
+
+            await expectMoveGateStatus(['Agriculture', 'Biotechnology', 'Telecommunications']);
+
+            const agriculture = await createIndustryProposal(actors.teams.industry.scribe, {
+                industry: 'agriculture',
+                recipientTeams: ['red'],
+                saveDraftFirst: true
+            });
+            industryProposalTitles.agriculture = agriculture.title;
+            await submitForwardedProposalFromFacilitator(actors.teams.industry.facilitator, agriculture);
+            await reviewProposal(actors.whiteCellLead, {
+                title: agriculture.title,
+                recipientTeams: ['red'],
+                notes: 'Agriculture proposal completed for the Move 1 coverage gate.'
+            });
+            await respondToForwardedProposal(actors.teams.red.facilitator, {
+                title: agriculture.title,
+                decision: 'accept'
+            });
+            if (!actorPool.useIndependentContexts) {
+                await actors.whiteCellLead.reload();
+                await expect(actors.whiteCellLead.locator('#sessionName')).toContainText(sessionName);
+            }
+            await reviewProposalResponse(actors.whiteCellLead, {
+                title: agriculture.title,
+                senderTeam: 'red'
+            });
+            await expectMoveGateStatus(['Biotechnology', 'Telecommunications']);
+
+            const biotechnology = await createIndustryProposal(actors.teams.industry.scribe, {
+                industry: 'biotechnology',
+                recipientTeams: ['blue']
+            });
+            industryProposalTitles.biotechnology = biotechnology.title;
+            await submitForwardedProposalFromFacilitator(actors.teams.industry.facilitator, biotechnology);
+            await reviewProposal(actors.whiteCellLead, {
+                title: biotechnology.title,
+                decision: 'request_changes',
+                notes: biotechnologyReturnNotes
+            });
+            await actors.teams.industry.scribe.reload();
+            await expect(actors.teams.industry.scribe.locator('#sessionName')).toContainText(sessionName);
+            const revisedBiotechnology = await reviseReturnedIndustryProposal(actors.teams.industry.scribe, {
+                title: biotechnology.title,
+                reviewerNotes: biotechnologyReturnNotes,
+                positionChangeTrigger: revisedBiotechnologyTrigger
+            });
+            expect(revisedBiotechnology.actionId).toBe(biotechnology.actionId);
+            await submitForwardedProposalFromFacilitator(actors.teams.industry.facilitator, biotechnology);
+            await reviewProposal(actors.whiteCellLead, {
+                title: biotechnology.title,
+                recipientTeams: ['blue'],
+                notes: 'Biotechnology revision completed for the Move 1 coverage gate.'
+            });
+            await expectMoveGateStatus(['Telecommunications']);
+
+            const telecommunications = await createIndustryProposal(actors.teams.industry.scribe, {
+                industry: 'telecommunications',
+                recipientTeams: ['blue']
+            });
+            industryProposalTitles.telecommunications = telecommunications.title;
+            await submitForwardedProposalFromFacilitator(actors.teams.industry.facilitator, telecommunications);
+            await reviewProposal(actors.whiteCellLead, {
+                title: telecommunications.title,
+                recipientTeams: ['blue'],
+                notes: 'Telecommunications proposal completed for the Move 1 coverage gate.'
+            });
+            await openSidebarSection(actors.whiteCellLead, 'controls');
+            await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toBeEnabled();
+            await expect(actors.whiteCellLead.locator('#nextMoveBtn')).toHaveText('Advance to Move 2');
+            await expect(actors.whiteCellLead.locator('#nextMoveHelp')).toHaveText(
+                'Industry proposal coverage is complete. Move 2 is available.'
+            );
+
+            const agricultureFollowUp = await createIndustryProposal(actors.teams.industry.scribe, {
+                industry: 'agriculture',
+                recipientTeams: ['blue'],
+                primaryMove: 'lobby_blue',
+                expectBaselineProposal: 1
+            });
+            industryProposalTitles.agricultureFollowUp = agricultureFollowUp.title;
+            await submitForwardedProposalFromFacilitator(actors.teams.industry.facilitator, agricultureFollowUp);
+            await reviewProposal(actors.whiteCellLead, {
+                title: agricultureFollowUp.title,
+                recipientTeams: ['blue'],
+                notes: 'Agriculture Proposal 2 retained its Proposal 1 baseline reference.'
+            });
+
+            await actors.teams.industry.scribe.reload();
+            await expect(actors.teams.industry.scribe.locator('#sessionName')).toContainText(sessionName);
+            await openSidebarSection(actors.teams.industry.scribe, 'actions');
+            const industryActionSurface = actors.teams.industry.scribe.locator('#actionsList');
+            await expect(industryActionSurface).toContainText(agriculture.title);
+            await expect(industryActionSurface).toContainText(biotechnology.title);
+            await expect(industryActionSurface).toContainText(telecommunications.title);
+            await expect(industryActionSurface).toContainText(agricultureFollowUp.title);
         });
 
         await test.step('operate allocations, timer reset, and reversible move and phase progression from White Cell Lead controls', async () => {
@@ -670,9 +942,7 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
                 review: 'forward_to_recipient',
                 response: 'negotiate'
             },
-            { owner: 'industry', title: 'Industry proposal for Red acceptance', recipient: 'red', review: 'forward_to_recipient', response: 'accept' },
             { owner: 'green', title: 'Green proposal for Red non-interest', recipient: 'red', review: 'forward_to_recipient', response: 'not_interested' },
-            { owner: 'industry', title: 'Industry proposal requiring changes', recipient: 'blue', review: 'request_changes' }
         ];
         const dualProposalTitle = 'Green proposal for Blue negotiation';
         const blueNegotiationTerms = 'Add a six-month review clause and a shared delivery checkpoint.';
@@ -809,130 +1079,6 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             }
         });
 
-        const rfiQuestions = Object.fromEntries(TEAMS.map((team) => [
-            team,
-            `${TEAM_LABELS[team]} asks for implementation timing guidance`
-        ]));
-        const blueRfiResponse = 'White Cell confirms that implementation begins after the current review window.';
-        const returnedRfiQuestion = 'Blue asks how to sequence the critical-minerals delivery checkpoint';
-        const returnedRfiNotes = 'Name the intended checkpoint and the decision window that requires clarification.';
-        const revisedRfiQuestion = 'Blue asks whether the allied delivery checkpoint occurs before the six-month review window';
-        const returnedRfiAnswer = 'White Cell confirms the allied delivery checkpoint occurs before the six-month review window.';
-        await test.step('retain the simple RFI answer and add returned-RFI edit, resubmission, and answer history', async () => {
-            await runActorOperations(TEAMS.map((team) => () => submitRfi(actors.teams[team].facilitator, {
-                question: rfiQuestions[team]
-            })), { concurrent: actorPool.useIndependentContexts });
-
-            await answerRfi(actors.whiteCellLead, {
-                question: rfiQuestions.blue,
-                response: blueRfiResponse
-            });
-
-            await expect(actors.teams.blue.facilitator.locator('#deckActionFrame')).toContainText(blueRfiResponse);
-            for (const team of TEAMS.filter((team) => team !== 'blue')) {
-                await expect(actors.teams[team].facilitator.locator('#deckActionFrame')).not.toContainText(blueRfiResponse);
-            }
-
-            await submitRfi(actors.teams.blue.facilitator, { question: returnedRfiQuestion });
-            await returnRfi(actors.whiteCellLead, {
-                question: returnedRfiQuestion,
-                notes: returnedRfiNotes
-            });
-            await reviseAndResubmitRfi(actors.teams.blue.facilitator, {
-                originalQuestion: returnedRfiQuestion,
-                revisedQuestion: revisedRfiQuestion,
-                returnNotes: returnedRfiNotes
-            });
-            await answerRfi(actors.whiteCellLead, {
-                question: revisedRfiQuestion,
-                response: returnedRfiAnswer
-            });
-
-            await expect(actors.teams.blue.facilitator.locator('#deckActionFrame')).toContainText(returnedRfiAnswer);
-            await openSidebarSection(actors.whiteCellLead, 'requests');
-            const rfiHistoryTab = actors.whiteCellLead.locator('#rfiHistoryTab');
-            await expect(rfiHistoryTab).toBeVisible();
-            if (await rfiHistoryTab.getAttribute('aria-selected') !== 'true') {
-                await rfiHistoryTab.dispatchEvent('click');
-            }
-            await expect(rfiHistoryTab).toHaveAttribute('aria-selected', 'true');
-            await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(rfiQuestions.blue);
-            await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(revisedRfiQuestion);
-            await expect(actors.whiteCellLead.locator('#rfiQueuePanel')).toContainText(returnedRfiAnswer);
-        });
-
-        const communicationMessages = [
-            'Blue Facilitator direct communication one',
-            'Blue Facilitator direct communication two'
-        ];
-        await test.step('persist an Industry Facilitator direct message to White Cell', async () => {
-            const facilitatorMessage = 'Industry Facilitator requests direct White Cell guidance.';
-            await sendFacilitatorCommunication(actors.teams.industry.facilitator, {
-                content: facilitatorMessage
-            });
-            await openSidebarSection(actors.whiteCellLead, 'communications');
-            await expect(actors.whiteCellLead.locator('#commHistory')).toContainText(facilitatorMessage);
-            const inboundMessage = actors.whiteCellLead.locator('#commHistory [data-communication-id]')
-                .filter({ hasText: facilitatorMessage });
-            const openMessageButton = inboundMessage.getByRole('button', { name: 'Open message' });
-            await expect(openMessageButton).toBeEnabled({ timeout: 20000 });
-            await openMessageButton.dispatchEvent('click');
-            await expect(openMessageButton).toBeHidden();
-        });
-
-        await test.step('deliver ordered direct communications with exact unread notification behavior', async () => {
-            const blueAlertsBadge = actors.teams.blue.facilitator.locator('#scribeAlertsBadge');
-            for (let index = 0; index < 30 && await blueAlertsBadge.isVisible(); index += 1) {
-                await actors.teams.blue.facilitator.locator('#scribeAlertsBtn').click();
-                await actors.teams.blue.facilitator.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
-            }
-            await expect(blueAlertsBadge).toBeHidden();
-
-            for (const content of communicationMessages) {
-                await sendWhiteCellCommunication(actors.whiteCellLead, {
-                    recipient: 'blue_scribe',
-                    content
-                });
-            }
-
-            await expect(blueAlertsBadge).toHaveText('2');
-            const durableNotice = await waitForDurableNotification(actors.teams.blue.facilitator, {
-                source: 'White Cell',
-                artifact: communicationMessages[1],
-                requiredAction: 'Open and read the message; reply if action is required.'
-            });
-            await actors.teams.blue.facilitator.waitForTimeout(5500);
-            await expect(durableNotice).toBeVisible();
-            const dismissedNotificationId = await durableNotice.getAttribute('data-notification-id');
-            expect(dismissedNotificationId).toBeTruthy();
-            await durableNotice.getByRole('button', { name: 'Dismiss notification' }).click();
-            await expect(durableNotice).toBeHidden();
-            await expect(blueAlertsBadge).toHaveText('2');
-
-            await actors.teams.blue.facilitator.reload();
-            await expect(actors.teams.blue.facilitator.locator('#sessionName')).toContainText(sessionName);
-            await expect(
-                actors.teams.blue.facilitator.locator(
-                    `#toast-container [data-notification-id="${dismissedNotificationId}"]`
-                )
-            ).toHaveCount(0);
-            await expect(blueAlertsBadge).toHaveText('2');
-
-            await actors.teams.blue.facilitator.locator('#scribeAlertsBtn').click();
-            await expect(actors.teams.blue.facilitator.locator('#scribeAlertsList')).toContainText(communicationMessages[1]);
-            await expect(actors.teams.blue.facilitator.locator('#scribeAlertsList')).toContainText(communicationMessages[0]);
-            await expect(blueAlertsBadge).toHaveText('2');
-            await actors.teams.blue.facilitator.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
-            await expect(blueAlertsBadge).toHaveText('1');
-            await actors.teams.blue.facilitator.locator('#scribeAlertsBtn').click();
-            await actors.teams.blue.facilitator.locator('#scribeAlertsList .scribe-alert.is-unread').first().click();
-            await expect(blueAlertsBadge).toBeHidden();
-
-            await expect(actors.teams.red.facilitator.locator('#scribeAlertsList')).not.toContainText(communicationMessages[0]);
-            await expect(actors.teams.green.facilitator.locator('#scribeAlertsList')).not.toContainText(communicationMessages[0]);
-            await expect(actors.teams.industry.facilitator.locator('#scribeAlertsList')).not.toContainText(communicationMessages[0]);
-        });
-
         await test.step('deduplicate every inbound notification family across startup and reconnect reconciliation', async () => {
             const expectedFamilies = {
                 whiteCell: [
@@ -1023,6 +1169,21 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
         });
 
         await test.step('reload representative roles without replaying or losing committed state', async () => {
+            const blueUnreadBadge = actors.teams.blue.facilitator.locator('#scribeAlertsBadge');
+            const readBlueUnreadAlertIds = () => actors.teams.blue.facilitator
+                .locator('#scribeAlertsList .scribe-alert.is-unread')
+                .evaluateAll((entries) => entries
+                    .map((entry) => entry.dataset.notificationId || '')
+                    .filter(Boolean)
+                    .sort());
+            const blueUnreadAlertIdsBeforeReload = await readBlueUnreadAlertIds();
+            expect(blueUnreadAlertIdsBeforeReload.length).toBeGreaterThan(0);
+            expect(new Set(blueUnreadAlertIdsBeforeReload).size).toBe(blueUnreadAlertIdsBeforeReload.length);
+            const expectedBadgeText = blueUnreadAlertIdsBeforeReload.length > 9
+                ? '9+'
+                : String(blueUnreadAlertIdsBeforeReload.length);
+            await expect(blueUnreadBadge).toHaveText(expectedBadgeText);
+
             await runActorOperations([
                 () => actors.teams.green.scribe.reload(),
                 () => actors.teams.blue.facilitator.reload(),
@@ -1035,7 +1196,9 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             await expect(actors.teams.green.scribe.locator('#actionsList')).toContainText('Green proposal for Blue negotiation');
 
             await expect(actors.teams.blue.facilitator.locator('#sessionName')).toContainText(sessionName);
-            await expect(actors.teams.blue.facilitator.locator('#scribeAlertsBadge')).toBeHidden();
+            await expect.poll(readBlueUnreadAlertIds, { timeout: 20000 })
+                .toEqual(blueUnreadAlertIdsBeforeReload);
+            await expect(blueUnreadBadge).toHaveText(expectedBadgeText);
 
             await expect(actors.teams.industry.notetakers[0].locator('#recentCaptures')).toContainText(
                 'Industry Notetaker 1 playthrough observation'
@@ -1069,6 +1232,18 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             expect(manifest.schema_version).toBe('2.0.0');
             expect(manifest.export_format_revision).toBe(11);
             expect(manifest.pli_included).toBe(false);
+            observedReleaseEvidence = manifest.deployment_evidence;
+            expect(observedReleaseEvidence).toEqual({
+                migration_state: REQUIRED_MIGRATION_STATE,
+                migration_count: REQUIRED_MIGRATION_COUNT,
+                migration_ledger_sha256: REQUIRED_MIGRATION_LEDGER_SHA256,
+                software_build_hash: actorPool.useIndependentContexts
+                    ? declaredDeploymentCommit
+                    : 'mock-build-hash'
+            });
+            if (actorPool.useIndependentContexts) {
+                expect(manifest.software_build_hash).toBe(declaredDeploymentCommit);
+            }
             expect(archiveEntries.has('adjudication_content.json')).toBe(false);
             expect(archiveEntries.has('outcome_taxonomy.json')).toBe(false);
             expect(manifest.contract_reconciliation.status).toBe('passed');
@@ -1144,6 +1319,65 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
             expect(dualProposal.recipient_approval_states).toEqual({
                 blue: 'approved_forwarded',
                 red: 'approved_forwarded'
+            });
+
+            const agricultureProposal = proposalContent.find(
+                (proposal) => proposal.title === industryProposalTitles.agriculture
+            );
+            const biotechnologyProposal = proposalContent.find(
+                (proposal) => proposal.title === industryProposalTitles.biotechnology
+            );
+            const telecommunicationsProposal = proposalContent.find(
+                (proposal) => proposal.title === industryProposalTitles.telecommunications
+            );
+            const agricultureFollowUp = proposalContent.find(
+                (proposal) => proposal.title === industryProposalTitles.agricultureFollowUp
+            );
+            expect(agricultureProposal).toMatchObject({
+                workflow_state: 'completed',
+                revision_number: 1,
+                intended_recipient_teams: ['red']
+            });
+            expect(agricultureProposal.full_content.proposal_details.industryTurnSheet).toMatchObject({
+                industry: 'agriculture',
+                move: 1,
+                proposalOrdinalForIndustryMove: 1,
+                isFirstProposalForIndustryMove: true,
+                environmentBaselineProposalId: agricultureProposal.proposal_id,
+                supplyChainBaselineProposalId: agricultureProposal.proposal_id
+            });
+            expect(biotechnologyProposal).toMatchObject({
+                workflow_state: 'completed',
+                revision_number: 2,
+                intended_recipient_teams: ['blue']
+            });
+            expect(biotechnologyProposal.revision_history).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    decision: 'return_to_team',
+                    reviewer_notes: biotechnologyReturnNotes,
+                    revision_number: 1,
+                    next_revision_number: 2
+                })
+            ]));
+            expect(biotechnologyProposal.full_content.proposal_details.industryTurnSheet.positionChangeTrigger)
+                .toBe(revisedBiotechnologyTrigger);
+            expect(telecommunicationsProposal).toMatchObject({
+                workflow_state: 'completed',
+                revision_number: 1,
+                intended_recipient_teams: ['blue']
+            });
+            expect(agricultureFollowUp).toMatchObject({
+                workflow_state: 'completed',
+                revision_number: 1,
+                intended_recipient_teams: ['blue']
+            });
+            expect(agricultureFollowUp.full_content.proposal_details.industryTurnSheet).toMatchObject({
+                industry: 'agriculture',
+                move: 1,
+                proposalOrdinalForIndustryMove: 2,
+                isFirstProposalForIndustryMove: false,
+                environmentBaselineProposalId: agricultureProposal.proposal_id,
+                supplyChainBaselineProposalId: agricultureProposal.proposal_id
             });
 
             for (const [recipient, expectedMessages] of Object.entries({
@@ -1231,16 +1465,22 @@ test('@playthrough eighteen-actor professional rehearsal covers the complete shi
 
         await testInfo.attach('playthrough-diagnostics.json', {
             body: JSON.stringify({
+                scenario: 'eighteen-actor-professional-playthrough',
+                rehearsalRunId: String(process.env.PLAYWRIGHT_REHEARSAL_RUN_ID || '').trim() || null,
+                startedAtUtc,
+                completedAtUtc: new Date().toISOString(),
                 sessionCode,
                 sessionName,
+                syntheticActors: allActorPages.map(({ name }) => name),
                 actorCount: allActorPages.length,
                 sessionSeatCount: 17,
                 backend: actorPool.useIndependentContexts ? 'hosted-real-backend' : 'local-deterministic-mock',
                 sourceRevision,
                 declaredDeploymentCommit: declaredDeploymentCommit || null,
-                migrationState: actorPool.useIndependentContexts
-                    ? declaredMigrationState
-                    : REQUIRED_MIGRATION_STATE,
+                observedDeployedCommit,
+                migrationState: observedReleaseEvidence?.migration_state || declaredMigrationState || null,
+                migrationCount: observedReleaseEvidence?.migration_count || null,
+                migrationLedgerSha256: observedReleaseEvidence?.migration_ledger_sha256 || null,
                 diagnostics
             }, null, 2),
             contentType: 'application/json'

@@ -367,6 +367,7 @@ export const WHITE_CELL_DOM_IDS = [
     'nextPhaseBtn',
     'prevMoveBtn',
     'nextMoveBtn',
+    'nextMoveHelp',
     'currentMove',
     'moveControlSequence',
     'moveProgressStrategicOrientation',
@@ -2598,6 +2599,7 @@ export class WhiteCellController {
     } = {}) {
         const prevMoveBtn = document.getElementById('prevMoveBtn');
         const nextMoveBtn = document.getElementById('nextMoveBtn');
+        const nextMoveHelp = document.getElementById('nextMoveHelp');
         const prevPhaseBtn = document.getElementById('prevPhaseBtn');
         const nextPhaseBtn = document.getElementById('nextPhaseBtn');
 
@@ -2606,10 +2608,15 @@ export class WhiteCellController {
             if (nextMoveBtn) nextMoveBtn.disabled = true;
             if (prevPhaseBtn) prevPhaseBtn.disabled = true;
             if (nextPhaseBtn) nextPhaseBtn.disabled = true;
+            if (nextMoveHelp) nextMoveHelp.textContent = 'White Cell support is read-only for move controls.';
             return;
         }
 
         const orientationGateTitle = 'Strategic Orientation is still open.';
+        const industryCoverage = getIndustryMoveCoverage(actionsStore.getAll(), move);
+        const missingIndustryLabels = industryCoverage.missing.map(({ label }) => label).join(', ');
+        const industryMoveGateActive = move < 3 && !industryCoverage.complete;
+        const industryGateMessage = `Complete at least one Industry proposal for: ${missingIndustryLabels}.`;
 
         if (prevMoveBtn) {
             prevMoveBtn.disabled = move <= 1;
@@ -2623,14 +2630,30 @@ export class WhiteCellController {
         }
 
         if (nextMoveBtn) {
-            nextMoveBtn.disabled = move >= 3 || orientationMoveGateActive;
+            nextMoveBtn.disabled = move >= 3 || orientationMoveGateActive || industryMoveGateActive;
             nextMoveBtn.setAttribute?.('aria-disabled', nextMoveBtn.disabled ? 'true' : 'false');
             nextMoveBtn.textContent = orientationMoveGateActive
                 ? 'Awaiting Orientation'
-                : (move >= 3 ? 'Final Move' : `Advance to Move ${move + 1}`);
+                : (move >= 3
+                    ? 'Final Move'
+                    : (industryMoveGateActive
+                        ? `Awaiting Industry: ${missingIndustryLabels}`
+                        : `Advance to Move ${move + 1}`));
             nextMoveBtn.title = orientationMoveGateActive
                 ? orientationGateTitle
-                : (move >= 3 ? 'Already at the final move.' : `Advance to Move ${move + 1}.`);
+                : (move >= 3
+                    ? 'Already at the final move.'
+                    : (industryMoveGateActive ? industryGateMessage : `Advance to Move ${move + 1}.`));
+        }
+
+        if (nextMoveHelp) {
+            nextMoveHelp.textContent = orientationMoveGateActive
+                ? 'Complete Strategic Orientation before advancing the move.'
+                : (move >= 3
+                    ? 'Move 3 is the final move.'
+                    : (industryMoveGateActive
+                        ? industryGateMessage
+                        : `Industry proposal coverage is complete. Move ${move + 1} is available.`));
         }
 
         if (prevPhaseBtn) {

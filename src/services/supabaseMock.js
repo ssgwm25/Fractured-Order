@@ -1,17 +1,26 @@
 import { parseProposalDetails } from '../features/actions/proposalDetails.js';
 import { parseTeamRole } from '../core/teamContext.js';
+import { getIndustryMoveCoverage } from '../features/actions/industryTurnSheet.js';
 import { getStrategicOrientationCompletion, parseStrategicOrientationDetails } from '../features/actions/strategicOrientationDetails.js';
+import {
+    REQUIRED_MIGRATION_COUNT,
+    REQUIRED_MIGRATION_LEDGER_SHA256,
+    REQUIRED_MIGRATION_STATE
+} from '../core/releaseEvidence.js';
 
 const E2E_MOCK_ENABLEMENT_KEY = '__esg_e2e_mock_enabled';
 const E2E_MOCK_CONFIG_KEY = '__esg_e2e_mock_config';
 const E2E_MOCK_STATE_KEY = 'esg_e2e_backend_state';
 const E2E_MOCK_AUTH_KEY = 'esg_e2e_auth_session';
 const E2E_MOCK_BROADCAST_KEY = 'esg_e2e_realtime_broadcast';
+const E2E_MOCK_REALTIME_CHANGES_KEY = 'esg_e2e_realtime_changes';
 const E2E_MOCK_TEST_CONFIG_GLOBAL = '__ESG_E2E_TEST_CONFIG__';
 const E2E_MOCK_STATE_WRITE_LOCK = 'esg-e2e-backend-state-write';
 const E2E_MOCK_ALLOWED_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 const DECOMMISSIONED_SESSION_IDS = new Set(['00000000-0000-4000-8000-000000002026']);
 let mockAnonymousAuthSequence = 0;
+let mockRealtimeStateCacheKey = null;
+let mockRealtimeStateCache = null;
 const DEFAULT_TIMER_ALLOCATIONS = Object.freeze({
     strategic_orientation: 5400,
     move_1: 5400,
@@ -169,6 +178,21 @@ function buildInitialMockState() {
             config_key: 'software_build_hash',
             config_value: 'mock-build-hash',
             updated_at: getTimestamp()
+        },
+        {
+            config_key: 'migration_state',
+            config_value: REQUIRED_MIGRATION_STATE,
+            updated_at: getTimestamp()
+        },
+        {
+            config_key: 'migration_count',
+            config_value: String(REQUIRED_MIGRATION_COUNT),
+            updated_at: getTimestamp()
+        },
+        {
+            config_key: 'migration_ledger_sha256',
+            config_value: REQUIRED_MIGRATION_LEDGER_SHA256,
+            updated_at: getTimestamp()
         }
     ];
 
@@ -194,13 +218,52 @@ function readMockState() {
     }
 }
 
+function readMockStateForRealtimeEvent(eventValue) {
+    if (mockRealtimeStateCacheKey !== eventValue || !mockRealtimeStateCache) {
+        mockRealtimeStateCacheKey = eventValue;
+        mockRealtimeStateCache = readMockState();
+        queueMicrotask(() => {
+            if (mockRealtimeStateCacheKey === eventValue) {
+                mockRealtimeStateCacheKey = null;
+                mockRealtimeStateCache = null;
+            }
+        });
+    }
+
+    return mockRealtimeStateCache;
+}
+
 function writeMockState(state) {
     const storage = getStorage();
     if (!storage) {
         return;
     }
 
-    storage.setItem(E2E_MOCK_STATE_KEY, JSON.stringify(state));
+    const previousState = parseMockStateSnapshot(storage.getItem(E2E_MOCK_STATE_KEY));
+    const serializedState = JSON.stringify(state);
+    const changes = MOCK_TABLES.flatMap((tableName) => (
+        diffMockTableRows(
+            previousState.tables?.[tableName] || [],
+            state.tables?.[tableName] || []
+        ).map((change) => ({ table: tableName, ...change }))
+    ));
+
+    storage.setItem(E2E_MOCK_STATE_KEY, serializedState);
+    if (changes.length > 0) {
+        let previousSequence = 0;
+        try {
+            previousSequence = Number(JSON.parse(
+                storage.getItem(E2E_MOCK_REALTIME_CHANGES_KEY) || 'null'
+            )?.sequence) || 0;
+        } catch (_error) {
+            previousSequence = 0;
+        }
+        storage.setItem(E2E_MOCK_REALTIME_CHANGES_KEY, JSON.stringify({
+            version: 1,
+            sequence: previousSequence + 1,
+            changes
+        }));
+    }
 }
 
 let fallbackStateWriteQueue = Promise.resolve();
@@ -301,7 +364,7 @@ function diffMockTableRows(previousRows = [], nextRows = []) {
         }
 
         const previousRow = previousMap.get(rowId);
-        if (!compareValues(previousRow, nextRow)) {
+        if (JSON.stringify(previousRow) !== JSON.stringify(nextRow)) {
             changes.push({
                 eventType: 'UPDATE',
                 old: cloneValue(previousRow),
@@ -386,54 +449,64 @@ function createMockRealtimeChannel(channelName = '') {
                         return;
                     }
 
-                    if (event.key !== E2E_MOCK_STATE_KEY) {
+                    if (event.key !== E2E_MOCK_REALTIME_CHANGES_KEY) {
                         return;
                     }
 
-                    const previousState = parseMockStateSnapshot(event.oldValue);
-                    const nextState = parseMockStateSnapshot(event.newValue);
-                    const subscribedTables = [...new Set(subscriptions.map((entry) => entry.config?.table).filter(Boolean))];
+                    let envelope = null;
+                    try {
+                        envelope = event.newValue ? JSON.parse(event.newValue) : null;
+                    } catch (_error) {
+                        envelope = null;
+                    }
+                    if (envelope?.version !== 1 || !Array.isArray(envelope.changes)) {
+                        return;
+                    }
 
-                    subscribedTables.forEach((tableName) => {
-                        const changes = diffMockTableRows(
-                            previousState.tables?.[tableName] || [],
-                            nextState.tables?.[tableName] || []
-                        );
+                    const subscribedTableSet = new Set(
+                        subscriptions.map((entry) => entry.config?.table).filter(Boolean)
+                    );
+                    const relevantChanges = envelope.changes.filter((change) => (
+                        subscribedTableSet.has(change?.table)
+                    ));
+                    if (relevantChanges.length === 0) {
+                        return;
+                    }
 
-                        changes.forEach((change) => {
-                            const row = change.new || change.old;
-                            if (isRegionalSession(nextState, row?.session_id)
-                                && !canReadTableRow(nextState, tableName, row, getCurrentAuthUserId())) return;
-                            subscriptions.forEach((subscription) => {
-                                if (subscription.eventName !== 'postgres_changes') {
-                                    return;
-                                }
+                    const currentState = readMockStateForRealtimeEvent(event.newValue);
+                    relevantChanges.forEach((change) => {
+                        const row = change.new || change.old;
+                        if (isRegionalSession(currentState, row?.session_id)
+                            && !canReadTableRow(currentState, change.table, row, getCurrentAuthUserId())) return;
+                        subscriptions.forEach((subscription) => {
+                            if (subscription.eventName !== 'postgres_changes') {
+                                return;
+                            }
 
-                                if (subscription.config?.schema && subscription.config.schema !== 'public') {
-                                    return;
-                                }
+                            if (subscription.config?.schema && subscription.config.schema !== 'public') {
+                                return;
+                            }
 
-                                if (subscription.config?.table !== tableName) {
-                                    return;
-                                }
+                            if (subscription.config?.table !== change.table) {
+                                return;
+                            }
 
-                                if (
-                                    subscription.config?.event
-                                    && subscription.config.event !== '*'
-                                    && subscription.config.event !== change.eventType
-                                ) {
-                                    return;
-                                }
+                            if (
+                                subscription.config?.event
+                                && subscription.config.event !== '*'
+                                && subscription.config.event !== change.eventType
+                            ) {
+                                return;
+                            }
 
-                                if (!matchesRealtimeFilter(change, subscription.config)) {
-                                    return;
-                                }
+                            if (!matchesRealtimeFilter(change, subscription.config)) {
+                                return;
+                            }
 
-                                subscription.callback({
-                                    eventType: change.eventType,
-                                    old: cloneValue(change.old),
-                                    new: cloneValue(change.new)
-                                });
+                            subscription.callback({
+                                eventType: change.eventType,
+                                old: cloneValue(change.old),
+                                new: cloneValue(change.new)
                             });
                         });
                     });
@@ -2455,6 +2528,21 @@ function orientationGateError(state, next, old = null) {
     return result.complete ? null : { code: '23514', message: `Strategic Orientation submissions missing: ${result.missingTeams.join(', ')}` };
 }
 
+function industryProposalMoveGateError(state, next, old = null) {
+    if (!old || next.session_id !== old.session_id || Number(next.move) <= Number(old.move)) return null;
+
+    const coverage = getIndustryMoveCoverage(
+        state.tables.actions.filter((action) => action.session_id === old.session_id),
+        old.move
+    );
+    if (coverage.complete) return null;
+
+    return {
+        code: '23514',
+        message: `INDUSTRY_PROPOSALS_INCOMPLETE: ${coverage.missing.map(({ value }) => value).join(', ')}`
+    };
+}
+
 function regionalOrientationOperation(state, params, operation) {
     const auth = getCurrentAuthUserId();
     const sid = params.requested_session_id;
@@ -2548,6 +2636,8 @@ function operatorUpdateGameState(state, params) {
 
     const gateError = orientationGateError(state, updated, gameState);
     if (gateError) return { data: null, error: gateError };
+    const industryGateError = industryProposalMoveGateError(state, updated, gameState);
+    if (industryGateError) return { data: null, error: industryGateError };
 
     state.tables.game_state = state.tables.game_state.map((entry) => (
         entry.id === updated.id ? updated : entry
@@ -4480,6 +4570,23 @@ export function createE2EMockSupabaseClient() {
 
                 return {
                     data: buildHash,
+                    error: null
+                };
+            }
+
+            if (functionName === 'live_demo_release_evidence') {
+                const state = readMockState();
+                const config = Object.fromEntries(state.tables.live_demo_runtime_config.map((entry) => [
+                    entry.config_key,
+                    entry.config_value
+                ]));
+                return {
+                    data: {
+                        migrationState: config.migration_state || null,
+                        migrationCount: Number(config.migration_count || 0),
+                        migrationLedgerSha256: config.migration_ledger_sha256 || null,
+                        softwareBuildHash: config.software_build_hash || null
+                    },
                     error: null
                 };
             }

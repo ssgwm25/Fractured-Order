@@ -461,8 +461,9 @@
                                         </div>
                                         <div class="flex gap-2">
                                             <button class="btn btn-secondary flex-1" id="prevMoveBtn" disabled>Previous</button>
-                                            <button class="btn btn-primary flex-1" id="nextMoveBtn">Next Move</button>
+                                            <button class="btn btn-primary flex-1" id="nextMoveBtn" aria-describedby="nextMoveHelp">Next Move</button>
                                         </div>
+                                        <p class="text-sm text-gray-500 mt-2" id="nextMoveHelp" aria-live="polite">Move gate status is loading.</p>
                                     </div>
 
                                     <!-- Phase Control -->

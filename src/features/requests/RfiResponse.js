@@ -210,7 +210,7 @@ export function createRfiResponseQueue(options = {}) {
                 {
                     text: 'Cancel',
                     variant: 'secondary',
-                    onClick: (modal) => modal.close()
+                    onClick: (modal) => modal.requestClose?.('cancel') ?? modal.close()
                 },
                 {
                     text: 'Send Response',
@@ -279,7 +279,7 @@ export function createRfiResponseQueue(options = {}) {
                 {
                     text: 'Cancel',
                     variant: 'secondary',
-                    onClick: (modal) => modal.close()
+                    onClick: (modal) => modal.requestClose?.('cancel') ?? modal.close()
                 },
                 {
                     text: 'Withdraw RFI',

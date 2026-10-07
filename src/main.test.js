@@ -196,7 +196,7 @@ describe('logout confirmation flow', () => {
 
         expect(getLogoutConfirmationOptions({ actionLabel: 'Logout' })).toEqual({
             title: 'Log out of this session?',
-            message: 'You will not lose saved session data. Logging out only releases this seat. Save any unsaved edits in the current form before you continue.',
+            message: 'Saved session data remains available. Logging out releases only this seat.',
             confirmLabel: 'Logout',
             cancelLabel: 'Stay Here',
             variant: 'warning'
@@ -218,6 +218,27 @@ describe('logout confirmation flow', () => {
         expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
             title: 'Log out of this session?',
             confirmLabel: 'Logout'
+        }));
+        expect(performLogoutRef).not.toHaveBeenCalled();
+    });
+
+    it('retains dirty edits and the seat when discard is declined after confirming logout', async () => {
+        const confirmDialog = vi.fn().mockResolvedValue(true);
+        const performLogoutRef = vi.fn();
+        const requestDiscardRef = vi.fn().mockReturnValue(false);
+        const { requestLogout } = await import('./main.js');
+
+        const loggedOut = await requestLogout({
+            actionLabel: 'Disconnect',
+            confirmDialog,
+            performLogoutRef,
+            requestDiscardRef
+        });
+
+        expect(loggedOut).toBe(false);
+        expect(requestDiscardRef).toHaveBeenCalledWith({ reason: 'role-session-switch' });
+        expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Disconnect from this session?'
         }));
         expect(performLogoutRef).not.toHaveBeenCalled();
     });
