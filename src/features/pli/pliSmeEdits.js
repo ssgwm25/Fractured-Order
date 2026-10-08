@@ -14,7 +14,7 @@ import {
     buildSourceActionPresentation,
     scaleIndicatorToPeak,
     engineIndicatorPeak,
-    indicatorHasEffectWindow
+    referenceWeights
 } from './pliShared.js';
 
 export const PLI_PACKET_VERSION = 'pli-sme-packet.v1';
@@ -273,11 +273,11 @@ export function collectMacroOverrideFromCard(card, row) {
     const rationale = String(readInput(card, '[data-pli-rationale]')).trim();
     const trend = engineMacroTrend(row);
     const indicators = { ...(trend.indicators || {}) };
+    const borrowedWeights = referenceWeights(indicators);
     const inputs = typeof card?.querySelectorAll === 'function'
         ? card.querySelectorAll('[data-pli-macro-peak]')
         : [];
     inputs.forEach((input) => {
-        if (input.disabled) return;
         const key = input.getAttribute?.('data-pli-macro-peak');
         if (!key || !indicators[key]) return;
         const raw = String(input.value ?? '').trim();
@@ -286,7 +286,7 @@ export function collectMacroOverrideFromCard(card, row) {
             indicators[key] = { ...indicators[key], delta_value: Number.NaN };
             return;
         }
-        const scaled = scaleIndicatorToPeak(indicators[key], peak);
+        const scaled = scaleIndicatorToPeak(indicators[key], peak, borrowedWeights);
         if (!scaled?.scalable) return;
         indicators[key] = stripScaleFlag(scaled);
     });
@@ -308,7 +308,6 @@ export function validateMacroOverride(overrideValue) {
     const keys = Object.keys(indicators);
     if (!keys.length) return 'No indicator modulations to save';
     for (const indicator of Object.values(indicators)) {
-        if (!indicatorHasEffectWindow(indicator)) continue;
         if (!Number.isFinite(Number(indicator.delta_value))) {
             return 'Each indicator peak must be a number';
         }

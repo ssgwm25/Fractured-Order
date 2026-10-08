@@ -28,7 +28,7 @@ import {
     indicatorChartSvgHtml,
     scaleIndicatorToPeak,
     engineIndicatorPeak,
-    indicatorHasEffectWindow,
+    referenceWeights,
     createSeatPanelShell,
     emptyState,
     sourceActionColumn,
@@ -278,19 +278,17 @@ export function createPliMacroReview(options = {}) {
         }
         host.innerHTML = `
             <div class="pli-label" style="margin-top: var(--space-3);">Peak modulation (percentage points)</div>
-            <p class="text-sm text-gray-600">The gold line keeps the engine shape. Change only how far it moves from baseline.</p>
+            <p class="text-sm text-gray-600">Type a peak for any indicator. A series this action already moved keeps that quarterly shape. A flat series uses the same shape.</p>
             <div class="pli-field-grid">
                 ${entries.map(([key, indicator]) => {
                     const label = indicator?.label || key;
                     const inputId = `pli-macro-peak-${rowId}-${key}`;
                     const peak = engineIndicatorPeak(indicator);
-                    const scalable = indicatorHasEffectWindow(indicator);
                     return `
                         <div class="form-group pli-edit-field">
                             <label class="form-label" for="${escapeHtml(inputId)}">${escapeHtml(label)} (pp)</label>
                             <input id="${escapeHtml(inputId)}" type="number" step="0.01" class="form-input" data-pli-macro-peak="${escapeHtml(key)}"
-                                value="${escapeHtml(String(peak))}" ${scalable ? '' : 'disabled'}>
-                            ${scalable ? '' : '<p class="text-sm text-gray-500">No shaped path to scale.</p>'}
+                                value="${escapeHtml(String(peak))}">
                         </div>`;
                 }).join('')}
             </div>`;
@@ -305,7 +303,7 @@ export function createPliMacroReview(options = {}) {
                 const raw = String(input.value ?? '').trim();
                 const peak = Number(raw);
                 if (!key || raw === '' || !Number.isFinite(peak)) return;
-                const scaled = scaleIndicatorToPeak(trend.indicators?.[key], peak);
+                const scaled = scaleIndicatorToPeak(trend.indicators?.[key], peak, referenceWeights(trend.indicators));
                 if (!scaled?.scalable) return;
                 const holder = card.querySelector(`[data-pli-chart="${key}"]`);
                 if (holder) holder.innerHTML = indicatorChartSvgHtml(periods, scaled);

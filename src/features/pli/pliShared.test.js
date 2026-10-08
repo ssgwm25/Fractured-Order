@@ -17,6 +17,7 @@ import {
     scaleIndicatorToPeak,
     engineIndicatorPeak,
     indicatorHasEffectWindow,
+    referenceWeights,
     buildSourceActionPresentation,
     sourceActionColumn
 } from './pliShared.js';
@@ -195,18 +196,32 @@ describe('pliShared', () => {
         expect(engineIndicatorPeak(indicator)).toBe(1);
     });
 
-    it('does not invent a path when every weight and delta is zero', () => {
-        const indicator = {
+    it('gives a flat indicator the action shape, and a level shift when the action has none', () => {
+        const flat = {
+            label: 'PCE inflation',
+            favorable_direction: -1,
             delta_value: 0,
             weights: [0, 0, 0],
-            baseline: [1, 1, 1],
+            baseline: [2, 2, 2],
             deltas: [0, 0, 0],
-            post_action: [1, 1, 1]
+            post_action: [2, 2, 2]
         };
-        expect(indicatorHasEffectWindow(indicator)).toBe(false);
-        const scaled = scaleIndicatorToPeak(indicator, 3);
-        expect(scaled.scalable).toBe(false);
-        expect(scaled.deltas).toEqual([0, 0, 0]);
+        expect(indicatorHasEffectWindow(flat)).toBe(false);
+        const unchanged = scaleIndicatorToPeak(flat, 0, [0, 0.5, 1]);
+        expect(unchanged.delta_value).toBe(0);
+        expect(unchanged.deltas).toEqual([0, 0, 0]);
+
+        const borrowed = scaleIndicatorToPeak(flat, 0.4, [0, 0.5, 1]);
+        expect(borrowed.scalable).toBe(true);
+        expect(borrowed.weights).toEqual([0, 0.5, 1]);
+        expect(borrowed.deltas).toEqual([0, 0.2, 0.4]);
+        expect(borrowed.post_action).toEqual([2, 2.2, 2.4]);
+        expect(borrowed.verdict).toBe('unfavorable');
+        expect(referenceWeights({ gdp: { weights: [0, 0.5, 1] }, pce: flat })).toEqual([0, 0.5, 1]);
+
+        const held = scaleIndicatorToPeak(flat, 0.4);
+        expect(held.deltas).toEqual([0.4, 0.4, 0.4]);
+        expect(held.post_action).toEqual([2.4, 2.4, 2.4]);
         expect(indicatorChartSvgHtml(['2026Q1'], { label: 'GDP', baseline: [1], post_action: [1] })).toContain('GDP');
     });
 });

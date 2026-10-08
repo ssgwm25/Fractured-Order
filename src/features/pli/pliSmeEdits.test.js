@@ -115,6 +115,33 @@ describe('pliSmeEdits', () => {
         expect(buildMacroEditDiff(row, collected.override_value).fields[0].path).toContain('delta_value');
     });
 
+    it('applies a peak to an indicator the action left flat', () => {
+        const row = sampleRow();
+        row.record.tracks.macro.trend.indicators.pce_inflation = {
+            label: 'PCE inflation (Q4/Q4, %)',
+            favorable_direction: -1,
+            delta_value: 0,
+            weights: [0, 0, 0],
+            baseline: [2, 2, 2],
+            deltas: [0, 0, 0],
+            post_action: [2, 2, 2],
+            verdict: 'neutral'
+        };
+        const collected = collectMacroOverrideFromCard(fakeCard({
+            '[data-pli-rationale]': 'Inflation should move too'
+        }, [peakInput('pce_inflation', 0.4)]), row);
+        const pce = collected.override_value.trend.indicators.pce_inflation;
+        expect(pce.delta_value).toBe(0.4);
+        expect(pce.deltas).toEqual([0, 0.2, 0.4]);
+        expect(pce.post_action).toEqual([2, 2.2, 2.4]);
+        expect(collected.edit_diff.fields).toEqual([{
+            path: 'macro.trend.indicators.pce_inflation.delta_value',
+            engine: '0',
+            sme: '0.4'
+        }]);
+        expect(validateMacroOverride(collected.override_value)).toBeNull();
+    });
+
     it('collects NI domain and Glasl stage edits into override_value', () => {
         const row = sampleRow();
         const collected = collectNiOverrideFromCard(fakeCard({

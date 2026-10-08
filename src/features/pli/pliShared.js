@@ -321,27 +321,43 @@ function indicatorVerdict(deltas, favorableDirection) {
     return net > 0 ? 'favorable' : 'unfavorable';
 }
 
+function weightsHaveShape(weights) {
+    return Array.isArray(weights) && weights.some((weight) => Math.abs(Number(weight)) > 1e-12);
+}
+
+/** Quarterly shape already used by another indicator on this action. */
+export function referenceWeights(indicators = {}) {
+    for (const indicator of Object.values(indicators || {})) {
+        if (weightsHaveShape(indicator?.weights)) return indicator.weights.map(Number);
+    }
+    return null;
+}
+
 /**
- * Rescale an indicator's existing quarterly shape to a new peak.
- * Returns null when the peak is not a number. Returns `{ scalable: false }`
- * when there is no non-zero weight or delta path to scale.
+ * Rescale an indicator to a new peak in percentage points.
+ * Keeps that indicator's quarterly weights when the action already moved it.
+ * A flat indicator borrows another indicator's weights on the same action.
+ * With no shape anywhere, the peak is held on every baseline quarter.
+ * Returns null when the peak is not a number.
  * @param {Object} indicator
  * @param {number} peak percentage points
+ * @param {number[]|null} [fallbackWeights]
  */
-export function scaleIndicatorToPeak(indicator = {}, peak) {
+export function scaleIndicatorToPeak(indicator = {}, peak, fallbackWeights = null) {
     const nextPeak = Number(peak);
     if (!Number.isFinite(nextPeak)) return null;
-    if (!indicatorHasEffectWindow(indicator)) {
-        return { ...indicator, scalable: false };
-    }
 
-    const weights = Array.isArray(indicator.weights) ? indicator.weights.map(Number) : null;
+    const ownWeights = Array.isArray(indicator.weights) ? indicator.weights.map(Number) : null;
     const priorDeltas = Array.isArray(indicator.deltas) ? indicator.deltas.map(Number) : [];
-    const useWeights = Boolean(weights?.some((weight) => Math.abs(weight) > 1e-12));
+    const borrowed = Array.isArray(fallbackWeights) ? fallbackWeights.map(Number) : null;
+    const baseline = (Array.isArray(indicator.baseline) ? indicator.baseline : []).map(Number);
+    let weights = null;
     let deltas;
-    if (useWeights) {
+
+    if (weightsHaveShape(ownWeights)) {
+        weights = ownWeights;
         deltas = weights.map((weight) => roundPp(nextPeak * weight));
-    } else {
+    } else if (priorDeltas.some((delta) => Math.abs(delta) > 1e-12)) {
         const explicit = Number(indicator.delta_value);
         const fromDeltas = priorDeltas.reduce(
             (best, delta) => (Math.abs(delta) > Math.abs(best) ? delta : best),
@@ -352,9 +368,17 @@ export function scaleIndicatorToPeak(indicator = {}, peak) {
             : fromDeltas;
         const scale = Math.abs(oldPeak) < 1e-12 ? 0 : nextPeak / oldPeak;
         deltas = priorDeltas.map((delta) => roundPp(delta * scale));
+    } else if (Math.abs(nextPeak) < 1e-12) {
+        return { ...indicator, scalable: true, delta_value: 0 };
+    } else if (weightsHaveShape(borrowed)) {
+        weights = borrowed;
+        deltas = weights.map((weight) => roundPp(nextPeak * weight));
+    } else {
+        const length = Math.max(baseline.length, priorDeltas.length, 1);
+        weights = Array(length).fill(1);
+        deltas = weights.map(() => roundPp(nextPeak));
     }
 
-    const baseline = (Array.isArray(indicator.baseline) ? indicator.baseline : []).map(Number);
     while (baseline.length < deltas.length) {
         baseline.push(baseline.length ? baseline[baseline.length - 1] : 0);
     }
@@ -364,6 +388,7 @@ export function scaleIndicatorToPeak(indicator = {}, peak) {
         ...indicator,
         scalable: true,
         delta_value: roundPp(nextPeak),
+        ...(weights ? { weights } : {}),
         deltas,
         baseline,
         post_action: postAction,
