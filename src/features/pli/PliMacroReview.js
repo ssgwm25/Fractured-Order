@@ -59,7 +59,26 @@ export function createPliMacroReview(options = {}) {
     let records = [];
     let actionsById = new Map();
     let showReviewed = false;
+    const drafts = new Map();
     const isLeadReadonly = viewMode === PLI_VIEW_MODES.LEAD_READONLY;
+
+    function rememberDraft(rowId, patch = {}) {
+        const current = drafts.get(rowId) || { peaks: {} };
+        drafts.set(rowId, {
+            peaks: { ...current.peaks, ...(patch.peaks || {}) },
+            rationale: patch.rationale !== undefined ? patch.rationale : current.rationale
+        });
+    }
+
+    function draftPeakValue(rowId, key) {
+        const value = drafts.get(rowId)?.peaks?.[key];
+        return value == null ? null : String(value);
+    }
+
+    function draftRationale(rowId, fallback = '') {
+        const value = drafts.get(rowId)?.rationale;
+        return value == null ? fallback : value;
+    }
 
     const wrapper = createSeatPanelShell({
         title: isLeadReadonly ? 'PLI Macro' : 'PLI Macro',
@@ -117,6 +136,8 @@ export function createPliMacroReview(options = {}) {
             : records.filter((r) => seatNeedsReview(getSeatReview(r, SEAT)));
         pendingBadge.textContent = String(pending.length);
         const visible = visibleRows();
+        const activeId = document.activeElement?.id || '';
+        const scrollY = window.scrollY;
         if (!visible.length) {
             list.innerHTML = emptyState(
                 isLeadReadonly
@@ -130,6 +151,11 @@ export function createPliMacroReview(options = {}) {
         }
         list.innerHTML = '';
         visible.forEach((row) => list.appendChild(renderCard(row)));
+        if (activeId) {
+            const nextFocus = document.getElementById(activeId);
+            if (nextFocus && list.contains(nextFocus)) nextFocus.focus();
+        }
+        if (scrollY) window.scrollTo(0, scrollY);
     }
 
     function renderCard(row) {
@@ -227,8 +253,8 @@ export function createPliMacroReview(options = {}) {
             ${reviewable ? `
                 <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
                     <strong>Override</strong> — change the peak modulation (percentage points) for any indicator, then save with a rationale. Lever and implementation stay as scored.
-                    <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="1000"
-                        placeholder="Why this peak modulation?">${escapeHtml(seat.override_rationale || '')}</textarea>
+                    <textarea id="pli-macro-rationale-${escapeHtml(row.id)}" class="form-input form-textarea" data-pli-rationale rows="3" maxlength="1000"
+                        placeholder="Why this peak modulation?">${escapeHtml(draftRationale(row.id, seat.override_rationale || ''))}</textarea>
                     <div class="text-sm text-gray-500" data-pli-rationale-count>0 / 1000</div>
                 </div>
                 ${footerActions({
@@ -254,7 +280,10 @@ export function createPliMacroReview(options = {}) {
         const rationale = card.querySelector('[data-pli-rationale]');
         const count = card.querySelector('[data-pli-rationale-count]');
         if (rationale && count) {
-            const sync = () => { count.textContent = `${rationale.value.length} / 1000`; };
+            const sync = () => {
+                count.textContent = `${rationale.value.length} / 1000`;
+                rememberDraft(row.id, { rationale: rationale.value });
+            };
             rationale.addEventListener('input', sync);
             sync();
         }
@@ -306,14 +335,21 @@ export function createPliMacroReview(options = {}) {
                 value="${escapeHtml(String(engineIndicatorPeak(indicator)))}">
         `;
         const input = field.querySelector('input');
+        const draftPeak = draftPeakValue(rowId, key);
+        if (draftPeak != null) input.value = draftPeak;
         const redraw = () => {
+            rememberDraft(rowId, { peaks: { [key]: input.value } });
             const raw = String(input.value ?? '').trim();
             const peak = Number(raw);
-            if (raw === '' || !Number.isFinite(peak)) return;
+            if (raw === '' || !Number.isFinite(peak)) {
+                paint(indicator);
+                return;
+            }
             const scaled = scaleIndicatorToPeak(indicator, peak, borrowedWeights);
             if (!scaled?.scalable) return;
             paint(scaled);
         };
+        if (draftPeak != null && String(draftPeak).trim() !== '') redraw();
         input.addEventListener('input', redraw);
         input.addEventListener('change', redraw);
         holder.appendChild(field);
@@ -355,6 +391,7 @@ export function createPliMacroReview(options = {}) {
                 payload.override_rationale = 'Accepted agent needs_human reason';
             }
             await database.reviewPliSeat(row.id, SEAT, payload);
+            drafts.delete(row.id);
             showToast({
                 message: status === 'needs_human'
                     ? 'PLI macro outputs approved as-is'
@@ -396,6 +433,7 @@ export function createPliMacroReview(options = {}) {
                                 sme_reviewer: reviewer,
                                 override_rationale: notes
                             });
+                            drafts.delete(row.id);
                             const gameState = sessionStore.getGameState?.() || {};
                             await notifyPliSeatSentBack({
                                 sessionId: getSessionId?.() || row.session_id,
@@ -438,6 +476,7 @@ export function createPliMacroReview(options = {}) {
                 override_rationale: collected.override_rationale,
                 edit_diff: collected.edit_diff
             });
+            drafts.delete(row.id);
             showToast({ message: 'Override recorded', type: 'success' });
             await refresh();
         } catch (err) {
