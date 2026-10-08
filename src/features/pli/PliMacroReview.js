@@ -25,6 +25,10 @@ import {
     getActionTitle,
     getMacroBlock,
     renderTrendCharts,
+    indicatorChartSvgHtml,
+    scaleIndicatorToPeak,
+    engineIndicatorPeak,
+    indicatorHasEffectWindow,
     createSeatPanelShell,
     emptyState,
     sourceActionColumn,
@@ -62,7 +66,7 @@ export function createPliMacroReview(options = {}) {
         title: isLeadReadonly ? 'PLI Macro' : 'PLI Macro',
         description: isLeadReadonly
             ? 'Read-only Macro view. Draft agent outputs appear before Econ finalize; Finalized is the official gate for reports.'
-            : 'Petrihos Lever Index macroeconomic chain — classify, score, chart, then approve or override.',
+            : 'Petrihos Lever Index macroeconomic chain. Lever and implementation stay as scored. Override only the peak modulation on each indicator.',
         seatId: SEAT,
         viewMode
     });
@@ -179,23 +183,10 @@ export function createPliMacroReview(options = {}) {
                     <h3 class="pli-col-title">2. Adjudication chain (PLI trace)</h3>
                     <div class="pli-block">
                         <div class="pli-label">2.1 Classification</div>
-                        ${reviewable ? `
-                            <div class="pli-field-grid">
-                                <div class="form-group pli-edit-field">
-                                    <label class="form-label" for="pli-macro-lever-${escapeHtml(row.id)}">Primary lever</label>
-                                    <input id="pli-macro-lever-${escapeHtml(row.id)}" type="text" class="form-input" data-pli-macro-lever
-                                        value="${escapeHtml(classification.lever || '')}">
-                                </div>
-                                <div class="form-group pli-edit-field">
-                                    <label class="form-label" for="pli-macro-instrument-${escapeHtml(row.id)}">Policy instrument</label>
-                                    <input id="pli-macro-instrument-${escapeHtml(row.id)}" type="text" class="form-input" data-pli-macro-instrument
-                                        value="${escapeHtml(classification.instrument || '')}">
-                                </div>
-                            </div>` : `
-                            <div class="pli-field-grid">
-                                <div class="pli-field"><span class="pli-k">Primary lever</span><span class="pli-v">${escapeHtml(classification.lever || '—')}</span></div>
-                                <div class="pli-field"><span class="pli-k">Policy instrument</span><span class="pli-v">${escapeHtml(classification.instrument || '—')}</span></div>
-                            </div>`}
+                        <div class="pli-field-grid">
+                            <div class="pli-field"><span class="pli-k">Primary lever</span><span class="pli-v">${escapeHtml(classification.lever || '—')}</span></div>
+                            <div class="pli-field"><span class="pli-k">Policy instrument</span><span class="pli-v">${escapeHtml(classification.instrument || '—')}</span></div>
+                        </div>
                         <p class="pli-cite text-sm">${escapeHtml(classification.rule_citation || 'No tie-break citation.')}</p>
                     </div>
                     <div class="pli-block">
@@ -204,13 +195,7 @@ export function createPliMacroReview(options = {}) {
                             ${implementation.tier_midpoint != null ? ` · Midpoint ${escapeHtml(String(implementation.tier_midpoint))}` : ''}</p>
                         <p class="pli-cite text-sm">${escapeHtml(implementationNarrative || 'No implementation narrative on worksheet.')}</p>
                         <div class="pli-modifiers">${renderModifiers(modifiers, implementation)}</div>
-                        ${reviewable ? `
-                            <div class="form-group pli-edit-field">
-                                <label class="form-label" for="pli-macro-impl-${escapeHtml(row.id)}">Implementation score (1-10)</label>
-                                <input id="pli-macro-impl-${escapeHtml(row.id)}" type="number" class="form-input" min="1" max="10" data-pli-macro-impl
-                                    value="${escapeHtml(String(implementation.score ?? ''))}">
-                            </div>` : `
-                            <p class="text-sm"><strong>Implementation score:</strong> ${escapeHtml(String(implementation.score ?? '—'))}</p>`}
+                        <p class="text-sm"><strong>Implementation score:</strong> ${escapeHtml(String(implementation.score ?? '—'))}</p>
                     </div>
                     <div class="pli-block">
                         <div class="pli-label">2.3 Declared orientation (intake)</div>
@@ -242,9 +227,9 @@ export function createPliMacroReview(options = {}) {
             </div>
             ${reviewable ? `
                 <div class="pli-notice pli-notice-gold" style="margin-top: var(--space-3);">
-                    <strong>Override</strong> — change lever, instrument, or implementation, then save with a rationale.
+                    <strong>Override</strong> — change the peak modulation (percentage points) for any indicator, then save with a rationale. Lever and implementation stay as scored.
                     <textarea class="form-input form-textarea" data-pli-rationale rows="3" maxlength="1000"
-                        placeholder="Which codebook table entry is wrong, and why?">${escapeHtml(seat.override_rationale || '')}</textarea>
+                        placeholder="Why this peak modulation?">${escapeHtml(seat.override_rationale || '')}</textarea>
                     <div class="text-sm text-gray-500" data-pli-rationale-count>0 / 1000</div>
                 </div>
                 ${footerActions({
@@ -258,9 +243,13 @@ export function createPliMacroReview(options = {}) {
         `;
 
         const chartsHost = card.querySelector('[data-pli-charts]');
+        const trend = adjudication?.trend || record.tracks?.macro?.trend;
         if (chartsHost) {
-            const trend = adjudication?.trend || record.tracks?.macro?.trend;
             chartsHost.appendChild(renderTrendCharts(trend, record.submission_month));
+            if (reviewable) {
+                chartsHost.appendChild(renderModulationFields(trend, row.id));
+                bindModulationInputs(card, trend);
+            }
         }
 
         const rationale = card.querySelector('[data-pli-rationale]');
@@ -276,6 +265,52 @@ export function createPliMacroReview(options = {}) {
         card.querySelector('[data-pli-sendback]')?.addEventListener('click', () => handleSendBack(row));
 
         return card;
+    }
+
+    function renderModulationFields(trend, rowId) {
+        const host = document.createElement('div');
+        host.className = 'pli-modulation-fields';
+        const indicators = trend?.indicators || {};
+        const entries = Object.entries(indicators);
+        if (!entries.length) {
+            host.innerHTML = '<p class="text-sm text-gray-500">No indicator series to modulate.</p>';
+            return host;
+        }
+        host.innerHTML = `
+            <div class="pli-label" style="margin-top: var(--space-3);">Peak modulation (percentage points)</div>
+            <p class="text-sm text-gray-600">The gold line keeps the engine shape. Change only how far it moves from baseline.</p>
+            <div class="pli-field-grid">
+                ${entries.map(([key, indicator]) => {
+                    const label = indicator?.label || key;
+                    const inputId = `pli-macro-peak-${rowId}-${key}`;
+                    const peak = engineIndicatorPeak(indicator);
+                    const scalable = indicatorHasEffectWindow(indicator);
+                    return `
+                        <div class="form-group pli-edit-field">
+                            <label class="form-label" for="${escapeHtml(inputId)}">${escapeHtml(label)} (pp)</label>
+                            <input id="${escapeHtml(inputId)}" type="number" step="0.01" class="form-input" data-pli-macro-peak="${escapeHtml(key)}"
+                                value="${escapeHtml(String(peak))}" ${scalable ? '' : 'disabled'}>
+                            ${scalable ? '' : '<p class="text-sm text-gray-500">No shaped path to scale.</p>'}
+                        </div>`;
+                }).join('')}
+            </div>`;
+        return host;
+    }
+
+    function bindModulationInputs(card, trend) {
+        const periods = trend?.quarters || trend?.years || [];
+        card.querySelectorAll('[data-pli-macro-peak]').forEach((input) => {
+            input.addEventListener('input', () => {
+                const key = input.getAttribute('data-pli-macro-peak');
+                const raw = String(input.value ?? '').trim();
+                const peak = Number(raw);
+                if (!key || raw === '' || !Number.isFinite(peak)) return;
+                const scaled = scaleIndicatorToPeak(trend.indicators?.[key], peak);
+                if (!scaled?.scalable) return;
+                const holder = card.querySelector(`[data-pli-chart="${key}"]`);
+                if (holder) holder.innerHTML = indicatorChartSvgHtml(periods, scaled);
+            });
+        });
     }
 
     function renderModifiers(modifiers, implementation) {

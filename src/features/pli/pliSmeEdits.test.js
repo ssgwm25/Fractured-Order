@@ -15,13 +15,23 @@ import {
     readInformationSection,
     PLI_PACKET_VERSION
 } from './pliSmeEdits.js';
+import { buildCumulativeMacroTrend } from './pliReportBuilders.js';
 
-function fakeCard(values = {}) {
+function fakeCard(values = {}, peaks = []) {
     return {
         querySelector: (selector) => {
             if (!Object.prototype.hasOwnProperty.call(values, selector)) return null;
             return { value: values[selector] };
-        }
+        },
+        querySelectorAll: (selector) => (selector === '[data-pli-macro-peak]' ? peaks : [])
+    };
+}
+
+function peakInput(key, value) {
+    return {
+        disabled: false,
+        value: String(value),
+        getAttribute: (name) => (name === 'data-pli-macro-peak' ? key : null)
     };
 }
 
@@ -35,7 +45,22 @@ function sampleRow() {
             tracks: {
                 macro: {
                     classification: { lever: 'L2', instrument: 'I2.01' },
-                    implementation: { score: 6 }
+                    implementation: { score: 6 },
+                    trend: {
+                        quarters: ['2026Q1', '2026Q2', '2026Q3'],
+                        indicators: {
+                            real_gdp_growth: {
+                                label: 'Real GDP growth (%)',
+                                favorable_direction: 1,
+                                delta_value: 1,
+                                weights: [0, 0.5, 1],
+                                baseline: [2, 2, 2],
+                                deltas: [0, 0.5, 1],
+                                post_action: [2, 2.5, 3],
+                                verdict: 'favorable'
+                            }
+                        }
+                    }
                 },
                 national_interest: {
                     domain_deltas: {
@@ -68,25 +93,26 @@ function sampleRow() {
 }
 
 describe('pliSmeEdits', () => {
-    it('records field-level macro diffs and collects edited override values', () => {
+    it('records peak modulation diffs and keeps lever and score unchanged', () => {
         const row = sampleRow();
         const collected = collectMacroOverrideFromCard(fakeCard({
-            '[data-pli-macro-lever]': 'L4',
-            '[data-pli-macro-instrument]': 'I4.01',
-            '[data-pli-macro-impl]': '8',
-            '[data-pli-rationale]': 'Wrong table row'
-        }), row);
+            '[data-pli-rationale]': 'Peak is too small'
+        }, [peakInput('real_gdp_growth', 2)]), row);
 
-        expect(collected.override_value.lever).toBe('L4');
-        expect(collected.override_value.implementation_score).toBe(8);
-        expect(collected.override_rationale).toBe('Wrong table row');
-        expect(collected.edit_diff.fields.map((entry) => entry.path)).toEqual([
-            'macro.classification.lever',
-            'macro.classification.instrument',
-            'macro.implementation.score'
-        ]);
+        expect(collected.override_rationale).toBe('Peak is too small');
+        expect(collected.override_value.lever).toBeUndefined();
+        expect(collected.override_value.trend.indicators.real_gdp_growth.delta_value).toBe(2);
+        expect(collected.override_value.trend.indicators.real_gdp_growth.post_action).toEqual([2, 3, 4]);
+        expect(collected.override_value.trend.indicators.real_gdp_growth.deltas).toEqual([0, 1, 2]);
+        expect(collected.edit_diff.fields).toEqual([{
+            path: 'macro.trend.indicators.real_gdp_growth.delta_value',
+            engine: '1',
+            sme: '2'
+        }]);
+        expect(collected.edit_diff.fields.some((entry) => entry.path.includes('classification'))).toBe(false);
         expect(validateMacroOverride(collected.override_value)).toBeNull();
-        expect(buildMacroEditDiff(row, { implementation_score: 6, lever: 'L2', instrument: 'I2.01' }).fields).toEqual([]);
+        expect(validateMacroOverride({ trend: { indicators: {} } })).toBe('No indicator modulations to save');
+        expect(buildMacroEditDiff(row, collected.override_value).fields[0].path).toContain('delta_value');
     });
 
     it('collects NI domain and Glasl stage edits into override_value', () => {
@@ -151,8 +177,32 @@ describe('pliSmeEdits', () => {
             }
         };
         const tracks = resolveOutputTracks(row);
-        expect(tracks.macro.classification.lever).toBe('L4');
         expect(tracks.macro.implementation.score).toBe(9);
+        expect(tracks.macro.classification.lever).toBe('L4');
+    });
+
+    it('uses an overridden macro trend as the output of record', () => {
+        const row = sampleRow();
+        const collected = collectMacroOverrideFromCard(fakeCard({
+            '[data-pli-rationale]': 'Raise GDP peak'
+        }, [peakInput('real_gdp_growth', 2)]), row);
+        row.seat_reviews = {
+            [SEATS.MACRO]: {
+                status: SEAT_STATUS.OVERRIDDEN,
+                override_value: collected.override_value
+            }
+        };
+        const tracks = resolveOutputTracks(row);
+        expect(tracks.macro.classification.lever).toBe('L2');
+        expect(tracks.macro.implementation.score).toBe(6);
+        expect(tracks.macro.trend.indicators.real_gdp_growth.post_action).toEqual([2, 3, 4]);
+        expect(tracks.macro.trend.indicators.real_gdp_growth.delta_value).toBe(2);
+        const stacked = buildCumulativeMacroTrend([{
+            finalized: { macro: true },
+            tracks
+        }]);
+        expect(stacked.indicators.real_gdp_growth.deltas).toEqual([0, 1, 2]);
+        expect(stacked.indicators.real_gdp_growth.post_action).toEqual([2, 3, 4]);
     });
 
     it('renders approved-as-proposed when there is no edit_diff', () => {

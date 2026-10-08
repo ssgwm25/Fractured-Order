@@ -11,7 +11,10 @@ import {
     seatIsFinalized,
     getActionTitle,
     getMacroBlock,
-    buildSourceActionPresentation
+    buildSourceActionPresentation,
+    scaleIndicatorToPeak,
+    engineIndicatorPeak,
+    indicatorHasEffectWindow
 } from './pliShared.js';
 
 export const PLI_PACKET_VERSION = 'pli-sme-packet.v1';
@@ -117,6 +120,24 @@ export function applyMacroOverrideToTrack(macro, overrideValue) {
             score
         };
     }
+    if (overrideValue.trend && typeof overrideValue.trend === 'object') {
+        next.trend = overrideValue.trend;
+    }
+    return next;
+}
+
+function engineMacroTrend(row) {
+    const record = row?.record || {};
+    const fromTrack = record.tracks?.macro?.trend;
+    if (fromTrack && typeof fromTrack === 'object') return cloneJson(fromTrack);
+    const { adjudication } = getMacroBlock(record);
+    return cloneJson(adjudication?.trend || {}) || {};
+}
+
+function stripScaleFlag(indicator) {
+    if (!indicator || typeof indicator !== 'object') return indicator;
+    const next = { ...indicator };
+    delete next.scalable;
     return next;
 }
 
@@ -231,50 +252,48 @@ function pickEditedText(next, fallback) {
     return trimmed || fallback || '';
 }
 
-function engineMacroClassification(row) {
-    const { worksheet, adjudication } = getMacroBlock(row?.record || {});
-    return worksheet?.classification || adjudication?.classification || {};
-}
-
-function engineMacroImplementationScore(row) {
-    const { adjudication, worksheet } = getMacroBlock(row?.record || {});
-    const score = adjudication?.implementation?.score ?? worksheet?.implementation?.score;
-    return score == null || score === '' ? '' : String(score);
-}
-
 export function buildMacroEditDiff(row, overrideValue = {}) {
     const fields = [];
-    const classification = engineMacroClassification(row);
-    const engineScore = engineMacroImplementationScore(row);
-    const smeLever = overrideValue.lever || overrideValue.classification?.lever;
-    const smeInstrument = overrideValue.instrument || overrideValue.classification?.instrument;
-    const smeScore = overrideValue.implementation_score ?? overrideValue.implementation?.score;
-    pushDiff(fields, 'macro.classification.lever', classification.lever, smeLever);
-    pushDiff(fields, 'macro.classification.instrument', classification.instrument, smeInstrument);
-    pushDiff(fields, 'macro.implementation.score', engineScore, smeScore);
+    const engineTrend = engineMacroTrend(row);
+    const smeIndicators = overrideValue.trend?.indicators || {};
+    Object.keys(smeIndicators).forEach((key) => {
+        const enginePeak = engineIndicatorPeak(engineTrend.indicators?.[key] || {});
+        const smePeak = smeIndicators[key]?.delta_value;
+        pushDiff(
+            fields,
+            `macro.trend.indicators.${key}.delta_value`,
+            enginePeak,
+            smePeak
+        );
+    });
     return { fields };
 }
 
 export function collectMacroOverrideFromCard(card, row) {
-    const classification = engineMacroClassification(row);
-    const { adjudication } = getMacroBlock(row?.record || {});
-    const lever = String(readInput(card, '[data-pli-macro-lever]')).trim() || classification.lever || '';
-    const instrument = String(readInput(card, '[data-pli-macro-instrument]')).trim() || classification.instrument || '';
-    const scoreRaw = String(readInput(card, '[data-pli-macro-impl]')).trim();
-    const implementationScore = parseInt(scoreRaw, 10);
     const rationale = String(readInput(card, '[data-pli-rationale]')).trim();
+    const trend = engineMacroTrend(row);
+    const indicators = { ...(trend.indicators || {}) };
+    const inputs = typeof card?.querySelectorAll === 'function'
+        ? card.querySelectorAll('[data-pli-macro-peak]')
+        : [];
+    inputs.forEach((input) => {
+        if (input.disabled) return;
+        const key = input.getAttribute?.('data-pli-macro-peak');
+        if (!key || !indicators[key]) return;
+        const raw = String(input.value ?? '').trim();
+        const peak = Number(raw);
+        if (raw === '' || !Number.isFinite(peak)) {
+            indicators[key] = { ...indicators[key], delta_value: Number.NaN };
+            return;
+        }
+        const scaled = scaleIndicatorToPeak(indicators[key], peak);
+        if (!scaled?.scalable) return;
+        indicators[key] = stripScaleFlag(scaled);
+    });
     const overrideValue = {
-        lever,
-        instrument,
-        implementation_score: Number.isInteger(implementationScore) ? implementationScore : null,
-        classification: {
-            ...classification,
-            lever,
-            instrument
-        },
-        implementation: {
-            ...(adjudication?.implementation || {}),
-            score: Number.isInteger(implementationScore) ? implementationScore : adjudication?.implementation?.score
+        trend: {
+            ...trend,
+            indicators
         }
     };
     return {
@@ -285,12 +304,14 @@ export function collectMacroOverrideFromCard(card, row) {
 }
 
 export function validateMacroOverride(overrideValue) {
-    const score = Number(overrideValue?.implementation_score);
-    if (!Number.isInteger(score) || score < 1 || score > 10) {
-        return 'Implementation must be an integer from 1 to 10';
-    }
-    if (!String(overrideValue?.lever || '').trim() || !String(overrideValue?.instrument || '').trim()) {
-        return 'Lever and instrument are required';
+    const indicators = overrideValue?.trend?.indicators || {};
+    const keys = Object.keys(indicators);
+    if (!keys.length) return 'No indicator modulations to save';
+    for (const indicator of Object.values(indicators)) {
+        if (!indicatorHasEffectWindow(indicator)) continue;
+        if (!Number.isFinite(Number(indicator.delta_value))) {
+            return 'Each indicator peak must be a number';
+        }
     }
     return null;
 }

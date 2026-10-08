@@ -290,6 +290,87 @@ export function indicatorChartSvgHtml(periods, indicator, options = {}) {
     `;
 }
 
+/**
+ * True when the engine left a non-zero quarterly shape to scale.
+ * A flat zero path is not a modulation the SME can resize.
+ */
+export function indicatorHasEffectWindow(indicator = {}) {
+    const weights = Array.isArray(indicator.weights) ? indicator.weights : null;
+    if (weights?.some((weight) => Math.abs(Number(weight)) > 1e-12)) return true;
+    const deltas = Array.isArray(indicator.deltas) ? indicator.deltas : [];
+    return deltas.some((delta) => Math.abs(Number(delta)) > 1e-12);
+}
+
+/** Engine peak in percentage points (`delta_value`, else the largest |delta|). */
+export function engineIndicatorPeak(indicator = {}) {
+    const explicit = Number(indicator.delta_value);
+    if (Number.isFinite(explicit)) return explicit;
+    const deltas = (Array.isArray(indicator.deltas) ? indicator.deltas : []).map(Number);
+    if (!deltas.length) return 0;
+    return deltas.reduce((best, delta) => (Math.abs(delta) > Math.abs(best) ? delta : best), 0);
+}
+
+function roundPp(value) {
+    return Math.round(Number(value) * 100) / 100;
+}
+
+function indicatorVerdict(deltas, favorableDirection) {
+    const favDir = Number(favorableDirection ?? 1) || 1;
+    const net = deltas.reduce((sum, delta) => sum + delta, 0) * favDir;
+    if (Math.abs(net) < 1e-9) return 'neutral';
+    return net > 0 ? 'favorable' : 'unfavorable';
+}
+
+/**
+ * Rescale an indicator's existing quarterly shape to a new peak.
+ * Returns null when the peak is not a number. Returns `{ scalable: false }`
+ * when there is no non-zero weight or delta path to scale.
+ * @param {Object} indicator
+ * @param {number} peak percentage points
+ */
+export function scaleIndicatorToPeak(indicator = {}, peak) {
+    const nextPeak = Number(peak);
+    if (!Number.isFinite(nextPeak)) return null;
+    if (!indicatorHasEffectWindow(indicator)) {
+        return { ...indicator, scalable: false };
+    }
+
+    const weights = Array.isArray(indicator.weights) ? indicator.weights.map(Number) : null;
+    const priorDeltas = Array.isArray(indicator.deltas) ? indicator.deltas.map(Number) : [];
+    const useWeights = Boolean(weights?.some((weight) => Math.abs(weight) > 1e-12));
+    let deltas;
+    if (useWeights) {
+        deltas = weights.map((weight) => roundPp(nextPeak * weight));
+    } else {
+        const explicit = Number(indicator.delta_value);
+        const fromDeltas = priorDeltas.reduce(
+            (best, delta) => (Math.abs(delta) > Math.abs(best) ? delta : best),
+            0
+        );
+        const oldPeak = Number.isFinite(explicit) && Math.abs(explicit) > 1e-12
+            ? explicit
+            : fromDeltas;
+        const scale = Math.abs(oldPeak) < 1e-12 ? 0 : nextPeak / oldPeak;
+        deltas = priorDeltas.map((delta) => roundPp(delta * scale));
+    }
+
+    const baseline = (Array.isArray(indicator.baseline) ? indicator.baseline : []).map(Number);
+    while (baseline.length < deltas.length) {
+        baseline.push(baseline.length ? baseline[baseline.length - 1] : 0);
+    }
+    const postAction = deltas.map((delta, index) => roundPp((baseline[index] ?? 0) + delta));
+
+    return {
+        ...indicator,
+        scalable: true,
+        delta_value: roundPp(nextPeak),
+        deltas,
+        baseline,
+        post_action: postAction,
+        verdict: indicatorVerdict(deltas, indicator.favorable_direction)
+    };
+}
+
 export function renderTrendCharts(trend, submissionMonth) {
     const grid = document.createElement('div');
     grid.className = 'pli-trend-grid';
@@ -298,15 +379,16 @@ export function renderTrendCharts(trend, submissionMonth) {
         return grid;
     }
     const periods = trend.quarters || trend.years || [];
-    Object.values(trend.indicators).forEach((indicator) => {
-        grid.appendChild(renderIndicatorChart(periods, indicator, submissionMonth));
+    Object.entries(trend.indicators).forEach(([key, indicator]) => {
+        grid.appendChild(renderIndicatorChart(periods, indicator, key, submissionMonth));
     });
     return grid;
 }
 
-function renderIndicatorChart(periods, indicator, _submissionMonth) {
+function renderIndicatorChart(periods, indicator, indicatorKey, _submissionMonth) {
     const holder = document.createElement('div');
     holder.className = 'pli-chart-card';
+    if (indicatorKey) holder.dataset.pliChart = indicatorKey;
     holder.innerHTML = indicatorChartSvgHtml(periods, indicator);
     return holder;
 }

@@ -13,6 +13,10 @@ import {
     getMacroBlock,
     getActionTitle,
     escapeHtml,
+    indicatorChartSvgHtml,
+    scaleIndicatorToPeak,
+    engineIndicatorPeak,
+    indicatorHasEffectWindow,
     buildSourceActionPresentation,
     sourceActionColumn
 } from './pliShared.js';
@@ -170,5 +174,39 @@ describe('pliShared', () => {
         expect(markup).not.toContain('None selected');
         expect(markup).not.toContain('Scribe Handoff');
         expect(markup).not.toContain('Blue Team Action Details');
+    });
+
+    it('scales an indicator peak without changing the quarterly shape', () => {
+        const indicator = {
+            label: 'Real GDP growth (%)',
+            favorable_direction: 1,
+            delta_value: 1,
+            weights: [0, 0.5, 1],
+            baseline: [2, 2, 2],
+            deltas: [0, 0.5, 1],
+            post_action: [2, 2.5, 3]
+        };
+        const scaled = scaleIndicatorToPeak(indicator, 2);
+        expect(scaled.scalable).toBe(true);
+        expect(scaled.delta_value).toBe(2);
+        expect(scaled.deltas).toEqual([0, 1, 2]);
+        expect(scaled.post_action).toEqual([2, 3, 4]);
+        expect(scaled.verdict).toBe('favorable');
+        expect(engineIndicatorPeak(indicator)).toBe(1);
+    });
+
+    it('does not invent a path when every weight and delta is zero', () => {
+        const indicator = {
+            delta_value: 0,
+            weights: [0, 0, 0],
+            baseline: [1, 1, 1],
+            deltas: [0, 0, 0],
+            post_action: [1, 1, 1]
+        };
+        expect(indicatorHasEffectWindow(indicator)).toBe(false);
+        const scaled = scaleIndicatorToPeak(indicator, 3);
+        expect(scaled.scalable).toBe(false);
+        expect(scaled.deltas).toEqual([0, 0, 0]);
+        expect(indicatorChartSvgHtml(['2026Q1'], { label: 'GDP', baseline: [1], post_action: [1] })).toContain('GDP');
     });
 });
