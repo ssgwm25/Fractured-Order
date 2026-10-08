@@ -194,6 +194,10 @@ describe('pliShared', () => {
         expect(scaled.post_action).toEqual([2, 3, 4]);
         expect(scaled.verdict).toBe('favorable');
         expect(engineIndicatorPeak(indicator)).toBe(1);
+        const before = indicatorChartSvgHtml(['2026Q1', '2026Q2', '2026Q3'], indicator);
+        const after = indicatorChartSvgHtml(['2026Q1', '2026Q2', '2026Q3'], scaled);
+        expect(after).not.toBe(before);
+        expect(after).toContain('2 pp');
     });
 
     it('gives a flat indicator the action shape, and a level shift when the action has none', () => {

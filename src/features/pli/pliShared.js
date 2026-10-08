@@ -245,6 +245,9 @@ export function indicatorChartSvgHtml(periods, indicator, options = {}) {
     const verdict = indicator?.verdict || 'n/a';
     const verdictColor = verdict === 'favorable' ? GREEN : (verdict === 'unfavorable' ? RED : GREY);
     const label = String(indicator?.label || 'Indicator');
+    const peakText = Number.isFinite(Number(indicator?.delta_value))
+        ? `${Number(indicator.delta_value)} pp`
+        : '';
 
     const fillSegments = [];
     for (let i = 0; i < n - 1; i += 1) {
@@ -280,7 +283,7 @@ export function indicatorChartSvgHtml(periods, indicator, options = {}) {
     return `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(label)} baseline vs post-action" style="width:100%; height:auto; display:block;">
             <text x="${pad.left}" y="14" font-size="9" font-weight="700" fill="${verdictColor}">${escapeHtml(label)}</text>
-            <text x="${width - pad.right}" y="14" font-size="9" font-weight="700" text-anchor="end" fill="${verdictColor}">[${escapeHtml(String(verdict))}]</text>
+            <text x="${width - pad.right}" y="14" font-size="9" font-weight="700" text-anchor="end" fill="${verdictColor}">${escapeHtml(peakText)}${peakText ? ' ' : ''}[${escapeHtml(String(verdict))}]</text>
             ${gridLines}
             ${yTicks}
             ${fillSegments.join('')}
@@ -369,7 +372,16 @@ export function scaleIndicatorToPeak(indicator = {}, peak, fallbackWeights = nul
         const scale = Math.abs(oldPeak) < 1e-12 ? 0 : nextPeak / oldPeak;
         deltas = priorDeltas.map((delta) => roundPp(delta * scale));
     } else if (Math.abs(nextPeak) < 1e-12) {
-        return { ...indicator, scalable: true, delta_value: 0 };
+        const flatBaseline = baseline.length ? baseline : [0];
+        return {
+            ...indicator,
+            scalable: true,
+            delta_value: 0,
+            deltas: flatBaseline.map(() => 0),
+            baseline: flatBaseline,
+            post_action: flatBaseline.map((value) => roundPp(value)),
+            verdict: 'neutral'
+        };
     } else if (weightsHaveShape(borrowed)) {
         weights = borrowed;
         deltas = weights.map((weight) => roundPp(nextPeak * weight));

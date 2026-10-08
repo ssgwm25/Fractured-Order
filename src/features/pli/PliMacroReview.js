@@ -24,7 +24,6 @@ import {
     renderSeatSmeNotes,
     getActionTitle,
     getMacroBlock,
-    renderTrendCharts,
     indicatorChartSvgHtml,
     scaleIndicatorToPeak,
     engineIndicatorPeak,
@@ -243,13 +242,13 @@ export function createPliMacroReview(options = {}) {
         `;
 
         const chartsHost = card.querySelector('[data-pli-charts]');
-        const trend = adjudication?.trend || record.tracks?.macro?.trend;
-        if (chartsHost) {
-            chartsHost.appendChild(renderTrendCharts(trend, record.submission_month));
-            if (reviewable) {
-                chartsHost.appendChild(renderModulationFields(trend, row.id));
-                bindModulationInputs(card, trend);
-            }
+        const engineTrend = adjudication?.trend || record.tracks?.macro?.trend;
+        const savedTrend = seatIsFinalized(seat)
+            ? resolveOutputTracks(row)?.macro?.trend
+            : null;
+        const trend = savedTrend || engineTrend;
+        if (chartsHost && trend) {
+            chartsHost.appendChild(renderTrendEditor(trend, row.id, reviewable));
         }
 
         const rationale = card.querySelector('[data-pli-rationale]');
@@ -267,48 +266,58 @@ export function createPliMacroReview(options = {}) {
         return card;
     }
 
-    function renderModulationFields(trend, rowId) {
-        const host = document.createElement('div');
-        host.className = 'pli-modulation-fields';
+    function renderTrendEditor(trend, rowId, editable) {
+        const grid = document.createElement('div');
+        grid.className = 'pli-trend-grid';
         const indicators = trend?.indicators || {};
         const entries = Object.entries(indicators);
         if (!entries.length) {
-            host.innerHTML = '<p class="text-sm text-gray-500">No indicator series to modulate.</p>';
-            return host;
+            grid.innerHTML = '<p class="text-sm text-gray-500">No trend series for this action.</p>';
+            return grid;
         }
-        host.innerHTML = `
-            <div class="pli-label" style="margin-top: var(--space-3);">Peak modulation (percentage points)</div>
-            <p class="text-sm text-gray-600">Type a peak for any indicator. A series this action already moved keeps that quarterly shape. A flat series uses the same shape.</p>
-            <div class="pli-field-grid">
-                ${entries.map(([key, indicator]) => {
-                    const label = indicator?.label || key;
-                    const inputId = `pli-macro-peak-${rowId}-${key}`;
-                    const peak = engineIndicatorPeak(indicator);
-                    return `
-                        <div class="form-group pli-edit-field">
-                            <label class="form-label" for="${escapeHtml(inputId)}">${escapeHtml(label)} (pp)</label>
-                            <input id="${escapeHtml(inputId)}" type="number" step="0.01" class="form-input" data-pli-macro-peak="${escapeHtml(key)}"
-                                value="${escapeHtml(String(peak))}">
-                        </div>`;
-                }).join('')}
-            </div>`;
-        return host;
+        const periods = trend.quarters || trend.years || [];
+        const borrowed = referenceWeights(indicators);
+        entries.forEach(([key, indicator]) => {
+            grid.appendChild(renderEditableChart(periods, indicator, key, rowId, editable, borrowed));
+        });
+        return grid;
     }
 
-    function bindModulationInputs(card, trend) {
-        const periods = trend?.quarters || trend?.years || [];
-        card.querySelectorAll('[data-pli-macro-peak]').forEach((input) => {
-            input.addEventListener('input', () => {
-                const key = input.getAttribute('data-pli-macro-peak');
-                const raw = String(input.value ?? '').trim();
-                const peak = Number(raw);
-                if (!key || raw === '' || !Number.isFinite(peak)) return;
-                const scaled = scaleIndicatorToPeak(trend.indicators?.[key], peak, referenceWeights(trend.indicators));
-                if (!scaled?.scalable) return;
-                const holder = card.querySelector(`[data-pli-chart="${key}"]`);
-                if (holder) holder.innerHTML = indicatorChartSvgHtml(periods, scaled);
-            });
-        });
+    function renderEditableChart(periods, indicator, key, rowId, editable, borrowedWeights) {
+        const holder = document.createElement('div');
+        holder.className = 'pli-chart-card';
+        holder.dataset.pliChart = key;
+        const svgHost = document.createElement('div');
+        svgHost.className = 'pli-chart-svg';
+        const paint = (series) => {
+            svgHost.innerHTML = indicatorChartSvgHtml(periods, series);
+        };
+        paint(indicator);
+        holder.appendChild(svgHost);
+        if (!editable) return holder;
+
+        const label = indicator?.label || key;
+        const inputId = `pli-macro-peak-${rowId}-${key}`;
+        const field = document.createElement('div');
+        field.className = 'form-group pli-edit-field';
+        field.innerHTML = `
+            <label class="form-label" for="${escapeHtml(inputId)}">${escapeHtml(label)} (pp)</label>
+            <input id="${escapeHtml(inputId)}" type="number" step="0.01" class="form-input" data-pli-macro-peak="${escapeHtml(key)}"
+                value="${escapeHtml(String(engineIndicatorPeak(indicator)))}">
+        `;
+        const input = field.querySelector('input');
+        const redraw = () => {
+            const raw = String(input.value ?? '').trim();
+            const peak = Number(raw);
+            if (raw === '' || !Number.isFinite(peak)) return;
+            const scaled = scaleIndicatorToPeak(indicator, peak, borrowedWeights);
+            if (!scaled?.scalable) return;
+            paint(scaled);
+        };
+        input.addEventListener('input', redraw);
+        input.addEventListener('change', redraw);
+        holder.appendChild(field);
+        return holder;
     }
 
     function renderModifiers(modifiers, implementation) {
