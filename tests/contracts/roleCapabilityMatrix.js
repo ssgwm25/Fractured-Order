@@ -196,7 +196,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
             evidence('unit', 'src/roles/sme.test.js', 'sme_econ'),
             evidence('unit', 'src/services/database.pli.test.js', 'allows only the matching SME role to review a PLI seat'),
             evidence('unit', 'src/services/database.pli.test.js', 'rejects override without rationale before network I/O'),
-            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'records field-level macro diffs')
+            evidence('unit', 'src/features/pli/pliSmeEdits.test.js', 'records peak modulation diffs')
         ]
     },
     'sme.ni_escalation': {
