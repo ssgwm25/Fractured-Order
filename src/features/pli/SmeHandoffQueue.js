@@ -12,6 +12,10 @@ import {
     buildSourceActionPresentation,
     emptyState
 } from './pliShared.js';
+import {
+    buildVerbaSimulationExport,
+    downloadVerbaSimulationExport
+} from './verbaSimulationExport.js';
 
 const logger = createLogger('SmeHandoffQueue');
 
@@ -50,6 +54,7 @@ export function createSmeHandoffQueue(options = {}) {
                     <input type="checkbox" data-handoff-show-done>
                     <span class="text-sm">Show done</span>
                 </label>
+                ${seat === 'verba' ? '<button type="button" class="btn btn-secondary btn-sm" data-verba-export>Export simulation</button>' : ''}
                 <button type="button" class="btn btn-secondary btn-sm" data-handoff-refresh>Refresh</button>
             </div>
         </div>
@@ -69,6 +74,40 @@ export function createSmeHandoffQueue(options = {}) {
         render();
     });
     wrapper.querySelector('[data-handoff-refresh]').addEventListener('click', () => refresh());
+    wrapper.querySelector('[data-verba-export]')?.addEventListener('click', () => exportSimulation());
+
+    async function exportSimulation() {
+        const sessionId = getSessionId?.();
+        const button = wrapper.querySelector('[data-verba-export]');
+        if (!sessionId) {
+            showToast({ message: 'No active session.', type: 'warning' });
+            return;
+        }
+        if (button) button.disabled = true;
+        try {
+            const [actions, adjudications, session] = await Promise.all([
+                database.fetchActions(sessionId),
+                database.fetchPliAdjudications(sessionId),
+                database.getSession(sessionId).catch(() => null)
+            ]);
+            const payload = buildVerbaSimulationExport({
+                session: session || { id: sessionId },
+                actions,
+                adjudications,
+                exportedAt: new Date().toISOString()
+            });
+            downloadVerbaSimulationExport(payload);
+            showToast({
+                message: `Exported ${payload.actionCount} actions across ${payload.moveCount} moves.`,
+                type: 'success'
+            });
+        } catch (err) {
+            logger.error('Failed to export Verba simulation:', err);
+            showToast({ message: 'Could not export the simulation.', type: 'error' });
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
 
     async function refresh() {
         const sessionId = getSessionId?.();
