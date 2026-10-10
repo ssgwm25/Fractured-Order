@@ -7,7 +7,7 @@
 import { getActionTitle, buildSourceActionPresentation } from './pliShared.js';
 import { resolveOutputTracks } from './pliSmeEdits.js';
 
-export const VERBA_SIMULATION_EXPORT_VERSION = 'pli-verba-simulation.v2';
+export const VERBA_SIMULATION_EXPORT_VERSION = 'pli-verba-simulation.v3';
 
 const GAME_MOVES = Object.freeze([1, 2, 3]);
 const TEAM_ORDER = Object.freeze(['blue', 'red', 'green', 'industry']);
@@ -22,6 +22,21 @@ const INDICATOR_ORDER = Object.freeze([
     'trade_volume_growth',
     'fixed_investment_growth'
 ]);
+
+const INDICATOR_GUIDE = Object.freeze({
+    real_gdp_growth: { label: 'Real GDP growth (%)', favorableDirection: 1 },
+    pce_inflation: { label: 'PCE inflation (Q4/Q4, %)', favorableDirection: -1 },
+    unemployment_rate: { label: 'Unemployment rate (%)', favorableDirection: -1 },
+    trade_volume_growth: { label: 'Trade volume growth (%)', favorableDirection: 1 },
+    fixed_investment_growth: { label: 'Fixed investment growth (%)', favorableDirection: 1 }
+});
+
+const FLAG_GUIDE = Object.freeze({
+    onset_beyond_horizon: 'The effect starts after the last forecast quarter, so every delta in this window is zero.',
+    clamped_to_horizon: 'Submission timing was clamped to the forecast horizon.'
+});
+
+const EXPORT_DESCRIPTION = 'Whole-simulation export for Verba. moves groups each action under the move it was filed in. timeline.quarters is the shared forecast window and timeline.baseline is the shared U.S. indicator path. Each macro.indicators entry lines its delta and postAction arrays up with that window. postAction is the indicator level after the action. If an action uses a different window, it carries macro.quarters; if an indicator uses a different baseline, it carries baseline. rows is the flat action sheet: one object per action, with peaks and verdicts, and no second copy of the path. indicatorGuide says whether a higher or lower reading is favorable to the United States. macro.status scored is a finished series; pending means a series is attached but not marked finished. flagGuide explains macro.flags.';
 
 function round2(value) {
     const number = Number(value);
@@ -56,21 +71,38 @@ function peakDelta(deltas) {
     return round2(peak);
 }
 
-function indicatorSeries(indicator, quarters) {
+function listsEqual(left, right) {
+    if (left === right) return true;
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    for (let index = 0; index < left.length; index += 1) {
+        if (left[index] !== right[index]) return false;
+    }
+    return true;
+}
+
+function favorableMeans(direction) {
+    if (direction === -1) return 'Lower is favorable to the United States.';
+    if (direction === 1) return 'Higher is favorable to the United States.';
+    return null;
+}
+
+function alignedSeries(indicator, quarters) {
     const baseline = Array.isArray(indicator?.baseline) ? indicator.baseline : [];
     const deltas = Array.isArray(indicator?.deltas) ? indicator.deltas : [];
     const post = Array.isArray(indicator?.post_action) ? indicator.post_action : [];
     const length = Math.max(baseline.length, deltas.length, post.length, quarters.length);
-    const points = [];
+    const labels = [];
+    const baselineOut = [];
+    const deltaOut = [];
+    const postOut = [];
     for (let index = 0; index < length; index += 1) {
-        points.push({
-            quarter: quarters[index] || null,
-            baseline: round2(baseline[index]),
-            delta: round2(deltas[index]),
-            postAction: round2(post[index] ?? baseline[index])
-        });
+        labels.push(quarters[index] ?? null);
+        baselineOut.push(round2(baseline[index]));
+        deltaOut.push(round2(deltas[index]));
+        const level = post[index];
+        postOut.push(round2(level ?? baseline[index]));
     }
-    return points;
+    return { quarters: labels, baseline: baselineOut, delta: deltaOut, postAction: postOut };
 }
 
 function macroOutput(adjudication) {
@@ -87,6 +119,10 @@ function macroOutput(adjudication) {
         ...INDICATOR_ORDER.filter((key) => indicators[key]),
         ...Object.keys(indicators).filter((key) => !INDICATOR_ORDER.includes(key))
     ];
+    const length = keys.reduce((max, key) => (
+        Math.max(max, alignedSeries(indicators[key], quarters).delta.length)
+    ), quarters.length);
+    const axis = Array.from({ length }, (_, index) => quarters[index] ?? null);
     return {
         status: macro.status || null,
         lever: macro.classification?.lever || null,
@@ -97,16 +133,22 @@ function macroOutput(adjudication) {
         fitBand: macro.fit?.band || null,
         submissionMonth: macro.submission_month || adjudication.record?.submission_month || null,
         noEffect: Boolean(trend.no_effect),
+        noEffectReason: trend.no_effect_reason || trend.reason || null,
         flags: Array.isArray(macro.flags) ? macro.flags : [],
+        codebookVersion: adjudication.codebook_version || adjudication.record?.codebook_version || null,
+        quarters: axis,
         indicators: keys.map((key) => {
             const indicator = indicators[key] || {};
+            const series = alignedSeries(indicator, axis);
             return {
                 indicator: key,
-                label: indicator.label || key,
+                label: indicator.label || INDICATOR_GUIDE[key]?.label || key,
                 verdict: indicator.verdict || null,
-                favorableDirection: indicator.favorable_direction ?? null,
+                favorableDirection: indicator.favorable_direction ?? INDICATOR_GUIDE[key]?.favorableDirection ?? null,
                 peakDelta: peakDelta(indicator.deltas),
-                quarters: indicatorSeries(indicator, quarters)
+                baseline: series.baseline,
+                delta: series.delta,
+                postAction: series.postAction
             };
         })
     };
@@ -157,10 +199,12 @@ function actionRow(action) {
         move: action.move,
         actionId: action.actionId,
         team: action.team,
+        artifactType: action.artifactType,
         title: action.title,
         description: action.description,
         mechanism: action.mechanism,
         sector: action.sector,
+        phase: action.phase,
         status: action.status,
         workflowState: action.workflowState,
         outcome: action.outcome,
@@ -170,10 +214,109 @@ function actionRow(action) {
         direction: macro?.direction || null,
         implementationScore: macro?.implementationScore ?? null,
         fitScore: macro?.fitScore ?? null,
+        fitBand: macro?.fitBand || null,
+        submissionMonth: macro?.submissionMonth || null,
+        codebookVersion: macro?.codebookVersion || null,
         noEffect: macro ? macro.noEffect : null,
+        noEffectReason: macro?.noEffectReason || null,
         flags: macro?.flags || [],
         peaks: macro ? indicatorPeaks(macro) : null
     };
+}
+
+function macrosWithSeries(moves) {
+    const macros = [];
+    moves.forEach((move) => {
+        move.actions.forEach((action) => {
+            if (action.macro?.indicators?.length) macros.push(action.macro);
+        });
+    });
+    return macros;
+}
+
+function compactSharedTimeline(moves) {
+    const macros = macrosWithSeries(moves);
+    const timeline = { quarters: [], baseline: {} };
+    if (!macros.length) return timeline;
+
+    const sharedQuarters = macros.every((macro) => listsEqual(macro.quarters, macros[0].quarters))
+        ? macros[0].quarters
+        : null;
+    if (sharedQuarters) timeline.quarters = sharedQuarters;
+
+    const keys = [];
+    macros.forEach((macro) => {
+        macro.indicators.forEach((indicator) => {
+            if (!keys.includes(indicator.indicator)) keys.push(indicator.indicator);
+        });
+    });
+    keys.forEach((key) => {
+        const baselines = macros.flatMap((macro) => {
+            const found = macro.indicators.find((indicator) => indicator.indicator === key);
+            return found ? [found.baseline] : [];
+        });
+        if (baselines.length && baselines.every((list) => listsEqual(list, baselines[0]))) {
+            timeline.baseline[key] = baselines[0];
+        }
+    });
+
+    macros.forEach((macro) => {
+        if (sharedQuarters) delete macro.quarters;
+        macro.indicators = macro.indicators.map((indicator) => {
+            const next = {
+                indicator: indicator.indicator,
+                label: indicator.label,
+                verdict: indicator.verdict,
+                favorableDirection: indicator.favorableDirection,
+                peakDelta: indicator.peakDelta,
+                delta: indicator.delta,
+                postAction: indicator.postAction
+            };
+            if (!listsEqual(indicator.baseline, timeline.baseline[indicator.indicator])) {
+                next.baseline = indicator.baseline;
+            }
+            return next;
+        });
+    });
+    return timeline;
+}
+
+function sharedCodebookVersion(moves) {
+    const versions = new Set();
+    macrosWithSeries(moves).forEach((macro) => {
+        if (macro.codebookVersion) versions.add(macro.codebookVersion);
+    });
+    return versions.size === 1 ? [...versions][0] : null;
+}
+
+function buildIndicatorGuide(moves) {
+    const guide = {};
+    INDICATOR_ORDER.forEach((key) => {
+        const known = INDICATOR_GUIDE[key];
+        guide[key] = {
+            label: known.label,
+            favorableDirection: known.favorableDirection,
+            favorableMeans: favorableMeans(known.favorableDirection)
+        };
+    });
+    moves.forEach((move) => {
+        move.actions.forEach((action) => {
+            (action.macro?.indicators || []).forEach((indicator) => {
+                const current = guide[indicator.indicator] || {
+                    label: indicator.label,
+                    favorableDirection: indicator.favorableDirection,
+                    favorableMeans: favorableMeans(indicator.favorableDirection)
+                };
+                if (indicator.label) current.label = indicator.label;
+                if (indicator.favorableDirection === 1 || indicator.favorableDirection === -1) {
+                    current.favorableDirection = indicator.favorableDirection;
+                    current.favorableMeans = favorableMeans(indicator.favorableDirection);
+                }
+                guide[indicator.indicator] = current;
+            });
+        });
+    });
+    return guide;
 }
 
 export function buildVerbaSimulationExport({
@@ -214,17 +357,22 @@ export function buildVerbaSimulationExport({
             actions: moveActions
         };
     });
+    const timeline = compactSharedTimeline(moves);
     const rows = moves.flatMap((move) => move.actions.map((action) => actionRow(action)));
 
     return {
         version: VERBA_SIMULATION_EXPORT_VERSION,
-        description: 'Whole-simulation export for Verba. moves groups each action under the move it was filed in and holds the quarterly macro series. rows is the flat action sheet: one object per action, with indicator peaks and verdicts, and no second copy of the quarters.',
+        description: EXPORT_DESCRIPTION,
         exportedAt,
         session: {
             id: session?.id || null,
             code: session?.session_code || null,
             name: session?.name || null
         },
+        codebookVersion: sharedCodebookVersion(moves),
+        timeline,
+        indicatorGuide: buildIndicatorGuide(moves),
+        flagGuide: { ...FLAG_GUIDE },
         moveCount: moves.length,
         actionCount: rows.length,
         moves,

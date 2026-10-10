@@ -64,6 +64,13 @@ describe('buildVerbaSimulationExport', () => {
         expect(payload.rows[0].description).toBe('Blue tightens licenses on advanced-node tools.');
         expect(payload.rows[0].peaks).toBeNull();
         expect(payload.rows[0].macro).toBeUndefined();
+        expect(payload.rows[0].fitBand).toBeNull();
+        expect(payload.rows[0].submissionMonth).toBeNull();
+        expect(payload.rows[0].artifactType).toBe('action');
+        expect(payload.timeline).toEqual({ quarters: [], baseline: {} });
+        expect(payload.indicatorGuide.real_gdp_growth.favorableMeans).toBe('Higher is favorable to the United States.');
+        expect(payload.indicatorGuide.pce_inflation.favorableMeans).toBe('Lower is favorable to the United States.');
+        expect(payload.flagGuide.onset_beyond_horizon).toMatch(/zero/);
         expect(verbaSimulationFilename(payload)).toBe('ADMIN2026-verba-simulation.json');
     });
 
@@ -96,15 +103,19 @@ describe('buildVerbaSimulationExport', () => {
         const [exported] = payload.moves[0].actions;
         expect(exported.macro.lever).toBe('L2');
         expect(exported.macro.implementationScore).toBe(8);
+        expect(exported.macro.quarters).toBeUndefined();
+        expect(payload.timeline.quarters).toEqual(['2026Q1', '2026Q2']);
+        expect(payload.timeline.baseline.real_gdp_growth).toEqual([2.1, 2]);
         expect(exported.macro.indicators[0]).toMatchObject({
             indicator: 'real_gdp_growth',
             verdict: 'unfavorable',
-            peakDelta: -0.4
+            peakDelta: -0.4,
+            delta: [0, -0.4],
+            postAction: [2.1, 1.6]
         });
-        expect(exported.macro.indicators[0].quarters).toEqual([
-            { quarter: '2026Q1', baseline: 2.1, delta: 0, postAction: 2.1 },
-            { quarter: '2026Q2', baseline: 2, delta: -0.4, postAction: 1.6 }
-        ]);
+        expect(exported.macro.indicators[0].baseline).toBeUndefined();
+        expect(payload.rows[0].fitBand).toBe('7-8');
+        expect(payload.rows[0].submissionMonth).toBe('2027-01');
 
         const overridden = buildVerbaSimulationExport({
             actions: [action({ id: 'blue-1' })],
@@ -151,7 +162,7 @@ describe('buildVerbaSimulationExport', () => {
             }]
         });
         expect(overridden.moves[0].actions[0].macro.indicators[0].peakDelta).toBe(-0.8);
-        expect(overridden.moves[0].actions[0].macro.indicators[0].quarters[0].postAction).toBe(1.2);
+        expect(overridden.moves[0].actions[0].macro.indicators[0].postAction).toEqual([1.2]);
         expect(overridden.rows[0].peaks.real_gdp_growth).toEqual({
             label: 'Real GDP growth (%)',
             peakDelta: -0.8,
@@ -170,5 +181,65 @@ describe('buildVerbaSimulationExport', () => {
         });
         expect(payload.moves[0].actions[0].description).toBeNull();
         expect(payload.rows[0].description).toBeNull();
+    });
+
+    it('keeps a private window or baseline only on the action that differs', () => {
+        const shared = {
+            status: 'scored',
+            classification: { lever: 'L7' },
+            trend: {
+                quarters: ['2026Q1', '2026Q2'],
+                indicators: {
+                    real_gdp_growth: {
+                        label: 'Real GDP growth (%)',
+                        verdict: 'favorable',
+                        favorable_direction: 1,
+                        baseline: [2.1, 2],
+                        deltas: [0.1, 0.2],
+                        post_action: [2.2, 2.2]
+                    }
+                }
+            }
+        };
+        const payload = buildVerbaSimulationExport({
+            actions: [
+                action({ id: 'blue-1' }),
+                action({ id: 'red-1', team: 'red', goal: 'Red path', expected_outcomes: 'Red restricts inputs.' })
+            ],
+            adjudications: [
+                { ...adjudication('blue-1', shared), codebook_version: 'trial-2026-08-13-quarterly' },
+                {
+                    ...adjudication('red-1', {
+                        ...shared,
+                        flags: ['onset_beyond_horizon'],
+                        trend: {
+                            quarters: ['2032Q1'],
+                            indicators: {
+                                real_gdp_growth: {
+                                    label: 'Real GDP growth (%)',
+                                    verdict: 'neutral',
+                                    favorable_direction: 1,
+                                    baseline: [1.5],
+                                    deltas: [0],
+                                    post_action: [1.5]
+                                }
+                            }
+                        }
+                    }),
+                    codebook_version: 'other-codebook'
+                }
+            ]
+        });
+
+        expect(payload.codebookVersion).toBeNull();
+        expect(payload.timeline.quarters).toEqual([]);
+        expect(payload.timeline.baseline.real_gdp_growth).toBeUndefined();
+        expect(payload.moves[0].actions[0].macro.quarters).toEqual(['2026Q1', '2026Q2']);
+        expect(payload.moves[0].actions[0].macro.indicators[0].baseline).toEqual([2.1, 2]);
+        expect(payload.moves[0].actions[0].macro.codebookVersion).toBe('trial-2026-08-13-quarterly');
+        expect(payload.moves[0].actions[1].macro.quarters).toEqual(['2032Q1']);
+        expect(payload.moves[0].actions[1].macro.indicators[0].baseline).toEqual([1.5]);
+        expect(payload.moves[0].actions[1].macro.flags).toEqual(['onset_beyond_horizon']);
+        expect(payload.rows[1].flags).toEqual(['onset_beyond_horizon']);
     });
 });
