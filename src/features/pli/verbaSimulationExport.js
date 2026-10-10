@@ -7,7 +7,7 @@
 import { getActionTitle, buildSourceActionPresentation } from './pliShared.js';
 import { resolveOutputTracks } from './pliSmeEdits.js';
 
-export const VERBA_SIMULATION_EXPORT_VERSION = 'pli-verba-simulation.v1';
+export const VERBA_SIMULATION_EXPORT_VERSION = 'pli-verba-simulation.v2';
 
 const GAME_MOVES = Object.freeze([1, 2, 3]);
 const TEAM_ORDER = Object.freeze(['blue', 'red', 'green', 'industry']);
@@ -34,19 +34,16 @@ function teamRank(team) {
     return index === -1 ? TEAM_ORDER.length : index;
 }
 
-function actionDescription(action) {
+function actionDescription(action, title) {
     const presentation = buildSourceActionPresentation(action || {});
     const narrative = String(presentation.narrative || '').trim();
     const usableNarrative = narrative && !/^no (objective )?narrative on record\.?$/i.test(narrative)
         ? narrative
         : '';
-    const fallback = String(
-        action?.expected_outcomes
-        || action?.ally_contingencies
-        || action?.goal
-        || ''
-    ).trim();
-    return usableNarrative || fallback || '';
+    const fallback = String(action?.expected_outcomes || action?.ally_contingencies || '').trim();
+    const text = usableNarrative || fallback;
+    if (!text || text === title) return null;
+    return text;
 }
 
 function peakDelta(deltas) {
@@ -100,6 +97,7 @@ function macroOutput(adjudication) {
         fitBand: macro.fit?.band || null,
         submissionMonth: macro.submission_month || adjudication.record?.submission_month || null,
         noEffect: Boolean(trend.no_effect),
+        flags: Array.isArray(macro.flags) ? macro.flags : [],
         indicators: keys.map((key) => {
             const indicator = indicators[key] || {};
             return {
@@ -116,24 +114,65 @@ function macroOutput(adjudication) {
 
 function actionRecord(action, adjudication) {
     const presentation = buildSourceActionPresentation(action || {});
-    return {
+    const title = getActionTitle(action, { action_id: action?.id });
+    const details = (presentation.details || []).map((entry) => ({
+        label: entry.label,
+        value: entry.value
+    }));
+    const record = {
         move: action?.move ?? null,
         actionId: action?.id || null,
         team: action?.team || null,
-        delegation: action?.delegation_id || null,
         artifactType: action?.artifact_type || null,
-        title: getActionTitle(action, { action_id: action?.id }),
-        description: actionDescription(action),
-        details: (presentation.details || []).map((entry) => ({
-            label: entry.label,
-            value: entry.value
-        })),
+        title,
+        description: actionDescription(action, title),
         mechanism: action?.mechanism || null,
         sector: action?.sector || null,
         phase: action?.phase ?? null,
         status: action?.status || null,
+        workflowState: action?.workflow_state || null,
         outcome: action?.outcome || null,
         macro: macroOutput(adjudication)
+    };
+    if (action?.delegation_id) record.delegation = action.delegation_id;
+    if (details.length) record.details = details;
+    return record;
+}
+
+function indicatorPeaks(macro) {
+    const peaks = {};
+    (macro?.indicators || []).forEach((indicator) => {
+        peaks[indicator.indicator] = {
+            label: indicator.label,
+            peakDelta: indicator.peakDelta,
+            verdict: indicator.verdict
+        };
+    });
+    return peaks;
+}
+
+function actionRow(action) {
+    const macro = action.macro;
+    return {
+        move: action.move,
+        actionId: action.actionId,
+        team: action.team,
+        title: action.title,
+        description: action.description,
+        mechanism: action.mechanism,
+        sector: action.sector,
+        status: action.status,
+        workflowState: action.workflowState,
+        outcome: action.outcome,
+        macroStatus: macro?.status || null,
+        lever: macro?.lever || null,
+        instrument: macro?.instrument || null,
+        direction: macro?.direction || null,
+        implementationScore: macro?.implementationScore ?? null,
+        fitScore: macro?.fitScore ?? null,
+        noEffect: macro ? macro.noEffect : null,
+        flags: macro?.flags || [],
+        peaks: macro ? indicatorPeaks(macro) : null
     };
 }
 
@@ -175,14 +214,11 @@ export function buildVerbaSimulationExport({
             actions: moveActions
         };
     });
-    const rows = moves.flatMap((move) => move.actions.map((action) => ({
-        ...action,
-        move: move.move
-    })));
+    const rows = moves.flatMap((move) => move.actions.map((action) => actionRow(action)));
 
     return {
         version: VERBA_SIMULATION_EXPORT_VERSION,
-        description: 'Whole-simulation export for Verba. moves groups each action under the move it was filed in. rows is the same set as a flat table, one object per action, with the PLI macro indicator series on macro.indicators[].quarters.',
+        description: 'Whole-simulation export for Verba. moves groups each action under the move it was filed in and holds the quarterly macro series. rows is the flat action sheet: one object per action, with indicator peaks and verdicts, and no second copy of the quarters.',
         exportedAt,
         session: {
             id: session?.id || null,

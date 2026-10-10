@@ -62,6 +62,8 @@ describe('buildVerbaSimulationExport', () => {
         expect(payload.rows.map((row) => row.move)).toEqual([1, 1, 2]);
         expect(payload.actionCount).toBe(3);
         expect(payload.rows[0].description).toBe('Blue tightens licenses on advanced-node tools.');
+        expect(payload.rows[0].peaks).toBeNull();
+        expect(payload.rows[0].macro).toBeUndefined();
         expect(verbaSimulationFilename(payload)).toBe('ADMIN2026-verba-simulation.json');
     });
 
@@ -148,7 +150,25 @@ describe('buildVerbaSimulationExport', () => {
                 }
             }]
         });
-        expect(overridden.rows[0].macro.indicators[0].peakDelta).toBe(-0.8);
-        expect(overridden.rows[0].macro.indicators[0].quarters[0].postAction).toBe(1.2);
+        expect(overridden.moves[0].actions[0].macro.indicators[0].peakDelta).toBe(-0.8);
+        expect(overridden.moves[0].actions[0].macro.indicators[0].quarters[0].postAction).toBe(1.2);
+        expect(overridden.rows[0].peaks.real_gdp_growth).toEqual({
+            label: 'Real GDP growth (%)',
+            peakDelta: -0.8,
+            verdict: 'unfavorable'
+        });
+        expect(overridden.rows[0].quarters).toBeUndefined();
+    });
+
+    it('does not repeat the title as the description when the action has no narrative', () => {
+        const payload = buildVerbaSimulationExport({
+            actions: [action({
+                id: 'blue-1',
+                goal: 'CHIPS-style surge',
+                expected_outcomes: ''
+            })]
+        });
+        expect(payload.moves[0].actions[0].description).toBeNull();
+        expect(payload.rows[0].description).toBeNull();
     });
 });
